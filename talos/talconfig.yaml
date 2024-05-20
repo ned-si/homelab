@@ -1,0 +1,110 @@
+---
+clusterName: nedsi-homelab
+endpoint: https://192.168.1.11:6443
+
+talosVersion: v1.6.7
+kubernetesVersion: v1.29.3
+
+allowSchedulingOnControlPlanes: true
+
+additionalApiServerCertSans:
+  - 192.168.1.11
+  - 127.0.0.1
+
+cniConfig:
+  name: none
+
+nodes:
+  - hostname: node1
+    ipAddress: 192.168.1.222
+    controlPlane: true
+    installDisk: /dev/mmcblk0
+    networkInterfaces:
+      - interface: enx52dccfda3046
+        dhcp: true
+        vip:
+          ip: 192.168.1.11
+    nodeLabels:
+      rack: turingpi
+
+  - hostname: node2
+    ipAddress: 192.168.1.223
+    controlPlane: true
+    installDisk: /dev/mmcblk0
+    networkInterfaces:
+      - interface: enx86d924a1276b
+        dhcp: true
+        vip:
+          ip: 192.168.1.11
+    nodeLabels:
+      rack: turingpi
+
+  - hostname: node3
+    ipAddress: 192.168.1.224
+    controlPlane: true
+    installDisk: /dev/mmcblk0
+    networkInterfaces:
+      - interface: enx86d924a1276b
+        dhcp: true
+        vip:
+          ip: 192.168.1.11
+    nodeLabels:
+      rack: turingpi
+
+  - hostname: node4
+    ipAddress: 192.168.1.225
+    controlPlane: false
+    installDisk: /dev/mmcblk0
+    networkInterfaces:
+      - interface: enx5eaa023eaa11
+        dhcp: true
+    nodeLabels:
+      rack: turingpi
+
+controlPlane:
+  schematic:
+    customization:
+      extraKernelArgs:
+        - net.ifnames=0
+
+  patches:
+    # Enable KubePrism
+    - &kubePrismPatch |-
+      machine:
+        features:
+          kubePrism:
+            enabled: true
+            port: 7445
+
+    # TuringPi stuff
+    - &turingPiPatch |-
+      machine:
+        kernel:
+          modules:
+            - name: rockchip-cpufreq
+
+    # Enable K8s Talos API Access
+    - |-
+      machine:
+        features:
+          kubernetesTalosAPIAccess:
+            enabled: true
+            allowedRoles:
+              - os:admin
+            allowedKubernetesNamespaces:
+              - kube-system
+
+    # Cluster configuration
+    - |-
+      cluster:
+        allowSchedulingOnMasters: true
+
+worker:
+  schematic:
+    customization:
+      extraKernelArgs:
+        - net.ifnames=0
+
+  patches:
+    - *kubePrismPatch
+    - *turingPiPatch
