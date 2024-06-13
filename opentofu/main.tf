@@ -39,7 +39,7 @@ resource "null_resource" "wait_for_argocd" {
   depends_on = [helm_release.argo]
 
   provisioner "local-exec" {
-    command = "until kubectl --kubeconfig=${path.module}/../kubeconfig-sbtc-part1 get crd applications.argoproj.io; do sleep 5; done"
+    command = "until kubectl --kubeconfig=${path.module}/../kubeconfig-homelab get crd applications.argoproj.io; do sleep 5; done"
   }
 }
 
