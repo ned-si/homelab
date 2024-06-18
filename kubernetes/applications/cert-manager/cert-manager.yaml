@@ -20,7 +20,7 @@ spec:
             enabled: true
         installCRDs: true
         ingressShim:
-          defaultIssuerName: ca-cert
+          defaultIssuerName: letsencrypt
           defaultIssuerKind: ClusterIssuer
         metrics:
           enabled: true
