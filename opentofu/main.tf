@@ -74,6 +74,7 @@ resource "kubectl_manifest" "argocd_applications_parent" {
           prune : true,
           selfHeal : true,
         },
+        syncOptions : ["CreateNamespace=true"],
       },
     },
   })
