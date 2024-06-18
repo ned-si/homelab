@@ -18,7 +18,9 @@ spec:
           enabled: true
           servicemonitor:
             enabled: true
-        installCRDs: true
+        crds:
+          enabled: true
+          keep: true
         ingressShim:
           defaultIssuerName: letsencrypt
           defaultIssuerKind: ClusterIssuer
@@ -27,7 +29,7 @@ spec:
           serviceMonitor:
             enabled: true
     repoURL: https://charts.jetstack.io
-    targetRevision: v1.13.3
+    targetRevision: v1.15.0
   syncPolicy:
     automated: {}
     syncOptions:
