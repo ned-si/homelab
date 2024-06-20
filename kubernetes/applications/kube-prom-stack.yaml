@@ -1,0 +1,51 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  destination:
+    namespace: monitoring
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    chart: kube-prometheus-stack
+    helm:
+      values: |
+        prometheus:
+          prometheusSpec:
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes:
+                    - "ReadWriteOnce"
+                  resources:
+                    requests:
+                      storage: 15Gi
+        grafana:
+          defaultDashboardsTimezone: browser
+          grafana.ini:
+            server:
+              domain: grafana.10.0.10.68.nip.io
+              root_url: https://%(domain)s/
+          ingress:
+            ingressClassName: traefik
+            enabled: true
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt
+            hosts:
+            - grafana.10.0.10.68.nip.io
+            tls: 
+            - secretName: grafana-tls
+              hosts:
+                - grafana.10.0.10.68.nip.io
+        releaseName: kube-prometheus-stack
+    repoURL: "https://prometheus-community.github.io/helm-charts"
+    targetRevision: v56.2.0
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
