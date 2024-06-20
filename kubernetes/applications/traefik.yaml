@@ -10,6 +10,8 @@ spec:
     helm:
       releaseName: traefik
       values: |
+        metrics:
+          prometheus: {}
         service:
           type: LoadBalancer
         providers:
