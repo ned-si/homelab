@@ -14,10 +14,6 @@ spec:
     chart: cert-manager
     helm:
       values: |
-        prometheus:
-          enabled: true
-          servicemonitor:
-            enabled: true
         crds:
           enabled: true
           keep: true
