@@ -66,6 +66,9 @@ controlPlane:
     customization:
       extraKernelArgs:
         - net.ifnames=0
+      systemExtensions:
+       officialExtensions:
+         - siderolabs/iscsi-tools
 
   patches:
     # Enable KubePrism
@@ -104,6 +107,9 @@ worker:
     customization:
       extraKernelArgs:
         - net.ifnames=0
+      systemExtensions:
+       officialExtensions:
+         - siderolabs/iscsi-tools
 
   patches:
     - *kubePrismPatch
