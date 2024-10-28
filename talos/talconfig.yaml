@@ -1,22 +1,30 @@
 ---
-clusterName: nedsi-homelab
-endpoint: https://192.168.1.11:6443
+# yaml-language-server: $schema=https://raw.githubusercontent.com/budimanjojo/talhelper/master/pkg/config/schemas/talconfig.json
 
-talosVersion: v1.6.7
-kubernetesVersion: v1.29.3
+clusterName: nedsi-homelab
+
+# renovate: datasource=github-releases depName=siderolabs/talos
+talosVersion: v1.7.5
+
+# renovate: datasource=github-releases depName=siderolabs/kubelet
+kubernetesVersion: v1.30.3
+
+endpoint: https://192.168.1.11:6443
 
 allowSchedulingOnControlPlanes: true
 
-additionalApiServerCertSans:
+additionalApiServerCertSans: &san
   - 192.168.1.11
   - 127.0.0.1
+
+additionalMachineCertSans: *san
 
 cniConfig:
   name: none
 
 nodes:
-  - hostname: node1
-    ipAddress: 192.168.1.222
+  - hostname: tm-0
+    ipAddress: 192.168.1.247
     controlPlane: true
     installDisk: /dev/mmcblk0
     networkInterfaces:
@@ -27,8 +35,8 @@ nodes:
     nodeLabels:
       rack: turingpi
 
-  - hostname: node2
-    ipAddress: 192.168.1.223
+  - hostname: tm-1
+    ipAddress: 192.168.1.238
     controlPlane: true
     installDisk: /dev/mmcblk0
     networkInterfaces:
@@ -39,8 +47,8 @@ nodes:
     nodeLabels:
       rack: turingpi
 
-  - hostname: node3
-    ipAddress: 192.168.1.224
+  - hostname: tm-2
+    ipAddress: 192.168.1.239
     controlPlane: true
     installDisk: /dev/mmcblk0
     networkInterfaces:
@@ -51,8 +59,8 @@ nodes:
     nodeLabels:
       rack: turingpi
 
-  - hostname: node4
-    ipAddress: 192.168.1.225
+  - hostname: tw-0
+    ipAddress: 192.168.1.240
     controlPlane: false
     installDisk: /dev/mmcblk0
     networkInterfaces:
@@ -66,6 +74,9 @@ controlPlane:
     customization:
       extraKernelArgs:
         - net.ifnames=0
+      systemExtensions:
+        officialExtensions:
+          - siderolabs/iscsi-tools
 
   patches:
     # Enable KubePrism
@@ -82,6 +93,12 @@ controlPlane:
         kernel:
           modules:
             - name: rockchip-cpufreq
+
+    # Disabled kube-proxy as Cilium doesn't need it
+    - &kubeProxyPatch |-
+      cluster:
+        proxy:
+          disabled: true
 
     # Enable K8s Talos API Access
     - |-
@@ -104,7 +121,11 @@ worker:
     customization:
       extraKernelArgs:
         - net.ifnames=0
+      systemExtensions:
+        officialExtensions:
+          - siderolabs/iscsi-tools
 
   patches:
     - *kubePrismPatch
     - *turingPiPatch
+    - *kubeProxyPatch

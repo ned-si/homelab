@@ -3,3 +3,12 @@ nedsi-homelab-node2.yaml
 nedsi-homelab-node3.yaml
 nedsi-homelab-node4.yaml
 talosconfig
+nedsi-homelab-master-0.yaml
+nedsi-homelab-master-1.yaml
+nedsi-homelab-master-3.yaml
+nedsi-homelab-worker-0.yaml
+nedsi-homelab-master-2.yaml
+nedsi-homelab-tm-0.yaml
+nedsi-homelab-tm-1.yaml
+nedsi-homelab-tm-2.yaml
+nedsi-homelab-tw-0.yaml
