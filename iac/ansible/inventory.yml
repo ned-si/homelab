@@ -1,0 +1,23 @@
+all:
+  children:
+    controlplane:
+      hosts:
+        homelab-cp-1:
+          ansible_host: homelab-cp-1.local
+          ansible_user: nedsi
+          ansible_python_interpreter: /usr/bin/python3.10
+        homelab-cp-2:
+          ansible_host: homelab-cp-2.local
+          ansible_user: nedsi
+          ansible_python_interpreter: /usr/bin/python3.10
+        homelab-cp-3:
+          ansible_host: homelab-cp-3.local
+          ansible_user: nedsi
+          ansible_python_interpreter: /usr/bin/python3.10
+
+    workers:
+      hosts:
+        homelab-w-1:
+          ansible_host: homelab-w-1.local
+          ansible_user: nedsi
+          ansible_python_interpreter: /usr/bin/python3.10
