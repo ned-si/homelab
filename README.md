@@ -15,3 +15,38 @@
 ## Kubernetes
 
 Deploy certmanager + argocd with helm, then the rest using those.
+
+
+## NOTES:
+
+DISABLE SWAP permanently!!
+```sh
+sudo swapoff -a
+sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+sudo systemctl mask swapfile.swap
+```
+On nodes, to avoid ARP issue, add `--node-ip=<ip>` flag to kubelet:
+```sh
+sudo -e /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
+```
+
+add how to deploy cilium:
+```sh
+# first install CRDs (experimental necessary for cilium atm, it's a known bug).
+#[doc here](https://gateway-api.sigs.k8s.io/guides/#install-experimental-channel)
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml
+API_SERVER_IP=192.168.1.11
+API_SERVER_PORT=6443
+helm install cilium cilium/cilium --version 1.16.3 \
+    --namespace kube-system \
+    --set kubeProxyReplacement=true \
+    --set k8sServiceHost=${API_SERVER_IP} \
+    --set k8sServicePort=${API_SERVER_PORT} \
+    --set gatewayAPI.enabled=true
+```
+
+actually, move installation to tofu for this...
+
+then [this
+doc](https://github.com/democratic-csi/democratic-csi?tab=readme-ov-file#ubuntu--debian)
+for the democratic-csi.
