@@ -31,7 +31,7 @@ spec:
               domain: grafana.10.0.10.68.nip.io
               root_url: https://%(domain)s/
           ingress:
-            ingressClassName: traefik
+            ingressClassName: cilium
             enabled: true
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt
