@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: traefik
+  namespace: argo
+spec:
+  project: default
+  source:
+    chart: traefik
+    helm:
+      releaseName: traefik
+      values: |
+        metrics:
+          prometheus: {}
+        service:
+          type: LoadBalancer
+        providers:
+          kubernetesIngress:
+            publishedService:
+              enabled: true
+    repoURL: 'https://traefik.github.io/charts'
+    targetRevision: "28.2.0"
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: ingress
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
