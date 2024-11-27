@@ -11,6 +11,14 @@ spec:
     privateKeySecretRef:
       name: letsencrypt
     solvers:
-      - http01:
-          ingress:
-            class: cilium
+      - selector: {}
+        dns01:
+          webhook:
+            groupName: acme.lilalala.com
+            solverName: dynadot
+            config:
+              DYNADOTAPI_Token="7c7Z6tnO8B8vj7H8f6G6mSz6O8v6Z6e6w8s7Q8l8s8Y"
+              DYNADOT_ADD_DNS_SLEEP=1800
+              DYNADOT_REMOVE_DNS_SLEEP=1800
+              DYNADOTAPI_API_RETRIES=5
+              DYNADOTAPI_RETRY_SLEEP=30
