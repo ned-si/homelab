@@ -25,7 +25,8 @@ sudo swapoff -a
 sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 sudo systemctl mask swapfile.swap
 ```
-On nodes, to avoid ARP issue, add `--node-ip=<ip>` flag to kubelet:
+On nodes, to avoid ARP issue, add `--node-ip=<ip>` flag to kubelet to the node
+IP, not the apiserver VIP:
 ```sh
 sudo -e /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
 ```
@@ -50,3 +51,5 @@ actually, move installation to tofu for this...
 then [this
 doc](https://github.com/democratic-csi/democratic-csi?tab=readme-ov-file#ubuntu--debian)
 for the democratic-csi.
+
+- Write about current set up on Truenas's side. Try to make it better/leaner.
