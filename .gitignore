@@ -41,3 +41,4 @@ override.tf.json
 terraform.rc
 opentofu/.terraform.lock.hcl
 pki
+iac/ubuntu-22.04.3-preinstalled-server-arm64-turing-rk1_v1.33.img
