@@ -11,14 +11,12 @@ spec:
     privateKeySecretRef:
       name: letsencrypt
     solvers:
-      - selector: {}
-        dns01:
-          webhook:
-            groupName: acme.lilalala.com
-            solverName: dynadot
-            config:
-              DYNADOTAPI_Token="REDACTED"
-              DYNADOT_ADD_DNS_SLEEP=1800
-              DYNADOT_REMOVE_DNS_SLEEP=1800
-              DYNADOTAPI_API_RETRIES=5
-              DYNADOTAPI_RETRY_SLEEP=30
+      - http01:
+          ingress:
+            ingressClassName: traefik
+      - http01:
+          gatewayHTTPRoute:
+            parentRefs:
+              - name: cilium
+                namespace: kube-system
+                kind: Gateway
