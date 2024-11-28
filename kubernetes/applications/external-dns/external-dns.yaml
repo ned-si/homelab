@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  destination:
+    namespace: external-dns
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    chart: external-dns
+    helm:
+      values: |
+        provider:
+          name: cloudflare
+        env:
+          - name: CF_API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: cloudflare-api-token-secret
+                key: api-token
+    repoURL: https://kubernetes-sigs.github.io/external-dns/
+    targetRevision: v1.15.0
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
