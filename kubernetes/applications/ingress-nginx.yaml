@@ -11,8 +11,6 @@ spec:
       releaseName: ingress-nginx
       values: |
         controller:
-          service:
-            externalTrafficPolicy: Local
           metrics:
             enabled: true
     repoURL: "https://kubernetes.github.io/ingress-nginx"
