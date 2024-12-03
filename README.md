@@ -43,7 +43,7 @@ helm install cilium cilium/cilium --version 1.16.3 \
     --set kubeProxyReplacement=true \
     --set k8sServiceHost=${API_SERVER_IP} \
     --set k8sServicePort=${API_SERVER_PORT} \
-    --set gatewayAPI.enabled=true
+    --set gatewayAPI.enabled=true TODO:UPDATE
 ```
 
 actually, move installation to tofu for this...
@@ -53,3 +53,13 @@ doc](https://github.com/democratic-csi/democratic-csi?tab=readme-ov-file#ubuntu-
 for the democratic-csi.
 
 - Write about current set up on Truenas's side. Try to make it better/leaner.
+
+## ingress issue
+
+- set NAT
+- set ippool to existing internal range
+- set external-dns annotation to ing
+- set cilium L2 announcement policy
+- upgrade helm with proper values for L2: `--set l2announcements.enabled=true
+--set externalIPs.enabled=true`
+- remove `extneralTrafficPolicy: Local`
