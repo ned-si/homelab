@@ -1,0 +1,28 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    external-dns.alpha.kubernetes.io/target: 178.39.124.203
+  labels:
+    app.kubernetes.io/name: keycloak
+  name: keycloak
+  namespace: keycloak
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: auth.lilalala.com
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: keycloak
+            port:
+              name: http
+  tls:
+  - hosts:
+    - auth.lilalala.com
+    secretName: keycloak-tls
