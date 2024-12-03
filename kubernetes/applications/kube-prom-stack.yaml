@@ -38,6 +38,7 @@ spec:
               external-dns.alpha.kubernetes.io/target: 178.39.124.203
             hosts:
             - grafana.lilalala.com
+            pathType: ImplementationSpecific
             tls: 
             - secretName: grafana-general-tls
               hosts:
