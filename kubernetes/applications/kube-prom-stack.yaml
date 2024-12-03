@@ -29,7 +29,7 @@ spec:
           grafana.ini:
             server:
               domain: grafana.lilalala.com
-              root_url: http://%(domain)s/
+              root_url: https://%(domain)s/
           ingress:
             ingressClassName: nginx
             enabled: true
