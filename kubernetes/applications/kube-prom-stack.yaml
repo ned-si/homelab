@@ -26,6 +26,7 @@ spec:
                       storage: 15Gi
         grafana:
           defaultDashboardsTimezone: browser
+          assertNoLeakedSecrets: false
           grafana.ini:
             server:
               domain: grafana.lilalala.com
