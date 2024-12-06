@@ -50,7 +50,7 @@ spec:
             autoRegister: false
             clientId: immich
             clientSecret: dMFzHxrJZ8VcmzKMJQhxzvoydbQO1Pu4
-            "scope": "openid email profile",
+            scope: "openid email profile"
         server:
           enabled: true
           image:
