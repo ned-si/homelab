@@ -36,9 +36,9 @@ spec:
         immich:
           metrics:
             enabled: true
-        persistence:
-          library:
-            existingClaim: immich-data
+          persistence:
+            library:
+              existingClaim: immich-data
         configuration:
           trash:
             enabled: true
