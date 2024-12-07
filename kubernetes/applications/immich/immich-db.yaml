@@ -2,7 +2,7 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: immmich-db
+  name: immich-db
   namespace: immich
 spec:
   instances: 1
