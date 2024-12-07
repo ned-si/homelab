@@ -38,9 +38,9 @@ spec:
             days: 30
           oauth:
             enabled: true
-            issuerUrl: https://media.lilalala.com
+            issuerUrl: https://auth.lilalala.com/realms/homelab
             autoLaunch: true
-            autoRegister: true
+            autoRegister: false
             clientId: immich
             clientSecret: REDACTED
             scope: "openid email profile"
