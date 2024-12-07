@@ -5,7 +5,7 @@ metadata:
   namespace: argo
 spec:
   destination:
-    namespace: db
+    namespace: immich
     server: https://kubernetes.default.svc
   project: default
   source:
