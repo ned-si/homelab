@@ -40,7 +40,7 @@ spec:
             enabled: true
             issuerUrl: https://media.lilalala.com
             autoLaunch: true
-            autoRegister: false
+            autoRegister: true
             clientId: immich
             clientSecret: REDACTED
             scope: "openid email profile"
