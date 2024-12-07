@@ -17,7 +17,7 @@ spec:
           DB_URL:
             valueFrom:
               secretKeyRef:
-                name: postgresql-app
+                name: immich-db-app
                 key: uri
           TZ: Europe/Zurich
         postgres:
