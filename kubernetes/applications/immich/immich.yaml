@@ -13,7 +13,8 @@ spec:
     helm:
       values: |
         env:
-          - name: DB_URL
+          REDIS_HOSTNAME: "valkey.immich.svc.cluster.local"
+          DB_URL:
             valueFrom:
               secretKeyRef:
                 name: postgresql-app
