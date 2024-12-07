@@ -1,24 +1,41 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Application
+---
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: immich-valkey
-  namespace: argo
+  labels:
+    app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: immich
 spec:
-  destination:
-    namespace: immich
-    server: https://kubernetes.default.svc
-  project: default
-  source:
-    chart: valkey
-    helm:
-      values: 
-        auth:
-          enabled: true
-          password: test-pass
-    repoURL: oci://registry-1.docker.io/bitnamicharts/valkey
-    targetRevision: v2.1.2
-  syncPolicy:
-    automated: {}
-    syncOptions:
-      - CreateNamespace=true
-
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8.0.1-alpine
+          ports:
+            - containerPort: 6379
+              protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: immich
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: valkey
