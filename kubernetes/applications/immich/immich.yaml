@@ -13,19 +13,11 @@ spec:
     helm:
       values: |
         env:
-          REDIS_HOSTNAME: "valkey.immich.svc.cluster.local"
-          DB_HOSTNAME: "immich-db-rw.immich.svc.cluster.local"
-          DB_DATABASE_NAME: immich
-          DB_USERNAME: Asparagus7838
-            # valueFrom:
-            #   secretKeyRef:
-            #     name: db-immich
-            #     key: username
-          DB_PASSWORD: REDACTED
-            # valueFrom:
-            #   secretKeyRef:
-            #     name: db-immich
-            #     key: password
+          - name: DB_URL
+            valueFrom:
+              secretKeyRef:
+                name: postgresql-app
+                key: uri
           TZ: Europe/Zurich
         postgres:
           enabled: false
