@@ -32,18 +32,18 @@ spec:
           persistence:
             library:
               existingClaim: immich-data
-        configuration:
-          trash:
-            enabled: true
-            days: 30
-          oauth:
-            enabled: true
-            issuerUrl: https://auth.lilalala.com/realms/homelab
-            autoLaunch: true
-            autoRegister: false
-            clientId: immich
-            clientSecret: REDACTED
-            scope: "openid email profile"
+          configuration:
+            trash:
+              enabled: true
+              days: 30
+            oauth:
+              enabled: true
+              issuerUrl: https://auth.lilalala.com/realms/homelab
+              autoLaunch: true
+              autoRegister: false
+              clientId: immich
+              clientSecret: REDACTED
+              scope: "openid email profile"
         server:
           enabled: true
           image:
