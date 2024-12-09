@@ -40,7 +40,7 @@ spec:
               enabled: true
               issuerUrl: https://auth.lilalala.com/realms/homelab
               autoLaunch: true
-              autoRegister: false
+              autoRegister: true
               clientId: immich
               clientSecret: dMFzHxrJZ8VcmzKMJQhxzvoydbQO1Pu4
               scope: "openid email profile"
