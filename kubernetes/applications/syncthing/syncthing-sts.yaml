@@ -1,0 +1,46 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: syncthing
+  namespace: syncthing
+spec:
+  selector:
+    matchLabels:
+      app: syncthing
+  serviceName: syncthing
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: syncthing
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+      - name: syncthing
+        image: syncthing/syncthing:latest
+        ports:
+        - name: web-ui
+          containerPort: 8384
+        - name: syncthing-tcp
+          containerPort: 22000
+          protocol: TCP
+        - name: syncthing-udp
+          containerPort: 22000
+          protocol: UDP
+        - name: syncthing-disc
+          containerPort: 21027
+          protocol: UDP
+        volumeMounts:
+        - name: syncthing
+          mountPath: /var/syncthing
+        env:
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+      volumes:
+      - name: syncthing
+        persistentVolumeClaim:
+          claimName: syncthing-pvc
+          readOnly: false
