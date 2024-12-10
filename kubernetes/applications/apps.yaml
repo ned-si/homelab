@@ -1,0 +1,19 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: syncthing
+  namespace: argo
+spec:
+  destination:
+    namespace: syncthing
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: kubernetes/applications/syncthing
+    repoURL: https://github.com/ned-si/homelab
+    targetRevision: main
+  syncPolicy:
+    automated: {}
+    syncOptions:
+      - CreateNamespace=true
