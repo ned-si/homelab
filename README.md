@@ -63,3 +63,11 @@ for the democratic-csi.
 - upgrade helm with proper values for L2: `--set l2announcements.enabled=true
 --set externalIPs.enabled=true`
 - remove `extneralTrafficPolicy: Local`
+
+## immich
+
+- wth oidc not workin?
+- tidy up argo hierarchy
+- test queue
+- test db
+- what about scaling?
