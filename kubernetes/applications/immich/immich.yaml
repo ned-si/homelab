@@ -44,6 +44,10 @@ spec:
               clientId: immich
               clientSecret: dMFzHxrJZ8VcmzKMJQhxzvoydbQO1Pu4
               scope: "openid email profile"
+            machineLearning:
+              clip:
+                enabled: true
+                modelName: ViT-B-16-SigLIP-i18n-256__webli
         server:
           enabled: true
           image:
