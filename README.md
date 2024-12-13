@@ -71,3 +71,8 @@ for the democratic-csi.
 - test queue
 - test db
 - what about scaling?
+
+## syncthing
+
+- LB is fine, but then NAT needs to be set.
+- Global Discovery needs to be enabled on all clients.
