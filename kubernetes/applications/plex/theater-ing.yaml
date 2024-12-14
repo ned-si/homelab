@@ -1,0 +1,28 @@
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    external-dns.alpha.kubernetes.io/target: 178.39.124.203
+  labels:
+    app.kubernetes.io/name: theater
+  name: theater
+  namespace: theater
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: theater.lilalala.com
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: plex
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - theater.lilalala.com
+      secretName: theater-tls
