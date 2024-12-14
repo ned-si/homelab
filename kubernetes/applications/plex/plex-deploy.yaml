@@ -26,6 +26,8 @@ spec:
         env:
         - name: TZ
           value: Europe/Zurich
+        - name: PLEX_CLAIM
+          value: claim-LMDmpt3ajCdHygf-8pw7
         ports:
         - name: http
           containerPort: 32400
