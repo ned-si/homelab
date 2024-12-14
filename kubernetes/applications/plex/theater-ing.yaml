@@ -22,6 +22,46 @@ spec:
                 name: plex
                 port:
                   name: http
+    - host: theater.lilalala.com
+      http:
+        paths:
+          - path: /arr/radarr
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: radarr
+                port:
+                  name: http
+    - host: theater.lilalala.com
+      http:
+        paths:
+          - path: /arr/sonarr
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: sonarr
+                port:
+                  name: http
+    - host: theater.lilalala.com
+      http:
+        paths:
+          - path: /arr/prowlarr
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: prowlarr
+                port:
+                  name: http
+    - host: theater.lilalala.com
+      http:
+        paths:
+          - path: /arr/lidarr
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: lidarr
+                port:
+                  name: http
   tls:
     - hosts:
         - theater.lilalala.com
