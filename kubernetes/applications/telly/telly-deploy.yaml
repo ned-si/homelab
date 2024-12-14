@@ -1,0 +1,45 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: telly
+  name: telly
+  namespace: theater
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: null
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: telly
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: telly
+    spec:
+      containers:
+      - name: telly
+        image: tellytv/telly:dev-ffmpeg
+        env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: TELLY_WEB_BASE_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        ports:
+        - name: http
+          containerPort: 6077
+          protocol: TCP
+        volumeMounts:
+        - name: config
+          mountPath: /etc/telly/telly.config.toml
+          subPath: telly.config.toml
+      nodeSelector:
+        kubernetes.io/arch: amd64
+      volumes:
+      - name: config
+        configMap:
+          name: telly-config
