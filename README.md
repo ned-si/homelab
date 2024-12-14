@@ -76,3 +76,8 @@ for the democratic-csi.
 
 - LB is fine, but then NAT needs to be set.
 - Global Discovery needs to be enabled on all clients.
+
+## plex
+
+- nfs: harden (!)
+- move to official helm chart
