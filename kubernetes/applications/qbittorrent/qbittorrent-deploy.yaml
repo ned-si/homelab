@@ -19,8 +19,6 @@ spec:
       labels:
         app.kubernetes.io/name: qbittorrent
     spec:
-      nodeSelector:
-        kubernetes.io/arch: amd64
       containers:
         - name: qbittorrent
           image: ghcr.io/hotio/qbittorrent:latest

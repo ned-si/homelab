@@ -37,8 +37,6 @@ spec:
         - name: config
           mountPath: /etc/telly/telly.config.toml
           subPath: telly.config.toml
-      nodeSelector:
-        kubernetes.io/arch: amd64
       volumes:
       - name: config
         configMap:
