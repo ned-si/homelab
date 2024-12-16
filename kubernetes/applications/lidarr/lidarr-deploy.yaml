@@ -29,8 +29,8 @@ spec:
               value: "1000"
             - name: UMASK
               value: "002"
-            - name: LIDARR__LOG__DBENABLED
-              value: "false"
+            # - name: LIDARR__LOG__DBENABLED
+            #   value: "false"
             - name: LIDARR__POSTGRES__HOST
               valueFrom:
                 secretKeyRef:
