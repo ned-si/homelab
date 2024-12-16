@@ -31,31 +31,31 @@ spec:
               value: "002"
             # - name: LIDARR__LOG__DBENABLED
             #   value: "false"
-            - name: LIDARR__POSTGRES__HOST
-              valueFrom:
-                secretKeyRef:
-                  name: lidarr-postgresql-app
-                  key: host
-            - name: LIDARR__POSTGRES__PORT
-              valueFrom:
-                secretKeyRef:
-                  name: lidarr-postgresql-app
-                  key: port
-            - name: LIDARR__POSTGRES__USER
-              valueFrom:
-                secretKeyRef:
-                  name: lidarr-postgresql-app
-                  key: user
-            - name: LIDARR__POSTGRES__PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: lidarr-postgresql-app
-                  key: password
-            - name: LIDARR__POSTGRES__MAINDB
-              valueFrom:
-                secretKeyRef:
-                  name: lidarr-postgresql-app
-                  key: dbname
+            # - name: LIDARR__POSTGRES__HOST
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: lidarr-postgresql-app
+            #       key: host
+            # - name: LIDARR__POSTGRES__PORT
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: lidarr-postgresql-app
+            #       key: port
+            # - name: LIDARR__POSTGRES__USER
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: lidarr-postgresql-app
+            #       key: user
+            # - name: LIDARR__POSTGRES__PASSWORD
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: lidarr-postgresql-app
+            #       key: password
+            # - name: LIDARR__POSTGRES__MAINDB
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: lidarr-postgresql-app
+            #       key: dbname
             - name: LIDARR__SERVER__URLBASE
               value: /arr/lidarr
           ports:
