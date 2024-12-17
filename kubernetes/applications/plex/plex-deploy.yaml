@@ -49,4 +49,4 @@ spec:
       - name: media
         nfs:
           server: 192.168.1.228
-          path: /mnt/homelab/k8s/nfs
+          path: /mnt/homelab/k8s/nfs/media
