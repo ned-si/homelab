@@ -4,7 +4,7 @@ kind: Ingress
 metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
-    external-dns.alpha.kubernetes.io/target: 178.39.124.203
+    external-dns.alpha.kubernetes.io/target: 188.155.74.203
   labels:
     app.kubernetes.io/name: keycloak
   name: keycloak
