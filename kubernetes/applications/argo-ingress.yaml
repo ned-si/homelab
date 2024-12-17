@@ -6,7 +6,7 @@ metadata:
     cert-manager.io/revision-history-limit: "1"
     nginx.ingress.kubernetes.io/backend-protocol: HTTPS
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
-    external-dns.alpha.kubernetes.io/target: 178.39.124.203
+    external-dns.alpha.kubernetes.io/target: 188.155.74.203
   name: argo-server-ingress
   namespace: argo
 spec:
