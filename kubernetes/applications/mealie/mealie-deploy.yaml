@@ -1,0 +1,76 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: mealie
+  name: mealie
+  namespace: mealie
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mealie
+    spec:
+      containers:
+        - name: mealie
+          image: ghcr.io/mealie-recipes/mealie:v2.4.0
+          imagePullPolicy: Always
+          env:
+            - name: ALLOW_SIGNUP
+              value: "false"
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: BASE_URL
+              value: "https://mealie.lilalala.com"
+            - name: BASE_URL
+              value: "postgres"
+            - name: mealie__LOG__DBENABLED
+              value: "false"
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-app
+                  key: port
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-app
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-app
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-postgresql-app
+                  key: dbname
+          ports:
+            - name: http
+              containerPort: 9000
+              protocol: TCP
+          resources:
+            limits:
+              memory: "1000Mi"
+          volumeMounts:
+            - name: mealie-data
+              mountPath: /app/data
+      volumes:
+        - name: mealie-data
+          persistentVolumeClaim:
+            claimName: mealie-pvc
