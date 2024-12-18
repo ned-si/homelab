@@ -32,7 +32,7 @@ spec:
             - name: SEAFILE_ADMIN_PASSWORD
               value: "REDACTED" #admin password
             - name: SEAFILE_SERVER_LETSENCRYPT
-              value: "true"
+              value: "false"
             - name: SEAFILE_SERVER_HOSTNAME
               value: "https://drive.lilalala.com" #hostname
           ports:
