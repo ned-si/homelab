@@ -30,7 +30,7 @@ spec:
             - name: PGID
               value: "1000"
             - name: BASE_URL
-              value: "https://mealie.lilalala.com"
+              value: "https://cook.lilalala.com"
             - name: BASE_URL
               value: "postgres"
             - name: mealie__LOG__DBENABLED
