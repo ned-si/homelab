@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: paperless
-          image: ghcr.io/paperless-ngx/paperless-ngx:1.17.2
+          image: ghcr.io/paperless-ngx/paperless-ngx:2.13.5
           imagePullPolicy: Always
           env:
             - name: PAPERLESS_REDIS
