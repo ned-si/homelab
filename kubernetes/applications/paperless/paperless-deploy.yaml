@@ -44,8 +44,8 @@ spec:
               value: '{"openid_connect":{"APPS":[{"provider_id":"keycloak","name":"Keycloak","client_id":"paperless","secret": "EqUb0Joy7mhBXO0xTh3z2IiSQB7qXLZv","settings": { "server_url": "https://auth.lilalala.com/realms/homelab/.well-known/openid-configuration"}}]}}'
             - name: PAPERLESS_SOCIAL_AUTO_SIGNUP
               value: "true"
-            # - name: PAPERLESS_REDIRECT_LOGIN_TO_SSO
-            #   value: "true"
+            - name: PAPERLESS_REDIRECT_LOGIN_TO_SSO
+              value: "true"
           ports:
             - name: http
               containerPort: 8000
