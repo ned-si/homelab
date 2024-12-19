@@ -8,6 +8,9 @@ metadata:
   namespace: seafile
 spec:
   replicas: 1
+  strategy:
+    rollingUpdate: null
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: seafile
@@ -34,9 +37,9 @@ spec:
             - name: SEAFILE_SERVER_LETSENCRYPT
               value: "false"
             - name: SEAFILE_SERVER_HOSTNAME
-              value: "https://drive.lilalala.com" #hostname
+              value: "drive.lilalala.com" #hostname
             - name: CSRF_TRUSTED_ORIGINS
-              value: "https://drive.lilalala.com"
+              value: "[https://drive.lilalala.com]"
           ports:
             - name: http
               containerPort: 80
