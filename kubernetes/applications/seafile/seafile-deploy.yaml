@@ -9,7 +9,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    rollingUpdate: null
+    # rollingUpdate: null #this errors with argo for some reason
     type: Recreate
   selector:
     matchLabels:
