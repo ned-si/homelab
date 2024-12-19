@@ -60,6 +60,20 @@ spec:
                 secretKeyRef:
                   name: mealie-postgresql-app
                   key: dbname
+            - name: OIDC_AUTH_ENABLED
+              value: "true"
+            - name: OIDC_CONFIGURATION_URL
+              value: "https://auth.lilalala.com/.well-known/openid-configuration"
+            - name: OIDC_CLIENT_ID
+              value: mealie
+            - name: OIDC_CLIENT_SECRET
+              value: biLeDqKXKye0huL4hICl53zLXfVXZ4ep
+            - name: OIDC_AUTO_REDIRECT
+              value: "true"
+            - name: OIDC_PROVIDER_NAME
+              value: "Keycloak"
+            - name: OIDC_REMEMBER_ME
+              value: "true"
           ports:
             - name: http
               containerPort: 9000
