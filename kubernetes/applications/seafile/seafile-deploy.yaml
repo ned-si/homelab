@@ -37,7 +37,7 @@ spec:
             - name: SEAFILE_SERVER_LETSENCRYPT
               value: "false"
             - name: SEAFILE_SERVER_HOSTNAME
-              value: "drive.lilalala.com" #hostname
+              value: "https://drive.lilalala.com" #hostname
           ports:
             - name: http
               containerPort: 80
