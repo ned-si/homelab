@@ -62,3 +62,10 @@ spec:
             - name: http
               containerPort: 9696
               protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: prowlarr-config
