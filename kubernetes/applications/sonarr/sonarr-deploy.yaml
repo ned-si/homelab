@@ -63,9 +63,14 @@ spec:
               containerPort: 8989
               protocol: TCP
           volumeMounts:
+            - name: config
+              mountPath: /config
             - name: media
               mountPath: /data
       volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
         - name: media
           nfs:
             server: 192.168.1.228
