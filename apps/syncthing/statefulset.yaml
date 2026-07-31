@@ -1,0 +1,98 @@
+# Syncthing.
+#
+# WHAT CHANGED
+#   - image `syncthing/syncthing:latest` -> pinned 2.1.2. Note this crosses the
+#     1.x -> 2.x boundary: Syncthing 2.0 migrated its database format and 2.x
+#     will NOT downgrade cleanly. Peers on 1.x still interoperate, but back up
+#     the config volume before syncing this.
+#   - the PVC is now a volumeClaimTemplate on the StatefulSet instead of a
+#     standalone PVC. That is what a StatefulSet is for, and it stops the volume
+#     being silently reused by an unrelated pod.
+#   - added probes and resource requests.
+#
+# OPERATIONAL NOTE, unchanged from the old README and still true: peer-to-peer
+# sync needs the router to forward TCP/UDP 22000 to the LoadBalancer address in
+# ./services.yaml, and every client must have Global Discovery enabled. Without
+# the forward, Syncthing falls back to relays and throughput collapses.
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: syncthing
+  namespace: syncthing
+  labels:
+    app.kubernetes.io/name: syncthing
+spec:
+  serviceName: syncthing-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: syncthing
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: syncthing
+    spec:
+      # Syncthing needs to finish writing its index database on shutdown; a hard
+      # kill mid-write is the usual cause of "database corrupted" on restart.
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: syncthing
+          # renovate: datasource=docker depName=syncthing/syncthing
+          image: syncthing/syncthing:2.1.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+          ports:
+            - name: web
+              containerPort: 8384
+              protocol: TCP
+            - name: sync-tcp
+              containerPort: 22000
+              protocol: TCP
+            - name: sync-udp
+              containerPort: 22000
+              protocol: UDP
+            - name: discovery
+              containerPort: 21027
+              protocol: UDP
+          volumeMounts:
+            - name: data
+              mountPath: /var/syncthing
+          readinessProbe:
+            httpGet:
+              path: /rest/noauth/health
+              port: web
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /rest/noauth/health
+              port: web
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: iscsi
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 100Gi

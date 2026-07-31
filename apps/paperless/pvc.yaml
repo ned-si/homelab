@@ -1,0 +1,46 @@
+# Three volumes with genuinely different jobs:
+#
+#   data     the SQLite database, search index and thumbnails. The important one.
+#   media    the original documents. The irreplaceable one.
+#   consume  a drop-box that Paperless watches and empties. Transient.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-data
+  namespace: paperless
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Bumped from 4Gi: the search index grows with the archive and 4Gi is
+      # uncomfortably tight once the index is rebuilt.
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-media
+  namespace: paperless
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-consume
+  namespace: paperless
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

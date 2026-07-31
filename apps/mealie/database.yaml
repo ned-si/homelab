@@ -1,0 +1,25 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: mealie-postgresql
+  namespace: mealie
+spec:
+  instances: 1
+  # Pinned: an unset image means the operator's default, which shifts major
+  # version across operator upgrades and then refuses to start on existing data.
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 384Mi
+  backup:
+    retentionPolicy: 14d

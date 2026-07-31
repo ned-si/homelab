@@ -1,0 +1,77 @@
+# Three Services, because Syncthing genuinely needs three different exposures.
+#
+#   syncthing-headless  StatefulSet governing Service. Required by the
+#                       StatefulSet spec; carries no traffic.
+#   syncthing           ClusterIP for the web UI, behind the Gateway.
+#   syncthing-sync      LoadBalancer on the LAN for the peer-to-peer protocol.
+#                       This is the one the router forwards 22000 to.
+#
+# The old repo had `syncthing-dashboard` (ClusterIP) and `syncthing-protocol`
+# (LoadBalancer) but no headless Service, so the StatefulSet's serviceName
+# pointed at something that did not exist.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing-headless
+  namespace: syncthing
+  labels:
+    app.kubernetes.io/name: syncthing
+spec:
+  clusterIP: None
+  ports:
+    - name: web
+      port: 8384
+      targetPort: web
+  selector:
+    app.kubernetes.io/name: syncthing
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing
+  namespace: syncthing
+  labels:
+    app.kubernetes.io/name: syncthing
+spec:
+  type: ClusterIP
+  ports:
+    - name: web
+      port: 8384
+      targetPort: web
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: syncthing
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing-sync
+  namespace: syncthing
+  labels:
+    app.kubernetes.io/name: syncthing
+    # Take an address from the `services` pool, not the Gateway's.
+    homelab.lilalala.com/lb-pool: services
+  annotations:
+    # Publish this address so remote peers can find it by name. Note this is the
+    # LAN address; the router must forward 22000 from the WAN to it.
+    external-dns.alpha.kubernetes.io/hostname: sync.lilalala.com
+spec:
+  type: LoadBalancer
+  # Deliberately NOT externalTrafficPolicy: Local -- incompatible with Cilium
+  # L2 announcements, causes silent drops.
+  ports:
+    - name: sync-tcp
+      port: 22000
+      targetPort: sync-tcp
+      protocol: TCP
+    - name: sync-udp
+      port: 22000
+      targetPort: sync-udp
+      protocol: UDP
+    - name: discovery
+      port: 21027
+      targetPort: discovery
+      protocol: UDP
+  selector:
+    app.kubernetes.io/name: syncthing
