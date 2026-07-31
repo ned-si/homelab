@@ -1,0 +1,48 @@
+# democratic-csi, freenas-iscsi driver. Provides the `iscsi` StorageClass that
+# every stateful workload in this cluster uses for its config/data volume.
+#
+# The driver's own configuration (TrueNAS host, API key, SSH credentials, zvol
+# layout) is NOT here. It is a SOPS-encrypted Secret created by the
+# `secrets-infrastructure` Application -- see
+# infrastructure/secrets/democratic-csi-iscsi.sops.yaml.example.
+#
+# This split is the whole point: chart values stay reviewable in plaintext,
+# credentials never appear in git unencrypted.
+
+csiDriver:
+  # Must be globally unique per cluster. Changing it orphans existing volumes.
+  name: org.democratic-csi.iscsi
+
+# Pull the entire `driver.config` block from an existing Secret whose
+# `driver-config-file.yaml` key holds it.
+driver:
+  existingConfigSecret: democratic-csi-iscsi-config
+
+storageClasses:
+  - name: iscsi
+    defaultClass: true
+    reclaimPolicy: Delete
+    # `Immediate` matches the old behaviour. WaitForFirstConsumer would be
+    # better for topology, but these are all single-replica workloads on a flat
+    # 4-node LAN where every node can reach the same portal, so it buys nothing.
+    volumeBindingMode: Immediate
+    allowVolumeExpansion: true
+    parameters:
+      fsType: xfs
+    mountOptions: []
+    secrets:
+      provisioner-secret:
+      controller-publish-secret:
+      node-stage-secret:
+      node-publish-secret:
+      controller-expand-secret:
+
+# Snapshot support. Worth having enabled before you need it rather than after.
+volumeSnapshotClasses:
+  - name: iscsi
+    deletionPolicy: Delete
+
+node:
+  driver:
+    # iSCSI initiators need to talk to the host's iscsid.
+    localtimeHostPath: false
