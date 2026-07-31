@@ -1,0 +1,212 @@
+# Task runner: https://taskfile.dev
+#
+#   task              list every task with its description
+#   task <name>       run one
+#
+# Install: brew install go-task
+---
+version: "3"
+
+vars:
+  # Where `task secrets:decrypt` writes plaintext. Git-ignored.
+  DECRYPT_DIR: .decrypted
+  # renovate: datasource=github-releases depName=kubernetes-sigs/gateway-api
+  GATEWAY_API_VERSION: v1.6.1
+  KUSTOMIZE_DIRS:
+    sh: find clusters infrastructure platform apps -name kustomization.yaml -exec dirname {} \; 2>/dev/null | sort
+  SOPS_FILES:
+    sh: git ls-files '*.sops.yaml' 2>/dev/null || true
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # -------------------------------------------------------------------------
+  # Tooling
+  # -------------------------------------------------------------------------
+  tools:
+    desc: Install the local toolchain (macOS / Homebrew)
+    cmds:
+      - brew install go-task sops age kustomize kubeconform helm yq pre-commit
+      - pre-commit install --install-hooks
+      - pre-commit install --hook-type commit-msg
+
+  tools:check:
+    desc: Verify required tools are present
+    silent: true
+    cmds:
+      - |
+        missing=0
+        for t in sops age kustomize helm kubeconform; do
+          command -v "$t" >/dev/null 2>&1 || { echo "missing: $t"; missing=1; }
+        done
+        [ "$missing" -eq 0 ] || { echo; echo "Run 'task tools' first."; exit 1; }
+        echo "toolchain ok"
+
+  # -------------------------------------------------------------------------
+  # Secrets
+  # -------------------------------------------------------------------------
+  secrets:keygen:
+    desc: Generate the cluster age identity (run ONCE, then back it up)
+    cmds:
+      - ./scripts/age-key.sh
+
+  secrets:inventory:
+    desc: Write every secret you must encrypt into a git-ignored crib sheet
+    cmds:
+      - ./scripts/secrets-inventory.sh
+
+  secrets:seal:
+    desc: 'Encrypt a plaintext file in place. Usage: task secrets:seal -- path/to/x.sops.yaml'
+    deps: [tools:check]
+    cmds:
+      - |
+        f='{{.CLI_ARGS}}'
+        [ -n "$f" ] || { echo 'usage: task secrets:seal -- path/to/secret.sops.yaml'; exit 1; }
+        sops --encrypt --in-place "$f"
+        echo "sealed: $f"
+
+  secrets:seal:all:
+    desc: Encrypt every *.sops.yaml that is still plaintext
+    deps: [tools:check]
+    cmds:
+      - |
+        for f in $(git ls-files -co --exclude-standard '*.sops.yaml'); do
+          if ! grep -q '^sops:' "$f"; then
+            sops --encrypt --in-place "$f" && echo "sealed: $f"
+          fi
+        done
+
+  secrets:edit:
+    desc: 'Edit an encrypted file. Usage: task secrets:edit -- path/to/x.sops.yaml'
+    deps: [tools:check]
+    cmds:
+      - |
+        f='{{.CLI_ARGS}}'
+        [ -n "$f" ] || { echo 'usage: task secrets:edit -- path/to/secret.sops.yaml'; exit 1; }
+        sops "$f"
+
+  secrets:decrypt:
+    desc: Decrypt every *.sops.yaml into .decrypted/ for local rendering
+    deps: [tools:check]
+    cmds:
+      - rm -rf {{.DECRYPT_DIR}} && mkdir -p {{.DECRYPT_DIR}}
+      - |
+        for f in {{.SOPS_FILES}}; do
+          out="{{.DECRYPT_DIR}}/$f"
+          mkdir -p "$(dirname "$out")"
+          sops --decrypt "$f" > "$out" || exit 1
+        done
+        echo "decrypted into {{.DECRYPT_DIR}}/"
+
+  secrets:leak-check:
+    desc: Fail if unencrypted secret material is staged for commit
+    cmds:
+      - ./scripts/leak-check.sh
+
+  # -------------------------------------------------------------------------
+  # Validation
+  # -------------------------------------------------------------------------
+  lint:
+    desc: Run every linter (same set as CI)
+    cmds:
+      - task: lint:yaml
+      - task: lint:renovate
+      - task: lint:tofu
+      - task: secrets:leak-check
+
+  lint:yaml:
+    desc: yamllint over the manifest tree
+    cmds:
+      - yamllint .
+
+  lint:renovate:
+    desc: Validate the Renovate config and prove every annotation matches
+    cmds:
+      - npx --yes --package renovate -- renovate-config-validator .github/renovate.json5
+      - node scripts/renovate-dryrun.js
+
+  lint:tofu:
+    desc: Check OpenTofu formatting
+    cmds:
+      - tofu fmt -recursive -check -diff bootstrap
+
+  build:
+    desc: Render every kustomization (secrets stay encrypted)
+    deps: [tools:check]
+    cmds:
+      - |
+        set -e
+        for d in {{.KUSTOMIZE_DIRS}}; do
+          printf '\033[36m==> %s\033[0m\n' "$d"
+          kustomize build --enable-alpha-plugins --enable-exec "$d" >/dev/null
+        done
+        echo "all kustomizations render"
+
+  build:no-plugins:
+    desc: Render everything kubectl can handle, no kustomize/ksops needed
+    cmds:
+      - ./scripts/render-check.sh
+
+  validate:
+    desc: Render + schema-validate against the cluster's Kubernetes version
+    deps: [tools:check]
+    cmds:
+      - |
+        set -e
+        for d in {{.KUSTOMIZE_DIRS}}; do
+          kustomize build --enable-alpha-plugins --enable-exec "$d" \
+            | kubeconform -strict -summary -ignore-missing-schemas \
+                -schema-location default \
+                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{`{{.Group}}`}}/{{`{{.ResourceKind}}`}}_{{`{{.ResourceAPIVersion}}`}}.json'
+        done
+
+  # -------------------------------------------------------------------------
+  # Bootstrap
+  # -------------------------------------------------------------------------
+  bootstrap:plan:
+    desc: OpenTofu plan for the Argo CD bootstrap
+    dir: bootstrap
+    cmds:
+      - tofu init -upgrade
+      - tofu plan
+
+  bootstrap:apply:
+    desc: OpenTofu apply for the Argo CD bootstrap
+    dir: bootstrap
+    cmds:
+      - tofu init -upgrade
+      - tofu apply
+
+  # -------------------------------------------------------------------------
+  # Cluster operations
+  # -------------------------------------------------------------------------
+  gateway-api:url:
+    desc: Print the pinned Gateway API CRD bundle URL
+    silent: true
+    cmds:
+      - echo "https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml"
+
+  apps:status:
+    desc: Show every Argo CD Application and its sync/health state
+    silent: true
+    cmds:
+      - kubectl -n argocd get applications -o wide
+
+  apps:diff:
+    desc: 'Diff a live Application against git. Usage: task apps:diff -- theater'
+    cmds:
+      - argocd app diff '{{.CLI_ARGS}}'
+
+  shutdown:
+    desc: Gracefully quiesce the cluster before a physical move
+    cmds:
+      - ./scripts/graceful-shutdown.sh
+
+  startup:
+    desc: Bring the cluster back up after a physical move
+    cmds:
+      - ./scripts/graceful-startup.sh

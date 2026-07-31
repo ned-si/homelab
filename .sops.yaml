@@ -1,0 +1,24 @@
+# SOPS encryption rules.
+#
+# Every file matching `path_regex` is encrypted to the age recipients listed
+# below. Only the VALUES of the matched keys are encrypted; YAML keys, comments
+# and structure stay in plaintext so diffs remain reviewable.
+#
+# The matching private key lives in TWO places and nowhere else:
+#   1. your password manager (backup)
+#   2. the `sops-age` Secret in the `argocd` namespace (seeded by OpenTofu)
+#
+# See docs/secrets.md before touching this file.
+---
+creation_rules:
+  # Kubernetes Secret manifests: encrypt only the payload, not the metadata.
+  # This keeps `kubectl`-shaped diffs readable in pull requests.
+  - path_regex: .*\.sops\.ya?ml$
+    encrypted_regex: ^(data|stringData)$
+    age: >-
+      REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+
+  # Helm values / plain config that contain secrets but are not Secret objects.
+  - path_regex: .*\.sops\.env$
+    age: >-
+      REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
