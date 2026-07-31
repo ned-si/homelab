@@ -1,0 +1,41 @@
+# The root Application. Mirrors clusters/homelab/root.yaml, with repoURL and
+# targetRevision injected by OpenTofu so the bootstrap can follow a working
+# branch while the committed manifest tracks main.
+#
+# Once this exists, Argo CD manages itself and its own children. Nothing else is
+# applied imperatively.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: {{ .Values.namespace }}
+  finalizers:
+    # Deleting this Application cascades to the entire cluster. That is
+    # deliberate: teardown should be one explicit action, not a surprise.
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    # Hand ownership to Argo CD: Helm created this object, but it must not try to
+    # reconcile or delete it afterwards.
+    helm.sh/resource-policy: keep
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: {{ .Values.path | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

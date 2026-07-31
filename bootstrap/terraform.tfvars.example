@@ -1,0 +1,19 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+#
+# Do NOT put `sops_age_key` or `git_token` in this file. Pass both through the
+# environment so they never land on disk in cleartext:
+#
+#     export TF_VAR_sops_age_key="$(cat ~/.config/sops/age/keys.txt)"
+#     export TF_VAR_git_token="ghp_..."
+#
+# then:
+#
+#     task bootstrap:apply
+
+git_username = "ned-si"
+
+# While rebuilding, track the working branch instead of main:
+target_revision = "chore/gitops-restructure"
+
+# SITE-SPECIFIC: update after the house move if the LAN subnet changes.
+api_server_ip = "192.168.1.11"
