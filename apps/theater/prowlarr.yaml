@@ -1,0 +1,171 @@
+# Prowlarr - indexer aggregator. Feeds Sonarr/Radarr/Lidarr.
+#
+# Same shape as sonarr.yaml. Two differences worth noting:
+#
+#   - No /data mount. Prowlarr never touches media files; it only talks to
+#     indexers and pushes releases to the other *arr apps over HTTP. Giving it
+#     the media share would be pointless extra reach.
+#
+#   - Port 9696.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: prowlarr-postgresql
+  namespace: theater
+spec:
+  instances: 1
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 384Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prowlarr-config
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: prowlarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prowlarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: prowlarr
+          # renovate: datasource=docker depName=ghcr.io/hotio/prowlarr
+          image: ghcr.io/hotio/prowlarr:release-2.5.2.5491
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "002"
+            - name: PROWLARR__LOG__DBENABLED
+              value: "false"
+            - name: PROWLARR__POSTGRES__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-postgresql-app
+                  key: host
+            - name: PROWLARR__POSTGRES__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-postgresql-app
+                  key: port
+            - name: PROWLARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-postgresql-app
+                  key: user
+            - name: PROWLARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-postgresql-app
+                  key: password
+            - name: PROWLARR__POSTGRES__MAINDB
+              valueFrom:
+                secretKeyRef:
+                  name: prowlarr-postgresql-app
+                  key: dbname
+          ports:
+            - name: http
+              containerPort: 9696
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: prowlarr-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prowlarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: prowlarr
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 9696
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: prowlarr
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prowlarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - prowlarr.lilalala.com
+  rules:
+    - backendRefs:
+        - name: prowlarr
+          port: 9696

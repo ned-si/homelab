@@ -1,0 +1,201 @@
+# Sonarr - TV series.
+#
+# This file is the reference shape for all four *arr apps; radarr.yaml,
+# lidarr.yaml and prowlarr.yaml follow it and only note their differences.
+#
+# WHAT CHANGED FROM THE OLD MANIFEST
+#
+#   - image pinned. Was `ghcr.io/hotio/sonarr:latest` + `imagePullPolicy: Always`,
+#     which is what let the whole stack drift for a year unnoticed.
+#
+#   - `SONARR__SERVER__URLBASE=/arr/sonarr` REMOVED. The old Ingress did
+#     path-based routing on a single hostname (theater.lilalala.com/arr/sonarr),
+#     which forced every app into a subpath and broke on any app that generated
+#     absolute URLs. Each app now gets its own hostname under the wildcard
+#     certificate, which costs nothing and removes the whole class of problem.
+#     If you had bookmarks, they change: sonarr.lilalala.com.
+#
+#   - the inline `nfs:` volume is now the shared `theater-data` PVC, mounted at
+#     /data so that /data/torrents and /data/media are on ONE mount and
+#     hardlinked imports keep working. See infrastructure/nfs-storage/.
+#
+#   - resource requests and probes added; there were none.
+#
+# The Postgres credentials come from the CloudNativePG-generated
+# `sonarr-postgresql-app` Secret, so no database password exists in git.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: sonarr-postgresql
+  namespace: theater
+spec:
+  instances: 1
+  # Pin the image. Unset means the operator's default, which changes major
+  # version across operator upgrades and then refuses to start on existing data.
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 384Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarr-config
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: sonarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sonarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: sonarr
+          # renovate: datasource=docker depName=ghcr.io/hotio/sonarr
+          image: ghcr.io/hotio/sonarr:release-4.0.19.2979
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            # Every app in this namespace shares PUID/PGID/UMASK. This is what
+            # makes qBittorrent's downloads writable by Sonarr and therefore
+            # hardlinkable. Changing it for one app breaks imports for all.
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "002"
+            # Keep the log database out of Postgres; it is high-churn and
+            # worthless to retain.
+            - name: SONARR__LOG__DBENABLED
+              value: "false"
+            - name: SONARR__POSTGRES__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: host
+            - name: SONARR__POSTGRES__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: port
+            - name: SONARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: user
+            - name: SONARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: password
+            - name: SONARR__POSTGRES__MAINDB
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: dbname
+          ports:
+            - name: http
+              containerPort: 8989
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            # Whole share at /data: needs to see BOTH ./torrents and ./media on
+            # one mount for hardlinks to work.
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: theater-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: sonarr
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8989
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: sonarr
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sonarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - sonarr.lilalala.com
+  rules:
+    - backendRefs:
+        - name: sonarr
+          port: 8989

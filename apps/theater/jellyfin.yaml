@@ -1,0 +1,150 @@
+# Jellyfin.
+#
+# WHAT CHANGED
+#   - image was `ghcr.io/jellyfin/jellyfin` with no tag (= :latest). Pinned.
+#   - media mount is now read-only (see plex.yaml for the reasoning).
+#   - the UDP 7359 auto-discovery port was published on a ClusterIP Service,
+#     where it could never do anything: client auto-discovery is a LAN broadcast
+#     and a ClusterIP is not on the LAN. Removed rather than left as decoration.
+#     If you want auto-discovery, it needs a LoadBalancer Service from the
+#     `services` pool, the same way Syncthing does it.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-config
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-cache
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Transcode + image cache. 5Gi filled up quickly on a large library.
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: jellyfin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jellyfin
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: jellyfin
+          # renovate: datasource=docker depName=ghcr.io/jellyfin/jellyfin
+          image: ghcr.io/jellyfin/jellyfin:10.11.11
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: JELLYFIN_PublishedServerUrl
+              value: https://cinema.lilalala.com
+          ports:
+            - name: http
+              containerPort: 8096
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: cache
+              mountPath: /cache
+            - name: data
+              mountPath: /media
+              subPath: media
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 4Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: jellyfin-config
+        - name: cache
+          persistentVolumeClaim:
+            claimName: jellyfin-cache
+        - name: data
+          persistentVolumeClaim:
+            claimName: theater-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellyfin
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: jellyfin
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8096
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: jellyfin
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: jellyfin
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - cinema.lilalala.com
+  rules:
+    - backendRefs:
+        - name: jellyfin
+          port: 8096
+      timeouts:
+        # Long-lived media streams; see plex.yaml.
+        request: "0s"
+        backendRequest: "0s"

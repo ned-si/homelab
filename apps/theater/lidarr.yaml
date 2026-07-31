@@ -1,0 +1,181 @@
+# Lidarr - music. Same shape as sonarr.yaml.
+#
+# NOTE ON THE DATABASE: the old manifest had every LIDARR__POSTGRES__* variable
+# commented out while still deploying a `lidarr-postgresql` CloudNativePG
+# Cluster. So Lidarr was running on its internal SQLite database and a completely
+# unused Postgres instance was burning a 5Gi iSCSI volume and ~200Mi of RAM.
+#
+# Resolved by using Postgres properly, consistent with the other three apps.
+#
+# IF YOU HAVE EXISTING LIDARR DATA: it is in SQLite inside the lidarr-config
+# volume and switching to Postgres will present Lidarr with an EMPTY database --
+# it will start fresh, not migrate. Either accept the loss of history, or drop
+# the LIDARR__POSTGRES__* block below (and delete the Cluster) to stay on SQLite.
+# There is no in-place migration path in Lidarr.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: lidarr-postgresql
+  namespace: theater
+spec:
+  instances: 1
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 384Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lidarr-config
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lidarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: lidarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lidarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lidarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: lidarr
+          # renovate: datasource=docker depName=ghcr.io/hotio/lidarr
+          image: ghcr.io/hotio/lidarr:release-3.1.0.4875
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "002"
+            - name: LIDARR__LOG__DBENABLED
+              value: "false"
+            - name: LIDARR__POSTGRES__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgresql-app
+                  key: host
+            - name: LIDARR__POSTGRES__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgresql-app
+                  key: port
+            - name: LIDARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgresql-app
+                  key: user
+            - name: LIDARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgresql-app
+                  key: password
+            - name: LIDARR__POSTGRES__MAINDB
+              valueFrom:
+                secretKeyRef:
+                  name: lidarr-postgresql-app
+                  key: dbname
+          ports:
+            - name: http
+              containerPort: 8686
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: lidarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: theater-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lidarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: lidarr
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8686
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: lidarr
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: lidarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - lidarr.lilalala.com
+  rules:
+    - backendRefs:
+        - name: lidarr
+          port: 8686
