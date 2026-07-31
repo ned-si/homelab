@@ -1,0 +1,30 @@
+# Infrastructure: CNI, CRDs, certificates, DNS, storage drivers.
+#
+# This project is deliberately the only one allowed to create cluster-scoped
+# resources. Anything that needs a ClusterRole, a CRD or a webhook belongs here,
+# which makes "what can escalate privilege in this cluster" a short list.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: infrastructure
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Cluster plumbing - CNI, Gateway API, cert-manager, DNS, CSI
+  sourceRepos:
+    - https://github.com/ned-si/homelab.git
+    - https://helm.cilium.io
+    - https://charts.jetstack.io
+    - https://kubernetes-sigs.github.io/external-dns/
+    - https://democratic-csi.github.io/charts/
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

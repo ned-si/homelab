@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Ordering inside the infrastructure layer, by sync-wave:
+#
+#   -30  namespaces        explicit namespace inventory, with PSA labels
+#   -25  secrets           SOPS-decrypted Secrets (needs the namespaces above)
+#   -20  gateway-api       CRDs must exist before Cilium can program a Gateway
+#   -10  cilium            CNI + kube-proxy replacement + Gateway controller
+#    -5  cilium-config     LB IP pools + L2 announcement policy (needs Cilium CRDs)
+#     0  cert-manager      its CRDs must be established before issuers appear
+#     5  cert-manager-issuers
+#    10  external-dns      publishes records for Gateway addresses
+#    15  gateway           the single shared entrypoint every HTTPRoute attaches to
+#    20  democratic-csi    StorageClasses, needed before any PVC in later layers
+#    25  nfs-storage       static NFS PVs/PVCs for the media library
+resources:
+  - namespaces.yaml
+  - secrets.yaml
+  - gateway-api.yaml
+  - cilium.yaml
+  - cilium-config.yaml
+  - cert-manager.yaml
+  - cert-manager-issuers.yaml
+  - external-dns.yaml
+  - gateway.yaml
+  - democratic-csi.yaml
+  - nfs-storage.yaml
