@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: keycloak
+
+resources:
+  - database.yaml
+  - deployment.yaml
+  - service.yaml
+  - httproute.yaml
+  - backup.yaml
+
+# includeSelectors: false -- see apps/theater/kustomization.yaml for why
+# `commonLabels` is avoided (immutable Deployment selectors).
+labels:
+  - includeSelectors: false
+    pairs:
+      app.kubernetes.io/part-of: keycloak

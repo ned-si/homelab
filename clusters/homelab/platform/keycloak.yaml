@@ -1,0 +1,35 @@
+# Keycloak: the identity provider every other app federates against.
+#
+# Kept as hand-written manifests rather than a chart, deliberately. The upstream
+# Keycloak chart is thin, and the Bitnami chart's images moved behind a
+# subscription in 2025. A single Deployment plus a CloudNativePG Cluster is less
+# code than the values file would be, and the failure modes are visible.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: platform/keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+  ignoreDifferences:
+    # CloudNativePG owns the instance count and rolls it during switchover.
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /status

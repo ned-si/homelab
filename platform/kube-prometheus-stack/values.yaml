@@ -1,0 +1,157 @@
+# kube-prometheus-stack.
+#
+# Scope note: this restores monitoring to a working state on Gateway API with no
+# plaintext secrets. Retention, recording rules and real dashboards are a
+# separate piece of work.
+
+# ---------------------------------------------------------------------------
+# Prometheus
+# ---------------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    retention: 30d
+    retentionSize: 12GiB   # leave headroom inside the 15Gi volume below
+    # Discover ServiceMonitors and PodMonitors from EVERY namespace, not only
+    # those carrying the release label. Without these four flags the monitors
+    # shipped by Cilium, cert-manager and CloudNativePG are silently ignored --
+    # a classic "metrics enabled but no data" trap.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: iscsi
+          resources:
+            requests:
+              storage: 15Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        memory: 2Gi
+
+# ---------------------------------------------------------------------------
+# Alertmanager. Left enabled but with no receivers configured: alerts are
+# visible in the UI and go nowhere else. Wiring up notifications belongs with
+# the observability work, not here.
+# ---------------------------------------------------------------------------
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: iscsi
+          resources:
+            requests:
+              storage: 2Gi
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+
+# ---------------------------------------------------------------------------
+# Grafana
+# ---------------------------------------------------------------------------
+grafana:
+  defaultDashboardsTimezone: browser
+
+  # The chart refuses to start if it finds what looks like a secret in
+  # `grafana.ini`. Previously this was set to false because the OIDC client
+  # secret was pasted in literally. It is now a real Secret reference, so the
+  # check can stay on -- it is a useful guard against regressing.
+  assertNoLeakedSecrets: true
+
+  persistence:
+    enabled: true
+    storageClassName: iscsi
+    size: 5Gi
+
+  # Ingress is dead; the route lives in ./routes/grafana.yaml.
+  ingress:
+    enabled: false
+
+  grafana.ini:
+    server:
+      domain: grafana.lilalala.com
+      root_url: "https://%(domain)s/"
+    # Grafana sits behind the Gateway, which terminates TLS.
+    security:
+      cookie_secure: true
+      cookie_samesite: lax
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak
+      allow_sign_up: true
+      client_id: grafana
+      # Injected from the `grafana-oidc` Secret via the envFrom below. Grafana
+      # substitutes $__env{} at config-render time, which keeps the value out of
+      # both git and the rendered ConfigMap.
+      client_secret: $__env{GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+      scopes: "openid email profile offline_access roles"
+      email_attribute_path: email
+      login_attribute_path: preferred_username
+      name_attribute_path: name
+      auth_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/auth
+      token_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/token
+      api_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/userinfo
+      role_attribute_path: "contains(roles[*], 'admin') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'"
+      # Do not let a user without a mapped role fall back to Viewer silently if
+      # the claim is missing entirely -- fail the login instead.
+      role_attribute_strict: false
+
+  envFrom:
+    - secretRef:
+        # Created by the `secrets-platform` Application.
+        name: grafana-oidc
+
+  # Pick up dashboards from ConfigMaps labelled grafana_dashboard="1", which is
+  # how CloudNativePG and Cilium ship theirs.
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+# ---------------------------------------------------------------------------
+# Exporters
+# ---------------------------------------------------------------------------
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
+
+# These are kubeadm-managed control plane components listening on the node's
+# own address. The chart's defaults assume a managed control plane and produce
+# permanently-down targets on a self-hosted cluster.
+kubeControllerManager:
+  enabled: true
+  endpoints: []
+kubeScheduler:
+  enabled: true
+  endpoints: []
+kubeEtcd:
+  enabled: true
+  endpoints: []
+
+# kube-proxy is REPLACED by Cilium, so there is nothing to scrape. Leaving this
+# enabled produces a permanently-firing "KubeProxyDown" alert.
+kubeProxy:
+  enabled: false

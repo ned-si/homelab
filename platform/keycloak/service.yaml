@@ -1,0 +1,63 @@
+# Two Services, with distinct jobs. The old manifest used one headless Service
+# for both, which meant JGroups cluster discovery and HTTP routing were coupled.
+#
+#   keycloak            ClusterIP. What the HTTPRoute sends traffic to.
+#   keycloak-headless   No cluster IP. Only exists so JGroups can resolve the
+#                       per-pod A records it needs for Infinispan clustering.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: keycloak
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-headless
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  type: ClusterIP
+  clusterIP: None
+  # JGroups must be able to discover pods before they pass readiness, otherwise
+  # a cold start cannot form a cluster.
+  publishNotReadyAddresses: true
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: keycloak
+---
+# Management port: health and Prometheus metrics. Deliberately a separate
+# Service so it is obvious that nothing routes /metrics through the Gateway.
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-management
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+spec:
+  type: ClusterIP
+  ports:
+    - name: mgmt
+      port: 9000
+      targetPort: mgmt
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: keycloak
