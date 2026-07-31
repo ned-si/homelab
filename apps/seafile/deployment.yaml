@@ -1,0 +1,99 @@
+# Seafile.
+#
+# WHAT CHANGED
+#   - DB_ROOT_PASSWD and SEAFILE_ADMIN_PASSWORD were literal strings in git (and
+#     the DB password was duplicated from the MariaDB manifest). Both now come
+#     from Secrets. Both old values are compromised.
+#   - image `seafileltd/seafile-mc:11.0-latest` kept at the 11.0 MINOR-floating
+#     tag rather than a full pin. This is a deliberate, documented exception to
+#     the "pin everything" rule in this repo: Seafile does not publish
+#     immutable patch tags for the community image in a form Renovate can order,
+#     so a full pin would have to be updated by hand and would rot. The tag is
+#     still bounded to 11.0.x, so it cannot silently cross a major version the
+#     way `:latest` did elsewhere.
+#     If you upgrade past 11.0, Seafile requires running its own upgrade scripts
+#     inside the container -- it is not a tag change. See
+#     docs/runbooks/seafile-mariadb-upgrade.md.
+#   - `rollingUpdate: null` removed. It was commented out with "this errors with
+#     argo for some reason": the reason is that `rollingUpdate` is invalid when
+#     `type: Recreate`, and an explicit null confuses server-side apply. Setting
+#     only `type: Recreate` is correct and the error goes away.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: seafile
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: seafile
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seafile
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seafile
+    spec:
+      securityContext:
+        fsGroup: 0
+      containers:
+        - name: seafile
+          # renovate: datasource=docker depName=seafileltd/seafile-mc versioning=loose
+          image: seafileltd/seafile-mc:11.0-latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TIME_ZONE
+              value: Europe/Zurich
+            - name: DB_HOST
+              value: mariadb
+            - name: DB_ROOT_PASSWD
+              valueFrom:
+                secretKeyRef:
+                  # Same Secret the MariaDB Deployment reads, so there is exactly
+                  # one copy of this password.
+                  name: seafile-db
+                  key: root-password
+            - name: SEAFILE_SERVER_HOSTNAME
+              value: drive.lilalala.com
+            # TLS is terminated at the Gateway, so Seafile must not try to get
+            # its own certificate.
+            - name: SEAFILE_SERVER_LETSENCRYPT
+              value: "false"
+          envFrom:
+            # Supplies SEAFILE_ADMIN_EMAIL and SEAFILE_ADMIN_PASSWORD.
+            - secretRef:
+                name: seafile-admin
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /shared
+          readinessProbe:
+            httpGet:
+              path: /accounts/login/
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 240
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1536Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: seafile-data

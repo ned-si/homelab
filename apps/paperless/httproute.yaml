@@ -1,0 +1,25 @@
+# archive.lilalala.com -> Paperless.
+#
+# The old file for this was named `seafile-ingress.yaml` inside the paperless
+# directory -- a copy-paste leftover that made the repo hard to navigate.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - archive.lilalala.com
+  rules:
+    - backendRefs:
+        - name: paperless
+          port: 8000
+      timeouts:
+        # Bulk document uploads and OCR-on-upload can take a while.
+        request: "0s"
+        backendRequest: "0s"

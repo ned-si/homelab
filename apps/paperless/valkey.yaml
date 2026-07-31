@@ -1,0 +1,108 @@
+# Valkey for Paperless' task queue.
+#
+# Kept as a hand-rolled Deployment (unlike Immich, whose chart now bundles one).
+# Paperless has no chart here, and a single-replica Valkey is 20 lines.
+#
+# WHAT CHANGED
+#   - image 8.0.1-alpine -> 9.1.1-alpine, now Renovate-tracked.
+#   - added a PVC. The old Deployment had no volume at all, so the queue lived in
+#     the container filesystem: every restart dropped in-flight OCR jobs, and
+#     documents dropped into the consume directory during that window were never
+#     processed. That is a quiet data-loss path, not just an inconvenience.
+#   - added probes and resource requests.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-valkey
+  namespace: paperless
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: paperless
+  labels:
+    app.kubernetes.io/name: valkey
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: valkey
+          # renovate: datasource=docker depName=valkey/valkey
+          image: valkey/valkey:9.1.1-alpine
+          imagePullPolicy: IfNotPresent
+          args:
+            # Persist to disk so a restart does not lose the queue.
+            - --save
+            - "60"
+            - "1"
+            - --appendonly
+            - "yes"
+            - --dir
+            - /data
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperless-valkey
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey
+  namespace: paperless
+  labels:
+    app.kubernetes.io/name: valkey
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: valkey

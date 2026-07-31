@@ -1,0 +1,69 @@
+# memcached for Seafile's session/object cache. Stateless by design: losing it
+# costs a slower first page load, nothing more, so no volume.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memcached
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: memcached
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: memcached
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: memcached
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 11211
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: memcached
+          # renovate: datasource=docker depName=memcached
+          image: memcached:1.6.45-alpine
+          imagePullPolicy: IfNotPresent
+          args: ["-m", "256"]
+          ports:
+            - name: memcached
+              containerPort: 11211
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: memcached
+            initialDelaySeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              # -m 256 plus overhead. A limit below the -m value would get the
+              # process OOM-killed exactly when the cache became useful.
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memcached
+  namespace: seafile
+  labels:
+    app.kubernetes.io/name: memcached
+spec:
+  type: ClusterIP
+  ports:
+    - name: memcached
+      port: 11211
+      targetPort: memcached
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: memcached
