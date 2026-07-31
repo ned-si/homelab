@@ -1,0 +1,36 @@
+# Layer 1 - infrastructure. Nothing else can be healthy until this is.
+#
+# This Application only ever creates other Applications, so it lives in the
+# `default` project; the workloads it spawns live in the `infrastructure`
+# project and are the ones subject to the RBAC there.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: layer-infrastructure
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: clusters/homelab/infrastructure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m

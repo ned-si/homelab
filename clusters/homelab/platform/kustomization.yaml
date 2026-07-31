@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Ordering inside the platform layer, by sync-wave:
+#
+#   -25  secrets                 SOPS-decrypted Secrets for this layer
+#     0  cloudnative-pg          the operator; its CRDs gate every Cluster below
+#    10  kube-prometheus-stack   ServiceMonitor/PodMonitor CRDs that earlier
+#                                layers already reference (Cilium, cert-manager).
+#                                Those references are harmless while missing,
+#                                which is why monitoring can come after them.
+#     5  barman-cloud-plugin     CNPG backup plugin; needs cert-manager + operator
+#    20  keycloak                needs a database and a Gateway to be useful
+#    30  backup-verify           needs the plugin, the operator and Prometheus CRDs
+resources:
+  - secrets.yaml
+  - cloudnative-pg.yaml
+  - barman-cloud-plugin.yaml
+  - kube-prometheus-stack.yaml
+  - keycloak.yaml
+  - backup-verify.yaml

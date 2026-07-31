@@ -1,0 +1,43 @@
+# Platform: shared services that applications consume but do not own.
+# Database operator, monitoring stack, identity provider.
+#
+# Allowed cluster-scoped resources are enumerated rather than wildcarded, so a
+# chart that suddenly wants to install a mutating webhook shows up as a sync
+# error instead of silently gaining cluster-wide reach.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Shared services - CloudNativePG, observability, Keycloak
+  sourceRepos:
+    - https://github.com/ned-si/homelab.git
+    - https://cloudnative-pg.github.io/charts
+    - https://prometheus-community.github.io/helm-charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+    - group: storage.k8s.io
+      kind: StorageClass
+    - group: monitoring.coreos.com
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

@@ -1,0 +1,42 @@
+# The ONE Application that OpenTofu applies. Everything else in the cluster is
+# a descendant of this object, so `tofu apply` never needs to know about any
+# individual workload.
+#
+#   root  ->  clusters/homelab/bootstrap  (AppProjects + the three layer apps)
+#               ->  clusters/homelab/infrastructure  ->  infrastructure/*
+#               ->  clusters/homelab/platform        ->  platform/*
+#               ->  clusters/homelab/apps            ->  apps/*
+#
+# Deleting this Application cascades to the whole cluster. That is intentional
+# and is why it carries the resources-finalizer: it makes teardown a single,
+# explicit action rather than a surprise.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: clusters/homelab/bootstrap
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
