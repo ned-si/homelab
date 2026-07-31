@@ -1,0 +1,47 @@
+# LoadBalancer IP address pools.
+#
+# ###########################################################################
+# # SITE-SPECIFIC -- MUST BE REVIEWED AFTER THE HOUSE MOVE
+# #
+# # These CIDRs have to sit inside the LAN subnet but OUTSIDE the router's DHCP
+# # range, otherwise the router will eventually lease the same address to a
+# # laptop and you will spend an evening debugging "intermittent" outages.
+# #
+# # Old house: LAN 192.168.1.0/24, DHCP pool assumed to end before .240.
+# ###########################################################################
+#
+# Two pools on purpose:
+#
+#   gateway   a single address, shared by every HTTP(S) service through the
+#             Gateway API. This is the address your router port-forwards 80/443
+#             to and the one external-dns publishes for all web hostnames.
+#
+#   services  addresses for the handful of workloads that need a raw TCP/UDP
+#             port on the LAN and cannot be expressed as an HTTPRoute:
+#             Syncthing's sync protocol and qBittorrent's listen port.
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: gateway
+spec:
+  # Only the shared Gateway may claim from this pool. Without the selector any
+  # Service of type LoadBalancer could grab the address the whole site depends
+  # on, purely by being reconciled first.
+  serviceSelector:
+    matchLabels:
+      homelab.lilalala.com/lb-pool: gateway
+  blocks:
+    - cidr: 192.168.1.254/32   # SITE-SPECIFIC
+---
+apiVersion: cilium.io/v2
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: services
+spec:
+  serviceSelector:
+    matchLabels:
+      homelab.lilalala.com/lb-pool: services
+  blocks:
+    - start: 192.168.1.240     # SITE-SPECIFIC
+      stop: 192.168.1.249      # SITE-SPECIFIC

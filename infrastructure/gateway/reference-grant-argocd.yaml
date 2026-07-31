@@ -1,0 +1,27 @@
+# Allows HTTPRoutes in the `gateway` namespace to send traffic to Services in
+# the `argocd` namespace.
+#
+# Gateway API refuses cross-namespace backend references unless the TARGET
+# namespace explicitly opts in. This is the one place in the repo that needs it:
+# every application route lives in the same namespace as its own Service, but
+# Argo CD's route is kept next to the Gateway (see argocd-route.yaml) because
+# Argo CD is infrastructure rather than an application.
+#
+# The grant is narrow on purpose -- only HTTPRoute, only from `gateway`, and only
+# to the `argocd-server` Service. It does not open the argocd namespace up
+# generally.
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: gateway-to-argocd
+  namespace: argocd
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: gateway
+  to:
+    - group: ""
+      kind: Service
+      name: argocd-server

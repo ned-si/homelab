@@ -1,0 +1,31 @@
+# Let's Encrypt production. Rate-limited to 50 certificates per registered
+# domain per week, so validate changes against the staging issuer first.
+#
+# DNS-01 is used rather than HTTP-01 for two reasons:
+#   - it is the only solver that can issue a WILDCARD certificate, which is what
+#     lets every subdomain share one cert on the Gateway;
+#   - it does not require inbound port 80 to be reachable, so certificates keep
+#     renewing even while the router / port forwarding is being reconfigured.
+#     That matters during the house move.
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: igontfh79hks@opayq.com
+    privateKeySecretRef:
+      name: letsencrypt-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+        selector:
+          dnsZones:
+            - lilalala.com

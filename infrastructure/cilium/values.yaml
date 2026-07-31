@@ -1,0 +1,120 @@
+# Cilium values. Read by BOTH the OpenTofu bootstrap and the Argo CD
+# Application, so this file is the single source of truth for CNI config.
+#
+# ###########################################################################
+# # SITE-SPECIFIC -- REVIEW AFTER THE HOUSE MOVE
+# #
+# # k8sServiceHost below is the Kubernetes API VIP on the OLD LAN (192.168.1.0/24).
+# # If the new house uses a different subnet, this value and the LoadBalancer
+# # IP pools in ./ip-pools.yaml must both change, and Cilium needs a restart.
+# #
+# # Everything else in this file is site-independent.
+# ###########################################################################
+
+# kube-proxy replacement: Cilium handles Service load balancing in eBPF.
+# Requires k8sServiceHost/Port because there is no kube-proxy to reach the API.
+kubeProxyReplacement: true
+k8sServiceHost: 192.168.1.11   # SITE-SPECIFIC: API server VIP
+k8sServicePort: 6443
+
+# ARM64 (Turing Pi 2 / RK1 modules). Cilium is multi-arch, nothing to set,
+# but keep the resource envelope modest: these are 8-core 32G SBCs.
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+
+operator:
+  # Four nodes, so a single operator replica is the honest choice. Two replicas
+  # with hard anti-affinity on a 4-node cluster just makes drains harder.
+  replicas: 1
+  prometheus:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+# ---------------------------------------------------------------------------
+# Gateway API. This is what replaces ingress-nginx (retired March 2026).
+#
+# The CRDs are installed separately by the `gateway-api` Application; Cilium
+# only provides the controller and the `cilium` GatewayClass.
+# ---------------------------------------------------------------------------
+gatewayAPI:
+  enabled: true
+  # Terminate TLS at the Gateway and speak plaintext to backends inside the
+  # cluster. Cilium does not implement BackendTLSPolicy yet, so re-encrypting
+  # to the backend is not an option today.
+  enableAlpn: true
+  enableAppProtocol: true
+
+# The old Ingress controller path is gone for good.
+ingressController:
+  enabled: false
+
+# ---------------------------------------------------------------------------
+# L2 announcements: how a LoadBalancer IP actually answers ARP on the LAN.
+#
+# Without this, Services of type LoadBalancer get an IP from the pool but
+# nothing on the network knows where to send the packets. This is the fix for
+# the "ingress issue" notes that used to live in the README.
+# ---------------------------------------------------------------------------
+l2announcements:
+  enabled: true
+  # Leases stop two nodes announcing the same IP. The defaults are tuned for
+  # large clusters and fail over slowly; shorten them for a 4-node LAN.
+  leaseDuration: 3s
+  leaseRenewDeadline: 1s
+  leaseRetryPeriod: 200ms
+
+# NOTE: the `externalIPs.enabled` flag that older L2-announcement guides (and
+# the previous README) told you to set was deprecated in Cilium 1.18 and
+# REMOVED in 1.19. Setting it now is at best a no-op. We do not announce
+# hand-written Service.spec.externalIPs at all -- see
+# ./l2-announcement-policy.yaml, which sets `externalIPs: false`.
+
+# L2 announcements drive one lease per announced Service, so API traffic goes
+# up noticeably. The chart defaults are too low once more than a couple of
+# LoadBalancer services exist and show up as lease-renewal flapping.
+k8sClientRateLimit:
+  qps: 20
+  burst: 40
+
+# ---------------------------------------------------------------------------
+# Observability. Hubble is cheap and it is the only way to answer
+# "why can't Sonarr reach qBittorrent" without guessing.
+# ---------------------------------------------------------------------------
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    # Reachable through the shared Gateway, see infrastructure/gateway/.
+    enabled: true
+  metrics:
+    enabled:
+      - dns:query
+      - drop
+      - tcp
+      - flow
+      - port-distribution
+      - icmp
+      - "httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction"
+    serviceMonitor:
+      enabled: true
+    dashboards:
+      enabled: true
+
+prometheus:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+
+# Keep the eBPF masquerading path rather than iptables.
+bpf:
+  masquerade: true
+
+# Encrypt pod-to-pod traffic. Cheap on these SoCs via WireGuard offload and it
+# means the LAN is no longer implicitly trusted.
+encryption:
+  enabled: true
+  type: wireguard

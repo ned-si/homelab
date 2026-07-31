@@ -1,0 +1,30 @@
+# ClusterIssuers for Let's Encrypt (staging + production), DNS-01 via Cloudflare.
+#
+# The Cloudflare token they reference is created by the `secrets-infrastructure`
+# Application at wave -25, so this path contains no secret material and renders
+# with plain kustomize.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-issuers
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: infrastructure/cert-manager-issuers
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The ClusterIssuer CRD may not be established on the very first pass.
+      - SkipDryRunOnMissingResource=true
+      - ServerSideApply=true

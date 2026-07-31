@@ -1,0 +1,28 @@
+# Cilium runtime configuration that lives in CRs rather than Helm values:
+# LoadBalancer IP pools and the L2 announcement policy.
+#
+# Kept separate from the `cilium` Application so that changing which IPs the
+# LAN hands out never risks a re-render of the CNI DaemonSet itself.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-5"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: infrastructure/cilium
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

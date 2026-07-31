@@ -1,0 +1,33 @@
+# Redirect all plaintext HTTP to HTTPS.
+#
+# Gateway API has no equivalent of nginx's `force-ssl-redirect` annotation --
+# the redirect is modelled as a route filter instead. One HTTPRoute attached to
+# the `http` listener covers every hostname on the Gateway, so individual apps
+# never have to think about it.
+#
+# `sectionName: http` is essential: without it the route would also attach to
+# the HTTPS listener and redirect HTTPS to HTTPS, which is an infinite loop.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: https-redirect
+  namespace: gateway
+  annotations:
+    # This route is a redirect, not a service. It must not create DNS records --
+    # the real hostnames are published by the routes that actually serve traffic.
+    external-dns.alpha.kubernetes.io/exclude: "true"
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: http
+  hostnames:
+    - "*.lilalala.com"
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            # 301 rather than 302: this is permanent and we want it cached.
+            statusCode: 301
