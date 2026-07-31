@@ -1,0 +1,42 @@
+# external-dns: publishes Cloudflare DNS records for Gateway API resources.
+#
+# The important change from the old setup: the `gateway-httproute` source. Under
+# Ingress, external-dns read hostnames off Ingress objects. With Gateway API it
+# reads them off HTTPRoutes and resolves the address from the parent Gateway, so
+# adding a new service means adding an HTTPRoute and nothing else -- no more
+# per-service `external-dns.alpha.kubernetes.io/target` annotation carrying a
+# hard-coded WAN IP around the repo. The WAN IP now lives in exactly one place:
+# infrastructure/gateway/gateway.yaml.
+#
+# Its Cloudflare token comes from the `secrets` Application (wave -25).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/external-dns/
+      chart: external-dns
+      # renovate: datasource=helm depName=external-dns registryUrl=https://kubernetes-sigs.github.io/external-dns/
+      targetRevision: 1.21.1
+      helm:
+        releaseName: external-dns
+        valueFiles:
+          - $values/infrastructure/external-dns/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

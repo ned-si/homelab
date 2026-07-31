@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The Cloudflare token these issuers reference is created by the
+# `secrets-infrastructure` Application at sync wave -25, not here. That keeps
+# this path renderable with plain `kustomize build`, no SOPS plugin needed.
+resources:
+  - cluster-issuer-staging.yaml
+  - cluster-issuer-production.yaml

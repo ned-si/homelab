@@ -1,0 +1,48 @@
+# Cilium: CNI, kube-proxy replacement, L2 announcements, Gateway API controller.
+#
+# Chicken-and-egg note: Cilium is installed FIRST by the OpenTofu bootstrap,
+# because no pod (including Argo CD itself) can be scheduled without a CNI.
+# This Application then adopts that release so drift is visible and future
+# upgrades flow through git instead of a `helm upgrade` from someone's laptop.
+#
+# Both the bootstrap and this Application read the SAME values file
+# (infrastructure/cilium/values.yaml), so there is exactly one source of truth.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: cilium
+      # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
+      targetRevision: 1.20.0
+      helm:
+        releaseName: cilium
+        valueFiles:
+          - $values/infrastructure/cilium/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      # Pruning the CNI would take the cluster's network down. Do it by hand.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+  ignoreDifferences:
+    # The operator writes status into these; they are not desired state.
+    - group: ""
+      kind: ConfigMap
+      name: cilium-config
+      jsonPointers:
+        - /data/cluster-id

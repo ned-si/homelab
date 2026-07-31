@@ -1,0 +1,44 @@
+# L2 announcement policy: makes LoadBalancer IPs answer ARP on the LAN.
+#
+# Without a policy, LB IPAM still assigns addresses but nothing replies to ARP
+# and every service looks "up" in Kubernetes while being unreachable from the
+# network. This was the root of the old README's "ingress issue" section.
+#
+# API VERSION: still `cilium.io/v2alpha1` as of Cilium 1.20 -- the upstream docs
+# for 1.20 use v2alpha1 in their own example. CiliumLoadBalancerIPPool (see
+# ip-pools.yaml) HAS graduated to v2. Re-check both on the next Cilium minor
+# bump; a wrong apiVersion here fails loudly at sync time, which is fine.
+#
+# Two hard constraints, both easy to trip over:
+#
+#   1. `externalTrafficPolicy: Local` is INCOMPATIBLE with L2 announcements --
+#      IPs get announced from nodes that have no backing pod, and that traffic
+#      is silently dropped. No Service in this repo sets it.
+#
+#   2. A Service is only eligible if its `loadBalancerClass` is unset or set to
+#      `io.cilium/l2-announcer`.
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: default
+spec:
+  # No serviceSelector: announce every eligible LoadBalancer Service. The
+  # pools in ip-pools.yaml already gate *which* services get an address.
+  #
+  # Announce only from workers. Control-plane nodes host the API VIP and we do
+  # not want data-plane traffic contending with it.
+  nodeSelector:
+    matchExpressions:
+      - key: node-role.kubernetes.io/control-plane
+        operator: DoesNotExist
+  # SITE-SPECIFIC: must match the actual LAN interface name on the RK1 nodes.
+  # `end0` is the usual name on Rockchip RK3588 boards; `eth0` on many others.
+  # Verify with: kubectl -n kube-system exec ds/cilium -- ip -br link
+  interfaces:
+    - ^e(th|nd|np)[0-9]s?[0-9]*$
+  # We only announce IPs handed out by LB IPAM, never hand-written
+  # `spec.externalIPs`. Keeping externalIPs false means a typo in a Service
+  # cannot hijack an arbitrary LAN address.
+  loadBalancerIPs: true
+  externalIPs: false

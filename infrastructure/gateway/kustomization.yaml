@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Deliberately NO `namespace:` transformer here.
+#
+# Every resource below sets its own metadata.namespace, and kustomize's
+# `namespace:` field OVERRIDES an explicit namespace rather than merely
+# defaulting it. Setting `namespace: gateway` would silently rewrite the
+# ReferenceGrant into the wrong namespace, where it would grant nothing and the
+# Argo CD route would fail with "backend not permitted" -- a confusing symptom
+# for a one-word cause.
+resources:
+  - gateway.yaml
+  - certificate.yaml
+  - http-redirect.yaml
+  - argocd-route.yaml
+  # This one lives in the `argocd` namespace, not `gateway`.
+  - reference-grant-argocd.yaml

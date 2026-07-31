@@ -1,0 +1,70 @@
+# The single shared Gateway. Everything HTTP in this cluster attaches here.
+#
+# ###########################################################################
+# # SITE-SPECIFIC -- THIS IS THE ONE FILE TO EDIT AFTER THE HOUSE MOVE
+# #
+# # `external-dns.alpha.kubernetes.io/target` below is the PUBLIC WAN IP that
+# # every hostname in Cloudflare will point at. It is the only copy of that
+# # value in the whole repo.
+# #
+# # After the move:
+# #   1. update the target annotation to the new WAN IP
+# #   2. re-point the router's 80/443 forwards at the Gateway's LAN address
+# #      (from the `gateway` pool in infrastructure/cilium/ip-pools.yaml)
+# #   3. commit; external-dns rewrites every record automatically
+# #
+# # If the WAN address is dynamic, replace the annotation with a DDNS setup
+# # rather than editing this file on every lease change.
+# ###########################################################################
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shared
+  namespace: gateway
+  annotations:
+    # Publish the public address for every HTTPRoute attached to this Gateway.
+    # external-dns only honours this annotation on the Gateway, never on the
+    # routes themselves (kubernetes-sigs/external-dns#4056), which is precisely
+    # why it is a single-line change here instead of a dozen edits.
+    external-dns.alpha.kubernetes.io/target: "188.155.74.203"   # SITE-SPECIFIC
+spec:
+  gatewayClassName: cilium
+  # Cilium propagates these onto the LoadBalancer Service it generates for the
+  # Gateway (`cilium-gateway-shared`). The label is what makes LB IPAM hand out
+  # an address from the dedicated `gateway` pool rather than the shared range.
+  infrastructure:
+    labels:
+      homelab.lilalala.com/lb-pool: gateway
+  listeners:
+    # Port 80 exists only to redirect. The redirect itself is an HTTPRoute, see
+    # ./http-redirect.yaml -- Gateway API has no "force ssl redirect" flag, which
+    # is the main behavioural difference from the old
+    # `nginx.ingress.kubernetes.io/force-ssl-redirect` annotation.
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.lilalala.com"
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.lilalala.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: wildcard-lilalala-tls
+      allowedRoutes:
+        # Any namespace may attach a route. This is a single-tenant homelab, so
+        # the alternative (a label selector plus a ReferenceGrant per namespace)
+        # buys process, not safety. Revisit if this cluster ever hosts something
+        # you do not control.
+        namespaces:
+          from: All
+        kinds:
+          - kind: HTTPRoute
+          - kind: GRPCRoute

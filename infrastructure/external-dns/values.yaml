@@ -1,0 +1,75 @@
+# external-dns: keep Cloudflare in sync with what the cluster actually serves.
+provider:
+  name: cloudflare
+
+# ---------------------------------------------------------------------------
+# Sources. This is the substantive change from the old Ingress-based setup.
+#
+# `gateway-httproute` makes external-dns read hostnames from HTTPRoute objects
+# and take the address from the parent Gateway's status. Consequence: the WAN IP
+# is configured once on the Gateway and every hostname inherits it. Previously
+# every single Ingress carried its own
+# `external-dns.alpha.kubernetes.io/target: 188.155.74.203` annotation, so
+# changing ISP meant editing a dozen files.
+#
+# `service` is kept for the few LoadBalancer services that are not HTTP and
+# therefore have no HTTPRoute (Syncthing's sync protocol, qBittorrent's peer
+# port). Those opt in explicitly with an
+# `external-dns.alpha.kubernetes.io/hostname` annotation.
+# ---------------------------------------------------------------------------
+sources:
+  - gateway-httproute
+  - gateway-grpcroute
+  - service
+
+# Only manage records this cluster owns. Without a txtOwnerId, two clusters
+# pointed at the same zone will fight over records, and external-dns will
+# happily delete anything it does not recognise.
+txtOwnerId: homelab
+txtPrefix: k8s-
+
+# Never delete a record that external-dns did not create. `sync` is the policy
+# that lets it clean up after itself; `upsert-only` would leave stale records
+# behind after the house move. We want real reconciliation, so: sync.
+policy: sync
+
+domainFilters:
+  - lilalala.com
+
+# Every HTTPRoute hostname is published. That is intended: all of them are meant
+# to resolve from outside. Note that a public DNS record grants no access on its
+# own -- authentication is Keycloak's job, and a hostname existing in DNS is not
+# a security boundary. If you later want a route to stay LAN-only, give it a
+# hostname outside the `domainFilters` zone rather than trying to hide it.
+#
+# The record VALUE for every one of these comes from the
+# `external-dns.alpha.kubernetes.io/target` annotation on the Gateway, which is
+# the only supported place for it -- the annotation is deliberately not honoured
+# on HTTPRoute (external-dns#4056). That is what makes the WAN IP a one-line
+# change in infrastructure/gateway/gateway.yaml.
+
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        # Created by the `secrets-infrastructure` Application.
+        name: cloudflare-api-token
+        key: api-token
+
+# external-dns needs cluster-wide read on Gateway API types; the chart's RBAC
+# covers this as long as the sources above are set.
+serviceMonitor:
+  enabled: true
+
+# Cloudflare proxying (the orange cloud) is left OFF. Proxying would break
+# Plex's direct-play connections and Syncthing entirely, and it would hide the
+# real client IP from every app.
+extraArgs:
+  - --cloudflare-proxied=false
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+logLevel: info
