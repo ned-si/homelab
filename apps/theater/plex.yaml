@@ -1,0 +1,171 @@
+# Plex Media Server.
+#
+# WHAT CHANGED
+#
+#   - `PLEX_CLAIM` was a literal claim token in git. Claim tokens are short-lived
+#     (4 minutes) so the leaked one is harmless NOW, but it is only needed on
+#     first-ever setup and should never be committed. It is gone; if you need to
+#     re-claim a fresh server, set it temporarily via `kubectl set env` rather
+#     than adding it back here.
+#
+#   - image was `plexinc/pms-docker` with NO tag at all, meaning `:latest`.
+#     Now pinned and Renovate-tracked.
+#
+#   - media mount is read-only. Plex has no business writing to the library --
+#     that is the *arr apps' job. This is the cheapest part of the "nfs: harden"
+#     item from the old README.
+#
+#   - `theater.lilalala.com` now points here directly. Previously this hostname
+#     served Plex at `/` AND the four *arr apps under `/arr/*` from one Ingress;
+#     the *arrs have their own hostnames now.
+#
+# NOT DONE: the old README wanted to move Plex to the official Helm chart. Not
+# worth it -- the chart is a thin wrapper around exactly this Deployment and
+# would add a dependency for no gain.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-config
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # The Plex database and metadata cache grows with library size; 5Gi was
+      # tight. The StorageClass allows expansion if this fills.
+      storage: 20Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: plex-transcode
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plex
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: plex
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plex
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: plex
+          # renovate: datasource=docker depName=plexinc/pms-docker
+          image: plexinc/pms-docker:1.43.3.10828-00f62d37d
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            # Tell Plex the public URL so it advertises the right address to
+            # clients instead of a pod IP.
+            - name: ADVERTISE_IP
+              value: "https://theater.lilalala.com:443"
+          ports:
+            - name: http
+              containerPort: 32400
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: transcode
+              mountPath: /transcode
+            - name: data
+              mountPath: /media
+              subPath: media
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /identity
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /identity
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              # Software transcoding on an RK1 is CPU-bound and will happily eat
+              # the node. No CPU limit (throttling mid-stream is worse than
+              # contention) but a hard memory ceiling.
+              memory: 4Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: plex-config
+        - name: transcode
+          persistentVolumeClaim:
+            claimName: plex-transcode
+        - name: data
+          persistentVolumeClaim:
+            claimName: theater-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: plex
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: plex
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 32400
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: plex
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: plex
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - theater.lilalala.com
+  rules:
+    - backendRefs:
+        - name: plex
+          port: 32400
+      timeouts:
+        # Plex streams are long-lived. The Gateway API default request timeout
+        # would cut playback; 0 disables it.
+        request: "0s"
+        backendRequest: "0s"
