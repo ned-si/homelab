@@ -1,0 +1,8 @@
+apiVersion: v2
+name: root-application
+description: >-
+  Single-purpose chart that creates the Argo CD root Application. It exists so
+  the bootstrap can apply a CRD instance without OpenTofu needing the CRD to be
+  registered at plan time, and without shelling out to kubectl.
+type: application
+version: 1.0.0

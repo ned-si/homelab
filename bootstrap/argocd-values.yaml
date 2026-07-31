@@ -1,0 +1,178 @@
+# Argo CD.
+#
+# Read by the OpenTofu bootstrap only. Argo CD does not manage its own Helm
+# release here: doing so means a bad values change can break the thing that
+# would otherwise roll it back. `tofu apply` is the recovery path.
+
+global:
+  domain: argo.lilalala.com
+
+configs:
+  cm:
+    # ---------------------------------------------------------------------
+    # THIS LINE IS WHAT MAKES ENCRYPTED SECRETS WORK.
+    #
+    # KSOPS is a kustomize KRM *exec* plugin, and kustomize refuses to run exec
+    # plugins unless both flags are present. Without it, every `*.sops.yaml`
+    # renders as nothing and the three `secrets-*` Applications sync an empty
+    # manifest set -- silently, with no error.
+    #
+    # SECURITY IMPLICATION, stated plainly: this enables exec plugins for EVERY
+    # kustomize build the repo-server performs, not just the secret bundles. Any
+    # kustomization in this repo could therefore execute a binary present in the
+    # repo-server image. That is acceptable here because this is a
+    # single-operator repo where the only author is the cluster owner; it would
+    # not be acceptable in a shared or multi-tenant cluster.
+    #
+    # This is the integration path documented by KSOPS upstream for the Argo CD
+    # Helm chart. The alternative (a per-plugin CMP sidecar) scopes the flags
+    # more tightly but is substantially more moving parts.
+    # ---------------------------------------------------------------------
+    kustomize.buildOptions: "--enable-alpha-plugins --enable-exec"
+
+    # Let Applications live only in the argocd namespace (the default). Listed
+    # explicitly so that widening it later is a visible decision.
+    application.instanceLabelKey: argocd.argoproj.io/instance
+
+    # Treat these as not worth diffing: they churn constantly and generate
+    # permanent "OutOfSync" noise.
+    resource.customizations.ignoreResourceUpdates.all: |
+      jsonPointers:
+        - /status
+
+  params:
+    # TLS is terminated at the Gateway, so argocd-server must not also try to
+    # serve TLS -- otherwise the Gateway speaks HTTP to an HTTPS listener and
+    # every request fails. This is the Gateway API equivalent of the old
+    # `nginx.ingress.kubernetes.io/backend-protocol: HTTPS` annotation, inverted.
+    server.insecure: true
+
+# ---------------------------------------------------------------------------
+# repo-server: KSOPS + the age key
+#
+# Follows the upstream KSOPS "Argo CD Helm Chart with Custom Tooling" recipe: an
+# init container copies the ksops and kustomize binaries out of the KSOPS image
+# into an emptyDir, which is then mounted over the repo-server's own binaries.
+# ---------------------------------------------------------------------------
+repoServer:
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: sops-age
+      secret:
+        # Created by the OpenTofu bootstrap from TF_VAR_sops_age_key.
+        secretName: sops-age
+
+  initContainers:
+    - name: install-ksops
+      # renovate: datasource=docker depName=viaductoss/ksops
+      image: viaductoss/ksops:v4.5.1
+      command:
+        - /usr/local/bin/ksops
+        - install
+        - --with-kustomize
+        - /custom-tools
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+
+  volumeMounts:
+    # Deliberately overrides the kustomize binary shipped in the Argo CD image.
+    # KSOPS requires the kustomize build it was compiled against; mixing versions
+    # produces "unable to load exec plugin" at render time.
+    - mountPath: /usr/local/bin/kustomize
+      name: custom-tools
+      subPath: kustomize
+    - mountPath: /usr/local/bin/ksops
+      name: custom-tools
+      subPath: ksops
+    - mountPath: /sops-age
+      name: sops-age
+      readOnly: true
+
+  env:
+    # SOPS finds the age identity through this variable. If it is wrong, decryption
+    # fails with "no key could decrypt the data" rather than anything about paths.
+    - name: SOPS_AGE_KEY_FILE
+      value: /sops-age/keys.txt
+
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# ---------------------------------------------------------------------------
+# Other components
+# ---------------------------------------------------------------------------
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      memory: 1536Mi
+
+server:
+  # The HTTPRoute is NOT defined here. It lives in
+  # clusters/homelab/infrastructure + infrastructure/gateway so that Argo CD's
+  # own exposure is managed the same way as everything else -- and so that a
+  # broken bootstrap cannot take the UI's routing with it.
+  ingress:
+    enabled: false
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
+applicationSet:
+  # Not used by this repo (the hierarchy is explicit Applications), but the chart
+  # deploys it unconditionally, so keep it small.
+  replicas: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+
+notifications:
+  # Nothing subscribes yet. Disabled rather than left running idle.
+  enabled: false
+
+dex:
+  # Argo CD authenticates against Keycloak directly via OIDC, not through Dex.
+  # NOTE: OIDC is not configured yet -- Keycloak is deployed by the platform
+  # layer, which does not exist at bootstrap time. Until you add
+  # `configs.cm.oidc.config`, login is the local admin account:
+  #     kubectl -n argocd get secret argocd-initial-admin-secret \
+  #       -o jsonpath='{.data.password}' | base64 -d
+  enabled: false
+
+redis:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
