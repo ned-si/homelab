@@ -1,0 +1,57 @@
+# kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter.
+#
+# Multi-source: the chart, plus a git path holding the Grafana HTTPRoute. The
+# chart's built-in ingress support is not used -- ingress-nginx is gone and the
+# Grafana subchart has no Gateway API template, so the route is a plain manifest.
+#
+# Observability is explicitly NOT the focus of this restructure. This gets the
+# stack back to a working, Gateway-API-native state with its OIDC secret out of
+# plaintext; dashboards, alert rules and retention tuning come later.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
+      targetRevision: 88.0.1
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/platform/kube-prometheus-stack/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    # Grafana's HTTPRoute.
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: platform/kube-prometheus-stack/routes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # The CRDs in this chart are far too large for client-side apply.
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+  ignoreDifferences:
+    # The operator rewrites these continuously.
+    - group: monitoring.coreos.com
+      kind: Prometheus
+      jsonPointers:
+        - /spec/replicas

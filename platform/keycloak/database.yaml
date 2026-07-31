@@ -1,0 +1,41 @@
+# Keycloak's Postgres, managed by CloudNativePG.
+#
+# CloudNativePG generates a Secret named `<cluster>-app` containing host, port,
+# user, password, dbname, uri and jdbc-uri. The Deployment reads `jdbc-uri` from
+# it, so the database password never appears in this repo in any form -- not
+# even encrypted. That is strictly better than a SOPS-managed password: there is
+# no value to rotate, leak or forget.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  namespace: keycloak
+spec:
+  instances: 1
+  # Pin the Postgres image. Leaving this unset means the operator picks its own
+  # default, which silently changes major version across operator upgrades and
+  # would refuse to start on an existing data directory.
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+  monitoring:
+    enablePodMonitor: true
+  # Continuous WAL archiving to S3. The ObjectStore is in ./backup.yaml.
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: keycloak-backup
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: 64MB
