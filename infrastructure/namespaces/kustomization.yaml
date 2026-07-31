@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespaces.yaml
+
+# Labels applied to every namespace this repo owns, so that "is this managed by
+# GitOps?" is answerable with a single kubectl selector:
+#   kubectl get ns -l homelab.lilalala.com/managed-by=argocd
+labels:
+  - includeSelectors: false
+    pairs:
+      homelab.lilalala.com/managed-by: argocd
