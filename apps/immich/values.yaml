@@ -1,0 +1,122 @@
+# Immich, chart 0.13.x (bjw-s common library layout).
+#
+# NOTE ON KEY PATHS: this chart wraps bjw-s/common, so container settings live
+# under `controllers.main.containers.main.*`. The flat `image.tag` / `env:` keys
+# used by the old 0.10.x values are silently ignored by this version -- if a
+# setting appears not to apply, check it is at the right depth.
+
+# ---------------------------------------------------------------------------
+# Shared across server and machine-learning
+# ---------------------------------------------------------------------------
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
+          tag: v3.1.0
+        env:
+          TZ: Europe/Zurich
+          # The chart's bundled Valkey, named <release>-valkey.
+          REDIS_HOSTNAME: immich-valkey
+          IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+          # CloudNativePG publishes these into the `immich-db-app` Secret. The
+          # read-write service is <cluster>-rw.
+          DB_HOSTNAME: immich-db-rw
+          DB_DATABASE_NAME:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-app
+                key: dbname
+          DB_USERNAME:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-app
+                key: username
+          DB_PASSWORD:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-app
+                key: password
+
+immich:
+  metrics:
+    enabled: true
+  persistence:
+    library:
+      # The chart cannot create this; see apps/immich/resources/library-pvc.yaml.
+      existingClaim: immich-data
+
+  # Immich's runtime configuration contains the OIDC client secret, so it is NOT
+  # inlined here. It lives in a SOPS-encrypted Secret instead --
+  # apps/secrets/immich-config.sops.yaml.example documents the full structure.
+  #
+  # Trade-off accepted: the config is less reviewable in git than plain values
+  # would be, in exchange for no client secret in plaintext. The alternative
+  # (`immich.configuration` inline) is what leaked the old one.
+  existingConfiguration: immich-config
+
+# ---------------------------------------------------------------------------
+# Bundled Valkey. Replaces the hand-rolled valkey Deployment + headless Service
+# that used to sit in kubernetes/applications/immich/immich-valkey.yaml.
+# ---------------------------------------------------------------------------
+valkey:
+  enabled: true
+  persistence:
+    data:
+      # Persist the queues. With emptyDir, a Valkey restart loses every in-flight
+      # job, which on Immich means thumbnail/ML jobs vanish mid-run and the
+      # library shows blank tiles until you manually re-queue them.
+      enabled: true
+      type: persistentVolumeClaim
+      size: 2Gi
+      accessMode: ReadWriteOnce
+      storageClass: iscsi
+
+# ---------------------------------------------------------------------------
+# Server
+# ---------------------------------------------------------------------------
+server:
+  enabled: true
+  ingress:
+    main:
+      # ingress-nginx is retired. Routing is an HTTPRoute:
+      # apps/immich/resources/httproute.yaml
+      enabled: false
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+
+# ---------------------------------------------------------------------------
+# Machine learning
+# ---------------------------------------------------------------------------
+machine-learning:
+  enabled: true
+  controllers:
+    main:
+      containers:
+        main:
+          env:
+            # Preload the CLIP model so the first search is not a 2-minute stall.
+            MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: ViT-B-16-SigLIP-i18n-256__webli
+            MACHINE_LEARNING_PRELOAD__CLIP__VISUAL: ViT-B-16-SigLIP-i18n-256__webli
+  persistence:
+    cache:
+      # A real volume, not emptyDir: otherwise every pod restart re-downloads
+      # several GB of models over the WAN.
+      enabled: true
+      type: persistentVolumeClaim
+      size: 10Gi
+      accessMode: ReadWriteOnce
+      storageClass: iscsi
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      # CLIP inference on an RK1 is slow and memory-hungry. This is the single
+      # largest consumer in the cluster.
+      memory: 4Gi

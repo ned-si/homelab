@@ -1,0 +1,63 @@
+# Immich - photo library.
+#
+# THREE BREAKING CHANGES vs the old setup. Read docs/runbooks/immich-upgrade.md
+# BEFORE syncing this, because one of them cannot be rolled back.
+#
+#   1. VECTOR EXTENSION. Immich 3.0 dropped support for pgvecto.rs entirely and
+#      requires VectorChord (`vchord`). The old DB ran
+#      `ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0` with
+#      `shared_preload_libraries: vectors.so`. That image can never run Immich 3.x.
+#      The database image changes AND the extension has to be migrated.
+#
+#   2. CHART LAYOUT. immich-charts 0.13.x is built on the bjw-s common library,
+#      so every values key moved: `image.tag` is now
+#      `controllers.main.containers.main.image.tag`, and so on. The old values
+#      file would silently apply almost nothing.
+#
+#   3. VALKEY IS NOW BUNDLED. The chart ships its own Valkey, so the hand-rolled
+#      valkey Deployment that used to live alongside Immich is deleted.
+#
+# Multi-source: chart + a git path carrying the database, the library PVC and the
+# HTTPRoute, none of which the chart provides.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: immich
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: apps
+  sources:
+    - repoURL: https://immich-app.github.io/immich-charts
+      chart: immich
+      # renovate: datasource=helm depName=immich registryUrl=https://immich-app.github.io/immich-charts
+      targetRevision: 0.13.1
+      helm:
+        releaseName: immich
+        valueFiles:
+          - $values/apps/immich/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: apps/immich/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: immich
+  syncPolicy:
+    automated:
+      # Manual sync only for the app itself: an Immich major upgrade runs
+      # irreversible database migrations, and selfHeal would happily roll one
+      # forward while you are still reading the release notes.
+      prune: false
+      selfHeal: false
+    syncOptions:
+      - ServerSideApply=true
+  ignoreDifferences:
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /status
