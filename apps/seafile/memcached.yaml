@@ -7,15 +7,20 @@ metadata:
   name: memcached
   namespace: seafile
   labels:
+    app: memcached
     app.kubernetes.io/name: memcached
 spec:
   replicas: 1
+  # SELECTOR kept as `app: memcached` to match the live Deployment. Deployment
+  # selectors are immutable; changing it needs a delete + recreate, which is
+  # tracked in docs/migration-plan.md rather than done implicitly here.
   selector:
     matchLabels:
-      app.kubernetes.io/name: memcached
+      app: memcached
   template:
     metadata:
       labels:
+        app: memcached
         app.kubernetes.io/name: memcached
     spec:
       securityContext:
@@ -66,4 +71,4 @@ spec:
       targetPort: memcached
       protocol: TCP
   selector:
-    app.kubernetes.io/name: memcached
+    app: memcached

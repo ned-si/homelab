@@ -37,17 +37,39 @@ metadata:
   name: mariadb
   namespace: seafile
   labels:
+    app: mariadb
     app.kubernetes.io/name: mariadb
 spec:
   replicas: 1
   strategy:
+    # One replica on a ReadWriteOnce volume. A RollingUpdate would try to start
+    # the replacement pod before terminating the old one, and the new pod can
+    # never attach the volume, so the rollout hangs until it times out. This is
+    # what the old repo's comment "rollingUpdate: null -- this errors with argo
+    # for some reason" was groping at.
+    #
+    # Switching an EXISTING Deployment to Recreate needs a one-time patch first,
+    # because the API server has already defaulted a `rollingUpdate` block and a
+    # server-side apply cannot remove a field it does not own:
+    #
+    #   spec.strategy.rollingUpdate: Forbidden: may not be specified when
+    #   strategy `type` is 'Recreate'
+    #
+    # `scripts/normalize-deployment-strategy.sh` does that patch. It is
+    # non-disruptive: verified against the live cluster that the pod template
+    # hash is unchanged, so no new ReplicaSet and no restart.
     type: Recreate
+  # SELECTOR: kept as `app: mariadb`, which is what the live Deployment uses.
+  # Deployment selectors are IMMUTABLE, so normalising this to
+  # app.kubernetes.io/name would also require a delete + recreate. Both labels are
+  # set on the pod template so a future migration is a selector change only.
   selector:
     matchLabels:
-      app.kubernetes.io/name: mariadb
+      app: mariadb
   template:
     metadata:
       labels:
+        app: mariadb
         app.kubernetes.io/name: mariadb
     spec:
       securityContext:
@@ -113,4 +135,4 @@ spec:
       targetPort: mysql
       protocol: TCP
   selector:
-    app.kubernetes.io/name: mariadb
+    app: mariadb

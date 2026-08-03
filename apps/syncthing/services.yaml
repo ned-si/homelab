@@ -1,30 +1,13 @@
-# Three Services, because Syncthing genuinely needs three different exposures.
+# Two Services:
 #
-#   syncthing-headless  StatefulSet governing Service. Required by the
-#                       StatefulSet spec; carries no traffic.
-#   syncthing           ClusterIP for the web UI, behind the Gateway.
-#   syncthing-sync      LoadBalancer on the LAN for the peer-to-peer protocol.
-#                       This is the one the router forwards 22000 to.
+#   syncthing       ClusterIP. The web UI, behind the Gateway, and also the
+#                   StatefulSet's governing Service (see below).
+#   syncthing-sync  LoadBalancer for the peer-to-peer protocol. This is the one
+#                   the router forwards 22000 to.
 #
-# The old repo had `syncthing-dashboard` (ClusterIP) and `syncthing-protocol`
-# (LoadBalancer) but no headless Service, so the StatefulSet's serviceName
-# pointed at something that did not exist.
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: syncthing-headless
-  namespace: syncthing
-  labels:
-    app.kubernetes.io/name: syncthing
-spec:
-  clusterIP: None
-  ports:
-    - name: web
-      port: 8384
-      targetPort: web
-  selector:
-    app.kubernetes.io/name: syncthing
+# The old repo called these `syncthing-dashboard` and `syncthing-protocol`. The
+# names change; the live `syncthing` Service is what the StatefulSet's immutable
+# `serviceName` refers to, so that one keeps its name.
 ---
 apiVersion: v1
 kind: Service
@@ -32,8 +15,14 @@ metadata:
   name: syncthing
   namespace: syncthing
   labels:
+    app: syncthing
     app.kubernetes.io/name: syncthing
 spec:
+  # The StatefulSet's `serviceName` points here (it is `syncthing` on the live
+  # object and immutable). A governing Service is conventionally headless, but
+  # this one is a normal ClusterIP because it is ALSO the HTTPRoute backend.
+  # Splitting the two would mean changing serviceName, which cannot be done in
+  # place -- see the note in ./statefulset.yaml.
   type: ClusterIP
   ports:
     - name: web
@@ -41,7 +30,7 @@ spec:
       targetPort: web
       protocol: TCP
   selector:
-    app.kubernetes.io/name: syncthing
+    app: syncthing
 ---
 apiVersion: v1
 kind: Service
@@ -49,6 +38,7 @@ metadata:
   name: syncthing-sync
   namespace: syncthing
   labels:
+    app: syncthing
     app.kubernetes.io/name: syncthing
     # Take an address from the `services` pool, not the Gateway's.
     homelab.lilalala.com/lb-pool: services
@@ -74,4 +64,4 @@ spec:
       targetPort: discovery
       protocol: UDP
   selector:
-    app.kubernetes.io/name: syncthing
+    app: syncthing
