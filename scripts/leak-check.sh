@@ -17,12 +17,19 @@ fail=0
 bad()  { printf '\033[31m%s\033[0m\n' "$*" >&2; fail=1; }
 good() { printf '\033[32m%s\033[0m\n' "$*"; }
 
-# Prefer the staged set; fall back to the whole tracked tree.
+# Prefer the staged set, which is what a pre-commit hook cares about.
+#
+# Otherwise scan tracked files AND untracked-but-not-ignored files. `git ls-files`
+# alone would miss a brand-new secret sitting in the working tree, which is
+# exactly the moment you most want to be told -- a clean report on a tree
+# containing an unstaged private key is worse than no report at all.
+# `--exclude-standard` keeps .gitignore'd paths (the age key, kubeconfig,
+# secrets-to-encrypt.local.md) out of scope, since those are meant to exist.
 files="$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null)"
 scope="staged"
 if [[ -z "$files" ]]; then
-  files="$(git ls-files)"
-  scope="tracked"
+  files="$(git ls-files --cached --others --exclude-standard)"
+  scope="tracked + untracked"
 fi
 echo "Scanning $scope files..."
 
@@ -54,7 +61,12 @@ while IFS= read -r f; do
   esac
 
   # 2. Private key material must never appear in a non-exempt file.
-  if grep -qE 'BEGIN [A-Z ]*PRIVATE KEY' "$f" 2>/dev/null; then
+  #
+  # The PEM armour delimiters are required. Real key material always carries
+  # them; the bare phrase "BEGIN OPENSSH PRIVATE KEY" also appears as a string
+  # literal in scripts/secrets-inventory.sh, which extracts keys from an old git
+  # ref. Matching on the phrase alone made this script fail on its own tooling.
+  if grep -qE -- '-----BEGIN [A-Z ]*PRIVATE KEY-----' "$f" 2>/dev/null; then
     bad "PRIVATE KEY: $f"
   fi
   if grep -q 'AGE-SECRET-KEY-1' "$f" 2>/dev/null; then
