@@ -18,7 +18,7 @@ spec:
   source:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
-    path: clusters/homelab/infrastructure
+    path: deploy/clusters/homelab/infrastructure
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

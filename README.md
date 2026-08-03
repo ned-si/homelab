@@ -11,13 +11,23 @@ clusters/homelab/     Argo CD Application + AppProject objects ONLY. The hierarc
 infrastructure/       CNI, Gateway API, cert-manager, external-dns, CSI, namespaces.
 platform/             CloudNativePG, monitoring, Keycloak.
 apps/                 Media, photos, documents, recipes, sync.
+deploy/               GENERATED. Rendered manifests -- this is what Argo syncs.
 ansible/              Node OS and Kubernetes upgrades. Imperative on purpose.
 docs/                 How and why.
 scripts/              age key, leak check, render check, live-cluster dry-run.
 ```
 
-The split that matters: `clusters/homelab/` contains only Argo `Application`
-objects, the three top-level directories contain only manifests and Helm values.
+Two splits matter.
+
+`clusters/homelab/` contains only Argo `Application` objects; the three top-level
+directories contain only manifests and Helm values.
+
+And **Argo CD never runs kustomize.** `task render` builds every kustomization into
+`deploy/`, which is committed and syncs as plain YAML. So a PR diff shows what the
+cluster will actually receive, and the `--enable-exec` that KSOPS requires applies
+to 3 directories instead of 23. CI fails if `deploy/` does not match its sources.
+The three `*/secrets` directories are the deliberate exception — rendering them
+would decrypt them. Details in [architecture.md](docs/architecture.md#deploy-rendered-manifests).
 
 ## Documentation
 

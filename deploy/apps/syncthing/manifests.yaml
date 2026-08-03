@@ -1,0 +1,147 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/syncthing
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/syncthing and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: syncthing
+    app.kubernetes.io/name: syncthing
+  name: syncthing
+  namespace: syncthing
+spec:
+  ports:
+  - name: web
+    port: 8384
+    protocol: TCP
+    targetPort: web
+  selector:
+    app: syncthing
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: sync.lilalala.com
+  labels:
+    app: syncthing
+    app.kubernetes.io/name: syncthing
+    homelab.lilalala.com/lb-pool: services
+  name: syncthing-sync
+  namespace: syncthing
+spec:
+  ports:
+  - name: sync-tcp
+    port: 22000
+    protocol: TCP
+    targetPort: sync-tcp
+  - name: sync-udp
+    port: 22000
+    protocol: UDP
+    targetPort: sync-udp
+  - name: discovery
+    port: 21027
+    protocol: UDP
+    targetPort: discovery
+  selector:
+    app: syncthing
+  type: LoadBalancer
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: syncthing
+    app.kubernetes.io/name: syncthing
+  name: syncthing
+  namespace: syncthing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: syncthing
+  serviceName: syncthing
+  template:
+    metadata:
+      labels:
+        app: syncthing
+        app.kubernetes.io/name: syncthing
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        image: syncthing/syncthing:2.1.2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /rest/noauth/health
+            port: web
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        name: syncthing
+        ports:
+        - containerPort: 8384
+          name: web
+          protocol: TCP
+        - containerPort: 22000
+          name: sync-tcp
+          protocol: TCP
+        - containerPort: 22000
+          name: sync-udp
+          protocol: UDP
+        - containerPort: 21027
+          name: discovery
+          protocol: UDP
+        readinessProbe:
+          httpGet:
+            path: /rest/noauth/health
+            port: web
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /var/syncthing
+          name: data
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: syncthing-pvc
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: syncthing
+  namespace: syncthing
+spec:
+  hostnames:
+  - syncthing.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: syncthing
+      port: 8384

@@ -1,0 +1,134 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/namespaces
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/namespaces and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+  name: backup-verify
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+  name: cert-manager
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+  name: cnpg-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
+  name: democratic-csi
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+  name: external-dns
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+  name: gateway
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+  name: immich
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+  name: keycloak
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+  name: mealie
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged
+  name: monitoring
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+  name: paperless
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+  name: seafile
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+  name: syncthing
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    homelab.lilalala.com/managed-by: argocd
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+  name: theater

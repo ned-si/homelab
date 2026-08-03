@@ -23,15 +23,92 @@ clusters/homelab/           │
                                     │
     ┌───────────────────────────────┘
     │
-    ├─ infrastructure/   Application CRs ──→  infrastructure/<component>/
-    ├─ platform/         Application CRs ──→  platform/<component>/
-    └─ apps/             Application CRs ──→  apps/<component>/
+    ├─ infrastructure/   Application CRs ──→  deploy/infrastructure/<component>/
+    ├─ platform/         Application CRs ──→  deploy/platform/<component>/
+    └─ apps/             Application CRs ──→  deploy/apps/<component>/
 ```
 
 Four levels: root → layer set → layer → leaf. The split that matters is between
 `clusters/homelab/` (which contains **only** Argo CD `Application` objects) and
 the three top-level directories (which contain **only** Kubernetes manifests and
 Helm values).
+
+Note where the Applications actually point: `deploy/`, not the source directories.
+That is the next section.
+
+## deploy/: rendered manifests
+
+Argo CD does not run kustomize. `scripts/render-deploy.sh` does, ahead of time,
+and commits the result to `deploy/`. Every Application's `path:` points there.
+
+```
+apps/theater/                          source: kustomization + patches
+  └─ (render) ──→ deploy/apps/theater/manifests.yaml    what Argo applies
+```
+
+**`deploy/` is build output.** It is checked in because Argo has to read it from
+git, and it is verified in CI to be byte-identical to what the sources produce.
+Hand-editing it fails the `deploy/ matches its sources` check.
+
+### Why
+
+Three reasons, in order of how much they matter.
+
+**You can see what will actually change.** With Argo rendering at sync time, a
+diff tells you the overlay changed, not what the cluster will receive. A one-line
+edit to a `labels:` block can rewrite two hundred objects. With rendered
+manifests the PR diff *is* the change — which is what makes the
+`kube-prometheus-stack` 56 → 88 jump reviewable at all.
+
+**It shrinks what `--enable-exec` applies to.** KSOPS is a kustomize *exec*
+plugin, so using it means setting
+`kustomize.buildOptions: --enable-alpha-plugins --enable-exec` on the repo-server.
+That is global: every kustomization Argo builds may then execute a binary. Since
+only the three `*/secrets` directories need it, and everything else is
+pre-rendered, the repo-server now builds 3 directories instead of 23. Same
+setting, an eighth of the exposure.
+
+**One render, in a place you can watch.** Rendering happens once in CI instead of
+repeatedly on the repo-server, and remote bases (the Gateway API CRD bundle) get
+vendored, so a sync no longer depends on github.com being reachable.
+
+### What is not rendered, and why
+
+**The three `*/secrets` directories.** Rendering them runs KSOPS, which
+*decrypts*. The output would be plaintext Secrets in git — the exact failure this
+repo exists to prevent. `render-deploy.sh` hard-skips any `*/secrets` path and
+that is not a configuration option. Those three Applications keep pointing at
+their source directory and keep using the plugin.
+
+**Upstream Helm charts.** They stay as versioned `chart:` references. A chart is
+not this repo's manifest; Renovate tracks its version, and an upgrade is
+reviewable as a version bump plus a values diff. Rendering them would vendor
+~50k lines of YAML and take Helm hook ordering away from Argo, which handles it
+properly. If you later want fully-rendered Helm too, `helm template` output can
+be dropped into the same `deploy/` layout without changing anything else.
+
+### The renderer is pinned
+
+Checked-in generated output is only meaningful if the generator is deterministic.
+Two kustomize versions can format identical input differently, which surfaces as
+a staleness failure unrelated to anyone's change.
+
+`render-deploy.sh` uses `kubectl kustomize` — one binary, already required — and
+CI pins `KUBECTL_VERSION`. The script warns if your local kubectl embeds a
+different kustomize, because a formatting-only diff in `deploy/` is almost always
+that. This is unrelated to `K8S_VERSION`, which tracks the cluster because it
+validates against the API schema; the renderer never contacts the cluster.
+
+### Working with it
+
+```sh
+task render          # regenerate deploy/ after changing any manifest
+task render:check    # what CI runs
+```
+
+The pre-commit hook regenerates rather than only complaining, so forgetting means
+a staged file, not a lecture. CI runs `--check`, so skipping the hook cannot merge
+a stale `deploy/`.
 
 That separation is what the old repo lacked. Previously a single Application
 pointed at `kubernetes/applications` with `directory.recurse: true`, so Argo

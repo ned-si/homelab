@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/nfs-storage
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/nfs-storage and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    homelab.lilalala.com/share: theater-data
+  name: theater-data
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: 26Ti
+  mountOptions:
+  - nfsvers=4.1
+  - hard
+  - noatime
+  - timeo=600
+  - retrans=2
+  nfs:
+    path: /mnt/homelab/k8s/nfs
+    server: 192.168.1.228
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: theater-data
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 26Ti
+  storageClassName: ""
+  volumeName: theater-data

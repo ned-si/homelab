@@ -35,7 +35,7 @@ spec:
   source:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
-    path: platform/barman-cloud-plugin
+    path: deploy/platform/barman-cloud-plugin
   destination:
     server: https://kubernetes.default.svc
     namespace: cnpg-system

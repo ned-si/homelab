@@ -118,6 +118,7 @@ tasks:
       - task: lint:yaml
       - task: lint:renovate
       - task: lint:tofu
+      - task: render:check
       - task: secrets:leak-check
 
   lint:yaml:
@@ -152,6 +153,16 @@ tasks:
     desc: Render everything kubectl can handle, no kustomize/ksops needed
     cmds:
       - ./scripts/render-check.sh
+
+  render:
+    desc: Regenerate deploy/, the rendered manifests Argo CD syncs
+    cmds:
+      - ./scripts/render-deploy.sh
+
+  render:check:
+    desc: Fail if deploy/ does not match its sources (what CI runs)
+    cmds:
+      - ./scripts/render-deploy.sh --check
 
   validate:
     desc: Render + schema-validate against the cluster's Kubernetes version

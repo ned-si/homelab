@@ -32,7 +32,7 @@ spec:
     # Grafana's HTTPRoute.
     - repoURL: https://github.com/ned-si/homelab.git
       targetRevision: main
-      path: platform/kube-prometheus-stack/routes
+      path: deploy/platform/kube-prometheus-stack/routes
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

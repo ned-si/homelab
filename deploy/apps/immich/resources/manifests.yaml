@@ -1,0 +1,227 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/immich/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/immich/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-data
+  namespace: immich
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Ti
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-restic-cache
+  namespace: immich
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: iscsi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-library-backup
+  namespace: immich
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 72000
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: immich-library-backup
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: immich-server
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              # `init` is idempotent-by-failure: it errors if the repo already
+              # exists, which is the normal case after the first run.
+              restic init 2>/dev/null || true
+
+              restic backup /data \
+                --tag immich-library \
+                --host immich \
+                --exclude '**/.tmp/**' \
+                --exclude '**/encoded-video/**' \
+                --exclude '**/thumbs/**' \
+                --verbose
+
+              # Retention. Thumbnails and transcodes are excluded above
+              # because Immich regenerates them from originals -- backing them
+              # up would roughly double the bill for data that is derived.
+              restic forget \
+                --tag immich-library \
+                --keep-daily 7 \
+                --keep-weekly 5 \
+                --keep-monthly 12 \
+                --prune
+
+              # Cheap structural check on every run. The real verification
+              # (actually restoring data) is a separate CronJob:
+              # platform/backup-verify/.
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-003.backblazeb2.com/homelab-backups/immich/library
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: RESTIC_PACK_SIZE
+              value: "64"
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 2Gi
+              requests:
+                cpu: 200m
+                memory: 512Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /data
+              name: data
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: immich-data
+              readOnly: true
+          - name: cache
+            persistentVolumeClaim:
+              claimName: immich-restic-cache
+  schedule: 30 3 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: immich
+  namespace: immich
+spec:
+  hostnames:
+  - media.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: immich-server
+      port: 2283
+    timeouts:
+      backendRequest: 0s
+      request: 0s
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: immich-db
+  namespace: immich
+spec:
+  backup:
+    barmanObjectStore:
+      data:
+        compression: gzip
+        jobs: 2
+      destinationPath: s3://homelab-backups/immich/postgres
+      endpointURL: https://s3.eu-central-003.backblazeb2.com
+      s3Credentials:
+        accessKeyId:
+          key: ACCESS_KEY_ID
+          name: s3-backup
+        secretAccessKey:
+          key: ACCESS_SECRET_KEY
+          name: s3-backup
+      wal:
+        compression: gzip
+        maxParallel: 2
+    retentionPolicy: 30d
+  bootstrap:
+    initdb:
+      postInitApplicationSQL:
+      - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
+      - CREATE EXTENSION IF NOT EXISTS cube;
+      - CREATE EXTENSION IF NOT EXISTS earthdistance;
+      - ALTER SCHEMA public OWNER TO "app";
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:17-1.1.0
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: 256MB
+    shared_preload_libraries:
+    - vchord.so
+  resources:
+    limits:
+      memory: 2Gi
+    requests:
+      cpu: 200m
+      memory: 512Mi
+  storage:
+    size: 20Gi
+    storageClass: iscsi
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: immich-nightly
+  namespace: immich
+spec:
+  backupOwnerReference: self
+  cluster:
+    name: immich-db
+  immediate: true
+  method: barmanObjectStore
+  schedule: 0 30 2 * * *

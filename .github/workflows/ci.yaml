@@ -27,6 +27,15 @@ env:
   KUSTOMIZE_VERSION: "5.7.1"
   # renovate: datasource=github-releases depName=yannh/kubeconform
   KUBECONFORM_VERSION: "v0.7.0"
+  # The renderer for deploy/. `scripts/render-deploy.sh` uses `kubectl kustomize`,
+  # so the kustomize version embedded in THIS kubectl decides the bytes that end
+  # up in deploy/. It is pinned because checked-in generated output is only
+  # meaningful if the generator is deterministic; a different version produces a
+  # formatting diff that looks like a stale render.
+  #
+  # NOT the same thing as K8S_VERSION below. This never contacts the cluster.
+  # renovate: datasource=github-releases depName=kubernetes/kubernetes
+  KUBECTL_VERSION: "v1.36.3"
   # The Kubernetes version to validate manifests against. Bump this alongside a
   # real cluster upgrade, not before -- validating against a newer API than the
   # cluster runs would pass here and fail on sync.
@@ -64,9 +73,17 @@ jobs:
             "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
           tar -xzf /tmp/k.tar.gz -C /usr/local/bin kustomize
 
+      # Pinned, because this is what renders deploy/. See the env block.
+      - name: Install kubectl
+        run: |
+          curl -sSLo /usr/local/bin/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x /usr/local/bin/kubectl
+          kubectl version --client -o json | grep kustomizeVersion
+
       # Runs yamllint, shellcheck, gitleaks, tofu fmt, leak-check,
-      # renovate-dryrun and render-check in one pass -- the same set a developer
-      # gets locally, so CI cannot disagree with pre-commit.
+      # renovate-dryrun, render-check and render-deploy in one pass -- the same
+      # set a developer gets locally, so CI cannot disagree with pre-commit.
       - name: pre-commit
         run: pre-commit run --all-files --show-diff-on-failure
 
@@ -102,41 +119,54 @@ jobs:
           exit $rc
 
   # ---------------------------------------------------------------------------
+  rendered-manifests:
+    name: deploy/ matches its sources
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install kubectl (pinned -- it is the renderer)
+        run: |
+          curl -sSLo /usr/local/bin/kubectl \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+          chmod +x /usr/local/bin/kubectl
+
+      # deploy/ is build output. If it does not match what the sources produce,
+      # then what Argo applies is not what the repo says, which defeats the whole
+      # arrangement. This is the check that keeps deploy/ honest.
+      - name: deploy/ is up to date
+        run: ./scripts/render-deploy.sh --check
+
+  # ---------------------------------------------------------------------------
   validate:
     name: manifest schema validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install tooling
+      - name: Install kubeconform
         run: |
-          curl -sSLo /tmp/k.tar.gz \
-            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          tar -xzf /tmp/k.tar.gz -C /usr/local/bin kustomize
           curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
             | tar -xz -C /usr/local/bin kubeconform
 
-      # The SOPS-backed directories cannot be rendered in CI: the age key is not
-      # available here, and it must never be. They are skipped, and that gap is
-      # covered by `task build` locally plus the sync itself failing loudly.
-      - name: Render and validate
+      # Validates deploy/ rather than re-rendering the sources, because deploy/
+      # is what Argo actually applies. The `rendered-manifests` job above proves
+      # deploy/ is derived from the sources, so this covers both.
+      #
+      # The three SOPS directories are not in deploy/ and cannot be validated
+      # here: the age key is not available to CI and must never be. That gap is
+      # covered by `task build` locally, where the key exists.
+      - name: Validate rendered manifests
         run: |
           set -euo pipefail
-          for d in $(find clusters infrastructure platform apps -name kustomization.yaml \
-                       -exec dirname {} \; | sort); do
-            case "$d" in
-              */secrets) echo "skip (needs age key): $d"; continue ;;
-            esac
-            echo "==> $d"
-            kustomize build --enable-helm "$d" \
-              | kubeconform \
-                  -strict \
-                  -summary \
-                  -kubernetes-version "${K8S_VERSION}" \
-                  -schema-location default \
-                  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
-                  -ignore-missing-schemas
-          done
+          find deploy -name 'manifests.yaml' -print0 \
+          | xargs -0 kubeconform \
+              -strict \
+              -summary \
+              -kubernetes-version "${K8S_VERSION}" \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -ignore-missing-schemas
 
   # ---------------------------------------------------------------------------
   sast:
@@ -194,7 +224,7 @@ jobs:
   ci-passed:
     name: ci
     runs-on: ubuntu-latest
-    needs: [lint, validate, sast]
+    needs: [lint, rendered-manifests, validate, sast]
     if: always()
     steps:
       - name: Fail if any dependency failed

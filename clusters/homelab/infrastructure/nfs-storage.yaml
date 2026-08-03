@@ -29,7 +29,7 @@ spec:
   source:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
-    path: infrastructure/nfs-storage
+    path: deploy/infrastructure/nfs-storage
   destination:
     server: https://kubernetes.default.svc
     namespace: theater

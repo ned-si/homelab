@@ -1,0 +1,418 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/paperless
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/paperless and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: paperless
+  name: paperless
+  namespace: paperless
+spec:
+  ports:
+  - name: http
+    port: 8000
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: paperless
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: paperless
+spec:
+  ports:
+  - name: redis
+    port: 6379
+    protocol: TCP
+    targetPort: redis
+  selector:
+    app.kubernetes.io/name: valkey
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-consume
+  namespace: paperless
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-data
+  namespace: paperless
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-media
+  namespace: paperless
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-restic-cache
+  namespace: paperless
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-valkey
+  namespace: paperless
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  storageClassName: iscsi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: paperless
+  name: paperless
+  namespace: paperless
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperless
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PAPERLESS_TIME_ZONE
+          value: Europe/Zurich
+        - name: PAPERLESS_REDIS
+          value: redis://valkey.paperless.svc.cluster.local:6379
+        - name: PAPERLESS_DATA_DIR
+          value: /data/data
+        - name: PAPERLESS_MEDIA_ROOT
+          value: /data/media
+        - name: PAPERLESS_CONSUMPTION_DIR
+          value: /data/consume
+        - name: PAPERLESS_URL
+          value: https://archive.lilalala.com
+        - name: PAPERLESS_ALLOWED_HOSTS
+          value: archive.lilalala.com
+        - name: PAPERLESS_CSRF_TRUSTED_ORIGINS
+          value: https://archive.lilalala.com
+        - name: PAPERLESS_BIND_ADDR
+          value: 0.0.0.0
+        - name: PAPERLESS_PORT
+          value: "8000"
+        - name: PAPERLESS_OCR_LANGUAGE
+          value: fra+eng+deu
+        - name: PAPERLESS_APPS
+          value: allauth.socialaccount.providers.openid_connect
+        - name: PAPERLESS_SOCIAL_AUTO_SIGNUP
+          value: "true"
+        - name: PAPERLESS_REDIRECT_LOGIN_TO_SSO
+          value: "true"
+        envFrom:
+        - secretRef:
+            name: paperless-secrets
+        image: ghcr.io/paperless-ngx/paperless-ngx:v3.0.4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /accounts/login/
+            port: http
+          initialDelaySeconds: 180
+          periodSeconds: 30
+        name: paperless
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /accounts/login/
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 3Gi
+          requests:
+            cpu: 200m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /data/data
+          name: data
+        - mountPath: /data/media
+          name: media
+        - mountPath: /data/consume
+          name: consume
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: paperless-data
+      - name: media
+        persistentVolumeClaim:
+          claimName: paperless-media
+      - name: consume
+        persistentVolumeClaim:
+          claimName: paperless-consume
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: paperless
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+    spec:
+      containers:
+      - args:
+        - --save
+        - "60"
+        - "1"
+        - --appendonly
+        - "yes"
+        - --dir
+        - /data
+        image: valkey/valkey:9.1.1-alpine
+        imagePullPolicy: IfNotPresent
+        name: valkey
+        ports:
+        - containerPort: 6379
+          name: redis
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - mountPath: /data
+          name: data
+      securityContext:
+        fsGroup: 999
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: paperless-valkey
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paperless-backup
+  namespace: paperless
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 21600
+      backoffLimit: 2
+      template:
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: paperless
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+
+              # Consistent SQLite snapshot. `sqlite3 .backup` uses SQLite's
+              # backup API, which cooperates with the running writer -- unlike
+              # copying db.sqlite3 directly, which can produce a torn file
+              # that only fails when you try to restore it.
+              #
+              # If sqlite3 is unavailable in this image the copy is skipped
+              # rather than silently producing a corrupt one.
+              if command -v sqlite3 >/dev/null 2>&1; then
+                sqlite3 /data/db.sqlite3 ".backup '/tmp/db-consistent.sqlite3'"
+                restic backup /tmp/db-consistent.sqlite3 \
+                  --tag paperless-db --host paperless
+                rm -f /tmp/db-consistent.sqlite3
+              else
+                echo "WARNING: sqlite3 not present; database captured as part"
+                echo "         of the file backup below and MAY BE INCONSISTENT."
+                echo "         See docs/backups.md#paperless."
+              fi
+
+              # The documents. These are the irreplaceable part.
+              restic backup /media \
+                --tag paperless-media --host paperless --verbose
+
+              # The database + index, excluding regenerable derivatives.
+              restic backup /data \
+                --tag paperless-data --host paperless \
+                --exclude '**/index/**' \
+                --exclude '**/thumbnails/**' \
+                --verbose
+
+              restic forget \
+                --host paperless \
+                --keep-daily 14 --keep-weekly 8 --keep-monthly 24 \
+                --prune
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-003.backblazeb2.com/homelab-backups/paperless/media
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+            volumeMounts:
+            - mountPath: /media
+              name: media
+              readOnly: true
+            - mountPath: /data
+              name: data
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+            - mountPath: /tmp
+              name: tmp
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: media
+            persistentVolumeClaim:
+              claimName: paperless-media
+              readOnly: true
+          - name: data
+            persistentVolumeClaim:
+              claimName: paperless-data
+              readOnly: true
+          - name: cache
+            persistentVolumeClaim:
+              claimName: paperless-restic-cache
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: tmp
+  schedule: 0 4 * * *
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  hostnames:
+  - archive.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: paperless
+      port: 8000
+    timeouts:
+      backendRequest: 0s
+      request: 0s

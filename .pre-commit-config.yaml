@@ -10,6 +10,11 @@
 # `pre-commit` manager, which is why these need no `# renovate:` comment.
 default_install_hook_types: [pre-commit, commit-msg]
 
+# NOTE ON deploy/: it is generated output (scripts/render-deploy.sh). Any hook
+# that REWRITES files is excluded from it. A formatter that "fixes" generated
+# YAML puts it permanently out of sync with its source, so `render-deploy.sh
+# --check` would fail forever and the only way out would be to disable the check.
+# Hooks that merely READ deploy/ (check-yaml, gitleaks, leak-check) still apply.
 repos:
   # ---------------------------------------------------------------------------
   # Hygiene
@@ -18,10 +23,13 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^deploy/
       - id: end-of-file-fixer
+        exclude: ^deploy/
       - id: check-merge-conflict
       - id: mixed-line-ending
         args: [--fix=lf]
+        exclude: ^deploy/
       - id: check-yaml
         name: check-yaml (skips SOPS + Helm templates)
         # Multi-document manifests are the norm here.
@@ -34,6 +42,11 @@ repos:
           )$
       - id: check-added-large-files
         args: [--maxkb=512]
+        # deploy/infrastructure/gateway-api/manifests.yaml is ~830KB: the
+        # Gateway API experimental CRD bundle, vendored so Argo does not need to
+        # reach github.com at sync time. It changes only on a Gateway API version
+        # bump, which is behind manual review anyway.
+        exclude: ^deploy/
       - id: check-executables-have-shebangs
       - id: detect-private-key
         # The template legitimately shows the shape of a key with a placeholder.
@@ -57,6 +70,10 @@ repos:
     hooks:
       - id: yamllint
         args: [--strict, -c, .yamllint.yaml]
+        # Generated output. Style-linting it would mean either editing generated
+        # files or vendoring upstream CRDs that happen to satisfy our line-length
+        # rules, neither of which is a real goal.
+        exclude: ^deploy/
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
@@ -114,6 +131,18 @@ repos:
       - id: kustomize-renders
         name: every kustomization renders
         entry: ./scripts/render-check.sh
+        language: script
+        pass_filenames: false
+        files: '(kustomization\.yaml$|\.ya?ml$)'
+
+      # Regenerates deploy/ rather than only checking it, so the answer to "you
+      # forgot to re-render" is a staged file instead of an error message. If it
+      # changes anything, pre-commit fails and you `git add` and commit again --
+      # the same flow as any formatter. CI runs the same script with --check, so
+      # skipping the hook cannot get a stale deploy/ merged.
+      - id: render-deploy
+        name: deploy/ matches its sources
+        entry: ./scripts/render-deploy.sh
         language: script
         pass_filenames: false
         files: '(kustomization\.yaml$|\.ya?ml$)'
