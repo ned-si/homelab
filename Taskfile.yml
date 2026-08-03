@@ -10,8 +10,10 @@ version: "3"
 vars:
   # Where `task secrets:decrypt` writes plaintext. Git-ignored.
   DECRYPT_DIR: .decrypted
-  # renovate: datasource=github-releases depName=kubernetes-sigs/gateway-api
-  GATEWAY_API_VERSION: v1.6.1
+  # NOTE: there is deliberately no GATEWAY_API_VERSION here. The pinned CRD
+  # bundle URL lives in infrastructure/gateway-api/kustomization.yaml and nowhere
+  # else. A second copy in this file drifted from it immediately -- it still said
+  # v1.6.1/standard while the cluster ran v1.2.0/experimental.
   KUSTOMIZE_DIRS:
     sh: find clusters infrastructure platform apps -name kustomization.yaml -exec dirname {} \; 2>/dev/null | sort
   SOPS_FILES:
@@ -188,7 +190,9 @@ tasks:
     desc: Print the pinned Gateway API CRD bundle URL
     silent: true
     cmds:
-      - echo "https://github.com/kubernetes-sigs/gateway-api/releases/download/{{.GATEWAY_API_VERSION}}/standard-install.yaml"
+      # Read from the kustomization rather than restating it, so this can never
+      # disagree with what is actually applied.
+      - grep -o 'https://github.com/kubernetes-sigs/gateway-api/[^ ]*' infrastructure/gateway-api/kustomization.yaml
 
   apps:status:
     desc: Show every Argo CD Application and its sync/health state
