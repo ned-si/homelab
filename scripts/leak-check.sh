@@ -46,6 +46,23 @@ is_exempt() {
   esac
 }
 
+# Secrets that legitimately appear in rendered output because they come from an
+# UPSTREAM release bundle, not from this repo. Matched as <namespace>/<name>,
+# with a trailing * because kustomize appends a content hash.
+#
+# Every entry needs a reason. If you cannot write one, it is not allowed.
+is_allowed_secret() {
+  case "$1" in
+    # Barman Cloud plugin bundle. Holds a single key, SIDECAR_IMAGE, whose value
+    # is a base64-encoded container image reference -- not a credential. Upstream
+    # ships it as a Secret rather than a ConfigMap; that is their choice, not a
+    # leak. Verify after a bundle bump with:
+    #   grep -A4 'kind: Secret' deploy/platform/barman-cloud-plugin/manifests.yaml
+    cnpg-system/plugin-barman-cloud-*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 while IFS= read -r f; do
   [[ -z "$f" || ! -f "$f" ]] && continue
   is_exempt "$f" && continue
@@ -75,12 +92,39 @@ while IFS= read -r f; do
 
   # 3. A plaintext Kubernetes Secret payload. Only meaningful in YAML that is
   #    not SOPS-encrypted (encrypted files were skipped above).
+  #
+  #    This is PER YAML DOCUMENT, not per file. A naive per-file grep breaks on
+  #    the rendered multi-document files in deploy/, where `kind: Secret` in one
+  #    document and a `data:` key in an unrelated CRD schema in another look
+  #    identical to a leaked Secret. Two false positives, both silenced by
+  #    scoping to a single document and requiring `data:`/`stringData:` at zero
+  #    indent -- which is where a Secret's payload always lives, and where a
+  #    field inside a CRD's openAPIV3Schema never does.
   case "$f" in
     *.yaml|*.yml)
-      if grep -qE '^[[:space:]]*(stringData|data):[[:space:]]*$' "$f" 2>/dev/null \
-         && grep -qE '^[[:space:]]*kind:[[:space:]]*Secret[[:space:]]*$' "$f" 2>/dev/null; then
-        bad "PLAINTEXT SECRET: $f  (should be a sealed *.sops.yaml)"
-      fi
+      offenders=$(awk '
+        function flush() {
+          if (is_secret && has_data) {
+            printf "%s/%s\n", (ns == "" ? "-" : ns), (nm == "" ? "-" : nm)
+          }
+          is_secret = 0; has_data = 0; ns = ""; nm = ""; in_meta = 0
+        }
+        /^---[[:space:]]*$/ { flush(); next }
+        /^kind:[[:space:]]*Secret[[:space:]]*$/ { is_secret = 1; next }
+        /^(stringData|data):[[:space:]]*$/      { has_data = 1; next }
+        /^metadata:[[:space:]]*$/               { in_meta = 1; next }
+        /^[^[:space:]]/                         { in_meta = 0 }
+        in_meta && /^[[:space:]]+name:[[:space:]]/      { nm = $2 }
+        in_meta && /^[[:space:]]+namespace:[[:space:]]/ { ns = $2 }
+        END { flush() }
+      ' "$f" 2>/dev/null)
+
+      for o in $offenders; do
+        if is_allowed_secret "$o"; then
+          continue
+        fi
+        bad "PLAINTEXT SECRET: $f  ($o -- should be a sealed *.sops.yaml)"
+      done
       ;;
   esac
 done <<<"$files"
