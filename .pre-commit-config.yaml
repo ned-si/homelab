@@ -1,0 +1,119 @@
+---
+# Local guardrails. Install with `task tools`, which runs:
+#     pre-commit install --install-hooks
+#     pre-commit install --hook-type commit-msg
+#
+# These are the same checks CI runs, so a green pre-commit means a green CI.
+# Run against everything with: pre-commit run --all-files
+#
+# NOTE ON PINS: each `rev` is pinned and tracked by Renovate's native
+# `pre-commit` manager, which is why these need no `# renovate:` comment.
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  # ---------------------------------------------------------------------------
+  # Hygiene
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-yaml
+        name: check-yaml (skips SOPS + Helm templates)
+        # Multi-document manifests are the norm here.
+        args: [--allow-multiple-documents]
+        exclude: |
+          (?x)^(
+            .*\.sops\.yaml
+            |bootstrap/charts/.*/templates/.*
+            |Taskfile\.yml
+          )$
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-executables-have-shebangs
+      - id: detect-private-key
+        # The template legitimately shows the shape of a key with a placeholder.
+        exclude: '\.example$'
+
+  # ---------------------------------------------------------------------------
+  # Secret scanning. Two tools on purpose: gitleaks catches high-entropy and
+  # known-provider patterns, leak-check enforces THIS repo's rule that every
+  # *.sops.yaml must actually be encrypted.
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # ---------------------------------------------------------------------------
+  # YAML / shell / OpenTofu
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        args: [--strict, -c, .yamllint.yaml]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.100.0
+    hooks:
+      - id: terraform_fmt
+        files: ^bootstrap/
+
+  # ---------------------------------------------------------------------------
+  # Conventional commits. Enforced so the changelog and the PR titles stay
+  # machine-readable.
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.2.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args:
+          - feat
+          - fix
+          - docs
+          - refactor
+          - perf
+          - test
+          - build
+          - ci
+          - chore
+          - revert
+          - security
+
+  # ---------------------------------------------------------------------------
+  # Repo-specific checks. Local hooks so they cannot drift from the scripts CI
+  # runs.
+  # ---------------------------------------------------------------------------
+  - repo: local
+    hooks:
+      - id: leak-check
+        name: no unencrypted secrets
+        entry: ./scripts/leak-check.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+      - id: renovate-annotations
+        name: every pinned version has a working renovate annotation
+        entry: node scripts/renovate-dryrun.js
+        language: system
+        pass_filenames: false
+        files: '(\.ya?ml$|\.tf$|Taskfile\.yml$|renovate\.json5$)'
+
+      - id: kustomize-renders
+        name: every kustomization renders
+        entry: ./scripts/render-check.sh
+        language: script
+        pass_filenames: false
+        files: '(kustomization\.yaml$|\.ya?ml$)'

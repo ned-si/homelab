@@ -1,0 +1,25 @@
+# Trivy config-scan exemptions. Each entry needs a reason and, ideally, a
+# pointer to the runbook that would remove it.
+#
+# Format: one check ID per line.
+
+# --- NFS ---------------------------------------------------------------------
+# The media library is exported over NFS without Kerberos. This is a known,
+# tracked gap with a documented mitigation plan; it is not something a manifest
+# change can fix, because the control is on the TrueNAS side.
+# See docs/runbooks/nfs-hardening.md
+AVD-KSV-0121
+
+# --- hostPath / privileged in the CSI and monitoring namespaces --------------
+# democratic-csi node plugins must mount host paths and run privileged to drive
+# the host's iSCSI initiator. node-exporter needs hostPID/hostNetwork. Both are
+# confined to namespaces labelled `pod-security.kubernetes.io/enforce: privileged`
+# in infrastructure/namespaces/namespaces.yaml, which is the actual control.
+AVD-KSV-0009
+AVD-KSV-0023
+
+# --- read-only root filesystem ----------------------------------------------
+# Several upstream images (Keycloak, the *arr apps, Plex, Seafile) write to their
+# own filesystem at runtime and provide no way to relocate that. Enforcing a
+# read-only root would mean forking every image.
+AVD-KSV-0014

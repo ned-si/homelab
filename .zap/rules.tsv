@@ -1,0 +1,24 @@
+# ZAP alert filter. Tab-separated: <ruleId>	<WARN|IGNORE|FAIL>	<comment>
+#
+# Only rules with a stated reason belong here. Everything not listed keeps its
+# default behaviour.
+#
+# Find a rule ID in the ZAP HTML report, or:
+#   https://www.zaproxy.org/docs/alerts/
+#
+# ---------------------------------------------------------------------------
+# Expected because every target sits behind Keycloak
+# ---------------------------------------------------------------------------
+10105	IGNORE	Authentication required - every app redirects to Keycloak by design
+# ---------------------------------------------------------------------------
+# Not applicable to self-hosted single-tenant services
+# ---------------------------------------------------------------------------
+10063	WARN	Permissions-Policy not set - worth adding at the Gateway eventually
+10037	IGNORE	Server leaks version via banner - upstream images, not ours to patch
+# ---------------------------------------------------------------------------
+# Things that SHOULD fail the scan: these are real and fixable at the Gateway
+# ---------------------------------------------------------------------------
+10035	FAIL	Strict-Transport-Security missing - the Gateway should set HSTS
+10038	FAIL	Content-Security-Policy missing
+10020	FAIL	Missing X-Frame-Options / frame-ancestors
+10021	FAIL	X-Content-Type-Options missing
