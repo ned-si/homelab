@@ -1,0 +1,47 @@
+# Immich Postgres backup to S3.
+#
+# ###########################################################################
+# # USES THE IN-TREE barmanObjectStore, NOT THE BARMAN CLOUD PLUGIN.
+# #
+# # An earlier draft used the plugin (`spec.plugins` + an ObjectStore CR),
+# # because that is the direction CloudNativePG is moving and the in-tree path is
+# # deprecated as of CNPG 1.26.
+# #
+# # It does not work here. Verified against the live cluster 2026-07-31:
+# #
+# #   operator: ghcr.io/cloudnative-pg/cloudnative-pg:1.24.1
+# #   apply -> .spec.plugins[0].isWALArchiver: field not declared in schema
+# #         -> no matches for kind "ObjectStore" in barmancloud.cnpg.io/v1
+# #
+# # CNPG 1.24 knows `spec.plugins` but not `isWALArchiver`, and the plugin's CRD
+# # is not installed. So the plugin is a POST-UPGRADE step; see
+# # docs/migration-plan.md. The in-tree form below works on 1.24 today and its
+# # backups are forward-compatible with the plugin, so nothing is wasted.
+# ###########################################################################
+#
+# Two independent things must be backed up. Losing either loses the library:
+#
+#   1. POSTGRES  -- albums, people, embeddings, shared links, users. Handled here:
+#                   continuous WAL archiving + a nightly base backup = PITR.
+#   2. THE FILES -- the photos themselves, on the `immich-data` PVC. Handled by
+#                   the restic CronJob in ./backup-files.yaml.
+#
+# A Postgres backup alone gives a catalogue of files that no longer exist. A file
+# backup alone gives photos with no albums, no people and no search.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: immich-nightly
+  namespace: immich
+spec:
+  # SIX fields, not five: CloudNativePG uses the cron-with-seconds format.
+  # `0 30 2 * * *` is 02:30 daily. A five-field expression is rejected, and this
+  # is the most common mistake with CNPG schedules.
+  schedule: "0 30 2 * * *"
+  backupOwnerReference: self
+  immediate: true
+  cluster:
+    name: immich-db
+  # In-tree object-store method. Becomes `plugin` after the CNPG upgrade.
+  method: barmanObjectStore

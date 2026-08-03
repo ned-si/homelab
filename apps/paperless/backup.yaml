@@ -1,0 +1,155 @@
+# Paperless backup.
+#
+# Paperless is on SQLite (see deployment.yaml for why), so there is no
+# CloudNativePG cluster to archive. Everything lives on PVCs, which means restic
+# for all of it.
+#
+# WHAT IS BACKED UP AND WHY
+#   paperless-media   the original scanned documents. IRREPLACEABLE. If the
+#                     paper original is gone, this is the only copy.
+#   paperless-data    the SQLite database, search index and thumbnails. The
+#                     index and thumbnails are derived, but the database holds
+#                     tags, correspondents and document types -- i.e. all the
+#                     work you did organising the archive.
+#
+#   paperless-consume is NOT backed up: it is a drop-box that Paperless empties.
+#                     Anything sitting in it is transient by definition.
+#
+# CONSISTENCY CAVEAT, stated honestly: backing up a live SQLite file can capture
+# a torn write, and restic has no way to know. The mitigation is the `.backup`
+# command below, which produces a consistent copy through SQLite's own API rather
+# than copying bytes from under a running process.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paperless-backup
+  namespace: paperless
+spec:
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 21600
+      template:
+        spec:
+          restartPolicy: OnFailure
+          # Shares the RWO volumes with the paperless pod, so it must be
+          # co-scheduled.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: paperless
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic init 2>/dev/null || true
+
+                  # Consistent SQLite snapshot. `sqlite3 .backup` uses SQLite's
+                  # backup API, which cooperates with the running writer -- unlike
+                  # copying db.sqlite3 directly, which can produce a torn file
+                  # that only fails when you try to restore it.
+                  #
+                  # If sqlite3 is unavailable in this image the copy is skipped
+                  # rather than silently producing a corrupt one.
+                  if command -v sqlite3 >/dev/null 2>&1; then
+                    sqlite3 /data/db.sqlite3 ".backup '/tmp/db-consistent.sqlite3'"
+                    restic backup /tmp/db-consistent.sqlite3 \
+                      --tag paperless-db --host paperless
+                    rm -f /tmp/db-consistent.sqlite3
+                  else
+                    echo "WARNING: sqlite3 not present; database captured as part"
+                    echo "         of the file backup below and MAY BE INCONSISTENT."
+                    echo "         See docs/backups.md#paperless."
+                  fi
+
+                  # The documents. These are the irreplaceable part.
+                  restic backup /media \
+                    --tag paperless-media --host paperless --verbose
+
+                  # The database + index, excluding regenerable derivatives.
+                  restic backup /data \
+                    --tag paperless-data --host paperless \
+                    --exclude '**/index/**' \
+                    --exclude '**/thumbnails/**' \
+                    --verbose
+
+                  restic forget \
+                    --host paperless \
+                    --keep-daily 14 --keep-weekly 8 --keep-monthly 24 \
+                    --prune
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-003.backblazeb2.com/homelab-backups/paperless/media
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: media
+                  mountPath: /media
+                  readOnly: true
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: media
+              persistentVolumeClaim:
+                claimName: paperless-media
+                readOnly: true
+            - name: data
+              persistentVolumeClaim:
+                claimName: paperless-data
+                readOnly: true
+            - name: cache
+              persistentVolumeClaim:
+                claimName: paperless-restic-cache
+            - name: tmp
+              emptyDir:
+                sizeLimit: 2Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-restic-cache
+  namespace: paperless
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

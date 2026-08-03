@@ -16,19 +16,49 @@ spec:
   # Pin the Postgres image. Leaving this unset means the operator picks its own
   # default, which silently changes major version across operator upgrades and
   # would refuse to start on an existing data directory.
+  #
+  # PINNED TO 17.0, THE RUNNING VERSION -- not 17.6 like the other clusters, and
+  # deliberately so. CloudNativePG refuses to change the image and the PostgreSQL
+  # configuration in the same apply:
+  #
+  #   spec.imageName: Can't change image name and configuration at the same time.
+  #   There are differences in PostgreSQL configuration parameters:
+  #   {"max_connections":["","100"],"shared_buffers":["","64MB"]}
+  #
+  # This cluster is the only one that sets `postgresql.parameters`, so it is the
+  # only one that hits the rule. Applying the tuning first and letting Renovate
+  # propose 17.0 -> 17.6 as an isolated, image-only change satisfies CNPG and
+  # keeps the version bump reviewable on its own. Verified with a server-side
+  # dry-run against the live operator (1.24.1).
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.0
   storage:
     size: 5Gi
     storageClass: iscsi
   monitoring:
     enablePodMonitor: true
-  # Continuous WAL archiving to S3. The ObjectStore is in ./backup.yaml.
-  plugins:
-    - name: barman-cloud.cloudnative-pg.io
-      isWALArchiver: true
-      parameters:
-        barmanObjectName: keycloak-backup
+  # Continuous WAL archiving to S3, in-tree form (CNPG 1.24 cannot use the
+  # Barman Cloud plugin -- see apps/immich/resources/backup.yaml).
+  #
+  # Retention is longer than Immich's 30d: this database is tiny, so retention is
+  # nearly free, and a bad realm change can go unnoticed for weeks.
+  backup:
+    retentionPolicy: "90d"
+    barmanObjectStore:
+      destinationPath: s3://homelab-backups/keycloak/postgres
+      endpointURL: https://s3.eu-central-003.backblazeb2.com
+      s3Credentials:
+        accessKeyId:
+          name: s3-backup
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: s3-backup
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+        maxParallel: 1
+      data:
+        compression: gzip
   resources:
     requests:
       cpu: 50m

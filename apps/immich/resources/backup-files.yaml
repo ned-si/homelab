@@ -1,0 +1,151 @@
+# The photo library itself, to S3 with restic.
+#
+# WHY RESTIC CRONJOBS AND NOT VOLSYNC
+#   VolSync is the more polished GitOps answer and does snapshot-then-backup, so
+#   it gets a crash-consistent point-in-time copy. It is also another operator to
+#   install, version and understand.
+#
+#   For THIS data the snapshot buys little: Immich's library is
+#   write-once-then-immutable content-addressed files. Backing it up live risks
+#   catching a half-uploaded file, and restic simply picks that file up correctly
+#   on the next run. The database, where consistency genuinely matters, is handled
+#   properly by Barman with PITR.
+#
+#   So: restic here, and VolSync noted as the upgrade path if this ever holds
+#   something that is mutated in place. See docs/backups.md.
+#
+# WHY IT MOUNTS THE SAME RWO PVC AS IMMICH
+#   `immich-data` is ReadWriteOnce, so this CronJob's pod MUST land on the same
+#   node as the immich-server pod or it will fail to attach. That is what the
+#   podAffinity below guarantees. Without it the job fails intermittently and
+#   confusingly, depending on scheduling.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-library-backup
+  namespace: immich
+spec:
+  # 03:30, after the Postgres base backup at 02:30, so the two do not compete
+  # for the uplink.
+  schedule: "30 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  # A 2TB initial backup over a domestic uplink takes days. Do not let
+  # Kubernetes kill it.
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # 20h: long enough for a big incremental, short enough that a wedged job
+      # does not block tomorrow's run.
+      activeDeadlineSeconds: 72000
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: immich-library-backup
+        spec:
+          restartPolicy: OnFailure
+          # Must co-locate with immich-server: shared ReadWriteOnce volume.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: immich-server
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  # `init` is idempotent-by-failure: it errors if the repo already
+                  # exists, which is the normal case after the first run.
+                  restic init 2>/dev/null || true
+
+                  restic backup /data \
+                    --tag immich-library \
+                    --host immich \
+                    --exclude '**/.tmp/**' \
+                    --exclude '**/encoded-video/**' \
+                    --exclude '**/thumbs/**' \
+                    --verbose
+
+                  # Retention. Thumbnails and transcodes are excluded above
+                  # because Immich regenerates them from originals -- backing them
+                  # up would roughly double the bill for data that is derived.
+                  restic forget \
+                    --tag immich-library \
+                    --keep-daily 7 \
+                    --keep-weekly 5 \
+                    --keep-monthly 12 \
+                    --prune
+
+                  # Cheap structural check on every run. The real verification
+                  # (actually restoring data) is a separate CronJob:
+                  # platform/backup-verify/.
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-003.backblazeb2.com/homelab-backups/immich/library
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # Retry rather than fail on a flaky domestic uplink.
+                - name: RESTIC_PACK_SIZE
+                  value: "64"
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  # restic's deduplication index for a 2TB repo is memory-hungry.
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: immich-data
+                readOnly: true
+            - name: cache
+              persistentVolumeClaim:
+                claimName: immich-restic-cache
+---
+# restic's cache makes incremental runs fast. Without a persistent cache every
+# run re-downloads the repository index, which for a 2TB repo is slow enough to
+# push the job past its deadline.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-restic-cache
+  namespace: immich
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
