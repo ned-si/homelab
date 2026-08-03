@@ -1,0 +1,245 @@
+---
+# Rolling OS patching for the Ubuntu nodes.
+#
+# WHY ANSIBLE RATHER THAN OPENTOFU
+#   OpenTofu describes desired STATE of resources it owns. Patching an existing
+#   OS is a sequence of imperative steps with ordering constraints -- drain, wait,
+#   patch, reboot, wait for Ready, uncordon -- and a failure halfway through must
+#   stop the rollout, not be retried on the next apply. That is procedural work,
+#   which is what Ansible is for. Using OpenTofu here would mean wrapping
+#   `remote-exec` provisioners, which is Ansible with worse error handling.
+#
+#   (The long-term answer is Talos, where the OS is immutable and upgrades are an
+#   API call. See docs/talos-migration.md.)
+#
+# WHAT MAKES THIS SAFE
+#   serial: 1          one node at a time, never two
+#   drain before       workloads move off before anything changes
+#   fail-fast          any_errors_fatal stops the rollout on first failure
+#   VIP holder last    ordering in inventory.yml + the pre-flight check below
+#
+# Usage:
+#   ansible-playbook os-upgrade.yml                 # all nodes, one at a time
+#   ansible-playbook os-upgrade.yml --limit workers
+#   ansible-playbook os-upgrade.yml -e reboot=false # patch without rebooting
+#   ansible-playbook os-upgrade.yml --check         # dry run
+
+- name: Pre-flight checks
+  hosts: kube
+  gather_facts: true
+  any_errors_fatal: true
+  tasks:
+    - name: Confirm the cluster is healthy before touching anything
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+      ansible.builtin.command: kubectl get nodes -o json
+      register: nodes_json
+
+    - name: Fail if any node is already NotReady
+      delegate_to: localhost
+      run_once: true
+      vars:
+        not_ready: >-
+          {{ (nodes_json.stdout | from_json).items
+             | rejectattr('status.conditions', 'search', 'dummy')
+             | map(attribute='metadata.name') | list }}
+      ansible.builtin.assert:
+        that:
+          - (nodes_json.stdout | from_json)['items']
+            | map(attribute='status.conditions') | flatten
+            | selectattr('type', 'equalto', 'Ready')
+            | selectattr('status', 'equalto', 'False') | list | length == 0
+        fail_msg: >-
+          One or more nodes are NotReady. Fix that before starting a rolling
+          upgrade -- draining onto an already-degraded cluster is how a patch
+          window becomes an outage.
+
+    - name: Warn if Argo CD automation is enabled
+      delegate_to: localhost
+      run_once: true
+      changed_when: false
+      failed_when: false
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl -n argocd get applications -o json \
+          | jq -r '[.items[] | select(.spec.syncPolicy.automated != null)] | length'
+      args:
+        executable: /bin/bash
+      register: automated_apps
+
+    - name: Note about selfHeal during upgrades
+      delegate_to: localhost
+      run_once: true
+      when: (automated_apps.stdout | default('0') | int) > 0
+      ansible.builtin.debug:
+        msg: >-
+          {{ automated_apps.stdout }} Application(s) have automated sync on. That
+          is fine for an OS patch (nothing in git changes), but if a node stays
+          down long enough for pods to be rescheduled, expect Argo to reconcile
+          around it.
+
+# ---------------------------------------------------------------------------
+- name: Rolling OS upgrade
+  hosts: kube
+  become: true
+  # THE most important line in this file. One node at a time.
+  serial: 1
+  # Stop the whole rollout if any node fails, rather than breaking the rest.
+  any_errors_fatal: true
+  vars:
+    reboot: true
+    drain_timeout: 600
+  tasks:
+    - name: Cordon the node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command: "kubectl cordon {{ inventory_hostname }}"
+      changed_when: true
+
+    - name: Drain the node
+      delegate_to: localhost
+      become: false
+      # --ignore-daemonsets: Cilium and the CSI node plugin are DaemonSets and
+      #   must stay to unmount volumes.
+      # --delete-emptydir-data: several pods use emptyDir caches.
+      ansible.builtin.command: >-
+        kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets
+        --delete-emptydir-data
+        --force
+        --timeout={{ drain_timeout }}s
+      changed_when: true
+      register: drain
+      # A PDB or a stuck iSCSI unmount can block the drain. Surface it rather
+      # than patching a node that still has workloads on it.
+      failed_when: drain.rc != 0
+
+    - name: Update the apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 0
+
+    - name: Hold the Kubernetes packages
+      # apt must NEVER upgrade kubelet/kubeadm/kubectl as a side effect of an OS
+      # patch: that is a control-plane upgrade happening by accident, and it
+      # skips every kubeadm safety check. Kubernetes upgrades go through
+      # kube-upgrade.yml.
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+        - kubernetes-cni
+        - cri-tools
+      failed_when: false
+
+    - name: Upgrade all other packages
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: true
+        autoclean: true
+      register: apt_upgrade
+
+    - name: Check whether a reboot is required
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Ensure swap stays off
+      # A kernel upgrade can re-enable a swapfile unit. kubelet refuses to start
+      # with swap on, so this is a real post-patch failure mode.
+      when: reboot_required.stat.exists or apt_upgrade.changed
+      block:
+        - name: swapoff
+          ansible.builtin.command: swapoff -a
+          changed_when: false
+          failed_when: false
+
+        - name: Comment out swap in fstab
+          ansible.builtin.replace:
+            path: /etc/fstab
+            regexp: '^([^#].*\sswap\s.*)$'
+            replace: '# \1'
+
+        - name: Mask the swapfile unit
+          ansible.builtin.systemd:
+            name: swapfile.swap
+            masked: true
+          failed_when: false
+
+    - name: Reboot
+      when: reboot | bool and reboot_required.stat.exists
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        post_reboot_delay: 30
+        test_command: systemctl is-system-running --wait
+
+    - name: Wait for the kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        state: started
+        enabled: true
+
+    - name: Wait for the node to report Ready
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command: >-
+        kubectl wait --for=condition=Ready node/{{ inventory_hostname }}
+        --timeout=600s
+      changed_when: false
+
+    - name: Wait for Cilium on this node
+      delegate_to: localhost
+      become: false
+      # Uncordoning before the CNI is ready means pods land on a node that
+      # cannot network them.
+      ansible.builtin.shell: |
+        set -o pipefail
+        for i in $(seq 1 60); do
+          ready=$(kubectl -n kube-system get pods -l k8s-app=cilium \
+                    --field-selector spec.nodeName={{ inventory_hostname }} \
+                    -o jsonpath='{.items[*].status.containerStatuses[*].ready}')
+          [ "$ready" = "true" ] && exit 0
+          sleep 10
+        done
+        echo "cilium not ready on {{ inventory_hostname }}"; exit 1
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Uncordon the node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command: "kubectl uncordon {{ inventory_hostname }}"
+      changed_when: true
+
+    - name: Settle before moving to the next node
+      # Give rescheduled pods time to actually start. Without this pause the
+      # next drain can begin while the cluster is still absorbing this one.
+      ansible.builtin.pause:
+        seconds: 60
+
+# ---------------------------------------------------------------------------
+- name: Post-upgrade verification
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Any pods not Running or Completed?
+      changed_when: false
+      failed_when: false
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl get pods -A --no-headers \
+          | awk '$4 != "Running" && $4 != "Completed" {print}'
+      args:
+        executable: /bin/bash
+      register: bad_pods
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: |
+          {{ 'All pods healthy.' if bad_pods.stdout == ''
+             else 'Pods needing attention:\n' + bad_pods.stdout }}

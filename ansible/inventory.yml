@@ -1,0 +1,45 @@
+---
+# Node inventory.
+#
+# SITE-SPECIFIC: `ansible_host` values use mDNS (.local) names, which survive a
+# subnet change. If mDNS is unreliable on the new network, replace them with
+# static IPs -- and set static DHCP leases on the router either way.
+#
+# ORDERING MATTERS. Ansible's `serial` plus these group definitions is what makes
+# an upgrade a rolling one rather than an outage: the API VIP holder must be
+# upgraded LAST, and it is listed last here.
+all:
+  vars:
+    ansible_user: nedsi
+    ansible_python_interpreter: /usr/bin/python3
+    # The API server VIP. Used to detect which node currently holds it so the
+    # playbooks can leave it for last.
+    api_vip: 192.168.1.11          # SITE-SPECIFIC
+
+  children:
+    # Addresses VERIFIED against the live cluster on 2026-07-31.
+    #
+    # ORDER IS DELIBERATE: homelab-cp-1 is listed FIRST because `kubeadm upgrade
+    # apply` must run there, and it is the node whose address the API VIP
+    # (192.168.1.11) currently fronts. Playbooks that use `serial: 1` will
+    # therefore take it first for Kubernetes upgrades. For OS patching the VIP
+    # holder should ideally go LAST -- use --limit to control that.
+    controlplane:
+      hosts:
+        homelab-cp-1:
+          ansible_host: 192.168.1.247
+        homelab-cp-2:
+          ansible_host: 192.168.1.238
+        homelab-cp-3:
+          ansible_host: 192.168.1.239
+
+    workers:
+      hosts:
+        homelab-w-1:
+          ansible_host: 192.168.1.240
+
+    # Convenience group: everything that runs a kubelet.
+    kube:
+      children:
+        controlplane:
+        workers:
