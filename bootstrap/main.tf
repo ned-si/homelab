@@ -38,8 +38,10 @@ resource "helm_release" "cilium" {
   name       = "cilium"
   repository = "https://helm.cilium.io"
   chart      = "cilium"
+  # Must match clusters/homelab/infrastructure/cilium.yaml, which is pinned to the
+  # version actually running. See docs/migration-plan.md before bumping.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-  version   = "1.20.0"
+  version   = "1.16.3"
   namespace = "kube-system"
 
   values = [file("${path.module}/../infrastructure/cilium/values.yaml")]

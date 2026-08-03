@@ -4,10 +4,21 @@
 # and every service looks "up" in Kubernetes while being unreachable from the
 # network. This was the root of the old README's "ingress issue" section.
 #
-# API VERSION: still `cilium.io/v2alpha1` as of Cilium 1.20 -- the upstream docs
-# for 1.20 use v2alpha1 in their own example. CiliumLoadBalancerIPPool (see
-# ip-pools.yaml) HAS graduated to v2. Re-check both on the next Cilium minor
-# bump; a wrong apiVersion here fails loudly at sync time, which is fine.
+# API VERSION: `cilium.io/v2alpha1`, VERIFIED against the running cluster --
+# Cilium 1.16.3 serves only v2alpha1 for this type (and for
+# CiliumLoadBalancerIPPool). Re-check on the next Cilium minor bump.
+#
+# NOTE ON WHAT IS CHANGING HERE. The policy currently live in the cluster is
+# minimal:
+#
+#     spec:
+#       loadBalancerIPs: true
+#
+# No nodeSelector and no interfaces, i.e. announce from every node on every
+# interface. This version narrows it to workers only and to the LAN NIC. The
+# interface name has been verified as `eth0` on all four nodes:
+#
+#     kubectl -n kube-system exec ds/cilium -c cilium-agent -- ip -br link
 #
 # Two hard constraints, both easy to trip over:
 #
@@ -32,9 +43,9 @@ spec:
     matchExpressions:
       - key: node-role.kubernetes.io/control-plane
         operator: DoesNotExist
-  # SITE-SPECIFIC: must match the actual LAN interface name on the RK1 nodes.
-  # `end0` is the usual name on Rockchip RK3588 boards; `eth0` on many others.
-  # Verify with: kubectl -n kube-system exec ds/cilium -- ip -br link
+  # VERIFIED: all four RK1 nodes present the LAN NIC as `eth0`. The regex is kept
+  # slightly broader than `^eth0$` so that a node replacement presenting `enp1s0`
+  # or `end0` still announces rather than silently going dark.
   interfaces:
     - ^e(th|nd|np)[0-9]s?[0-9]*$
   # We only announce IPs handed out by LB IPAM, never hand-written
