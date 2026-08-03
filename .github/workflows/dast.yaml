@@ -1,0 +1,137 @@
+---
+# DAST: dynamic scanning of the running site.
+#
+# ###########################################################################
+# # WHY THIS IS NOT A PR GATE.
+# #
+# # DAST exercises a RUNNING application over HTTP. On a pull request there is
+# # nothing running -- no preview environment, no ephemeral cluster -- so a
+# # PR-triggered DAST job would either scan production (wrong: PRs must not be
+# # able to hammer the live site) or scan nothing and report green (worse:
+# # security theatre).
+# #
+# # So it runs on a schedule and on demand, from a runner that can reach the
+# # Gateway, against the real deployment. That is what DAST is actually for.
+# ###########################################################################
+#
+# The targets are authenticated behind Keycloak, so an unauthenticated baseline
+# scan mostly checks headers, TLS and error handling. That is still worth having:
+# it is exactly the class of thing that regresses silently when routing changes.
+name: dast
+
+on:
+  schedule:
+    # Sunday 03:00 UTC. Weekly is right for a homelab whose surface changes
+    # rarely; the scan is noisy on CPU and these are 8-core SBCs.
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Single hostname to scan (default: the full list below)
+        required: false
+        type: string
+      full_scan:
+        description: Active scan (SENDS ATTACK TRAFFIC). Baseline if false.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dast
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: runner available?
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.c.outputs.enabled }}
+    steps:
+      - id: c
+        run: |
+          if [ "${{ vars.CLUSTER_RUNNER_READY }}" = "true" ]; then
+            echo "enabled=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >>"$GITHUB_OUTPUT"
+            echo "::notice::DAST skipped: no self-hosted runner yet."
+          fi
+
+  zap:
+    name: ZAP ${{ matrix.host }}
+    needs: guard
+    if: needs.guard.outputs.enabled == 'true'
+    runs-on: [self-hosted, homelab]
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      # Sequentially, not in parallel: four concurrent scans against one Gateway
+      # on four RK1 nodes is a self-inflicted denial of service.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        host:
+          - argo.lilalala.com
+          - auth.lilalala.com
+          - grafana.lilalala.com
+          - media.lilalala.com
+          - archive.lilalala.com
+          - cook.lilalala.com
+          - drive.lilalala.com
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Skip hosts not selected
+        id: sel
+        run: |
+          want='${{ github.event.inputs.target }}'
+          if [ -n "$want" ] && [ "$want" != '${{ matrix.host }}' ]; then
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # Baseline = passive. It spiders and inspects responses but sends no attack
+      # payloads, so it is safe against a live service.
+      - name: ZAP baseline scan
+        if: steps.sel.outputs.skip == 'false' && github.event.inputs.full_scan != 'true'
+        uses: zaproxy/action-baseline@v0.14.0
+        with:
+          target: https://${{ matrix.host }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a -j -T 10"
+          # Findings become an issue, not a failed build: this runs on a schedule
+          # and a red cron job is easy to start ignoring.
+          fail_action: false
+          issue_title: "DAST: ${{ matrix.host }}"
+          allow_issue_writing: true
+
+      # Full = ACTIVE. Sends real attack traffic (injection, traversal, fuzzing).
+      # Manual opt-in only.
+      - name: ZAP full scan (active)
+        if: steps.sel.outputs.skip == 'false' && github.event.inputs.full_scan == 'true'
+        uses: zaproxy/action-full-scan@v0.12.0
+        with:
+          target: https://${{ matrix.host }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a -j"
+          fail_action: false
+          issue_title: "DAST (active): ${{ matrix.host }}"
+          allow_issue_writing: true
+
+  # ---------------------------------------------------------------------------
+  # TLS and header posture. Cheap, deterministic, and catches the regressions
+  # that matter most after a routing change.
+  # ---------------------------------------------------------------------------
+  tls:
+    name: TLS + security headers
+    needs: guard
+    if: needs.guard.outputs.enabled == 'true'
+    runs-on: [self-hosted, homelab]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check every hostname
+        run: ./scripts/tls-check.sh

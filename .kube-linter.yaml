@@ -1,0 +1,52 @@
+---
+# kube-linter configuration.
+#
+# The philosophy: block on things that have actually bitten this cluster, warn
+# on the rest. A gate that fires on every manifest gets ignored, and an ignored
+# gate is worse than no gate.
+checks:
+  # Start from the sensible default set rather than enumerating everything.
+  addAllBuiltIn: false
+  include:
+    # --- these are the real lessons from this repo's history ----------------
+    # `:latest` on qBittorrent is what silently upgraded past the credential
+    # change and broke the whole *arr stack for a year.
+    - latest-tag
+    - no-read-only-root-fs
+    - unset-cpu-requirements
+    - unset-memory-requirements
+    # A Service whose selector matches nothing looks healthy and routes nowhere.
+    - dangling-service
+    - non-existent-service-account
+    # A missing readiness probe means a wedged process keeps receiving traffic.
+    - no-liveness-probe
+    - no-readiness-probe
+    # Privilege hygiene.
+    - privileged-container
+    - privilege-escalation-container
+    - run-as-non-root
+    - drop-net-raw-capability
+    # Correctness.
+    - mismatching-selector
+    - duplicate-env-var
+    - env-var-secret
+    - required-label-owner
+    - dangling-service-monitor
+
+  exclude:
+    # We deliberately do not set CPU limits: throttling a transcode mid-stream is
+    # worse than letting it contend. Memory limits ARE set everywhere.
+    - unset-cpu-requirements
+
+customChecks: []
+
+# Per-object exemptions, each with a reason. Anything added here should be
+# justifiable in one sentence; if it is not, fix the manifest instead.
+#
+# kube-linter reads `ignore` annotations off the objects themselves, so
+# exemptions live next to the thing they excuse:
+#
+#     metadata:
+#       annotations:
+#         ignore-check.kube-linter.io/no-read-only-root-fs: >-
+#           Keycloak writes to /opt/keycloak/data at runtime.

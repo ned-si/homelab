@@ -1,0 +1,49 @@
+---
+# yamllint config. Deliberately tolerant of the things Kubernetes manifests do
+# and strict about the things that actually cause bugs.
+extends: default
+
+ignore: |
+  .decrypted/
+  *.sops.yaml
+  bootstrap/charts/*/templates/
+  .terraform/
+
+rules:
+  # Kubernetes manifests routinely exceed 80 columns, and Helm values with long
+  # image references or JMESPath expressions cannot be wrapped without changing
+  # their meaning.
+  line-length:
+    max: 160
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # `on:` in GitHub workflows is a genuine YAML 1.1 truthy value. Restricting the
+  # check to real booleans avoids having to quote it everywhere.
+  truthy:
+    allowed-values: ["true", "false"]
+    check-keys: false
+
+  # Long explanatory comments are the point of this repo.
+  comments:
+    min-spaces-from-content: 1
+  comments-indentation: disable
+
+  # Kustomize and Helm both emit two-space list indentation; be permissive.
+  indentation:
+    spaces: 2
+    indent-sequences: consistent
+
+  # Argo CD Applications legitimately start with `---` or not.
+  document-start: disable
+
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1
+
+  # Duplicate keys are always a bug and have caused silent config loss here.
+  key-duplicates: enable
+  # Trailing spaces cause noisy diffs.
+  trailing-spaces: enable
+  new-line-at-end-of-file: enable
