@@ -93,6 +93,75 @@ writer instead of copying bytes from underneath it.
 
 VolSync is the right upgrade if a PVC ever holds something mutated in place.
 
+## Before any of that: the backup you can take right now
+
+The S3 machinery above needs a bucket and credentials. Until those exist there is
+**no backup at all**, and the migration in [migration-plan.md](./migration-plan.md)
+should not start without one.
+
+```sh
+task backup:dump      # -> ~/homelab-backups/<utc>/
+```
+
+Dumps every database — 7 Postgres clusters via CloudNativePG, Seafile's MariaDB,
+and Paperless' SQLite — to local disk, and **verifies each one**:
+
+| Check | Catches |
+|---|---|
+| sha256 taken **at the source**, compared locally | corruption in transit. `pg_dump`'s custom format has no internal checksums, so nothing else finds a flipped byte |
+| `set -o pipefail` on the `pg_dump` pipeline | `pg_dump` failing. Without it a dump that died early has a checksum that matches on *both* sides |
+| archive magic + non-zero size | a file that is actually an error message |
+| `mariadb-dump` end-of-dump marker | a MariaDB dump that stopped halfway |
+| `PRAGMA integrity_check` on the SQLite copy | a torn snapshot |
+
+The script exits non-zero if any dump fails, and says so loudly. It never writes
+to the cluster.
+
+Two things worth knowing about how it works, both discovered the hard way:
+
+- The CNPG pods have a **read-only root filesystem**, and the only large writable
+  path is the live PGDATA volume — filling that would stop the database. So the
+  dump is teed through a **FIFO** into `sha256sum`: a real source-side checksum
+  that uses no storage at all.
+- Paperless' image has **no `sqlite3` binary**, which this document previously
+  flagged as an open question. It does have Python, so the backup uses
+  `sqlite3.Connection.backup()` — the online backup API, which cooperates with
+  the running writer instead of copying bytes from underneath it. Resolved.
+
+### Proving a dump actually restores
+
+```sh
+task backup:verify-restore -- immich immich-db \
+  ~/homelab-backups/<utc>/pg-immich-immich-db.dump
+```
+
+Builds a throwaway CNPG cluster in its own namespace, restores into it, and
+compares against the live database: table count, row counts on the eight
+physically largest tables, every relation readable, and the extension set. Then
+deletes it. The source is only ever read from.
+
+It derives the target image and `shared_preload_libraries` from the source
+cluster rather than guessing, which is what makes it work for Immich — that dump
+needs pgvecto.rs 16.5 and `vectors.so`, and would fail against a plain
+`postgresql:17` image.
+
+**Result on 2026-08-03**, against the live cluster:
+
+```
+mealie/mealie-postgresql   59 tables, all row counts match          VERIFIED
+immich/immich-db           60 tables; asset=50600  asset_face=53395
+                           smart_search=50132  geodata_places=219618
+                           extensions identical incl. `vectors`      VERIFIED
+```
+
+So the photo library's database is not a hypothesis any more. Note the row counts
+are also a useful record in their own right: they are what a future restore
+should be compared against.
+
+**These dumps are on one machine.** They are point-in-time snapshots, not PITR,
+and they are not off-site until you copy them somewhere else. That is what the
+rest of this document is for.
+
 ## Setup
 
 ### 1. Bucket and credentials
@@ -281,8 +350,10 @@ Stated plainly rather than left implied:
 - **Backups are not tested for restore *time*.** Verification proves data is
   retrievable, not that a full 2TB restore completes in a useful window. It
   would not.
-- **`sqlite3` may not be in the restic image.** The Paperless job checks and warns
-  rather than silently producing an inconsistent copy. If the warning appears,
-  switch that step to a small image that has it.
+- **`sqlite3` is not in the Paperless image** — confirmed, not hypothetical.
+  `scripts/dump-databases.sh` works around it with Python's
+  `sqlite3.Connection.backup()`. The restic CronJob still needs the same
+  treatment; it currently checks and warns rather than producing an inconsistent
+  copy silently.
 - **No monthly full-restore drill.** The weekly sample is a good proxy; an
   annual real drill would be better.
