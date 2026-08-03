@@ -1,0 +1,40 @@
+# Automated backup restore verification.
+#
+# Runs weekly, restores into throwaway resources in its own namespace, and never
+# touches a live database or volume. See docs/backups.md.
+#
+# This is the part of a backup strategy people skip, and it is the part that
+# determines whether the strategy works. It syncs LAST in the platform layer
+# because it depends on the Barman plugin, the CNPG operator and the Prometheus
+# CRDs all being present.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backup-verify
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: platform/backup-verify
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backup-verify
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # The ephemeral Clusters this creates are NOT in git; Argo must not try to
+      # prune them mid-verification.
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /status

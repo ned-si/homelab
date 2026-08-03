@@ -37,16 +37,37 @@ spec:
     storageClass: iscsi
   monitoring:
     enablePodMonitor: true
-  # Continuous WAL archiving to S3 via the Barman Cloud plugin. This is what
-  # gives point-in-time recovery rather than only nightly snapshots.
+  # ---------------------------------------------------------------------------
+  # Continuous WAL archiving to S3. This is what gives point-in-time recovery
+  # rather than only nightly snapshots.
   #
-  # Enabling this adds a sidecar to the instance pod, so it triggers a rollout.
-  # The referenced ObjectStore lives in ./backup.yaml.
-  plugins:
-    - name: barman-cloud.cloudnative-pg.io
-      isWALArchiver: true
-      parameters:
-        barmanObjectName: immich-backup
+  # In-tree `barmanObjectStore` rather than the Barman Cloud plugin: CNPG 1.24.1
+  # (what is running) does not support the plugin's `isWALArchiver` field and the
+  # plugin CRD is not installed. See ./backup.yaml for the full reasoning and
+  # docs/migration-plan.md for the eventual move to the plugin.
+  #
+  # Set the bucket/endpoint to match your provider -- see
+  # platform/secrets/s3-backup.sops.yaml.example.
+  # ---------------------------------------------------------------------------
+  backup:
+    retentionPolicy: "30d"
+    barmanObjectStore:
+      destinationPath: s3://homelab-backups/immich/postgres
+      endpointURL: https://s3.eu-central-003.backblazeb2.com
+      s3Credentials:
+        accessKeyId:
+          name: s3-backup
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: s3-backup
+          key: ACCESS_SECRET_KEY
+      wal:
+        # WAL is highly compressible and this goes over a domestic uplink.
+        compression: gzip
+        maxParallel: 2
+      data:
+        compression: gzip
+        jobs: 2
   postgresql:
     shared_preload_libraries:
       # Was `vectors.so` (pgvecto.rs). Loading the wrong library here is a

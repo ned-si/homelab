@@ -1,0 +1,182 @@
+# Automated restore verification for the restic file backups.
+#
+# Same principle as the Postgres verifier: prove the backup can be turned back
+# into files, without touching anything live.
+#
+# It restores into a SCRATCH PVC in this namespace. The source repositories are
+# opened, but restic never writes to them here -- no `backup`, no `forget`, no
+# `prune`.
+#
+# WHAT IT ASSERTS
+#   1. the repository opens and its structure is intact  (restic check)
+#   2. a snapshot exists and is recent enough            (staleness gate)
+#   3. a SAMPLE of real files restores and is non-empty  (the actual proof)
+#
+# Point 3 is the one that matters. `restic check` validates metadata; it does not
+# prove the data blobs are retrievable. Restoring a sample does.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backup-verify-files-scripts
+  namespace: backup-verify
+data:
+  verify-files.sh: |
+    #!/usr/bin/env bash
+    # Usage: verify-files.sh <repo-suffix> <tag>
+    set -euo pipefail
+
+    REPO_SUFFIX="$1"
+    TAG="$2"
+    export RESTIC_REPOSITORY="s3:https://s3.eu-central-003.backblazeb2.com/homelab-backups/${REPO_SUFFIX}"
+    # Fresh scratch dir per repo so runs cannot contaminate each other.
+    DEST="/scratch/${TAG}"
+    rm -rf "$DEST" && mkdir -p "$DEST"
+
+    # How stale a snapshot may be before this is a failure. The library backup
+    # runs nightly, so >3 days means the CronJob has been silently failing.
+    MAX_AGE_DAYS=3
+
+    echo "=== $TAG  ($RESTIC_REPOSITORY) ==="
+
+    echo "--- 1. repository structure ---"
+    restic check --with-cache
+
+    echo "--- 2. latest snapshot freshness ---"
+    latest_iso=$(restic snapshots --tag "$TAG" --latest 1 --json \
+                 | sed -n 's/.*"time":"\([^"]*\)".*/\1/p' | head -1)
+    if [ -z "$latest_iso" ]; then
+      echo "FAIL: no snapshot found for tag '$TAG'. The backup has never run."
+      exit 1
+    fi
+    echo "    latest: $latest_iso"
+    latest_epoch=$(date -d "$latest_iso" +%s 2>/dev/null || echo 0)
+    if [ "$latest_epoch" -gt 0 ]; then
+      age_days=$(( ( $(date +%s) - latest_epoch ) / 86400 ))
+      echo "    age: ${age_days}d"
+      if [ "$age_days" -gt "$MAX_AGE_DAYS" ]; then
+        echo "FAIL: newest snapshot is ${age_days}d old (max ${MAX_AGE_DAYS}d)."
+        echo "      The backup CronJob is not running or is failing silently."
+        exit 1
+      fi
+    fi
+
+    echo "--- 3. sample restore ---"
+    # Pick a handful of real files from the snapshot rather than restoring
+    # everything: this is a proof of retrievability, not a disaster drill, and
+    # restoring 2TB weekly would cost more than the backup itself.
+    mapfile -t files < <(restic ls --tag "$TAG" latest 2>/dev/null \
+                         | grep -vE '/$' | head -200 | shuf -n 5)
+    if [ "${#files[@]}" -eq 0 ]; then
+      echo "FAIL: snapshot contains no files."
+      exit 1
+    fi
+
+    for f in "${files[@]}"; do
+      echo "    restoring $f"
+      restic restore latest --tag "$TAG" --target "$DEST" --include "$f"
+    done
+
+    restored=$(find "$DEST" -type f | wc -l | tr -d ' ')
+    empty=$(find "$DEST" -type f -empty | wc -l | tr -d ' ')
+    echo "    restored $restored file(s), $empty empty"
+
+    [ "$restored" -ge 1 ] || { echo "FAIL: nothing was restored."; exit 1; }
+    [ "$empty" -eq 0 ]    || { echo "FAIL: $empty restored file(s) are empty -- data blobs are not retrievable."; exit 1; }
+
+    # Leave nothing behind; the scratch volume is small.
+    rm -rf "$DEST"
+    echo "PASS: $TAG"
+  run-all-files.sh: |
+    #!/usr/bin/env bash
+    set -uo pipefail
+    rc=0
+    while read -r suffix tag; do
+      [ -z "${suffix:-}" ] && continue
+      case "$suffix" in '#'*) continue ;; esac
+      /scripts/verify-files.sh "$suffix" "$tag" || { echo "::FAILED:: $tag"; rc=1; }
+      echo
+    done <<'LIST'
+    immich/library      immich-library
+    paperless/media     paperless-media
+    seafile/shared      seafile-shared
+    syncthing/data      syncthing-data
+    theater/configs     theater-configs
+    LIST
+    [ $rc -eq 0 ] && echo "ALL FILE BACKUPS VERIFIED" || echo "ONE OR MORE FILE BACKUPS FAILED"
+    exit $rc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-verify-scratch
+  namespace: backup-verify
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Only ever holds a handful of sampled files plus the restic cache.
+      storage: 30Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-files
+  namespace: backup-verify
+spec:
+  # Sunday 07:00, after the Postgres verification finishes.
+  schedule: "0 7 * * 0"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 8
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 10800
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: verify
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              command: ["/bin/sh", "/scripts/run-all-files.sh"]
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /scratch/.cache
+              envFrom:
+                # Needs AWS_* and RESTIC_PASSWORD. Same Secret shape as the
+                # backup jobs, in this namespace.
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: scratch
+                  mountPath: /scratch
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: backup-verify-files-scripts
+                defaultMode: 0755
+            - name: scratch
+              persistentVolumeClaim:
+                claimName: backup-verify-scratch

@@ -1,0 +1,92 @@
+# Alerts on the backup pipeline.
+#
+# Without these, a verification CronJob that starts failing is just a red entry
+# in `kubectl get jobs` that nobody looks at -- which is exactly the failure mode
+# the verification exists to prevent.
+#
+# These rules deliberately alert on the VERIFIER failing, not only on the backup
+# failing. A backup job that succeeds while producing unrestorable data is the
+# scenario that loses the photo library.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: backup-health
+  namespace: backup-verify
+  labels:
+    # Picked up by the kube-prometheus-stack Prometheus, which is configured
+    # with ruleSelectorNilUsesHelmValues: false so it watches all namespaces.
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: backup.rules
+      rules:
+        # --- verification ---------------------------------------------------
+        - alert: BackupVerificationFailed
+          expr: |
+            kube_job_status_failed{namespace="backup-verify"} > 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Backup restore verification FAILED ({{ $labels.job_name }})"
+            description: >-
+              A weekly restore test failed. This means a backup may not be
+              restorable. Treat as data-loss risk, not as a flaky job.
+              Runbook: docs/backups.md#when-verification-fails
+
+        - alert: BackupVerificationStale
+          expr: |
+            time() - max(kube_job_status_completion_time{namespace="backup-verify"}) > 14 * 24 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "No successful backup verification in 14 days"
+            description: >-
+              The verification CronJob has not completed successfully for two
+              weeks. Either it is not running, or every run is failing.
+
+        # --- the backups themselves ----------------------------------------
+        - alert: PostgresBackupFailed
+          expr: |
+            cnpg_collector_last_failed_backup_timestamp > cnpg_collector_last_available_backup_timestamp
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "CloudNativePG backup failing for {{ $labels.namespace }}/{{ $labels.pod }}"
+
+        - alert: PostgresBackupStale
+          expr: |
+            time() - cnpg_collector_last_available_backup_timestamp > 36 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "No Postgres base backup in 36h ({{ $labels.namespace }})"
+            description: >-
+              Nightly base backups run at 02:30. More than 36h without one means
+              two consecutive failures.
+
+        - alert: PostgresWALArchiveFailing
+          expr: |
+            cnpg_collector_pg_stat_archiver_failed_count > 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "WAL archiving failing ({{ $labels.namespace }})"
+            description: >-
+              Point-in-time recovery is broken while this fires, and WAL will
+              accumulate on the data volume until it fills. This can take the
+              database down on its own.
+
+        - alert: FileBackupJobFailed
+          expr: |
+            kube_job_status_failed{job_name=~".*-backup-.*"} > 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "File backup job failing: {{ $labels.namespace }}/{{ $labels.job_name }}"
