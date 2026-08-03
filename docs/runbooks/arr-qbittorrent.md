@@ -1,141 +1,173 @@
 # The *arr apps cannot reach qBittorrent
 
-**Status: diagnosis is a strong hypothesis, not confirmed.** It was derived from
-reading the manifests and the qBittorrent changelog, with no access to the
-cluster. Verify with step 1 before acting on the rest.
+**Status: root-caused and FIXED on 2026-07-31 against the live cluster.**
 
-## The short version
+An earlier revision of this document blamed the qBittorrent 4.6.1 credential
+change. **That was wrong.** The password was never the problem. The real cause is
+below, and it is more interesting.
 
-Nothing about the network broke. qBittorrent stopped accepting the password the
-*arr apps had saved.
+## What actually happened
 
-## Why
+A **stale `ipc-socket`** in qBittorrent's config directory made every start abort
+silently after about two seconds. s6 restarted it forever inside the container.
+Because the Deployment had **no readiness or liveness probe**, Kubernetes reported
+the pod `Running 1/1` with `0` restarts, kept an endpoint in the Service, and
+routed traffic to a process that was not listening.
 
-The old manifest ran:
+The *arr apps got TCP connection-refused, which they surface as "download client
+unavailable" — a message that reads like an auth or network fault.
 
-```yaml
-image: ghcr.io/hotio/qbittorrent:latest
-imagePullPolicy: Always
+```
+/config/config/ipc-socket    srwx------  0  Apr 19 09:45
 ```
 
-`Always` + `latest` means **every pod restart was an unreviewed upgrade**. Over a
-year of restarts, qBittorrent crossed version 4.6.1, which removed the
-`admin` / `adminadmin` default credentials. Since then, when the WebUI password
-is unset, qBittorrent **generates a random temporary password on every start** and
-prints it to the container log.
+Dated **19 April**. qBittorrent uses that socket for single-instance detection.
+It was left behind by an unclean shutdown — almost certainly the node reboot or
+power event that day — and its presence made every subsequent start bail out.
 
-Sonarr, Radarr and Lidarr still had `adminadmin` saved as their download-client
-credential. Every API call started returning `401`, and the *arr UIs report that
-as the client being unavailable — which reads like a connectivity problem.
+## The evidence, in order
 
-A second change from the same era can produce the same symptom independently:
-4.6 enabled **Host header validation** by default, so requests arriving with an
-unexpected `Host` are rejected.
-
-## Step 1 — confirm it
+Worth recording because each step eliminated a plausible wrong answer.
 
 ```sh
-kubectl -n theater logs deploy/qbittorrent | grep -i -A2 'password'
-```
+# 1. The pod looks perfectly healthy. This is the trap.
+kubectl -n theater get pods
+#   qbittorrent-cfdbd5f4d-6fzrx   1/1   Running   0   79d
 
-If you see a line about a temporary password having been generated, the diagnosis
-holds. Also check what version is actually running:
+# 2. But nothing is listening.
+kubectl -n theater exec deploy/qbittorrent -- ss -lntp
+#   (empty table)
 
-```sh
-kubectl -n theater get deploy qbittorrent \
-  -o jsonpath='{.spec.template.spec.containers[0].image}{"\n"}'
-```
-
-Cross-check that the failures are authentication, not routing:
-
-```sh
-# From inside a *arr pod -- should return 403/401, NOT a timeout or DNS error.
+# 3. And Sonarr cannot connect at all -- 000, not 401.
 kubectl -n theater exec deploy/sonarr -- \
   curl -s -o /dev/null -w '%{http_code}\n' http://qbittorrent:8080/api/v2/app/version
+#   000        <- connection refused, NOT an auth failure
 ```
 
-A `401`/`403` confirms auth. A timeout or `could not resolve host` means it really
-is networking, and this runbook does not apply — go to `cilium-debug` below.
-
-## Step 2 — set a real password
-
-This is the one step that cannot be expressed as a manifest. qBittorrent stores
-its WebUI password as a PBKDF2 hash inside `/config/qBittorrent.conf`, and
-exposes no environment variable to set it.
-
-1. Read the temporary password from the log (step 1).
-2. Open `https://qbittorrent.lilalala.com`, log in as `admin` with it.
-3. **Tools → Options → Web UI**, set a permanent password.
-4. Store it somewhere durable — a password manager. It is not in this repo,
-   because qBittorrent gives us no way to inject it.
-
-## Step 3 — update each *arr app
-
-For Sonarr, Radarr and Lidarr:
-
-**Settings → Download Clients → qBittorrent**
-
-| Field | Value |
-|---|---|
-| Host | `qbittorrent` |
-| Port | `8080` |
-| Username | `admin` |
-| Password | the password from step 2 |
-| Use SSL | off |
-
-`qbittorrent` (the bare Service name) works because all of these run in the
-`theater` namespace. Do **not** point them at `qbittorrent.lilalala.com` — that
-sends internal traffic out through the Gateway and back, and is what tends to
-trip Host-header validation.
-
-Use **Test** before saving.
-
-## Step 4 — if it is still 401 after a correct password
-
-Then it is the Host header. Add the internal name to qBittorrent's allow-list:
-
-**Tools → Options → Web UI → uncheck "Validate Host header"**, or better, leave
-validation on and add the Service names to the allowed domains list:
-
-```
-qbittorrent
-qbittorrent.theater
-qbittorrent.theater.svc.cluster.local
-qbittorrent.lilalala.com
-```
-
-An alternative that removes credentials from the loop entirely is qBittorrent's
-subnet allow-list (**Web UI → Bypass authentication for clients in whitelisted
-IP subnets**) set to the pod CIDR. Note that "bypass for localhost" does **not**
-help in Kubernetes — traffic arrives from pod IPs, never from loopback.
-
-## What changed in the repo to stop this recurring
-
-- `image: ghcr.io/hotio/qbittorrent:release-5.2.3` — an explicit, immutable tag.
-- `imagePullPolicy: IfNotPresent` — a restart is no longer an upgrade.
-- Renovate groups the whole `theater` stack (`groupName: theater stack`,
-  `automerge: false`), so qBittorrent and the *arr apps are only ever bumped
-  together, in a PR you have to read.
-- Readiness and liveness probes, so a wedged WebUI reports unhealthy instead of
-  looking fine.
-
-The underlying lesson is the one worth keeping: `:latest` with
-`imagePullPolicy: Always` converts every unrelated restart into an unreviewed
-upgrade, and the failure surfaces months later as something that looks unrelated.
-
-## cilium-debug
-
-If step 1 pointed at real connectivity problems:
+`000` is what killed the password theory. A credential problem returns `401` or
+`403`; you have to be talking to something first.
 
 ```sh
-# Is the Service resolving and are there endpoints?
-kubectl -n theater get svc,endpointslice -l app.kubernetes.io/name=qbittorrent
+# 4. The process exists, but is only ever a couple of seconds old.
+kubectl -n theater exec deploy/qbittorrent -- ps -eo pid,etime,comm | grep qbittorrent-nox
+#   4005671  0:02  qbittorrent-nox      <- sample 1
+#   (absent)                            <- sample 2, four seconds later
 
-# Watch flows between the two pods.
-kubectl -n kube-system exec ds/cilium -- \
-  cilium-dbg monitor --related-to $(kubectl -n theater get pod \
-    -l app.kubernetes.io/name=qbittorrent -o jsonpath='{.items[0].metadata.name}')
+# 5. The container log had 61 lines and had not grown in 79 days: s6's own
+#    startup chatter, and no qBittorrent banner. It never got far enough to log.
+
+# 6. Decisive test: run the SAME binary against a COPY of the config.
+#    It started perfectly. So neither the binary nor the config was at fault --
+#    it was something else in the profile directory.
 ```
 
-Hubble is enabled in `infrastructure/cilium/values.yaml`, so
-`hubble observe --namespace theater` is usually faster than reading manifests.
+That left the runtime artefacts, and `ipc-socket` was three months stale.
+
+### A false lead worth flagging
+
+`pgrep -f qbittorrent-nox` appears to show a rapidly changing PID. It does not —
+`-f` matches the full command line, which includes the `sh -c 'pgrep -f
+qbittorrent-nox'` wrapper itself, so it reports a new PID every time regardless.
+Use `ps -eo pid,etime,comm | grep` instead.
+
+## The fix
+
+```sh
+# Move the stale runtime artefacts aside rather than deleting them.
+kubectl -n theater exec deploy/qbittorrent -- sh -c '
+  cd /config/config
+  mkdir -p /config/kiro-quarantine
+  mv ipc-socket lockfile /config/kiro-quarantine/ 2>/dev/null
+'
+
+kubectl -n theater rollout restart deploy/qbittorrent
+```
+
+Both are runtime artefacts, recreated on every start. Nothing is lost.
+
+### Result
+
+```
+WebUI will be started shortly after internal preparations. Please wait...
+******** Information ********
+To control qBittorrent, access the WebUI at: http://localhost:8080
+```
+
+```sh
+kubectl -n theater exec deploy/qbittorrent -- ss -lntp
+#   LISTEN 0 50   *:8080          <- serving
+#   LISTEN 0 30   *:50000         <- torrent port
+
+# Sonarr, authenticated:
+#   login              -> 204
+#   /api/v2/app/version -> 200   v5.2.3
+#   transfer/info       -> downloading at ~57 MB/s
+```
+
+And the check that actually matters — asking each *arr to test its own client:
+
+```sh
+curl -X POST -H "X-Api-Key: $KEY" \
+  http://localhost:8989/arr/sonarr/api/v3/downloadclient/testall
+#   [{"id":1,"isValid":true,"validationFailures":[]}]
+```
+
+Sonarr and Radarr both valid, no health warnings anywhere. The saved credentials
+were correct the whole time.
+
+Note the API path includes `/arr/sonarr` — the apps run with `URLBASE` set. A
+call to `/api/v3/...` returns `307`, which is easy to mistake for a broken API.
+
+## Why it went unnoticed for three months
+
+This is the part worth fixing permanently.
+
+| Gap | Consequence |
+|---|---|
+| **No readiness probe** | A pod with no listener stayed `Ready`, so the Service kept routing to it. |
+| **No liveness probe** | Kubernetes never restarted the container, so the container-level restart count stayed at `0` and looked healthy. |
+| **`:latest` + `imagePullPolicy: Always`** | The running version drifted silently. During this very incident the restart pulled 5.2.0 → 5.2.3 — an unreviewed upgrade in the middle of debugging. |
+| **No alerting on *arr health** | The apps knew their download client was unavailable and nobody was told. |
+
+The manifests in this repo close the first three:
+
+- `readinessProbe` on `/` and a `livenessProbe` on the port, so a non-listening
+  process is reported unhealthy and then restarted
+- `image: ghcr.io/hotio/qbittorrent:release-5.2.3` pinned, tracked by Renovate
+- `imagePullPolicy: IfNotPresent`, so a restart is no longer an upgrade
+
+The probe is the important one. It converts this failure from "silent for three
+months" into "CrashLoopBackOff within two minutes".
+
+## Still outstanding
+
+`transfer/info` reports `"connection_status":"firewalled"`. The WebUI works and
+downloads run, but the listen port is not reachable from the internet, so
+seeding is crippled. The external address is confirmed as `188.155.74.203`.
+
+Check that the router forwards **TCP+UDP 50000** to the `qbittorrent-seed`
+LoadBalancer address:
+
+```sh
+kubectl -n theater get svc qbittorrent-seed
+#   EXTERNAL-IP 192.168.2.1
+```
+
+Note that address is on `192.168.2.0/24` while the LAN is `192.168.1.0/24` —
+worth confirming the router actually routes that range. This needs re-doing after
+the house move regardless: see [house-move.md](house-move.md).
+
+## If it happens again
+
+Symptom to look for: pod `Ready` but `ss -lntp` empty. With the probes now in
+place you should instead see `CrashLoopBackOff`, and:
+
+```sh
+kubectl -n theater logs deploy/qbittorrent --previous
+ls -la /config/config/          # look for a stale ipc-socket / lockfile
+```
+
+The general lesson: **an unclean shutdown can leave a lock artefact that makes a
+process refuse to start, and without a probe Kubernetes will report that as
+healthy indefinitely.** The same pattern applies to any single-instance app with
+a lockfile on a persistent volume.
