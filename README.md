@@ -11,8 +11,9 @@ clusters/homelab/     Argo CD Application + AppProject objects ONLY. The hierarc
 infrastructure/       CNI, Gateway API, cert-manager, external-dns, CSI, namespaces.
 platform/             CloudNativePG, monitoring, Keycloak.
 apps/                 Media, photos, documents, recipes, sync.
+ansible/              Node OS and Kubernetes upgrades. Imperative on purpose.
 docs/                 How and why.
-scripts/              age key generation, leak check, render check.
+scripts/              age key, leak check, render check, live-cluster dry-run.
 ```
 
 The split that matters: `clusters/homelab/` contains only Argo `Application`
@@ -22,22 +23,36 @@ objects, the three top-level directories contain only manifests and Helm values.
 
 | | |
 |---|---|
+| [**migration-plan.md**](docs/migration-plan.md) | **Start here.** Ordered, gated path from the running cluster to this repo |
 | [architecture.md](docs/architecture.md) | The hierarchy, layers, sync waves, AppProjects |
 | [bootstrap.md](docs/bootstrap.md) | Cold-start procedure |
 | [secrets.md](docs/secrets.md) | SOPS + age workflow |
-| [networking.md](docs/networking.md) | Gateway API, DNS, certificates, **house-move checklist** |
+| [networking.md](docs/networking.md) | Gateway API, DNS, certificates |
+| [backups.md](docs/backups.md) | S3 backups, what is deliberately not backed up, restore verification |
 | [renovate.md](docs/renovate.md) | Comment-driven dependency updates |
+| [talos-migration.md](docs/talos-migration.md) | Study: what moving to Talos would take |
 | [security-incident.md](docs/security-incident.md) | **Committed credentials — rotation required** |
 
 Runbooks: [*arr ↔ qBittorrent](docs/runbooks/arr-qbittorrent.md) ·
 [Immich → VectorChord](docs/runbooks/immich-upgrade.md) ·
+[house move](docs/runbooks/house-move.md) ·
 [NFS hardening](docs/runbooks/nfs-hardening.md) ·
 [Seafile/MariaDB](docs/runbooks/seafile-mariadb-upgrade.md) ·
 [Paperless → Postgres](docs/runbooks/paperless-postgres.md)
 
 ## Read these first
 
-Three items need a decision or an action before this branch is deployed.
+### 0. Do not point the running Argo CD at this branch
+
+The live `all-apps` Application had `prune: true` on a path this repo **deletes**.
+Merging and letting it reconcile would have pruned the cluster. It is currently
+pinned to the pre-restructure commit with `prune: false`, and that pin is
+load-bearing — do not remove it as tidy-up.
+
+The cutover is staged, phase by phase, with a gate and a rollback for each:
+[**migration-plan.md**](docs/migration-plan.md). Everything in this repo is
+pinned to the versions actually running, so the restructure and the upgrades are
+separate changes.
 
 ### 1. Every credential in the git history is compromised
 
@@ -57,16 +72,20 @@ The `immich` Application is deliberately set to `selfHeal: false` so Argo cannot
 roll this forward while you are still reading.
 [runbooks/immich-upgrade.md](docs/runbooks/immich-upgrade.md).
 
-### 3. The *arr apps are probably not broken by networking
+### 3. The *arr / qBittorrent fault is fixed
 
-qBittorrent 4.6.1 removed the `admin`/`adminadmin` default and now generates a
-random password on every start. Running `:latest` with `imagePullPolicy: Always`
-meant an unrelated pod restart silently crossed that version, and the saved
-credentials in Sonarr/Radarr/Lidarr stopped working — which the *arr UIs report as
-the client being unavailable.
+Root cause was a stale `ipc-socket` in qBittorrent's config volume, left by an
+unclean shutdown in April. It made the process abort ~2s into every start, and s6
+restarted it forever inside the container. With **no probes** on the Deployment,
+Kubernetes reported `Running 1/1`, `0` restarts and kept the Service endpoint —
+routing traffic to a process that was not listening.
 
-Strong hypothesis, not confirmed: derived from the manifests and changelog with no
-cluster access. One log line confirms it.
+Fixed on the live cluster: qBittorrent now binds `:8080` and
+`downloadclient/testall` returns `isValid: true` on Sonarr and Radarr. The probes
+whose absence hid this for months are now in the manifests.
+
+An earlier version of this README blamed the qBittorrent 4.6.1 credential change.
+That was a plausible hypothesis and it was wrong.
 [runbooks/arr-qbittorrent.md](docs/runbooks/arr-qbittorrent.md).
 
 ## What changed in this restructure
@@ -128,18 +147,43 @@ task bootstrap:apply
 
 ## Status
 
-Verified: all 17 non-SOPS kustomizations render. Chart and image versions checked
-against upstream registries as of 2026-07-31.
+**Nothing in this repo has been synced to the cluster.** The new hierarchy is
+inert: the `argocd` namespace does not exist yet, and the old Argo CD still owns
+every object.
 
-Not verified — no cluster access at the time of writing:
+Verified against the live cluster on 2026-07-31:
 
-- nothing has been applied or synced
-- the KSOPS decryption path is wired per upstream's documented Helm recipe but has
-  not been exercised
-- `CiliumL2AnnouncementPolicy` is `cilium.io/v2alpha1` (what Cilium 1.20's own docs
-  use) while `CiliumLoadBalancerIPPool` is `cilium.io/v2` — worth re-checking on the
-  next Cilium bump; a wrong apiVersion fails loudly at sync
-- the L2 policy's `interfaces` regex needs checking against the real NIC names
+```
+leak-check                clean (and proven to reject planted secrets)
+renovate annotations      43/43 produce a complete match
+kustomize render          19/19 non-SOPS kustomizations
+server-side dry-run       ok=8  expected-fail=12  unexpected-fail=0
+```
+
+The twelve expected failures are all accounted for in
+[migration-plan.md](docs/migration-plan.md): namespaces this change creates,
+seven Deployments needing the documented `RollingUpdate → Recreate` patch, and
+Immich's database migration. `scripts/dryrun-server.sh` carries that list, so it
+can tell you whether anything is failing for an *undocumented* reason.
+
+Also verified on the cluster: Cilium 1.16.3 with `v2alpha1` as the only served
+version for both `CiliumLoadBalancerIPPool` and `CiliumL2AnnouncementPolicy`; the
+L2 `interfaces` regex against the real NIC (`eth0` on all four nodes); Gateway API
+v1.2.0 on the **experimental** channel; CNPG 1.24.1; and that the
+`RollingUpdate → Recreate` patch restarts nothing.
+
+Not exercised yet:
+
+- the KSOPS decryption path — wired per upstream's documented Helm recipe, but no
+  Argo CD in the `argocd` namespace has read a `*.sops.yaml` yet
+- the S3 backups and their verification jobs — they need the bucket and the
+  `s3-backup` Secret to exist first
+- the Gateway itself, which cannot get an address until ingress-nginx releases
+  192.168.1.254
+
+Known pre-existing breakage, unrelated to this work: `cilium-mgr9z` on
+`homelab-cp-2` has been in `CreateContainerError` for 137 days, unable to reach the
+API VIP. Details in [migration-plan.md](docs/migration-plan.md#pre-existing-problems).
 
 Next: observability (dashboards, alert rules, retention), then
 [NFS hardening](docs/runbooks/nfs-hardening.md).
