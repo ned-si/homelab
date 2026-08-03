@@ -25,7 +25,7 @@ spec:
   source:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
-    path: infrastructure/namespaces
+    path: deploy/infrastructure/namespaces
   destination:
     server: https://kubernetes.default.svc
     namespace: default

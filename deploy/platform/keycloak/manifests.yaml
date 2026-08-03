@@ -1,0 +1,246 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/keycloak
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/keycloak and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: keycloak
+  name: keycloak
+  namespace: keycloak
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: keycloak
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: keycloak
+  name: keycloak-headless
+  namespace: keycloak
+spec:
+  clusterIP: None
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: keycloak
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: keycloak
+  name: keycloak-management
+  namespace: keycloak
+spec:
+  ports:
+  - name: mgmt
+    port: 9000
+    protocol: TCP
+    targetPort: mgmt
+  selector:
+    app.kubernetes.io/name: keycloak
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: keycloak
+  name: keycloak
+  namespace: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: keycloak
+    spec:
+      containers:
+      - args:
+        - start
+        env:
+        - name: JAVA_OPTS_APPEND
+          value: -Djgroups.dns.query=keycloak-headless.keycloak.svc.cluster.local
+        - name: KC_CACHE
+          value: ispn
+        - name: KC_CACHE_STACK
+          value: kubernetes
+        - name: KC_DB
+          value: postgres
+        - name: KC_DB_URL
+          valueFrom:
+            secretKeyRef:
+              key: jdbc-uri
+              name: keycloak-db-app
+        - name: KC_HOSTNAME
+          value: https://auth.lilalala.com
+        - name: KC_HOSTNAME_STRICT
+          value: "true"
+        - name: KC_HTTP_ENABLED
+          value: "true"
+        - name: KC_PROXY_HEADERS
+          value: xforwarded
+        - name: KC_BOOTSTRAP_ADMIN_USERNAME
+          valueFrom:
+            secretKeyRef:
+              key: username
+              name: keycloak-admin
+        - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: keycloak-admin
+        - name: KC_FEATURES_DISABLED
+          value: impersonation
+        - name: KC_HEALTH_ENABLED
+          value: "true"
+        - name: KC_METRICS_ENABLED
+          value: "true"
+        - name: KC_LOG
+          value: console
+        image: quay.io/keycloak/keycloak:26.7.0
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: mgmt
+        name: keycloak
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 9000
+          name: mgmt
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: mgmt
+        resources:
+          limits:
+            memory: 1536Mi
+          requests:
+            cpu: 200m
+            memory: 768Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /health/started
+            port: mgmt
+          periodSeconds: 10
+      securityContext:
+        fsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: keycloak
+  name: keycloak
+  namespace: keycloak
+spec:
+  hostnames:
+  - auth.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: keycloak
+      port: 8080
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  labels:
+    app.kubernetes.io/part-of: keycloak
+  name: keycloak-db
+  namespace: keycloak
+spec:
+  backup:
+    barmanObjectStore:
+      data:
+        compression: gzip
+      destinationPath: s3://homelab-backups/keycloak/postgres
+      endpointURL: https://s3.eu-central-003.backblazeb2.com
+      s3Credentials:
+        accessKeyId:
+          key: ACCESS_KEY_ID
+          name: s3-backup
+        secretAccessKey:
+          key: ACCESS_SECRET_KEY
+          name: s3-backup
+      wal:
+        compression: gzip
+        maxParallel: 1
+    retentionPolicy: 90d
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.0
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  postgresql:
+    parameters:
+      max_connections: "100"
+      shared_buffers: 64MB
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 256Mi
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  labels:
+    app.kubernetes.io/part-of: keycloak
+  name: keycloak-nightly
+  namespace: keycloak
+spec:
+  backupOwnerReference: self
+  cluster:
+    name: keycloak-db
+  immediate: true
+  method: barmanObjectStore
+  schedule: 0 0 2 * * *

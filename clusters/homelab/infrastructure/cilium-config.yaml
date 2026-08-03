@@ -16,7 +16,7 @@ spec:
   source:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
-    path: infrastructure/cilium
+    path: deploy/infrastructure/cilium
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system

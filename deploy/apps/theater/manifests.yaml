@@ -1,0 +1,1137 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: jellyfin
+    app.kubernetes.io/part-of: theater
+  name: jellyfin
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 8096
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: jellyfin
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: lidarr
+    app.kubernetes.io/part-of: theater
+  name: lidarr
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 8686
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: lidarr
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: plex
+    app.kubernetes.io/part-of: theater
+  name: plex
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 32400
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: plex
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: prowlarr
+    app.kubernetes.io/part-of: theater
+  name: prowlarr
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 9696
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: prowlarr
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/part-of: theater
+  name: qbittorrent
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: qbittorrent
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/part-of: theater
+    homelab.lilalala.com/lb-pool: services
+  name: qbittorrent-peer
+  namespace: theater
+spec:
+  ports:
+  - name: peer
+    port: 50000
+    protocol: TCP
+    targetPort: peer
+  - name: peer-udp
+    port: 50000
+    protocol: UDP
+    targetPort: peer-udp
+  selector:
+    app.kubernetes.io/name: qbittorrent
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: radarr
+    app.kubernetes.io/part-of: theater
+  name: radarr
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 7878
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: radarr
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: sonarr
+    app.kubernetes.io/part-of: theater
+  name: sonarr
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 8989
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: sonarr
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: jellyfin-cache
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: jellyfin-config
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: lidarr-config
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: plex-config
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: plex-transcode
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: prowlarr-config
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: qbittorrent-config
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: radarr-config
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: sonarr-config
+  namespace: theater
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: iscsi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: jellyfin
+    app.kubernetes.io/part-of: theater
+  name: jellyfin
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jellyfin
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: JELLYFIN_PublishedServerUrl
+          value: https://cinema.lilalala.com
+        image: ghcr.io/jellyfin/jellyfin:10.11.11
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 120
+          periodSeconds: 30
+        name: jellyfin
+        ports:
+        - containerPort: 8096
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 4Gi
+          requests:
+            cpu: 200m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /cache
+          name: cache
+        - mountPath: /media
+          name: data
+          readOnly: true
+          subPath: media
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: jellyfin-config
+      - name: cache
+        persistentVolumeClaim:
+          claimName: jellyfin-cache
+      - name: data
+        persistentVolumeClaim:
+          claimName: theater-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: lidarr
+    app.kubernetes.io/part-of: theater
+  name: lidarr
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lidarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lidarr
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: UMASK
+          value: "002"
+        - name: LIDARR__LOG__DBENABLED
+          value: "false"
+        - name: LIDARR__POSTGRES__HOST
+          valueFrom:
+            secretKeyRef:
+              key: host
+              name: lidarr-postgresql-app
+        - name: LIDARR__POSTGRES__PORT
+          valueFrom:
+            secretKeyRef:
+              key: port
+              name: lidarr-postgresql-app
+        - name: LIDARR__POSTGRES__USER
+          valueFrom:
+            secretKeyRef:
+              key: user
+              name: lidarr-postgresql-app
+        - name: LIDARR__POSTGRES__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: lidarr-postgresql-app
+        - name: LIDARR__POSTGRES__MAINDB
+          valueFrom:
+            secretKeyRef:
+              key: dbname
+              name: lidarr-postgresql-app
+        image: ghcr.io/hotio/lidarr:release-3.1.0.4875
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 90
+          periodSeconds: 30
+        name: lidarr
+        ports:
+        - containerPort: 8686
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 384Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /data
+          name: data
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: lidarr-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: theater-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: plex
+    app.kubernetes.io/part-of: theater
+  name: plex
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: plex
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: ADVERTISE_IP
+          value: https://theater.lilalala.com:443
+        image: plexinc/pms-docker:1.43.3.10828-00f62d37d
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /identity
+            port: http
+          initialDelaySeconds: 120
+          periodSeconds: 30
+        name: plex
+        ports:
+        - containerPort: 32400
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /identity
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 4Gi
+          requests:
+            cpu: 200m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /transcode
+          name: transcode
+        - mountPath: /media
+          name: data
+          readOnly: true
+          subPath: media
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: plex-config
+      - name: transcode
+        persistentVolumeClaim:
+          claimName: plex-transcode
+      - name: data
+        persistentVolumeClaim:
+          claimName: theater-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: prowlarr
+    app.kubernetes.io/part-of: theater
+  name: prowlarr
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prowlarr
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: UMASK
+          value: "002"
+        - name: PROWLARR__LOG__DBENABLED
+          value: "false"
+        - name: PROWLARR__POSTGRES__HOST
+          valueFrom:
+            secretKeyRef:
+              key: host
+              name: prowlarr-postgresql-app
+        - name: PROWLARR__POSTGRES__PORT
+          valueFrom:
+            secretKeyRef:
+              key: port
+              name: prowlarr-postgresql-app
+        - name: PROWLARR__POSTGRES__USER
+          valueFrom:
+            secretKeyRef:
+              key: user
+              name: prowlarr-postgresql-app
+        - name: PROWLARR__POSTGRES__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: prowlarr-postgresql-app
+        - name: PROWLARR__POSTGRES__MAINDB
+          valueFrom:
+            secretKeyRef:
+              key: dbname
+              name: prowlarr-postgresql-app
+        image: ghcr.io/hotio/prowlarr:release-2.5.2.5491
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 90
+          periodSeconds: 30
+        name: prowlarr
+        ports:
+        - containerPort: 9696
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 768Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: prowlarr-config
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: qbittorrent
+    app.kubernetes.io/part-of: theater
+  name: qbittorrent
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qbittorrent
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: UMASK
+          value: "002"
+        image: ghcr.io/hotio/qbittorrent:release-5.2.3
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          tcpSocket:
+            port: http
+        name: qbittorrent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 50000
+          name: peer
+          protocol: TCP
+        - containerPort: 50000
+          name: peer-udp
+          protocol: UDP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 15
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 2Gi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /data/torrents
+          name: data
+          subPath: torrents
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: qbittorrent-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: theater-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: radarr
+    app.kubernetes.io/part-of: theater
+  name: radarr
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: radarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: radarr
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: UMASK
+          value: "002"
+        - name: RADARR__LOG__DBENABLED
+          value: "false"
+        - name: RADARR__POSTGRES__HOST
+          valueFrom:
+            secretKeyRef:
+              key: host
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__PORT
+          valueFrom:
+            secretKeyRef:
+              key: port
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__USER
+          valueFrom:
+            secretKeyRef:
+              key: user
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__MAINDB
+          valueFrom:
+            secretKeyRef:
+              key: dbname
+              name: radarr-postgresql-app
+        image: ghcr.io/hotio/radarr:release-6.3.0.10514
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 90
+          periodSeconds: 30
+        name: radarr
+        ports:
+        - containerPort: 7878
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 384Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /data
+          name: data
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: radarr-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: theater-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: sonarr
+    app.kubernetes.io/part-of: theater
+  name: sonarr
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sonarr
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: UMASK
+          value: "002"
+        - name: SONARR__LOG__DBENABLED
+          value: "false"
+        - name: SONARR__POSTGRES__HOST
+          valueFrom:
+            secretKeyRef:
+              key: host
+              name: sonarr-postgresql-app
+        - name: SONARR__POSTGRES__PORT
+          valueFrom:
+            secretKeyRef:
+              key: port
+              name: sonarr-postgresql-app
+        - name: SONARR__POSTGRES__USER
+          valueFrom:
+            secretKeyRef:
+              key: user
+              name: sonarr-postgresql-app
+        - name: SONARR__POSTGRES__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: sonarr-postgresql-app
+        - name: SONARR__POSTGRES__MAINDB
+          valueFrom:
+            secretKeyRef:
+              key: dbname
+              name: sonarr-postgresql-app
+        image: ghcr.io/hotio/sonarr:release-4.0.19.2979
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 90
+          periodSeconds: 30
+        name: sonarr
+        ports:
+        - containerPort: 8989
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 384Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /data
+          name: data
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: sonarr-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: theater-data
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: jellyfin
+  namespace: theater
+spec:
+  hostnames:
+  - cinema.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: jellyfin
+      port: 8096
+    timeouts:
+      backendRequest: 0s
+      request: 0s
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: lidarr
+  namespace: theater
+spec:
+  hostnames:
+  - lidarr.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: lidarr
+      port: 8686
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: plex
+  namespace: theater
+spec:
+  hostnames:
+  - theater.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: plex
+      port: 32400
+    timeouts:
+      backendRequest: 0s
+      request: 0s
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: prowlarr
+  namespace: theater
+spec:
+  hostnames:
+  - prowlarr.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: prowlarr
+      port: 9696
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: qbittorrent
+  namespace: theater
+spec:
+  hostnames:
+  - qbittorrent.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: qbittorrent
+      port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: radarr
+  namespace: theater
+spec:
+  hostnames:
+  - radarr.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: radarr
+      port: 7878
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: sonarr
+  namespace: theater
+spec:
+  hostnames:
+  - sonarr.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: sonarr
+      port: 8989
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: lidarr-postgresql
+  namespace: theater
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    limits:
+      memory: 384Mi
+    requests:
+      cpu: 50m
+      memory: 192Mi
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: prowlarr-postgresql
+  namespace: theater
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    limits:
+      memory: 384Mi
+    requests:
+      cpu: 50m
+      memory: 192Mi
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: radarr-postgresql
+  namespace: theater
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    limits:
+      memory: 384Mi
+    requests:
+      cpu: 50m
+      memory: 192Mi
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: sonarr-postgresql
+  namespace: theater
+spec:
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  instances: 1
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    limits:
+      memory: 384Mi
+    requests:
+      cpu: 50m
+      memory: 192Mi
+  storage:
+    size: 5Gi
+    storageClass: iscsi

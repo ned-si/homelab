@@ -1,0 +1,162 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/platform
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/platform and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+  name: backup-verify
+  namespace: argocd
+spec:
+  destination:
+    namespace: backup-verify
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: postgresql.cnpg.io
+    jsonPointers:
+    - /status
+    kind: Cluster
+  project: platform
+  source:
+    path: deploy/platform/backup-verify
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true
+    - RespectIgnoreDifferences=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  name: cloudnative-pg
+  namespace: argocd
+spec:
+  destination:
+    namespace: cnpg-system
+    server: https://kubernetes.default.svc
+  project: platform
+  sources:
+  - chart: cloudnative-pg
+    helm:
+      releaseName: cnpg
+      valueFiles:
+      - $values/platform/cloudnative-pg/values.yaml
+    repoURL: https://cloudnative-pg.github.io/charts
+    targetRevision: 0.29.0
+  - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  name: keycloak
+  namespace: argocd
+spec:
+  destination:
+    namespace: keycloak
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: postgresql.cnpg.io
+    jsonPointers:
+    - /status
+    kind: Cluster
+  project: platform
+  source:
+    path: deploy/platform/keycloak
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  name: kube-prometheus-stack
+  namespace: argocd
+spec:
+  destination:
+    namespace: monitoring
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: monitoring.coreos.com
+    jsonPointers:
+    - /spec/replicas
+    kind: Prometheus
+  project: platform
+  sources:
+  - chart: kube-prometheus-stack
+    helm:
+      releaseName: kube-prometheus-stack
+      valueFiles:
+      - $values/platform/kube-prometheus-stack/values.yaml
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: 88.0.1
+  - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  - path: deploy/platform/kube-prometheus-stack/routes
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+      limit: 5
+    syncOptions:
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-25"
+  name: secrets-platform
+  namespace: argocd
+spec:
+  destination:
+    namespace: default
+    server: https://kubernetes.default.svc
+  project: platform
+  source:
+    path: platform/secrets
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true

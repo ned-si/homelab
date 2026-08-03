@@ -1,0 +1,195 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/bootstrap
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/bootstrap and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: apps
+  namespace: argocd
+spec:
+  clusterResourceWhitelist:
+  - group: ""
+    kind: Namespace
+  description: End-user workloads - media, photos, documents, recipes, sync
+  destinations:
+  - namespace: theater
+    server: https://kubernetes.default.svc
+  - namespace: immich
+    server: https://kubernetes.default.svc
+  - namespace: mealie
+    server: https://kubernetes.default.svc
+  - namespace: paperless
+    server: https://kubernetes.default.svc
+  - namespace: seafile
+    server: https://kubernetes.default.svc
+  - namespace: syncthing
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  sourceRepos:
+  - https://github.com/ned-si/homelab.git
+  - https://immich-app.github.io/immich-charts
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: infrastructure
+  namespace: argocd
+spec:
+  clusterResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  description: Cluster plumbing - CNI, Gateway API, cert-manager, DNS, CSI
+  destinations:
+  - namespace: '*'
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  sourceRepos:
+  - https://github.com/ned-si/homelab.git
+  - https://helm.cilium.io
+  - https://charts.jetstack.io
+  - https://kubernetes-sigs.github.io/external-dns/
+  - https://democratic-csi.github.io/charts/
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: platform
+  namespace: argocd
+spec:
+  clusterResourceWhitelist:
+  - group: ""
+    kind: Namespace
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+  - group: storage.k8s.io
+    kind: StorageClass
+  - group: monitoring.coreos.com
+    kind: '*'
+  description: Shared services - CloudNativePG, observability, Keycloak
+  destinations:
+  - namespace: '*'
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  sourceRepos:
+  - https://github.com/ned-si/homelab.git
+  - https://cloudnative-pg.github.io/charts
+  - https://prometheus-community.github.io/helm-charts
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  name: layer-apps
+  namespace: argocd
+spec:
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: deploy/clusters/homelab/apps
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+      limit: 5
+    syncOptions:
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  name: layer-infrastructure
+  namespace: argocd
+spec:
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: deploy/clusters/homelab/infrastructure
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+      limit: 5
+    syncOptions:
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+  name: layer-platform
+  namespace: argocd
+spec:
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  project: default
+  source:
+    path: deploy/clusters/homelab/platform
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 5m
+      limit: 5
+    syncOptions:
+    - ServerSideApply=true

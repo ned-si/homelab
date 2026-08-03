@@ -85,8 +85,14 @@ exist, before anything mounts a Secret. Each decrypted file declares its own
 `metadata.namespace`, so one Application seeds several namespaces.
 
 Grouping per layer rather than per app means only three directories use the
-kustomize plugin. Everything else renders with plain `kustomize build`, which
-keeps the repo debuggable.
+kustomize plugin. Everything else is pre-rendered into `deploy/` and needs no
+plugin at all, which is what keeps `--enable-exec` from applying to the whole
+repo. See [architecture.md](./architecture.md#deploy-rendered-manifests).
+
+**These three directories are the only ones Argo CD builds itself, and the only
+ones not present in `deploy/`.** `scripts/render-deploy.sh` refuses to render
+them, because rendering means decrypting and the output would be plaintext
+Secrets in git.
 
 ### What is deliberately NOT here
 
@@ -113,19 +119,24 @@ Three pieces, all configured in `bootstrap/`:
 ### Security implication, stated plainly
 
 That flag enables exec plugins for **every** kustomize build the repo-server
-performs, not just the secret directories. Any kustomization in this repo could
+performs, not just the secret directories. Any kustomization it builds could
 execute a binary present in the repo-server image.
 
-That is acceptable here because this is a single-operator repo where the only
-author is the cluster owner. It would **not** be acceptable in a shared or
-multi-tenant cluster — there, scope it with a per-plugin CMP sidecar instead.
+The setting itself is global and cannot be scoped. What *can* be scoped is how
+much it applies to, and that is one of the reasons `deploy/` exists: every other
+Application syncs pre-rendered plain YAML, so the repo-server builds **3
+directories instead of 23**. Same flag, an eighth of the surface.
+
+The remaining exposure is accepted because this is a single-operator repo whose
+only author is the cluster owner. In a shared or multi-tenant cluster it would
+not be — there, scope it with a per-plugin CMP sidecar instead.
 
 This is the integration path KSOPS documents for the Argo CD Helm chart.
 
 ## Local rendering
 
 `kubectl kustomize` cannot run exec plugins, so it cannot render the secret
-directories. Use real `kustomize` via the Makefile:
+directories. Use real `kustomize`:
 
 ```sh
 task build      # renders everything, secrets stay encrypted in git

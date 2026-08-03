@@ -1,0 +1,301 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/seafile
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/seafile and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: mariadb
+  name: mariadb
+  namespace: seafile
+spec:
+  ports:
+  - name: mysql
+    port: 3306
+    protocol: TCP
+    targetPort: mysql
+  selector:
+    app: mariadb
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: memcached
+  name: memcached
+  namespace: seafile
+spec:
+  ports:
+  - name: memcached
+    port: 11211
+    protocol: TCP
+    targetPort: memcached
+  selector:
+    app: memcached
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: seafile
+  name: seafile
+  namespace: seafile
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: seafile
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seafile-data
+  namespace: seafile
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: iscsi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seafile-mariadb
+  namespace: seafile
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: iscsi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mariadb
+    app.kubernetes.io/name: mariadb
+  name: mariadb
+  namespace: seafile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mariadb
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mariadb
+        app.kubernetes.io/name: mariadb
+    spec:
+      containers:
+      - env:
+        - name: MARIADB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: root-password
+              name: seafile-db
+        - name: MARIADB_AUTO_UPGRADE
+          value: "true"
+        image: mariadb:12.3
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - healthcheck.sh
+            - --connect
+            - --innodb_initialized
+          failureThreshold: 5
+          initialDelaySeconds: 120
+          periodSeconds: 30
+        name: mariadb
+        ports:
+        - containerPort: 3306
+          name: mysql
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - healthcheck.sh
+            - --connect
+            - --innodb_initialized
+          initialDelaySeconds: 20
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 384Mi
+        volumeMounts:
+        - mountPath: /var/lib/mysql
+          name: data
+      securityContext:
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: seafile-mariadb
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: memcached
+    app.kubernetes.io/name: memcached
+  name: memcached
+  namespace: seafile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memcached
+  template:
+    metadata:
+      labels:
+        app: memcached
+        app.kubernetes.io/name: memcached
+    spec:
+      containers:
+      - args:
+        - -m
+        - "256"
+        image: memcached:1.6.45-alpine
+        imagePullPolicy: IfNotPresent
+        name: memcached
+        ports:
+        - containerPort: 11211
+          name: memcached
+          protocol: TCP
+        readinessProbe:
+          initialDelaySeconds: 5
+          tcpSocket:
+            port: memcached
+        resources:
+          limits:
+            memory: 384Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 11211
+        seccompProfile:
+          type: RuntimeDefault
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: seafile
+  name: seafile
+  namespace: seafile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seafile
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seafile
+    spec:
+      containers:
+      - env:
+        - name: TIME_ZONE
+          value: Europe/Zurich
+        - name: DB_HOST
+          value: mariadb
+        - name: DB_ROOT_PASSWD
+          valueFrom:
+            secretKeyRef:
+              key: root-password
+              name: seafile-db
+        - name: SEAFILE_SERVER_HOSTNAME
+          value: drive.lilalala.com
+        - name: SEAFILE_SERVER_LETSENCRYPT
+          value: "false"
+        envFrom:
+        - secretRef:
+            name: seafile-admin
+        image: seafileltd/seafile-mc:11.0-latest
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 240
+          periodSeconds: 30
+          tcpSocket:
+            port: http
+        name: seafile
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 10
+          httpGet:
+            path: /accounts/login/
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 15
+        resources:
+          limits:
+            memory: 1536Mi
+          requests:
+            cpu: 100m
+            memory: 512Mi
+        volumeMounts:
+        - mountPath: /shared
+          name: data
+      securityContext:
+        fsGroup: 0
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: seafile-data
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: seafile
+  namespace: seafile
+spec:
+  hostnames:
+  - drive.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: seafile
+      port: 80
+    timeouts:
+      backendRequest: 0s
+      request: 0s

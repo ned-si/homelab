@@ -12,7 +12,7 @@ spec:
   source:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
-    path: apps/syncthing
+    path: deploy/apps/syncthing
   destination:
     server: https://kubernetes.default.svc
     namespace: syncthing
