@@ -51,7 +51,8 @@ metadata:
 spec:
   capacity:
     # NFS ignores this; Kubernetes requires it and uses it only for matching.
-    storage: 20Ti
+    # The share is 26T with 9.5T used as of 2026-07-31.
+    storage: 26Ti
   accessModes:
     # RWX: every app in the namespace mounts it simultaneously.
     - ReadWriteMany
@@ -84,4 +85,4 @@ spec:
   volumeName: theater-data
   resources:
     requests:
-      storage: 20Ti
+      storage: 26Ti

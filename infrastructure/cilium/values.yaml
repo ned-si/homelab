@@ -109,12 +109,31 @@ prometheus:
   serviceMonitor:
     enabled: true
 
-# Keep the eBPF masquerading path rather than iptables.
+# ---------------------------------------------------------------------------
+# DATAPATH: deliberately left as the cluster currently runs it.
+#
+# The live cluster masquerades with IPTables, not eBPF:
+#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status
+#   -> Masquerading: IPTables [IPv4: Enabled, IPv6: Disabled]
+#
+# An earlier draft set `bpf.masquerade: true`. That is a datapath change with its
+# own failure modes and it has nothing to do with restructuring the repository.
+# Changing the CNI datapath and reorganising every manifest in the same commit
+# means that when something breaks you cannot tell which change caused it.
+#
+# Enable it later, on its own, with a rollback plan.
+# ---------------------------------------------------------------------------
 bpf:
-  masquerade: true
+  masquerade: false
 
-# Encrypt pod-to-pod traffic. Cheap on these SoCs via WireGuard offload and it
-# means the LAN is no longer implicitly trusted.
+# ---------------------------------------------------------------------------
+# ENCRYPTION: off, matching the running cluster.
+#
+# WireGuard pod-to-pod encryption is worth having, but enabling it restarts every
+# agent and re-keys the datapath. Same reasoning as above: it is a separate,
+# reversible change, not part of a refactor.
+#
+# To enable later:  encryption: { enabled: true, type: wireguard }
+# ---------------------------------------------------------------------------
 encryption:
-  enabled: true
-  type: wireguard
+  enabled: false

@@ -20,8 +20,15 @@ spec:
   sources:
     - repoURL: https://helm.cilium.io
       chart: cilium
+      # PINNED TO WHAT IS RUNNING. Verified 2026-07-31: chart cilium-1.16.3.
+      #
+      # DO NOT let Renovate walk this to 1.20 in one step. Cilium supports
+      # upgrading ONE minor at a time (1.16 -> 1.17 -> 1.18 -> ...), and 1.20
+      # targets Kubernetes 1.36 while this cluster runs 1.31. Kubernetes has to
+      # move first. See docs/migration-plan.md.
+      #
       # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-      targetRevision: 1.20.0
+      targetRevision: 1.16.3
       helm:
         releaseName: cilium
         valueFiles:
