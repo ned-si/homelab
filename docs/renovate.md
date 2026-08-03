@@ -8,8 +8,8 @@ Every pinned version in this repo is preceded by a `# renovate:` comment that
 tells Renovate exactly which datasource to query:
 
 ```yaml
-# renovate: datasource=helm registryUrl=https://helm.cilium.io depName=cilium
-targetRevision: 1.20.0
+# renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
+targetRevision: 1.16.3
 ```
 
 ```yaml
@@ -17,10 +17,16 @@ targetRevision: 1.20.0
 image: ghcr.io/hotio/qbittorrent:release-5.2.3
 ```
 
-```makefile
+```yaml
 # renovate: datasource=github-releases depName=kubernetes-sigs/gateway-api
-GATEWAY_API_VERSION := v1.6.1
+resources:
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml
 ```
+
+Field order is **canonical**: `datasource`, then `depName`, then the optional
+fields. Renovate's regex managers use RE2, which has no lookahead, so the fields
+cannot be matched order-independently. Writing them in a different order silently
+produces a partial match.
 
 The native `helm-values`, `helmv3` and `argocd` managers are **disabled**:
 
@@ -38,13 +44,23 @@ The trade-off is that a new pinned version with no comment is invisible to
 Renovate. That is the intended behaviour, but it does mean the comment is part of
 the change, not an afterthought.
 
-## The two custom managers
+## The three custom managers
 
 1. **Annotated version on the following line** — matches `# renovate:` then picks
-   up the value after the next `:` or `=`. Covers `targetRevision:`,
-   `imageName:`, `tag:`, Makefile variables, `.tf` files.
-2. **Annotated full image reference** — matches `image: repo:tag` and extracts just
-   the tag, optionally with a digest.
+   up the value after the next `:` or `=`. Covers `targetRevision:`, `version:`,
+   `tag:`, `chart:` and `SHOUTING_CASE` variables in `.yaml`, `.tf`, `.sh` and
+   `Makefile`. It deliberately does **not** match `image:`/`imageName:`, because
+   those carry a full `repo:tag` and this manager would capture the repository as
+   the version.
+2. **Annotated full image reference** — matches `image:`/`imageName:` and extracts
+   just the tag, optionally with a digest. `imageName` is what CloudNativePG
+   `Cluster` objects use.
+3. **Annotated GitHub release-asset URL** — for bundles like the Gateway API CRDs,
+   where the version sits mid-path in a URL and so is out of reach of manager 1.
+
+Verify all three with `node scripts/renovate-dryrun.js`, which applies the real
+regexes from `renovate.json5` to the tree and fails if any annotation yields an
+incomplete match. It currently reports **43 annotations, 43 complete matches**.
 
 Supported annotation fields: `datasource`, `depName`, `packageName`,
 `registryUrl`, `versioning`, `extractVersion`. Only `datasource` is required.
@@ -60,7 +76,7 @@ cluster has actually had:
 | Rule | Behaviour | Reasoning |
 |---|---|---|
 | **cluster networking** (`cilium`, `gateway-api`) | grouped, never auto-merged | Cilium targets a specific Gateway API version. If the CRDs and Cilium drift, the Gateway stops programming and every route goes dark. |
-| **theater stack** (all `ghcr.io/hotio/*`) | grouped, never auto-merged | qBittorrent and the *arr apps share a credential contract. Bumping qBittorrent alone is what broke this cluster for a year — see [runbooks/arr-qbittorrent.md](runbooks/arr-qbittorrent.md). |
+| **theater stack** (all `ghcr.io/hotio/*`) | grouped, never auto-merged | qBittorrent and the *arr apps share a download-client contract (API version, auth scheme, credentials). Moving one without the others is how that link breaks — see [runbooks/arr-qbittorrent.md](runbooks/arr-qbittorrent.md). |
 | Immich major | dashboard approval | Runs irreversible DB migrations. See [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md). |
 | Postgres / VectorChord major | dashboard approval | A major bump refuses to start on an existing data directory. |
 | Keycloak major | dashboard approval | Changes OIDC defaults and the admin console; every federated app is downstream. |
