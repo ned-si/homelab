@@ -1,19 +1,40 @@
 # Syncthing.
 #
-# WHAT CHANGED
-#   - image `syncthing/syncthing:latest` -> pinned 2.1.2. Note this crosses the
-#     1.x -> 2.x boundary: Syncthing 2.0 migrated its database format and 2.x
-#     will NOT downgrade cleanly. Peers on 1.x still interoperate, but back up
-#     the config volume before syncing this.
-#   - the PVC is now a volumeClaimTemplate on the StatefulSet instead of a
-#     standalone PVC. That is what a StatefulSet is for, and it stops the volume
-#     being silently reused by an unrelated pod.
-#   - added probes and resource requests.
+# ###########################################################################
+# # THREE FIELDS HERE ARE CONSTRAINED BY THE LIVE OBJECT, NOT BY PREFERENCE.
+# #
+# # A StatefulSet only permits updates to `replicas`, `ordinals`, `template`,
+# # `updateStrategy`, `persistentVolumeClaimRetentionPolicy` and
+# # `minReadySeconds`. Everything else is immutable.
+# #
+# # An earlier draft changed all three of the following and was rejected by the
+# # API server (verified 2026-07-31):
+# #
+# #   selector          live: {app: syncthing}     -- immutable
+# #   serviceName       live: syncthing            -- immutable
+# #   volumeClaimTemplates  live: EMPTY; the volume is a standalone PVC
+# #                         (syncthing-pvc). Adding a template is immutable too.
+# #
+# # A volumeClaimTemplate would be the better design -- it ties the volume's
+# # lifecycle to the StatefulSet. Getting there means deleting the StatefulSet
+# # with --cascade=orphan and recreating it, which is a deliberate one-time action
+# # listed in docs/migration-plan.md, not something to bury in a refactor.
+# ###########################################################################
 #
-# OPERATIONAL NOTE, unchanged from the old README and still true: peer-to-peer
-# sync needs the router to forward TCP/UDP 22000 to the LoadBalancer address in
-# ./services.yaml, and every client must have Global Discovery enabled. Without
-# the forward, Syncthing falls back to relays and throughput collapses.
+# WHAT THIS CHANGE DOES DELIVER
+#   - image pinned: was `syncthing/syncthing:latest`. Note this crosses the
+#     1.x -> 2.x boundary, and Syncthing 2.0 migrated its database format and will
+#     NOT downgrade cleanly. Back up the config volume before syncing.
+#   - readiness and liveness probes, so a wedged instance is visible. This is the
+#     same gap that hid the qBittorrent outage for three months.
+#   - resource requests, and a 60s termination grace period so Syncthing can
+#     finish writing its index database; a hard kill mid-write is the usual cause
+#     of "database corrupted" on restart.
+#
+# OPERATIONAL NOTE, unchanged and still true: peer-to-peer sync needs the router
+# to forward TCP/UDP 22000 to the LoadBalancer address in ./services.yaml, and
+# clients need Global Discovery. Without the forward, Syncthing falls back to
+# relays and throughput collapses.
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -21,20 +42,22 @@ metadata:
   name: syncthing
   namespace: syncthing
   labels:
+    app: syncthing
     app.kubernetes.io/name: syncthing
 spec:
-  serviceName: syncthing-headless
+  # IMMUTABLE - must match the live object.
+  serviceName: syncthing
   replicas: 1
+  # IMMUTABLE - must match the live object.
   selector:
     matchLabels:
-      app.kubernetes.io/name: syncthing
+      app: syncthing
   template:
     metadata:
       labels:
+        app: syncthing
         app.kubernetes.io/name: syncthing
     spec:
-      # Syncthing needs to finish writing its index database on shutdown; a hard
-      # kill mid-write is the usual cause of "database corrupted" on restart.
       terminationGracePeriodSeconds: 60
       securityContext:
         fsGroup: 1000
@@ -86,13 +109,9 @@ spec:
               memory: 256Mi
             limits:
               memory: 1Gi
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        storageClassName: iscsi
-        accessModes:
-          - ReadWriteOnce
-        resources:
-          requests:
-            storage: 100Gi
+      volumes:
+        # Standalone PVC, matching the live object. See the note at the top about
+        # why this is not a volumeClaimTemplate.
+        - name: data
+          persistentVolumeClaim:
+            claimName: syncthing-pvc
