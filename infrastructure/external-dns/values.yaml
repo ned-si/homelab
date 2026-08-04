@@ -53,7 +53,7 @@ env:
     valueFrom:
       secretKeyRef:
         # Created by the `secrets-infrastructure` Application.
-        name: cloudflare-api-token
+        name: cloudflare-api-token-secret
         key: api-token
 
 # external-dns needs cluster-wide read on Gateway API types; the chart's RBAC
