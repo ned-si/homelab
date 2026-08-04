@@ -175,13 +175,23 @@ Details in [Phase 3](#phase-3-gateway-and-the-ip-handover).
 
 Do all of these before Phase 1. None of them change running workloads.
 
-- [ ] **Backups exist and have been verified once, by hand.** Everything after
-      this point is recoverable only to the extent that this is true.
-      See [backups.md](./backups.md).
+- [x] **Backups exist and have been verified.** Done 2026-08-03:
+      `task backup:dump` took all nine databases (390MB, 9/9 verified), and
+      `task backup:verify-restore` restored `mealie` and `immich` into throwaway
+      clusters and matched every row count against live. See
+      [backups.md](./backups.md). **Re-run it immediately before starting** —
+      a backup from days ago is not a backup of today.
 - [ ] **Immich library volume snapshotted** on TrueNAS. It is the one
       irreplaceable thing here.
 - [ ] `all-apps` still pinned and `prune: false` — re-check with the command
       above.
+- [x] **`cilium-mgr9z` fixed** — the DaemonSet is 4/4 and the datapath on
+      `homelab-cp-2` is verified working. Phase 3 now has one variable, not two.
+- [ ] **Seal the Cloudflare Secrets before syncing `cert-manager-issuers` or
+      `external-dns`.** They replace live Secrets in place, and getting the name
+      wrong fails silently — see [the repo bugs
+      below](#two-repo-bugs-this-turned-up-now-fixed). Certificates renew
+      2026-08-11, so a broken issuer has a deadline.
 - [ ] **age key generated and stored somewhere that is not this cluster.**
       `scripts/age-key.sh`. Losing it means losing every encrypted secret.
 - [ ] **Secrets encrypted.** `scripts/secrets-inventory.sh` writes the values
@@ -637,36 +647,101 @@ range, and expect Plex and Jellyfin to want a database migration on first start.
 Found during recon. **None are caused by this restructure**, and none block it,
 but do not let the cutover get blamed for them.
 
-### `cilium-mgr9z` on `homelab-cp-2` has been broken for 137 days
+### FIXED — `cilium-mgr9z` on `homelab-cp-2`, broken for 140 days
+
+Resolved 2026-08-04. Recorded because the diagnosis was not what it looked like.
+
+The pod sat in `CreateContainerError` with 298 restarts. The obvious reading was
+the error in its logs:
 
 ```
-STATUS: CreateContainerError    RESTARTS: 298    AGE: 137d
-log: dial tcp 192.168.1.11:6443: connect: no route to host
+dial tcp 192.168.1.11:6443: connect: no route to host
 ```
 
-The DaemonSet reports 3/4 ready. That node's Cilium agent cannot reach the API
-server VIP. Since `k8sServiceHost` is unset, the agent goes through the Service
-network, which needs a working agent — a bootstrap loop this node never escaped.
+That was the **historic trigger**, timestamped 2026-04-06, and by itself it is
+misleading. It came from `lastState`, not the current state. A transient outage of
+the kube-vip-managed API VIP crashed the agent once, in April.
 
-Fix before Phase 3, because Phase 3 is about networking and you do not want two
-variables:
+What kept it down for the next four months was containerd:
+
+```
+failed to reserve container name "cilium-agent_cilium-mgr9z_kube-system_99eac073-…_299":
+name is reserved for "9d25541fe3f392f5973235a2f1ed1df5b031000b9ff4acad1afa6d2a611827ad"
+```
+
+A stale container-name reservation. The kubelet retried **790,890 times over 119
+days** and could never win, because the name it wanted was permanently held by a
+dead sandbox.
+
+The fix needed no containerd surgery. The pod UID is part of the container name,
+so deleting the pod produces a new UID, a new name, and no collision:
 
 ```sh
 kubectl -n kube-system delete pod cilium-mgr9z
-# if it recurs, from homelab-cp-2 itself:
-#   ip route get 192.168.1.11
-#   curl -k https://192.168.1.11:6443/healthz
 ```
 
-If the VIP is unreachable from that node at the L2/routing level, it is a
-keepalived/kube-vip or switch problem, not a Cilium one.
+It was safe to do at any point: the node carried Cilium's own
+`node.cilium.io/agent-not-ready:NoSchedule` taint and every pod on it was
+`hostNetwork`, so nothing was using that CNI to begin with.
 
-### Others
+Verified afterwards, rather than assumed:
 
-- `ssh-node-7uqwbs` in `kube-system`, status `Unknown` — stray, delete it.
-- `test-cert` Certificate in `default`, `Ready: False` — leftover experiment,
-  delete it. It also makes cert-manager look unhealthy at a glance, which will
-  confuse Phase 3.
+```
+agent            Running 1/1, 0 restarts, 24/24 controllers healthy
+DaemonSet        4/4 ready (first time in 140 days)
+taint            cleared automatically
+cluster health   4/4 reachable
+real datapath    test pod on cp-2 got 10.0.0.3, resolved via kube-dns, and
+                 reached qbittorrent on another node -> HTTP 200
+```
+
+The lesson worth keeping: `kubectl get pods` showed a plausible-looking crash
+loop, and the log line pointed at the network. Neither was the current cause.
+Read `state`, not just `lastState`.
+
+**Watch the API VIP anyway.** `kube-vip-homelab-cp-2` has 61 restarts (most
+recent 12 days ago) and `kube-apiserver-homelab-cp-2` has 100. The April outage
+that started this was real. If Phase 3 sees odd behaviour, this is a suspect.
+
+### FIXED — stray objects
+
+- `ssh-node-7uqwbs` in `kube-system` (`Failed`, no owner) — deleted.
+- `test-cert` in `default` — deleted, along with `test-cert-tls`. See below,
+  because it was not the throwaway it looked like.
+
+### `test-cert` was evidence, not litter
+
+It requested `lilalala.com` **and** `*.lilalala.com` — the wildcard certificate
+the Gateway design depends on. Worth knowing before Phase 3:
+
+- **Wildcard issuance does work here.** Orders `test-cert-1/2/3` all reached
+  `valid`. The issuer uses DNS-01 via Cloudflare, which is the only solver that
+  can do wildcards.
+- `test-cert-4` had been stuck `pending` for **474 days**, with two challenges for
+  `lilalala.com` (apex and wildcard both validate at
+  `_acme-challenge.lilalala.com`) and one of them never completing. Long past
+  Let's Encrypt's 7-day order expiry, so it was permanently dead, not slow.
+- The ten real certificates are all `Ready: True` and renew **2026-08-11**. So
+  certificate issuance is healthy; only this one object was wedged.
+
+Deleted so that Phase 3 starts from a clean cert-manager, and so a genuine
+wildcard failure is visible rather than lost in existing noise.
+
+### Two repo bugs this turned up, now fixed
+
+Both would have broken a working system on first sync, and both are the same
+mistake: inventing a tidier name for something that already exists.
+
+| Repo said | Cluster has | What would have happened |
+|---|---|---|
+| Secret `cloudflare-api-token` | `cloudflare-api-token-secret`, in **both** `cert-manager` and `external-dns` | ClusterIssuer and external-dns would reference a Secret that does not exist. Certificate renewal fails **quietly**; renewals are due 2026-08-11 and all ten certs expire 2026-09-10 |
+| `privateKeySecretRef: letsencrypt-account-key` | `letsencrypt` | cert-manager generates a new ACME **account key**, registers a new Let's Encrypt account, and abandons the existing one (`acct/2075617627`) with its authorizations — against an endpoint that rate-limits account creation |
+
+The repo now uses the live names. The tidier ones were not worth a silent
+certificate outage.
+
+### Still outstanding
+
 - Namespace `db` is **empty** — leftover, deleted in Phase 6.
 - The `immich` Application reports `SYNC: Unknown` on the old Argo CD. Worth
   understanding before Phase 5 rather than during it.
@@ -676,6 +751,9 @@ keepalived/kube-vip or switch problem, not a Cilium one.
   the house move — see [house-move.md](./runbooks/house-move.md).
 - `democratic-csi` runs `democraticcsi/democratic-csi:latest`. A CSI driver on a
   floating tag can break volume attachment on any pod restart.
+- `/controller` on the nodes is at **83% disk use** (29GB eMMC). Not urgent, but
+  it is the volume kubelet and containerd live on, and it is what made a
+  source-side checksum awkward in `scripts/dump-databases.sh`.
 
 ---
 

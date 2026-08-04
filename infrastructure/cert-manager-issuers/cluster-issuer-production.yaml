@@ -19,12 +19,18 @@ spec:
     server: https://acme-v02.api.letsencrypt.org/directory
     email: igontfh79hks@opayq.com
     privateKeySecretRef:
-      name: letsencrypt-account-key
+      # `letsencrypt`, not `letsencrypt-account-key`: this Secret holds the ACME
+      # ACCOUNT KEY, and the running cluster's is already registered as
+      # https://acme-v02.api.letsencrypt.org/acme/acct/2075617627. Renaming it
+      # would make cert-manager generate a new key, register a NEW Let's Encrypt
+      # account, and abandon the existing one along with its authorizations --
+      # for no benefit, against an endpoint that rate-limits account creation.
+      name: letsencrypt
     solvers:
       - dns01:
           cloudflare:
             apiTokenSecretRef:
-              name: cloudflare-api-token
+              name: cloudflare-api-token-secret
               key: api-token
         selector:
           dnsZones:

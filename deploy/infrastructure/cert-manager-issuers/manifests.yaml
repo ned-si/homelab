@@ -17,14 +17,14 @@ spec:
   acme:
     email: igontfh79hks@opayq.com
     privateKeySecretRef:
-      name: letsencrypt-account-key
+      name: letsencrypt
     server: https://acme-v02.api.letsencrypt.org/directory
     solvers:
     - dns01:
         cloudflare:
           apiTokenSecretRef:
             key: api-token
-            name: cloudflare-api-token
+            name: cloudflare-api-token-secret
       selector:
         dnsZones:
         - lilalala.com
@@ -46,7 +46,7 @@ spec:
         cloudflare:
           apiTokenSecretRef:
             key: api-token
-            name: cloudflare-api-token
+            name: cloudflare-api-token-secret
       selector:
         dnsZones:
         - lilalala.com
