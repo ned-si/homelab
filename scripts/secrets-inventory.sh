@@ -273,7 +273,41 @@ PLEX
   echo '- **age identity** — `task secrets:keygen`, then back it up.'
   echo '- **GitHub PAT** for Argo CD — `contents: read` on this repo only.'
   echo '  Export as `TF_VAR_git_token`.'
-  echo '- **S3 credentials** for backups — see `docs/backups.md`.'
+  echo
+  echo '### S3 backup credentials — SAVE ALL FIVE TO BITWARDEN'
+  echo
+  echo 'Created by `cd bootstrap/aws-backup && tofu apply`. Read each with'
+  echo '`tofu output -raw <name>`.'
+  echo
+  echo '| Bitwarden entry | Where it comes from | Used by |'
+  echo '|---|---|---|'
+  echo '| `homelab / AWS backup writer — key id` | `tofu output -raw backup_access_key_id` | barman + restic CronJobs |'
+  echo '| `homelab / AWS backup writer — secret` | `tofu output -raw backup_secret_access_key` | same |'
+  echo '| `homelab / AWS backup verifier — key id` | `tofu output -raw verify_access_key_id` | read-only restore drills |'
+  echo '| `homelab / AWS backup verifier — secret` | `tofu output -raw verify_secret_access_key` | same |'
+  echo '| `homelab / RESTIC_PASSWORD` | `openssl rand -base64 48` | encrypts the restic repositories |'
+  echo
+  echo 'The first four go into `platform/secrets/s3-backup.sops.yaml`, which needs'
+  echo 'BOTH key spellings: `ACCESS_KEY_ID`/`ACCESS_SECRET_KEY` for barman and'
+  echo '`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` for restic. The two tools'
+  echo 'disagree about naming and neither is configurable.'
+  echo
+  echo '**`RESTIC_PASSWORD` is not recoverable.** Lose it and every file backup is'
+  echo 'permanently unreadable, including by you. Store it beside the age key, and'
+  echo 'not only in this cluster.'
+  echo
+  echo 'Also note: `bootstrap/aws-backup/terraform.tfstate` contains both secret'
+  echo 'keys in plaintext after apply. It is git-ignored, but once the keys are in'
+  echo 'Bitwarden treat that file as a secret — chmod 600, and move it off the'
+  echo 'machine or into an encrypted backend.'
+  echo
+  echo '### AWS account itself'
+  echo
+  echo '- [ ] **root password rotated** and **MFA enabled**. The root console'
+  echo '      password was shared in a chat transcript.'
+  echo '- [ ] no root access keys exist (`aws iam list-access-keys` as root, or'
+  echo '      check the console security credentials page)'
+  echo '- [ ] an admin IAM user exists for you, so `tofu apply` never needs root'
   echo
 } >>"$OUT"
 

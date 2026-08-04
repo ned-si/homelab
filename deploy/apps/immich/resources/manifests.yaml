@@ -93,7 +93,7 @@ spec:
             - -c
             env:
             - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-003.backblazeb2.com/homelab-backups/immich/library
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/immich/library
             - name: RESTIC_CACHE_DIR
               value: /cache
             - name: RESTIC_PACK_SIZE
@@ -173,8 +173,8 @@ spec:
       data:
         compression: gzip
         jobs: 2
-      destinationPath: s3://homelab-backups/immich/postgres
-      endpointURL: https://s3.eu-central-003.backblazeb2.com
+      destinationPath: s3://homelab-backups-REPLACE-ME/immich/postgres
+      endpointURL: https://s3.eu-central-1.amazonaws.com
       s3Credentials:
         accessKeyId:
           key: ACCESS_KEY_ID

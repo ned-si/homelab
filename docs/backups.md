@@ -13,9 +13,9 @@ Everything goes to S3-compatible object storage off-site. Restores are verified
 | Paperless documents | restic → S3, nightly | 14d / 8w / 24m | **scanned originals. irreplaceable.** |
 | Paperless SQLite | `sqlite3 .backup` → restic | same | tags, correspondents |
 | Mealie Postgres | Barman Cloud → S3 | 30d PITR | recipes you typed in |
-| Seafile `/shared` + MariaDB | restic → S3 | 14d / 8w | files + its config, which lives in the volume |
-| Syncthing config | restic → S3 | 14d / 8w | device IDs and folder config |
-| *arr configs | restic → S3 | 7d / 4w | quality profiles, indexers |
+| Seafile `/shared` + MariaDB | **NOT YET IMPLEMENTED** | — | see below |
+| Syncthing config | **NOT YET IMPLEMENTED** | — | see below |
+| *arr configs | **NOT YET IMPLEMENTED** | — | see below |
 | **The media library (26TB NFS, 9.5TB used)** | **NOT backed up** | — | see below |
 | *arr Postgres databases | **NOT backed up** | — | see below |
 | qBittorrent config | **NOT backed up** | — | see below |
@@ -42,6 +42,30 @@ would quadruple the backup bill for the least valuable data in the cluster.
 **This is a deliberate decision, not an oversight.** If you disagree, the change
 is a copy of `apps/immich/resources/backup-files.yaml` pointed at the
 `theater-data` PVC.
+
+### Not yet implemented: Seafile, Syncthing, *arr configs
+
+Stated plainly rather than left as an implied promise. Only **two** restic
+CronJobs exist as manifests today:
+
+| Repository | Manifest |
+|---|---|
+| `immich/library` | `apps/immich/resources/backup-files.yaml` |
+| `paperless/media` | `apps/paperless/backup.yaml` |
+
+Seafile, Syncthing and the *arr configs are covered by `scripts/dump-databases.sh`
+only to the extent that their *databases* are (Seafile's MariaDB is; the others
+have no database worth the name). Their **file volumes are not backed up at all
+yet**.
+
+Each is a copy of `apps/paperless/backup.yaml` with a different PVC, mount path
+and repository suffix, plus an entry in `local.restic_repos` in
+`bootstrap/aws-backup/main.tf` so the packs get archived. They are deliberately
+left until the Immich path is proven end to end, because Immich is the one that
+matters and adding five repositories at once means debugging five things.
+
+When adding them, remember `local.restic_repos` — miss it and the packs stay in
+Standard at roughly 6× the price, silently.
 
 ### Why the *arr databases and qBittorrent config are not backed up
 
@@ -162,21 +186,120 @@ should be compared against.
 and they are not off-site until you copy them somewhere else. That is what the
 rest of this document is for.
 
-## Setup
+## The bucket
 
-### 1. Bucket and credentials
+One bucket, in `eu-central-1`, created by
+[`bootstrap/aws-backup/`](../bootstrap/aws-backup/main.tf).
 
-Any S3-compatible store. Recommendation: **Cloudflare R2**, because egress is
-free and a restore of the photo library means egressing ~2TB. Backblaze B2 is
-cheaper per GB stored but charges egress.
+```sh
+cd bootstrap/aws-backup
+$EDITOR terraform.tfvars      # bucket_name (globally unique -- add a suffix)
+tofu init && tofu plan
+tofu apply
+tofu output next_steps
+```
 
-Create one bucket, e.g. `homelab-backups`, and:
+**Do not apply it with root credentials, and do not create root access keys.**
+Root cannot be scoped, so a leaked backup key would be able to delete the backups
+*and* everything else in the account. Make yourself an admin IAM user first.
 
-- [ ] enable **versioning** or **object lock** if available — this is what makes
-      the backup survive a compromised cluster deleting it
-- [ ] create a credential scoped to **that bucket only**, with no
-      `DeleteBucket`. A backup credential that can destroy the backup is
-      ransomware's first target.
+### Why one bucket with prefix lifecycle rules, not several buckets
+
+Because the two kinds of backup want opposite things from S3, and the difference
+is per-prefix, not per-bucket:
+
+| Prefix | Contents | Storage class | Why |
+|---|---|---|---|
+| `*/postgres/` | barman: WAL + base backups | **Standard** | continuous churn of small objects, 30–90d retention. Any archive class has a 90-day minimum duration, so short retention is billed at 90 days anyway |
+| `*/data/` | restic pack files | **Glacier Instant Retrieval** after 1 day | the bulk. Write-once, read-almost-never |
+| everything else | restic `config`, `keys/`, `index/`, `snapshots/` | **Standard** | read on *every* restic operation |
+
+That last row is the one that matters, and it is the most common way people break
+restic on Glacier. restic has no concept of thawing an object — it expects every
+`GET` to succeed. If the index is archived, the repository becomes unusable.
+Upstream is explicit that a lifecycle policy must apply
+[only to the `data/` prefix](https://forum.restic.net/t/unavailable-index-files/1326/7).
+
+S3 prefix filters are literal prefixes with no wildcards, so there is no way to
+write `*/data/`. `main.tf` generates one rule per restic repository from a list.
+**Adding a new restic repo means adding it to `local.restic_repos`**, or its packs
+sit in Standard at 6× the price and nothing warns you.
+
+### Why Glacier *Instant* Retrieval and not Deep Archive
+
+Deep Archive is roughly 4× cheaper again, and it is the wrong choice here:
+
+- reads require an asynchronous restore taking hours, which restic cannot do — so
+  `restic check --read-data` and any restore need a separate thaw workflow you
+  would have to build and then remember exists
+- it makes the weekly verification below impossible, and an unverifiable backup is
+  a hypothesis
+
+GIR keeps millisecond reads, so restic, verification and a real restore all work
+unchanged. The premium buys the ability to *test the backup*, which is the whole
+point.
+
+Deep Archive would make sense for a second, deliberately cold copy that you only
+ever touch in a genuine disaster. That is a reasonable thing to add later; it is
+not a replacement for this one.
+
+### Rough cost, per TB stored, per month
+
+Order-of-magnitude only — check the
+[calculator](https://calculator.aws/#/createCalculator/S3) for current figures:
+
+| | Standard | Glacier IR |
+|---|---|---|
+| storage /TB/month | ~$23 | ~$4 |
+| retrieval /TB | free | ~$30 |
+| **egress to the internet /TB** | **~$90** | **~$90** |
+
+Two things follow, and they shape everything below:
+
+1. **Storage is cheap; egress is not.** Getting the library *out* of AWS costs
+   several times a month of storing it.
+2. **Retrieval is much cheaper than egress**, and traffic from S3 to EC2 **in the
+   same region is free**. So reading the whole backup is affordable as long as you
+   do not pull it across the internet.
+
+Measure your actual library size before budgeting:
+
+```sh
+kubectl -n immich exec deploy/immich-server -- du -sh /data
+```
+
+### What the credentials can and cannot do
+
+`bootstrap/aws-backup/` creates two IAM users, both scoped to this bucket only:
+
+- **`…-writer`** — used by barman and the restic CronJobs. It can put, get and
+  delete objects, because restic prunes and barman enforces retention.
+- **`…-verifier`** — read-only, plus restic's lock prefix. Used by the restore
+  drill, so a drill gone wrong cannot damage the backup it is testing.
+
+The writer carries an explicit `Deny` on `s3:DeleteObjectVersion`,
+`s3:PutBucketVersioning`, `s3:PutLifecycleConfiguration` and `s3:DeleteBucket`.
+Combined with versioning, that means **the backup credential cannot make a
+deletion permanent**: `DeleteObject` only writes a delete marker, and the previous
+version survives for 30 days. Deny beats Allow in IAM unconditionally, so this
+holds even if a broader policy is attached later.
+
+This is deliberately not S3 Object Lock. Object Lock is stronger — genuinely
+immutable, undeletable even by root in Compliance mode — and it has to be enabled
+at bucket creation and cannot be turned off. For a homelab where you may want to
+fix your own mistakes, versioning plus a deny is the better trade. Add Object Lock
+in Governance mode if you disagree; it is a one-line change but only at creation
+time.
+
+### Credentials checklist
+
+- [ ] all four access keys → Bitwarden (`tofu output -raw <name>`)
+- [ ] `RESTIC_PASSWORD` generated (`openssl rand -base64 48`) → Bitwarden,
+      **beside the age key**. Without it the file backups are unreadable,
+      including by you.
+- [ ] `bootstrap/aws-backup/terraform.tfstate` now contains the secret keys.
+      It is git-ignored, but treat it as a secret: mode 600, and move it off this
+      machine or into an encrypted backend once the keys are in Bitwarden.
 
 ### 2. The Secret
 
@@ -241,8 +364,63 @@ Then deletes the cluster. Two independent reasons it cannot damage anything:
 3. **a sample of real files is restored** and asserted non-empty
 
 Point 3 is the one that matters. `restic check` validates metadata; it does not
-prove the data blobs are retrievable. Restoring proves it. Restoring a *sample*
-rather than everything keeps the weekly egress affordable.
+prove the data blobs are retrievable. Restoring proves it.
+
+### How to verify a large backup without the verification costing more than the backup
+
+This is the real design problem. Restoring 500GB–2TB weekly to prove it works
+would cost more per month than storing it. But "we can't afford to test it" ends
+with an untested backup, which is the failure mode this whole document exists to
+avoid.
+
+The way out is that **the expensive thing is egress, not reading**. Reading from
+Glacier IR costs ~$30/TB; pulling it across the internet to your house costs
+~$90/TB on top. Reading it into EC2 *in the same region* costs the retrieval and
+**nothing else**. So the strategy is not to test less, it is to test in the right
+place — and to spend the cheap checks often and the expensive ones rarely.
+
+| Tier | What it proves | Frequency | Runs where | Rough cost |
+|---|---|---|---|---|
+| 1. Postgres full restore | albums, faces, people — the metadata you cannot rebuild — are recoverable | weekly | in-cluster | pennies (it is ~370MB) |
+| 2. `restic check` (no `--read-data`) | repository structure, index consistency | weekly | in-cluster | pennies (metadata only, and it lives in Standard) |
+| 3. Snapshot freshness | the CronJob is actually running | weekly | in-cluster | free |
+| 4. Sample restore, ~5 files | credentials work and blobs are genuinely retrievable | weekly | in-cluster | ~$0.02 |
+| 5. `restic check --read-data-subset=1/52` | a rotating 1/52 slice of every pack is readable → **full coverage over a year** | weekly | in-cluster | ~$1–4/month depending on library size |
+| 6. Full `--read-data` + full restore drill | the whole thing really restores, end to end | **annually** | **EC2, same region** | retrieval only; egress is $0 |
+
+Tier 5 is the part people skip, and it is what turns "the index is fine" into
+"every byte has been read back at least once this year". restic supports
+`--read-data-subset=n/t` precisely for this.
+
+Tier 6 is where the region choice pays off. A full drill from home would be
+~$90/TB in egress. The same drill on a spot instance in `eu-central-1`:
+
+```sh
+# a t4g.medium spot instance, same region as the bucket
+# use the READ-ONLY verifier credential from bootstrap/aws-backup
+export AWS_ACCESS_KEY_ID=...        # tofu output -raw verify_access_key_id
+export AWS_SECRET_ACCESS_KEY=...    # tofu output -raw verify_secret_access_key
+export RESTIC_REPOSITORY="s3:s3.eu-central-1.amazonaws.com/<bucket>/immich/library"
+export RESTIC_PASSWORD=...
+
+restic check --read-data          # reads every pack. This is the real check.
+restic restore latest --target /mnt/scratch
+# spot-check a few hundred files against known checksums, then terminate.
+```
+
+Cost is retrieval plus a few hours of cheap compute. **Terminate the instance**;
+an idle one costs more over a year than the drill did.
+
+**Do not ever restore the whole library to the house "just to check".** That is the
+expensive mistake, and it teaches you nothing that tier 6 does not.
+
+### What the real disaster costs
+
+Worth knowing before you need it, so the number is not a surprise:
+recovering the full library to home is ~$90/TB in egress plus ~$30/TB retrieval.
+For a 500GB library that is roughly $60. That is the insurance paying out, and it
+is fine — the point of the tiers above is that you only pay it when something has
+actually gone wrong.
 
 ### Run it now
 

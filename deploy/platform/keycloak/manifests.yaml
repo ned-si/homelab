@@ -199,8 +199,8 @@ spec:
     barmanObjectStore:
       data:
         compression: gzip
-      destinationPath: s3://homelab-backups/keycloak/postgres
-      endpointURL: https://s3.eu-central-003.backblazeb2.com
+      destinationPath: s3://homelab-backups-REPLACE-ME/keycloak/postgres
+      endpointURL: https://s3.eu-central-1.amazonaws.com
       s3Credentials:
         accessKeyId:
           key: ACCESS_KEY_ID

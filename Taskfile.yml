@@ -74,6 +74,12 @@ tasks:
     cmds:
       - ./scripts/verify-dump-restore.sh {{.CLI_ARGS}}
 
+  backup:set-target:
+    desc: 'Point every backup manifest at one bucket. Usage: task backup:set-target -- <bucket> <region>'
+    cmds:
+      - ./scripts/set-backup-target.sh {{.CLI_ARGS}}
+      - task: render
+
   secrets:seal:
     desc: 'Encrypt a plaintext file in place. Usage: task secrets:seal -- path/to/x.sops.yaml'
     deps: [tools:check]
