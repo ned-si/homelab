@@ -69,12 +69,20 @@ data:
       case "$suffix" in '#'*) continue ;; esac
       /scripts/verify-files.sh "$suffix" "$tag" || { echo "::FAILED:: $tag"; rc=1; }
       echo
+    # ONLY repositories that a backup CronJob actually writes to.
+    #
+    # An earlier version listed seafile/syncthing/theater as well. Those restic
+    # jobs do not exist yet, so every run reported three failures -- and a check
+    # that always fails is a check you learn to ignore, which is worse than not
+    # having it. Uncomment each line as its backup CronJob is added, and add the
+    # repo to `local.restic_repos` in bootstrap/aws-backup/main.tf at the same
+    # time or its packs will never be archived.
     done <<'LIST'
     immich/library      immich-library
     paperless/media     paperless-media
-    seafile/shared      seafile-shared
-    syncthing/data      syncthing-data
-    theater/configs     theater-configs
+    # seafile/shared    seafile-shared
+    # syncthing/data    syncthing-data
+    # theater/configs   theater-configs
     LIST
     [ $rc -eq 0 ] && echo "ALL FILE BACKUPS VERIFIED" || echo "ONE OR MORE FILE BACKUPS FAILED"
     exit $rc
@@ -85,7 +93,10 @@ data:
 
     REPO_SUFFIX="$1"
     TAG="$2"
-    export RESTIC_REPOSITORY="s3:https://s3.eu-central-003.backblazeb2.com/homelab-backups/${REPO_SUFFIX}"
+    # 52 slices, one per week, so a year gives complete pack coverage. Lower it
+    # to read more per run and finish sooner, at proportionally more retrieval.
+    SUBSET_TOTAL="${SUBSET_TOTAL:-52}"
+    export RESTIC_REPOSITORY="s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/${REPO_SUFFIX}"
     # Fresh scratch dir per repo so runs cannot contaminate each other.
     DEST="/scratch/${TAG}"
     rm -rf "$DEST" && mkdir -p "$DEST"
@@ -143,6 +154,23 @@ data:
 
     # Leave nothing behind; the scratch volume is small.
     rm -rf "$DEST"
+
+    echo "--- 4. rotating pack-data read (1/${SUBSET_TOTAL} of the repository) ---"
+    # Which slice depends on the ISO week, so consecutive runs read different
+    # packs and a full year covers the whole repository. `10#` forces base 10:
+    # week "08" would otherwise be an invalid octal literal.
+    week=$(date +%V)
+    slice=$(( (10#$week - 1) % SUBSET_TOTAL + 1 ))
+    echo "    week $week -> subset ${slice}/${SUBSET_TOTAL}"
+    if [ "${SKIP_READ_DATA:-0}" = "1" ]; then
+      echo "    SKIPPED (SKIP_READ_DATA=1)"
+    else
+      # This is the step that costs retrieval. If the bill surprises you, set
+      # SKIP_READ_DATA=1 on the CronJob rather than deleting the check, so it is
+      # visible in the manifest that coverage was traded away.
+      restic check --with-cache --read-data-subset="${slice}/${SUBSET_TOTAL}"
+    fi
+
     echo "PASS: $TAG"
 kind: ConfigMap
 metadata:
@@ -230,8 +258,8 @@ data:
       externalClusters:
         - name: src
           barmanObjectStore:
-            destinationPath: s3://homelab-backups/${SRC_NS}/postgres
-            endpointURL: https://s3.eu-central-003.backblazeb2.com
+            destinationPath: s3://homelab-backups-REPLACE-ME/${SRC_NS}/postgres
+            endpointURL: https://s3.eu-central-1.amazonaws.com
             serverName: $SRC
             s3Credentials:
               accessKeyId:
