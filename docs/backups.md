@@ -242,6 +242,125 @@ should be compared against.
 and they are not off-site until you copy them somewhere else. That is what the
 rest of this document is for.
 
+## Setup, start to finish
+
+Six steps. The only manual AWS work is creating one temporary admin key; the
+bucket, the lifecycle rules, the versioning and both scoped backup credentials are
+created by OpenTofu, so there is no IAM policy to hand-write.
+
+### 1. Local toolchain and the age key
+
+```sh
+task tools                 # sops, age, kustomize, kubeconform, helm, yq, pre-commit
+task secrets:keygen        # writes ~/.config/sops/age/keys.txt AND the public key
+                           # into .sops.yaml. BACK THE PRIVATE KEY UP NOW.
+```
+
+Nothing else works until this is done: every `*.sops.yaml` is encrypted to that
+key, and losing it means losing every secret in the repo.
+
+### 2. A temporary AWS admin key
+
+OpenTofu needs credentials that can create a bucket and IAM users. It does **not**
+need them afterwards, and the backup jobs never see them.
+
+1. [IAM → Create user](https://console.aws.amazon.com/iam/home#/users/create) —
+   name it something like `tofu-admin`, no console access needed.
+2. Attach the `AdministratorAccess` policy directly.
+3. On the new user → **Security credentials** → **Create access key** → *Command
+   Line Interface*.
+
+Then:
+
+```sh
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
+aws sts get-caller-identity        # optional sanity check
+```
+
+Root credentials also work and are what AWS advises against: root cannot be
+scoped, so anything holding them can delete the whole account's contents. If you
+use them anyway, delete the access key afterwards —
+[root security credentials](https://console.aws.amazon.com/iam/home#/security_credentials).
+
+### 3. Create the bucket and the scoped credentials
+
+```sh
+cd bootstrap/aws-backup
+cp terraform.tfvars.example terraform.tfvars
+$EDITOR terraform.tfvars          # bucket_name must be globally unique
+tofu init && tofu plan            # read the plan
+tofu apply
+tofu output next_steps
+cd -
+```
+
+This creates the bucket with versioning, the Glacier IR lifecycle rules, and two
+IAM users: a writer that cannot permanently delete anything, and a read-only
+verifier. Delete the temporary admin key from step 2 once this succeeds.
+
+### 4. Fill in and seal the Secret
+
+```sh
+export RESTIC_PW='<your restic repository password>'
+export AWS_AKID="$(cd bootstrap/aws-backup && tofu output -raw backup_access_key_id)"
+export AWS_SECRET="$(cd bootstrap/aws-backup && tofu output -raw backup_secret_access_key)"
+
+cp platform/secrets/s3-backup.sops.yaml.example platform/secrets/s3-backup.sops.yaml
+
+# Substituted with python rather than sed: these values routinely contain `&`,
+# `/` and `|`, which sed would either mangle or treat as syntax.
+python3 - <<'PY'
+import os
+p = 'platform/secrets/s3-backup.sops.yaml'
+s = open(p).read()
+s = s.replace('PUT_THE_S3_ACCESS_KEY_HERE',  os.environ['AWS_AKID'])
+s = s.replace('PUT_THE_S3_SECRET_KEY_HERE',  os.environ['AWS_SECRET'])
+s = s.replace('PUT_A_GENERATED_RESTIC_REPOSITORY_PASSWORD_HERE', os.environ['RESTIC_PW'])
+open(p, 'w').write(s)
+print('filled', p)
+PY
+
+task secrets:seal -- platform/secrets/s3-backup.sops.yaml
+task secrets:leak-check            # MUST pass before committing
+```
+
+`leak-check` refuses any `*.sops.yaml` without a `sops:` block, so an unsealed
+file cannot be committed by accident. Run it.
+
+`RESTIC_PASSWORD` protects **both** restic repositories, local and remote. It is
+not recoverable: lose it and every file backup is permanently unreadable. Store it
+beside the age key.
+
+### 5. Point the manifests at the bucket
+
+```sh
+task backup:set-target -- <bucket-name> eu-central-1
+git add -A && git commit -m 'feat(backup): point backups at the real bucket'
+```
+
+### 6. Initialise, then seed Immich deliberately
+
+The first Immich upload is 317GB over a domestic uplink. Start it by hand rather
+than letting a CronJob begin it at 03:30 and get killed by a deadline:
+
+```sh
+# local first -- it is fast, and it is the copy that gets fully verified
+kubectl -n immich create job --from=cronjob/immich-library-backup-local seed-local
+kubectl -n immich logs -f job/seed-local
+
+# then the remote one, which will take a while
+kubectl -n immich create job --from=cronjob/immich-library-backup seed-remote
+kubectl -n immich logs -f job/seed-remote
+```
+
+Then prove the remote copy is real, not just uploaded:
+
+```sh
+kubectl -n backup-verify create job --from=cronjob/backup-verify-files now
+kubectl -n backup-verify logs -f job/now
+```
+
 ## The bucket
 
 One bucket, in `eu-central-1`, created by
