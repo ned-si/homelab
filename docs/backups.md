@@ -117,7 +117,63 @@ writer instead of copying bytes from underneath it.
 
 VolSync is the right upgrade if a PVC ever holds something mutated in place.
 
-## Before any of that: the backup you can take right now
+## Two tiers, different jobs
+
+The two mechanisms protect against different things, and conflating them is how
+people end up with one that does neither well.
+
+| | **Local** (TrueNAS) | **Remote** (S3) |
+|---|---|---|
+| Protects against | a bad upgrade, a bad migration, an app rewriting data, a mistaken delete | fire, theft, the NAS dying, ransomware |
+| Immich library | ZFS/CSI **VolumeSnapshot** — instant, copy-on-write | restic → Glacier IR |
+| Databases | `pg_dump`, logical and portable | barman → S3, continuous WAL (PITR) |
+| Cost of a read | **free** | retrieval, and egress if it leaves the region |
+| Therefore verified | **hard, weekly** — full `restic check --read-data` | **lightly, monthly** — structure, freshness, sample restore |
+| Retention | until the upgrade is confirmed good, then deleted | months |
+
+The local tier is where the *expensive* verification lives, precisely because
+reading it costs nothing. The remote tier gets the cheap checks often.
+
+**But local verification does not verify the remote copy.** They are different
+artifacts produced by different code paths, and the classic failure is a remote
+backup that has been silently broken for months while the local one looks perfect.
+That is why the remote tier still gets a monthly structure check, freshness gate
+and sample restore — a few cents, and it is the part that proves the upload path
+and the credentials still work. What it does *not* need is a full read, because
+every byte is read locally every week.
+
+### Before a risky change
+
+```sh
+scripts/pre-upgrade-snapshot.sh immich-v3       # dumps + snapshots, tagged
+# ... do the upgrade, live with it for a bit ...
+scripts/pre-upgrade-snapshot.sh --delete immich-v3
+```
+
+A VolumeSnapshot on ZFS is copy-on-write, so snapshotting the 317GB library is
+instant and initially free — only diverging blocks cost anything. Copying 317GB
+before every upgrade would take hours and you would stop doing it.
+
+Verified working end to end on this cluster: snapshot a volume, change the source,
+restore from the snapshot, and the **pre-change** content comes back.
+
+Two things this depends on, both now in the repo:
+
+- `infrastructure/snapshot-controller/` — the VolumeSnapshot CRDs and controller.
+  These were **missing**. democratic-csi had been running the snapshotter sidecar
+  all along and the chart declared a `VolumeSnapshotClass`, but with no CRDs the
+  class was silently never created and `kubectl get volumesnapshotclass` reported
+  no such resource type. Snapshots looked configured and did not exist.
+- `iscsi-retain`, a second StorageClass with `reclaimPolicy: Retain`. Every volume
+  in the cluster was `Delete`, **including the 317GB Immich library** — a single
+  `kubectl delete pvc immich-data` would have destroyed it, and the Immich upgrade
+  runbook contains a step that deletes a PVC. The existing volumes were patched to
+  `Retain` in place; the class stops new ones repeating it.
+
+Rollback is deliberately **not** automated: it destroys the current state, so the
+script prints the exact commands instead of offering a flag.
+
+## The local dumps you can take right now
 
 The S3 machinery above needs a bucket and credentials. Until those exist there is
 **no backup at all**, and the migration in [migration-plan.md](./migration-plan.md)

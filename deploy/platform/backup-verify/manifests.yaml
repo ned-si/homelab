@@ -156,18 +156,32 @@ data:
     rm -rf "$DEST"
 
     echo "--- 4. rotating pack-data read (1/${SUBSET_TOTAL} of the repository) ---"
-    # Which slice depends on the ISO week, so consecutive runs read different
-    # packs and a full year covers the whole repository. `10#` forces base 10:
-    # week "08" would otherwise be an invalid octal literal.
-    week=$(date +%V)
-    slice=$(( (10#$week - 1) % SUBSET_TOTAL + 1 ))
-    echo "    week $week -> subset ${slice}/${SUBSET_TOTAL}"
-    if [ "${SKIP_READ_DATA:-0}" = "1" ]; then
-      echo "    SKIPPED (SKIP_READ_DATA=1)"
+    #
+    # WHERE THE FULL READ ACTUALLY HAPPENS
+    #
+    # This is the only step that costs real money against S3, because it pulls
+    # pack files. It is therefore DISABLED BY DEFAULT for the remote repository:
+    # the same data is read in full, every week, against the LOCAL restic
+    # repository on TrueNAS, where reads are free.
+    #
+    # That split is deliberate. Reading remotely proves something local reading
+    # cannot -- that the upload path and the credentials still work -- but that is
+    # already covered by steps 1-3 plus the sample restore, which touch the remote
+    # repository every run for pennies.
+    #
+    # Set READ_DATA=1 to enable it (the local verifier does). Kept as a switch
+    # rather than deleted so it is visible in the manifest that coverage is being
+    # obtained elsewhere rather than skipped.
+    if [ "${READ_DATA:-0}" != "1" ]; then
+      echo "    skipped -- full pack reads run against the LOCAL repository."
+      echo "    Set READ_DATA=1 to read remotely too (costs retrieval)."
     else
-      # This is the step that costs retrieval. If the bill surprises you, set
-      # SKIP_READ_DATA=1 on the CronJob rather than deleting the check, so it is
-      # visible in the manifest that coverage was traded away.
+      # Which slice depends on the ISO week, so consecutive runs read different
+      # packs and a year covers the whole repository. `10#` forces base 10: week
+      # "08" would otherwise be an invalid octal literal.
+      week=$(date +%V)
+      slice=$(( (10#$week - 1) % SUBSET_TOTAL + 1 ))
+      echo "    week $week -> subset ${slice}/${SUBSET_TOTAL}"
       restic check --with-cache --read-data-subset="${slice}/${SUBSET_TOTAL}"
     fi
 

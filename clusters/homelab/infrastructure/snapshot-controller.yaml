@@ -1,0 +1,54 @@
+# Kubernetes VolumeSnapshot CRDs + the cluster-side snapshot controller.
+#
+# WHY IT IS A SEPARATE APPLICATION FROM democratic-csi
+#   The snapshot CRDs are CLUSTER-SCOPED and shared. They are deliberately not
+#   bundled with any CSI driver, because two drivers installing the same CRDs
+#   would fight over them. Installing them is the cluster operator's job.
+#
+# WHY IT SYNCS AT WAVE 18, JUST BEFORE democratic-csi (20)
+#   The CSI chart declares a `VolumeSnapshotClass`. Without these CRDs already
+#   established, that object cannot be created -- which is exactly what happened
+#   on the running cluster: the chart was installed first, the class was never
+#   made, and `kubectl get volumesnapshotclass` returned "the server doesn't have
+#   a resource type". Snapshots looked configured and were simply unavailable.
+#
+#   It cannot go earlier than Cilium either, because the controller is an ordinary
+#   Deployment and needs a CNI to schedule.
+#
+# WHAT IT UNLOCKS
+#   Instant, copy-on-write, local rollback points -- see
+#   scripts/pre-upgrade-snapshot.sh. Verified working on this cluster: snapshot a
+#   volume, change the source, restore, and the pre-change content comes back.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: snapshot-controller
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "18"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/infrastructure/snapshot-controller
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  syncPolicy:
+    automated:
+      # Pruning these CRDs would cascade-delete every VolumeSnapshot in the
+      # cluster, including a rollback point taken minutes earlier.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+  ignoreDifferences:
+    # The API server injects defaults and a converted-versions status into CRDs.
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /status
+        - /spec/conversion
