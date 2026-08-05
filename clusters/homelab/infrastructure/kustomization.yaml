@@ -12,6 +12,8 @@ kind: Kustomization
 #     5  cert-manager-issuers
 #    10  external-dns      publishes records for Gateway addresses
 #    15  gateway           the single shared entrypoint every HTTPRoute attaches to
+#    18  snapshot-controller  VolumeSnapshot CRDs; must exist before the CSI chart
+#                             can create its VolumeSnapshotClass
 #    20  democratic-csi    StorageClasses, needed before any PVC in later layers
 #    25  nfs-storage       static NFS PVs/PVCs for the media library
 resources:
@@ -24,5 +26,6 @@ resources:
   - cert-manager-issuers.yaml
   - external-dns.yaml
   - gateway.yaml
+  - snapshot-controller.yaml
   - democratic-csi.yaml
   - nfs-storage.yaml

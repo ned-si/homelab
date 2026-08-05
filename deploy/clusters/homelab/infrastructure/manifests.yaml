@@ -306,3 +306,33 @@ spec:
       selfHeal: true
     syncOptions:
     - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "18"
+  name: snapshot-controller
+  namespace: argocd
+spec:
+  destination:
+    namespace: kube-system
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: apiextensions.k8s.io
+    jsonPointers:
+    - /status
+    - /spec/conversion
+    kind: CustomResourceDefinition
+  project: infrastructure
+  source:
+    path: deploy/infrastructure/snapshot-controller
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+    - ServerSideApply=true
+    - SkipDryRunOnMissingResource=true

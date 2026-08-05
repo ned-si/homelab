@@ -88,6 +88,15 @@
       ],
       datasourceTemplate: 'github-releases',
     },
+    {
+      customType: 'regex',
+      description: 'Annotated raw.githubusercontent.com URL, for manifests vendored from a TAGGED PATH in a repo rather than published as a release asset -- e.g. the external-snapshotter CRDs. The tag sits mid-path, and it is not a /releases/download/ URL, so neither manager above can reach it. Several URLs usually follow one annotation, and only the first needs to match: Renovate rewrites every occurrence of the old version in the file.',
+      managerFilePatterns: ['/\\.ya?ml$/'],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=github-releases\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n(?:[^\\n]*\\n){0,3}?[^\\n]*raw\\.githubusercontent\\.com/[^/]+/[^/]+/(?<currentValue>[^/\\s]+)/',
+      ],
+      datasourceTemplate: 'github-releases',
+    },
   ],
 
   packageRules: [

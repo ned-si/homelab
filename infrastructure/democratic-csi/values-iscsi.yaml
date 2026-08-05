@@ -19,6 +19,28 @@ driver:
   existingConfigSecret: democratic-csi-iscsi-config
 
 storageClasses:
+  # ---------------------------------------------------------------------------
+  # TWO CLASSES, differing only in reclaimPolicy.
+  #
+  # `iscsi` stays the default with `Delete`, which is right for the majority:
+  # caches, transcode scratch, and */config volumes an app rebuilds by itself.
+  # Leaving orphaned zvols behind for those would slowly fill the pool.
+  #
+  # `iscsi-retain` is for volumes whose loss would be expensive or permanent. With
+  # `Retain`, deleting the PVC releases the PV but does NOT destroy the zvol, so a
+  # mistaken `kubectl delete pvc` is recoverable.
+  #
+  # This matters because it was not the case: on 2026-08-05 every volume in the
+  # cluster was `Delete`, INCLUDING immich-data holding 317GB of photos. A single
+  # `kubectl delete pvc immich-data` would have destroyed them, and the Immich
+  # upgrade runbook has a step that deletes a PVC. The existing PVs were patched
+  # to Retain in place; this class is so new ones do not repeat it.
+  #
+  # reclaimPolicy is IMMUTABLE on both StorageClasses and PVs-via-class, which is
+  # why this is a second class rather than an edit to the first. Existing volumes
+  # are unaffected by adding it -- move one with:
+  #     kubectl patch pv <pv> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+  # ---------------------------------------------------------------------------
   - name: iscsi
     defaultClass: true
     reclaimPolicy: Delete
@@ -37,7 +59,33 @@ storageClasses:
       node-publish-secret:
       controller-expand-secret:
 
-# Snapshot support. Worth having enabled before you need it rather than after.
+  - name: iscsi-retain
+    defaultClass: false
+    # The whole point of this class.
+    reclaimPolicy: Retain
+    volumeBindingMode: Immediate
+    allowVolumeExpansion: true
+    parameters:
+      fsType: xfs
+    mountOptions: []
+    secrets:
+      provisioner-secret:
+      controller-publish-secret:
+      node-stage-secret:
+      node-publish-secret:
+      controller-expand-secret:
+
+# Snapshot support. The CRDs and cluster controller this depends on are installed
+# separately by infrastructure/snapshot-controller/ -- they are cluster-scoped and
+# shared, so they are not a CSI driver's business.
+#
+# Without those CRDs already present, this class is silently never created. That is
+# what had happened on the running cluster: the sidecar was there, this stanza was
+# there, and `kubectl get volumesnapshotclass` reported no such resource type.
+#
+# `deletionPolicy: Delete` means removing a VolumeSnapshot removes the underlying
+# ZFS snapshot. That is what you want for pre-upgrade rollback points, which are
+# meant to be cleaned up -- see scripts/pre-upgrade-snapshot.sh.
 volumeSnapshotClasses:
   - name: iscsi
     deletionPolicy: Delete

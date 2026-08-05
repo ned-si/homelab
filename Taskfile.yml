@@ -80,6 +80,21 @@ tasks:
       - ./scripts/set-backup-target.sh {{.CLI_ARGS}}
       - task: render
 
+  backup:pre-upgrade:
+    desc: 'Rollback point before a risky change: dumps + volume snapshots. Usage: task backup:pre-upgrade -- <tag>'
+    cmds:
+      - ./scripts/pre-upgrade-snapshot.sh {{.CLI_ARGS}}
+
+  backup:snapshots:
+    desc: List existing pre-upgrade rollback points
+    cmds:
+      - ./scripts/pre-upgrade-snapshot.sh --list
+
+  backup:drop-snapshots:
+    desc: 'Delete a rollback point once the upgrade is confirmed good. Usage: task backup:drop-snapshots -- <tag>'
+    cmds:
+      - ./scripts/pre-upgrade-snapshot.sh --delete {{.CLI_ARGS}}
+
   secrets:seal:
     desc: 'Encrypt a plaintext file in place. Usage: task secrets:seal -- path/to/x.sops.yaml'
     deps: [tools:check]
