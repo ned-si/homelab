@@ -2,4 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  # The media library: one mount at the parent of media/ and torrents/ so the
+  # *arr apps can hardlink imports.
   - nfs-volumes.yaml
+  # The local backup target: restic repositories and database dumps.
+  - backup-volume.yaml

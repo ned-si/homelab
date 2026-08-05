@@ -149,3 +149,163 @@ spec:
   resources:
     requests:
       storage: 20Gi
+---
+# ###########################################################################
+# THE SAME LIBRARY, BACKED UP AGAIN -- LOCALLY, TO NFS.
+#
+# Two independent restic repositories, not one repository copied. That is
+# deliberate: `restic copy` would make the remote a derivative of the local, so a
+# corruption or a bad `forget` in one could propagate. Independent repositories
+# fail independently, which is the entire point of having two.
+#
+# The cost is reading the source twice. On a LAN that is minutes, and it buys a
+# copy whose verification is FREE -- which is why the expensive check
+# (`restic check --read-data`, full, weekly) runs against this repository while the
+# S3 one gets structure, freshness and a sample restore. See docs/backups.md.
+#
+# WHAT THIS DEFENDS AGAINST
+#   A bad Immich upgrade, a bad migration, an app rewriting its own data, a
+#   mistaken delete. Recovery is over the LAN at NAS speed, not over a domestic
+#   uplink from Glacier.
+#
+# WHAT IT DOES NOT DEFEND AGAINST
+#   Losing the pool. It lives on the same TrueNAS as the data it protects. That is
+#   what the S3 repository above is for.
+#
+# Note this is a nightly SECOND copy, and is separate from the instant
+# copy-on-write rollback points taken by scripts/pre-upgrade-snapshot.sh. The
+# snapshot is for "undo the last hour"; this is for "the volume itself is wrong".
+# ###########################################################################
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-library-backup-local
+  namespace: immich
+spec:
+  # 01:30 -- before the S3 run at 03:30, so the local copy (the one that gets
+  # fully verified) is always at least as fresh as the remote one.
+  schedule: "30 1 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # 6h is plenty over a LAN; the S3 job needs 20h because of the uplink.
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: immich-library-backup-local
+        spec:
+          restartPolicy: OnFailure
+          # Same ReadWriteOnce constraint as the S3 job: `immich-data` can only be
+          # attached on the node already running immich-server.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: immich-server
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            # Must be 1000: the NFS dataset is owned by uid/gid 1000 and NFS
+            # AUTH_SYS passes these numeric ids straight to the server. Change
+            # this and every write fails with EACCES.
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic init 2>/dev/null || true
+
+                  restic backup /data \
+                    --tag immich-library \
+                    --host immich \
+                    --exclude '**/.tmp/**' \
+                    --exclude '**/encoded-video/**' \
+                    --exclude '**/thumbs/**' \
+                    --verbose
+
+                  # Longer retention than the S3 copy: local storage is 16TB of
+                  # already-paid-for pool, so depth here is nearly free and gives
+                  # more room to notice a problem that started weeks ago.
+                  restic forget \
+                    --tag immich-library \
+                    --keep-daily 14 \
+                    --keep-weekly 8 \
+                    --keep-monthly 6 \
+                    --prune
+
+                  restic check --with-cache
+              env:
+                # A plain filesystem path, not an s3: URL. No credentials, no
+                # endpoint, no egress.
+                - name: RESTIC_REPOSITORY
+                  value: /backups/immich/library
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # Only the repository password -- deliberately NOT `envFrom` the
+                # whole s3-backup Secret. A local job has no business holding S3
+                # credentials.
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: s3-backup
+                      key: RESTIC_PASSWORD
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: backups
+                  mountPath: /backups
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: immich-data
+                readOnly: true
+            - name: backups
+              persistentVolumeClaim:
+                claimName: backup-local
+            - name: cache
+              persistentVolumeClaim:
+                claimName: immich-restic-cache-local
+---
+# A separate cache from the S3 job's. Sharing one would mean two restic processes
+# writing the same cache directory for two different repositories, and the cache
+# is keyed by repository id -- so it would work by luck rather than by design.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-restic-cache-local
+  namespace: immich
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi

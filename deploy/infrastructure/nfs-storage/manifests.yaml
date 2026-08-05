@@ -11,6 +11,62 @@ apiVersion: v1
 kind: PersistentVolume
 metadata:
   labels:
+    homelab.lilalala.com/share: backup-local
+  name: backup-local-immich
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: 16Ti
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: backup-local
+    namespace: immich
+  mountOptions:
+  - nfsvers=4.1
+  - hard
+  - noatime
+  - timeo=600
+  - retrans=2
+  nfs:
+    path: /mnt/homelab/k8s/backups
+    server: 192.168.1.228
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    homelab.lilalala.com/share: backup-local
+  name: backup-local-verify
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: 16Ti
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: backup-local
+    namespace: backup-verify
+  mountOptions:
+  - nfsvers=4.1
+  - hard
+  - noatime
+  - timeo=600
+  - retrans=2
+  nfs:
+    path: /mnt/homelab/k8s/backups
+    server: 192.168.1.228
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
     homelab.lilalala.com/share: theater-data
   name: theater-data
 spec:
@@ -29,6 +85,34 @@ spec:
     server: 192.168.1.228
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-local
+  namespace: backup-verify
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 16Ti
+  storageClassName: ""
+  volumeName: backup-local-verify
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-local
+  namespace: immich
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 16Ti
+  storageClassName: ""
+  volumeName: backup-local-immich
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

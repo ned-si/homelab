@@ -62,6 +62,9 @@ clusters/homelab/infrastructure|clusters/homelab/platform)
       echo "namespaces argocd + gateway not created until Phase 1/2" ;;
     platform/backup-verify)
       echo "namespace backup-verify not created until Phase 2" ;;
+    infrastructure/nfs-storage)
+      # It declares the backup-local PVC in backup-verify as well as immich.
+      echo "namespace backup-verify not created until Phase 2" ;;
     platform/barman-cloud-plugin)
       echo "namespace cnpg-system not created until Phase 2; also not wired in yet" ;;
 
