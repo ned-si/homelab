@@ -36,6 +36,10 @@ CNPG_CLUSTERS=(
   "theater lidarr-postgresql"
 )
 
+# Written by graceful-shutdown.sh. Beside the dumps rather than in /tmp, which is
+# cleared on reboot -- i.e. exactly when this script needs it.
+REPLICA_STATE="${BACKUP_DIR:-$HOME/homelab-backups}/replica-state.txt"
+
 step() { printf '\n\033[36m=== %s ===\033[0m\n' "$*"; }
 ok()   { printf '\033[32m  %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m  %s\033[0m\n' "$*"; }
@@ -146,13 +150,36 @@ done
 warn "Waiting for Keycloak before the apps that depend on it..."
 kubectl -n keycloak rollout status deploy/keycloak --timeout=600s 2>/dev/null || warn "Keycloak not ready"
 
+# Restore the counts that were actually running, rather than assuming 1.
+#
+# Everything here happens to be single-replica today, so `--replicas=1` would
+# usually be right -- but "usually right" silently scales a future 2-replica
+# workload down to 1, and nobody notices until it matters. graceful-shutdown.sh
+# records the real numbers; use them when they exist.
+if [ -s "$REPLICA_STATE" ]; then
+  ok "restoring recorded replica counts from $REPLICA_STATE"
+  while read -r ns obj n; do
+    [ -z "${ns:-}" ] && continue
+    [ "${n:-0}" = "0" ] && continue      # was already scaled to zero on purpose
+    kubectl -n "$ns" scale "$obj" --replicas="$n" >/dev/null 2>&1 \
+      && ok "  $ns/$obj -> $n"
+  done <"$REPLICA_STATE"
+else
+  warn "No replica state at $REPLICA_STATE -- falling back to --replicas=1."
+  warn "That is correct for every current workload, but check anything you expect"
+  warn "to run more than one replica of."
+  for ns in "${APP_NAMESPACES[@]}"; do
+    kubectl get ns "$ns" >/dev/null 2>&1 || continue
+    kubectl -n "$ns" scale deploy --all --replicas=1 >/dev/null 2>&1 || true
+    kubectl -n "$ns" scale statefulset --all --replicas=1 >/dev/null 2>&1 || true
+  done
+fi
+
 for ns in "${APP_NAMESPACES[@]}"; do
   kubectl get ns "$ns" >/dev/null 2>&1 || continue
-  kubectl -n "$ns" scale deploy --all --replicas=1 >/dev/null 2>&1 || true
-  kubectl -n "$ns" scale statefulset --all --replicas=1 >/dev/null 2>&1 || true
   kubectl -n "$ns" patch cronjobs --all --type merge \
     -p '{"spec":{"suspend":false}}' >/dev/null 2>&1 || true
-  ok "$ns scaled up, cronjobs resumed"
+  ok "$ns cronjobs resumed"
 done
 
 # ---------------------------------------------------------------------------
@@ -184,11 +211,24 @@ cat <<'EOF'
 EOF
 
 if confirm "Re-enable automation NOW (skip manual verification)?"; then
-  for app in root layer-infrastructure layer-platform layer-apps; do
-    kubectl -n argocd patch application "$app" --type merge \
-      -p '{"spec":{"syncPolicy":{"automated":{"prune":false,"selfHeal":true}}}}' >/dev/null 2>&1 \
-      && ok "automation restored on $app"
+  # Discover the namespace rather than assuming `argocd`. The running Argo CD is
+  # in `argo`; the restructured repo uses `argocd`; during the migration both
+  # exist. Hardcoding it is what made graceful-shutdown.sh silently suspend
+  # nothing.
+  #
+  # `prune: false` deliberately, whatever the repo says: the first reconcile after
+  # a move is not the moment to let Argo delete anything it thinks is surplus.
+  restored=0
+  for ans in $(kubectl get applications.argoproj.io -A \
+                 -o jsonpath='{range .items[*]}{.metadata.namespace}{"\n"}{end}' 2>/dev/null | sort -u); do
+    for app in root layer-infrastructure layer-platform layer-apps all-apps; do
+      kubectl -n "$ans" get application "$app" >/dev/null 2>&1 || continue
+      kubectl -n "$ans" patch application "$app" --type merge \
+        -p '{"spec":{"syncPolicy":{"automated":{"prune":false,"selfHeal":true}}}}' >/dev/null 2>&1 \
+        && { ok "automation restored on $ans/$app (prune stays off)"; restored=$((restored + 1)); }
+    done
   done
+  [ "$restored" -gt 0 ] || warn "no matching Applications found -- restore it by hand"
   warn "Leaf Applications get their real syncPolicy back on the next root sync."
 else
   ok "left off -- restore it with the commands above when ready"
