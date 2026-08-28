@@ -202,14 +202,21 @@ repos:
       #
       # `verbose: true` stays: pre-commit hides the output of a hook that exits
       # 0, and the list of sealed files is worth seeing.
+      # `language: system` + `env` in the ENTRY, not an `env:` key.
+      #
+      # A local hook has no `env:` key. Setting one does not fail -- pre-commit
+      # prints "Unexpected key(s) present on local => secrets-check: env" and
+      # carries on with the variable UNSET. So the hook looked strict, ran
+      # advisory, and passed for the wrong reason. Prefixing the entry with
+      # `env VAR=value` is the supported way, and `language: system` is what
+      # allows the entry to be a command line rather than a single executable.
       - id: secrets-check
         name: KSOPS generators reference files that exist and are sealed
-        entry: ./scripts/secrets-check.sh
-        language: script
+        entry: env SECRETS_CHECK_STRICT=1 ./scripts/secrets-check.sh
+        language: system
         pass_filenames: false
         always_run: true
         verbose: true
-        env: [SECRETS_CHECK_STRICT=1]
 
       - id: renovate-annotations
         name: every pinned version has a working renovate annotation
