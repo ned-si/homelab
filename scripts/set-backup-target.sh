@@ -66,7 +66,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 BUCKET="${1:-}"
 REGION="${2:-}"
@@ -196,6 +196,11 @@ fi
 
 echo
 echo "### resulting targets"
+# SC2086: $FILES is a whitespace-separated list of paths and MUST word-split here
+# -- quoting it would pass the whole list to grep as one filename. None of the
+# paths in this repository contain spaces, and render-deploy.sh would fail on one
+# that did long before this line ran.
+# shellcheck disable=SC2086
 grep -rn 'destinationPath\|endpointURL\|s3:https' $FILES 2>/dev/null \
   | grep -v '^\s*#' | sed 's/^/  /'
 

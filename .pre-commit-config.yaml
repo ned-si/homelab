@@ -69,8 +69,30 @@ repos:
       # `git ls-files -s scripts/`.
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
-        # The template legitimately shows the shape of a key with a placeholder.
-        exclude: '\.example$'
+        # This hook matches the BARE PHRASE `BEGIN ... PRIVATE KEY`, with no
+        # requirement that the PEM armour delimiters or any key material follow
+        # it. So it fires on anything that talks ABOUT private keys:
+        #
+        #   *.example                 templates show a key's shape around a
+        #                             placeholder, which is their whole job
+        #   scripts/leak-check.sh     mentions the phrase in a comment -- one that
+        #                             documents this exact false positive, because
+        #                             leak-check.sh hit it against its own tooling
+        #                             first and fixed it by requiring the armour
+        #   scripts/secrets-inventory.sh
+        #                             passes the phrase as a search argument to
+        #                             extract the old key from a git ref
+        #
+        # Excluding them does not create a gap: scripts/leak-check.sh scans the
+        # same files and DOES require the armour delimiters, so real key material
+        # in either script still fails the commit. This hook is the cheap
+        # pre-filter, not the control.
+        exclude: |
+          (?x)^(
+            .*\.example
+            |scripts/leak-check\.sh
+            |scripts/secrets-inventory\.sh
+          )$
 
   # ---------------------------------------------------------------------------
   # Secret scanning. Two tools on purpose: gitleaks catches high-entropy and

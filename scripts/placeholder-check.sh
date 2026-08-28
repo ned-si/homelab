@@ -37,7 +37,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 ALLOWLIST=scripts/placeholder-allowlist.tsv
 

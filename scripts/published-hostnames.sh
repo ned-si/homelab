@@ -52,7 +52,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 FORMAT=lines
 case "${1:-}" in
@@ -68,6 +68,12 @@ fi
 
 # `-print0`/`-0` rather than a bare glob: deploy/ is nested three levels deep in
 # places, and `find` is the same on macOS and Linux here.
+#
+# SC2016: the single quotes delimit an AWK program, not a shell string. `$2` and
+# `$0` below are awk field references; letting the shell expand them would
+# substitute this script's own positional parameters -- usually empty -- and the
+# program would silently match nothing.
+# shellcheck disable=SC2016
 hosts=$(find deploy -name 'manifests.yaml' -print0 \
         | xargs -0 awk '
     # Each file is a fresh multi-document stream.

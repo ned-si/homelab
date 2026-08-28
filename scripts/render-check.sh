@@ -20,7 +20,7 @@
 # it fails, and that is the truth about this tree.
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 pass=0; fail=0; skipped=()
 

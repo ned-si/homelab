@@ -49,7 +49,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 # Promote the header warnings to hard failures. Off by default; see above.
 : "${STRICT_HEADERS:=0}"
@@ -137,7 +137,11 @@ for h in "${HOSTS[@]}"; do
   fi
 
   # ---- headers ------------------------------------------------------------
-  hdrs=$(curl -sSI -m 15 "https://$h/" 2>/dev/null | tr 'A-Z' 'a-z')
+  # Character classes rather than 'A-Z' 'a-z': a range depends on the collation
+  # order of the ambient locale, and header names are matched case-insensitively
+  # below, so a locale where the range does not cover plain ASCII would silently
+  # stop finding Strict-Transport-Security.
+  hdrs=$(curl -sSI -m 15 "https://$h/" 2>/dev/null | tr '[:upper:]' '[:lower:]')
   for want in "${WANT_HEADERS[@]}"; do
     if printf '%s' "$hdrs" | grep -q "^${want}:"; then
       green "  $want present"

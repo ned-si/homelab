@@ -66,11 +66,25 @@
 # inventory of what leaked. This header is the canonical statement of the
 # DECISION; that document is the canonical statement of the FACTS. If they ever
 # disagree again, one of them has been edited without the other.
+#
 # ---------------------------------------------------------------------------
+# SC2016 IS DISABLED FILE-WIDE, AND THAT IS THE RIGHT CALL HERE.
+#
+# This script's entire output is Markdown, and Markdown uses backticks for code
+# spans. Single-quoted `echo 'a `literal` b'` is therefore the correct quoting on
+# almost every line: the point is that nothing expands. shellcheck's "expressions
+# don't expand in single quotes" is true and irrelevant sixty times over, and
+# sixty inline suppressions would bury the two or three lines where a missing
+# expansion WOULD be a bug.
+#
+# The alternative -- switching to double quotes and escaping every backtick --
+# would introduce exactly the class of bug the warning is about, in reverse.
+# ---------------------------------------------------------------------------
+# shellcheck disable=SC2016
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO_ROOT"
+cd "$REPO_ROOT" || exit 1
 
 REF="${1:-origin/main}"
 OUT="secrets-to-encrypt.local.md"
@@ -189,7 +203,7 @@ HEADER
   echo '  `infrastructure/secrets/cloudflare-external-dns.sops.yaml`  key: `api-token`'
   echo
   echo '```'
-  echo "$(scalar kubernetes/applications/cert-manager/cf-api-token-secret.yaml 'api-token')"
+  scalar kubernetes/applications/cert-manager/cf-api-token-secret.yaml 'api-token'
   echo '```'
   echo
 
@@ -203,7 +217,7 @@ HEADER
   echo
   echo '### API key (`httpConnection.apiKey`)'
   echo '```'
-  echo "$(scalar iac/truenas-iscsi.yaml 'apiKey')"
+  scalar iac/truenas-iscsi.yaml 'apiKey'
   echo '```'
   echo
   echo '### SSH private key (`sshConnection.privateKey`)'
@@ -239,7 +253,7 @@ HEADER
   echo 'Key:  `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`'
   echo
   echo '```'
-  echo "$(scalar kubernetes/applications/kube-prom-stack.yaml 'client_secret')"
+  scalar kubernetes/applications/kube-prom-stack.yaml 'client_secret'
   echo '```'
   echo
   echo 'CAUTION: the old Keycloak client was named `grafana-oauth`, but'
@@ -255,7 +269,7 @@ HEADER
   echo 'Location: `oauth.clientSecret` inside the `immich-config.json` blob'
   echo
   echo '```'
-  echo "$(scalar kubernetes/applications/immich/immich.yaml 'clientSecret')"
+  scalar kubernetes/applications/immich/immich.yaml 'clientSecret'
   echo '```'
   echo
 
@@ -266,7 +280,7 @@ HEADER
   echo 'Key:  `OIDC_CLIENT_SECRET`'
   echo
   echo '```'
-  echo "$(envvar kubernetes/applications/mealie/mealie-deploy.yaml 'OIDC_CLIENT_SECRET')"
+  envvar kubernetes/applications/mealie/mealie-deploy.yaml 'OIDC_CLIENT_SECRET'
   echo '```'
   echo
 
@@ -287,7 +301,7 @@ HEADER
   echo 'OIDC client secret.'
   echo
   echo '```'
-  echo "$(envvar kubernetes/applications/paperless/paperless-deploy.yaml 'PAPERLESS_SOCIALACCOUNT_PROVIDERS')"
+  envvar kubernetes/applications/paperless/paperless-deploy.yaml 'PAPERLESS_SOCIALACCOUNT_PROVIDERS'
   echo '```'
   echo
   echo '### `PAPERLESS_SECRET_KEY` — MUST BE GENERATED, there is no old value'
@@ -311,7 +325,7 @@ HEADER
   echo 'Read by BOTH the mariadb and seafile Deployments — one value, not two.'
   echo
   echo '```'
-  echo "$(envvar kubernetes/applications/seafile/seafile-deploy.yaml 'DB_ROOT_PASSWD')"
+  envvar kubernetes/applications/seafile/seafile-deploy.yaml 'DB_ROOT_PASSWD'
   echo '```'
   echo
   echo '### Seafile admin'
