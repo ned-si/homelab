@@ -38,6 +38,26 @@
     'config:recommended',
     ':dependencyDashboard',
     ':semanticCommits',
+    // ---------------------------------------------------------------------
+    // Rewrite every `uses: owner/repo@v1` to `uses: owner/repo@<sha> # v1`,
+    // and keep the SHAs updated.
+    //
+    // A git tag is a MUTABLE pointer, and this repo has first-hand reason to
+    // care: on 2026-03-19 an attacker force-pushed 76 of 77 tags in
+    // aquasecurity/trivy-action and all 7 in aquasecurity/setup-trivy at
+    // commits carrying a credential stealer, then let the real scan run so
+    // every affected pipeline stayed green. .github/workflows/ci.yaml uses
+    // trivy-action, and it is now pinned by SHA by hand -- see the block there.
+    //
+    // Nine other actions are still on tags, three of them third-party
+    // (stackrox/kube-linter-action, marocchino/sticky-pull-request-comment,
+    // zaproxy/action-*). `actions/*` and `github/*` are first-party but their
+    // tags are just as mutable.
+    //
+    // Doing this by hand for all of them would go stale immediately; this
+    // preset makes the digest the tracked thing and the version comment the
+    // readable label.
+    'helpers:pinGitHubActionDigests',
   ],
 
   timezone: 'Europe/Zurich',
