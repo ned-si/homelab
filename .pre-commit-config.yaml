@@ -132,8 +132,17 @@ repos:
   # The hook picks its binary via pre-commit-terraform's own resolution order:
   # PCT_TFPATH, then `terraform`, then `tofu`. That is why it is called
   # terraform_fmt in an OpenTofu repo -- `fmt` has not diverged between the two,
-  # so the bytes are the same either way, and the GitHub runner has terraform
-  # while this laptop has tofu.
+  # so the bytes are the same either way.
+  #
+  # IT NEEDS ONE OF THOSE BINARIES ON PATH AND DOES NOT SAY SO WHEN IT IS MISSING.
+  # An earlier version of this comment claimed the GitHub runner supplies
+  # `terraform`. It did once; ubuntu-24.04 no longer ships it. The hook then found
+  # neither binary and failed with `exit code: 127` -- "command not found" --
+  # inside a pre-commit run whose every other line said Passed, which reads like
+  # a formatting failure rather than a missing tool.
+  #
+  # ci.yaml therefore installs OpenTofu (opentofu/setup-opentofu) in the lint job
+  # and sets PCT_TFPATH=tofu. Locally, `task tools` gets tofu via Homebrew.
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.100.0
     hooks:

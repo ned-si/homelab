@@ -52,6 +52,13 @@ env:
   # An earlier draft said 1.34.0, which would have validated manifests against
   # APIs this cluster does not serve.
   K8S_VERSION: "1.31.2"
+  # Consumed by the terraform_fmt pre-commit hook in the `lint` job, via
+  # PCT_TFPATH=tofu. Kept equal to what `task tools` installs from Homebrew so
+  # that `task lint:tofu` and CI cannot disagree about formatting. `fmt` is
+  # stable across versions, but "CI agrees with pre-commit" is a property this
+  # repo maintains deliberately, and a floating version gives it up quietly.
+  # renovate: datasource=github-releases depName=opentofu/opentofu
+  TOFU_VERSION: "1.12.6"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -78,6 +85,32 @@ jobs:
         with:
           node-version: "22"
 
+      # REQUIRED BY THE terraform_fmt HOOK, which otherwise exits 127.
+      #
+      # pre-commit-terraform resolves its binary as PCT_TFPATH, then `terraform`,
+      # then `tofu`. The hook's comment in .pre-commit-config.yaml used to say
+      # "the GitHub runner has terraform while this laptop has tofu" -- that was
+      # true once and is not any more: the ubuntu-24.04 runner image no longer
+      # ships terraform. So the hook found neither binary and failed with
+      # "command not found", which pre-commit reports as `exit code: 127` under a
+      # hook whose every other line says Passed.
+      #
+      # OpenTofu rather than Terraform because that is what this repo uses
+      # (bootstrap/ is applied with `tofu`), and PCT_TFPATH is set explicitly so
+      # the resolution order stops guessing.
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          # From the env block at the top of this file rather than inline. The
+          # generic Renovate manager matches an annotation followed by a key named
+          # `version`/`tag`/`chart` or an ALL_CAPS name, and `tofu_version` is
+          # none of those -- an inline annotation here matched nothing, which
+          # scripts/renovate-dryrun.js reports as an unmatched annotation.
+          # KUBECONFORM_VERSION and KUBECTL_VERSION are pinned the same way.
+          tofu_version: ${{ env.TOFU_VERSION }}
+          # The wrapper intercepts stdout to expose it as step outputs. Nothing
+          # here reads those, and it confuses the hook's own output parsing.
+          tofu_wrapper: false
+
       # No kubectl here on purpose. The only hook that needed it was
       # render-deploy, which is skipped below; `rendered-manifests` installs the
       # pinned one and owns that check.
@@ -93,6 +126,9 @@ jobs:
       - name: pre-commit
         env:
           SKIP: render-deploy
+          # See the setup-opentofu step above. Explicit so the hook does not fall
+          # through its resolution order onto a binary that is not installed.
+          PCT_TFPATH: tofu
         run: pre-commit run --all-files --show-diff-on-failure
 
       # The pre-commit step above already runs this hook, and now runs it with
@@ -251,8 +287,15 @@ jobs:
 
       # Trivy in config mode covers Kubernetes manifests, Helm values,
       # Dockerfiles and Terraform in one pass.
+      #
+      # NOTE THE `v` ON THE TAG. trivy-action's releases are tagged `v0.33.1`,
+      # not `0.33.1`. This was pinned without the prefix and the job failed at
+      # setup with "Unable to resolve action ... unable to find version 0.33.1"
+      # -- before checkout, so nothing was scanned and the only symptom was a red
+      # job with no findings. An unresolvable action is indistinguishable from a
+      # broken scan unless you read the setup log.
       - name: Trivy config scan
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.33.1
         with:
           scan-type: config
           scan-ref: .
