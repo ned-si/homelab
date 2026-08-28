@@ -101,6 +101,12 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/immich/library
                 - name: RESTIC_CACHE_DIR
                   value: /cache
+                # restic writes temp pack files here while uploading. Without this it uses
+                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
+                # `restic backup` fails the moment it has a pack to flush. /cache is
+                # already mounted and writable.
+                - name: TMPDIR
+                  value: /cache
                 # Retry rather than fail on a flaky domestic uplink.
                 - name: RESTIC_PACK_SIZE
                   value: "64"
@@ -254,6 +260,12 @@ spec:
                 - name: RESTIC_REPOSITORY
                   value: /backups/immich/library
                 - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic writes temp pack files here while uploading. Without this it uses
+                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
+                # `restic backup` fails the moment it has a pack to flush. /cache is
+                # already mounted and writable.
+                - name: TMPDIR
                   value: /cache
                 # Only the repository password -- deliberately NOT `envFrom` the
                 # whole s3-backup Secret. A local job has no business holding S3
