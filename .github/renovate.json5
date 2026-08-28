@@ -51,7 +51,19 @@
     'custom.regex',
     'terraform',
     'github-actions',
+    // .pre-commit-config.yaml states that its `rev` pins "are pinned and tracked
+    // by Renovate's native pre-commit manager, which is why these need no
+    // `# renovate:` comment". That was only true if the manager is on, and
+    // `enabledManagers` is an allow-list -- omitting it here meant nothing
+    // updated those revs and the claim in that file was false.
+    'pre-commit',
   ],
+
+  // The pre-commit manager is opt-in even when listed above, so both settings
+  // are required. Renovate documents it as disabled by default.
+  'pre-commit': {
+    enabled: true,
+  },
 
   customManagers: [
     {
@@ -152,21 +164,40 @@
       dependencyDashboardApproval: true,
       labels: ['dependencies', 'renovate', 'needs-manual-review'],
     },
-    {
-      // Seafile's community image has no orderable patch tags, so the manifest
-      // pins a floating 11.0.x minor tag on purpose. Nothing to update.
-      description: 'Seafile is pinned to a floating minor tag by design',
-      matchPackageNames: ['/^seafileltd\\/seafile-mc$/'],
-      enabled: false,
-    },
-    {
-      description: 'Auto-merge patch bumps of leaf applications only',
-      matchDatasources: ['docker'],
-      matchUpdateTypes: ['patch'],
-      automerge: true,
-      automergeType: 'pr',
-      platformAutomerge: true,
-    },
+    // ---------------------------------------------------------------------
+    // THERE IS DELIBERATELY NO AUTO-MERGE RULE, and this is where one would go.
+    //
+    // A rule like `{matchDatasources: ['docker'], matchUpdateTypes: ['patch'],
+    // automerge: true}` used to sit here. It was removed because it could never
+    // have merged anything, and because it was quietly breaking a rule above it.
+    //
+    // WHY IT COULD NEVER PASS. Bumping an image tag edits a source manifest
+    // under apps/, platform/ or infrastructure/. `deploy/` is the rendered tree
+    // Argo CD actually applies, and the `rendered-manifests` job in
+    // .github/workflows/ci.yaml runs `scripts/render-deploy.sh --check`, which
+    // fails if `deploy/` does not match the sources IN THE SAME COMMIT. Renovate
+    // does not re-render, so every such PR sat with a red required check
+    // forever: an auto-merge that never fires, plus a permanent queue of PRs
+    // that look like they are being handled.
+    //
+    // WHY IT CANNOT BE MADE TO WORK HERE EITHER. The fix would be
+    // `postUpgradeTasks` running `task render`. That requires SELF-HOSTED
+    // Renovate: the commands have to be allow-listed in `allowedCommands` in the
+    // administrator's global config, which a repository-level config cannot set.
+    // This repo has no Renovate runner workflow in .github/workflows/, so it is
+    // on the hosted GitHub App -- see also the `managerFilePatterns` note at the
+    // top of this file, which assumes it. Standing up a self-hosted Renovate,
+    // with a credentialed runner allowed to execute a render task and push the
+    // result, to save reviewing a one-line tag bump in a single-operator
+    // homelab, is a worse trade than clicking merge.
+    //
+    // WHY IT WAS ALSO A BUG. packageRules are applied in array order and later
+    // entries win, so `matchDatasources: ['docker']` matched every hotio image
+    // and overrode the `automerge: false` on the "theater stack moves as one
+    // unit" rule above -- the one rule written because bumping qBittorrent alone
+    // broke this cluster once. Any auto-merge rule added here in future must go
+    // BEFORE those grouping rules, or explicitly exclude their packages.
+    // ---------------------------------------------------------------------
     {
       description: 'Pin OpenTofu providers exactly',
       matchManagers: ['terraform'],

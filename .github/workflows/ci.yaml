@@ -23,8 +23,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.*)$
-  KUSTOMIZE_VERSION: "5.7.1"
   # renovate: datasource=github-releases depName=yannh/kubeconform
   KUBECONFORM_VERSION: "v0.7.0"
   # The renderer for deploy/. `scripts/render-deploy.sh` uses `kubectl kustomize`,
@@ -32,6 +30,16 @@ env:
   # up in deploy/. It is pinned because checked-in generated output is only
   # meaningful if the generator is deterministic; a different version produces a
   # formatting diff that looks like a stale render.
+  #
+  # There is deliberately no standalone KUSTOMIZE_VERSION. Nothing in CI invokes
+  # the `kustomize` binary -- render-deploy.sh, render-check.sh and
+  # dryrun-server.sh all use `kubectl kustomize`. A second pin here tracked a
+  # dependency the pipeline does not have and generated Renovate PRs forever.
+  #
+  # `scripts/render-deploy.sh` holds the single source of truth for the EMBEDDED
+  # kustomize version (EXPECT_KUSTOMIZE) and hard-fails in --check mode when this
+  # kubectl does not carry it. So bumping KUBECTL_VERSION is a two-line change:
+  # this pin, and EXPECT_KUSTOMIZE, followed by a re-render.
   #
   # NOT the same thing as K8S_VERSION below. This never contacts the cluster.
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
@@ -53,7 +61,10 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # conventional-commit checking needs the PR's commits, not just the tip.
+          # Full history, not a shallow clone: the gitleaks hook is history-aware,
+          # and pre-commit-terraform decides whether it is "running on the whole
+          # repo" by consulting git. Commit messages are checked in the
+          # `commit-messages` job below, not here.
           fetch-depth: 0
 
       - uses: actions/setup-python@v6
@@ -67,25 +78,35 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install kustomize
-        run: |
-          curl -sSLo /tmp/k.tar.gz \
-            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
-          tar -xzf /tmp/k.tar.gz -C /usr/local/bin kustomize
+      # No kubectl here on purpose. The only hook that needed it was
+      # render-deploy, which is skipped below; `rendered-manifests` installs the
+      # pinned one and owns that check.
 
-      # Pinned, because this is what renders deploy/. See the env block.
-      - name: Install kubectl
-        run: |
-          curl -sSLo /usr/local/bin/kubectl \
-            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-          chmod +x /usr/local/bin/kubectl
-          kubectl version --client -o json | grep kustomizeVersion
-
-      # Runs yamllint, shellcheck, gitleaks, tofu fmt, leak-check,
-      # renovate-dryrun, render-check and render-deploy in one pass -- the same
-      # set a developer gets locally, so CI cannot disagree with pre-commit.
+      # Runs yamllint, shellcheck, gitleaks, terraform_fmt, leak-check,
+      # placeholder-check, secrets-check and renovate-dryrun in one pass -- the
+      # same set a developer gets locally, so CI cannot disagree with pre-commit.
+      #
+      # SKIP=render-deploy is the one deliberate difference. That hook renders the
+      # entire tree and writes deploy/; the `rendered-manifests` job below runs
+      # the same script with `--check`, which is the answer CI actually needs.
+      # Running both was two full renders per CI run for one fact.
       - name: pre-commit
+        env:
+          SKIP: render-deploy
         run: pre-commit run --all-files --show-diff-on-failure
+
+      # secrets-check is a WARNING inside pre-commit so the owner can commit
+      # before the *.sops.yaml files exist (see scripts/secrets-check.sh). It is
+      # still worth surfacing as a workflow annotation, because "every layer
+      # stalls at sync-wave -25" is not a thing to discover on the cluster.
+      #
+      # Kept non-fatal here on purpose: making it fatal is a one-line change to
+      # SECRETS_CHECK_STRICT below, to be made when Phase 1 starts.
+      - name: KSOPS secret files (advisory)
+        if: always()
+        env:
+          SECRETS_CHECK_STRICT: "0"
+        run: ./scripts/secrets-check.sh
 
   # ---------------------------------------------------------------------------
   commit-messages:
@@ -97,25 +118,55 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      # There is ONE list of allowed commit types, and it lives in
+      # .pre-commit-config.yaml. This job used to carry its own regex, which
+      # drifted: the local hook accepted `security` and the CI pattern did not,
+      # so a commit could pass locally and fail here. Running the same hook
+      # through pre-commit makes drift impossible by construction.
+      #
+      # Rejected alternative: parsing the type list out of the YAML with yq and
+      # rebuilding the regex. That is a second implementation of the same rule
+      # and would disagree with conventional-pre-commit's own edge cases
+      # (scopes, `!`, reverts).
       - name: Check every commit in the PR
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          pattern='^(feat|fix|docs|refactor|perf|test|build|ci|chore|revert|security)(\([a-z0-9._/-]+\))?!?: .{1,}'
+          msgfile=$(mktemp)
+          trap 'rm -f "$msgfile"' EXIT
           rc=0
           while read -r sha; do
-            msg=$(git log -1 --format=%s "$sha")
+            git log -1 --format=%B "$sha" >"$msgfile"
+            subject=$(git log -1 --format=%s "$sha")
             # Merge commits are generated by GitHub and are exempt.
-            case "$msg" in "Merge "*) continue ;; esac
-            if ! printf '%s' "$msg" | grep -qE "$pattern"; then
-              echo "::error::not a conventional commit: $sha  $msg"
-              rc=1
+            case "$subject" in "Merge "*) continue ;; esac
+            # Output captured and printed on failure rather than discarded: the
+            # first invocation also builds the hook's virtualenv, and a setup
+            # failure would otherwise look like "every commit is malformed".
+            if out=$(pre-commit run --hook-stage commit-msg \
+                                    --commit-msg-filename "$msgfile" \
+                                    conventional-pre-commit 2>&1); then
+              echo "ok: $subject"
             else
-              echo "ok: $msg"
+              echo "::error::not a conventional commit: $sha  $subject"
+              printf '%s\n' "$out" | sed 's/^/    /'
+              rc=1
             fi
           done < <(git rev-list "$BASE..$HEAD")
+          if [ "$rc" -ne 0 ]; then
+            echo
+            echo 'Allowed types are the args: list of the conventional-pre-commit'
+            echo 'hook in .pre-commit-config.yaml -- that list is the only one.'
+          fi
           exit $rc
 
   # ---------------------------------------------------------------------------
@@ -134,6 +185,13 @@ jobs:
       # deploy/ is build output. If it does not match what the sources produce,
       # then what Argo applies is not what the repo says, which defeats the whole
       # arrangement. This is the check that keeps deploy/ honest.
+      #
+      # Three kustomizations resolve remote URLs (gateway-api,
+      # snapshot-controller, barman-cloud-plugin), so this job depends on
+      # github.com being up. render-deploy.sh retries those renders with backoff
+      # and, if they still fail, labels them NETWORK so a GitHub outage is
+      # distinguishable from a broken manifest. See the RETRIES note in the
+      # script.
       - name: deploy/ is up to date
         run: ./scripts/render-deploy.sh --check
 
@@ -154,8 +212,16 @@ jobs:
       # deploy/ is derived from the sources, so this covers both.
       #
       # The three SOPS directories are not in deploy/ and cannot be validated
-      # here: the age key is not available to CI and must never be. That gap is
-      # covered by `task build` locally, where the key exists.
+      # here: the age key is not available to CI and must never be. What DOES
+      # cover them:
+      #   - scripts/secrets-check.sh (pre-commit + the lint job) asserts every
+      #     file a KSOPS generator references exists and is encrypted, with no
+      #     key required.
+      #   - `task validate` locally renders them for real. That needs kustomize
+      #     AND ksops; both are installed by `task tools` and asserted by
+      #     `task tools:check`. Until 2026-08 neither installed ksops, so this
+      #     escape hatch did not exist -- do not remove it from the toolchain
+      #     without removing this claim.
       - name: Validate rendered manifests
         run: |
           set -euo pipefail
@@ -190,6 +256,10 @@ jobs:
           # Fail the build only on things worth blocking a merge for. Homelab
           # manifests trip a lot of LOW/MEDIUM "not production hardened" rules
           # that would make this gate noise rather than signal.
+          #
+          # This threshold is load-bearing for .trivyignore: a rule below
+          # HIGH is already out of scope, so listing it there would be a
+          # no-op that reads like a decision.
           severity: HIGH,CRITICAL
           exit-code: "1"
           trivyignores: .trivyignore
@@ -201,15 +271,50 @@ jobs:
           sarif_file: trivy.sarif
           category: trivy-config
 
-      # kube-linter checks workload-level practices Trivy does not: missing
-      # probes, unset resource limits, latest tags, dangling Service selectors.
+      # kube-linter checks workload-level practices Trivy does not: dangling
+      # Service selectors, non-existent ServiceAccounts, `:latest` tags,
+      # duplicate env vars.
+      #
+      # Scanned against deploy/ rather than `.`, for two reasons: deploy/ is
+      # what Argo applies, and `.` also swept bootstrap/charts/*/templates/,
+      # which are Helm templates and not parseable YAML.
       - name: kube-linter
         uses: stackrox/kube-linter-action@v1.0.7
         with:
-          directory: .
+          directory: deploy
           config: .kube-linter.yaml
           format: sarif
           output-file: kube-linter.sarif
+
+      # THE STEP ABOVE CANNOT FAIL. kube-linter-action's last line is
+      #     ./kube-linter ... | tee "$output-file"
+      # under `set -u` with no `pipefail`, so the step always exits with tee's
+      # status, which is 0. Every finding was being uploaded to the Security tab
+      # and silently passing CI.
+      #
+      # Reading the SARIF is the fix that does not require forking the action or
+      # hand-rolling the kube-linter install (which would mean pinning a version
+      # this repo has no other reason to track). `jq` is preinstalled on
+      # ubuntu-latest.
+      - name: kube-linter findings are blocking
+        run: |
+          set -euo pipefail
+          if [ ! -s kube-linter.sarif ]; then
+            echo "::error::kube-linter produced no SARIF -- it did not run."
+            exit 1
+          fi
+          n=$(jq '[.runs[]?.results[]?] | length' kube-linter.sarif)
+          echo "kube-linter findings: $n"
+          if [ "$n" -ne 0 ]; then
+            jq -r '.runs[]?.results[]? |
+                   "::error file=\(.locations[0].physicalLocation.artifactLocation.uri // "?")::\(.ruleId): \(.message.text)"' \
+              kube-linter.sarif
+            echo
+            echo "Every check in .kube-linter.yaml is one this repo satisfies today."
+            echo "Fix the manifest, or move the check to the advisory list in that"
+            echo "file with a reason."
+            exit 1
+          fi
 
       - name: Upload kube-linter SARIF
         uses: github/codeql-action/upload-sarif@v4
@@ -221,10 +326,15 @@ jobs:
   # ---------------------------------------------------------------------------
   # A single required check, so branch protection needs one entry rather than
   # being updated every time a job is added.
+  #
+  # EVERY job that can fail must be listed here. `commit-messages` was missing,
+  # which meant a non-conventional commit failed a job nobody had made required.
+  # `skipped` counts as a pass because commit-messages does not run on pushes to
+  # main.
   ci-passed:
     name: ci
     runs-on: ubuntu-latest
-    needs: [lint, rendered-manifests, validate, sast]
+    needs: [lint, commit-messages, rendered-manifests, validate, sast]
     if: always()
     steps:
       - name: Fail if any dependency failed

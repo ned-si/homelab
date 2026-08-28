@@ -14,8 +14,18 @@ vars:
   # bundle URL lives in infrastructure/gateway-api/kustomization.yaml and nowhere
   # else. A second copy in this file drifted from it immediately -- it still said
   # v1.6.1/standard while the cluster ran v1.2.0/experimental.
+  # No `2>/dev/null` on this one. It used to swallow find's errors, and because
+  # the pipeline's status is `sort`'s, a failing find produced an EMPTY variable
+  # and a silent exit 0 -- so `task build` and `task validate` iterated over
+  # nothing and reported success. The tasks that consume this also assert it is
+  # non-empty; the two together are what make "all kustomizations render" mean
+  # something.
   KUSTOMIZE_DIRS:
-    sh: find clusters infrastructure platform apps -name kustomization.yaml -exec dirname {} \; 2>/dev/null | sort
+    sh: find clusters infrastructure platform apps -name kustomization.yaml -exec dirname {} \; | sort
+  # Legitimately empty today: no *.sops.yaml exists yet, only the .example
+  # templates. `secrets:decrypt` says so rather than pretending it decrypted
+  # something. scripts/secrets-check.sh is what reports the files that SHOULD be
+  # here.
   SOPS_FILES:
     sh: git ls-files '*.sops.yaml' 2>/dev/null || true
 
@@ -32,7 +42,13 @@ tasks:
   tools:
     desc: Install the local toolchain (macOS / Homebrew)
     cmds:
-      - brew install go-task sops age kustomize kubeconform helm yq pre-commit
+      # ksops is not optional. `task build` and `task validate` render the three
+      # */secrets directories, and those need `kustomize --enable-alpha-plugins
+      # --enable-exec` PLUS the ksops exec plugin on PATH. ci.yaml documents
+      # local rendering as the only coverage those directories get; without ksops
+      # here that escape hatch does not exist, which is what it was until
+      # 2026-08.
+      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops
       - pre-commit install --install-hooks
       - pre-commit install --hook-type commit-msg
 
@@ -42,7 +58,7 @@ tasks:
     cmds:
       - |
         missing=0
-        for t in sops age kustomize helm kubeconform; do
+        for t in sops age kustomize helm kubeconform ksops; do
           command -v "$t" >/dev/null 2>&1 || { echo "missing: $t"; missing=1; }
         done
         [ "$missing" -eq 0 ] || { echo; echo "Run 'task tools' first."; exit 1; }
@@ -131,10 +147,18 @@ tasks:
     cmds:
       - rm -rf {{.DECRYPT_DIR}} && mkdir -p {{.DECRYPT_DIR}}
       - |
-        for f in {{.SOPS_FILES}}; do
+        set -e
+        set -o pipefail
+        files="{{.SOPS_FILES}}"
+        if [ -z "$files" ]; then
+          echo "no *.sops.yaml files exist yet -- nothing to decrypt."
+          echo "Run 'task lint:secrets' to see which ones the KSOPS generators expect."
+          exit 0
+        fi
+        for f in $files; do
           out="{{.DECRYPT_DIR}}/$f"
           mkdir -p "$(dirname "$out")"
-          sops --decrypt "$f" > "$out" || exit 1
+          sops --decrypt "$f" > "$out"
         done
         echo "decrypted into {{.DECRYPT_DIR}}/"
 
@@ -154,6 +178,8 @@ tasks:
       - task: lint:tofu
       - task: render:check
       - task: secrets:leak-check
+      - task: lint:placeholders
+      - task: lint:secrets
 
   lint:yaml:
     desc: yamllint over the manifest tree
@@ -169,7 +195,46 @@ tasks:
   lint:tofu:
     desc: Check OpenTofu formatting
     cmds:
-      - tofu fmt -recursive -check -diff bootstrap
+      # Runs the pre-commit hook rather than `tofu fmt -check` directly. There is
+      # one rule, so there is one implementation of it: the hook rewrites and
+      # fails, this reports the same thing, and neither can be satisfied while
+      # the other complains.
+      - pre-commit run --all-files terraform_fmt
+
+  lint:placeholders:
+    desc: Fail if an unfilled placeholder would be applied to the cluster
+    cmds:
+      - ./scripts/placeholder-check.sh
+
+  lint:secrets:
+    desc: 'Check the KSOPS generators reference files that exist (warns by default)'
+    cmds:
+      # Warns and exits 0 unless SECRETS_CHECK_STRICT=1 is in the environment.
+      # The script owns that default, so this task does not restate it.
+      - ./scripts/secrets-check.sh
+
+  lint:kube-linter:
+    desc: Run the blocking kube-linter set over deploy/, exactly as CI does
+    cmds:
+      - kube-linter lint deploy --config .kube-linter.yaml
+
+  lint:kube-linter:advisory:
+    desc: Run the checks .kube-linter.yaml deliberately does NOT enforce
+    cmds:
+      # Findings here are known gaps, documented one by one in the ADVISORY
+      # section of .kube-linter.yaml. This exists so the information is runnable
+      # instead of only being a comment; it is not wired into CI, because a gate
+      # that is red on arrival is a gate that gets ignored.
+      - |
+        kube-linter lint deploy --do-not-auto-add-defaults \
+          --include no-read-only-root-fs \
+          --include run-as-non-root \
+          --include privilege-escalation-container \
+          --include drop-net-raw-capability \
+          --include no-liveness-probe \
+          --include no-readiness-probe \
+          --include unset-memory-requirements \
+          --include unset-cpu-requirements || true
 
   build:
     desc: Render every kustomization (secrets stay encrypted)
@@ -177,15 +242,21 @@ tasks:
     cmds:
       - |
         set -e
-        for d in {{.KUSTOMIZE_DIRS}}; do
+        set -o pipefail
+        dirs="{{.KUSTOMIZE_DIRS}}"
+        [ -n "$dirs" ] || { echo "no kustomizations found -- refusing to report success" >&2; exit 1; }
+        for d in $dirs; do
           printf '\033[36m==> %s\033[0m\n' "$d"
           kustomize build --enable-alpha-plugins --enable-exec "$d" >/dev/null
         done
         echo "all kustomizations render"
 
   build:no-plugins:
-    desc: Render everything kubectl can handle, no kustomize/ksops needed
+    desc: 'Diagnostic: which kustomization is broken, without writing anything'
     cmds:
+      # A read-only diagnostic, not a gate. `task render:check` covers the same
+      # ground and more (it also diffs deploy/), which is why render-check.sh is
+      # no longer a pre-commit hook.
       - ./scripts/render-check.sh
 
   render:
@@ -202,13 +273,34 @@ tasks:
     desc: Render + schema-validate against the cluster's Kubernetes version
     deps: [tools:check]
     cmds:
+      # `set -o pipefail` IS THE POINT OF THIS BLOCK. Without it the status of
+      # `kustomize build | kubeconform` is kubeconform's alone, and kubeconform
+      # on empty stdin exits 0 -- so every kustomize build failure in this task
+      # was invisible and the task reported success having validated nothing.
+      #
+      # `set -e` alone does not help: it looks at the pipeline's status, which is
+      # the last command's. Every other pipeline in this file has been audited
+      # for the same shape.
       - |
         set -e
-        for d in {{.KUSTOMIZE_DIRS}}; do
+        set -o pipefail
+        dirs="{{.KUSTOMIZE_DIRS}}"
+        [ -n "$dirs" ] || { echo "no kustomizations found -- refusing to report success" >&2; exit 1; }
+        # Split across two variables purely to stay under yamllint's 160-column
+        # limit: the CRD-catalog URL plus kubeconform's own brace templating does
+        # not fit on one line. The backtick fences below are go-task escaping, so
+        # that kubeconform and not task is the one that sees the braces.
+        #
+        # Nothing in this comment may contain a double brace -- go-task templates
+        # the whole command string and would try to evaluate it as an action.
+        crd_base='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main'
+        crd_path='{{`{{.Group}}`}}/{{`{{.ResourceKind}}`}}_{{`{{.ResourceAPIVersion}}`}}.json'
+        for d in $dirs; do
+          printf '\033[36m==> %s\033[0m\n' "$d"
           kustomize build --enable-alpha-plugins --enable-exec "$d" \
             | kubeconform -strict -summary -ignore-missing-schemas \
                 -schema-location default \
-                -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{`{{.Group}}`}}/{{`{{.ResourceKind}}`}}_{{`{{.ResourceAPIVersion}}`}}.json'
+                -schema-location "$crd_base/$crd_path"
         done
 
   # -------------------------------------------------------------------------
