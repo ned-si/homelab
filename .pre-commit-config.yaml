@@ -168,17 +168,26 @@ repos:
         pass_filenames: false
         always_run: true
 
-      # WARNS, does not block -- the *.sops.yaml files do not exist yet and
-      # creating them is Phase 1 work. `verbose: true` is load-bearing: pre-commit
-      # hides the output of a hook that exits 0, and a warning nobody sees is not
-      # a warning. Make it fatal with SECRETS_CHECK_STRICT=1.
+      # BLOCKS. It was advisory while the *.sops.yaml files did not exist yet;
+      # all twelve now do, so the condition it warns about -- a KSOPS generator
+      # naming a file that is missing or unsealed -- is a regression rather than
+      # unfinished work.
+      #
+      # The value of it being fatal: a `secrets-*` Application sits at
+      # `sync-wave: -25`, the earliest wave in its layer, so one missing file
+      # stalls EVERY Application below it. That is not a thing to discover from
+      # the cluster.
+      #
+      # `verbose: true` stays: pre-commit hides the output of a hook that exits
+      # 0, and the list of sealed files is worth seeing.
       - id: secrets-check
-        name: KSOPS generators reference files that exist (advisory)
+        name: KSOPS generators reference files that exist and are sealed
         entry: ./scripts/secrets-check.sh
         language: script
         pass_filenames: false
         always_run: true
         verbose: true
+        env: [SECRETS_CHECK_STRICT=1]
 
       - id: renovate-annotations
         name: every pinned version has a working renovate annotation

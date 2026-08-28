@@ -180,8 +180,10 @@ hard-skip `*/secrets`, kubeconform validates `deploy/` which excludes them by
 construction, and `leak-check.sh` only checks files that exist — so a missing file
 passes everything and stalls a whole layer at its first wave.
 
-**Warns by default**, fatal with `SECRETS_CHECK_STRICT=1`, because the real
-`*.sops.yaml` files do not exist yet.
+**Blocking.** The script itself still defaults to warn-only so a fresh clone with no
+sealed files is usable, but all three callers — pre-commit, `task lint:secrets` and
+CI — set `SECRETS_CHECK_STRICT=1`. All twelve sealed files exist, so a missing or
+unsealed one is a regression.
 
 **`scripts/placeholder-check.sh`** — fails on `REPLACE-ME`, `REPLACE_WITH`,
 `CHANGEME` and similar in anything Argo syncs. A placeholder is not a syntax error:
@@ -196,7 +198,7 @@ switch.
 
 ```sh
 task secrets:leak-check     # scripts/leak-check.sh
-task lint:secrets           # scripts/secrets-check.sh   (SECRETS_CHECK_STRICT=1 to make it fatal)
+task lint:secrets           # scripts/secrets-check.sh   (fatal)
 task lint:placeholders      # scripts/placeholder-check.sh
 task lint                   # all of the above, plus yaml and tofu
 ```
@@ -209,9 +211,9 @@ task lint                   # all of the above, plus yaml and tofu
 | `no key could decrypt the data` | `sops-age` Secret missing, wrong key, or `SOPS_AGE_KEY_FILE` wrong |
 | Encrypted files render as nothing, no error | `kustomize.buildOptions` missing the two flags |
 | `unable to load exec plugin` | KSOPS/kustomize version mismatch — the init container must override the repo-server's own `kustomize` binary |
-| `Degraded` on a `secrets-*` Application on first run | Expected. The real `.sops.yaml` files do not exist yet. `scripts/secrets-check.sh` names which. |
-| A whole layer stuck at its first wave | A `secrets-*` Application cannot render. Same script. |
+| A whole layer stuck at its first wave | A `secrets-*` Application cannot render. `scripts/secrets-check.sh` names the file. |
 | `task secrets:seal --` fails with no matching creation rule | `.sops.yaml` still contains `REPLACE_WITH_YOUR_AGE_PUBLIC_KEY` — run `task secrets:keygen` |
+| `failed to load age identities` on **macOS**, key present at `~/.config/sops/age/keys.txt` | sops resolves the default identity path to `~/Library/Application Support/sops/age/keys.txt` on darwin. Source `scripts/lib/sops-age.sh` — every `secrets:*` task already does. Note **encryption still works**, so this only shows up on the first decrypt. |
 
 ## Adding a second key
 
