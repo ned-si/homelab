@@ -45,7 +45,7 @@ new leases.
 **Do not power on the Turing Pi until the check at the end of Step 1 shows `.247`
 free.** That check is the gate for the whole runbook.
 
-Three things to know before you start:
+### Three things about the repo that will otherwise catch you out
 
 1. **The cluster is running the old layout.** Argo CD (`all-apps`, namespace
    `argo`) is pinned to commit `c2dbd35`, path `kubernetes/applications` — the
