@@ -27,15 +27,16 @@ spec:
         valueFiles:
           - $values/platform/kube-prometheus-stack/values.yaml
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: main
+      targetRevision: deployed
       ref: values
     # Grafana's HTTPRoute.
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: main
+      targetRevision: deployed
       path: deploy/platform/kube-prometheus-stack/routes
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       prune: true
@@ -43,6 +44,12 @@ spec:
     syncOptions:
       # The CRDs in this chart are far too large for client-side apply.
       - ServerSideApply=true
+    # The only Application that does not use the repo-wide 5s/3m retry window.
+    # This chart applies ~13MB of CRDs; the API server takes tens of seconds to
+    # establish them, and the first pass routinely fails on a kind that is
+    # mid-establishment. 30s doubling to a 10m cap covers that. A shorter window
+    # exhausts its attempts before the CRDs are servable and reports a failure
+    # that would have resolved itself.
     retry:
       limit: 5
       backoff:
