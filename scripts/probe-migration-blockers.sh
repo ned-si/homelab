@@ -2,7 +2,7 @@
 # Characterise the things that block applying this repo to the CURRENT cluster.
 # Read-only.
 set -uo pipefail
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 : "${KUBECONFIG:=$PWD/kubeconfig-homelab}"
 export KUBECONFIG
 s() { printf '\n########## %s ##########\n' "$*"; }

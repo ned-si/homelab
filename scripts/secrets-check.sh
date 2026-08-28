@@ -40,7 +40,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 : "${SECRETS_CHECK_STRICT:=0}"
 case "$SECRETS_CHECK_STRICT" in

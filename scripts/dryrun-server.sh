@@ -56,7 +56,7 @@
 #   KUBECONFIG=./kubeconfig-homelab ./scripts/dryrun-server.sh [dir ...]
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 : "${KUBECONFIG:=$PWD/kubeconfig-homelab}"
 export KUBECONFIG
 

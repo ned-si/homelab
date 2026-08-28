@@ -29,7 +29,7 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO"
+cd "$REPO" || exit 1
 : "${KUBECONFIG:=$REPO/kubeconfig-homelab}"
 export KUBECONFIG
 
@@ -48,6 +48,8 @@ say()  { printf '\n\033[36m=== %s\033[0m\n' "$*"; }
 ok()   { printf '  \033[32mPASS\033[0m  %s\n' "$*"; }
 no()   { printf '  \033[31mFAIL\033[0m  %s\n' "$*"; FAILS=$((FAILS + 1)); }
 
+# SC2329: invoked indirectly, by `trap cleanup EXIT` below.
+# shellcheck disable=SC2329
 cleanup() {
   if [ "${KEEP:-0}" = "1" ]; then
     echo
@@ -198,7 +200,11 @@ fi
 
 # --- assertions --------------------------------------------------------------
 say "assertion 1: the server answers"
-[ "$(dst_q 'SELECT 1')" = "1" ] && ok "restored server responds" || no "restored server does not respond"
+if [ "$(dst_q 'SELECT 1')" = "1" ]; then
+  ok "restored server responds"
+else
+  no "restored server does not respond"
+fi
 
 say "assertion 2: table count matches the source"
 s_tbl=$(src_q "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
@@ -258,8 +264,11 @@ s_ext=$(src_q "SELECT extname FROM pg_extension ORDER BY extname" | tr '\n' ' ')
 d_ext=$(dst_q "SELECT extname FROM pg_extension ORDER BY extname" | tr '\n' ' ')
 echo "  source:   $s_ext"
 echo "  restored: $d_ext"
-[ "$s_ext" = "$d_ext" ] && ok "extension sets identical" \
-  || no "extension sets differ -- an app that needs a missing one will not boot"
+if [ "$s_ext" = "$d_ext" ]; then
+  ok "extension sets identical"
+else
+  no "extension sets differ -- an app that needs a missing one will not boot"
+fi
 
 # --- verdict -----------------------------------------------------------------
 say "verdict"

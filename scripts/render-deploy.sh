@@ -81,7 +81,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 # The kustomize version embedded in the pinned kubectl. The matching kubectl
 # release is KUBECTL_VERSION in .github/workflows/ci.yaml.

@@ -22,7 +22,7 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
-cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 TF=bootstrap/aws-backup/main.tf
 [ -f "$TF" ] || { echo "cannot find $TF" >&2; exit 1; }

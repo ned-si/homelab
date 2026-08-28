@@ -42,7 +42,7 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO"
+cd "$REPO" || exit 1
 : "${KUBECONFIG:=$REPO/kubeconfig-homelab}"
 export KUBECONFIG
 

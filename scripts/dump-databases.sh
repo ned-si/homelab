@@ -69,7 +69,7 @@
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$REPO"
+cd "$REPO" || exit 1
 : "${KUBECONFIG:=$REPO/kubeconfig-homelab}"
 export KUBECONFIG
 
@@ -138,6 +138,12 @@ kubectl get clusters.postgresql.cnpg.io -A \
     # pipefail is why bash rather than sh: it makes the pipeline exit non-zero
     # when pg_dump fails, which is the only way to distinguish "a short dump"
     # from "a complete dump of a small database".
+    #
+    # SC2016: single quotes are required. Every `$` in this block belongs to the
+    # shell INSIDE the pod -- `$$` must be that pod's pid for the fifo name to be
+    # unique there, not this laptop's. Double quotes would expand all of it here
+    # and send an already-substituted script over the wire.
+    # shellcheck disable=SC2016
     kubectl -n "$ns" exec "$pod" -c postgres -- bash -c '
       set -uo pipefail
       F=/controller/.dumpsum.$$
@@ -199,6 +205,13 @@ if kubectl -n seafile get deploy mariadb >/dev/null 2>&1; then
   # --single-transaction keeps InnoDB consistent without locking the tables, so
   # Seafile keeps working while this runs. --routines/--events/--triggers because
   # the default omits them and their absence only shows up at restore time.
+  #
+  # SC2016: single quotes are load-bearing for SECURITY here, not just for
+  # correctness. `$MARIADB_ROOT_PASSWORD` must be expanded by the shell in the
+  # pod, where it is already in the environment. Expanding it locally would put
+  # the plaintext root password into this process's argv -- visible to `ps` for
+  # every user on this machine, and to anything reading /proc.
+  # shellcheck disable=SC2016
   sha=$(kubectl -n seafile exec deploy/mariadb -- \
           sh -c 'mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" \
                    --single-transaction --routines --events --triggers \
