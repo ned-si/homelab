@@ -40,6 +40,435 @@ configs:
       jsonPointers:
         - /status
 
+    # =====================================================================
+    # CUSTOM HEALTH CHECKS
+    #
+    # WHY THESE ARE LOAD-BEARING, not polish: Argo CD reports a resource it has
+    # no health check for as Healthy the moment it is applied. So a CD pipeline
+    # that "waits for Healthy" waits for nothing on any kind Argo does not
+    # understand. Argo CD's own `argoproj.io/Application` -- which since 1.8 has
+    # no built-in check -- plus seven single-instance CloudNativePG Clusters,
+    # the shared Gateway and fourteen HTTPRoutes are exactly that case, and they
+    # are the objects whose failure is user-visible. `Application` is the
+    # load-bearing one: root and the three layer app-of-apps own nothing else,
+    # so without it the gate is not weak, it is empty.
+    #
+    # The gate in .github/workflows/cd.yaml is only as good as this section.
+    #
+    # WRITING MORE OF THEM: a Lua error, or any path that falls through without
+    # setting hs.status, reports Unknown -- and Unknown never converges, so the
+    # deploy hangs until the gate times out and then rolls back a change that
+    # was probably fine. Every branch below sets both status and message, and
+    # every field read is nil-guarded. `argocd admin settings resource-overrides
+    # health <file>` runs one of these against a real object offline.
+    #
+    # ---------------------------------------------------------------------
+    # THE SANDBOX: `string`, `io` and `math` DO NOT EXIST IN THESE SCRIPTS.
+    #
+    # Argo CD runs a custom health script with the Lua standard libraries
+    # SUPPRESSED (util/lua/lua.go creates the state with SkipOpenLibs and then
+    # re-opens only `package`, `base`, `table` and a cut-down `os` that has
+    # time/date/clock and nothing else). Only a health script COMPILED INTO
+    # Argo CD gets the full set. So `string.lower`, `string.find`,
+    # `string.format`, `("x"):lower()` and friends are all unavailable, and
+    # calling one raises "attempt to index a nil value (global 'string')".
+    #
+    # THAT ERROR IS NOT A NO-OP: an erroring script reports the resource
+    # Unknown, Unknown is the worst rank in Argo's health ordering, and it
+    # propagates up every parent Application -- so one such script silently
+    # wedges the CD gate for the whole layer, forever.
+    #
+    # The libraries can be turned back on per kind with
+    # `resource.customizations.useOpenLibs.<group>_<kind>: "true"`. That is
+    # DELIBERATELY NOT USED HERE -- see the CloudNativePG block below for the
+    # reasoning. Every script in this file therefore restricts itself to base
+    # + table primitives: `ipairs`, `type`, `tostring`, `==`, `..`, `#` and
+    # table indexing.
+    # ---------------------------------------------------------------------
+    #
+    # NOT ADDED, because Argo CD already ships them (see the upstream
+    # `resource_customizations/` tree, which is compiled into the image):
+    #   cert-manager.io Certificate / Issuer / ClusterIssuer -- checked for a
+    #   Ready condition. Overriding those would mean maintaining a copy of
+    #   somebody else's correct code. The ten certificates this cluster depends
+    #   on are therefore already gated.
+    # An entry here always wins over the built-in table, so the ones below for
+    # Argo CD Applications, CloudNativePG and Gateway API are authoritative
+    # regardless of what a future Argo CD release starts shipping for them.
+    # =====================================================================
+
+    # #####################################################################
+    # # argoproj.io/Application. THE ONE THAT MAKES THE CD GATE MEAN
+    # # ANYTHING AT ALL, and the easiest to not notice is missing.
+    # #
+    # # Argo CD REMOVED built-in health assessment for its own Application
+    # # kind in 1.8. Upstream's own guidance is to put it back exactly when
+    # # you use the app-of-apps pattern AND order the rollout with sync
+    # # waves. This repo does both: root -> layer-{infrastructure,platform,
+    # # apps} -> ~40 leaves, all Applications, all sync-waved.
+    # #
+    # # Without this entry, every Application object is a kind Argo has no
+    # # health check for, and Argo calls such a resource Healthy the instant
+    # # it is applied. `root` and `layer-*` own nothing BUT Applications. So
+    # # `argocd app wait layer-apps --sync --health` in
+    # # .github/workflows/cd.yaml returned Healthy in seconds no matter what
+    # # the leaves were doing -- a deploy in which every workload was
+    # # Degraded reported success, the `deployed` tag stayed moved, and the
+    # # rollback path never fired. The gate was decoration.
+    # #
+    # # It reads the child's OWN aggregated health rather than recomputing
+    # # anything: the child Application already rolls its resources up.
+    # #
+    # # This deliberately does NOT look at sync status. That is what keeps
+    # # clusters/homelab/apps/immich.yaml working: it has no `automated`
+    # # block on purpose, so it sits OutOfSync after any deploy that touches
+    # # it, while still reporting Healthy -- and so it does not block the
+    # # gate, which is the intended behaviour. Gating on Synced here would
+    # # make every Immich-touching deploy hang for HEALTH_TIMEOUT and roll
+    # # back.
+    # #
+    # # Base library only (nil checks, table indexing, `==`), so no
+    # # `useOpenLibs` entry is needed or wanted -- see the sandbox note above.
+    # #####################################################################
+    resource.customizations.health.argoproj.io_Application: |
+      local hs = {}
+
+      local health = nil
+      if obj.status ~= nil then
+        health = obj.status.health
+      end
+
+      -- Guarded against "" as well as nil: Argo rejects a status string it does
+      -- not recognise, and a rejected return reports Unknown, which never
+      -- converges. A freshly created Application has no status at all.
+      if health == nil or health.status == nil or health.status == "" then
+        hs.status = "Progressing"
+        hs.message = "Waiting for this Application to report its own health"
+        return hs
+      end
+
+      hs.status = health.status
+      hs.message = ""
+      if health.message ~= nil then
+        hs.message = health.message
+      end
+      return hs
+
+    # CloudNativePG. `status.phase` is a human-readable sentence taken from the
+    # `Phase*` constants in the operator's api/v1/cluster_types.go, so this
+    # matches WHOLE phases by equality against two tables.
+    #
+    # WHY NOT SUBSTRING MATCHING, which is the obvious way to read a sentence:
+    # it needs `string.find`/`string.lower`, and `string` is not in the sandbox
+    # (see the block above). The two ways out were:
+    #
+    #   1. `resource.customizations.useOpenLibs.postgresql.cnpg.io_Cluster:
+    #      "true"`, restoring the full standard library for this kind only.
+    #      REJECTED. It re-opens `io`, `math`, the full `package` loader and the
+    #      real `os` -- including `os.execute` and `io.open` -- inside the
+    #      application-controller, which holds cluster-admin. The check does
+    #      not need any of that; paying a permanent widening of what Lua can
+    #      reach in that process to save an awkward table literal is the wrong
+    #      trade, and `useOpenLibs` is an all-or-nothing switch with no way to
+    #      ask for `string` alone.
+    #   2. Equality against a table of known phases, below. CHOSEN.
+    #
+    # THE COST OF (2), stated plainly: if a future CloudNativePG release
+    # rewords a phase, the new wording falls through to Progressing. That is
+    # the fail-SAFE direction and it is loud -- the CD gate times out and rolls
+    # back, which is a red run somebody reads, not a green one that lied. It is
+    # also not silent drift: the operator chart is pinned in
+    # clusters/homelab/platform/cloudnative-pg.yaml with a `helm` datasource,
+    # which is not covered by the docker-patch auto-merge rule in
+    # .github/renovate.json5, so a reworded phase can only arrive attached to a
+    # reviewed PR. Re-read `Phase*` in cluster_types.go when accepting one.
+    #
+    # Note that "Failing over" is deliberately absent from DEGRADED: a failover
+    # is how a healthy HA cluster survives losing its primary, not a failure.
+    resource.customizations.health.postgresql.cnpg.io_Cluster: |
+      local hs = {}
+
+      if obj.status == nil or obj.status.phase == nil then
+        hs.status = "Progressing"
+        hs.message = "Waiting for the CloudNativePG operator to write status"
+        return hs
+      end
+
+      local phase = obj.status.phase
+
+      -- Terminal states: a human has to act, so further waiting is pointless.
+      local DEGRADED = {
+        ["Cluster is in an unrecoverable state, needs manual intervention"] = true,
+        ["Cluster upgrade failed"] = true,
+        ["Waiting for user action"] = true,
+      }
+
+      -- The one steady state. Everything not listed in either table is treated
+      -- as in-flight.
+      local HEALTHY = {
+        ["Cluster in healthy state"] = true,
+      }
+
+      local ready = obj.status.readyInstances
+      local wanted = obj.status.instances
+      if wanted == nil and obj.spec ~= nil then
+        wanted = obj.spec.instances
+      end
+
+      -- `type` rather than `~= nil`: comparing a string to a number with `<`
+      -- raises, and an erroring script reports Unknown.
+      local haveCounts = type(ready) == "number" and type(wanted) == "number"
+
+      local counts = "instance count unknown"
+      if haveCounts then
+        counts = tostring(ready) .. "/" .. tostring(wanted) .. " instances ready"
+      end
+
+      if DEGRADED[phase] == true then
+        hs.status = "Degraded"
+        hs.message = phase .. " (" .. counts .. ")"
+        return hs
+      end
+
+      if HEALTHY[phase] == true then
+        -- The phase can say healthy while a replica is still catching up, so
+        -- the counts are the second gate, not decoration.
+        if haveCounts and ready < wanted then
+          hs.status = "Progressing"
+          hs.message = "Healthy phase but only " .. counts
+          return hs
+        end
+        hs.status = "Healthy"
+        hs.message = phase .. " (" .. counts .. ")"
+        return hs
+      end
+
+      hs.status = "Progressing"
+      hs.message = phase .. " (" .. counts .. ")"
+      return hs
+
+    # Gateway API. `Accepted` means the controller claimed it and the listeners
+    # are valid; `Programmed` means the datapath and the address exist. Both are
+    # needed -- an Accepted Gateway with no address serves no traffic.
+    #
+    # EXPECT DEGRADED DURING THE ingress-nginx HANDOVER: while 192.168.1.254 is
+    # still held by the old Service, the shared Gateway is legitimately
+    # Programmed=False. That is this check working, but it does mean the CD
+    # health gate must not be running mid-handover -- docs/migration-plan.md
+    # Phase 3.
+    #
+    # Reading status here is unaffected by the `ignoreDifferences: /status` on
+    # clusters/homelab/infrastructure/gateway.yaml: that suppresses status in
+    # the DIFF, while health is always evaluated against the live object.
+    resource.customizations.health.gateway.networking.k8s.io_Gateway: |
+      local hs = {}
+
+      if obj.status == nil or obj.status.conditions == nil then
+        hs.status = "Progressing"
+        hs.message = "Waiting for the Gateway controller to report status"
+        return hs
+      end
+
+      local function detail(c)
+        if c == nil then
+          return "no condition reported"
+        end
+        if c.message ~= nil and c.message ~= "" then
+          return c.message
+        end
+        if c.reason ~= nil and c.reason ~= "" then
+          return c.reason
+        end
+        return "no reason given"
+      end
+
+      local function state(c)
+        if c == nil then
+          return "missing"
+        end
+        return tostring(c.status)
+      end
+
+      local accepted = nil
+      local programmed = nil
+      for _, c in ipairs(obj.status.conditions) do
+        if c.type == "Accepted" then
+          accepted = c
+        end
+        if c.type == "Programmed" then
+          programmed = c
+        end
+      end
+
+      if accepted ~= nil and accepted.status == "False" then
+        hs.status = "Degraded"
+        hs.message = "Accepted=False: " .. detail(accepted)
+        return hs
+      end
+
+      if programmed ~= nil and programmed.status == "False" then
+        hs.status = "Degraded"
+        hs.message = "Programmed=False: " .. detail(programmed)
+        return hs
+      end
+
+      if accepted ~= nil and accepted.status == "True"
+        and programmed ~= nil and programmed.status == "True" then
+        hs.status = "Healthy"
+        hs.message = "Accepted and Programmed"
+        return hs
+      end
+
+      hs.status = "Progressing"
+      hs.message = "Accepted=" .. state(accepted) .. " Programmed=" .. state(programmed)
+      return hs
+
+    # HTTPRoute. Status is per-parent (one entry per Gateway the route attaches
+    # to), so every parent has to be satisfied.
+    #
+    # `ResolvedRefs=False` is the one worth having: it is what a route pointing
+    # at a Service name that does not exist looks like. Under Ingress that
+    # mistake produced a 503 at request time and nothing at deploy time.
+    resource.customizations.health.gateway.networking.k8s.io_HTTPRoute: |
+      local hs = {}
+
+      if obj.status == nil or obj.status.parents == nil or #obj.status.parents == 0 then
+        hs.status = "Progressing"
+        hs.message = "No parent Gateway has reported on this route yet"
+        return hs
+      end
+
+      local function who(parent)
+        if parent.parentRef ~= nil and parent.parentRef.name ~= nil then
+          return tostring(parent.parentRef.name)
+        end
+        return "unnamed parent"
+      end
+
+      local function detail(c)
+        if c.message ~= nil and c.message ~= "" then
+          return c.message
+        end
+        if c.reason ~= nil and c.reason ~= "" then
+          return c.reason
+        end
+        return "no reason given"
+      end
+
+      local pending = nil
+      for _, parent in ipairs(obj.status.parents) do
+        local accepted = nil
+        local resolved = nil
+        local conditions = parent.conditions
+        if conditions == nil then
+          conditions = {}
+        end
+        for _, c in ipairs(conditions) do
+          if c.type == "Accepted" then
+            accepted = c
+          end
+          if c.type == "ResolvedRefs" then
+            resolved = c
+          end
+        end
+
+        if accepted ~= nil and accepted.status == "False" then
+          hs.status = "Degraded"
+          hs.message = who(parent) .. ": Accepted=False: " .. detail(accepted)
+          return hs
+        end
+        if resolved ~= nil and resolved.status == "False" then
+          hs.status = "Degraded"
+          hs.message = who(parent) .. ": ResolvedRefs=False: " .. detail(resolved)
+          return hs
+        end
+        if accepted == nil or accepted.status ~= "True"
+          or resolved == nil or resolved.status ~= "True" then
+          pending = who(parent)
+        end
+      end
+
+      if pending ~= nil then
+        hs.status = "Progressing"
+        hs.message = "Waiting for " .. pending .. " to accept and resolve this route"
+        return hs
+      end
+
+      hs.status = "Healthy"
+      hs.message = "Accepted and refs resolved by every parent Gateway"
+      return hs
+
+    # =====================================================================
+    # DIFFS ARGO WOULD OTHERWISE FIGHT FOREVER
+    #
+    # Only fields something in THIS repo provably rewrites at runtime. A
+    # speculative entry here is worse than none: it hides a real change.
+    # =====================================================================
+
+    # Three controllers in this cluster write their own CA into their own
+    # webhook configuration after the object is applied: cert-manager's
+    # cainjector (enabled in infrastructure/cert-manager/values.yaml), the
+    # CloudNativePG operator, and kube-prometheus-stack's admission-webhook
+    # patch Job. In each case git holds an empty caBundle by design, so
+    # without this every sync reports OutOfSync and selfHeal blanks a live
+    # webhook's CA -- which fails every admission request for that API until
+    # the controller re-injects it.
+    resource.customizations.ignoreDifferences.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+      jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
+    resource.customizations.ignoreDifferences.admissionregistration.k8s.io_MutatingWebhookConfiguration: |
+      jqPathExpressions:
+        - '.webhooks[]?.clientConfig.caBundle'
+
+    # CRDs, of which this cluster applies ~40 (the vendored Gateway API
+    # experimental bundle alone is 13). The API server writes acceptedNames,
+    # storedVersions and conditions into status, and defaults
+    # `spec.conversion.strategy: None` on every CRD that does not set it.
+    # Neither is desired state, and storedVersions in particular must never be
+    # reverted -- it is how the API server knows which versions still exist in
+    # etcd.
+    resource.customizations.ignoreDifferences.apiextensions.k8s.io_CustomResourceDefinition: |
+      jsonPointers:
+        - /status
+        - /spec/conversion
+
+    # =====================================================================
+    # RESOURCE EXCLUSIONS
+    #
+    # Not security, and not diffing: this is what the application controller
+    # WATCHES. Every excluded kind is one nothing in this repo declares and
+    # that something in the cluster creates continuously -- on four ARM SBCs,
+    # the controller's cache is worth keeping small.
+    #
+    # Nothing here is required for any health check above: excluding
+    # EndpointSlice does not affect Service health, and excluding
+    # postgresql.cnpg.io/Backup does not affect Cluster health.
+    # =====================================================================
+    resource.exclusions: |
+      # Cilium writes one CiliumEndpoint per pod, one CiliumIdentity per label
+      # set and one CiliumNode per node. The two Cilium kinds this repo DOES
+      # declare -- CiliumLoadBalancerIPPool and CiliumL2AnnouncementPolicy --
+      # are deliberately not listed.
+      - apiGroups: ["cilium.io"]
+        kinds: ["CiliumEndpoint", "CiliumIdentity", "CiliumNode"]
+      # L2 announcements take one Lease per announced LoadBalancer address, on
+      # a 3s lease duration (infrastructure/cilium/values.yaml), plus every
+      # controller's leader-election lease. Nothing declares a Lease.
+      - apiGroups: ["coordination.k8s.io"]
+        kinds: ["Lease"]
+      # Generated from Service selectors; rewritten on every pod restart.
+      - apiGroups: ["discovery.k8s.io"]
+        kinds: ["EndpointSlice"]
+      - apiGroups: [""]
+        kinds: ["Endpoints"]
+      # Events are unbounded by construction.
+      - apiGroups: ["", "events.k8s.io"]
+        kinds: ["Event"]
+      # The operator creates one Backup per ScheduledBackup firing, forever.
+      # The two ScheduledBackups themselves are in git and stay visible.
+      - apiGroups: ["postgresql.cnpg.io"]
+        kinds: ["Backup"]
+
   params:
     # TLS is terminated at the Gateway, so argocd-server must not also try to
     # serve TLS -- otherwise the Gateway speaks HTTP to an HTTPS listener and
@@ -79,6 +508,44 @@ repoServer:
         requests:
           cpu: 10m
           memory: 32Mi
+      # #####################################################################
+      # # WITHOUT THIS BLOCK, ARGO CD NEVER STARTS.
+      # #
+      # # bootstrap/main.tf labels the argocd namespace
+      # # `pod-security.kubernetes.io/enforce: restricted`. Under `restricted`,
+      # # EVERY container in a pod -- init containers included -- must set
+      # # allowPrivilegeEscalation: false, drop ALL capabilities, run as
+      # # non-root and select a seccomp profile. The chart applies its
+      # # `containerSecurityContext` defaults only to the containers it
+      # # templates itself; a container supplied through
+      # # `repoServer.initContainers` is passed through verbatim. So the
+      # # repo-server pod is REJECTED AT ADMISSION, the Deployment reports
+      # # `FailedCreate` with a `violates PodSecurity "restricted"` message,
+      # # no pod is ever created, and `tofu apply` fails on the Helm wait with
+      # # a timeout that says nothing about admission.
+      # #
+      # # UID/GID 999 is the `argocd` user in the Argo CD images, i.e. the user
+      # # the repo-server itself runs as. Matching it means the binaries this
+      # # container drops into the emptyDir are owned by the process that later
+      # # execs them. No fsGroup is needed: the kubelet creates an emptyDir
+      # # world-writable, which is why a non-root init container can populate
+      # # one at all.
+      # #
+      # # readOnlyRootFilesystem is deliberately NOT set here. `restricted`
+      # # does not require it, and `ksops install` unpacking into /custom-tools
+      # # has not been verified to be the only thing it writes. Add it once it
+      # # has been.
+      # #####################################################################
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
 
   volumeMounts:
     # Deliberately overrides the kustomize binary shipped in the Argo CD image.

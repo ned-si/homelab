@@ -131,7 +131,7 @@ resource "helm_release" "argocd" {
 #
 # Rendered from clusters/homelab/root.yaml so the file in git stays the single
 # definition, with only `targetRevision` overridden -- that lets the bootstrap
-# track a working branch while the committed manifest still says `main`.
+# track a working branch while the committed manifest tracks the `deployed` tag.
 #
 # `kubernetes_manifest` is avoided deliberately: it needs the CRD to exist at
 # PLAN time, which it does not on a fresh cluster. A manifest applied through
@@ -164,4 +164,51 @@ resource "helm_release" "root_application" {
   ]
 
   depends_on = [helm_release.argocd]
+
+  # #########################################################################
+  # # DESTROYING THIS RESOURCE DELETES THE ENTIRE CLUSTER'S WORKLOADS.
+  # #
+  # # The templated Application carries
+  # # `finalizers: [resources-finalizer.argocd.argoproj.io]`
+  # # (charts/root-application/templates/root-application.yaml). Argo CD honours
+  # # that finalizer by cascade-deleting everything the Application owns -- which
+  # # here is every descendant Application and therefore every Deployment,
+  # # StatefulSet, PVC and Secret in the cluster. `tofu destroy` would be a
+  # # complete, silent, irreversible teardown that takes about a minute and
+  # # prints a green "Destroy complete!".
+  # #
+  # # `prevent_destroy` makes OpenTofu refuse at PLAN time, so a bare
+  # # `tofu destroy` is rejected as a whole rather than partially executed.
+  # #
+  # # WHAT IT DOES NOT DO. It guards THIS resource only, and only against a plan
+  # # that includes it:
+  # #   - `tofu destroy -target=kubernetes_namespace_v1.argocd` plans and runs
+  # #     fine, and deleting the namespace deletes the Application inside it --
+  # #     whose `resources-finalizer.argocd.argoproj.io` then cascade-deletes
+  # #     every workload, exactly as above. `-target` is the hole.
+  # #   - the finalizer is a property of the live object, so ANY route that
+  # #     removes it (`kubectl delete application root`, `kubectl delete ns
+  # #     argocd`, a `helm uninstall` by hand) cascades independently of
+  # #     OpenTofu. Nothing in this file can prevent that.
+  # # Treat `prevent_destroy` as a guard against the obvious accident, not as
+  # # protection for the namespace.
+  # #
+  # # TO ACTUALLY TEAR THE CLUSTER DOWN, do it deliberately and in the open:
+  # #   1. comment out this lifecycle block, or
+  # #   2. `kubectl -n argocd patch application root -p \
+  # #        '{"metadata":{"finalizers":null}}' --type merge` first, if you want
+  # #      the workloads to SURVIVE the removal of Argo CD (this is the
+  # #      Phase 6 `--cascade=orphan` move -- see docs/migration-plan.md).
+  # #
+  # # Rebuilding the Application itself is cheap: `tofu apply` recreates it and
+  # # Argo CD re-adopts the existing objects. It is the destroy that is not.
+  # #
+  # # SIDE EFFECT to know about: `prevent_destroy` also blocks any change that
+  # # would REPLACE this release (destroy-then-create) -- renaming it or moving
+  # # it to another namespace. Changing `targetRevision` is an in-place update
+  # # and is unaffected, which is the only field expected to change here.
+  # #########################################################################
+  lifecycle {
+    prevent_destroy = true
+  }
 }

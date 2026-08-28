@@ -16,17 +16,24 @@ spec:
   project: platform
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/platform/keycloak
   destination:
     server: https://kubernetes.default.svc
     namespace: keycloak
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
   ignoreDifferences:
     # CloudNativePG owns the instance count and rolls it during switchover.
     - group: postgresql.cnpg.io

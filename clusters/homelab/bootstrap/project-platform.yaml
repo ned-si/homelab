@@ -2,8 +2,23 @@
 # Database operator, monitoring stack, identity provider.
 #
 # Allowed cluster-scoped resources are enumerated rather than wildcarded, so a
-# chart that suddenly wants to install a mutating webhook shows up as a sync
-# error instead of silently gaining cluster-wide reach.
+# chart that starts creating a KIND OF OBJECT NOT ON THE LIST BELOW shows up as
+# a sync error instead of silently gaining cluster-wide reach.
+#
+# Admission webhooks ARE on the list, and that is not an oversight: two of the
+# three charts in this layer cannot work without them.
+#
+#   cloudnative-pg         validating + mutating webhooks that defend every
+#                          Cluster/Backup/ScheduledBackup spec. Disabling them
+#                          means invalid Postgres specs are accepted and fail
+#                          later, in the operator, on a live database.
+#   kube-prometheus-stack  prometheusOperator.admissionWebhooks (on by default)
+#                          validates PrometheusRule expressions at apply time.
+#
+# So webhooks are a known, named cost here. What the list still catches is the
+# unnamed one: an APIService, a ValidatingAdmissionPolicy, a PriorityClass, a
+# second StorageClass. If you find yourself adding an entry, write down which
+# chart wanted it on the same line.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -22,22 +37,28 @@ spec:
     - server: https://kubernetes.default.svc
       namespace: "*"
   clusterResourceWhitelist:
-    - group: ""
-      kind: Namespace
     - group: apiextensions.k8s.io
-      kind: CustomResourceDefinition
+      kind: CustomResourceDefinition     # cnpg crds.create, kube-prometheus-stack
     - group: rbac.authorization.k8s.io
-      kind: ClusterRole
+      kind: ClusterRole                  # both operators watch cluster-wide
     - group: rbac.authorization.k8s.io
       kind: ClusterRoleBinding
     - group: admissionregistration.k8s.io
-      kind: MutatingWebhookConfiguration
+      kind: MutatingWebhookConfiguration    # cnpg, prometheus-operator
     - group: admissionregistration.k8s.io
-      kind: ValidatingWebhookConfiguration
-    - group: storage.k8s.io
-      kind: StorageClass
-    - group: monitoring.coreos.com
-      kind: "*"
+      kind: ValidatingWebhookConfiguration  # cnpg, prometheus-operator
+
+  # Deliberately NOT here:
+  #   Namespace       -- every namespace in the cluster is declared once, in the
+  #                      infrastructure layer (infrastructure/namespaces/), so
+  #                      Pod Security labels cannot be forgotten. A platform
+  #                      chart creating its own namespace would bypass that.
+  #   StorageClass    -- democratic-csi owns the two classes, in infrastructure.
+  #   monitoring.coreos.com -- every kind in that group (Prometheus, Alertmanager,
+  #                      ServiceMonitor, PodMonitor, PrometheusRule) is
+  #                      NAMESPACED, so a cluster-scoped entry for it never
+  #                      matched anything. They are covered by the namespaced
+  #                      wildcard below.
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"

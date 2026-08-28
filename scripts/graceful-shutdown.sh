@@ -341,7 +341,7 @@ cat <<'EOF'
   4. Label the cables before you unplug anything. Photograph the back of the
      rack. You will not remember which port the WAN was in.
 
-  Then see docs/runbooks/house-move.md for the other end.
+  Then see docs/runbooks/restart-after-move.md for the other end.
 EOF
 
 ok "cluster quiesced"

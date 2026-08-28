@@ -16,17 +16,24 @@ spec:
   project: infrastructure
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/infrastructure/gateway
   destination:
     server: https://kubernetes.default.svc
     namespace: gateway
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
   ignoreDifferences:
     # Cilium writes the assigned address and per-listener attachment counts into
     # Gateway status. Argo would otherwise report permanent drift.

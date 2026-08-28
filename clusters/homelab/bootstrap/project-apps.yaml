@@ -29,9 +29,11 @@ spec:
       namespace: seafile
     - server: https://kubernetes.default.svc
       namespace: syncthing
-  clusterResourceWhitelist:
-    - group: ""
-      kind: Namespace
+  # Empty means "no cluster-scoped resource of any kind", which is what makes
+  # the header comment true. The six namespaces these apps deploy into are
+  # declared in infrastructure/namespaces/ with their Pod Security labels; an
+  # app creating its own namespace would produce an unlabelled one.
+  clusterResourceWhitelist: []
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"

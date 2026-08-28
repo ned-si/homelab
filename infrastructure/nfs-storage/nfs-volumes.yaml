@@ -1,8 +1,15 @@
 # Bulk storage on NFS for the theater namespace.
 #
 # ###########################################################################
-# # SITE-SPECIFIC -- the TrueNAS address appears in this file and nowhere else
-# # in the manifests. Update it here after the house move / NAS change.
+# # SITE-SPECIFIC -- the TrueNAS address appears ONCE here and TWICE in
+# # ./backup-volume.yaml (one PV per namespace). Update all three after the
+# # house move / NAS change, then re-render: Argo CD reads deploy/, so editing
+# # this file alone changes nothing in the cluster and fails CI.
+# #
+# # It is also in infrastructure/secrets/democratic-csi-iscsi.sops.yaml (API
+# # host, SSH host, iSCSI portal), which is encrypted and therefore invisible to
+# # grep. `grep -rn SITE-SPECIFIC` is the authoritative list; the map is in
+# # docs/architecture.md.
 # ###########################################################################
 #
 # ONE PersistentVolume, mounted at the PARENT of both the download directory and

@@ -34,11 +34,12 @@ spec:
   project: platform
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/platform/barman-cloud-plugin
   destination:
     server: https://kubernetes.default.svc
     namespace: cnpg-system
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       # Pruning this would silently disable WAL archiving on every database.
@@ -47,3 +48,9 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

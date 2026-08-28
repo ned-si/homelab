@@ -4,20 +4,42 @@
 #   - DB_ROOT_PASSWD and SEAFILE_ADMIN_PASSWORD were literal strings in git (and
 #     the DB password was duplicated from the MariaDB manifest). Both now come
 #     from Secrets. Both old values are compromised.
-#   - image `seafileltd/seafile-mc:11.0-latest` kept at the 11.0 MINOR-floating
-#     tag rather than a full pin. This is a deliberate, documented exception to
-#     the "pin everything" rule in this repo: Seafile does not publish
-#     immutable patch tags for the community image in a form Renovate can order,
-#     so a full pin would have to be updated by hand and would rot. The tag is
-#     still bounded to 11.0.x, so it cannot silently cross a major version the
-#     way `:latest` did elsewhere.
-#     If you upgrade past 11.0, Seafile requires running its own upgrade scripts
-#     inside the container -- it is not a tag change. See
-#     docs/runbooks/seafile-mariadb-upgrade.md.
 #   - `rollingUpdate: null` removed. It was commented out with "this errors with
 #     argo for some reason": the reason is that `rollingUpdate` is invalid when
 #     `type: Recreate`, and an explicit null confuses server-side apply. Setting
 #     only `type: Recreate` is correct and the error goes away.
+#
+# ON THE IMAGE TAG
+#   Pinned to a concrete patch release, like every other image in this repo. The
+#   tag `11.0-latest` is a floating alias that Docker Hub re-points on each 11.0.x
+#   release, so a pod restart was an unreviewed upgrade. It survived the earlier
+#   pinning sweep because it does not end in `:latest`: neither the `.*:latest$`
+#   pattern nor kube-linter's `latest-tag` check (see .kube-linter.yaml) matches
+#   `11.0-latest`.
+#
+#   `seafileltd/seafile-mc` does publish orderable patch tags -- 11.0.9 through
+#   11.0.13 -- and 11.0.13 is a multi-arch manifest list covering linux/amd64 and
+#   linux/arm64/v8, which the RK1 nodes need. As of 2026-08-28 the tags
+#   `11.0.13` and `11.0-latest` resolve to the SAME manifest-list digest
+#   (sha256:1239b087aa4bdf1b60a3802e80855f230736ac5d5fa3325a40b15d4c598f422c), so
+#   this pin selects the image the cluster would have pulled anyway. Verify with:
+#
+#     crane digest seafileltd/seafile-mc:11.0.13
+#
+#   Note the `-arm` and `-testing` suffixed tags in that repository. They are not
+#   what this should point at: `11.0.13-arm` is the single-architecture variant and
+#   `11.0.13-testing` is a pre-release. Both sort as semver pre-releases and are
+#   therefore ignored by the `semver-coerced` versioning this repo defaults to,
+#   which is why no explicit `versioning=` is needed on the annotation below.
+#
+#   MOVING PAST 11.0 IS NOT A TAG CHANGE. Seafile requires running its own upgrade
+#   scripts inside the container, and MariaDB has its own constraint on top --
+#   see docs/runbooks/seafile-mariadb-upgrade.md before accepting any bump here.
+#
+#   RENOVATE IS CURRENTLY OFF FOR THIS IMAGE. `.github/renovate.json5` carries a
+#   packageRule for `seafileltd/seafile-mc` with `enabled: false`, written when the
+#   tag was floating and there was nothing to update. With a concrete pin there is,
+#   so that rule now suppresses real patch updates and should be removed.
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -42,8 +64,8 @@ spec:
         fsGroup: 0
       containers:
         - name: seafile
-          # renovate: datasource=docker depName=seafileltd/seafile-mc versioning=loose
-          image: seafileltd/seafile-mc:11.0-latest
+          # renovate: datasource=docker depName=seafileltd/seafile-mc
+          image: seafileltd/seafile-mc:11.0.13
           imagePullPolicy: IfNotPresent
           env:
             - name: TIME_ZONE

@@ -28,11 +28,12 @@ spec:
   project: infrastructure
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/infrastructure/nfs-storage
   destination:
     server: https://kubernetes.default.svc
     namespace: theater
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       # Never prune: deleting a PV that is Bound with reclaimPolicy Retain is
@@ -41,6 +42,12 @@ spec:
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
   ignoreDifferences:
     # The binding controller writes claimRef into the PV spec.
     - group: ""
