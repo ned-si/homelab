@@ -48,7 +48,12 @@ tasks:
       # local rendering as the only coverage those directories get; without ksops
       # here that escape hatch does not exist, which is what it was until
       # 2026-08.
-      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops
+      # opentofu is needed by more than `task bootstrap:*`. The terraform_fmt
+      # pre-commit hook resolves its binary as PCT_TFPATH, then `terraform`, then
+      # `tofu`, and when it finds none it fails with exit 127 -- "command not
+      # found" -- reported under a hook name that reads like a formatting problem.
+      # nmap is for scripts/discover-lan.sh.
+      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops opentofu nmap
       - pre-commit install --install-hooks
       - pre-commit install --hook-type commit-msg
 
@@ -58,7 +63,10 @@ tasks:
     cmds:
       - |
         missing=0
-        for t in sops age kustomize helm kubeconform ksops; do
+        # tofu is here because `task lint` runs terraform_fmt, which fails with a
+        # bare exit 127 when no tofu/terraform is on PATH -- a failure that names
+        # the wrong problem. Better to say so before the linter does.
+        for t in sops age kustomize helm kubeconform ksops tofu; do
           command -v "$t" >/dev/null 2>&1 || { echo "missing: $t"; missing=1; }
         done
         [ "$missing" -eq 0 ] || { echo; echo "Run 'task tools' first."; exit 1; }
