@@ -61,7 +61,7 @@ reboot the two Deco units so they take new leases inside the pool.
 **Do not power on the Turing Pi until the check at the end of Step 1 shows `.247`
 free.** That check is the gate for the whole runbook.
 
-### Three things about the repo that will otherwise catch you out
+### Four things about the repo that will otherwise catch you out
 
 1. **The cluster is running the old layout.** Argo CD (`all-apps`, namespace
    `argo`) is pinned to commit `c2dbd35`, path `kubernetes/applications` — the
@@ -75,7 +75,14 @@ free.** That check is the gate for the whole runbook.
    `-f` you lose the restructure work, plus `scripts/` and `docs/` — which Steps
    8 and 9 need. Step 5 uses a throwaway clone instead. This file and
    `kubeconfig-homelab` are untracked, so they survive either way.
-3. **Nothing was gracefully shut down, which is fine.** Nothing was scaled to
+3. **The sealed secrets are not part of this.** `chore/gitops-restructure` now
+   carries twelve encrypted `*.sops.yaml` files and they are verified end to end,
+   but they belong to the *new* layout. The live cluster reads `main`, which has
+   its Secrets applied by hand and already in etcd from before the move — they
+   survived the power cycle because etcd did. So there is nothing to decrypt,
+   seal or apply anywhere in this guide, and no age key needed. If a Secret is
+   genuinely missing after Step 4, that is a restore problem, not a SOPS one.
+4. **Nothing was gracefully shut down, which is fine.** Nothing was scaled to
    zero or cordoned, so everything comes back on its own when the nodes boot.
    **Do not run `task startup` / `scripts/graceful-startup.sh`** — it is written
    for the post-migration layout and for a cluster that was quiesced. Its first
@@ -252,8 +259,12 @@ For a fuller picture — every occupied address on the LAN, what each one probab
 is, and DHCP reservation lines you can paste into the router — run:
 
 ```sh
-task net:discover
+bash "$REPO/scripts/discover-lan.sh"
 ```
+
+Deliberately the script and not `task net:discover`: Step 0 established that this
+guide needs no `task`, and that stays true. `nmap` makes it faster and is optional
+— without it the script falls back to ping, which is already installed.
 
 It fingerprints by **open port**, not by MAC vendor, which matters here: the Deco's
 OUI resolves to a network-equipment vendor and reads as "probably a node". By port
