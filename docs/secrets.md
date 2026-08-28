@@ -60,6 +60,12 @@ Then list it in that directory's `secret-generator.yaml` so KSOPS picks it up �
 this step is easy to forget and the symptom is a Secret that simply never
 appears.
 
+**Seal first, add the line second, and never the other way round.** KSOPS resolves
+every file in that list at render time, so a reference to a file that does not
+exist fails the *whole* `secrets-<layer>` Application — taking every other secret
+in that layer down with it. `scripts/secrets-check.sh` is the check for exactly
+this.
+
 ## Editing an existing secret
 
 ```sh
@@ -124,8 +130,10 @@ execute a binary present in the repo-server image.
 
 The setting itself is global and cannot be scoped. What *can* be scoped is how
 much it applies to, and that is one of the reasons `deploy/` exists: every other
-Application syncs pre-rendered plain YAML, so the repo-server builds **3
-directories instead of 23**. Same flag, an eighth of the surface.
+Application syncs pre-rendered plain YAML, so the repo-server builds only these
+three directories instead of every kustomization in the repo. Same flag, a
+fraction of the surface. See
+[architecture.md](./architecture.md#deploy-rendered-manifests).
 
 The remaining exposure is accepted because this is a single-operator repo whose
 only author is the cluster owner. In a shared or multi-tenant cluster it would
@@ -143,8 +151,55 @@ task build      # renders everything, secrets stay encrypted in git
 task secrets:decrypt    # writes plaintext into .decrypted/ (git-ignored) for inspection
 ```
 
-`scripts/render-check.sh` validates everything `kubectl kustomize` can handle and
-tells you what it skipped.
+`scripts/render-check.sh` renders everything `kubectl kustomize` can handle and
+lists what it skipped. It is a **read-only diagnostic** — "which directory is
+broken" — not a gate. The gate is `render-deploy.sh --check`, which renders, writes
+and diffs, and is what CI runs.
+
+## The three checks around this
+
+None of them needs the age key, which is why all three run in CI.
+
+**`scripts/leak-check.sh`** — refuses unencrypted secret material: a `*.sops.yaml`
+without a SOPS envelope, PEM private-key armour, an age secret key, a plaintext
+`kind: Secret` payload, and filenames that should never be tracked.
+
+Plus the one that matters most, because it catches the shape the others miss: **a
+credential as a literal value anywhere**, not only inside a Secret object. An
+`env:` entry with a literal `value:`, a `client_secret:` key in a Helm values file,
+a literal in a ConfigMap. Six of the nine credentials in
+[security-incident.md](security-incident.md) had exactly that shape and none looked
+like a `kind: Secret`. Its scope is everything Argo syncs plus the sources it
+renders from, and it deliberately includes `*.example` templates — a template is
+where a real credential gets pasted by accident. `docs/` and `*.md` are deliberately
+out of scope: Argo never syncs a markdown file.
+
+**`scripts/secrets-check.sh`** — asserts every file the three KSOPS generators
+reference exists and carries a SOPS envelope. Nothing else can: the render scripts
+hard-skip `*/secrets`, kubeconform validates `deploy/` which excludes them by
+construction, and `leak-check.sh` only checks files that exist — so a missing file
+passes everything and stalls a whole layer at its first wave.
+
+**Warns by default**, fatal with `SECRETS_CHECK_STRICT=1`, because the real
+`*.sops.yaml` files do not exist yet.
+
+**`scripts/placeholder-check.sh`** — fails on `REPLACE-ME`, `REPLACE_WITH`,
+`CHANGEME` and similar in anything Argo syncs. A placeholder is not a syntax error:
+`homelab-backups-REPLACE-ME` is well-formed YAML, validates against the schema,
+renders deterministically and contains no secret, so every other check passes on it
+— and the first backup would have written to a bucket that does not exist.
+
+Deferrals go in **`scripts/placeholder-allowlist.tsv`**: tab-separated, and **every
+entry must name the command that removes it**. An entry with no reason is rejected;
+one that matches nothing is reported as stale. It is the escape hatch, not the off
+switch.
+
+```sh
+task secrets:leak-check     # scripts/leak-check.sh
+task lint:secrets           # scripts/secrets-check.sh   (SECRETS_CHECK_STRICT=1 to make it fatal)
+task lint:placeholders      # scripts/placeholder-check.sh
+task lint                   # all of the above, plus yaml and tofu
+```
 
 ## Failure modes
 
@@ -154,7 +209,8 @@ tells you what it skipped.
 | `no key could decrypt the data` | `sops-age` Secret missing, wrong key, or `SOPS_AGE_KEY_FILE` wrong |
 | Encrypted files render as nothing, no error | `kustomize.buildOptions` missing the two flags |
 | `unable to load exec plugin` | KSOPS/kustomize version mismatch — the init container must override the repo-server's own `kustomize` binary |
-| `Degraded` on a `secrets-*` Application on first run | Expected. The real `.sops.yaml` files do not exist yet. |
+| `Degraded` on a `secrets-*` Application on first run | Expected. The real `.sops.yaml` files do not exist yet. `scripts/secrets-check.sh` names which. |
+| A whole layer stuck at its first wave | A `secrets-*` Application cannot render. Same script. |
 | `task secrets:seal --` fails with no matching creation rule | `.sops.yaml` still contains `REPLACE_WITH_YOUR_AGE_PUBLIC_KEY` — run `task secrets:keygen` |
 
 ## Adding a second key

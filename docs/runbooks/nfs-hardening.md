@@ -18,6 +18,34 @@ NFS without Kerberos authenticates by **IP address and UID**, nothing else. So:
 The library is also the largest single thing in the homelab, and it is the one
 volume not protected by iSCSI's implicit initiator-group scoping.
 
+### Two datasets, two positions
+
+There are two NFS exports and only one of them is scoped.
+
+| Dataset | Export | Consumers |
+|---|---|---|
+| `homelab/k8s/nfs` → `/mnt/homelab/k8s/nfs` | **open to the whole LAN.** This is the open item | the media library, `theater` |
+| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the local backup tier, `immich` and `backup-verify` |
+
+`infrastructure/nfs-storage/backup-volume.yaml` records the second one, and states
+the reason they are separate datasets rather than one: separate snapshot schedules
+and compression, separate fill-up risk, and the fact that the media export is open
+while the backup export is not. Restricting the backup export mattered more,
+because the backups are what you fall back to when the library is gone.
+
+So the outstanding work below is about the **media** dataset. `192.168.1.0/24` is
+also only a subnet, not the four node addresses — tightening it to the node list is
+step 1.
+
+### What network policy does not cover
+
+Enforcing `infrastructure/network-policies/` does **not** help here, and it is worth
+knowing why before assuming it does. `nfs:` PersistentVolumes and democratic-csi's
+iSCSI volumes are attached by the kubelet and `iscsid` in the **host** network
+namespace, before the container starts. `CiliumNetworkPolicy` selects pods, so it
+never sees those packets. Policy stops a *pod* reaching the NAS; only the export
+allow-list stops a *node* or any other host on the LAN.
+
 ## What has been done in this repo
 
 Partial mitigation only, at the consumer end:
@@ -40,11 +68,15 @@ Ordered by effort-to-benefit.
 
 In TrueNAS: **Shares → Unix (NFS) Shares →** the `k8s/nfs` share → **Advanced**.
 
-Set **Networks** to the node subnet, or better, list the four node addresses
-explicitly. Set **Hosts** likewise. This alone removes "any device on the LAN"
-from the threat model.
+List the four node addresses explicitly under **Hosts** rather than putting the
+subnet in **Networks** — the subnet is what `k8s/backups` already has, and it still
+includes every laptop and phone in the house. The current addresses are recorded in
+`infrastructure/cilium/ip-pools.yaml` and `ansible/inventory.yml`.
 
-Note this needs revisiting after the house move, since the node addresses change.
+This alone removes "any device on the LAN" from the threat model.
+
+The node addresses are site-specific, so this needs redoing after a move — it is
+step 7 of the checklist in [networking.md](../networking.md#moving-house-checklist).
 
 ### 2. Turn off `maproot`
 

@@ -37,8 +37,33 @@ Argo CD from `infrastructure/gateway/argocd-route.yaml` like any other service.
   sudo -e /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
   ```
 - Local tooling: `task tools`.
+- **The `deployed` tag exists and is pushed.** See step 0 — this one is not
+  optional and nothing in the repo creates it for you.
 
 ## Steps
+
+### 0. Create the `deployed` tag
+
+Every `Application` in `clusters/homelab/` tracks a git tag named `deployed`, and
+`target_revision` defaults to it. Argo CD resolves that revision on the very first
+reconcile, so **without the tag a fresh bootstrap fails immediately** with:
+
+```
+rpc error: ... revision "deployed" not found
+```
+
+Nothing creates it: `cd.yaml` only *moves* an existing tag. Do it once, by hand:
+
+```sh
+git tag deployed <commit-that-is-known-good>
+git push origin refs/tags/deployed
+```
+
+Then check GitHub's tag protection rules. A rule matching `deployed` that forbids
+force-pushes breaks both deploy and rollback, because both are a force-push of that
+tag.
+
+Why a tag rather than a branch: [ADR 0001](adr/0001-deploy-by-moving-a-git-tag.md).
 
 ### 1. Generate the age key
 
@@ -58,18 +83,24 @@ cd infrastructure/secrets
 cp cloudflare-cert-manager.sops.yaml.example  cloudflare-cert-manager.sops.yaml
 cp cloudflare-external-dns.sops.yaml.example  cloudflare-external-dns.sops.yaml
 cp democratic-csi-iscsi.sops.yaml.example     democratic-csi-iscsi.sops.yaml
-$EDITOR ./*.sops.yaml    # fill in real, freshly rotated values
+$EDITOR ./*.sops.yaml    # see below on which values must be new
 cd -
 
 for f in infrastructure/secrets/*.sops.yaml; do task secrets:seal -- "$f"; done
 task secrets:leak-check
+bash scripts/secrets-check.sh    # every file a KSOPS generator names exists and is sealed
 ```
 
-The values must be **new**. Every credential in the old repo is compromised —
+All three of these need **new** values, and none of them is covered by the
+deferred-rotation decision: the democratic-csi template requires a fresh keypair
+and a non-root TrueNAS account, and the Cloudflare token is not LAN-scoped. See
 [security-incident.md](security-incident.md).
 
 Platform and app secrets can wait; those Applications will sit `Degraded` until
-they exist, which is the correct signal.
+they exist, which is the correct signal. `secrets-check.sh` is what tells you
+*which* file is missing without needing the age key — the `secrets-*` Applications
+sync at the earliest wave in each layer, so one missing file stalls the whole
+layer.
 
 ### 3. Configure the bootstrap
 
@@ -89,7 +120,12 @@ export TF_VAR_git_token='<a PAT with contents:read on THIS REPO ONLY>'
 Scope the PAT narrowly. Argo CD stores it in a Secret readable by anything that
 can read Secrets in the `argocd` namespace.
 
-While rebuilding, keep `target_revision` on the working branch:
+`target_revision` defaults to `deployed`, which is what you want for any cluster
+that owns real objects.
+
+Override it with a branch **only** while rebuilding a cluster that owns nothing
+yet, and understand the trade: a branch means the cluster follows every push with
+no health gate in front of it.
 
 ```hcl
 target_revision = "chore/gitops-restructure"
@@ -140,6 +176,7 @@ Expected order: `root` → the three `layer-*` apps → leaves.
 | `cloudnative-pg` | `no matches for kind "PodMonitor"` | kube-prometheus-stack syncs at wave 10 |
 | `secrets-platform`, `secrets-apps` | missing files | you create those secrets (step 7) |
 | `keycloak` | CrashLoopBackOff | its Secret and database exist |
+| `kube-prometheus-stack` | Alertmanager pod never starts | `alertmanager-notify` exists — see [observability.md](observability.md) |
 
 Anything still failing after all three layers report Synced is a real problem.
 
@@ -169,29 +206,52 @@ kubectl -n gateway describe certificate wildcard-lilalala
 Production Let's Encrypt allows 50 certificates per registered domain per week, and
 a misconfigured DNS-01 solver burns through that quickly.
 
-### 9. Point at main
+### 9. Point at the `deployed` tag
 
-Once the restructure is merged:
+Once you are done rebuilding, remove the branch override so `target_revision`
+falls back to its default:
 
 ```hcl
-target_revision = "main"
+# target_revision = "chore/gitops-restructure"
 ```
 
-then `task bootstrap:apply` again. That is the only reason to re-run it.
+then `task bootstrap:apply` again. That is the only reason to re-run it. Changing
+`targetRevision` is an in-place update to the Helm release, so `prevent_destroy`
+does not block it.
+
+From then on, deploying is moving the tag, not re-running OpenTofu.
 
 ## Teardown
 
-Deleting the root Application cascades to the entire cluster — it carries
-`resources-finalizer.argocd.argoproj.io` deliberately, so teardown is one explicit
-action rather than a surprise.
+`tofu destroy` **does not work here, and that is deliberate.**
+`helm_release.root_application` carries `lifecycle { prevent_destroy = true }`, so
+OpenTofu refuses at plan time rather than partially executing. The root Application
+carries `finalizers: [resources-finalizer.argocd.argoproj.io]`, which Argo CD
+honours by cascade-deleting every descendant Application and therefore every
+Deployment, StatefulSet, PVC and Secret in the cluster — in about a minute, printing
+a green `Destroy complete!`.
+
+Two supported teardowns. Pick by whether the workloads should survive.
 
 ```sh
-# This deletes EVERYTHING Argo manages, including PVCs.
+# A. Remove Argo CD, KEEP the workloads. Strip the finalizer first, so deleting
+#    the Application orphans its children instead of collecting them.
+kubectl -n argocd patch application root --type merge \
+  -p '{"metadata":{"finalizers":null}}'
+kubectl -n argocd delete application root
+
+# B. Delete EVERYTHING Argo manages, including PVCs. Finalizer left in place.
 kubectl -n argocd delete application root
 ```
 
-PVs backing the media library use `persistentVolumeReclaimPolicy: Retain`, so the
-NFS data survives. iSCSI volumes use `Delete` and will not.
+Either way, PVs backing the media library and the local backup share use
+`persistentVolumeReclaimPolicy: Retain`, so the NFS data survives. iSCSI volumes on
+the `iscsi` class use `Delete` and will not; `iscsi-retain` exists for the ones that
+must.
+
+Rebuilding the root Application is cheap — `tofu apply` recreates it and Argo CD
+re-adopts the existing objects. It is the destroy that is not. The full reasoning is
+in the comment block above the `lifecycle` stanza in `bootstrap/main.tf`.
 
 ## A note on state
 

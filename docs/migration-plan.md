@@ -1,5 +1,9 @@
 # Migration plan
 
+> **This file is deleted when the cutover is complete.** It describes a one-shot
+> transition, not how the cluster works. Anything in it worth keeping afterwards
+> belongs in `docs/` proper or in a manifest comment.
+
 This repo is a **rewrite**, not a diff. Pointing the running Argo CD at it and
 letting it sync would be an outage. This document is the ordered, gated path from
 what is running today to what is in `main`.
@@ -60,8 +64,11 @@ kubectl -n argo get application all-apps \
 [Phase 6](#phase-6-decommission), deliberately, after the new hierarchy owns
 everything.
 
-Merging the PR to `main` is therefore **safe on its own** — nothing consumes
-`main` until Phase 1.
+Merging the PR to `main` is therefore **safe on its own**. Nothing consumes `main`:
+the old `all-apps` is pinned to `c2dbd35`, and every Application in the new
+hierarchy tracks the `deployed` tag rather than a branch. The two independent
+reasons a merge cannot reach the cluster are worth knowing separately, because
+Phase 6 removes the first one and the second is permanent.
 
 ---
 
@@ -198,7 +205,18 @@ Do all of these before Phase 1. None of them change running workloads.
       currently in the cluster to a git-ignored file for copy-paste. Then
       `task secrets:seal`.
 - [ ] `bash scripts/leak-check.sh` passes.
-- [ ] `bash scripts/render-check.sh` passes.
+- [ ] `bash scripts/secrets-check.sh` reports no missing or unsealed file. It warns
+      rather than failing by default, so read the output — a file a KSOPS generator
+      names but which does not exist stalls a whole layer at its first wave.
+- [ ] `bash scripts/placeholder-check.sh` passes. The `REPLACE-ME` bucket name is
+      allowlisted with a reason in `scripts/placeholder-allowlist.tsv`; the point of
+      this run is that **nothing else** is.
+- [ ] `task render:check` passes — that is the gate. `bash scripts/render-check.sh`
+      is the read-only diagnostic to reach for when it does not, because it names
+      the directory that is broken.
+- [ ] **The `deployed` tag exists and is pushed.** Every Application in
+      `clusters/homelab/` tracks it, and Phase 1 fails at the first reconcile
+      without it. `docs/bootstrap.md`, step 0.
 - [ ] `bash scripts/dryrun-server.sh` shows only the known-benign failures
       (namespaces this change itself creates: `argocd`, `gateway`,
       `backup-verify`, `cnpg-system`).
@@ -220,8 +238,12 @@ has passed its gate.
 
 ### Phase 0 — merge, change nothing
 
-Merge the PR to `main`. Nothing reads `main` yet, because `all-apps` is pinned to
-`c2dbd35`. This is deliberately a no-op, so that later phases are `git`-clean.
+Merge the PR to `main`. Nothing reads it: `all-apps` is pinned to `c2dbd35`, and
+the new hierarchy resolves the `deployed` tag. This is deliberately a no-op, so
+later phases are `git`-clean.
+
+Point the `deployed` tag at the merge commit before Phase 1, or Phase 1 brings up
+an Argo CD that resolves an older tree than the one you just reviewed.
 
 **Gate:** `kubectl -n argo get applications` — everything still `Synced`/`Healthy`.
 
@@ -265,7 +287,37 @@ one owns nothing and syncs nothing. That is the intended state.
 **Gate:** `argocd` pods Ready; the new UI lists the Applications as
 `OutOfSync`/`Missing`; the old Argo CD is untouched; no workload restarted.
 
-**Rollback:** `tofu destroy`. The old Argo CD never stopped owning anything.
+**Rollback — and it is not `tofu destroy`.**
+`helm_release.root_application` carries `lifecycle { prevent_destroy = true }`, so
+OpenTofu refuses the destroy at plan time. That is not an obstacle to work around:
+the root Application carries
+`finalizers: [resources-finalizer.argocd.argoproj.io]`, so destroying it
+cascade-deletes every descendant Application and therefore every Deployment,
+StatefulSet, PVC and Secret in the cluster — in about a minute, printing a green
+`Destroy complete!`. `prevent_destroy` also protects
+`kubernetes_namespace_v1.argocd`, whose deletion would reach the same object by
+another route.
+
+At this phase the workloads belong to the **old** Argo CD, so the rollback is to
+remove the new controller without letting it collect anything:
+
+```sh
+# 1. Strip the finalizer FIRST. Without this, step 2 cascades to the cluster.
+kubectl -n argocd patch application root --type merge \
+  -p '{"metadata":{"finalizers":null}}'
+
+# 2. Now the Application can go, orphaning its children.
+kubectl -n argocd delete application root
+
+# 3. Remove the rest of the new install.
+kubectl delete namespace argocd
+```
+
+The full reasoning and both supported teardown paths are in the comment block above
+the `lifecycle` stanza in `bootstrap/main.tf`. Read it before improvising.
+
+Re-applying is cheap: `tofu apply` recreates the Application and Argo CD re-adopts
+the existing objects. It is the destroy that is not.
 
 ### Phase 2 — infrastructure, except the Gateway
 
@@ -553,8 +605,7 @@ validating against the old schema.
 Note the kernel is `5.10.160-rockchip` — a vendor kernel for the RK1 modules, not
 Ubuntu's. A release upgrade may or may not carry it forward, and Cilium's eBPF
 features depend on it. **Do one node and live with it for a week** before doing
-the rest. This is also the moment where [Talos](./talos-migration.md) becomes the
-more attractive option.
+the rest.
 
 ### 3. Cilium 1.16.3 → 1.20
 
@@ -746,9 +797,10 @@ certificate outage.
 - The `immich` Application reports `SYNC: Unknown` on the old Argo CD. Worth
   understanding before Phase 5 rather than during it.
 - qBittorrent reports `connection_status: firewalled`. The router is not
-  forwarding TCP/UDP 50000 to `qbittorrent-seed` (192.168.2.1). Downloads work;
-  seeding is degraded. This is a **router** change, and it will need redoing after
-  the house move — see [house-move.md](./runbooks/house-move.md).
+  forwarding TCP/UDP 50000 to `qbittorrent-peer` (192.168.2.1), and may also be
+  missing a static route for `192.168.2.0/24`. Downloads work; seeding is degraded.
+  This is a **router** change, and it will need redoing after any move — see
+  [arr-qbittorrent.md](./runbooks/arr-qbittorrent.md).
 - `democratic-csi` runs `democraticcsi/democratic-csi:latest`. A CSI driver on a
   floating tag can break volume attachment on any pod restart.
 - `/controller` on the nodes is at **83% disk use** (29GB eMMC). Not urgent, but
@@ -766,7 +818,7 @@ one".
 | Phase | Rollback | Recovers to |
 |---|---|---|
 | 0 | revert the merge | identical |
-| 1 | `tofu destroy` | identical |
+| 1 | strip the finalizer, then delete the root Application — **not** `tofu destroy`, see [Phase 1](#phase-1--argo-cd-side-by-side) | identical |
 | 2 | sync the old Application for that component | identical |
 | 3 | delete Gateway, restore nginx Service, scale up | identical — Ingress objects were never deleted |
 | 4 | scale old CNPG operator back up; re-sync old apps | identical |
@@ -783,14 +835,29 @@ Two irreversible points, both flagged where they occur:
    rollback path. Do not start Phase 6 to tidy up; start it because the new setup
    has been carrying real traffic for days.
 
-For anything Argo-managed, the general rollback is to pin the Application to the
-last known-good commit rather than to revert files:
+### Rolling back anything Argo-managed, after cutover
+
+**Move the `deployed` tag back.** That is the whole mechanism.
 
 ```sh
-kubectl -n argocd patch application <app> --type merge \
-  -p '{"spec":{"source":{"targetRevision":"<sha>"}}}'
+git tag --force deployed <last-good-sha>
+git push --force origin refs/tags/deployed
+argocd app get root --hard-refresh          # re-resolve the tag now, not in 3 min
 ```
 
-This is also what CD automation does on a failed health gate — see
-`.github/workflows/cd.yaml`, which pins, then opens a revert PR rather than
-force-pushing a fix.
+`.github/workflows/cd.yaml` does exactly this automatically when the health gate
+fails, then verifies the cluster recovered and files an **issue**. It does not open
+a revert PR — `main` is what has been reviewed, `deployed` is what has been
+verified, and an auto-revert erases that distinction while adding a second thing to
+untangle.
+
+Do not roll back by patching `targetRevision` to a SHA. Every Application here runs
+`automated.selfHeal: true`, which re-reads `spec.source.targetRevision` on every
+reconcile — and the Application object is itself managed by `root`/`layer-*` with
+selfHeal, so the patch reads as drift and is reverted within minutes. The full table
+of rollback designs that lose to selfHeal, and why, is
+[ADR 0001](./adr/0001-deploy-by-moving-a-git-tag.md).
+
+The `--hard-refresh` is not optional: Argo caches the commit it resolved for
+`deployed`, so without it the sync gates on the manifests from *before* the tag
+moved and passes.

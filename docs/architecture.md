@@ -57,16 +57,14 @@ Three reasons, in order of how much they matter.
 **You can see what will actually change.** With Argo rendering at sync time, a
 diff tells you the overlay changed, not what the cluster will receive. A one-line
 edit to a `labels:` block can rewrite two hundred objects. With rendered
-manifests the PR diff *is* the change — which is what makes the
-`kube-prometheus-stack` 56 → 88 jump reviewable at all.
+manifests the PR diff *is* the change.
 
 **It shrinks what `--enable-exec` applies to.** KSOPS is a kustomize *exec*
 plugin, so using it means setting
 `kustomize.buildOptions: --enable-alpha-plugins --enable-exec` on the repo-server.
-That is global: every kustomization Argo builds may then execute a binary. Since
-only the three `*/secrets` directories need it, and everything else is
-pre-rendered, the repo-server now builds 3 directories instead of 23. Same
-setting, an eighth of the exposure.
+That is global: every kustomization Argo builds may then execute a binary.
+Pre-rendering everything else reduces that from every kustomization in the repo to
+the three `*/secrets` directories that genuinely need it.
 
 **One render, in a place you can watch.** Rendering happens once in CI instead of
 repeatedly on the repo-server, and remote bases (the Gateway API CRD bundle) get
@@ -78,7 +76,8 @@ vendored, so a sync no longer depends on github.com being reachable.
 *decrypts*. The output would be plaintext Secrets in git — the exact failure this
 repo exists to prevent. `render-deploy.sh` hard-skips any `*/secrets` path and
 that is not a configuration option. Those three Applications keep pointing at
-their source directory and keep using the plugin.
+their source directory and keep using the plugin. What covers them instead is
+`scripts/secrets-check.sh` — see [secrets.md](secrets.md).
 
 **Upstream Helm charts.** They stay as versioned `chart:` references. A chart is
 not this repo's manifest; Renovate tracks its version, and an upgrade is
@@ -89,15 +88,12 @@ be dropped into the same `deploy/` layout without changing anything else.
 
 ### The renderer is pinned
 
-Checked-in generated output is only meaningful if the generator is deterministic.
-Two kustomize versions can format identical input differently, which surfaces as
-a staleness failure unrelated to anyone's change.
-
-`render-deploy.sh` uses `kubectl kustomize` — one binary, already required — and
-CI pins `KUBECTL_VERSION`. The script warns if your local kubectl embeds a
-different kustomize, because a formatting-only diff in `deploy/` is almost always
-that. This is unrelated to `K8S_VERSION`, which tracks the cluster because it
-validates against the API schema; the renderer never contacts the cluster.
+Checked-in generated output is only meaningful if the generator is deterministic:
+two kustomize versions can format identical input differently, which surfaces as
+a staleness failure unrelated to anyone's change. The mechanism, the pinned
+version and the reason `--check` treats a mismatch as fatal are in the header of
+`scripts/render-deploy.sh`, which is the single source of truth for it. Do not
+restate the version here — that is how it goes stale.
 
 ### Working with it
 
@@ -110,11 +106,9 @@ The pre-commit hook regenerates rather than only complaining, so forgetting mean
 a staged file, not a lecture. CI runs `--check`, so skipping the hook cannot merge
 a stale `deploy/`.
 
-That separation is what the old repo lacked. Previously a single Application
-pointed at `kubernetes/applications` with `directory.recurse: true`, so Argo
-applied every YAML in the tree in one undifferentiated blob — Applications,
-Deployments, Secrets and namespaces all at once, with no ordering beyond a few
-sync-wave annotations and no way to sync or roll back one app.
+`scripts/render-check.sh` renders the same tree read-only and reports which
+directory is broken. It is a diagnostic, not a gate — `render-deploy.sh --check`
+is the gate.
 
 ### Why layers, and why in this order
 
@@ -130,19 +124,33 @@ means a cold start converges on its own rather than needing manual sync ordering
 
 ### AppProjects
 
-Each layer has an `AppProject` that bounds what it may do:
+Each layer has an `AppProject` that bounds what it may do. **No project wildcards
+cluster-scoped resources**, including the most privileged one:
 
-- **infrastructure** — the only project allowed cluster-scoped resources
-  (`clusterResourceWhitelist: "*"`). CRDs, ClusterRoles and webhooks live here.
-- **platform** — an *enumerated* list of cluster-scoped kinds. A chart that
-  suddenly wants a new `MutatingWebhookConfiguration` fails to sync instead of
-  silently gaining cluster-wide reach.
+- **infrastructure** — an *enumerated* `clusterResourceWhitelist`: Namespace,
+  PersistentVolume, ClusterIssuer, the two Cilium types, CRDs, ClusterRole(Binding),
+  CSIDriver, StorageClass, VolumeSnapshotClass, GatewayClass and the two webhook
+  kinds. Every entry is traceable to something this layer installs.
+- **platform** — an enumerated list, shorter.
 - **apps** — namespaced only, and restricted to a fixed list of destination
   namespaces. An application needing a cluster-scoped resource is a design smell
   that should be promoted to `platform`, not accommodated by widening this.
 
-Previously everything used the `default` project, which permits everything
-everywhere.
+Enumerating even the layer that owns the CNI and every CRD is the point:
+`clusterResourceWhitelist` is the only mechanism that reports "this chart started
+creating a kind of object it never used to". With a wildcard, a chart upgrade that
+begins shipping a `ValidatingAdmissionPolicy` or an `APIService` installs it
+silently inside a 40k-line rendered diff. With the list, the sync fails and names
+the kind it wanted.
+
+Consequence to know before writing a manifest: a kind that is not on the list
+cannot be created by that layer at all. `CiliumClusterwideNetworkPolicy` is the
+live example — it is why `infrastructure/network-policies/` uses namespaced
+`CiliumNetworkPolicy`. Widening a list is a deliberate edit with the reason on the
+same line, not a workaround.
+
+The alternative, which is what ran before, is the `default` project: everything
+permitted everywhere.
 
 ## Sync waves
 
@@ -161,6 +169,7 @@ Within `infrastructure`:
 | 15 | gateway | The shared entrypoint |
 | 20 | democratic-csi | StorageClasses before any PVC |
 | 25 | nfs-storage | |
+| 30 | network-policies | Last: least urgent, most likely to be wrong, so a failure blocks nothing else |
 
 `platform`: secrets (-25) → CloudNativePG (0) → monitoring (10) → Keycloak (20).
 `apps`: secrets (-25) → everything else in parallel (0).
@@ -179,20 +188,27 @@ sources:
   - repoURL: https://helm.cilium.io
     chart: cilium
     # renovate: datasource=helm registryUrl=https://helm.cilium.io depName=cilium
-    targetRevision: 1.20.0
+    targetRevision: 1.16.3
     helm:
       valueFiles:
         - $values/infrastructure/cilium/values.yaml
   - repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     ref: values
 ```
 
+Two things to read there.
+
 The chart version sits next to its `# renovate:` comment, and the values live in a
-real file that can be diffed and commented. Previously values were inline YAML
-strings inside the Application, so a values change and a version change were
-indistinguishable in a diff, and the values were not syntax-highlighted or
-lintable.
+real file that can be diffed and commented. The alternative — inline YAML strings
+inside the Application — makes a values change and a version change
+indistinguishable in a diff, and the values are neither highlighted nor lintable.
+
+The git source tracks **`deployed`**, a tag, not a branch. Every `Application` in
+`clusters/homelab/` does, including the `ref: values` sources above: a values file
+resolved from a branch would move under a chart version that was gated against a
+different one. Why a tag rather than a branch, and how deploy and rollback work,
+is [ADR 0001](adr/0001-deploy-by-moving-a-git-tag.md).
 
 Where a chart needs extra manifests it does not provide (an HTTPRoute, a
 database), a third source with a `path` is added — see
@@ -202,10 +218,10 @@ database), a third source with a `path` is added — see
 
 - **BMC**: Turing Pi 2
 - **Nodes**: 4× RK1, 32GB each, arm64
-- **Kubernetes**: kubeadm on Ubuntu (the old README claimed Talos; the Ansible
-  inventory and the `10-kubeadm.conf` notes say otherwise — it is kubeadm)
+- **Kubernetes**: kubeadm on Ubuntu. Upgrades are `ansible/kube-upgrade.yml`, one
+  minor at a time; OS patching is `ansible/os-upgrade.yml`.
 - **Storage**: TrueNAS at `192.168.1.228`; iSCSI via democratic-csi for
-  block volumes, NFS for the media library
+  block volumes, NFS for the media library and the local backup tier
 - **CNI**: Cilium with kube-proxy replacement, L2 announcements, WireGuard
   encryption, and Gateway API
 
@@ -228,17 +244,30 @@ Everything else, including Argo CD's own HTTPRoute, is managed by Argo CD.
 
 ## Site-specific values
 
-Four places contain values tied to the current house. They are flagged with
-`SITE-SPECIFIC` comments:
+Values tied to the current house. Every occurrence is flagged with a
+`SITE-SPECIFIC` comment, so `grep -rn SITE-SPECIFIC` is the authoritative list and
+this table is the map.
 
-| File | Value |
-|---|---|
-| `infrastructure/gateway/gateway.yaml` | **the public WAN IP** — the only copy |
-| `infrastructure/cilium/ip-pools.yaml` | LoadBalancer address ranges |
-| `infrastructure/cilium/values.yaml` | `k8sServiceHost` (API VIP) |
-| `infrastructure/nfs-storage/nfs-volumes.yaml` | TrueNAS address |
+| File | Value | Occurrences |
+|---|---|---|
+| `infrastructure/gateway/gateway.yaml` | the public WAN IP | 1 |
+| `infrastructure/cilium/ip-pools.yaml` | both LoadBalancer pool ranges | 2 |
+| `infrastructure/cilium/values.yaml` | `k8sServiceHost` (API VIP) | 1 |
+| `infrastructure/nfs-storage/nfs-volumes.yaml` | TrueNAS address | 1 |
+| `infrastructure/nfs-storage/backup-volume.yaml` | TrueNAS address — **twice**, one PV per namespace | 2 |
 
-Plus `infrastructure/cilium/l2-announcement-policy.yaml`, whose `interfaces`
-regex must match the node NIC names.
+`infrastructure/cilium/l2-announcement-policy.yaml` carries no `SITE-SPECIFIC`
+marker and still needs checking: its `interfaces` regex must match the node NIC
+names, which change with a node replacement rather than with a subnet.
 
-See [networking.md](networking.md) for the move checklist.
+Outside the manifests: `bootstrap/terraform.tfvars` (`api_server_ip`),
+`ansible/inventory.yml` (node addresses and `api_vip`), and
+`infrastructure/secrets/democratic-csi-iscsi.sops.yaml` — three occurrences of the
+NAS address (API host, SSH host, iSCSI portal), inside an encrypted file, which is
+why the NAS address is not a one-file change either.
+
+**Editing any of these means re-rendering.** `deploy/` is what Argo reads, so an
+edited source with a stale `deploy/` changes nothing in the cluster and fails CI.
+`task render`.
+
+See [networking.md](networking.md) for the ordered move checklist.
