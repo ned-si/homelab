@@ -6,6 +6,11 @@
 # These are the same checks CI runs, so a green pre-commit means a green CI.
 # Run against everything with: pre-commit run --all-files
 #
+# ONE EXCEPTION to "the same checks", and it is deliberate: `lint` in ci.yaml
+# sets SKIP=render-deploy. That hook REGENERATES deploy/, and CI has a dedicated
+# job (`rendered-manifests`) that runs the same script with `--check`. Running
+# both meant rendering the whole tree twice per CI run for one answer.
+#
 # NOTE ON PINS: each `rev` is pinned and tracked by Renovate's native
 # `pre-commit` manager, which is why these need no `# renovate:` comment.
 default_install_hook_types: [pre-commit, commit-msg]
@@ -14,7 +19,8 @@ default_install_hook_types: [pre-commit, commit-msg]
 # that REWRITES files is excluded from it. A formatter that "fixes" generated
 # YAML puts it permanently out of sync with its source, so `render-deploy.sh
 # --check` would fail forever and the only way out would be to disable the check.
-# Hooks that merely READ deploy/ (check-yaml, gitleaks, leak-check) still apply.
+# Hooks that merely READ deploy/ (check-yaml, gitleaks, leak-check,
+# placeholder-check) still apply.
 repos:
   # ---------------------------------------------------------------------------
   # Hygiene
@@ -56,6 +62,11 @@ repos:
       #
       # git tracks the executable bit, so a local `chmod +x` that is never staged
       # fixes it for you and for nobody else.
+      #
+      # It is not only shell scripts: scripts/renovate-dryrun.js carries a
+      # `#!/usr/bin/env node` line and was committed 644, which failed this hook,
+      # which failed `lint`, which failed `ci-passed`. Verify the whole tree with
+      # `git ls-files -s scripts/`.
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
         # The template legitimately shows the shape of a key with a placeholder.
@@ -89,6 +100,18 @@ repos:
     hooks:
       - id: shellcheck
 
+  # THE ONLY OpenTofu FORMAT CHECK. `task lint:tofu` invokes this hook rather
+  # than running its own `tofu fmt -check`, because two commands meant two
+  # behaviours for one rule: the hook REWRITES and fails (the formatter
+  # convention this repo already uses for trailing-whitespace and
+  # end-of-file-fixer), while the task only reported. A file could be reformatted
+  # by a commit and still be flagged by `task lint`.
+  #
+  # The hook picks its binary via pre-commit-terraform's own resolution order:
+  # PCT_TFPATH, then `terraform`, then `tofu`. That is why it is called
+  # terraform_fmt in an OpenTofu repo -- `fmt` has not diverged between the two,
+  # so the bytes are the same either way, and the GitHub runner has terraform
+  # while this laptop has tofu.
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.100.0
     hooks:
@@ -96,8 +119,12 @@ repos:
         files: ^bootstrap/
 
   # ---------------------------------------------------------------------------
-  # Conventional commits. Enforced so the changelog and the PR titles stay
-  # machine-readable.
+  # Conventional commits.
+  #
+  # THIS `args:` LIST IS THE ONLY LIST OF ALLOWED TYPES. The `commit-messages`
+  # job in ci.yaml used to carry a second copy as a regex, and the two had
+  # already drifted; that job now runs this very hook, once per commit in the PR.
+  # Add a type here and nowhere else.
   # ---------------------------------------------------------------------------
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.2.0
@@ -130,6 +157,29 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # A placeholder is not a syntax error, so nothing else here catches it:
+      # `homelab-backups-REPLACE-ME` is well-formed YAML that validates against
+      # the API schema and renders deterministically. Deferrals live in
+      # scripts/placeholder-allowlist.tsv with a reason each.
+      - id: placeholder-check
+        name: no unfilled placeholders in anything Argo syncs
+        entry: ./scripts/placeholder-check.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+
+      # WARNS, does not block -- the *.sops.yaml files do not exist yet and
+      # creating them is Phase 1 work. `verbose: true` is load-bearing: pre-commit
+      # hides the output of a hook that exits 0, and a warning nobody sees is not
+      # a warning. Make it fatal with SECRETS_CHECK_STRICT=1.
+      - id: secrets-check
+        name: KSOPS generators reference files that exist (advisory)
+        entry: ./scripts/secrets-check.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
       - id: renovate-annotations
         name: every pinned version has a working renovate annotation
         entry: node scripts/renovate-dryrun.js
@@ -137,18 +187,17 @@ repos:
         pass_filenames: false
         files: '(\.ya?ml$|\.tf$|Taskfile\.yml$|renovate\.json5$)'
 
-      - id: kustomize-renders
-        name: every kustomization renders
-        entry: ./scripts/render-check.sh
-        language: script
-        pass_filenames: false
-        files: '(kustomization\.yaml$|\.ya?ml$)'
-
       # Regenerates deploy/ rather than only checking it, so the answer to "you
       # forgot to re-render" is a staged file instead of an error message. If it
       # changes anything, pre-commit fails and you `git add` and commit again --
-      # the same flow as any formatter. CI runs the same script with --check, so
-      # skipping the hook cannot get a stale deploy/ merged.
+      # the same flow as any formatter. CI runs the same script with --check in
+      # the `rendered-manifests` job, so skipping the hook cannot get a stale
+      # deploy/ merged.
+      #
+      # This subsumes what a separate render-check hook did. Both rendered the
+      # whole tree; this one also writes the result and diffs it, so a
+      # kustomization that fails to render fails here too. Three full renders per
+      # push became one.
       - id: render-deploy
         name: deploy/ matches its sources
         entry: ./scripts/render-deploy.sh

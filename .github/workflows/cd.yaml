@@ -1,51 +1,108 @@
 ---
-# CD: progressive, health-gated rollout with automatic revert.
+# CD: deploy by moving a git tag; roll back by moving it back.
 #
 # ###########################################################################
-# # READ THIS BEFORE EXPECTING BLUE-GREEN.
+# # HOW A DEPLOY HAPPENS HERE
 # #
-# # This workflow does NOT do blue-green deployment, and it cannot, for a
-# # structural reason rather than a missing feature:
+# # Every Argo CD Application in this repo -- root, the three layer
+# # app-of-apps, and every leaf -- tracks `targetRevision: deployed`, a git tag.
+# # So the cluster's desired state is "whatever commit that tag points at", and
+# # this workflow has exactly one lever:
 # #
-# #   Almost every workload here holds a ReadWriteOnce volume -- Plex, Immich,
-# #   Paperless, Seafile, Syncthing, every *arr app, qBittorrent. A "green"
-# #   replica cannot mount the volume the "blue" replica is holding, so there is
-# #   no second copy to shift traffic to. Every one of them is deliberately
-# #   `strategy: Recreate` for exactly this reason.
+# #   deploy    move `deployed` forward, refresh, sync each layer, gate on health
+# #   roll back move `deployed` back, refresh, wait, VERIFY the recovery
 # #
-# # What this workflow actually provides, which is the useful part of what
-# # blue-green buys you:
+# # WHY A TAG AND NOT `main`. Every Application runs
+# # `automated.selfHeal: true`. selfHeal re-reads `spec.source.targetRevision`
+# # on every reconcile, so a rollback expressed as
+# # `argocd app sync --revision <good-sha>` is undone within minutes by Argo
+# # re-applying `main` -- the bad commit. Expressing it as
+# # `argocd app set --revision` fails for a second reason: these Application
+# # objects are themselves managed by root/layer-* with selfHeal, so the edit
+# # reads as drift and is reverted. Any rollback that fights the sync policy
+# # loses. Moving a tag works with it.
 # #
-# #   1. a rendered diff on the PR, before anything is applied
-# #   2. layer-by-layer sync (infrastructure -> platform -> apps) so a broken
-# #      change cannot take out the layers below it
-# #   3. a HEALTH GATE after each layer -- if it does not converge, the rollout
-# #      stops there rather than continuing
-# #   4. AUTOMATIC ROLLBACK of the failed Application to the last known-good
-# #      revision
-# #   5. an AUTOMATIC REVERT PR so the repo stops disagreeing with the cluster
+# # WHAT THIS IS NOT: blue-green. Almost every workload here holds a
+# # ReadWriteOnce volume -- Plex, Immich, Paperless, Seafile, Syncthing, every
+# # *arr app, qBittorrent -- so a "green" replica cannot mount the volume the
+# # "blue" replica holds. They are all deliberately `strategy: Recreate`. If a
+# # genuinely stateless multi-replica service ever lands here, Argo Rollouts
+# # gives it real canary; nothing in this cluster qualifies today, so installing
+# # Rollouts now would be an unused dependency.
 # #
-# # If you later add a genuinely stateless, multi-replica service, Argo Rollouts
-# # gives it real canary/blue-green. Nothing in this cluster qualifies today, so
-# # installing Rollouts now would be an unused dependency.
-# # See docs/deployment.md.
+# # See docs/adr/0001-deploy-by-moving-a-git-tag.md for the full rationale and
+# # the alternatives that were rejected.
 # ###########################################################################
 #
-# RUNNER REQUIREMENT: every job here needs to reach the cluster API, so they run
-# on a self-hosted runner inside the LAN (or one joined to a tailnet). Until that
-# runner exists these jobs are skipped, not failed -- see the `guard` job.
+# RUNNER REQUIREMENT: the deploy job needs to reach the cluster API, so it runs
+# on a self-hosted runner inside the LAN (or one joined to a tailnet). Until
+# that runner exists, the tag is never moved and the cluster stays on the last
+# verified commit -- see the `guard` job for why that is the safe direction.
+#
+# ###########################################################################
+# # EVERYTHING THIS WORKFLOW NEEDS CONFIGURED IN GITHUB
+# #
+# # Repository VARIABLES (Settings -> Secrets and variables -> Actions ->
+# # Variables). Not secret; readable in logs.
+# #
+# #   CLUSTER_RUNNER_READY   The master switch. Set to the exact string "true"
+# #                          only once a self-hosted runner can reach the
+# #                          cluster API and Argo CD. Anything else (including
+# #                          unset, which is the state today) makes `guard`
+# #                          report enabled=false and BOTH the diff and deploy
+# #                          jobs skip -- so no deploy ever happens without a
+# #                          health gate behind it. Flipping this is the single
+# #                          act that arms CD; read the `deploy` job's `if:`
+# #                          before you do.
+# #
+# # Repository SECRETS (same page -> Secrets).
+# #
+# #   ARGOCD_SERVER          host[:port] of the Argo CD API, e.g.
+# #                          argo.lilalala.com:443. Consumed by the `argocd`
+# #                          CLI straight from the environment, which is why no
+# #                          step passes `--server`. A LAN-internal name is
+# #                          fine and preferred: nothing outside the house
+# #                          needs to resolve it.
+# #   ARGOCD_AUTH_TOKEN      An Argo CD API token, also read from the
+# #                          environment by the CLI. It must be able to get,
+# #                          sync and hard-refresh every Application in every
+# #                          project, so in practice it is an admin-equivalent
+# #                          token. Mint it for a dedicated local account
+# #                          (`accounts.ci: apiKey` in argocd-cm) rather than
+# #                          reusing `admin`, so it can be revoked without
+# #                          locking the operator out. THIS TOKEN IS WHY the
+# #                          `diff` job refuses fork pull requests.
+# #   GITHUB_TOKEN           Not configured by hand -- GitHub injects it. Used
+# #                          only by "Open an issue", which is why `deploy`
+# #                          raises `issues: write`. `contents: write` on the
+# #                          same job is what allows the `deployed` tag to be
+# #                          force-pushed, forward and back.
+# #
+# # ENVIRONMENT: `homelab` must exist (Settings -> Environments). It is the
+# # place to hang a required reviewer or a branch restriction if the ref check
+# # on the `deploy` job is ever not enough.
+# #
+# # TAG PROTECTION: a rule matching `deployed` that forbids force-pushes breaks
+# # deploy AND rollback. See docs/adr/0001-deploy-by-moving-a-git-tag.md.
+# ###########################################################################
 name: cd
 
 on:
   push:
     branches: [main]
     paths:
+      # `deploy/` is included because it is what the Applications actually
+      # point at: a change confined to it (a re-render) IS the change the
+      # cluster receives. Leaving it out meant a rendered-only commit deployed
+      # itself silently on Argo's next poll, with no health gate in front of it.
+      - 'deploy/**'
       - 'clusters/**'
       - 'infrastructure/**'
       - 'platform/**'
       - 'apps/**'
   pull_request:
     paths:
+      - 'deploy/**'
       - 'clusters/**'
       - 'infrastructure/**'
       - 'platform/**'
@@ -58,75 +115,142 @@ on:
         type: choice
         options: ["all", "infrastructure", "platform", "apps"]
         default: "all"
+      promote:
+        description: >-
+          Move the `deployed` tag to this commit. Leave unchecked to re-sync
+          what is already deployed without promoting anything.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-# Never let two rollouts overlap. `cancel-in-progress: false` matters: cancelling
-# a sync halfway through leaves the cluster in a partially-applied state.
+# Two deploys must never interleave: they would race on the same tag and on the
+# same Applications. `cancel-in-progress: false` matters twice over -- cancelling
+# a deploy halfway leaves the cluster partially applied, and cancelling a
+# ROLLBACK leaves it partially applied with no one coming back to finish.
 concurrency:
-  group: cd-cluster
+  group: cd
   cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # The one mutable ref this whole design turns on.
+  DEPLOY_TAG: deployed
 
 jobs:
   # ---------------------------------------------------------------------------
   guard:
-    name: cluster reachable?
+    name: cluster runner ready?
     runs-on: ubuntu-latest
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
     steps:
       - id: check
-        # `vars.CLUSTER_RUNNER_READY` is a repository variable you set to "true"
-        # once a self-hosted runner exists. Until then CD is inert, so merging to
-        # main never fails on infrastructure that is not plugged in yet.
+        env:
+          # A repository variable, set to "true" once a self-hosted runner can
+          # reach the cluster.
+          READY: ${{ vars.CLUSTER_RUNNER_READY }}
         run: |
-          if [ "${{ vars.CLUSTER_RUNNER_READY }}" = "true" ]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::CD skipped: set repository variable CLUSTER_RUNNER_READY=true once a self-hosted runner can reach the cluster."
+          set -euo pipefail
+          if [ "${READY:-}" = "true" ]; then
+            echo "enabled=true" >>"$GITHUB_OUTPUT"
+            exit 0
           fi
+          echo "enabled=false" >>"$GITHUB_OUTPUT"
+          # THE FAIL-SAFE DIRECTION, and it is deliberate: with no runner there
+          # is no health gate, so instead of deploying blind, nothing is
+          # deployed at all. The tag is not moved and the cluster keeps running
+          # the last commit that passed a gate.
+          echo "::notice::CD inert: CLUSTER_RUNNER_READY is not \"true\", so the ${DEPLOY_TAG} tag was NOT moved."
+          echo "::notice::The cluster stays on the last verified commit. No unverified deploys. Set the variable once a runner can reach the cluster."
 
   # ---------------------------------------------------------------------------
-  # PR: show exactly what would change. This is the review gate.
+  # PR: show what moving the tag to this commit would change. Advisory only.
   # ---------------------------------------------------------------------------
   diff:
     name: diff against live cluster
     needs: guard
-    if: needs.guard.outputs.enabled == 'true' && github.event_name == 'pull_request'
+    # SAME-REPOSITORY PULL REQUESTS ONLY.
+    #
+    # This job runs on a machine inside the house, holding an Argo CD admin
+    # token. A pull request from a fork is untrusted code proposed by a
+    # stranger; running anything on its behalf on that runner exposes the LAN
+    # and the token. GitHub will not hand fork PRs the secrets, so the job would
+    # fail anyway -- but it must not be SCHEDULED there in the first place.
+    #
+    # A fork PR therefore gets no rendered diff. That is the correct trade for a
+    # single-operator repo: the diff is a convenience, the LAN is not.
+    if: >-
+      needs.guard.outputs.enabled == 'true'
+      && github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, homelab]
     permissions:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v5
-
+      # Deliberately no `actions/checkout`: nothing here reads the repository.
+      # `argocd app diff` renders on the repo-server, so the PR's code never
+      # needs to exist on the runner's disk.
       - name: argocd login
         env:
           ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
         run: |
+          set -euo pipefail
           argocd version --client
           argocd app list --grpc-web >/dev/null
 
       - name: Collect diffs
-        id: d
         env:
           ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
           ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
           REV: ${{ github.event.pull_request.head.sha }}
+          REPO_URL: https://github.com/ned-si/homelab.git
         run: |
-          set -uo pipefail
+          set -euo pipefail
           : >diff.txt
-          for app in $(argocd app list -o name --grpc-web); do
-            # `--revision` renders the PR's commit rather than what is deployed.
-            out=$(argocd app diff "$app" --revision "$REV" --grpc-web 2>&1) || true
+
+          mapfile -t apps < <(argocd app list -o name --grpc-web)
+
+          for app in "${apps[@]}"; do
+            json=$(argocd app get "$app" -o json --grpc-web)
+
+            # Multi-source Applications need the revision targeted at the git
+            # sources by POSITION (1-based). Passing a bare `--revision` would
+            # hand a commit SHA to the chart source, where a chart version is
+            # expected, and the diff fails with a useless error.
+            args=()
+            while read -r pos; do
+              args+=(--source-positions "$pos" --revisions "$REV")
+            done < <(jq -r --arg url "$REPO_URL" '
+              [.spec.sources // [] | .[] | .repoURL]
+              | to_entries[] | select(.value == $url) | .key + 1
+            ' <<<"$json")
+
+            if [ "${#args[@]}" -gt 0 ]; then
+              out=$(argocd app diff "$app" "${args[@]}" --grpc-web 2>&1) || true
+            elif jq -e 'has("spec") and (.spec | has("source"))' >/dev/null <<<"$json"; then
+              out=$(argocd app diff "$app" --revision "$REV" --grpc-web 2>&1) || true
+            else
+              # A multi-source app with no git source (a bare chart): there is
+              # nothing in this PR that can change it.
+              out=""
+            fi
+
             if [ -n "$out" ]; then
               { echo "### ${app}"; echo '```diff'; echo "$out"; echo '```'; } >>diff.txt
             fi
           done
-          if [ ! -s diff.txt ]; then echo '_No rendered changes against the live cluster._' >diff.txt; fi
+
+          if [ ! -s diff.txt ]; then
+            echo '_No rendered changes against the live cluster._' >diff.txt
+          fi
           # Keep the comment under GitHub's 65k limit.
           head -c 60000 diff.txt >diff.trunc.txt
           mv diff.trunc.txt diff.txt
@@ -138,148 +262,405 @@ jobs:
           path: diff.txt
 
   # ---------------------------------------------------------------------------
-  # main: progressive rollout, one layer at a time, health-gated.
+  # main: move the tag, sync layer by layer, gate on health, roll back on failure
   # ---------------------------------------------------------------------------
-  rollout:
-    name: rollout
+  deploy:
+    name: deploy
     needs: guard
-    if: needs.guard.outputs.enabled == 'true' && github.event_name != 'pull_request'
+    # THE REF CHECK BELONGS HERE, at the job level, not only in a step.
+    #
+    # `on.push` is already restricted to main, so the only way to reach this job
+    # from another ref is `workflow_dispatch`. The in-step guard in "Move the
+    # deployed tag to this commit" is NOT sufficient, because the `promote !=
+    # true` early exit is reached first: a dispatch from any branch with promote
+    # unchecked skipped straight past it and went on to `argocd app sync root`
+    # against the live cluster. That did not move the tag, but it did apply
+    # whatever the branch had rendered into `deploy/`, and selfHeal kept it.
+    #
+    # Three unrelated things currently make this job inert -- the `guard` job
+    # requiring `vars.CLUSTER_RUNNER_READY`, no `[self-hosted, homelab]` runner
+    # existing, and `environment: homelab` -- but every one of those is a switch
+    # somebody will flip, and none of them is a ref check.
+    #
+    # The in-step check is deliberately kept as well: it names the ref in its
+    # error, whereas a job-level `if` that does not match produces a silently
+    # skipped job.
+    if: >-
+      needs.guard.outputs.enabled == 'true'
+      && github.event_name != 'pull_request'
+      && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, homelab]
     environment: homelab
     permissions:
+      # Moving the tag is a git write; the failure path needs to move it back.
       contents: write
-      pull-requests: write
+      # The failure path files an issue instead of a revert PR. See the step.
+      issues: write
     env:
       ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
       ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
-      # Generous: iSCSI attach plus an ARM image pull is genuinely slow.
+      # Generous on purpose: an iSCSI attach plus an ARM image pull is genuinely
+      # slow, and a Postgres Cluster rolling one instance is slower still.
       HEALTH_TIMEOUT: "900"
+      # Longer than a forward deploy. A recovery may have to undo a
+      # partially-applied change and re-pull the previous images, and this is
+      # the timeout you least want to be the reason the cluster stays broken.
+      RECOVERY_TIMEOUT: "1200"
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      # Record what is currently deployed so rollback has a target that is a
-      # real revision, not an assumption about HEAD~1.
-      - name: Capture known-good revisions
+      # -------------------------------------------------------------------
+      - name: Record what is currently deployed
         id: before
         run: |
           set -euo pipefail
-          argocd app list -o name --grpc-web | while read -r app; do
-            rev=$(argocd app get "$app" -o json --grpc-web | jq -r '.status.sync.revision // empty')
-            [ -n "$rev" ] && echo "$app $rev"
-          done | tee known-good.txt
+          # --force because the tag MOVES: a plain fetch refuses to update a
+          # tag that already exists locally, and on a self-hosted runner the
+          # workspace is reused, so a stale `deployed` would be read as the
+          # rollback target.
+          git fetch --force --tags origin
 
-      - name: Sync root
+          prev=$(git rev-parse --verify --quiet "refs/tags/${DEPLOY_TAG}^{commit}" || true)
+
+          if [ -z "$prev" ]; then
+            echo "prev=" >>"$GITHUB_OUTPUT"
+            echo "::warning::the ${DEPLOY_TAG} tag does not exist yet, so this deploy has NO ROLLBACK TARGET."
+            echo "::warning::If it fails you will have to point the tag at a known-good commit by hand."
+          else
+            echo "prev=$prev" >>"$GITHUB_OUTPUT"
+            echo "currently deployed: $prev"
+            git --no-pager log -1 --format='  %h %s' "$prev"
+          fi
+
+      # -------------------------------------------------------------------
+      - name: Move the deployed tag to this commit
+        id: promote
+        env:
+          PROMOTE: ${{ inputs.promote }}
         run: |
-          argocd app sync root --grpc-web --timeout "$HEALTH_TIMEOUT"
-          argocd app wait root --grpc-web --sync --health --timeout "$HEALTH_TIMEOUT"
+          set -euo pipefail
 
-      - name: Roll out layers in order
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "${PROMOTE:-false}" != "true" ]; then
+            echo "::notice::Re-sync only: leaving ${DEPLOY_TAG} where it is."
+            exit 0
+          fi
+
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::refusing to move ${DEPLOY_TAG} to a commit that is not on main (ref: ${GITHUB_REF})."
+            exit 1
+          fi
+
+          # A LIGHTWEIGHT tag, deliberately. An annotated tag introduces a
+          # peeled-vs-unpeeled ambiguity in what Argo CD reports as the synced
+          # revision, and the recovery check below compares that value against
+          # a commit SHA. A lightweight tag points straight at the commit, so
+          # the comparison is unambiguous.
+          git tag --force "$DEPLOY_TAG" "$GITHUB_SHA"
+          git push --force origin "refs/tags/${DEPLOY_TAG}"
+          echo "::notice::${DEPLOY_TAG} -> ${GITHUB_SHA}"
+
+      # -------------------------------------------------------------------
+      - name: Roll out layers in order, health-gated
         id: rollout
+        env:
+          LAYER: ${{ inputs.layer }}
         run: |
-          set -uo pipefail
-          want='${{ github.event.inputs.layer }}'
-          [ -z "$want" ] || [ "$want" = "all" ] && layers="infrastructure platform apps" || layers="$want"
+          set -euo pipefail
+
+          # Force Argo to re-resolve the tag. Without this it keeps serving the
+          # commit it cached for `deployed` until its own reconciliation timer
+          # comes round, and the sync below would gate on the OLD manifests and
+          # pass.
+          refresh() {
+            local app
+            for app in "$@"; do
+              argocd app get "$app" --hard-refresh --grpc-web -o json >/dev/null || return 1
+            done
+          }
+
+          # Explicit `|| return 1` on every command: these functions are called
+          # from an `if !` condition, which suppresses `set -e` for everything
+          # they call. Without it a failed sync would fall through and then sit
+          # in `app wait` for the full timeout for no reason.
+          gate() {
+            local app="$1"
+            # --retry-* mirrors syncPolicy.retry in the manifests: a CLI sync
+            # does not inherit it, and without it a first-pass failure on a CRD
+            # that is still establishing fails the whole deploy.
+            argocd app sync "$app" --grpc-web \
+              --timeout "$HEALTH_TIMEOUT" \
+              --retry-limit 5 \
+              --retry-backoff-duration 5s \
+              --retry-backoff-factor 2 \
+              --retry-backoff-max-duration 3m || return 1
+            # THE HEALTH GATE. Waits for this layer to report Synced+Healthy.
+            #
+            # WHAT IT ACTUALLY WAITS ON, precisely, because the difference has
+            # bitten this repo once: `--health` waits for the health of THIS
+            # Application, which Argo computes by rolling up the health of the
+            # resources it owns. `root` and `layer-*` own nothing but other
+            # Application objects, so the roll-up is only as good as the health
+            # check for `argoproj.io/Application` -- and Argo CD has had NO
+            # built-in check for its own Application kind since 1.8. A kind with
+            # no health check is reported Healthy the instant it is applied, so
+            # until `resource.customizations.health.argoproj.io_Application` was
+            # added to bootstrap/argocd-values.yaml this command returned
+            # Healthy in seconds no matter what the leaves were doing, and the
+            # rollback below could not fire.
+            #
+            # The same applies one level down: this gate is only as meaningful
+            # as the CloudNativePG, Gateway and HTTPRoute checks in that same
+            # file, and those must stay inside Argo's Lua sandbox (no `string`
+            # library) or they error, report Unknown, and hang the gate instead.
+            #
+            # It does NOT wait on the sync status of the leaves, only on their
+            # health -- which is what keeps clusters/homelab/apps/immich.yaml
+            # (no `automated` block, so permanently OutOfSync after a deploy
+            # that touches it) from blocking every rollout.
+            argocd app wait "$app" --grpc-web --sync --health \
+              --timeout "$HEALTH_TIMEOUT" || return 1
+          }
+
+          want="${LAYER:-all}"
+          if [ -z "$want" ] || [ "$want" = "all" ]; then
+            layers="infrastructure platform apps"
+          else
+            layers="$want"
+          fi
+
+          echo "::group::root"
+          if ! refresh root || ! gate root; then
+            echo "failed=root" >>"$GITHUB_OUTPUT"
+            echo "::error::root did not converge"
+            echo "::endgroup::"
+            exit 1
+          fi
+          echo "::endgroup::"
 
           for layer in $layers; do
             app="layer-$layer"
             echo "::group::$app"
 
-            if ! argocd app sync "$app" --grpc-web --timeout "$HEALTH_TIMEOUT" --prune=false; then
-              echo "::error::sync failed: $app"
-              echo "failed=$app" >>"$GITHUB_OUTPUT"; echo "::endgroup::"; exit 1
+            # Refresh this layer's leaves, not the whole cluster's, so that
+            # infrastructure gets a head start on platform and apps.
+            #
+            # HONEST LIMIT: every leaf has `automated` sync, so a leaf still
+            # picks up the new tag on its own reconciliation timer (~3 min)
+            # whether or not it has been refreshed here. The ordering below is
+            # therefore a head start, not a barrier; what actually protects the
+            # rollout is the gate -- a failing layer stops the job before the
+            # next layer is refreshed, and the tag goes back.
+            #
+            # Setting `timeout.reconciliation: 0` would make the ordering
+            # absolute, since nothing would sync without an explicit refresh.
+            # Rejected: it also means an operator who moves the tag by hand sees
+            # nothing happen, forever, with no error anywhere.
+            mapfile -t leaves < <(argocd app list --project "$layer" -o name --grpc-web)
+
+            # `${leaves[@]+...}` because an empty array under `set -u` is an
+            # error in older bash, and a layer with no leaves is legitimate.
+            if ! refresh "$app" ${leaves[@]+"${leaves[@]}"} || ! gate "$app"; then
+              echo "failed=$app" >>"$GITHUB_OUTPUT"
+              echo "::error::$app did not become Synced+Healthy within ${HEALTH_TIMEOUT}s"
+              echo "::endgroup::"
+              exit 1
             fi
 
-            # THE HEALTH GATE. Waits for the layer AND everything it spawned to
-            # report Healthy. This is what makes the rollout progressive rather
-            # than fire-and-forget.
-            if ! argocd app wait "$app" --grpc-web --sync --health \
-                   --timeout "$HEALTH_TIMEOUT"; then
-              echo "::error::$app did not become healthy within ${HEALTH_TIMEOUT}s"
-              echo "failed=$app" >>"$GITHUB_OUTPUT"; echo "::endgroup::"; exit 1
-            fi
-
-            echo "$app healthy"
+            echo "$app is Synced and Healthy"
             echo "::endgroup::"
           done
 
-      # ---------------------------------------------------------------------
-      # Failure path: roll the cluster back, then make the repo agree.
-      # ---------------------------------------------------------------------
-      - name: Roll back to the last known-good revision
-        if: failure()
-        run: |
-          set -uo pipefail
-          echo "::warning::rolling back"
-          while read -r app rev; do
-            echo "--> $app  ->  $rev"
-            # Sync explicitly to the previously-deployed revision. `argocd app
-            # rollback` needs a history ID and is unreliable when the failure
-            # happened mid-sync; syncing to a known SHA is deterministic.
-            argocd app sync "$app" --revision "$rev" --grpc-web \
-              --timeout "$HEALTH_TIMEOUT" --prune=false || \
-              echo "::error::rollback of $app failed -- MANUAL INTERVENTION NEEDED"
-          done <known-good.txt
+      # ===================================================================
+      # FAILURE PATH
+      # ===================================================================
 
-      - name: Gather failure diagnostics
-        if: failure()
-        id: diag
+      - name: Roll the deployed tag back, and prove the cluster recovered
+        id: recover
+        if: ${{ failure() && steps.before.outputs.prev != '' }}
+        env:
+          PREV: ${{ steps.before.outputs.prev }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          rc=0
+          echo "::warning::rolling ${DEPLOY_TAG} back to ${PREV}"
+
+          git tag --force "$DEPLOY_TAG" "$PREV"
+          git push --force origin "refs/tags/${DEPLOY_TAG}"
+
+          mapfile -t apps < <(argocd app list -o name --grpc-web)
+          for app in "${apps[@]}"; do
+            argocd app get "$app" --hard-refresh --grpc-web -o json >/dev/null || rc=1
+          done
+
+          # Same order as the forward deploy, not the reverse. If the bad commit
+          # broke infrastructure, nothing above it can recover until
+          # infrastructure is back, so infrastructure goes first either way.
+          for app in root layer-infrastructure layer-platform layer-apps; do
+            echo "::group::recovering $app"
+            argocd app sync "$app" --grpc-web --timeout "$RECOVERY_TIMEOUT" \
+              --retry-limit 5 --retry-backoff-duration 5s \
+              --retry-backoff-factor 2 --retry-backoff-max-duration 3m \
+              || echo "::warning::sync of $app during recovery reported a failure"
+            argocd app wait "$app" --grpc-web --sync --health --timeout "$RECOVERY_TIMEOUT" \
+              || echo "::warning::$app has not settled yet"
+            echo "::endgroup::"
+          done
+
+          # VERIFY, rather than assume. A rollback that quietly did not take is
+          # worse than no rollback: the job would go red for the original
+          # failure and nobody would look at the cluster.
+          echo "### recovery check" >recovery.txt
+          for app in root layer-infrastructure layer-platform layer-apps; do
+            json=$(argocd app get "$app" -o json --grpc-web)
+            rev=$(jq -r '.status.sync.revision // ""' <<<"$json")
+            sync=$(jq -r '.status.sync.status // ""' <<<"$json")
+            health=$(jq -r '.status.health.status // ""' <<<"$json")
+            printf '%-24s revision=%s sync=%s health=%s\n' \
+              "$app" "${rev:0:12}" "$sync" "$health" | tee -a recovery.txt
+
+            if [ "$rev" != "$PREV" ] || [ "$sync" != "Synced" ] || [ "$health" != "Healthy" ]; then
+              echo "::error::$app did NOT recover: revision=${rev:-none} sync=${sync:-none} health=${health:-none} (wanted ${PREV:0:12}/Synced/Healthy)"
+              rc=1
+            fi
+          done
+
+          if [ "$rc" -ne 0 ]; then
+            echo "recovered=false" >>"$GITHUB_OUTPUT"
+            echo "::error::ROLLBACK DID NOT FULLY SUCCEED. The cluster needs a human now. Diagnostics are in the issue this run opens."
+          else
+            echo "recovered=true" >>"$GITHUB_OUTPUT"
+            echo "::warning::cluster is back on ${PREV:0:12}. main still contains the failing commit -- see the issue this run opens."
+          fi
+          exit "$rc"
+
+      - name: No rollback target
+        if: ${{ failure() && steps.before.outputs.prev == '' }}
+        run: |
+          set -euo pipefail
+          echo "::error::The deploy failed and there was no ${DEPLOY_TAG} tag to go back to."
+          echo "::error::The cluster is on ${GITHUB_SHA}. Point the tag at a known-good commit by hand:"
+          echo "::error::  git tag --force ${DEPLOY_TAG} <good-sha> && git push --force origin refs/tags/${DEPLOY_TAG}"
+          exit 1
+
+      - name: Gather diagnostics
+        id: diag
+        if: failure()
+        env:
+          FAILED: ${{ steps.rollout.outputs.failed }}
+          PREV: ${{ steps.before.outputs.prev }}
+          RECOVERED: ${{ steps.recover.outputs.recovered }}
+        run: |
+          set -euo pipefail
+          app="${FAILED:-unknown}"
+
           {
-            echo "## Rollout failed"
+            echo "Deploy of \`${GITHUB_SHA}\` failed the health gate."
             echo
-            echo "Failed application: \`${{ steps.rollout.outputs.failed }}\`"
-            echo "Commit: ${{ github.sha }}"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| failing application | \`${app}\` |"
+            echo "| commit | ${GITHUB_SHA} |"
+            echo "| previously deployed | \`${PREV:-none}\` |"
+            echo "| cluster rolled back | ${RECOVERED:-no} |"
+            echo "| run | ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID} |"
             echo
-            echo "### Unhealthy resources"
-            echo '```'
-            argocd app resources "${{ steps.rollout.outputs.failed }}" --grpc-web 2>&1 \
-              | grep -Ev 'Healthy|Synced' | head -40
-            echo '```'
-            echo "### Recent cluster events"
-            echo '```'
-            kubectl get events -A --sort-by=.lastTimestamp 2>/dev/null \
-              | grep -Ei 'warn|error|fail' | tail -30
-            echo '```'
+
+            if [ "${RECOVERED:-}" = "true" ]; then
+              echo "The cluster is back on the previous commit. \`main\` still contains the"
+              echo "failing commit, so **the next push to main will try to deploy it again**"
+              echo "unless it is fixed or reverted first."
+            else
+              echo "**The rollback did not fully verify. The cluster may be in a broken or"
+              echo "partially-applied state right now.**"
+            fi
+            echo
+
+            if [ -s recovery.txt ]; then
+              echo "### Recovery check"
+              echo '```'
+              cat recovery.txt
+              echo '```'
+              echo
+            fi
+
+            # Every pipeline below ends in `|| true`. Under `pipefail`, a
+            # producer killed by SIGPIPE when `head` closes the pipe -- or a
+            # `grep` that simply matches nothing -- is a non-zero exit, and
+            # losing the whole diagnostic report to that would be absurd.
+            if [ -n "${PREV:-}" ]; then
+              echo "### What this deploy contained"
+              echo '```'
+              git --no-pager log --oneline "${PREV}..${GITHUB_SHA}" | head -40 || true
+              echo '```'
+              echo "<details><summary>diff --stat</summary>"
+              echo
+              echo '```'
+              git --no-pager diff --stat "${PREV}" "${GITHUB_SHA}" | tail -60 || true
+              echo '```'
+              echo
+              echo "</details>"
+              echo
+            fi
+
+            if [ "$app" != "unknown" ]; then
+              echo "### argocd app get ${app}"
+              echo '```'
+              argocd app get "$app" --grpc-web 2>&1 | head -60 || true
+              echo '```'
+              echo "### Resources that were not Healthy/Synced"
+              echo '```'
+              argocd app resources "$app" --grpc-web 2>&1 \
+                | grep -Ev 'Healthy|Synced' | head -40 || true
+              echo '```'
+            fi
+
+            if command -v kubectl >/dev/null 2>&1; then
+              echo "### Recent cluster warnings"
+              echo '```'
+              kubectl get events -A --sort-by=.lastTimestamp 2>/dev/null \
+                | grep -Ei 'warn|error|fail' | tail -30 || true
+              echo '```'
+            fi
           } >failure.md
+
+          # GitHub caps an issue body at 65536 characters.
+          head -c 60000 failure.md >failure.trunc.md
+          mv failure.trunc.md failure.md
           cat failure.md
 
-      # Open a revert PR rather than pushing to main directly: the cluster is
-      # already back on the good revision, so this is a code-hygiene action that
-      # deserves review, not an emergency.
-      - name: Open a revert PR
+      # An issue, not a revert PR. Under this design `main` and `deployed` are
+      # allowed to disagree: main is what has been reviewed, `deployed` is what
+      # has been verified against a live health gate. An automatic revert commit
+      # would destroy that distinction, and a conflicting auto-revert is a
+      # second failure to untangle while the first is still open.
+      - name: Open an issue
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FAILED: ${{ steps.rollout.outputs.failed }}
+          RECOVERED: ${{ steps.recover.outputs.recovered }}
         run: |
           set -euo pipefail
-          branch="revert/${GITHUB_SHA::12}"
-          git config user.name  'nedsi'
-          git config user.email 'nedsi@pm.me'
-          git checkout -b "$branch"
 
-          if git revert --no-edit -m 1 "$GITHUB_SHA" 2>/dev/null \
-             || git revert --no-edit "$GITHUB_SHA"; then
-            git push -u origin "$branch"
-            gh pr create \
-              --title "revert: ${GITHUB_SHA::12} failed to roll out" \
-              --body-file failure.md \
-              --label "rollback" \
-              --label "needs-manual-review"
+          # --force so this is idempotent: the labels may or may not already
+          # exist, and `gh issue create` fails outright on an unknown label.
+          gh label create rollback \
+            --description "CD rolled the deployed tag back" \
+            --color B60205 --force >/dev/null
+          gh label create needs-manual-review \
+            --description "A human has to look at the cluster" \
+            --color D93F0B --force >/dev/null
+
+          if [ "${RECOVERED:-}" = "true" ]; then
+            title="deploy failed: ${FAILED:-unknown} -- cluster rolled back"
           else
-            # A conflicting revert cannot be automated; say so loudly instead of
-            # opening a broken PR.
-            echo "::error::automatic revert conflicted. The CLUSTER IS ROLLED BACK but main still contains the bad commit. Revert by hand."
-            exit 1
+            title="deploy failed: ${FAILED:-unknown} -- ROLLBACK UNVERIFIED"
           fi
 
-      - name: Re-enable automated sync
-        if: always()
-        run: |
-          # The failure path syncs to an explicit revision, which leaves the
-          # Application pinned. Clear that so selfHeal resumes tracking main.
-          for app in root layer-infrastructure layer-platform layer-apps; do
-            argocd app set "$app" --revision main --grpc-web 2>/dev/null || true
-          done
+          gh issue create \
+            --title "$title" \
+            --body-file failure.md \
+            --label rollback \
+            --label needs-manual-review

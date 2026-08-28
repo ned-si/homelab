@@ -71,13 +71,31 @@ Next steps, in order:
          export TF_VAR_sops_age_key="\$(cat $KEY_FILE)"
          task bootstrap:apply
 
-  3. Create your secrets from the templates and seal them:
-         cp secrets/cloudflare.sops.yaml.example secrets/cloudflare.sops.yaml
-         \$EDITOR secrets/cloudflare.sops.yaml     # put the real value in
-         task secrets:seal -- secrets/cloudflare.sops.yaml
+  3. Create your secrets from the templates and seal them. Templates live in
+     three per-layer directories -- there is no top-level 'secrets/':
+
+         infrastructure/secrets/   cloudflare tokens, democratic-csi driver config
+         platform/secrets/         keycloak admin, grafana OIDC, s3 backup
+         apps/secrets/             immich config, mealie/paperless OIDC, seafile
+
+     Worked example, for the cert-manager Cloudflare token:
+
+         cp infrastructure/secrets/cloudflare-cert-manager.sops.yaml.example \\
+            infrastructure/secrets/cloudflare-cert-manager.sops.yaml
+         \$EDITOR infrastructure/secrets/cloudflare-cert-manager.sops.yaml
+         task secrets:seal -- infrastructure/secrets/cloudflare-cert-manager.sops.yaml
+
+     List every one you create by name in the SAME directory's
+     secret-generator.yaml. KSOPS only decrypts files that generator references,
+     so a sealed file that is not listed produces no Secret at all -- and the
+     symptom is an application stuck waiting for a Secret that never appears,
+     with nothing in any log to say why.
 
   4. Verify nothing plaintext is about to be committed:
          task secrets:leak-check
+
+  5. Confirm every KSOPS generator still resolves:
+         task lint:secrets
 
 See docs/secrets.md for the full workflow.
 EOF

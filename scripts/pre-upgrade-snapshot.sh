@@ -53,13 +53,43 @@ SNAP_CLASS="${SNAP_CLASS:-iscsi}"
 # impossible to reproduce. Deliberately NOT the caches, transcode scratch, or
 # */config volumes that an app rebuilds on its own.
 #
+# ---------------------------------------------------------------------------
+# TWO NAMES HERE WERE WRONG, AND THE SCRIPT SAID SO IN THE QUIETEST POSSIBLE WAY.
+#
+#   seafile-pvc  ->  seafile-data   (apps/seafile/pvc.yaml)
+#   mealie-pvc   ->  mealie-data    (apps/mealie/pvc.yaml)
+#
+# No PVC exists under either old name, so the loop below printed
+# "SKIP (no such PVC)" and carried on. The script then reported a rollback point
+# -- correctly counting the snapshots it DID take -- while silently omitting
+# Seafile's 100Gi document store and Mealie's uploads.
+#
+# That is the worst class of bug a backup tool can have: it succeeds, it reports
+# a number, and the number is right about the wrong set. The SKIP line is one of
+# roughly twenty lines of output and reads like information rather than a
+# warning.
+#
+# The names now come from the manifests. Re-verify after any PVC rename with:
+#     kubectl get pvc -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name
+# ---------------------------------------------------------------------------
+#
+# NOT LISTED, deliberately:
+#   seafile-mariadb   a snapshot of a live MariaDB datadir is only
+#                     crash-consistent. Step 1 below takes a proper logical dump
+#                     with `mariadb-dump --single-transaction`, which is both
+#                     consistent AND restorable into a different MariaDB version
+#                     -- the thing a major upgrade actually needs. Same
+#                     reasoning as for the Postgres clusters.
+#   theater/*-config  backed up nightly and consistently by
+#                     apps/theater/backup.yaml, and reproducible.
+#
 #   namespace  pvc
 VOLUMES="
 immich     immich-data
 paperless  paperless-media
 paperless  paperless-data
-seafile    seafile-pvc
-mealie     mealie-pvc
+seafile    seafile-data
+mealie     mealie-data
 syncthing  syncthing-pvc
 "
 
@@ -133,11 +163,23 @@ fi
 echo
 echo "--- 2. volume snapshots ---"
 failed=0
+missing=0
 while read -r ns pvc; do
   [ -z "${ns:-}" ] && continue
 
+  # A NAME IN $VOLUMES THAT DOES NOT RESOLVE IS A FAILURE, NOT A NOTE.
+  #
+  # This used to print `SKIP (no such PVC)` and continue, which is how the
+  # seafile-pvc/mealie-pvc typos survived: the script still exited 0 and printed
+  # a rollback-point banner. $VOLUMES is a curated list of the volumes that MUST
+  # be snapshotted, so an entry that matches nothing means either a rename or a
+  # typo, and in both cases the rollback point is not what it claims to be.
+  #
+  # It is counted separately from `failed` so the final message can distinguish
+  # "a snapshot is not ready yet" from "a volume was never even attempted".
   if ! kubectl -n "$ns" get pvc "$pvc" >/dev/null 2>&1; then
-    printf '  %-12s %-20s SKIP (no such PVC)\n' "$ns" "$pvc"
+    printf '  %-12s %-20s *** NO SUCH PVC -- NOT SNAPSHOTTED ***\n' "$ns" "$pvc"
+    missing=$((missing + 1))
     continue
   fi
 
@@ -197,6 +239,16 @@ if [ "$ready" != "$total" ]; then
   echo "  kubectl describe volumesnapshot -A -l $LABEL_KEY=$TAG" >&2
   failed=1
 fi
+if [ "$missing" -ne 0 ]; then
+  echo >&2
+  echo "ERROR: $missing volume(s) in \$VOLUMES do not exist and were NOT" >&2
+  echo "snapshotted. This rollback point is INCOMPLETE." >&2
+  echo >&2
+  echo "Either the PVC was renamed, or the list at the top of this script is" >&2
+  echo "wrong. Reconcile it before relying on this:" >&2
+  echo "  kubectl get pvc -A -o custom-columns=NS:.metadata.namespace,NAME:.metadata.name" >&2
+  failed=1
+fi
 
 cat <<EOF
 
@@ -209,17 +261,43 @@ new one built from the snapshot, reusing the same NAME so the workload finds it.
   # 1. stop whatever writes to it
   kubectl -n <ns> scale deploy/<app> --replicas=0
 
-  # 2. remove the binding. The PV survives -- these volumes are Retain -- so
-  #    this leaves an orphaned Released PV to tidy up later, not lost data.
+  # 2. CHECK THE PV'S RECLAIM POLICY BEFORE DELETING THE PVC. This is the
+  #    step that decides whether the next command is reversible.
+  #
+  #        kubectl get pv "\$(kubectl -n <ns> get pvc <pvc> \\
+  #          -o jsonpath='{.spec.volumeName}')" \\
+  #          -o jsonpath='{.spec.persistentVolumeReclaimPolicy}{"\n"}'
+  #
+  #    It MUST print Retain. If it prints Delete, STOP and patch it first:
+  #
+  #        kubectl patch pv <pv> \\
+  #          -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+  #
+  #    With Retain, deleting the PVC releases the PV and leaves an orphaned
+  #    Released PV to tidy up later. With Delete, it destroys the zvol -- and
+  #    the snapshot you are about to restore from is a child of that zvol on
+  #    ZFS. See infrastructure/democratic-csi/values-iscsi.yaml.
   kubectl -n <ns> delete pvc <pvc>
 
   # 3. recreate it FROM THE SNAPSHOT, same name, same size
+  #
+  #    NOTE THE CLASS: iscsi-retain, NOT iscsi.
+  #
+  #    This block used to say \`storageClassName: iscsi\`, which was a quiet
+  #    downgrade: the existing PVs were patched to Retain by hand on 2026-08-05,
+  #    and a PVC recreated on the \`iscsi\` class comes back with a fresh PV
+  #    carrying that class's Delete policy. So following a rollback procedure
+  #    would silently remove the protection that made the rollback safe -- and
+  #    the next rollback would be the one that destroys the data.
+  #
+  #    A NEW PVC has no immutable field to violate, so naming the class here is
+  #    both safe and the only place where the class name does the work.
   kubectl -n <ns> apply -f - <<'YAML'
   apiVersion: v1
   kind: PersistentVolumeClaim
   metadata: { name: <pvc>, namespace: <ns> }
   spec:
-    storageClassName: iscsi
+    storageClassName: iscsi-retain
     accessModes: [ReadWriteOnce]
     dataSource:
       name: preupg-$TAG-<pvc>
@@ -227,6 +305,11 @@ new one built from the snapshot, reusing the same NAME so the workload finds it.
       apiGroup: snapshot.storage.k8s.io
     resources: { requests: { storage: <same-size-as-before> } }
   YAML
+
+  # 3b. Argo CD will now report this PVC as OutOfSync if it is declared in git,
+  #     because git says storageClassName: iscsi. DO NOT let selfHeal 'fix' it
+  #     -- it cannot, the field is immutable, so the sync simply fails and says
+  #     so. Reconcile git to iscsi-retain, or accept the OutOfSync until you do.
 
   # 4. start it again
   kubectl -n <ns> scale deploy/<app> --replicas=1

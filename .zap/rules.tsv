@@ -1,7 +1,29 @@
 # ZAP alert filter. Tab-separated: <ruleId>	<WARN|IGNORE|FAIL>	<comment>
 #
+# NOTHING HERE GATES ANYTHING, BY DESIGN.
+#
+# ZAP runs weekly against the live site from a self-hosted runner and files a
+# GitHub issue with what it found. `.github/workflows/dast.yaml` sets
+# `fail_action: false`, and this file contains no FAIL rows -- those two facts
+# agree on purpose, and they must be changed together.
+#
+# The reason: every rule that would be worth failing on is a header the shared
+# Gateway does not set yet (there is no ResponseHeaderModifier filter anywhere in
+# the repo). A FAIL row here would make the weekly cron red from its first run,
+# and a cron job that is always red is one nobody reads.
+#
+# THE GATE IS scripts/tls-check.sh. It runs in the same workflow, checks the same
+# four headers, and hard-fails on the things that are green today and would be
+# regressions: reachability, the http -> https redirect, and certificate expiry.
+#
+# TO PROMOTE A HEADER TO A GATE, in one commit:
+#   1. add the ResponseHeaderModifier filter in infrastructure/gateway
+#   2. move the rule ID below from WARN to FAIL
+#   3. set `fail_action: true` in dast.yaml
+#   4. set STRICT_HEADERS=1 on the tls step in dast.yaml
+#
 # Only rules with a stated reason belong here. Everything not listed keeps its
-# default behaviour.
+# default behaviour, which for a baseline scan is WARN.
 #
 # Find a rule ID in the ZAP HTML report, or:
 #   https://www.zaproxy.org/docs/alerts/
@@ -13,12 +35,14 @@
 # ---------------------------------------------------------------------------
 # Not applicable to self-hosted single-tenant services
 # ---------------------------------------------------------------------------
-10063	WARN	Permissions-Policy not set - worth adding at the Gateway eventually
 10037	IGNORE	Server leaks version via banner - upstream images, not ours to patch
 # ---------------------------------------------------------------------------
-# Things that SHOULD fail the scan: these are real and fixable at the Gateway
+# Real, fixable at the Gateway, and currently missing on every host.
+# scripts/tls-check.sh reports the same four as warnings; keep the two lists in
+# step. Promotion path is at the top of this file.
 # ---------------------------------------------------------------------------
-10035	FAIL	Strict-Transport-Security missing - the Gateway should set HSTS
-10038	FAIL	Content-Security-Policy missing
-10020	FAIL	Missing X-Frame-Options / frame-ancestors
-10021	FAIL	X-Content-Type-Options missing
+10035	WARN	Strict-Transport-Security missing - the Gateway should set HSTS
+10038	WARN	Content-Security-Policy missing
+10020	WARN	Missing X-Frame-Options / frame-ancestors
+10021	WARN	X-Content-Type-Options missing
+10063	WARN	Permissions-Policy not set - worth adding at the Gateway eventually
