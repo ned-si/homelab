@@ -19,6 +19,7 @@ spec:
     namespace: cert-manager
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   sources:
   - chart: cert-manager
     helm:
@@ -29,11 +30,17 @@ spec:
     targetRevision: v1.21.1
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - CreateNamespace=true
     - ServerSideApply=true
@@ -50,14 +57,21 @@ spec:
     namespace: cert-manager
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: deploy/infrastructure/cert-manager-issuers
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - SkipDryRunOnMissingResource=true
     - ServerSideApply=true
@@ -80,6 +94,7 @@ spec:
     kind: ConfigMap
     name: cilium-config
   project: infrastructure
+  revisionHistoryLimit: 10
   sources:
   - chart: cilium
     helm:
@@ -90,11 +105,17 @@ spec:
     targetRevision: 1.16.3
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -110,14 +131,21 @@ spec:
     namespace: kube-system
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: deploy/infrastructure/cilium
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -133,6 +161,7 @@ spec:
     namespace: democratic-csi
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   sources:
   - chart: democratic-csi
     helm:
@@ -143,11 +172,17 @@ spec:
     targetRevision: 0.15.1
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -163,6 +198,7 @@ spec:
     namespace: external-dns
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   sources:
   - chart: external-dns
     helm:
@@ -173,11 +209,17 @@ spec:
     targetRevision: 1.21.1
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -198,14 +240,21 @@ spec:
     - /status
     kind: Gateway
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: deploy/infrastructure/gateway
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -221,14 +270,21 @@ spec:
     namespace: kube-system
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: deploy/infrastructure/gateway-api
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
     - SkipDryRunOnMissingResource=true
@@ -245,14 +301,51 @@ spec:
     namespace: default
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: deploy/infrastructure/namespaces
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+  name: network-policies
+  namespace: argocd
+spec:
+  destination:
+    namespace: argocd
+    server: https://kubernetes.default.svc
+  project: infrastructure
+  revisionHistoryLimit: 10
+  source:
+    path: deploy/infrastructure/network-policies
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: deployed
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: false
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -273,14 +366,21 @@ spec:
     - /spec/claimRef
     kind: PersistentVolume
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: deploy/infrastructure/nfs-storage
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -296,14 +396,21 @@ spec:
     namespace: default
     server: https://kubernetes.default.svc
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: infrastructure/secrets
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -325,14 +432,21 @@ spec:
     - /spec/conversion
     kind: CustomResourceDefinition
   project: infrastructure
+  revisionHistoryLimit: 10
   source:
     path: deploy/infrastructure/snapshot-controller
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
     - SkipDryRunOnMissingResource=true

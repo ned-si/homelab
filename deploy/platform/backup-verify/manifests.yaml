@@ -45,6 +45,21 @@ rules:
   - delete
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-verify-source-clusters
+rules:
+- apiGroups:
+  - postgresql.cnpg.io
+  resourceNames:
+  - immich-db
+  - keycloak-db
+  resources:
+  - clusters
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: backup-verify
@@ -58,11 +73,28 @@ subjects:
   name: backup-verify
   namespace: backup-verify
 ---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-verify-source-clusters
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-verify-source-clusters
+subjects:
+- kind: ServiceAccount
+  name: backup-verify
+  namespace: backup-verify
+---
 apiVersion: v1
 data:
   run-all-files.sh: |
-    #!/usr/bin/env bash
-    set -uo pipefail
+    #!/bin/sh
+    # `sh` and `set -u`: the restic image is Alpine and has no bash. This script
+    # contains no pipeline, so there is nothing for pipefail to protect -- and
+    # `set -o pipefail` is an ash extension that dash rejects, which would stop
+    # this file being syntax-checkable with `dash -n`.
+    set -u
     rc=0
     while read -r suffix tag; do
       [ -z "${suffix:-}" ] && continue
@@ -71,25 +103,103 @@ data:
       echo
     # ONLY repositories that a backup CronJob actually writes to.
     #
-    # An earlier version listed seafile/syncthing/theater as well. Those restic
-    # jobs do not exist yet, so every run reported three failures -- and a check
-    # that always fails is a check you learn to ignore, which is worse than not
-    # having it. Uncomment each line as its backup CronJob is added, and add the
-    # repo to `local.restic_repos` in bootstrap/aws-backup/main.tf at the same
-    # time or its packs will never be archived.
+    # The rule this list follows, and the reason it was previously mostly
+    # commented out: a check that always fails is a check you learn to ignore,
+    # which is worse than not having it. So a line is enabled in the same change
+    # that adds the CronJob writing to it, and not before.
+    #
+    # ALL SEVEN ARE NOW ENABLED. The five that were commented out have jobs:
+    #
+    #   seafile/shared     apps/seafile/backup.yaml                        (03:00)
+    #   syncthing/data     apps/syncthing/backup.yaml                      (02:00)
+    #   theater/configs    apps/theater/backup.yaml                   (03:40-04:50)
+    #   mealie/data        apps/mealie/backup.yaml                         (03:20)
+    #   grafana/data       platform/kube-prometheus-stack/routes/
+    #                        grafana-backup.yaml                           (04:20)
+    #
+    # ###################################################################
+    # # THESE FIVE WILL FAIL UNTIL THEIR FIRST BACKUP HAS ACTUALLY RUN.
+    # #
+    # # That is correct behaviour, not a bug: step 2 of verify-files.sh fails
+    # # with "no snapshot found for tag" when a repository has never been
+    # # written. But it means the FIRST verification run after this change is
+    # # expected to report failures, and it is important not to read that as
+    # # "the new jobs are broken".
+    # #
+    # # Seed each repository by hand before the first Sunday, exactly as
+    # # docs/backups.md does for Immich:
+    # #     kubectl -n syncthing  create job --from=cronjob/syncthing-backup seed
+    # #     kubectl -n mealie     create job --from=cronjob/mealie-backup    seed
+    # #     kubectl -n seafile    create job --from=cronjob/seafile-backup   seed
+    # #     kubectl -n monitoring create job --from=cronjob/grafana-backup   seed
+    # #     kubectl -n theater    create job --from=cronjob/theater-postgres-backup seed
+    # #     kubectl -n theater    create job --from=cronjob/theater-config-backup-sonarr seed
+    # #     ... and the other five theater config jobs
+    # ###################################################################
+    #
+    # AND ADD EACH REPOSITORY TO `local.restic_repos` IN
+    # bootstrap/aws-backup/main.tf. Without it there is no Glacier IR lifecycle
+    # rule for its `data/` prefix, so its pack files sit in S3 Standard at
+    # roughly 6x the price and nothing warns you. That file currently lists only
+    # immich/library and paperless/media.
+    #
+    # `theater/configs` is deliberately ONE repository for six apps, each
+    # tagging `theater-configs` plus its own name -- so this list needs one line
+    # and main.tf needs one entry, not six of each.
+    #
+    # ON THE SECOND COLUMN: it is a TAG, and it has to be a tag that some job
+    # actually writes. `grafana/data` is the one repository here that carries
+    # TWO tags, because it holds two consistency classes:
+    #
+    #   grafana-config         provisioning dirs and plugins. Not written while
+    #                          Grafana serves requests, so CONSISTENT. This is
+    #                          the one verified.
+    #   grafana-db-besteffort  a file-level copy of the live SQLite, possibly
+    #                          torn. Deliberately NOT verified here: its
+    #                          `grafana.db-wal` companion is legitimately
+    #                          zero-length right after a checkpoint, which step
+    #                          3's empty-file assertion would report as
+    #                          unretrievable data every time it happened.
+    #
+    # This line used to read `grafana-data`, a tag nothing writes, which made
+    # the check permanently red. Adding a third tag as a synonym was rejected:
+    # the convention across the other six repositories is one tag per
+    # consistency class, and a synonym means two names for one class.
     done <<'LIST'
     immich/library      immich-library
     paperless/media     paperless-media
-    # seafile/shared    seafile-shared
-    # syncthing/data    syncthing-data
-    # theater/configs   theater-configs
+    seafile/shared      seafile-shared
+    syncthing/data      syncthing-data
+    theater/configs     theater-configs
+    mealie/data         mealie-data
+    grafana/data        grafana-config
     LIST
     [ $rc -eq 0 ] && echo "ALL FILE BACKUPS VERIFIED" || echo "ONE OR MORE FILE BACKUPS FAILED"
     exit $rc
   verify-files.sh: |
-    #!/usr/bin/env bash
+    #!/bin/sh
     # Usage: verify-files.sh <repo-suffix> <tag>
-    set -euo pipefail
+    #
+    # ###################################################################
+    # # `sh`, NOT bash. The restic image is Alpine and has no bash -- the same
+    # # fact apps/theater/backup.yaml records for its own script.
+    # #
+    # # This file previously declared `#!/usr/bin/env bash` and used `mapfile`,
+    # # process substitution and arrays, so it could never have run at all:
+    # # `env` finds no `bash` to exec, and even under a shell that could exec
+    # # it, `dash -n` and `busybox sh -n` both stop at the process
+    # # substitution with "unexpected redirection".
+    # #
+    # # Everything below is POSIX plus what BusyBox actually implements, and it
+    # # is checked with `dash -n` and `busybox sh -n`.
+    # ###################################################################
+    #
+    # `set -eu` rather than `set -euo pipefail`: BusyBox ash does support
+    # pipefail, but dash -- which is what syntax-checks this script -- does not,
+    # and nothing here needs it. Every pipeline whose exit status matters has
+    # been split so the interesting command's status is checked directly, which
+    # is stronger than pipefail because it also produces a useful message.
+    set -eu
 
     REPO_SUFFIX="$1"
     TAG="$2"
@@ -101,9 +211,58 @@ data:
     DEST="/scratch/${TAG}"
     rm -rf "$DEST" && mkdir -p "$DEST"
 
+    # Working files live BESIDE $DEST, never inside it. Step 3 counts every
+    # regular file under $DEST, so a list file dropped in there would be
+    # counted as a successfully restored file and weaken the only assertion
+    # that proves the data blobs are readable.
+    WORK="/scratch/.work-${TAG}"
+    rm -rf "$WORK" && mkdir -p "$WORK"
+    trap 'rm -rf "$WORK"' EXIT
+
     # How stale a snapshot may be before this is a failure. The library backup
     # runs nightly, so >3 days means the CronJob has been silently failing.
     MAX_AGE_DAYS=3
+
+    # ISO week, used twice below: to rotate which files step 3 samples and which
+    # pack slice step 4 reads.
+    #
+    # The leading zero MUST be stripped. `$((08))` is an invalid octal literal
+    # in every POSIX shell, and `10#$week` -- the bash escape hatch this file
+    # used to carry -- is not POSIX: dash answers `arithmetic expression:
+    # expecting ')'` and BusyBox ash answers `arithmetic syntax error`. So the
+    # old step 4 was a hard runtime error for eight weeks of every year, on top
+    # of being unreachable behind the bash shebang.
+    week=$(date -u +%V)
+    week=${week#0}
+    : "${week:=1}"
+
+    # ISO-8601 -> unix epoch, without GNU date.
+    #
+    # WAS: `date -d "$latest_iso" +%s 2>/dev/null || echo 0` guarded by
+    # `if [ "$latest_epoch" -gt 0 ]`. BusyBox `date` has no GNU-style
+    # `-d <ISO-8601>`; it answers `invalid date` and exits 1. So the fallback
+    # fired on EVERY run, latest_epoch was always 0, and the whole staleness
+    # gate was skipped. A gate that cannot fail is not a gate.
+    #
+    # REJECTED ALTERNATIVE: express the intent in restic instead of in shell.
+    # There is no way to. `restic forget --keep-within Nd` measures from the
+    # LATEST SNAPSHOT, not from now, so it reports "nothing to forget" for a
+    # repository that has been dead for a year -- exactly backwards. `restic
+    # find --newest/--oldest` filter file modification times, not snapshot
+    # times. `restic snapshots` has no time predicate at all. So the arithmetic
+    # stays here; what changes is that it now FAILS LOUDLY.
+    epoch_of() {
+      # BusyBox: -D supplies an explicit strptime format. It parses the
+      # date-time and stops, ignoring the fractional seconds and zone offset
+      # that follow, so the result is UTC-interpreted -- at most a 14h error
+      # against a 3-day threshold.
+      date -u -D '%Y-%m-%dT%H:%M:%S' -d "$1" +%s 2>/dev/null && return 0
+      # GNU coreutils, in case this image ever stops being Alpine. GNU date
+      # rejects -D outright, so the two spellings cannot both apply and trying
+      # both costs nothing.
+      date -u -d "$1" +%s 2>/dev/null && return 0
+      return 1
+    }
 
     echo "=== $TAG  ($RESTIC_REPOSITORY) ==="
 
@@ -111,42 +270,105 @@ data:
     restic check --with-cache
 
     echo "--- 2. latest snapshot freshness ---"
-    latest_iso=$(restic snapshots --tag "$TAG" --latest 1 --json \
-                 | sed -n 's/.*"time":"\([^"]*\)".*/\1/p' | head -1)
+    # Two statements, not one pipeline. In the pipeline form the exit status
+    # belonged to `head`, so `restic snapshots` failing -- wrong credential,
+    # missing bucket, no network -- produced an empty result and was reported as
+    # "the backup has never run", which sends the reader to the wrong file.
+    if ! restic snapshots --tag "$TAG" --latest 1 --json > "$WORK/latest.json"; then
+      echo "FAIL: cannot list snapshots in $RESTIC_REPOSITORY."
+      echo "      That is a repository/credential problem, NOT a missing backup."
+      exit 1
+    fi
+    latest_iso=$(sed -n 's/.*"time":"\([^"]*\)".*/\1/p' "$WORK/latest.json" | head -1)
     if [ -z "$latest_iso" ]; then
       echo "FAIL: no snapshot found for tag '$TAG'. The backup has never run."
       exit 1
     fi
     echo "    latest: $latest_iso"
-    latest_epoch=$(date -d "$latest_iso" +%s 2>/dev/null || echo 0)
-    if [ "$latest_epoch" -gt 0 ]; then
-      age_days=$(( ( $(date +%s) - latest_epoch ) / 86400 ))
-      echo "    age: ${age_days}d"
-      if [ "$age_days" -gt "$MAX_AGE_DAYS" ]; then
-        echo "FAIL: newest snapshot is ${age_days}d old (max ${MAX_AGE_DAYS}d)."
-        echo "      The backup CronJob is not running or is failing silently."
-        exit 1
-      fi
+
+    if ! latest_epoch=$(epoch_of "$latest_iso"); then
+      echo "FAIL: cannot parse the snapshot timestamp '$latest_iso'."
+      echo "      Neither BusyBox nor GNU date understood it, so the staleness"
+      echo "      gate cannot be evaluated. Failing rather than skipping: a gate"
+      echo "      that quietly answers 'fresh' is worse than no gate at all."
+      exit 1
+    fi
+    age_days=$(( ( $(date -u +%s) - latest_epoch ) / 86400 ))
+    echo "    age: ${age_days}d"
+    if [ "$age_days" -gt "$MAX_AGE_DAYS" ]; then
+      echo "FAIL: newest snapshot is ${age_days}d old (max ${MAX_AGE_DAYS}d)."
+      echo "      The backup CronJob is not running or is failing silently."
+      exit 1
     fi
 
     echo "--- 3. sample restore ---"
     # Pick a handful of real files from the snapshot rather than restoring
     # everything: this is a proof of retrievability, not a disaster drill, and
     # restoring 2TB weekly would cost more than the backup itself.
-    mapfile -t files < <(restic ls --tag "$TAG" latest 2>/dev/null \
-                         | grep -vE '/$' | head -200 | shuf -n 5)
-    if [ "${#files[@]}" -eq 0 ]; then
-      echo "FAIL: snapshot contains no files."
+    #
+    # THREE THINGS CHANGED HERE AND ALL THREE WERE BUGS.
+    #
+    #  a. No arrays, no `mapfile`, no process substitution. The candidate list
+    #     goes to a FILE and is read with `while ... < file`. Reading it from
+    #     the end of a PIPELINE would put the loop in a SUBSHELL, so anything
+    #     accumulated in a shell variable there is discarded on exit --
+    #     scripts/dump-databases.sh documents the same trap for the same reason.
+    #
+    #  b. `--json`. Plain `restic ls` prints directories and files identically,
+    #     with no trailing slash, so the old `grep -vE '/$'` filter matched
+    #     NOTHING and directory paths were being handed to
+    #     `restic restore --include`. The JSON form labels every entry, so
+    #     "give me five real files" is expressible.
+    #
+    #  c. No `shuf`. It is a BusyBox applet that is not guaranteed to be
+    #     compiled in, and a missing applet fails this job for a reason that has
+    #     nothing to do with the backup. The sample rotates by ISO week instead,
+    #     the same mechanism step 4 uses: a different set of files each week,
+    #     and reproducible while debugging rather than different on every retry.
+    if ! restic ls --tag "$TAG" --json latest > "$WORK/ls.json"; then
+      echo "FAIL: cannot list the contents of the latest '$TAG' snapshot."
+      exit 1
+    fi
+    grep '"type":"file"' "$WORK/ls.json" \
+      | sed -n 's/.*"path":"\([^"]*\)".*/\1/p' \
+      | head -200 > "$WORK/candidates"
+    n_cand=$(wc -l < "$WORK/candidates" | tr -d ' ')
+    if [ "${n_cand:-0}" -eq 0 ]; then
+      echo "FAIL: the latest '$TAG' snapshot contains no regular files."
+      echo "      A snapshot of nothing but directories is not a backup."
       exit 1
     fi
 
-    for f in "${files[@]}"; do
+    # Five files, strided across the candidate list so the sample is spread
+    # rather than clustered at the top, and offset by the week so it moves.
+    awk -v n="$n_cand" -v k=5 -v w="$week" '
+      BEGIN {
+        if (k > n) k = n
+        stride = int(n / k); if (stride < 1) stride = 1
+        for (i = 0; i < k; i++) pick[((w - 1 + i * stride) % n) + 1] = 1
+      }
+      pick[FNR]
+    ' "$WORK/candidates" > "$WORK/sample"
+
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
       echo "    restoring $f"
       restic restore latest --tag "$TAG" --target "$DEST" --include "$f"
-    done
+    done < "$WORK/sample"
 
     restored=$(find "$DEST" -type f | wc -l | tr -d ' ')
-    empty=$(find "$DEST" -type f -empty | wc -l | tr -d ' ')
+    # `-size 0`, not `-empty`.
+    #
+    # THIS IS THE MOST VALUABLE ASSERTION IN THE FILE -- it is what proves the
+    # restored sample is not zero-length -- and it has never been evaluated
+    # once. BusyBox `find` has no `-empty`: it answers
+    # `find: unrecognized: -empty` and exits 1, the command substitution
+    # captured nothing, and `empty` was the empty string.
+    #
+    # `-size 0` is in both BusyBox and GNU find and means the same thing for
+    # regular files: 0 blocks, i.e. exactly zero bytes (a 1-byte file rounds up
+    # to one block and is not matched). Verified against both implementations.
+    empty=$(find "$DEST" -type f -size 0 | wc -l | tr -d ' ')
     echo "    restored $restored file(s), $empty empty"
 
     [ "$restored" -ge 1 ] || { echo "FAIL: nothing was restored."; exit 1; }
@@ -177,10 +399,10 @@ data:
       echo "    Set READ_DATA=1 to read remotely too (costs retrieval)."
     else
       # Which slice depends on the ISO week, so consecutive runs read different
-      # packs and a year covers the whole repository. `10#` forces base 10: week
-      # "08" would otherwise be an invalid octal literal.
-      week=$(date +%V)
-      slice=$(( (10#$week - 1) % SUBSET_TOTAL + 1 ))
+      # packs and a year covers the whole repository. $week is computed at the
+      # top of the script with its leading zero stripped -- see the comment
+      # there for why `10#$week` cannot be used in a POSIX shell.
+      slice=$(( (week - 1) % SUBSET_TOTAL + 1 ))
       echo "    week $week -> subset ${slice}/${SUBSET_TOTAL}"
       restic check --with-cache --read-data-subset="${slice}/${SUBSET_TOTAL}"
     fi
@@ -210,11 +432,38 @@ data:
         rc=1
       fi
     done <<'LIST'
+    # Same rule as run-all-files.sh: a line is enabled only once something
+    # actually writes the backup it verifies. A check that always fails is a
+    # check you learn to ignore.
+    #
+    # This job restores from the cluster's barmanObjectStore. Only these two
+    # clusters have one:
     immich-db          immich      40
     keycloak-db        keycloak    50
-    mealie-postgresql  mealie      10
-    sonarr-postgresql  theater     10
-    radarr-postgresql  theater     10
+    #
+    # The other five have NO spec.backup.barmanObjectStore, so there is nothing
+    # for this job to recover from and it would fail every Sunday forever:
+    #
+    #   mealie-postgresql   mealie    10
+    #   sonarr-postgresql   theater   10
+    #   radarr-postgresql   theater   10
+    #   prowlarr-postgresql theater   10
+    #   lidarr-postgresql   theater   10
+    #
+    # They are covered in the interim by nightly logical dumps -- snapshots, not
+    # PITR -- from apps/mealie/backup.yaml and apps/theater/backup.yaml, and the
+    # gap itself is alerted on by PostgresClusterHasNoBackupConfigured rather
+    # than left to a failing job to signal.
+    #
+    # Uncomment a line in the same change that adds barmanObjectStore +
+    # ScheduledBackup to that Cluster. Copy platform/keycloak/database.yaml.
+    #
+    # AND ADD ITS NAME TO `resourceNames` ON THE
+    # backup-verify-source-clusters ClusterRole AT THE TOP OF THIS FILE.
+    # verify.sh reads the source Cluster's .spec.imageName across namespaces and
+    # that ClusterRole is what authorises it. Forgetting this step fails the run
+    # immediately with a message naming the object, rather than 30 minutes later
+    # as a recovery timeout -- but it still fails, so do both lines at once.
     LIST
     echo
     [ $rc -eq 0 ] && echo "ALL BACKUPS VERIFIED" || echo "ONE OR MORE BACKUPS FAILED VERIFICATION"
@@ -242,6 +491,36 @@ data:
 
     echo "=== verifying backup of $SRC (from $SRC_NS) ==="
 
+    # HOISTED OUT OF THE HEREDOC BELOW, AND THAT IS THE WHOLE POINT.
+    #
+    # This used to be `imageName: $(kubectl -n "$SRC_NS" get cluster ...)`
+    # inline in the manifest. A command substitution inside a heredoc is
+    # invisible to `set -e`: the read failed with a 403 (the namespaced Role in
+    # this file cannot read another namespace), the heredoc still rendered,
+    # `imageName:` came out EMPTY, CNPG accepted the Cluster, and the job then
+    # spent thirty minutes in `kubectl wait` before reporting "restored cluster
+    # never became ready" -- blaming the backup for an RBAC error.
+    #
+    # Assigned to a variable so the exit status is checkable, and checked twice:
+    # once for the call failing, once for it succeeding with nothing.
+    if ! SRC_IMAGE="$(kubectl -n "$SRC_NS" get cluster "$SRC" \
+                      -o jsonpath='{.spec.imageName}')"; then
+      echo "FAIL: cannot read cluster/$SRC in namespace $SRC_NS."
+      echo "      Almost always RBAC. The ServiceAccount needs '$SRC' listed in"
+      echo "      resourceNames on the backup-verify-source-clusters ClusterRole"
+      echo "      in this file. Confirm with:"
+      echo "        kubectl auth can-i get cluster/$SRC -n $SRC_NS \\"
+      echo "          --as=system:serviceaccount:backup-verify:backup-verify"
+      exit 1
+    fi
+    if [ -z "$SRC_IMAGE" ]; then
+      echo "FAIL: cluster/$SRC in $SRC_NS has no .spec.imageName set."
+      echo "      Refusing to render an empty imageName: CNPG accepts it and the"
+      echo "      failure then surfaces 30 minutes later as a recovery timeout."
+      exit 1
+    fi
+    echo "    source image: $SRC_IMAGE"
+
     # The throwaway cluster.
     #
     # Single instance, small volume, and -- critically -- NO `spec.backup`
@@ -262,7 +541,7 @@ data:
         homelab.lilalala.com/ephemeral: "true"
     spec:
       instances: 1
-      imageName: $(kubectl -n "$SRC_NS" get cluster "$SRC" -o jsonpath='{.spec.imageName}')
+      imageName: $SRC_IMAGE
       storage:
         size: 20Gi
         storageClass: iscsi
@@ -374,6 +653,8 @@ spec:
             env:
             - name: RESTIC_CACHE_DIR
               value: /scratch/.cache
+            - name: TMPDIR
+              value: /scratch/.cache
             envFrom:
             - secretRef:
                 name: s3-backup
@@ -461,7 +742,7 @@ metadata:
   namespace: backup-verify
 spec:
   groups:
-  - name: backup.rules
+  - name: backup.verification.rules
     rules:
     - alert: BackupVerificationFailed
       annotations:
@@ -469,27 +750,89 @@ spec:
           restorable. Treat as data-loss risk, not as a flaky job. Runbook: docs/backups.md#when-verification-fails'
         summary: Backup restore verification FAILED ({{ $labels.job_name }})
       expr: |
-        kube_job_status_failed{namespace="backup-verify"} > 0
+        max by (namespace, job_name) (kube_job_failed{namespace="backup-verify", condition="true"}) > 0
       for: 15m
       labels:
         severity: critical
     - alert: BackupVerificationStale
       annotations:
-        description: The verification CronJob has not completed successfully for two
-          weeks. Either it is not running, or every run is failing.
-        summary: No successful backup verification in 14 days
+        description: 'The {{ $labels.owner_name }} CronJob has not completed successfully
+          for two weeks. Either it is not running, or every run is failing. Check:
+          kubectl -n backup-verify get jobs'
+        summary: No successful backup verification in 14 days ({{ $labels.owner_name
+          }})
       expr: |
-        time() - max(kube_job_status_completion_time{namespace="backup-verify"}) > 14 * 24 * 3600
+        time() - max by (owner_name) (
+          kube_job_status_completion_time{namespace="backup-verify"}
+          * on (namespace, job_name) group_left (owner_name)
+            kube_job_owner{namespace="backup-verify", owner_kind="CronJob"}
+        ) > 14 * 24 * 3600
       for: 1h
       labels:
         severity: critical
+    - alert: BackupVerificationNeverRan
+      annotations:
+        description: 'No Job in the backup-verify namespace has ever reached completion.
+          Every backup in this cluster is therefore an untested hypothesis. Most likely:
+          the S3 bucket and credentials do not exist yet (docs/backups.md, ''Setup,
+          start to finish''), or the `s3-backup` Secret is missing from the backup-verify
+          namespace.'
+        summary: Backup verification has NEVER completed successfully
+      expr: |
+        absent(kube_job_status_completion_time{namespace="backup-verify"})
+      for: 6h
+      labels:
+        severity: critical
+    - alert: BackupVerificationCronJobSuspended
+      annotations:
+        description: Someone suspended it, probably temporarily. Nothing else in this
+          rule group can tell you that verification has stopped, because a suspended
+          CronJob creates no Jobs to fail.
+        summary: Backup verification CronJob is SUSPENDED ({{ $labels.cronjob }})
+      expr: |
+        kube_cronjob_spec_suspend{namespace="backup-verify"} == 1
+      for: 30m
+      labels:
+        severity: warning
+  - name: backup.postgres.rules
+    rules:
     - alert: PostgresBackupFailed
       annotations:
+        description: The most recent backup attempt failed and is newer than the most
+          recent successful one. Recovery is still possible to the older point, but
+          the window is no longer growing.
         summary: CloudNativePG backup failing for {{ $labels.namespace }}/{{ $labels.pod
           }}
       expr: |
-        cnpg_collector_last_failed_backup_timestamp > cnpg_collector_last_available_backup_timestamp
+        cnpg_collector_last_failed_backup_timestamp
+          > cnpg_collector_last_available_backup_timestamp
       for: 30m
+      labels:
+        severity: critical
+    - alert: PostgresBackupNeverSucceeded
+      annotations:
+        description: Barman has never written a base backup for this cluster. There
+          is no point-in-time recovery and no snapshot to fall back to.
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} has NEVER had a successful
+          backup'
+      expr: |
+        cnpg_collector_last_available_backup_timestamp == 0
+      for: 2h
+      labels:
+        severity: critical
+    - alert: PostgresClusterHasNoBackupConfigured
+      annotations:
+        description: This Postgres cluster is running and scraped, but publishes no
+          backup timestamp -- it has no spec.backup.barmanObjectStore, so barman is
+          not archiving anything for it. Add the block to its Cluster manifest (copy
+          platform/keycloak/database.yaml) and a ScheduledBackup alongside it.
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} has NO object-store backup
+          configured'
+      expr: |
+        (cnpg_collector_up == 1)
+        unless on (namespace, pod)
+        cnpg_collector_last_available_backup_timestamp
+      for: 6h
       labels:
         severity: critical
     - alert: PostgresBackupStale
@@ -502,23 +845,129 @@ spec:
       for: 1h
       labels:
         severity: critical
+    - alert: PostgresBackupMetricsAbsent
+      annotations:
+        description: 'No cnpg_collector_up series exists, so every Postgres backup
+          alert in this repository is inert. Check the PodMonitors (kubectl get podmonitor
+          -A) and that Prometheus still has podMonitorSelectorNilUsesHelmValues: false.'
+        summary: CloudNativePG metrics are not being scraped AT ALL
+      expr: |
+        absent(cnpg_collector_up)
+      for: 30m
+      labels:
+        severity: critical
+    - alert: PostgresClusterUnhealthy
+      annotations:
+        description: The CloudNativePG instance manager is up but cannot query its
+          own PostgreSQL. The database is down, not merely unmonitored.
+        summary: Postgres not answering in {{ $labels.namespace }}/{{ $labels.pod
+          }}
+      expr: |
+        cnpg_collector_up == 0
+      for: 10m
+      labels:
+        severity: critical
     - alert: PostgresWALArchiveFailing
       annotations:
         description: Point-in-time recovery is broken while this fires, and WAL will
           accumulate on the data volume until it fills. This can take the database
-          down on its own.
-        summary: WAL archiving failing ({{ $labels.namespace }})
+          down on its own -- treat it as more urgent than a failed base backup.
+        summary: WAL archiving failing ({{ $labels.namespace }}/{{ $labels.pod }})
       expr: |
-        cnpg_collector_pg_stat_archiver_failed_count > 0
+        increase({__name__=~"cnpg_(collector_)?pg_stat_archiver_failed_count"}[1h]) > 0
       for: 15m
       labels:
         severity: critical
+    - alert: PostgresWALArchiveMetricAbsent
+      annotations:
+        description: 'This cluster archives to an object store but publishes no pg_stat_archiver
+          counter under either spelling, so PostgresWALArchiveFailing cannot fire
+          for it. Find the real name: kubectl -n {{ $labels.namespace }} exec {{ $labels.pod
+          }} -c postgres -- curl -s localhost:9187/metrics | grep archiver'
+        summary: No WAL-archiver metric for {{ $labels.namespace }}/{{ $labels.pod
+          }}
+      expr: |
+        (cnpg_collector_last_available_backup_timestamp > 0)
+        unless on (namespace, pod)
+        {__name__=~"cnpg_(collector_)?pg_stat_archiver_failed_count"}
+      for: 1h
+      labels:
+        severity: warning
+    - alert: PostgresWALArchiveBacklog
+      annotations:
+        description: 'No WAL segment has been archived for over 4 hours. Unarchived
+          WAL is retained on the data volume; check pg_wal usage before this becomes
+          a disk-full outage: kubectl -n {{ $labels.namespace }} exec {{ $labels.pod
+          }} -c postgres -- df -h /var/lib/postgresql/data'
+        summary: WAL archive backlog in {{ $labels.namespace }}/{{ $labels.pod }}
+      expr: |
+        {__name__=~"cnpg_(collector_)?pg_stat_archiver_seconds_since_last_archival"} > 4 * 3600
+      for: 30m
+      labels:
+        severity: critical
+  - name: backup.files.rules
+    rules:
     - alert: FileBackupJobFailed
       annotations:
+        description: 'A restic CronJob gave up after its retries. Check the log: kubectl
+          -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}'
         summary: 'File backup job failing: {{ $labels.namespace }}/{{ $labels.job_name
           }}'
       expr: |
-        kube_job_status_failed{job_name=~".*-backup-.*"} > 0
+        max by (namespace, job_name) (
+          kube_job_failed{namespace!="backup-verify", job_name=~".*backup.*", condition="true"}
+        ) > 0
       for: 30m
       labels:
         severity: warning
+    - alert: FileBackupNotRunRecently
+      annotations:
+        description: 'The CronJob controller has not created a Job for this schedule.
+          Nothing failed -- nothing ran. Check kubectl -n {{ $labels.namespace }}
+          describe cronjob {{ $labels.cronjob }} for a missed startingDeadlineSeconds
+          or concurrencyPolicy: Forbid blocking on a wedged previous run.'
+        summary: Backup CronJob has not been scheduled in 36h ({{ $labels.namespace
+          }}/{{ $labels.cronjob }})
+      expr: |
+        time() - kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"} > 36 * 3600
+      for: 1h
+      labels:
+        severity: critical
+    - alert: FileBackupCronJobSuspended
+      annotations:
+        summary: Backup CronJob is SUSPENDED ({{ $labels.namespace }}/{{ $labels.cronjob
+          }})
+      expr: |
+        kube_cronjob_spec_suspend{namespace!="backup-verify", cronjob=~".*backup.*"} == 1
+      for: 30m
+      labels:
+        severity: warning
+    - alert: FileBackupCronJobsAbsent
+      annotations:
+        description: kube-state-metrics reports no CronJob whose name contains 'backup'.
+          Either nothing is backing anything up, or kube-state-metrics is not being
+          scraped -- both are worth interrupting whatever you were doing.
+        summary: No backup CronJobs exist in this cluster
+      expr: |
+        absent(kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"})
+      for: 2h
+      labels:
+        severity: critical
+  - name: backup.correlation.rules
+    rules:
+    - alert: BackupCredentialUnusable
+      annotations:
+        description: 'Multiple unrelated Postgres clusters stopped backing up at the
+          same time. They share exactly one thing: the `s3-backup` Secret and the
+          bucket it points at. Check the bucket still exists, the IAM key is active,
+          and `homelab-backups-REPLACE-ME` has actually been replaced (task backup:set-target).'
+        summary: Two or more databases are failing to back up -- suspect the shared
+          credential
+      expr: |
+        count(
+          cnpg_collector_last_failed_backup_timestamp
+            > cnpg_collector_last_available_backup_timestamp
+        ) >= 2
+      for: 30m
+      labels:
+        severity: critical

@@ -129,6 +129,149 @@ spec:
         persistentVolumeClaim:
           claimName: syncthing-pvc
 ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: syncthing-backup
+  namespace: syncthing
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: syncthing-backup
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app: syncthing
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+
+              # An INCLUDE-list expressed as excludes, which is the only
+              # form restic offers. The exclusions are the rebuildable
+              # index; everything left is identity and configuration.
+              #
+              # Both database layouts are excluded because the pinned image
+              # crosses the 1.x/2.x boundary: `index-v2` is 1.x's LevelDB
+              # directory and `*.db` is 2.x's SQLite. Listing only the one
+              # matching today's version would silently start capturing a
+              # live database on the next major bump -- the failure mode
+              # being avoided.
+              restic backup /data \
+                --tag syncthing-data \
+                --tag syncthing-identity \
+                --host syncthing \
+                --exclude '/data/index-v2' \
+                --exclude '/data/*.db' \
+                --exclude '/data/*.db-wal' \
+                --exclude '/data/*.db-shm' \
+                --exclude '/data/index-v0.14.0.db' \
+                --exclude '/data/csrftokens.txt' \
+                --exclude '/data/*.log' \
+                --exclude '/data/panic-*.log' \
+                --verbose
+
+              # Deep retention, because it is free at this size and because
+              # a mistaken folder-configuration change (a share removed, an
+              # ignore pattern that stopped syncing something) is exactly
+              # the kind of thing noticed months later.
+              restic forget \
+                --host syncthing \
+                --keep-daily 30 \
+                --keep-weekly 12 \
+                --keep-monthly 24 \
+                --prune
+
+              restic check --with-cache
+
+              # ONE ASSERTION, because a backup of the wrong thing is the
+              # risk here rather than a torn write.
+              #
+              # If the excludes ever over-match -- a version that renames
+              # config.xml, a path change -- this job would keep succeeding
+              # while backing up nothing that matters. `restic ls` of the
+              # snapshot just written is cheap and catches that.
+              echo "--- verifying the snapshot contains the identity files ---"
+              files=$(restic ls --tag syncthing-identity latest)
+              for want in config.xml cert.pem key.pem; do
+                if printf '%s\n' "$files" | grep -q "/${want}\$"; then
+                  echo "    ok      ${want}"
+                else
+                  echo "    MISSING ${want}"
+                  echo "FAIL: the snapshot does not contain ${want}."
+                  echo "      This backup is worthless without it -- the"
+                  echo "      device identity and folder configuration are"
+                  echo "      the only irreplaceable things in this volume."
+                  exit 1
+                fi
+              done
+              echo "PASS"
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/syncthing/data
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /data
+              name: data
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: syncthing-pvc
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 512Mi
+            name: cache
+  schedule: 0 2 * * *
+  successfulJobsHistoryLimit: 3
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
