@@ -1,0 +1,105 @@
+# CiliumNetworkPolicy for the six application namespaces.
+#
+# Source: infrastructure/network-policies/. Read that directory's
+# kustomization.yaml for the design and 90-enforcement.yaml for the rollout and
+# the one-step revert. In the state this Application ships in, syncing it changes
+# no traffic.
+#
+# SYNC WAVE 30 -- LAST IN THE INFRASTRUCTURE LAYER.
+#
+# The policies need the CiliumNetworkPolicy CRD, which arrives with the `cilium`
+# Application at wave -10, so anything from -9 onwards would technically work.
+# It is last instead, because of what an early wave can hold up.
+#
+# WHAT SYNC WAVES ACTUALLY DO, stated carefully -- the stronger claim that used
+# to be here was wrong. `layer-infrastructure` APPLIES waves in ascending order
+# and will not start wave N+1 until every resource in wave N is Synced and
+# reports Healthy. The catch is the second half: a resource whose kind has no
+# health check is reported Healthy the instant it is applied, so for such a
+# resource the wait is vacuous and the wave advances immediately. Waves are an
+# ordering mechanism first and a barrier only where health is actually
+# assessable.
+#
+# For THIS layer the barrier is real, but only conditionally: its members are
+# Application objects, and Argo CD has shipped no built-in health check for
+# `argoproj.io/Application` since 1.8 --
+# `resource.customizations.health.argoproj.io_Application` in
+# bootstrap/argocd-values.yaml is what makes an unhealthy Application hold its
+# wave at all. So a wedged Application at an early wave can indeed stop
+# cert-manager, external-dns, the Gateway and the CSI driver from syncing.
+# Network policy is the least urgent thing in this layer and the most likely to
+# be wrong, so it goes where a failure costs nothing else.
+#
+# It also means the namespaces (wave -30) and the storage classes (wave 20) exist
+# before any policy is applied, and that on a rebuild the policies land after the
+# plumbing rather than during it.
+#
+# NOT IN THE `apps` LAYER, although the policed namespaces are all application
+# namespaces: enforcement has to be reversible independently of the workloads it
+# protects. If these lived alongside the apps, reverting a bad policy and
+# reverting an app change would be the same sync.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: network-policies
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: deployed
+    path: deploy/infrastructure/network-policies
+  destination:
+    server: https://kubernetes.default.svc
+    # Every object in the source sets `metadata.namespace` explicitly and they
+    # span six namespaces, so this value is only the fallback Argo CD uses for an
+    # object that does not. `argocd` is the inert choice: a CiliumNetworkPolicy
+    # that accidentally landed here would select nothing, whereas naming one of
+    # the six would silently apply a stray policy to real workloads.
+    namespace: argocd
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      # PRUNE IS REQUIRED, not merely permitted. Reverting enforcement means
+      # taking a `CiliumNetworkPolicy` out of git; without prune the object stays
+      # in the cluster and the revert commit does nothing, which is the worst
+      # possible behaviour for a safety switch.
+      prune: true
+      # selfHeal: false, and this is the ONLY Application in this repo that sets
+      # it. Every other one self-heals, which is right for a workload: drift is
+      # noise and Argo should win.
+      #
+      # Here Argo must not win. The documented emergency revert is
+      #     kubectl -n <ns> delete cnp enforce-default-deny
+      # and with selfHeal: true Argo would put it back within three minutes,
+      # during an incident, without being asked. That turns a 5-second recovery
+      # into a fight with the GitOps controller at the exact moment the cluster's
+      # network is the thing that is broken.
+      #
+      # The cost is real and accepted: a hand-deleted policy stays deleted and
+      # shows as OutOfSync. That visible OutOfSync is the reminder.
+      #
+      # BUT "STAYS DELETED" HAS A DEADLINE, and it is not a deliberate
+      # reconcile. `automated` is still present here; `selfHeal: false` only
+      # stops Argo re-syncing in response to CLUSTER drift. A NEW GIT REVISION
+      # still auto-syncs this Application, and syncing it re-creates every
+      # object in `deploy/infrastructure/network-policies` -- including the one
+      # you deleted. Because `targetRevision` is the `deployed` tag, the
+      # revision changes on ANY deploy, not only on a commit that touches this
+      # path. So mid-incident, the next `deployed` move puts the policy back
+      # without anyone asking.
+      #
+      # If you need enforcement off for longer than the next deploy, take it
+      # out of git -- `prune: true` above is what makes that work in one commit.
+      selfHeal: false
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

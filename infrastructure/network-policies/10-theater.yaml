@@ -1,0 +1,663 @@
+# theater: qBittorrent, Prowlarr, Sonarr/Radarr/Lidarr, Plex, Jellyfin, and the
+# four CloudNativePG clusters behind the *arr apps.
+#
+# This is the namespace the whole directory exists for. Written per workload, not
+# per namespace, because the point is that qBittorrent -- which fetches arbitrary
+# content from the internet and is published on a LoadBalancer -- must not be able
+# to reach the four Postgres clusters, the NAS, or the Kubernetes API.
+#
+# See ./kustomization.yaml for the design notes and ./90-enforcement.yaml for how
+# to switch this namespace on and how to switch it back off.
+#
+# THREE THINGS EVERY RULE HERE RELIES ON
+#
+#   1. Kubelet probes are allowed without a rule. Cilium's `--allow-localhost`
+#      defaults to `auto`, which pkg/option/config.go documents as "defaults to
+#      policy except when running in Kubernetes where it then defaults to
+#      always". So `reserved:host` -> pod ingress is always permitted and the
+#      httpGet/tcpSocket probes in apps/theater/*.yaml keep working. The
+#      `fromEntities: [host, remote-node]` rules below are therefore redundant
+#      for probes -- they are here as the enforcement anchor and so the policy
+#      still reads correctly if that flag is ever set to `policy`.
+#
+#   2. Cilium's Gateway API proxy has its own identity, `reserved:ingress`
+#      (pkg/policy/api/entity.go: "EntityIngress is an entity that represents
+#      envoy proxy"). Every HTTPRoute-backed port needs `fromEntities: [ingress]`.
+#      `host` and `remote-node` are listed alongside it because with
+#      `bpf.masquerade: false` (infrastructure/cilium/values.yaml) traffic that
+#      crosses a node can arrive SNATed to a node address instead. Narrow the
+#      list once you have seen which identity actually appears:
+#          hubble observe --to-namespace theater --port 8989 -o dict
+#
+#   3. Service ClusterIPs never appear in a rule. Cilium's kube-proxy replacement
+#      translates a Service address to a backend pod address in eBPF BEFORE
+#      policy is evaluated, so the destination a rule must match is the backend
+#      POD, selected by label.
+---
+# ---------------------------------------------------------------------------
+# qBittorrent
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: qbittorrent
+  namespace: theater
+spec:
+  description: >-
+    qBittorrent: WebUI reachable from the Gateway and the *arr apps, peer port
+    reachable from the LAN, egress to internet peers but NOT to the LAN.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent
+  # OFF. Contributes an allow-list without putting qBittorrent into default-deny.
+  # Flipping this is done in ./90-enforcement.yaml, not here.
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # WebUI at qbittorrent.lilalala.com.
+    # apps/theater/qbittorrent.yaml -- HTTPRoute `qbittorrent` -> Service :8080
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+
+    # The download client, polled by the three *arr apps over the WebUI API.
+    # apps/theater/qbittorrent.yaml -- "reached by the *arr apps in-cluster as
+    # http://qbittorrent.theater.svc.cluster.local:8080"
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [sonarr, radarr, lidarr]
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+
+    # Inbound BitTorrent peers, arriving via the `qbittorrent-peer` LoadBalancer.
+    # apps/theater/qbittorrent.yaml -- Service `qbittorrent-peer`, 50000 TCP+UDP,
+    # address from the `services` pool in infrastructure/cilium/ip-pools.yaml.
+    # `world` is the peer on the internet; `host`/`remote-node` cover the case
+    # where the node that owns the L2 announcement SNATs to itself before
+    # forwarding to the pod on another node.
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "50000"
+              protocol: TCP
+            - port: "50000"
+              protocol: UDP
+  egress:
+    # Cluster DNS. Every workload needs it; without this rule enforcement breaks
+    # everything else in the same instant and the drop is hard to read.
+    # Verify the selector matches your DNS pods with:
+    #   kubectl -n kube-system get pods -l k8s-app=kube-dns
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Trackers, DHT and peers: arbitrary hosts on arbitrary TCP and UDP ports.
+    # apps/theater/qbittorrent.yaml -- this is what a torrent client is.
+    #
+    # `toCIDRSet` with `except`, NOT `toEntities: [world]`, and this is the single
+    # most valuable rule in the directory. `reserved:world` includes the private
+    # LAN, so an all-ports world rule would leave qBittorrent able to reach
+    # 192.168.1.228:2049 (the NFS export), :3260 (the iSCSI portal) and the
+    # TrueNAS web UI. Excluding RFC1918 removes that reach while leaving every
+    # real peer addressable. Nothing on the LAN is a BitTorrent peer.
+    #
+    # Note Cilium CIDR selectors do not match in-cluster identities (pods, and
+    # node addresses unless `policy-cidr-match-mode=nodes` is set), so the
+    # RFC1918 exceptions here are what blocks the NAS specifically -- pods and
+    # nodes were already out of reach of this rule.
+    - toCIDRSet:
+        - cidr: 0.0.0.0/0
+          except:
+            - 192.168.0.0/16    # the LAN, plus the 192.168.2.0/24 LoadBalancer pool
+            - 10.0.0.0/8        # Cilium's default cluster-pool pod CIDR
+            - 172.16.0.0/12
+            - 169.254.0.0/16    # link-local, incl. cloud metadata addresses
+            - 127.0.0.0/8
+---
+# ---------------------------------------------------------------------------
+# Sonarr / Radarr / Lidarr
+#
+# One policy for the three, because apps/theater/sonarr.yaml is explicitly "the
+# reference shape for all four *arr apps" and radarr.yaml/lidarr.yaml differ only
+# in port, env prefix and database. Prowlarr is separate: it has no /data mount
+# and a different flow direction.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-apps
+  namespace: theater
+spec:
+  description: >-
+    Sonarr/Radarr/Lidarr: UI from the Gateway, release pushes from Prowlarr,
+    egress to their own Postgres, to qBittorrent, to Prowlarr and to indexers.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [sonarr, radarr, lidarr]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # sonarr.lilalala.com / radarr.lilalala.com / lidarr.lilalala.com.
+    # apps/theater/{sonarr,radarr,lidarr}.yaml -- HTTPRoute per app.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP    # sonarr
+            - port: "7878"
+              protocol: TCP    # radarr
+            - port: "8686"
+              protocol: TCP    # lidarr
+
+    # Prowlarr pushes indexer definitions and releases into each app's API.
+    # apps/theater/prowlarr.yaml -- "pushes releases to the other *arr apps over
+    # HTTP".
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prowlarr
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+            - port: "7878"
+              protocol: TCP
+            - port: "8686"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Each app's own CloudNativePG cluster, via the `<cluster>-rw` Service.
+    # apps/theater/sonarr.yaml -- SONARR__POSTGRES__HOST from the
+    # `sonarr-postgresql-app` Secret; same shape in radarr.yaml and lidarr.yaml.
+    #
+    # Selected by `cnpg.io/cluster` In [...] rather than one rule per app: an
+    # *arr app reaching a sibling *arr's database is not a threat worth three
+    # extra rules, and the boundary that matters is that qBittorrent, Plex and
+    # Jellyfin have no rule to any of them at all.
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: In
+              values: [sonarr-postgresql, radarr-postgresql, lidarr-postgresql]
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # The download client.
+    # apps/theater/qbittorrent.yaml -- Service `qbittorrent` :8080.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: qbittorrent
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+
+    # Indexer search goes through Prowlarr, not direct to the indexer.
+    # apps/theater/prowlarr.yaml -- "Feeds Sonarr/Radarr/Lidarr".
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: prowlarr
+      toPorts:
+        - ports:
+            - port: "9696"
+              protocol: TCP
+
+    # Metadata providers on the internet: TheTVDB (Sonarr), TMDb (Radarr),
+    # MusicBrainz/Last.fm (Lidarr), plus the apps' own update checks.
+    # apps/theater/{sonarr,radarr,lidarr}.yaml -- inherent to the applications.
+    #
+    # `toEntities: [world]` rather than `toFQDNs`. FQDN policy would be tighter,
+    # but it routes every DNS answer for these pods through Cilium's L7 DNS proxy
+    # -- a new failure mode for name resolution, introduced on the same evening as
+    # a first-ever default-deny rollout. Revisit once enforcement has been stable
+    # for a while; the rule to change is this one.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# Prowlarr
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prowlarr
+  namespace: theater
+spec:
+  description: >-
+    Prowlarr: UI from the Gateway, search API from the three *arr apps, egress to
+    its own Postgres, to the *arr apps it syncs, and to indexers on the internet.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # prowlarr.lilalala.com.
+    # apps/theater/prowlarr.yaml -- HTTPRoute `prowlarr` -> Service :9696.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9696"
+              protocol: TCP
+
+    # Search requests from the *arr apps.
+    # apps/theater/prowlarr.yaml -- "Feeds Sonarr/Radarr/Lidarr".
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [sonarr, radarr, lidarr]
+      toPorts:
+        - ports:
+            - port: "9696"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Its own database.
+    # apps/theater/prowlarr.yaml -- PROWLARR__POSTGRES__HOST from the
+    # `prowlarr-postgresql-app` Secret.
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: prowlarr-postgresql
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # App sync: Prowlarr writes indexer definitions into each *arr app.
+    # apps/theater/prowlarr.yaml -- "pushes releases to the other *arr apps over
+    # HTTP".
+    - toEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [sonarr, radarr, lidarr]
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+            - port: "7878"
+              protocol: TCP
+            - port: "8686"
+              protocol: TCP
+
+    # Indexers and trackers. This is Prowlarr's entire job.
+    # apps/theater/prowlarr.yaml -- "it only talks to indexers and pushes
+    # releases to the other *arr apps over HTTP".
+    #
+    # Some private trackers listen on non-standard ports. If an indexer test
+    # fails after enforcement while others pass, that is this rule, and the fix
+    # is to add the port here rather than to widen it to all ports.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# Plex and Jellyfin
+#
+# One policy: from the network's point of view they are the same shape. Both
+# serve HTTP through the Gateway, both mount the media share READ-ONLY, and
+# neither talks to anything else inside the cluster -- no database, no cache, no
+# *arr API. Their only egress is metadata lookup on the internet.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: media-servers
+  namespace: theater
+spec:
+  description: >-
+    Plex and Jellyfin: HTTP from the Gateway, metadata lookup on the internet,
+    and deliberately no in-cluster egress at all.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [plex, jellyfin]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # theater.lilalala.com -> Plex :32400, cinema.lilalala.com -> Jellyfin :8096.
+    # apps/theater/plex.yaml and apps/theater/jellyfin.yaml -- HTTPRoutes with
+    # `request: 0s` timeouts for long-lived streams.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "32400"
+              protocol: TCP   # plex
+            - port: "8096"
+              protocol: TCP   # jellyfin
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # plex.tv (account, metadata, relay) and Jellyfin's metadata providers.
+    # apps/theater/plex.yaml -- ADVERTISE_IP=https://theater.lilalala.com:443
+    # means Plex talks to plex.tv to publish that address.
+    # apps/theater/jellyfin.yaml -- TheTVDB/TMDb/OMDb lookups and plugin updates.
+    #
+    # KNOWN CONSEQUENCE: Plex's own remote access, GDM discovery (UDP 32410 and
+    # 32412-32414) and DLNA are not permitted by this rule. None of them work
+    # today either -- there is no LoadBalancer Service for them and
+    # apps/theater/jellyfin.yaml already records that a ClusterIP cannot carry a
+    # LAN broadcast. If you add such a Service, add the matching ingress rule
+    # here at the same time.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# The four CloudNativePG clusters
+#
+# sonarr-postgresql, radarr-postgresql, lidarr-postgresql, prowlarr-postgresql.
+# Selected by `cnpg.io/cluster: Exists`, which the operator sets on every
+# instance pod and on the initdb/join Jobs it creates. Matching on Exists rather
+# than on four names means a fifth cluster added to this namespace is covered on
+# arrival instead of failing in a way nobody connects to this file.
+#
+# NOTE: none of these four sets `spec.backup`, unlike apps/immich/resources/
+# database.yaml and platform/keycloak/database.yaml. So there is no WAL archiving
+# and no S3 egress rule here. If a `backup.barmanObjectStore` block is ever added
+# to one of them, it needs `toEntities: [world]` on 443 as well, and without it
+# WAL archiving fails quietly and the cluster eventually refuses to checkpoint.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres
+  namespace: theater
+spec:
+  description: >-
+    CloudNativePG instances in theater: reachable by their own application and by
+    the operator, egress to the Kubernetes API only.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # The applications. Each *arr reads its credentials from the matching
+    # `<cluster>-app` Secret; see apps/theater/sonarr.yaml.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [sonarr, radarr, lidarr, prowlarr]
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # The CloudNativePG operator. It drives every instance through the instance
+    # manager's HTTP API on 8000 (status, promote, restart) and connects to
+    # 5432 for the checks it cannot do through that API.
+    # platform/cloudnative-pg/values.yaml -- the operator Deployment in
+    # cnpg-system. Without this rule the operator reports every instance as
+    # unknown and stops reconciling, which looks like a broken database.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cnpg-system
+            app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "5432"
+              protocol: TCP
+
+    # Streaming replication and instance-manager traffic between instances of the
+    # same cluster. All four run `instances: 1` today, so this is currently
+    # unused; it is here because scaling one to 2 would otherwise fail with the
+    # replica stuck in a join loop and no obvious cause.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+
+    # Prometheus scrape.
+    # apps/theater/sonarr.yaml and siblings -- `monitoring.enablePodMonitor: true`
+    # on every Cluster; platform/kube-prometheus-stack/values.yaml sets
+    # `podMonitorSelectorNilUsesHelmValues: false` so those monitors are honoured.
+    # Port 9187 is CloudNativePG's exporter.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+
+    # The nightly logical dump.
+    # apps/theater/backup.yaml -- the `theater-postgres-backup` CronJob runs
+    # `pg_dump -h "$host" -p "$port"` against all four clusters, reading each
+    # `<cluster>-postgresql-app` Secret from /creds/<app>. Its own comment says
+    # "No podAffinity: [...] it reaches the databases over the network via their
+    # `-rw` Services", which is precisely why it needs a policy rule and the
+    # config-volume jobs in the same file do not.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: batch.kubernetes.io/job-name
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+  egress:
+    # Cluster DNS. The instance manager resolves `<cluster>-rw` and the pod's own
+    # FQDN.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # The Kubernetes API. Each instance runs a CloudNativePG instance manager
+    # that WATCHES its own Cluster resource and writes status back; it is not a
+    # passive Postgres. `toEntities: [kube-apiserver]` resolves to whatever the
+    # API server addresses actually are, which matters here because
+    # infrastructure/cilium/values.yaml points the agents at a VIP
+    # (k8sServiceHost: 192.168.1.11) rather than at the Service.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+    # Peer instances, for the same reason as the matching ingress rule.
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# The backup CronJobs
+#
+# apps/theater/backup.yaml -- one `theater-postgres-backup` job that dumps the
+# four Postgres clusters, plus six `theater-config-backup-<app>` jobs that push
+# each application's /config volume to S3 with restic.
+#
+# SELECTED BY `batch.kubernetes.io/job-name: Exists`, NOT by the seven
+# app.kubernetes.io/name values. Two reasons, and the second is the important one:
+#
+#   1. A seventh or eighth backup job -- qBittorrent's /config is not backed up
+#      today, for instance -- would otherwise have to be added here too, and the
+#      failure mode is a job that succeeds for weeks and then starts failing at
+#      04:00 with a restic network error.
+#   2. It is the only label a Job pod is guaranteed to have. apps/paperless/
+#      backup.yaml already demonstrates the alternative: its pod template carries
+#      no labels at all.
+#
+# Cilium keeps this label. pkg/labelsfilter/filter.go's default configuration
+# ignores `batch.kubernetes.io/job-completion-index` and
+# `batch.kubernetes.io/controller-uid` by name but not `job-name`, and its
+# prefix patterns are anchored at the start of the key so `!kubernetes\.io` does
+# not match `batch.kubernetes.io/...`. Confirm on the cluster with:
+#
+#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
+#     cilium-dbg endpoint list -o json | grep job-name
+#
+# `cnpg.io/cluster: DoesNotExist` excludes CloudNativePG's own initdb and join
+# Jobs, which are already covered by the `postgres` policy above. Keeping the two
+# selectors disjoint means a drop can only come from one of them.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: theater
+spec:
+  description: >-
+    The theater backup CronJobs: egress to the four Postgres clusters for
+    pg_dump and to S3 for restic. No ingress at all.
+  endpointSelector:
+    matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+      - key: cnpg.io/cluster
+        operator: DoesNotExist
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # Nothing connects TO a backup job. Kubelet probes are the only inbound
+    # traffic and they are covered by the always-allowed reserved:host path
+    # described in this file's header; the `enforce-default-deny` policy in
+    # 90-enforcement.yaml states that explicitly for the whole namespace.
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    # Cluster DNS. Needed to resolve `<cluster>-rw` and the S3 endpoint.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # pg_dump against all four clusters.
+    # apps/theater/backup.yaml -- `theater-postgres-backup`.
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # restic to S3.
+    # apps/theater/backup.yaml -- RESTIC_REPOSITORY
+    # s3:https://s3.eu-central-1.amazonaws.com/... in every one of the seven jobs.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

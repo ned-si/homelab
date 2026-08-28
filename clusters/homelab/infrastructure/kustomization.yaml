@@ -16,6 +16,10 @@ kind: Kustomization
 #                             can create its VolumeSnapshotClass
 #    20  democratic-csi    StorageClasses, needed before any PVC in later layers
 #    25  nfs-storage       static NFS PVs/PVCs for the media library
+#    30  network-policies  CiliumNetworkPolicies. Last, because a CNP that selects
+#                          a pod which does not exist yet is inert, whereas an
+#                          enforcing policy applied before the workloads it
+#                          describes would deny their first connection.
 resources:
   - namespaces.yaml
   - secrets.yaml
@@ -29,3 +33,4 @@ resources:
   - snapshot-controller.yaml
   - democratic-csi.yaml
   - nfs-storage.yaml
+  - network-policies.yaml

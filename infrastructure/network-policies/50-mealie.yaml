@@ -1,0 +1,270 @@
+# mealie: the Mealie Deployment and its `mealie-postgresql` CloudNativePG cluster.
+#
+# THE SMALLEST NAMESPACE OF THE SIX, AND THEREFORE THE ONE TO ENFORCE FIRST.
+# Two workloads, one HTTPRoute, one database connection, one outbound dependency.
+# If a default-deny rollout is going to be wrong, it is much cheaper to find that
+# out here than in theater. See ./90-enforcement.yaml.
+---
+# ---------------------------------------------------------------------------
+# Mealie
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mealie
+  namespace: mealie
+spec:
+  description: >-
+    Mealie: HTTP from the Gateway, egress to its Postgres, to Keycloak over the
+    WAN, and to arbitrary sites for recipe import.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # cook.lilalala.com -> mealie :9000.
+    # apps/mealie/httproute.yaml -- HTTPRoute `mealie`.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # The database, via `mealie-postgresql-rw`.
+    # apps/mealie/deployment.yaml -- POSTGRES_SERVER from the
+    # `mealie-postgresql-app` Secret's `host` key.
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: mealie-postgresql
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # HTTPS and HTTP to the internet, for two reasons that need different ports:
+    #
+    #   - OIDC. apps/mealie/deployment.yaml -- OIDC_CONFIGURATION_URL
+    #     https://auth.lilalala.com/realms/homelab/.well-known/openid-configuration,
+    #     which resolves to the site's WAN address and is therefore `world` from a
+    #     pod. Same split-horizon-DNS caveat as in 20-immich.yaml.
+    #   - Recipe import by URL, which is Mealie's headline feature: it fetches and
+    #     scrapes arbitrary third-party sites. Plenty of recipe sites are still
+    #     plain HTTP or redirect through it, which is why port 80 is here and is
+    #     not an oversight.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# mealie-postgresql (CloudNativePG)
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mealie-postgres
+  namespace: mealie
+spec:
+  description: >-
+    mealie-postgresql instances: reachable by Mealie and the operator, egress to
+    the Kubernetes API only.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # The application.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: mealie
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # The CloudNativePG operator: instance-manager API on 8000, plus 5432.
+    # platform/cloudnative-pg/values.yaml -- operator Deployment in cnpg-system.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cnpg-system
+            app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "5432"
+              protocol: TCP
+
+    # Peer instances. `instances: 1` today (apps/mealie/database.yaml).
+    - fromEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+
+    # Prometheus scrape of the CloudNativePG exporter.
+    # apps/mealie/database.yaml -- `monitoring.enablePodMonitor: true`.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+
+    # The nightly logical dump.
+    # apps/mealie/backup.yaml -- the `mealie-backup` CronJob runs
+    # `pg_dump -h "$(cat "$d/host")" -p "$(cat "$d/port")"`, reading the
+    # `mealie-postgresql-app` Secret from a projected volume.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: batch.kubernetes.io/job-name
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # The Kubernetes API, watched by the instance manager.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+    # NO S3 EGRESS FROM THE INSTANCE, and that is deliberate rather than an
+    # omission. apps/mealie/database.yaml sets `backup.retentionPolicy: 14d` but
+    # declares no `backup.barmanObjectStore`, and there is no ScheduledBackup for
+    # this cluster -- unlike apps/immich/resources/database.yaml and
+    # platform/keycloak/database.yaml, which both archive WAL to S3 and therefore
+    # do have such a rule. This cluster is protected by the logical pg_dump in
+    # apps/mealie/backup.yaml instead, which runs in a separate pod and carries its
+    # own S3 rule (see the `backup-jobs` policy below).
+    #
+    # Worth flagging separately: a `retentionPolicy` with no destination governs
+    # nothing, so that field in apps/mealie/database.yaml is inert.
+    #
+    # If a barmanObjectStore block is ever added here, add `toEntities: [world]` on
+    # 443 in the SAME change. Blocked WAL archiving does not fail the backup, it
+    # fills pg_wal and eventually stops the database accepting writes.
+
+    # Peer instances, counterpart of the ingress rule above.
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# The backup CronJob
+#
+# apps/mealie/backup.yaml -- `mealie-backup` takes a pg_dump of
+# mealie-postgresql and pushes it, plus the `mealie-data` volume, to S3 with
+# restic.
+#
+# A separate policy from `mealie` above so that the application's `world` rule and
+# the job's stay independent: Mealie needs port 80 as well, for recipe scraping,
+# and a backup job has no business making plaintext HTTP requests.
+#
+# `batch.kubernetes.io/job-name: Exists` rather than
+# `app.kubernetes.io/name: mealie-backup` -- see the reasoning in 10-theater.yaml.
+# `cnpg.io/cluster: DoesNotExist` keeps this disjoint from `mealie-postgres`,
+# whose selector also matches CloudNativePG's own initdb and join Jobs.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: mealie
+spec:
+  description: >-
+    The mealie backup CronJob: egress to Postgres for pg_dump and to S3 on 443
+    for restic. Nothing else.
+  endpointSelector:
+    matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+      - key: cnpg.io/cluster
+        operator: DoesNotExist
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Cluster DNS, to resolve `mealie-postgresql-rw` and the S3 endpoint.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # pg_dump.
+    # apps/mealie/backup.yaml -- `mealie-backup`.
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # restic to S3.
+    # apps/mealie/backup.yaml -- RESTIC_REPOSITORY s3:https://s3....
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

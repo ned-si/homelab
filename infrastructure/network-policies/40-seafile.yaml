@@ -1,0 +1,124 @@
+# seafile: the seafile-mc Deployment, its MariaDB, and memcached.
+#
+# ONE policy for the namespace. The three components are one application and
+# their selectors are constrained by the live objects rather than chosen -- see
+# the notes in apps/seafile/mariadb.yaml and apps/seafile/memcached.yaml about
+# `app: mariadb` / `app: memcached` being immutable. Keying rules on labels that
+# a future selector migration is expected to change would put a landmine in this
+# file; `endpointSelector: {}` does not care.
+#
+# NO INTERNET EGRESS, AND THAT IS THE INTERESTING PART OF THIS FILE.
+#   Nothing in apps/seafile/ declares an outbound dependency: no OIDC (unlike
+#   mealie and paperless), no S3 backup CronJob (unlike immich and paperless), no
+#   metadata provider (unlike plex and jellyfin). So no `toEntities: [world]` rule
+#   is written, on the principle that a rule nobody can trace to a manifest gets
+#   deleted by the next reader.
+#
+#   The caveat is real though, and it is specific to Seafile: apps/seafile/pvc.yaml
+#   records that Seafile's actual configuration (seahub_settings.py, ccnet.conf,
+#   seafile.conf) lives INSIDE the `seafile-data` volume and NOT in git. So this
+#   repo cannot see whether SMTP notifications, an external avatar source or SSO
+#   are configured in there. If any of them are, they will start failing the
+#   moment egress is enforced for this namespace, and they will be the first
+#   DROPPED flows Hubble shows. Add the port you actually see -- 587 or 465 for
+#   SMTP, 443 for HTTPS -- rather than opening all of `world`.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: seafile
+  namespace: seafile
+spec:
+  description: >-
+    Everything in the seafile namespace. Free movement inside it; outside it only
+    the Gateway and DNS. No internet egress by design.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # drive.lilalala.com -> seafile :80.
+    # apps/seafile/httproute.yaml -- HTTPRoute `seafile`, `request: 0s` for large
+    # uploads. TLS is terminated at the Gateway, which is why the backend port is
+    # plain HTTP (apps/seafile/deployment.yaml sets
+    # SEAFILE_SERVER_LETSENCRYPT=false for the same reason).
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+
+    # seafile -> mariadb :3306 and seafile -> memcached :11211.
+    # apps/seafile/deployment.yaml -- DB_HOST: mariadb.
+    # apps/seafile/memcached.yaml -- "Seafile's session/object cache".
+    - fromEndpoints:
+        - {}
+
+    # No Prometheus rule: apps/seafile/mariadb.yaml states explicitly that this is
+    # the one database in the cluster not managed by CloudNativePG and therefore
+    # has "no PodMonitor". Nothing here is scraped.
+  egress:
+    # Cluster DNS. Seafile resolves `mariadb` and `memcached` by Service name.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Intra-namespace, the counterpart of the ingress rule above.
+    - toEndpoints:
+        - {}
+---
+# ---------------------------------------------------------------------------
+# The backup CronJob
+#
+# apps/seafile/backup.yaml -- `seafile-backup` takes a consistent MariaDB dump
+# (`mysqldump -h mariadb -u root`) and pushes it, plus /shared, to S3 with restic.
+#
+# A SEPARATE POLICY FROM THE NAMESPACE ONE ABOVE, on purpose. The namespace policy
+# has no internet egress, and that is the property worth keeping: Seafile itself
+# holds every user's files and should not be able to reach the internet. Adding
+# `toEntities: [world]` to the namespace-wide rule would hand that reach to the
+# Seafile and MariaDB pods as well, for the sake of one nightly job.
+#
+# The MariaDB half needs no rule here: the namespace policy's intra-namespace
+# ingress and egress rules already cover job-pod -> mariadb:3306, because that
+# policy selects every endpoint in the namespace including this one.
+#
+# `batch.kubernetes.io/job-name: Exists` rather than
+# `app.kubernetes.io/name: seafile-backup` -- see the reasoning in 10-theater.yaml.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: seafile
+spec:
+  description: >-
+    The seafile backup CronJob: the only thing in this namespace permitted to
+    reach the internet, and only on 443 for restic.
+  endpointSelector:
+    matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # restic to S3.
+    # apps/seafile/backup.yaml -- RESTIC_REPOSITORY
+    # s3:https://s3.eu-central-1.amazonaws.com/.../seafile/shared
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

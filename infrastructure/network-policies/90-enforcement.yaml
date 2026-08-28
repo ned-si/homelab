@@ -1,0 +1,364 @@
+# ###########################################################################
+# # THE ENFORCEMENT SWITCH. THIS IS THE ONE FILE YOU EDIT.
+# #
+# # Every policy in this directory ships with
+# #     enableDefaultDeny: {ingress: false, egress: false}
+# # which means: contribute an allow-list, but do not put the selected endpoints
+# # into default-deny. In that state NOTHING is blocked and applying this
+# # directory is a no-op on traffic.
+# #
+# # Flipping one `false` to `true` below turns default-deny ON for one namespace,
+# # in one direction. That is the entire mechanism. There is no other switch, no
+# # Helm value and no annotation.
+# ###########################################################################
+#
+# HOW THIS WORKS IN CILIUM 1.16.3, precisely, because the semantics are subtle
+# and getting them wrong is how a homelab loses its network
+#
+#   pkg/policy/repository.go, computePolicyEnforcementAndRules():
+#
+#       if len(r.Ingress) > 0 || len(r.IngressDeny) > 0 {
+#           ingress = true
+#           if *r.EnableDefaultDeny.Ingress { hasIngressDefaultDeny = true }
+#       }
+#       ...
+#       if !hasIngressDefaultDeny && ingress {
+#           // "Only default-allow policies, synthesizing ingress wildcard-allow rule"
+#       }
+#
+#   Three consequences:
+#
+#   1. `enableDefaultDeny` only has any effect on a DIRECTION THAT HAS RULES. A
+#      policy with `enableDefaultDeny: {ingress: true}` and no `ingress:` block
+#      does nothing at all. That is why each policy below carries a real rule in
+#      each direction rather than being an empty marker object.
+#
+#   2. Default-deny is enabled for an endpoint if ANY policy selecting it asks
+#      for it. So a single `true` below overrides every `false` in the allow-list
+#      files for that namespace -- which is exactly the behaviour wanted, and
+#      also why you cannot disable enforcement by editing an allow-list file.
+#
+#   3. While everything is `false`, Cilium logs
+#      "Only default-allow policies, synthesizing ingress wildcard-allow rule"
+#      once per endpoint. That line is the positive confirmation that the
+#      policies loaded and that nothing is being enforced. It is not an error.
+#
+# WHY NOT THE OTHER TWO MECHANISMS
+#
+#   `policyEnforcementMode: always` in infrastructure/cilium/values.yaml would
+#   put the WHOLE cluster into default-deny at once, including kube-system,
+#   argocd, cert-manager and democratic-csi. Wrong blast radius, and it is a
+#   Helm value in a file that also configures the CNI datapath.
+#
+#   `--enable-policy-audit-mode` (Helm `policyAuditMode: true`) is the textbook
+#   audit path: policy is computed, verdicts are reported as AUDIT, and nothing
+#   is dropped. It is genuinely useful and is described under "STEP 2" below, but
+#   it is cluster-wide, it lives in a Helm values file, and turning it on or off
+#   restarts every cilium-agent. It is a diagnostic to reach for, not the shape of
+#   the rollout.
+#
+#   Per-endpoint audit mode (`cilium-dbg endpoint config <id> PolicyAuditMode=Enabled`)
+#   is imperative, is lost when the pod restarts, and cannot be expressed in git.
+#
+# ---------------------------------------------------------------------------
+# ROLLOUT, IN ORDER. DO NOT SKIP STEP 0.
+# ---------------------------------------------------------------------------
+#
+# STEP 0 -- land this directory with every switch below still `false`.
+#   Confirm the policies exist and that Cilium accepted them:
+#
+#     kubectl -n theater get ciliumnetworkpolicies
+#     kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
+#       cilium-dbg policy get | head -40
+#
+#   Confirm nothing is enforced. The POLICY columns must read `Disabled`:
+#
+#     kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
+#       cilium-dbg endpoint list
+#
+# STEP 1 -- learn what the namespace actually does, from the cluster, not from
+#           this repo. Hubble is enabled (infrastructure/cilium/values.yaml:
+#           hubble.enabled, relay.enabled, and `drop` in hubble.metrics), so:
+#
+#     kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
+#     hubble observe --server localhost:4245 \
+#       --namespace mealie --last 5000 -o dict | less
+#
+#   Every flow that appears and is not covered by a rule in this directory will
+#   be dropped the moment you flip the switch. Read the list before flipping it.
+#
+# STEP 2 -- OPTIONAL, and the closest thing to a dry run. Turn on cluster-wide
+#           policy audit mode, flip a namespace to `true`, and watch AUDIT
+#           verdicts instead of drops. Requires editing
+#           infrastructure/cilium/values.yaml (`policyAuditMode: true`) and
+#           restarts every agent, so it is a deliberate detour:
+#
+#     hubble observe --server localhost:4245 --namespace mealie --verdict AUDIT -f
+#
+#   Remember to turn it back off. An audit-mode cluster looks enforced and is not.
+#
+# STEP 3 -- flip ONE namespace, INGRESS ONLY, starting with `mealie`. It is the
+#           smallest of the six: two workloads, one HTTPRoute, one database
+#           connection, one outbound dependency. Ingress before egress, because
+#           egress is where DNS, OIDC and S3 live and is far more likely to be
+#           incomplete.
+#
+#     ... watch, in a second terminal, while you exercise the app:
+#     hubble observe --server localhost:4245 --namespace mealie --verdict DROPPED -f
+#
+# STEP 4 -- flip the same namespace's egress. Then repeat 3-4 for immich,
+#           paperless, seafile, syncthing, and theater LAST. theater is the
+#           largest (seven workloads and four Postgres clusters) and the one with
+#           a known-fragile component, so it benefits most from the practice.
+#
+# ---------------------------------------------------------------------------
+# HOW TO DEBUG A DROP
+# ---------------------------------------------------------------------------
+#
+#   # What is being dropped, with the pod names and the policy verdict:
+#   hubble observe --server localhost:4245 --verdict DROPPED -f -o dict
+#   hubble observe --server localhost:4245 --namespace theater --verdict DROPPED --last 200
+#
+#   # Same thing from the datapath, when Hubble itself is what you suspect.
+#   # Run it on the node hosting the pod (`kubectl get pod -o wide` to find it):
+#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium monitor --type drop
+#
+#   # Which directions are actually enforced for which endpoint:
+#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg endpoint list
+#
+#   # Ask Cilium directly whether a flow would be allowed, without generating it.
+#   # `--src-identity`/`--dst-identity` come from `cilium-dbg identity list`:
+#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
+#     cilium-dbg policy trace --src-k8s-pod theater:sonarr --dst-k8s-pod theater:qbittorrent --dport 8080
+#
+#   Reading a drop: `Policy denied` with `DENIED_BY_POLICY` means a rule is
+#   missing from this directory. A drop reported as `Stale or unroutable IP` or
+#   `Unsupported L3 protocol` is not a policy problem and adding rules will not
+#   fix it.
+#
+# ---------------------------------------------------------------------------
+# HOW TO REVERT, IN ONE STEP
+# ---------------------------------------------------------------------------
+#
+#   During an incident, when waiting for CI is not an option:
+#
+#     kubectl -n <namespace> delete ciliumnetworkpolicy enforce-default-deny
+#
+#   That is the whole revert. The namespace returns to allow-all immediately: the
+#   allow-list policies remain, but they are all default-allow, so Cilium
+#   synthesises the wildcard-allow rules again. No pod restart, no agent restart.
+#
+#   It STICKS because clusters/homelab/infrastructure/network-policies.yaml sets
+#   `syncPolicy.automated.selfHeal: false` -- unlike every other Application in
+#   this repo. Argo CD will show the Application as OutOfSync and leave it alone.
+#   Do not "fix" that setting; it is the reason this paragraph is true.
+#
+#   Then make it permanent in git by setting the relevant `true` back to `false`
+#   in this file. The next sync of this path re-creates the object, so an
+#   uncommitted `kubectl delete` is temporary by design.
+#
+# ---------------------------------------------------------------------------
+# WHAT IS MOST LIKELY TO BREAK FIRST
+# ---------------------------------------------------------------------------
+#
+#   1. Egress to something reached by its PUBLIC hostname that resolves to a LAN
+#      address via split-horizon DNS. Every OIDC client in this repo points at
+#      https://auth.lilalala.com; the rules assume that is the WAN address and
+#      therefore `reserved:world`. See the commented-out alternative in
+#      20-immich.yaml.
+#   2. Seafile's in-volume configuration, which git cannot see. See 40-seafile.yaml.
+#   3. A Prometheus target going quiet rather than erroring, because a scrape port
+#      moved in a chart upgrade.
+#   4. A private tracker on a non-standard port in Prowlarr.
+#
+#   None of these are recoverable by guessing. They are all visible in
+#   `hubble observe --verdict DROPPED`.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: mealie
+spec:
+  description: >-
+    Enforcement switch for the mealie namespace. Also carries the two rules every
+    pod needs regardless of workload: kubelet probes in, cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    # Kubelet readiness/liveness probes, which originate from the node the pod is
+    # scheduled on. Redundant while Cilium's `--allow-localhost` is at its default
+    # of `auto` (pkg/option/config.go: "defaults to policy except when running in
+    # Kubernetes where it then defaults to always"), which always permits
+    # reserved:host ingress. Stated explicitly anyway, because relying on an
+    # implicit allow for the mechanism that decides whether a pod is Ready is not
+    # a thing to leave undocumented -- and because this rule is what gives the
+    # ingress direction something to enforce.
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    # Cluster DNS. Repeated from the per-workload policies on purpose: this is the
+    # one flow whose absence makes every other drop unreadable, and this policy
+    # selects every pod in the namespace including any added later.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: immich
+spec:
+  description: >-
+    Enforcement switch for the immich namespace, plus kubelet probes in and
+    cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: paperless
+spec:
+  description: >-
+    Enforcement switch for the paperless namespace, plus kubelet probes in and
+    cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: seafile
+spec:
+  description: >-
+    Enforcement switch for the seafile namespace, plus kubelet probes in and
+    cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: syncthing
+spec:
+  description: >-
+    Enforcement switch for the syncthing namespace, plus kubelet probes in and
+    cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+# theater LAST. Seven workloads plus four CloudNativePG clusters, and the one
+# namespace whose components have a history of failing in ways that look like a
+# network problem and are not (see the header of apps/theater/qbittorrent.yaml).
+# Enforce it once the other five have been stable for a while.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: theater
+spec:
+  description: >-
+    Enforcement switch for the theater namespace, plus kubelet probes in and
+    cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

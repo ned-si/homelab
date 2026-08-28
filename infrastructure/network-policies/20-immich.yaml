@@ -1,0 +1,245 @@
+# immich: server, machine-learning, the chart's bundled Valkey, the `immich-db`
+# CloudNativePG cluster, and two restic backup CronJobs.
+#
+# Written with the NAMESPACE as the trust boundary for the application components
+# and a separate, tighter policy for the database. See ./kustomization.yaml for
+# why the granularity differs from theater's, and ./90-enforcement.yaml for how to
+# switch this namespace on and off.
+#
+# WHY NOT PER-POD HERE
+#   apps/immich/values.yaml wires the components together by Service name
+#   (REDIS_HOSTNAME, IMMICH_MACHINE_LEARNING_URL, DB_HOSTNAME) but the POD labels
+#   come from bjw-s/common inside the chart, not from this repo, and they move
+#   between chart versions. The one label this repo does assert is
+#   `app.kubernetes.io/name: immich-server`, used as a podAffinity selector in
+#   apps/immich/resources/backup-files.yaml, so that is the only chart-generated
+#   label relied on below.
+---
+# ---------------------------------------------------------------------------
+# Everything in the namespace except the Postgres instances
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: immich-app
+  namespace: immich
+spec:
+  description: >-
+    Immich server, machine-learning, Valkey and the restic CronJobs. Free
+    movement inside the namespace; outside it only the Gateway, Prometheus, DNS
+    and HTTPS to the internet.
+  endpointSelector:
+    # Everything in `immich` that is not a CloudNativePG instance. The instances
+    # are covered by the `immich-postgres` policy below; keeping the two
+    # selectors disjoint means a drop can only ever come from one of them.
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: DoesNotExist
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # media.lilalala.com -> immich-server :2283.
+    # apps/immich/resources/httproute.yaml -- HTTPRoute `immich`, with `request:
+    # 0s` so multi-GB uploads are not cut off.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "2283"
+              protocol: TCP
+
+    # server -> machine-learning, server -> Valkey, and anything else the chart
+    # wires between its own components.
+    # apps/immich/values.yaml -- IMMICH_MACHINE_LEARNING_URL
+    # (http://immich-machine-learning:3003) and REDIS_HOSTNAME (immich-valkey).
+    # No `toPorts`: the set of internal ports is a property of the chart, and
+    # pinning it here turns every chart bump into a policy edit.
+    - fromEndpoints:
+        - {}
+
+    # Prometheus scrape.
+    # apps/immich/values.yaml -- `immich.metrics.enabled: true` creates monitors
+    # on the server's API and microservices metrics ports;
+    # platform/kube-prometheus-stack/values.yaml honours monitors from every
+    # namespace. No `toPorts` for the same reason as above: the chart chooses the
+    # ports (8081/8082 today) and a bump that moves them must not silently stop
+    # metrics.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Intra-namespace, the counterpart of the ingress rule above.
+    - toEndpoints:
+        - {}
+
+    # The database, via `immich-db-rw`.
+    # apps/immich/values.yaml -- DB_HOSTNAME: immich-db-rw, credentials from the
+    # `immich-db-app` Secret.
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: immich-db
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # HTTPS to the internet, needed by four different things in this namespace:
+    #
+    #   - machine-learning downloads CLIP models on first start.
+    #     apps/immich/values.yaml -- MACHINE_LEARNING_PRELOAD__CLIP__*, and the
+    #     persistent `cache` volume exists precisely because this is several GB.
+    #   - immich-server fetches the OIDC discovery document.
+    #     apps/secrets/immich-config.sops.yaml.example -- issuerUrl
+    #     https://auth.lilalala.com/realms/homelab. That hostname resolves to the
+    #     site's WAN address, so from a pod it is `world`, not the keycloak
+    #     namespace.
+    #   - immich-server does reverse geocoding and version checks.
+    #   - the S3 restic CronJob talks to s3.eu-central-1.amazonaws.com.
+    #     apps/immich/resources/backup-files.yaml -- RESTIC_REPOSITORY s3:https://...
+    #     (the `immich-library-backup-local` job needs nothing here: its
+    #     repository is a filesystem path on an NFS PV, mounted by the kubelet.)
+    #
+    # If auth.lilalala.com is resolved by split-horizon DNS to the Gateway's LAN
+    # address rather than the WAN address, this rule is not enough and OIDC login
+    # breaks while everything else works. That case needs the following as well:
+    #
+    #     - toEntities: [ingress, host, remote-node]
+    #       toPorts:
+    #         - ports:
+    #             - port: "443"
+    #               protocol: TCP
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# immich-db (CloudNativePG, VectorChord)
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: immich-postgres
+  namespace: immich
+spec:
+  description: >-
+    immich-db instances: reachable by the Immich components and the operator,
+    egress to the Kubernetes API and to S3 for WAL archiving.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # The Immich components.
+    # apps/immich/values.yaml -- DB_HOSTNAME: immich-db-rw.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: DoesNotExist
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # The CloudNativePG operator: instance-manager API on 8000, plus 5432.
+    # platform/cloudnative-pg/values.yaml -- operator Deployment in cnpg-system.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: cnpg-system
+            app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "5432"
+              protocol: TCP
+
+    # Peer instances. `instances: 1` today
+    # (apps/immich/resources/database.yaml), so unused until it is not.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+
+    # Prometheus scrape of the CloudNativePG exporter.
+    # apps/immich/resources/database.yaml -- `monitoring.enablePodMonitor: true`.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # The Kubernetes API, watched by the instance manager.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+
+    # Continuous WAL archiving and base backups to S3.
+    # apps/immich/resources/database.yaml -- `backup.barmanObjectStore`,
+    # endpointURL https://s3.eu-central-1.amazonaws.com.
+    #
+    # This one is easy to under-estimate: WAL archiving is not a nightly job. If
+    # it is blocked, Postgres cannot recycle WAL segments, pg_wal grows until the
+    # 20Gi volume fills, and the database stops accepting writes. Losing this rule
+    # takes Immich down within hours, not at 02:30.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+
+    # Peer instances, counterpart of the ingress rule above.
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
