@@ -71,7 +71,7 @@ creation_rules:
   - path_regex: (^|/)[^/]+\.sops\.ya?ml$
     encrypted_regex: ^(data|stringData)$
     age: >-
-      REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+      age13pq2dxc9tyhwupz5c83rlt4fp7jcr2lknqsjvzhv9q9xjz9dfv4qnzvruy
 
   # Helm values / plain config that contain secrets but are not Secret objects.
   #
@@ -81,4 +81,4 @@ creation_rules:
   # plaintext for want of a matching creation rule.
   - path_regex: (^|/)[^/]+\.sops\.env$
     age: >-
-      REPLACE_WITH_YOUR_AGE_PUBLIC_KEY
+      age13pq2dxc9tyhwupz5c83rlt4fp7jcr2lknqsjvzhv9q9xjz9dfv4qnzvruy

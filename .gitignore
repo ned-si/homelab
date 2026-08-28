@@ -55,3 +55,6 @@ terraform.rc
 /build/
 .DS_Store
 *.swp
+
+# Clear-text secret source of truth for scripts/seal-secrets-from-env.sh
+*.local.env
