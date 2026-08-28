@@ -41,9 +41,24 @@ locals {
   # `index/` and `snapshots/` on EVERY operation, so those must stay in a class
   # with immediate GET. Archiving them makes the repository unusable, which is
   # the single most common way people break restic-on-Glacier.
+  # EVERY restic repository must be listed here. A repository that is missing
+  # still works -- its packs simply stay in S3 Standard at roughly 6x the price,
+  # for ever, with nothing to indicate it. That is the failure mode this list
+  # exists to prevent, so it is checked by scripts/check-restic-repos.sh in CI
+  # against the actual RESTIC_REPOSITORY values in the manifests.
+  #
+  # Derived from the manifests, not from memory. To regenerate:
+  #   scripts/check-restic-repos.sh
+  # which reads the RESTIC_REPOSITORY values out of apps/ and platform/ and
+  # diffs them against this list in both directions.
   restic_repos = [
-    "immich/library",
-    "paperless/media",
+    "grafana/data",    # platform/kube-prometheus-stack/routes/grafana-backup.yaml
+    "immich/library",  # apps/immich/resources/backup-files.yaml
+    "mealie/data",     # apps/mealie/backup.yaml
+    "paperless/media", # apps/paperless/backup.yaml
+    "seafile/shared",  # apps/seafile/backup.yaml
+    "syncthing/data",  # apps/syncthing/backup.yaml
+    "theater/configs", # apps/theater/backup.yaml (all six config jobs share it)
   ]
 }
 

@@ -10,6 +10,10 @@ resources:
   - lidarr.yaml
   - plex.yaml
   - jellyfin.yaml
+  # Six restic CronJobs for the /config volumes plus logical dumps of the four
+  # *arr Postgres clusters. This namespace previously had no backup of any kind
+  # -- see the header of backup.yaml.
+  - backup.yaml
 
 # `labels` with includeSelectors: false, NOT `commonLabels`.
 #
