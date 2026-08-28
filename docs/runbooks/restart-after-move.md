@@ -24,23 +24,39 @@ looks. Re-check anything here that you have since changed.
 | `.228` NAS, `.238`/`.239`/`.240` nodes, `.11` VIP, `.254` ingress | **all free.** Nothing is squatting on them. |
 | **`.247`** — homelab-cp-1 | **TAKEN by another device.** See the blocker below. |
 
-### ⚠️ Blocker: something else is using `192.168.1.247`
+### ⚠️ Blocker: the TP-Link Deco units are using `192.168.1.247` and `.251`
 
 ```
-192.168.1.247  ->  MAC f0:a7:31:e8:83:30   (no SSH, no kubelet — not a node)
-192.168.1.251  ->  MAC f0:a7:31:e8:83:34   (same vendor, adjacent MAC)
+192.168.1.247  ->  MAC f0:a7:31:e8:83:30   TP-Link Deco  (admin portal on :443)
+192.168.1.251  ->  MAC f0:a7:31:e8:83:34   TP-Link Deco  (adjacent MAC, same pair)
 ```
 
-`.247` is **`homelab-cp-1`**'s static address, configured in netplan on the node
-itself. `homelab-cp-1` is also the node that normally holds the API VIP. If you
-power the nodes on while another device holds `.247`, you get an ARP conflict:
-cp-1 is unreachable, the VIP never comes up, and the whole cluster looks dead
-for a reason that has nothing to do with the move.
+Confirmed by opening `https://192.168.1.247/webpages/index.html`, which is the
+Deco admin page. Neither answers SSH or the kubelet port, so neither is a node.
 
-The two devices are almost certainly a router-supplied appliance pair (set-top
-box, access point) that grabbed high addresses from a wide DHCP pool. Fix it in
-Step 1 by narrowing the DHCP range, then rebooting those two devices so they take
-new leases.
+`.247` is **`homelab-cp-1`**'s static address, set in netplan on the node itself.
+cp-1 is also the node that normally holds the API VIP. Power the nodes on while a
+Deco holds `.247` and you get an ARP conflict: cp-1 is unreachable, the VIP never
+comes up, and the cluster looks dead for a reason that has nothing to do with the
+move.
+
+**Move the Deco, not the node.** This is the safe direction, and it is worth being
+explicit about why, because the instinct is the opposite — "the Deco is working,
+don't touch it".
+
+A Deco unit does not care what its own LAN address is. The app reaches it over the
+mesh backhaul and the TP-Link cloud, not by IP, so a new DHCP lease is a non-event.
+The thing that would break the network is changing the **gateway** at `192.168.1.1`,
+and nothing here does that.
+
+Whereas `.247` is baked into five places on cp-1: netplan, `kubelet --node-ip`, the
+apiserver certificate SANs, the kube-vip static pod manifest, and **its etcd peer
+URL**. Moving the node means regenerating certs and running `etcdctl member update`
+against a 3-node etcd you have just brought back from a van. Two minutes in the
+Deco app versus an hour of etcd surgery with quorum at stake.
+
+Fixed in Step 1: narrow the DHCP pool so it cannot hand out `.200`–`.254`, then
+reboot the two Deco units so they take new leases inside the pool.
 
 **Do not power on the Turing Pi until the check at the end of Step 1 shows `.247`
 free.** That check is the gate for the whole runbook.
@@ -138,23 +154,35 @@ in git, so an address that another device is already holding cannot be fixed fro
 here — it has to be freed on the router.
 
 **One thing must change: the DHCP pool is handing out addresses in the range the
-static devices live in.** `.247` and `.251` are already occupied.
+static devices live in.** The two TP-Link Deco units hold `.247` and `.251`.
 
-In the router admin page:
+The network is a **TP-Link Deco** mesh. The admin page is at
+`https://192.168.1.247/webpages/index.html`, or use the Deco phone app — the app
+is easier for the DHCP settings.
 
 | Setting | Value | Why |
 |---|---|---|
-| LAN IP / gateway | `192.168.1.1` | already correct — confirm, do not change |
+| LAN IP / gateway | `192.168.1.1` | already correct — **confirm, do not change.** This is the one address on the network that is genuinely load-bearing for the Deco. |
 | Subnet mask | `255.255.255.0` | already correct |
 | **DHCP range** | **`192.168.1.50` – `192.168.1.199`** | **this is the change.** Must exclude `.228` (NAS), `.238`–`.240` and `.247` (nodes), and `.254` (ingress LB) |
 
-Then **reboot whatever is on `.247` and `.251`** so they request new leases inside
-the narrowed pool. Power-cycling is enough; you do not need to identify them
-first. If the router lets you delete a lease, do that too.
+In the Deco app that is **More → Advanced → DHCP Server → IP Address Pool**. On
+the web page it is under Advanced → Network → LAN.
 
-If you cannot find them: they are on `f0:a7:31:e8:83:30` and
-`f0:a7:31:e8:83:34` — look for that MAC prefix in the router's client list, which
-usually shows a name.
+Then **reboot both Deco units** so they request new leases inside the narrowed
+pool. Deco app: More → Deco (pick the unit) → Reboot. Or just pull the power for
+ten seconds — a Deco unit rediscovers the mesh on boot and does not need its old
+IP back.
+
+You will lose Wi-Fi for a minute or two while they come back. That is the whole
+cost of this step.
+
+> **If the Deco refuses to give up `.247`** — some firmware pins a lease
+> permanently once issued. Look for **More → Advanced → Address Reservation** and
+> either delete the reservation for `f0:a7:31:e8:83:30`, or add one pointing that
+> MAC at something inside the new pool (`192.168.1.60` is fine) and reboot the
+> unit. Do **not** reserve `.247` to the Deco's MAC — that makes the collision
+> permanent and survives every future reboot.
 
 Then add static DHCP leases (harmless if the devices are statically configured,
 and it saves you if any of them are not):
@@ -216,8 +244,20 @@ echo
 Expected: gateway `192.168.1.1`, an address in `192.168.1.x`, and **all seven
 free**, ending in `GATE PASSED`.
 
-`.247` was occupied when this was written. If it still is, go back and reboot that
-device — do not continue. Everything downstream assumes cp-1 can take `.247`.
+`.247` was held by a Deco unit when this was written. If it still is, go back and
+reboot that unit — do not continue. Everything downstream assumes cp-1 can take
+`.247`.
+
+For a fuller picture — every occupied address on the LAN, what each one probably
+is, and DHCP reservation lines you can paste into the router — run:
+
+```sh
+task net:discover
+```
+
+It fingerprints by **open port**, not by MAC vendor, which matters here: the Deco's
+OUI resolves to a network-equipment vendor and reads as "probably a node". By port
+it is unambiguous — it answers `:443` and has neither SSH nor a kubelet.
 
 > Note: this check can only see devices that are *currently powered on*. A device
 > that is off now and boots later can still steal an address, which is why the
