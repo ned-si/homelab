@@ -24,6 +24,7 @@ spec:
     - /status
     kind: Cluster
   project: apps
+  revisionHistoryLimit: 10
   sources:
   - chart: immich
     helm:
@@ -34,14 +35,17 @@ spec:
     targetRevision: 0.13.1
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   - path: deploy/apps/immich/resources
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: false
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -62,14 +66,21 @@ spec:
     - /status
     kind: Cluster
   project: apps
+  revisionHistoryLimit: 10
   source:
     path: deploy/apps/mealie
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -85,14 +96,21 @@ spec:
     namespace: paperless
     server: https://kubernetes.default.svc
   project: apps
+  revisionHistoryLimit: 10
   source:
     path: deploy/apps/paperless
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -108,14 +126,21 @@ spec:
     namespace: seafile
     server: https://kubernetes.default.svc
   project: apps
+  revisionHistoryLimit: 10
   source:
     path: deploy/apps/seafile
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -131,14 +156,21 @@ spec:
     namespace: default
     server: https://kubernetes.default.svc
   project: apps
+  revisionHistoryLimit: 10
   source:
     path: apps/secrets
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -154,14 +186,21 @@ spec:
     namespace: syncthing
     server: https://kubernetes.default.svc
   project: apps
+  revisionHistoryLimit: 10
   source:
     path: deploy/apps/syncthing
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -177,13 +216,20 @@ spec:
     namespace: theater
     server: https://kubernetes.default.svc
   project: apps
+  revisionHistoryLimit: 10
   source:
     path: deploy/apps/theater
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true

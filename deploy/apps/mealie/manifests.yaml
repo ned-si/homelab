@@ -147,6 +147,183 @@ spec:
         persistentVolumeClaim:
           claimName: mealie-data
 ---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mealie-backup
+  namespace: mealie
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 21600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: mealie-backup
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: mealie
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+
+              # The dump first and in its own snapshot, so it can be
+              # restored without pulling the image library out of Glacier to
+              # get at it. It is also the half that holds the work you did:
+              # every recipe you typed in.
+              restic backup /dumps \
+                --tag mealie-data \
+                --tag mealie-postgres \
+                --host mealie \
+                --verbose
+
+              restic backup /data \
+                --tag mealie-data \
+                --tag mealie-files \
+                --host mealie \
+                --exclude '**/.temp/**' \
+                --verbose
+
+              restic forget \
+                --host mealie \
+                --keep-daily 14 --keep-weekly 8 --keep-monthly 12 \
+                --prune
+
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/mealie/data
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /data
+              name: data
+              readOnly: true
+            - mountPath: /dumps
+              name: dumps
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          initContainers:
+          - args:
+            - |
+              set -uo pipefail
+
+              d=/creds
+              f=/dumps/pg-mealie-mealie-postgresql.dump
+
+              # -Fc, custom format. Compressed, and pg_restore can inspect
+              # it -- which is what makes verification possible at all. The
+              # filename matches what scripts/dump-databases.sh produces so
+              # a restored copy can be handed straight to
+              # scripts/verify-dump-restore.sh.
+              if ! PGPASSWORD="$(cat "$d/password")" pg_dump \
+                   -h "$(cat "$d/host")" -p "$(cat "$d/port")" \
+                   -U "$(cat "$d/user")" -d "$(cat "$d/dbname")" \
+                   -Fc -f "$f"; then
+                echo "FAIL: pg_dump exited non-zero"
+                # Remove the partial file, or restic uploads a truncated
+                # dump that restores to nothing while the snapshot looks
+                # complete.
+                rm -f "$f"
+                exit 1
+              fi
+
+              # A pg_dump custom archive always begins with the five bytes
+              # "PGDMP". Instant, cannot hang, and it catches the case where
+              # the file is actually an error message -- which an exit code
+              # does not always give you.
+              if [ "$(head -c 5 "$f")" != "PGDMP" ]; then
+                echo "FAIL: output is not a pg_dump archive"
+                rm -f "$f"
+                exit 1
+              fi
+
+              echo "ok: $(du -h "$f" | cut -f1)"
+            command:
+            - /bin/bash
+            - -c
+            image: ghcr.io/cloudnative-pg/postgresql:17.6
+            imagePullPolicy: IfNotPresent
+            name: dump
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /dumps
+              name: dumps
+            - mountPath: /creds
+              name: creds
+              readOnly: true
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: mealie-data
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: dumps
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+          - name: creds
+            secret:
+              secretName: mealie-postgresql-app
+  schedule: 20 3 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:

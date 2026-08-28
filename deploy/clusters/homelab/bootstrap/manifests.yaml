@@ -15,9 +15,7 @@ metadata:
   name: apps
   namespace: argocd
 spec:
-  clusterResourceWhitelist:
-  - group: ""
-    kind: Namespace
+  clusterResourceWhitelist: []
   description: End-user workloads - media, photos, documents, recipes, sync
   destinations:
   - namespace: theater
@@ -48,8 +46,34 @@ metadata:
   namespace: argocd
 spec:
   clusterResourceWhitelist:
-  - group: '*'
-    kind: '*'
+  - group: ""
+    kind: Namespace
+  - group: ""
+    kind: PersistentVolume
+  - group: cert-manager.io
+    kind: ClusterIssuer
+  - group: cilium.io
+    kind: CiliumLoadBalancerIPPool
+  - group: cilium.io
+    kind: CiliumL2AnnouncementPolicy
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: storage.k8s.io
+    kind: CSIDriver
+  - group: storage.k8s.io
+    kind: StorageClass
+  - group: snapshot.storage.k8s.io
+    kind: VolumeSnapshotClass
+  - group: gateway.networking.k8s.io
+    kind: GatewayClass
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
   description: Cluster plumbing - CNI, Gateway API, cert-manager, DNS, CSI
   destinations:
   - namespace: '*'
@@ -73,8 +97,6 @@ metadata:
   namespace: argocd
 spec:
   clusterResourceWhitelist:
-  - group: ""
-    kind: Namespace
   - group: apiextensions.k8s.io
     kind: CustomResourceDefinition
   - group: rbac.authorization.k8s.io
@@ -85,10 +107,6 @@ spec:
     kind: MutatingWebhookConfiguration
   - group: admissionregistration.k8s.io
     kind: ValidatingWebhookConfiguration
-  - group: storage.k8s.io
-    kind: StorageClass
-  - group: monitoring.coreos.com
-    kind: '*'
   description: Shared services - CloudNativePG, observability, Keycloak
   destinations:
   - namespace: '*'
@@ -115,19 +133,20 @@ spec:
     namespace: argocd
     server: https://kubernetes.default.svc
   project: default
+  revisionHistoryLimit: 10
   source:
     path: deploy/clusters/homelab/apps
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     retry:
       backoff:
-        duration: 10s
+        duration: 5s
         factor: 2
-        maxDuration: 5m
+        maxDuration: 3m
       limit: 5
     syncOptions:
     - ServerSideApply=true
@@ -146,19 +165,20 @@ spec:
     namespace: argocd
     server: https://kubernetes.default.svc
   project: default
+  revisionHistoryLimit: 10
   source:
     path: deploy/clusters/homelab/infrastructure
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     retry:
       backoff:
-        duration: 10s
+        duration: 5s
         factor: 2
-        maxDuration: 5m
+        maxDuration: 3m
       limit: 5
     syncOptions:
     - ServerSideApply=true
@@ -177,19 +197,20 @@ spec:
     namespace: argocd
     server: https://kubernetes.default.svc
   project: default
+  revisionHistoryLimit: 10
   source:
     path: deploy/clusters/homelab/platform
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     retry:
       backoff:
-        duration: 10s
+        duration: 5s
         factor: 2
-        maxDuration: 5m
+        maxDuration: 3m
       limit: 5
     syncOptions:
     - ServerSideApply=true

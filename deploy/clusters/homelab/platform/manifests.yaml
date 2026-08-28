@@ -24,14 +24,21 @@ spec:
     - /status
     kind: Cluster
   project: platform
+  revisionHistoryLimit: 10
   source:
     path: deploy/platform/backup-verify
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
     - RespectIgnoreDifferences=true
@@ -48,6 +55,7 @@ spec:
     namespace: cnpg-system
     server: https://kubernetes.default.svc
   project: platform
+  revisionHistoryLimit: 10
   sources:
   - chart: cloudnative-pg
     helm:
@@ -58,11 +66,17 @@ spec:
     targetRevision: 0.29.0
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -83,14 +97,21 @@ spec:
     - /status
     kind: Cluster
   project: platform
+  revisionHistoryLimit: 10
   source:
     path: deploy/platform/keycloak
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true
 ---
@@ -111,6 +132,7 @@ spec:
     - /spec/replicas
     kind: Prometheus
   project: platform
+  revisionHistoryLimit: 10
   sources:
   - chart: kube-prometheus-stack
     helm:
@@ -121,10 +143,10 @@ spec:
     targetRevision: 88.0.1
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   - path: deploy/platform/kube-prometheus-stack/routes
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
@@ -150,13 +172,20 @@ spec:
     namespace: default
     server: https://kubernetes.default.svc
   project: platform
+  revisionHistoryLimit: 10
   source:
     path: platform/secrets
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
     syncOptions:
     - ServerSideApply=true

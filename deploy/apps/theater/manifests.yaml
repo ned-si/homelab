@@ -8,6 +8,155 @@
 # directly will be reverted by the next render and rejected by CI.
 # ---------------------------------------------------------------------------
 apiVersion: v1
+data:
+  backup-config.sh: |
+    #!/bin/sh
+    # Usage: backup-config.sh <tag> <path> [extra restic backup args...]
+    #
+    # `sh`, not bash: the restic image is Alpine and has no bash. Nothing here
+    # needs it.
+    set -eu
+
+    TAG="$1"
+    shift
+    SRC="$1"
+    shift
+
+    # Idempotent-by-failure: `init` errors if the repository already exists,
+    # which is the normal case from the second run onwards.
+    restic init 2>/dev/null || true
+
+    echo "=== ${TAG}: backing up ${SRC} ==="
+
+    # Two tags on every snapshot, doing two different jobs:
+    #
+    #   theater-configs  a repository-wide marker, so
+    #                    platform/backup-verify/restore-files.yaml can verify this
+    #                    repository with a single entry.
+    #   $TAG             the per-app identity (sonarr-config, radarr-config, ...).
+    #                    This is what `--group-by host,paths,tags` in
+    #                    forget-and-check.sh keys on to give each app its own
+    #                    retention budget. Without the per-app tag in the
+    #                    grouping, all six would share one.
+    restic backup "$SRC" \
+      --tag theater-configs \
+      --tag "$TAG" \
+      --host theater \
+      "$@" \
+      --verbose
+
+    echo "=== ${TAG}: done ==="
+  dump-postgres.sh: |
+    #!/bin/bash
+    # `bash`, deliberately: `set -o pipefail` is required below and dash does
+    # not have it. The CNPG postgres image is Debian-based and has bash.
+    set -uo pipefail
+
+    OUT=/dumps
+    rc=0
+
+    # Credentials come from the CloudNativePG-generated `<cluster>-app` Secrets,
+    # mounted as directories of files rather than as twenty environment
+    # variables. CNPG rotates these itself, so there is no password in git in
+    # any form -- not even encrypted.
+    for app in sonarr radarr lidarr prowlarr; do
+      d="/creds/${app}"
+      if [ ! -f "$d/password" ]; then
+        echo "FAIL ${app}: no credentials mounted at ${d}"
+        rc=1
+        continue
+      fi
+
+      host=$(cat "$d/host")
+      port=$(cat "$d/port")
+      user=$(cat "$d/user")
+      db=$(cat "$d/dbname")
+      f="${OUT}/pg-${app}.dump"
+
+      # -Fc, custom format: compressed, and pg_restore can inspect it, which is
+      # what makes verification possible at all. Matches what
+      # scripts/dump-databases.sh produces, so scripts/verify-dump-restore.sh
+      # can be pointed straight at a restored file.
+      #
+      # pg_dump is transactional: the dump is a snapshot of one instant, not a
+      # smear across the run. This is the ONLY consistency guarantee in this
+      # file that needs no caveat.
+      if PGPASSWORD="$(cat "$d/password")" \
+         pg_dump -h "$host" -p "$port" -U "$user" -d "$db" -Fc -f "$f"; then
+        # A pg_dump custom archive always begins with the five bytes "PGDMP".
+        # Local, instant, and it catches the case where the file is actually an
+        # error message -- which a non-zero exit code does not always give you.
+        if [ "$(head -c 5 "$f")" = "PGDMP" ]; then
+          echo "ok   ${app}  $(du -h "$f" | cut -f1)"
+        else
+          echo "FAIL ${app}: output is not a pg_dump archive"
+          rm -f "$f"
+          rc=1
+        fi
+      else
+        echo "FAIL ${app}: pg_dump exited non-zero"
+        # Remove the partial file. Leaving it would let restic back up a
+        # truncated dump that restores to nothing -- the classic silent backup
+        # failure, and the one this whole repository is written against.
+        rm -f "$f"
+        rc=1
+      fi
+    done
+
+    # Non-zero fails the initContainer, which fails the pod, which is what makes
+    # FileBackupJobFailed fire. A dump job that half-worked must not report
+    # success, because the restic container would then upload three of four
+    # databases and the snapshot would look complete.
+    exit $rc
+  forget-and-check.sh: |
+    #!/bin/sh
+    set -eu
+
+    # ###########################################################################
+    # `--group-by host,paths,tags` IS LOAD-BEARING. DO NOT REMOVE IT.
+    #
+    # restic's default is `--group-by host,paths` -- TAGS ARE NOT INCLUDED.
+    #
+    # Every one of the six config jobs backs up the path `/config` with
+    # `--host theater`. So under the default grouping they all land in ONE group,
+    # and `--keep-daily 14` keeps ONE snapshot per day for the whole group: the
+    # most recent, which is jellyfin's 04:50 run. sonarr's, radarr's, lidarr's,
+    # prowlarr's and plex's snapshots from 10-50 minutes earlier the same night
+    # are forgotten and pruned.
+    #
+    # It fails SILENTLY, which is what makes it dangerous: the weekly restore
+    # drill in platform/backup-verify/restore-files.yaml verifies this repository
+    # by the tag `theater-configs`, and jellyfin's surviving snapshot carries that
+    # tag -- so the drill stays green while five apps have no config backup older
+    # than a few hours.
+    #
+    # Adding `tags` to the grouping gives each app its own retention budget, which
+    # is what the 14/8/12 numbers below were always meant to express.
+    # ###########################################################################
+    #
+    # 14/8/12 is shallower than Immich's local copy and deeper than its remote
+    # one. These volumes are a few hundred megabytes in total, so depth is
+    # nearly free, and a bad *arr configuration change (a mangled quality
+    # profile, a deleted indexer) is the kind of thing noticed weeks later.
+    restic forget \
+      --host theater \
+      --group-by host,paths,tags \
+      --keep-daily 14 \
+      --keep-weekly 8 \
+      --keep-monthly 12 \
+      --prune
+
+    # Cheap structural check on every run. Actually restoring data is a separate
+    # CronJob: platform/backup-verify/.
+    restic check --with-cache
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-backup-scripts
+  namespace: theater
+---
+apiVersion: v1
 kind: Service
 metadata:
   labels:
@@ -908,6 +1057,740 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: theater-data
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-config-backup-jellyfin
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 10800
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-jellyfin
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: jellyfin
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+
+              # 1. CONSISTENT: the XML configuration and plugin settings.
+              restic backup /config \
+                --tag theater-configs \
+                --tag jellyfin-config \
+                --host theater \
+                --exclude '/config/data/*.db' \
+                --exclude '/config/data/*.db-wal' \
+                --exclude '/config/data/*.db-shm' \
+                --exclude '/config/data/subtitles' \
+                --exclude '/config/data/transcodes' \
+                --exclude '/config/metadata' \
+                --exclude '/config/log' \
+                --exclude '/config/cache' \
+                --verbose
+
+              # 2. BEST EFFORT: the live databases, in their own snapshot
+              #    with a tag that says so. The -wal/-shm files are included
+              #    because SQLite needs them to recover the database on
+              #    open; taking the .db alone would silently discard
+              #    committed transactions. It still is not atomic across the
+              #    three files, which is precisely what the tag admits.
+              #
+              #    `|| true`: a missing -wal is normal in rollback-journal
+              #    mode, and a glob that matches nothing must not fail the
+              #    whole job and lose snapshot 1's retention pass below.
+              restic backup /config/data \
+                --tag theater-configs \
+                --tag jellyfin-db-besteffort \
+                --host theater \
+                --exclude '/config/data/subtitles' \
+                --exclude '/config/data/transcodes' \
+                --verbose || true
+
+              # 3. Retention and integrity for the WHOLE repository, once
+              #    per night, from the last job. See forget-and-check.sh
+              #    for why this is not in every job.
+              /bin/sh /scripts/forget-and-check.sh
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1536Mi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: jellyfin-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 3Gi
+            name: cache
+  schedule: 50 4 * * *
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-config-backup-lidarr
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-lidarr
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: lidarr
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - lidarr
+            - /config
+            - --exclude=/config/MediaCover
+            - --exclude=/config/logs.db
+            - --exclude=/config/logs.db-shm
+            - --exclude=/config/logs.db-wal
+            - --exclude=/config/logs
+            - --exclude=/config/Sentry
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: lidarr-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 20 4 * * *
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-config-backup-plex
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-plex
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: plex
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - plex
+            - /config
+            - --exclude=**/Databases/com.plexapp.plugins.library.db
+            - --exclude=**/Databases/com.plexapp.plugins.library.db-wal
+            - --exclude=**/Databases/com.plexapp.plugins.library.db-shm
+            - --exclude=**/Databases/com.plexapp.plugins.blobs.db
+            - --exclude=**/Databases/com.plexapp.plugins.blobs.db-wal
+            - --exclude=**/Databases/com.plexapp.plugins.blobs.db-shm
+            - --exclude=**/Metadata
+            - --exclude=**/Media
+            - --exclude=**/Cache
+            - --exclude=**/Codecs
+            - --exclude=**/Crash?Reports
+            - --exclude=**/Logs
+            - --exclude=**/Diagnostics
+            - --exclude=**/Updates
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: plex-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 40 4 * * *
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-config-backup-prowlarr
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-prowlarr
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: prowlarr
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - prowlarr
+            - /config
+            - --exclude=/config/logs.db
+            - --exclude=/config/logs.db-shm
+            - --exclude=/config/logs.db-wal
+            - --exclude=/config/logs
+            - --exclude=/config/Sentry
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: prowlarr-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 30 4 * * *
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-config-backup-radarr
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-radarr
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: radarr
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - radarr
+            - /config
+            - --exclude=/config/MediaCover
+            - --exclude=/config/logs.db
+            - --exclude=/config/logs.db-shm
+            - --exclude=/config/logs.db-wal
+            - --exclude=/config/logs
+            - --exclude=/config/Sentry
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: radarr-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 10 4 * * *
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-config-backup-sonarr
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-sonarr
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: sonarr
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - sonarr
+            - /config
+            - --exclude=/config/MediaCover
+            - --exclude=/config/logs.db
+            - --exclude=/config/logs.db-shm
+            - --exclude=/config/logs.db-wal
+            - --exclude=/config/logs
+            - --exclude=/config/Sentry
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: sonarr-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 0 4 * * *
+  successfulJobsHistoryLimit: 3
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: theater-postgres-backup
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-postgres-backup
+        spec:
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - theater-postgres
+            - /dumps
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /dumps
+              name: dumps
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          initContainers:
+          - command:
+            - /bin/bash
+            - /scripts/dump-postgres.sh
+            image: ghcr.io/cloudnative-pg/postgresql:17.6
+            imagePullPolicy: IfNotPresent
+            name: dump
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /dumps
+              name: dumps
+            - mountPath: /creds/sonarr
+              name: creds-sonarr
+              readOnly: true
+            - mountPath: /creds/radarr
+              name: creds-radarr
+              readOnly: true
+            - mountPath: /creds/lidarr
+              name: creds-lidarr
+              readOnly: true
+            - mountPath: /creds/prowlarr
+              name: creds-prowlarr
+              readOnly: true
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: dumps
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+          - name: creds-sonarr
+            secret:
+              secretName: sonarr-postgresql-app
+          - name: creds-radarr
+            secret:
+              secretName: radarr-postgresql-app
+          - name: creds-lidarr
+            secret:
+              secretName: lidarr-postgresql-app
+          - name: creds-prowlarr
+            secret:
+              secretName: prowlarr-postgresql-app
+  schedule: 40 3 * * *
+  successfulJobsHistoryLimit: 3
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

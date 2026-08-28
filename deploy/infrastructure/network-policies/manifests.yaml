@@ -1,0 +1,1103 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: immich
+spec:
+  description: Enforcement switch for the immich namespace, plus kubelet probes in
+    and cluster DNS out.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: immich-app
+  namespace: immich
+spec:
+  description: Immich server, machine-learning, Valkey and the restic CronJobs. Free
+    movement inside the namespace; outside it only the Gateway, Prometheus, DNS and
+    HTTPS to the internet.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - {}
+  - toEndpoints:
+    - matchLabels:
+        cnpg.io/cluster: immich-db
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: cnpg.io/cluster
+      operator: DoesNotExist
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "2283"
+        protocol: TCP
+  - fromEndpoints:
+    - {}
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: monitoring
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: immich-postgres
+  namespace: immich
+spec:
+  description: 'immich-db instances: reachable by the Immich components and the operator,
+    egress to the Kubernetes API and to S3 for WAL archiving.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "6443"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: cnpg.io/cluster
+      operator: Exists
+  ingress:
+  - fromEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: DoesNotExist
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: cloudnative-pg
+        io.kubernetes.pod.namespace: cnpg-system
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "9187"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: mealie
+spec:
+  description: 'The mealie backup CronJob: egress to Postgres for pg_dump and to S3
+    on 443 for restic. Nothing else.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: batch.kubernetes.io/job-name
+      operator: Exists
+    - key: cnpg.io/cluster
+      operator: DoesNotExist
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: mealie
+spec:
+  description: 'Enforcement switch for the mealie namespace. Also carries the two
+    rules every pod needs regardless of workload: kubelet probes in, cluster DNS out.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mealie
+  namespace: mealie
+spec:
+  description: 'Mealie: HTTP from the Gateway, egress to its Postgres, to Keycloak
+    over the WAN, and to arbitrary sites for recipe import.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        cnpg.io/cluster: mealie-postgresql
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: mealie
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "9000"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mealie-postgres
+  namespace: mealie
+spec:
+  description: 'mealie-postgresql instances: reachable by Mealie and the operator,
+    egress to the Kubernetes API only.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "6443"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: cnpg.io/cluster
+      operator: Exists
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: mealie
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: cloudnative-pg
+        io.kubernetes.pod.namespace: cnpg-system
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "9187"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: paperless
+spec:
+  description: Enforcement switch for the paperless namespace, plus kubelet probes
+    in and cluster DNS out.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  description: Everything in the paperless namespace. Free movement inside it; outside
+    it only the Gateway, DNS and HTTPS to the internet.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - {}
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+  - fromEndpoints:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: seafile
+spec:
+  description: 'The seafile backup CronJob: the only thing in this namespace permitted
+    to reach the internet, and only on 443 for restic.'
+  egress:
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: batch.kubernetes.io/job-name
+      operator: Exists
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: seafile
+spec:
+  description: Enforcement switch for the seafile namespace, plus kubelet probes in
+    and cluster DNS out.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: seafile
+  namespace: seafile
+spec:
+  description: Everything in the seafile namespace. Free movement inside it; outside
+    it only the Gateway and DNS. No internet egress by design.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - {}
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "80"
+        protocol: TCP
+  - fromEndpoints:
+    - {}
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: syncthing
+spec:
+  description: 'The syncthing backup CronJob: DNS and restic to S3. It reads a volume,
+    so it talks to nothing else.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: batch.kubernetes.io/job-name
+      operator: Exists
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: syncthing
+spec:
+  description: Enforcement switch for the syncthing namespace, plus kubelet probes
+    in and cluster DNS out.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: syncthing
+  namespace: syncthing
+spec:
+  description: 'Syncthing: web UI from the Gateway, sync protocol from the LAN and
+    the internet, outbound to peers, discovery servers and relays on any port.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - world
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app: syncthing
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8384"
+        protocol: TCP
+  - fromEntities:
+    - world
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "22000"
+        protocol: TCP
+      - port: "22000"
+        protocol: UDP
+      - port: "21027"
+        protocol: UDP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-apps
+  namespace: theater
+spec:
+  description: 'Sonarr/Radarr/Lidarr: UI from the Gateway, release pushes from Prowlarr,
+    egress to their own Postgres, to qBittorrent, to Prowlarr and to indexers.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: In
+        values:
+        - sonarr-postgresql
+        - radarr-postgresql
+        - lidarr-postgresql
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: qbittorrent
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: prowlarr
+    toPorts:
+    - ports:
+      - port: "9696"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - sonarr
+      - radarr
+      - lidarr
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: prowlarr
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: theater
+spec:
+  description: 'The theater backup CronJobs: egress to the four Postgres clusters
+    for pg_dump and to S3 for restic. No ingress at all.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: batch.kubernetes.io/job-name
+      operator: Exists
+    - key: cnpg.io/cluster
+      operator: DoesNotExist
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: theater
+spec:
+  description: Enforcement switch for the theater namespace, plus kubelet probes in
+    and cluster DNS out.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector: {}
+  ingress:
+  - fromEntities:
+    - host
+    - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: media-servers
+  namespace: theater
+spec:
+  description: 'Plex and Jellyfin: HTTP from the Gateway, metadata lookup on the internet,
+    and deliberately no in-cluster egress at all.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - plex
+      - jellyfin
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "32400"
+        protocol: TCP
+      - port: "8096"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres
+  namespace: theater
+spec:
+  description: 'CloudNativePG instances in theater: reachable by their own application
+    and by the operator, egress to the Kubernetes API only.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "6443"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: cnpg.io/cluster
+      operator: Exists
+  ingress:
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+        - prowlarr
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: cloudnative-pg
+        io.kubernetes.pod.namespace: cnpg-system
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "9187"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prowlarr
+  namespace: theater
+spec:
+  description: 'Prowlarr: UI from the Gateway, search API from the three *arr apps,
+    egress to its own Postgres, to the *arr apps it syncs, and to indexers on the
+    internet.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        cnpg.io/cluster: prowlarr-postgresql
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "9696"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+    toPorts:
+    - ports:
+      - port: "9696"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: qbittorrent
+  namespace: theater
+spec:
+  description: 'qBittorrent: WebUI reachable from the Gateway and the *arr apps, peer
+    port reachable from the LAN, egress to internet peers but NOT to the LAN.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toCIDRSet:
+    - cidr: 0.0.0.0/0
+      except:
+      - 192.168.0.0/16
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 169.254.0.0/16
+      - 127.0.0.0/8
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - fromEntities:
+    - world
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "50000"
+        protocol: TCP
+      - port: "50000"
+        protocol: UDP
