@@ -1,5 +1,16 @@
 # homelab
 
+> ### ⏭ Bringing the cluster back up after the house move?
+>
+> **→ [docs/runbooks/restart-after-move.md](docs/runbooks/restart-after-move.md)**
+>
+> Copy-pasteable, eleven steps, about 1h50. Start at Step 0 and do not skip
+> Step 1's gate — `192.168.1.247` is held by a TP-Link Deco unit and the control
+> plane needs it.
+>
+> That runbook restarts the cluster on the **old** layout that is currently live.
+> It is not this restructure, and nothing else in this README is needed for it.
+
 GitOps configuration for a four-node Kubernetes cluster on a Turing Pi 2.
 
 Argo CD reconciles everything from this repository. One `Application` is applied
@@ -38,7 +49,8 @@ and a rollback is moving it back. See
 
 | | |
 |---|---|
-| [**migration-plan.md**](docs/migration-plan.md) | **Start here.** Ordered, gated path from the running cluster to this repo |
+| [**runbooks/restart-after-move.md**](docs/runbooks/restart-after-move.md) | **Start here if the cluster is down.** Bring the OLD, live layout back up. Nothing to do with this restructure. |
+| [**migration-plan.md**](docs/migration-plan.md) | **Then here.** Ordered, gated path from the running cluster to this repo. Requires a cluster that is up and a proven restore. |
 | [architecture.md](docs/architecture.md) | The hierarchy, layers, sync waves, AppProjects, rendered `deploy/` |
 | [bootstrap.md](docs/bootstrap.md) | Cold-start procedure |
 | [secrets.md](docs/secrets.md) | SOPS + age workflow, and the checks around it |
