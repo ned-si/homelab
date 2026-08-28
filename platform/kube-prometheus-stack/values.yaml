@@ -116,9 +116,45 @@ prometheus:
 #   Create it from platform/secrets/alertmanager-notify.sops.yaml.example.
 #
 #   Until that Secret exists the Alertmanager pod will NOT start (a missing
-#   secret volume blocks the pod). That is deliberate: the alternative is
-#   Alertmanager running happily and failing every delivery, which is
-#   indistinguishable from the state this change exists to fix.
+#   secret volume blocks the pod). So it is not optional and it is not
+#   "notification config" -- it is a hard dependency of the monitoring stack.
+#
+# ---------------------------------------------------------------------------
+# CURRENT STATE: SEALED WITH SENTINELS, NO TRANSPORT CHOSEN
+#
+#   `alertmanager-notify` exists and Alertmanager starts, but `pushover-token`
+#   and `pushover-user-key` hold `PENDING-*` sentinels, because there is no
+#   Pushover account. So today:
+#
+#     works  -- every alert rule evaluates; every firing alert is visible in the
+#               Alertmanager UI and in Grafana; grouping, inhibition and
+#               silencing all behave normally
+#     fails  -- push delivery to the phone. Alertmanager's own
+#               `AlertmanagerFailedToSendAlerts` rule (shipped by this chart)
+#               fires, so the broken state is visible in the same UI rather than
+#               being silent.
+#
+#   That is a worse position than working notifications and a much better one
+#   than an Alertmanager that will not start. To finish it, pick a transport:
+#
+#     pushover  keep this config as-is. ~$5 one-off. Fill PUSHOVER_TOKEN and
+#               PUSHOVER_USER_KEY in secrets.local.env, re-seal, done -- no edit
+#               to this file at all.
+#
+#     telegram  free. @BotFather -> /newbot -> token; then message the bot and
+#               read the chat id from
+#               https://api.telegram.org/bot<token>/getUpdates. Put the token in
+#               PUSHOVER_TOKEN (the key name is just a filename) and replace the
+#               pushover_configs block below with the telegram_configs form
+#               shown above. Costs one committed chat id.
+#
+#     discord   free if you already have a server. Server Settings -> Integrations
+#               -> Webhooks -> copy URL, which is a bearer credential and so goes
+#               in the Secret via `webhook_url_file`:
+#                   discord_configs:
+#                     - webhook_url_file: /etc/alertmanager/secrets/alertmanager-notify/pushover-token
+#               Nothing site-specific in git, same as Pushover.
+# ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 alertmanager:
   alertmanagerSpec:
@@ -204,9 +240,37 @@ alertmanager:
         # configured at the heartbeat provider, or a normal quiet period is
         # reported as an outage. 5m here pairs with a 15-20m grace.
         # ---------------------------------------------------------------
+        # ---------------------------------------------------------------
+        # CURRENTLY DISABLED -- receiver is `"null"`, not `heartbeat`.
+        #
+        # There is no heartbeat provider yet: `heartbeat-url` in the
+        # alertmanager-notify Secret holds
+        # `https://pending.invalid/no-heartbeat-provider-configured-yet`, a
+        # deliberately unresolvable URL (see the PENDING block in
+        # scripts/seal-secrets-from-env.sh).
+        #
+        # Pointing Watchdog at that URL would fail every 5 minutes forever, and
+        # `AlertmanagerFailedToSendAlerts` would fire and stay firing from the
+        # first hour. One permanently-red alert trains you to ignore the alert
+        # list, which costs more than the missing dead-man's switch.
+        #
+        # TO ENABLE (about five minutes, free, no server):
+        #   1. healthchecks.io -> new check -> Period 5m, GRACE 20m
+        #      (the grace MUST exceed repeat_interval below, or a normal quiet
+        #      period reads as an outage and you will mute it within a week)
+        #   2. copy its Ping URL (https://hc-ping.com/<uuid>)
+        #   3. HEARTBEAT_URL='<that url>' in secrets.local.env
+        #   4. scripts/seal-secrets-from-env.sh --force
+        #   5. change `receiver: "null"` back to `receiver: heartbeat` here
+        #   6. point the provider's own notification at an address that does NOT
+        #      depend on this cluster
+        #
+        # Steps 3-5 are the whole change; the `heartbeat` receiver below is
+        # already defined and stays defined so this is a one-word edit.
+        # ---------------------------------------------------------------
         - matchers:
             - alertname = "Watchdog"
-          receiver: heartbeat
+          receiver: "null"
           group_wait: 0s
           group_interval: 5m
           repeat_interval: 5m
