@@ -22,10 +22,10 @@ vars:
   # something.
   KUSTOMIZE_DIRS:
     sh: find clusters infrastructure platform apps -name kustomization.yaml -exec dirname {} \; | sort
-  # Legitimately empty today: no *.sops.yaml exists yet, only the .example
-  # templates. `secrets:decrypt` says so rather than pretending it decrypted
-  # something. scripts/secrets-check.sh is what reports the files that SHOULD be
-  # here.
+  # Twelve sealed files today, one per credential the cluster needs from outside
+  # (see scripts/secrets-check.sh for what SHOULD be here). `secrets:decrypt`
+  # still handles the empty case rather than reporting success over nothing --
+  # that is the state a fresh clone is in before `task secrets:seal:all`.
   SOPS_FILES:
     sh: git ls-files '*.sops.yaml' 2>/dev/null || true
 
@@ -72,6 +72,14 @@ tasks:
     cmds:
       - ./scripts/age-key.sh
 
+  # -------------------------------------------------------------------------
+  # Site / network
+  # -------------------------------------------------------------------------
+  net:discover:
+    desc: 'Scan the LAN and identify homelab devices by open port. Usage: task net:discover [-- 192.168.1.0/24]'
+    cmds:
+      - ./scripts/discover-lan.sh {{.CLI_ARGS}}
+
   secrets:inventory:
     desc: Write every secret you must encrypt into a git-ignored crib sheet
     cmds:
@@ -111,6 +119,13 @@ tasks:
     cmds:
       - ./scripts/pre-upgrade-snapshot.sh --delete {{.CLI_ARGS}}
 
+  # Every task below that DECRYPTS sources scripts/lib/sops-age.sh first, which
+  # exports SOPS_AGE_KEY_FILE. On macOS sops looks for the identity in
+  # ~/Library/Application Support/sops/age/keys.txt, not ~/.config, so without
+  # this a `sops --decrypt` fails with "failed to load age identities" even
+  # though the key is exactly where every guide says to put it. Encryption is
+  # unaffected -- it only needs the recipient from .sops.yaml -- which is what
+  # makes the asymmetry so easy to miss.
   secrets:seal:
     desc: 'Encrypt a plaintext file in place. Usage: task secrets:seal -- path/to/x.sops.yaml'
     deps: [tools:check]
@@ -118,19 +133,21 @@ tasks:
       - |
         f='{{.CLI_ARGS}}'
         [ -n "$f" ] || { echo 'usage: task secrets:seal -- path/to/secret.sops.yaml'; exit 1; }
+        . ./scripts/lib/sops-age.sh && sops_age_env || exit 1
         sops --encrypt --in-place "$f"
+        # Encryption returning 0 does not mean the file can be read back, so
+        # prove it before saying "sealed".
+        sops --decrypt "$f" >/dev/null || {
+          echo "SEALED BUT NOT READABLE: $f -- the age identity does not match .sops.yaml" >&2
+          exit 1
+        }
         echo "sealed: $f"
 
   secrets:seal:all:
-    desc: Encrypt every *.sops.yaml that is still plaintext
+    desc: Seal every *.sops.yaml from secrets.local.env, then prove each one decrypts
     deps: [tools:check]
     cmds:
-      - |
-        for f in $(git ls-files -co --exclude-standard '*.sops.yaml'); do
-          if ! grep -q '^sops:' "$f"; then
-            sops --encrypt --in-place "$f" && echo "sealed: $f"
-          fi
-        done
+      - ./scripts/seal-secrets-from-env.sh {{.CLI_ARGS}}
 
   secrets:edit:
     desc: 'Edit an encrypted file. Usage: task secrets:edit -- path/to/x.sops.yaml'
@@ -139,6 +156,7 @@ tasks:
       - |
         f='{{.CLI_ARGS}}'
         [ -n "$f" ] || { echo 'usage: task secrets:edit -- path/to/secret.sops.yaml'; exit 1; }
+        . ./scripts/lib/sops-age.sh && sops_age_env || exit 1
         sops "$f"
 
   secrets:decrypt:
@@ -149,6 +167,7 @@ tasks:
       - |
         set -e
         set -o pipefail
+        . ./scripts/lib/sops-age.sh && sops_age_env
         files="{{.SOPS_FILES}}"
         if [ -z "$files" ]; then
           echo "no *.sops.yaml files exist yet -- nothing to decrypt."
@@ -207,10 +226,14 @@ tasks:
       - ./scripts/placeholder-check.sh
 
   lint:secrets:
-    desc: 'Check the KSOPS generators reference files that exist (warns by default)'
+    desc: 'Check the KSOPS generators reference files that exist and are sealed'
+    env:
+      # Fatal. All twelve sealed files exist, so a missing or unsealed one is a
+      # regression, not unfinished work -- and it stalls every Application below
+      # sync-wave -25 in that layer. pre-commit and ci.yaml set the same value.
+      SECRETS_CHECK_STRICT: "1"
     cmds:
-      # Warns and exits 0 unless SECRETS_CHECK_STRICT=1 is in the environment.
-      # The script owns that default, so this task does not restate it.
+      # The script defaults to warn-only; the strictness is set above, not here.
       - ./scripts/secrets-check.sh
 
   lint:kube-linter:

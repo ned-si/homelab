@@ -95,17 +95,22 @@ jobs:
           SKIP: render-deploy
         run: pre-commit run --all-files --show-diff-on-failure
 
-      # secrets-check is a WARNING inside pre-commit so the owner can commit
-      # before the *.sops.yaml files exist (see scripts/secrets-check.sh). It is
-      # still worth surfacing as a workflow annotation, because "every layer
-      # stalls at sync-wave -25" is not a thing to discover on the cluster.
+      # The pre-commit step above already runs this hook, and now runs it with
+      # SECRETS_CHECK_STRICT=1, so this step is a duplicate as a GATE. It is kept
+      # as a separate step for the ANNOTATION: pre-commit prints the failure as
+      # part of a wall of hook output, while this produces a `::error::` that
+      # GitHub attaches to the run summary. "One missing file stalls every
+      # Application below sync-wave -25" is worth that much visibility.
       #
-      # Kept non-fatal here on purpose: making it fatal is a one-line change to
-      # SECRETS_CHECK_STRICT below, to be made when Phase 1 starts.
-      - name: KSOPS secret files (advisory)
+      # `if: always()` so it still reports when an earlier hook failed for an
+      # unrelated reason.
+      #
+      # No age key is available here and none is needed: the script only checks
+      # that referenced paths exist and carry a SOPS envelope. It never decrypts.
+      - name: KSOPS secret files
         if: always()
         env:
-          SECRETS_CHECK_STRICT: "0"
+          SECRETS_CHECK_STRICT: "1"
         run: ./scripts/secrets-check.sh
 
   # ---------------------------------------------------------------------------

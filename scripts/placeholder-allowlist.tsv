@@ -15,7 +15,6 @@
 # Columns are TABS. A space-separated line is rejected, on purpose: a silently
 # misparsed allowlist is worse than no allowlist.
 
-apps/*	REPLACE-ME	S3 bucket not created yet. Run: task backup:set-target -- <bucket> <region>. Blocks nothing today because no backup has ever run; MUST be done before the first CronJob fires. docs/runbooks/restart-after-move.md
-platform/*	REPLACE-ME	Same bucket, keycloak + backup-verify destinations. Same command: task backup:set-target -- <bucket> <region>.
+apps/*	REPLACE-ME	S3 bucket not created yet. Two halves, same milestone: (1) task backup:set-target -- <bucket> <region> rewrites the destinations, (2) s3-backup.sops.yaml is sealed with PENDING-S3_* sentinels and must be re-sealed with the real IAM keys. Blocks nothing today (no S3 backup has ever run, and the LOCAL restic jobs are unaffected) but MUST be done before the first S3 CronJob fires. docs/backups.md, 'Setup, start to finish'.
+platform/*	REPLACE-ME	Same bucket and same two halves as the apps/* entry: task backup:set-target -- <bucket> <region>, then re-seal s3-backup.sops.yaml. Covers the keycloak and backup-verify destinations.
 deploy/*	REPLACE-ME	Generated output. task backup:set-target already re-renders deploy/, so this entry disappears with the two above.
-.sops.yaml	REPLACE_WITH	age identity not generated yet. Run: task secrets:keygen, which rewrites both recipient blocks. Until then NOTHING in the repo can be encrypted -- this is the first thing to do on day one.
