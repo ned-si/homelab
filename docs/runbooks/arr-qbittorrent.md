@@ -143,19 +143,27 @@ months" into "CrashLoopBackOff within two minutes".
 
 `transfer/info` reports `"connection_status":"firewalled"`. The WebUI works and
 downloads run, but the listen port is not reachable from the internet, so
-seeding is crippled. The external address is confirmed as `188.155.74.203`.
+seeding is crippled.
 
-Check that the router forwards **TCP+UDP 50000** to the `qbittorrent-seed`
+Check that the router forwards **TCP+UDP 50000** to the `qbittorrent-peer`
 LoadBalancer address:
 
 ```sh
-kubectl -n theater get svc qbittorrent-seed
+kubectl -n theater get svc qbittorrent-peer
 #   EXTERNAL-IP 192.168.2.1
 ```
 
-Note that address is on `192.168.2.0/24` while the LAN is `192.168.1.0/24` —
-worth confirming the router actually routes that range. This needs re-doing after
-the house move regardless: see [house-move.md](house-move.md).
+The Service is named `qbittorrent-peer`; `qbittorrent` is the ClusterIP for the
+WebUI and has no external address.
+
+Note that address is on `192.168.2.0/24` while the LAN is `192.168.1.0/24` — the
+`services` LB pool is deliberately a separate range so it cannot collide with the
+node addresses, which means **the router needs a static route for it** as well as
+the port forward. That is the most likely cause of `firewalled`. See
+[networking.md](../networking.md#loadbalancer-ips).
+
+This needs re-doing after any move: see
+[restart-after-move.md](restart-after-move.md).
 
 ## If it happens again
 

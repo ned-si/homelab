@@ -1,12 +1,25 @@
-# Committed credentials: inventory and remediation
+# Committed credentials: inventory and position
 
-Every credential listed here was committed to this repository **in plaintext**
-and is present in the git history. Rewriting history does not undo that, and
-neither does this restructure. All of them must be treated as compromised and
-rotated.
+Every credential listed here was committed to this repository **in plaintext** and
+is present in the git history. All of them are compromised.
 
 Values are referenced by file and key name only — they are not reproduced here,
 because that would just move the leak into a new file.
+
+## The position, in one table
+
+| Credential | Action |
+|---|---|
+| NAS SSH private key (row 1) | **replace before the cluster works.** Not deferrable |
+| TrueNAS API key (row 2) | **replace before the cluster works.** Not deferrable |
+| Cloudflare API token (row 3) | **replace.** Not LAN-scoped |
+| Rows 4–8: LAN-only application passwords and OIDC client secrets | **carried forward at their current values. Rotation deferred by decision, 2026-08-28** |
+| Plex claim token (row 9) | nothing. Claim tokens expire in ~4 minutes; long dead |
+| The git history | **will be rewritten, at the end of the migration** |
+
+`scripts/secrets-inventory.sh` is the tool that moves the deferred values into
+sealed files, and its header is the source of truth for the decision below. Where
+this document and that header disagree, the header wins.
 
 ## Why this matters even for a private repo
 
@@ -46,10 +59,51 @@ forge session cookies and password-reset tokens for the document archive. It is
 set from a Secret now (`apps/secrets/paperless-secrets.sops.yaml.example`), and
 generating it counts as remediation, not hardening.
 
+## Rotation of the LAN-only credentials is deferred
+
+Rows 4–8 are re-encrypted with SOPS and kept at their current values. This is a
+decision recorded on **2026-08-28**, not an oversight and not a TODO.
+
+It is **conditional**. It holds because of these facts, all true today:
+
+- **Single operator.** Nobody else has a clone, and no collaborator has ever been
+  added.
+- **Every affected service is reachable only from the LAN or from behind
+  Keycloak.** The credentials grant nothing to someone who cannot already reach the
+  network.
+- **Every value is recorded in Bitwarden**, so rotation is a decision that can be
+  taken later at leisure rather than a recovery operation.
+- **The repository is private, and the history rewrite is scheduled** — at the end
+  of the migration, deliberately. See below.
+
+**Any of the following invalidates it, and then rotation comes first:**
+
+- the repository becoming public, forked, or gaining a collaborator
+- any of these services becoming reachable from the internet without
+  authentication in front of it
+- a GitHub App or CI runner with read access to the tree being compromised
+  (Renovate has read access to the whole repository)
+- evidence that any of the values has been used from an address that is not the
+  operator's
+
+### The three that are not covered by it
+
+Because none of them is a LAN-only application password.
+
+- **The NAS SSH private key and the TrueNAS API key** (rows 1 and 2) grant
+  filesystem-level access to every dataset, including the backups. Replacement is
+  not a rotation task here: it is a prerequisite of the driver working at all,
+  because `infrastructure/secrets/democratic-csi-iscsi.sops.yaml.example` already
+  requires a **new** keypair and a **non-root** account.
+- **The Cloudflare API token** (row 3) edits public DNS for the zone, from
+  anywhere, and therefore enables issuing valid certificates for any subdomain.
+
 ## Remediation order
 
-Do these in order. Steps 1–3 do not require the cluster and can be done from
-anywhere, right now.
+Do steps 1–3 now; they do not require the cluster and can be done from anywhere.
+Steps 4–6 are the deferred set — the procedures are recorded so that whenever the
+decision above is revisited, or one of its conditions breaks, nobody has to work
+them out under pressure.
 
 ### 1. The NAS SSH key — first, and not optional
 
@@ -97,6 +151,8 @@ independently. The old setup used a single token pasted into two files.
 
 ### 4. Keycloak, and everything downstream of it
 
+*Deferred. Recorded for when it is not.*
+
 Keycloak has to come before the OIDC clients, because rotating a client secret
 means editing it in Keycloak first.
 
@@ -108,6 +164,8 @@ means editing it in Keycloak first.
    corresponding sealed file.
 
 ### 5. Seafile / MariaDB
+
+*Deferred. Recorded for when it is not.*
 
 `MARIADB_ROOT_PASSWORD` only takes effect on an empty datadir, so on a live
 database rotate it in SQL and then update the Secret:
@@ -122,38 +180,57 @@ then update `apps/secrets/seafile-admin.sops.yaml` to match.
 
 ### 6. Paperless
 
-Generate `PAPERLESS_SECRET_KEY` (`openssl rand -base64 48`) and a new admin
-password. Changing the signing key invalidates all existing sessions, which is
-the desired outcome.
+`PAPERLESS_SECRET_KEY` is **not** deferred — it was never set at all, so there is
+no old value to carry forward. Generate it (`openssl rand -base64 48`). Changing
+the signing key invalidates all existing sessions, which is the desired outcome.
 
-## Should the history be rewritten?
+The admin password is deferred with the rest of rows 4–8.
 
-Probably not worth it, and it does not achieve much.
+## The history will be rewritten, at the end of the migration
 
-- Rewriting with `git filter-repo` or BFG changes every commit hash, breaks
-  every existing clone, and orphans the old objects on GitHub until garbage
-  collection — which for a fork or a cached view may be never.
-- It provides no security benefit **once the credentials are rotated**, and
-  rotation is mandatory either way.
-- It provides a false sense of cleanup if rotation is skipped.
+Not "if", and not now. The timing is the decision.
 
-So: rotate everything, leave history alone, and rely on the fact that the
-rotated values are worthless. If you want the history clean for tidiness rather
-than security, do it after rotation is confirmed, and understand that the old
-values may still be retrievable from GitHub for some time.
+**Why it happens at all:** the values are carried forward rather than rotated, so
+the history is the only place they can be removed from.
+
+**Why not now:** a rewrite changes every commit hash. That invalidates the
+`deployed` tag Argo CD tracks — every `Application` in `clusters/homelab/` resolves
+a revision that no longer exists — and it breaks every existing clone, at the
+moment the cluster is least stable. See
+[ADR 0001](adr/0001-deploy-by-moving-a-git-tag.md).
+
+**When it happens:** after the cutover in [migration-plan.md](migration-plan.md) is
+complete and the cluster has been carrying real traffic on the new hierarchy for
+long enough that a rebuild is not on the table.
+
+**What to expect from it:** `git filter-repo` or BFG orphans the old objects on
+GitHub until garbage collection, which for a fork or a cached view may be never. So
+treat the rewrite as tidying, not as remediation: it is not what makes the values
+safe. What makes them tolerable is the set of conditions above.
+
+Afterwards, re-tag `deployed` at the rewritten commit and re-run
+`task bootstrap:apply` so the root Application resolves again.
 
 ## Preventing a recurrence
 
-Three things now stand in the way:
-
-1. **`task secrets:leak-check`** — refuses plaintext `stringData:`, private-key headers,
-   age secret keys, and filenames that should never be tracked. Run it before
-   committing; consider wiring it as a pre-commit hook.
-2. **`.gitignore`** now covers `*.key`, `*.pem`, `.env*`, `*.tfvars`, kubeconfigs
-   and the `.decrypted/` scratch directory.
-3. **Database passwords no longer exist as artefacts.** CloudNativePG generates
+1. **`task secrets:leak-check`** — five checks, and the important one is newer than
+   this incident: it catches **a credential as a literal value anywhere**, not only
+   inside a `kind: Secret`. `env:` entries with a literal `value:`, a
+   `client_secret:` key in a Helm values file, an inline literal in a ConfigMap.
+   That is the shape of **six of the nine credentials below** — the Keycloak
+   bootstrap admin password, the MariaDB root password (twice), the Paperless admin
+   password, the Seafile admin password and the four OIDC client secrets. A check
+   that only understood Secret objects saw none of them. Its scope is everything
+   Argo syncs plus the sources it renders from, and it deliberately includes
+   `*.example` templates, because a template is where a real credential gets pasted
+   by accident.
+2. **`scripts/secrets-check.sh`** and **`scripts/placeholder-check.sh`** — the
+   other two gates. See [secrets.md](secrets.md#the-three-checks-around-this).
+3. **`.gitignore`** covers `*.key`, `*.pem`, `.env*`, `*.tfvars`, kubeconfigs and
+   the `.decrypted/` scratch directory.
+4. **Database passwords no longer exist as artefacts.** CloudNativePG generates
    them into `<cluster>-app` Secrets, so for Postgres there is nothing to leak,
-   encrypted or otherwise. That is why only OIDC clients, bootstrap admins and
-   the MariaDB root password appear under `*/secrets/`.
+   encrypted or otherwise. That is why only OIDC clients, bootstrap admins and the
+   MariaDB root password appear under `*/secrets/`.
 
 See [secrets.md](secrets.md) for the day-to-day workflow.

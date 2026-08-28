@@ -9,20 +9,28 @@
 #   which is what Ansible is for. Using OpenTofu here would mean wrapping
 #   `remote-exec` provisioners, which is Ansible with worse error handling.
 #
-#   (The long-term answer is Talos, where the OS is immutable and upgrades are an
-#   API call. See docs/talos-migration.md.)
-#
 # WHAT MAKES THIS SAFE
 #   serial: 1          one node at a time, never two
 #   drain before       workloads move off before anything changes
 #   fail-fast          any_errors_fatal stops the rollout on first failure
-#   VIP holder last    ordering in inventory.yml + the pre-flight check below
+#
+# WHAT DOES *NOT* MAKE IT SAFE, AND IS WORTH KNOWING
+#   Nothing here detects which node holds the API VIP, and inventory order puts
+#   that node (homelab-cp-1) FIRST, not last -- because kube-upgrade.yml addresses
+#   `controlplane[0]` positionally and that requirement wins. Read the ordering
+#   block in inventory.yml. Draining the VIP holder is survivable (kube-vip fails
+#   the VIP over), but if you would rather leave it until the end, do it with
+#   --limit; do not reorder the inventory.
 #
 # Usage:
 #   ansible-playbook os-upgrade.yml                 # all nodes, one at a time
 #   ansible-playbook os-upgrade.yml --limit workers
 #   ansible-playbook os-upgrade.yml -e reboot=false # patch without rebooting
 #   ansible-playbook os-upgrade.yml --check         # dry run
+#
+#   # VIP holder last:
+#   ansible-playbook os-upgrade.yml --limit '!homelab-cp-1'
+#   ansible-playbook os-upgrade.yml --limit homelab-cp-1
 
 - name: Pre-flight checks
   hosts: kube
@@ -39,11 +47,6 @@
     - name: Fail if any node is already NotReady
       delegate_to: localhost
       run_once: true
-      vars:
-        not_ready: >-
-          {{ (nodes_json.stdout | from_json).items
-             | rejectattr('status.conditions', 'search', 'dummy')
-             | map(attribute='metadata.name') | list }}
       ansible.builtin.assert:
         that:
           - (nodes_json.stdout | from_json)['items']
@@ -51,9 +54,9 @@
             | selectattr('type', 'equalto', 'Ready')
             | selectattr('status', 'equalto', 'False') | list | length == 0
         fail_msg: >-
-          One or more nodes are NotReady. Fix that before starting a rolling
-          upgrade -- draining onto an already-degraded cluster is how a patch
-          window becomes an outage.
+          One or more nodes are NotReady. Run `kubectl get nodes` to see which,
+          and fix it before starting a rolling upgrade -- draining onto an
+          already-degraded cluster is how a patch window becomes an outage.
 
     - name: Warn if Argo CD automation is enabled
       delegate_to: localhost

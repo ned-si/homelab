@@ -1,22 +1,29 @@
-# Paperless: SQLite → Postgres (optional)
+# Paperless: SQLite → Postgres (optional, not done)
 
-Paperless is currently on **SQLite**, and this repo leaves it there on purpose.
+**This document describes an option, not the system.** Paperless runs on
+**SQLite** and this repo keeps it there deliberately —
+`apps/paperless/deployment.yaml` says so at the top, there is no
+`apps/paperless/database.yaml`, and step 2 below asks you to create one. Nothing
+here has been executed. Do not read it as a description of the running cluster.
 
 ## Why it is on SQLite
 
-The old manifest never set `PAPERLESS_DBHOST`, so Paperless has been using SQLite
-inside the `paperless-data` volume since it was deployed. That was probably not a
-decision, but it is the current state.
+`PAPERLESS_DBHOST` has never been set, so Paperless has been using SQLite inside
+the `paperless-data` volume since it was deployed.
 
-## Why the restructure did not "fix" it
+## Why it was not "fixed"
 
-Pointing Paperless at Postgres does **not** migrate the data. It would come up
-against an empty database and present an empty archive, while the real documents
-sat untouched in the `paperless-media` volume and the metadata sat orphaned in the
+Pointing Paperless at Postgres does **not** migrate the data. It comes up against
+an empty database and presents an empty archive, while the real documents sit
+untouched in the `paperless-media` volume and the metadata sits orphaned in the
 SQLite file. Paperless has no in-place converter.
 
-Doing that silently as part of a refactor would look exactly like data loss. So
-the manifest keeps SQLite and this document exists instead.
+Doing that silently as part of a refactor looks exactly like data loss. So the
+manifest keeps SQLite and this document exists instead.
+
+The backup consequence is handled: `apps/paperless/backup.yaml` copies the SQLite
+database through SQLite's own `.backup` API rather than copying bytes from under a
+running writer. See [backups.md](../backups.md).
 
 ## Is it worth migrating?
 
