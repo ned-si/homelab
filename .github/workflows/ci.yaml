@@ -294,34 +294,71 @@ jobs:
       actions: read
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Do not leave the GITHUB_TOKEN in .git/config for later steps to find.
+          #
+          # This job runs a third-party scanner that was itself backdoored in March
+          # 2026 with a payload whose whole purpose was harvesting whatever
+          # credentials it could reach on the runner. Nothing in this job pushes,
+          # so persisting the token buys nothing and hands a future compromise one
+          # more thing to steal.
+          persist-credentials: false
 
       # Trivy in config mode covers Kubernetes manifests, Helm values,
       # Dockerfiles and Terraform in one pass.
       #
-      # TWO PINS, BOTH NECESSARY: the action AND the scanner binary.
+      # ###########################################################################
+      # # PINNED BY COMMIT SHA, NOT BY TAG, AND THAT IS NOT PEDANTRY HERE.
+      # #
+      # # On 2026-03-19 an attacker with tag-write access FORCE-PUSHED 76 of the 77
+      # # tags in aquasecurity/trivy-action and ALL 7 tags in
+      # # aquasecurity/setup-trivy, repointing trusted versions at malicious
+      # # commits, and published a credential-stealing Trivy binary (v0.69.4) to
+      # # the official release channels. The payload harvested cloud credentials,
+      # # env vars and `kubectl get secrets --all-namespaces`, exfiltrated them,
+      # # and then ran the real scan so the job went green.
+      # #
+      # # A git tag is a mutable pointer. `@v0.36.0` would have offered no
+      # # protection whatsoever against that, which is the whole lesson:
+      # #
+      # #   safe versions per the advisory   trivy binary  v0.69.2 - v0.69.3
+      # #                                    trivy-action  v0.35.0
+      # #                                    setup-trivy   v0.2.6
+      # #   malicious binaries               0.69.4, 0.69.5, 0.69.6
+      # #
+      # # https://www.microsoft.com/en-us/security/blog/2026/03/24/detecting-investigating-defending-against-trivy-supply-chain-compromise/
+      # #
+      # # WHY v0.36.0 RATHER THAN THE v0.35.0 NAMED SAFE: v0.35.0 shipped
+      # # 2026-03-20, the day after the compromise, and predates the `version`
+      # # input this job needs to pin the scanner binary. v0.36.0 shipped
+      # # 2026-04-22, a month into remediation, and -- verified by reading
+      # # action.yaml at this exact commit -- pins setup-trivy by SHA to
+      # # 3fb12ec12f41e471780db15c232d5dd185dcb514, which resolves to v0.2.6, the
+      # # version the advisory names safe. So all three links in the chain are
+      # # immutable: this SHA, the SHA it pins, and the binary version below.
+      # #
+      # # WHEN RENOVATE PROPOSES A BUMP HERE, re-check the advisory before merging.
+      # # This is the one dependency in the repo where "newer" is not automatically
+      # # "safer".
+      # ###########################################################################
       #
-      # `@0.33.1` was wrong twice over. The tag is `v0.33.1` -- without the `v` the
-      # job died at action resolution, before checkout, so nothing was scanned.
-      # And v0.33.x installs Trivy by running `contrib/install.sh` fetched from the
-      # trivy repository's `main` BRANCH, so pinning the action pinned nothing that
-      # mattered: the installer moved underneath it and the step began failing
-      # during install, right after printing "found version: 0.65.0".
-      #
-      # Both failures presented identically -- a red job with zero findings -- and
-      # neither is distinguishable from a misconfigured scanner without reading the
-      # setup log.
-      #
-      # v0.36.0 delegates installation to aquasecurity/setup-trivy, which
-      # trivy-action pins by commit hash, and exposes the binary version as an
-      # input. Both halves are now pinned and both are visible here.
+      # Separately, `@0.33.1` was ALSO broken two other ways, both of which
+      # presented as a red job with zero findings: the tag is `v0.33.1`, so it
+      # never resolved; and v0.33.x installed Trivy by running
+      # `contrib/install.sh` fetched from the trivy repo's `main` BRANCH -- an
+      # unpinned script behind a pinned action.
       - name: Trivy config scan
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: config
           scan-ref: .
           format: sarif
           output: trivy.sarif
-          # The scanner binary, pinned separately from the action.
+          # The scanner binary, pinned separately from the action -- the action
+          # only decides HOW it is fetched, not WHICH one.
+          #
+          # v0.70.0 (2026-04-17) is post-remediation and above the malicious
+          # 0.69.4-0.69.6. Do not float this.
           # renovate: datasource=github-releases depName=aquasecurity/trivy
           version: v0.70.0
           # Report only what is worth blocking a merge for. Homelab manifests trip
