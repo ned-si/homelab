@@ -34,11 +34,12 @@ spec:
         valueFiles:
           - $values/infrastructure/cilium/values.yaml
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: main
+      targetRevision: deployed
       ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       # Pruning the CNI would take the cluster's network down. Do it by hand.
@@ -46,6 +47,12 @@ spec:
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
   ignoreDifferences:
     # The operator writes status into these; they are not desired state.
     - group: ""

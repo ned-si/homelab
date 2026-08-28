@@ -12,14 +12,23 @@ variable "repo_url" {
 
 variable "target_revision" {
   description = <<-EOT
-    Git revision the root Application tracks.
+    Git revision the root Application tracks. Defaults to the `deployed` tag,
+    which is what every committed Application in clusters/homelab/ tracks.
 
-    Point this at a branch while rebuilding (e.g. "chore/gitops-restructure")
-    so you can iterate without touching main, then move it to "main" once the
-    restructure is merged.
+    `deployed` is a moving tag that .github/workflows/cd.yaml advances after a
+    health-gated rollout and moves back on failure. A deploy is "move the tag";
+    a rollback is "move it back". Because every Application here runs
+    `automated.selfHeal: true`, a rollback expressed any other way (syncing or
+    pinning to a SHA) is undone by the next reconcile -- see the long comment in
+    clusters/homelab/root.yaml.
+
+    Override it with a BRANCH only while rebuilding from a working branch, e.g.
+    "chore/gitops-restructure". A branch here means the cluster follows every
+    push with no health gate in front of it, which is fine for a cluster that
+    owns nothing yet and not fine afterwards.
   EOT
   type        = string
-  default     = "main"
+  default     = "deployed"
 }
 
 variable "git_username" {

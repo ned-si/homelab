@@ -10,6 +10,45 @@
 # Deleting this Application cascades to the whole cluster. That is intentional
 # and is why it carries the resources-finalizer: it makes teardown a single,
 # explicit action rather than a surprise.
+#
+# ###########################################################################
+# # WHY `targetRevision: deployed` AND NOT `main`
+# #
+# # `deployed` is a git TAG that CI moves. Every Application in this repo --
+# # root, the three layer app-of-apps, and every leaf -- tracks it, so the
+# # cluster's desired state is "whatever commit that tag points at".
+# #
+# #   deploy    = move the tag forward, then sync and health-gate each layer
+# #   roll back = move the tag back
+# #
+# # Tracking `main` cannot be rolled back. Every Application here runs
+# # `automated.selfHeal: true`, and selfHeal re-reads `spec.source.targetRevision`
+# # on every reconcile. A rollback expressed as `argocd app sync --revision <sha>`
+# # is therefore undone within minutes by Argo re-applying `main` -- which is the
+# # bad commit. Expressing it as `argocd app set --revision` fails the same way
+# # for a second reason: these Application objects are themselves managed by
+# # root/layer-* with selfHeal, so the edit reads as drift and is reverted.
+# #
+# # Moving a tag works WITH the sync policy instead of racing it, and leaves
+# # exactly one mutation point for a deploy. It also means the cluster never
+# # tracks an unreviewed commit: merging to main proposes a change, moving the
+# # tag deploys it.
+# #
+# # Consequence to keep in mind: `main` and `deployed` can disagree. That is the
+# # design, not drift -- `main` is what has been reviewed, `deployed` is what has
+# # been verified against a live health gate. `.github/workflows/cd.yaml` opens an
+# # issue when it rolls the tag back so the gap is visible.
+# #
+# # `revisionHistoryLimit` and `syncPolicy.retry` below are set on every
+# # Application in the tree for the same reason they are set here:
+# #   - history 10 keeps enough `argocd app history` entries to diagnose a bad
+# #     deploy without letting the Application status grow unbounded.
+# #   - retry 5 x 5s doubling, capped at 3m, spans ~2.5 minutes of transient
+# #     failure (a CRD not yet established, an image pull on ARM, an iSCSI
+# #     attach) which fits comfortably inside the CD health-gate timeout. It is
+# #     what makes the known CloudNativePG-before-Prometheus-CRDs ordering
+# #     wrinkle self-correcting -- see docs/architecture.md.
+# ###########################################################################
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,11 +61,12 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/clusters/homelab/bootstrap
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       prune: true
@@ -37,6 +77,6 @@ spec:
     retry:
       limit: 5
       backoff:
-        duration: 10s
+        duration: 5s
         factor: 2
-        maxDuration: 5m
+        maxDuration: 3m

@@ -25,11 +25,12 @@ spec:
         valueFiles:
           - $values/infrastructure/democratic-csi/values-iscsi.yaml
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: main
+      targetRevision: deployed
       ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: democratic-csi
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       # Pruning the CSI driver would orphan every PVC in the cluster.
@@ -37,3 +38,9 @@ spec:
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

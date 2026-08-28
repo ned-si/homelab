@@ -39,23 +39,42 @@ spec:
         valueFiles:
           - $values/apps/immich/values.yaml
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: main
+      targetRevision: deployed
       ref: values
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: main
+      targetRevision: deployed
       path: deploy/apps/immich/resources
   destination:
     server: https://kubernetes.default.svc
     namespace: immich
+  revisionHistoryLimit: 10
   syncPolicy:
-    automated:
-      # Manual sync only for the app itself: an Immich major upgrade runs
-      # irreversible database migrations, and selfHeal would happily roll one
-      # forward while you are still reading the release notes.
-      prune: false
-      selfHeal: false
+    # ###################################################################
+    # # THE ONE APPLICATION WITH NO `automated:` BLOCK. Sync it by hand:
+    # #     argocd app sync immich
+    # #
+    # # An Immich major upgrade runs irreversible database migrations -- once
+    # # 3.x has migrated the schema, the 2.x image will not start on it. Moving
+    # # the `deployed` tag must not be able to trigger that while you are still
+    # # reading docs/runbooks/immich-upgrade.md.
+    # #
+    # # `automated: {prune: false, selfHeal: false}` does NOT achieve this, which
+    # # is the trap: `selfHeal` only governs re-syncing after CLUSTER drift. With
+    # # an `automated` block present at all, a new GIT revision still auto-syncs.
+    # # The only way to require a human is to omit the block, as here.
+    # #
+    # # Consequence: this Application sits OutOfSync after a deploy that touches
+    # # it, deliberately. That does not block the CD health gate -- the gate
+    # # waits on HEALTH, and an OutOfSync-but-Healthy Immich is healthy.
+    # ###################################################################
     syncOptions:
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
   ignoreDifferences:
     - group: postgresql.cnpg.io
       kind: Cluster

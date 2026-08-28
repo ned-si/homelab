@@ -1,5 +1,24 @@
 # Layer 2 - platform. Databases, observability, identity.
 # Waits on infrastructure so that StorageClasses and cert-manager already exist.
+#
+# Tracks the `deployed` git tag, like everything else in this repo. CI moves that
+# tag, syncs THIS Application and waits for it to report Synced+Healthy before it
+# refreshes the apps layer.
+#
+# TWO LIMITS ON THAT GATE, both real:
+#   - This Application owns nothing but other Application objects, so its health
+#     is purely the roll-up of theirs -- and Argo CD ships no built-in health
+#     check for `argoproj.io/Application`, having removed it in 1.8. The roll-up
+#     works only because `resource.customizations.health.argoproj.io_Application`
+#     is set in bootstrap/argocd-values.yaml. Take that away and this wait
+#     reports Healthy within seconds whatever the leaves are doing.
+#   - Every leaf has `automated` sync, so the apps layer's leaves still pick the
+#     new tag up on their own reconciliation timer. What the gate buys is that a
+#     failing layer stops the job and the tag goes back; it does not hold the
+#     apps layer untouched.
+#
+# See clusters/homelab/root.yaml for why a tag and not a branch, and
+# docs/adr/0001-deploy-by-moving-a-git-tag.md for the rest.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,11 +33,12 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/clusters/homelab/platform
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       prune: true
@@ -28,6 +48,6 @@ spec:
     retry:
       limit: 5
       backoff:
-        duration: 10s
+        duration: 5s
         factor: 2
-        maxDuration: 5m
+        maxDuration: 3m

@@ -57,6 +57,71 @@ subjects:
     name: backup-verify
     namespace: backup-verify
 ---
+# ###########################################################################
+# # THE ONE CROSS-NAMESPACE READ THIS JOB NEEDS, AND NOTHING ELSE.
+# #
+# # verify.sh has to know which PostgreSQL image the SOURCE cluster runs, or
+# # the restored cluster gets a different major version and the recovery fails
+# # for a reason that looks like backup corruption. That read is
+# # `get cluster <name> -n <source-ns>`, and the namespaced Role above cannot
+# # authorise it -- it is scoped to `backup-verify`. Before this ClusterRole
+# # existed the call was a 403 buried inside a heredoc, `imageName:` rendered
+# # EMPTY, and the job sat in a 30-minute `kubectl wait` before blaming the
+# # backup.
+# #
+# # WHY A ClusterRole AND NOT A Role IN EACH SOURCE NAMESPACE.
+# #
+# # kustomization.yaml in this directory pins `namespace: backup-verify`, and
+# # kustomize's namespace transformer rewrites metadata.namespace on EVERY
+# # namespaced resource. A Role declaring `namespace: immich` here would be
+# # silently relocated to `backup-verify` and grant nothing -- the exact
+# # failure mode this fix exists to remove. Exempting it needs either a
+# # transformer configuration or a patch, which is more machinery than the
+# # grant is worth.
+# #
+# # SO THE SCOPING IS DONE WITH `resourceNames` INSTEAD, which is tighter than
+# # per-namespace anyway: it names the two Clusters that the LIST in run-all.sh
+# # actually enables, so `mealie-postgresql` is unreadable in every namespace
+# # rather than merely unreadable outside two.
+# #
+# # `get` only, no `list`: RBAC cannot restrict `list` by resourceName (a LIST
+# # request names nothing), so granting it would silently widen this to every
+# # Cluster in the cluster. verify.sh only ever does a named get.
+# #
+# # ENABLING ANOTHER CLUSTER IS TWO ONE-LINE EDITS, IN THIS ORDER:
+# #   1. uncomment its line in the LIST at the bottom of run-all.sh
+# #   2. add its name to resourceNames below
+# # Forgetting step 2 now fails LOUDLY and immediately, naming this object.
+# ###########################################################################
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-verify-source-clusters
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]
+    resourceNames:
+      - immich-db
+      - keycloak-db
+      # The five clusters with no barmanObjectStore are deliberately absent,
+      # matching the commented-out entries in run-all.sh:
+      #   mealie-postgresql, sonarr-postgresql, radarr-postgresql,
+      #   prowlarr-postgresql, lidarr-postgresql
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-verify-source-clusters
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-verify-source-clusters
+subjects:
+  - kind: ServiceAccount
+    name: backup-verify
+    namespace: backup-verify
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -86,6 +151,36 @@ data:
 
     echo "=== verifying backup of $SRC (from $SRC_NS) ==="
 
+    # HOISTED OUT OF THE HEREDOC BELOW, AND THAT IS THE WHOLE POINT.
+    #
+    # This used to be `imageName: $(kubectl -n "$SRC_NS" get cluster ...)`
+    # inline in the manifest. A command substitution inside a heredoc is
+    # invisible to `set -e`: the read failed with a 403 (the namespaced Role in
+    # this file cannot read another namespace), the heredoc still rendered,
+    # `imageName:` came out EMPTY, CNPG accepted the Cluster, and the job then
+    # spent thirty minutes in `kubectl wait` before reporting "restored cluster
+    # never became ready" -- blaming the backup for an RBAC error.
+    #
+    # Assigned to a variable so the exit status is checkable, and checked twice:
+    # once for the call failing, once for it succeeding with nothing.
+    if ! SRC_IMAGE="$(kubectl -n "$SRC_NS" get cluster "$SRC" \
+                      -o jsonpath='{.spec.imageName}')"; then
+      echo "FAIL: cannot read cluster/$SRC in namespace $SRC_NS."
+      echo "      Almost always RBAC. The ServiceAccount needs '$SRC' listed in"
+      echo "      resourceNames on the backup-verify-source-clusters ClusterRole"
+      echo "      in this file. Confirm with:"
+      echo "        kubectl auth can-i get cluster/$SRC -n $SRC_NS \\"
+      echo "          --as=system:serviceaccount:backup-verify:backup-verify"
+      exit 1
+    fi
+    if [ -z "$SRC_IMAGE" ]; then
+      echo "FAIL: cluster/$SRC in $SRC_NS has no .spec.imageName set."
+      echo "      Refusing to render an empty imageName: CNPG accepts it and the"
+      echo "      failure then surfaces 30 minutes later as a recovery timeout."
+      exit 1
+    fi
+    echo "    source image: $SRC_IMAGE"
+
     # The throwaway cluster.
     #
     # Single instance, small volume, and -- critically -- NO `spec.backup`
@@ -106,7 +201,7 @@ data:
         homelab.lilalala.com/ephemeral: "true"
     spec:
       instances: 1
-      imageName: $(kubectl -n "$SRC_NS" get cluster "$SRC" -o jsonpath='{.spec.imageName}')
+      imageName: $SRC_IMAGE
       storage:
         size: 20Gi
         storageClass: iscsi
@@ -196,11 +291,38 @@ data:
         rc=1
       fi
     done <<'LIST'
+    # Same rule as run-all-files.sh: a line is enabled only once something
+    # actually writes the backup it verifies. A check that always fails is a
+    # check you learn to ignore.
+    #
+    # This job restores from the cluster's barmanObjectStore. Only these two
+    # clusters have one:
     immich-db          immich      40
     keycloak-db        keycloak    50
-    mealie-postgresql  mealie      10
-    sonarr-postgresql  theater     10
-    radarr-postgresql  theater     10
+    #
+    # The other five have NO spec.backup.barmanObjectStore, so there is nothing
+    # for this job to recover from and it would fail every Sunday forever:
+    #
+    #   mealie-postgresql   mealie    10
+    #   sonarr-postgresql   theater   10
+    #   radarr-postgresql   theater   10
+    #   prowlarr-postgresql theater   10
+    #   lidarr-postgresql   theater   10
+    #
+    # They are covered in the interim by nightly logical dumps -- snapshots, not
+    # PITR -- from apps/mealie/backup.yaml and apps/theater/backup.yaml, and the
+    # gap itself is alerted on by PostgresClusterHasNoBackupConfigured rather
+    # than left to a failing job to signal.
+    #
+    # Uncomment a line in the same change that adds barmanObjectStore +
+    # ScheduledBackup to that Cluster. Copy platform/keycloak/database.yaml.
+    #
+    # AND ADD ITS NAME TO `resourceNames` ON THE
+    # backup-verify-source-clusters ClusterRole AT THE TOP OF THIS FILE.
+    # verify.sh reads the source Cluster's .spec.imageName across namespaces and
+    # that ClusterRole is what authorises it. Forgetting this step fails the run
+    # immediately with a message naming the object, rather than 30 minutes later
+    # as a recovery timeout -- but it still fails, so do both lines at once.
     LIST
     echo
     [ $rc -eq 0 ] && echo "ALL BACKUPS VERIFIED" || echo "ONE OR MORE BACKUPS FAILED VERIFICATION"

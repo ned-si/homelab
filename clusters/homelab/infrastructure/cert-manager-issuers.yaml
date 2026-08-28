@@ -15,11 +15,12 @@ spec:
   project: infrastructure
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/infrastructure/cert-manager-issuers
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
       prune: true
@@ -28,3 +29,9 @@ spec:
       # The ClusterIssuer CRD may not be established on the very first pass.
       - SkipDryRunOnMissingResource=true
       - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
