@@ -1,0 +1,153 @@
+# syncthing: a single StatefulSet, a ClusterIP for the web UI and a LoadBalancer
+# for the peer-to-peer protocol.
+#
+# `app: syncthing` is the selector, matching apps/syncthing/statefulset.yaml,
+# which records that the StatefulSet's selector is IMMUTABLE on the live object
+# and cannot be normalised to app.kubernetes.io/name without deleting and
+# recreating the StatefulSet.
+#
+# WHY THIS ONE KEEPS ALL-PORTS EGRESS TO `world`, UNLIKE qBITTORRENT
+#   qBittorrent's egress in 10-theater.yaml excludes RFC1918, because no
+#   BitTorrent peer is on the LAN and the whole reason this directory exists is
+#   that qBittorrent could reach the NAS. Syncthing is different: syncing with
+#   another machine on the same LAN is a normal and likely use of it, and cutting
+#   RFC1918 would break that silently -- the peer would show as disconnected and
+#   Syncthing would fall back to a public relay if one is reachable, so throughput
+#   would collapse rather than fail loudly.
+#
+#   The cost of that choice, stated plainly: an enforced syncthing namespace can
+#   still reach 192.168.1.228 on any port. If that becomes unacceptable, copy the
+#   `toCIDRSet`/`except` form from 10-theater.yaml and add back only the specific
+#   LAN peer addresses you actually sync with.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: syncthing
+  namespace: syncthing
+spec:
+  description: >-
+    Syncthing: web UI from the Gateway, sync protocol from the LAN and the
+    internet, outbound to peers, discovery servers and relays on any port.
+  endpointSelector:
+    matchLabels:
+      app: syncthing
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # syncthing.lilalala.com -> the web UI on :8384.
+    # apps/syncthing/httproute.yaml -- HTTPRoute `syncthing`; only the UI goes
+    # through the Gateway, which is why the sync ports are a separate rule.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8384"
+              protocol: TCP
+
+    # The peer-to-peer protocol and local discovery, arriving via the
+    # `syncthing-sync` LoadBalancer.
+    # apps/syncthing/services.yaml -- 22000 TCP+UDP (sync) and 21027 UDP
+    # (discovery), address from the `services` pool, published as
+    # sync.lilalala.com by external-dns.
+    #
+    # `world` is the remote peer; `host`/`remote-node` cover the SNAT case
+    # described in 10-theater.yaml. A LAN peer also arrives as `world`, because
+    # Cilium gives LAN addresses that are not cluster nodes the `world` identity.
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "22000"
+              protocol: TCP
+            - port: "22000"
+              protocol: UDP
+            - port: "21027"
+              protocol: UDP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Outbound peer connections, global discovery, relays and STUN.
+    # apps/syncthing/statefulset.yaml -- "peer-to-peer sync needs the router to
+    # forward TCP/UDP 22000 [...] and clients need Global Discovery. Without the
+    # forward, Syncthing falls back to relays."
+    #
+    # Deliberately unrestricted by port. Syncthing dials peers on whatever port
+    # each peer advertises, global discovery is HTTPS, the relay pool is 22067 and
+    # 443, and STUN is UDP 3478 to arbitrary servers. Enumerating that set gets it
+    # wrong and produces the exact symptom this rule is meant to avoid: a peer
+    # that connects sometimes.
+    - toEntities:
+        - world
+---
+# ---------------------------------------------------------------------------
+# The backup CronJob
+#
+# apps/syncthing/backup.yaml -- `syncthing-backup` pushes the device identity and
+# folder configuration to S3 with restic, deliberately excluding the rebuildable
+# index.
+#
+# It needs its own policy because the policy above selects `app: syncthing`, which
+# is the StatefulSet's pod label and does NOT match the Job pod. Without this, the
+# job would be left with nothing but the `enforce-default-deny` policy's DNS rule
+# the moment this namespace is enforced, and it would fail at its scheduled hour
+# rather than at rollout -- the worst time to discover a missing rule.
+#
+# `batch.kubernetes.io/job-name: Exists` rather than
+# `app.kubernetes.io/name: syncthing-backup` -- see the reasoning in
+# 10-theater.yaml.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: syncthing
+spec:
+  description: >-
+    The syncthing backup CronJob: DNS and restic to S3. It reads a volume, so it
+    talks to nothing else.
+  endpointSelector:
+    matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Cluster DNS, to resolve the S3 endpoint. Repeated here rather than inherited:
+    # the policy above does not select this pod.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # restic to S3.
+    # apps/syncthing/backup.yaml -- RESTIC_REPOSITORY
+    # s3:https://s3.eu-central-1.amazonaws.com/.../syncthing/data
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
