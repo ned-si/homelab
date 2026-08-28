@@ -1,0 +1,247 @@
+# Syncthing backup.
+#
+# ###########################################################################
+# # THE INTERESTING THING ABOUT SYNCHING IS HOW LITTLE NEEDS BACKING UP -- AND
+# # THAT THE SMALL PART IS THE PART THAT IS IRREPLACEABLE.
+# #
+# # /var/syncthing holds two categories with completely different value:
+# #
+# #   IRREPLACEABLE, and tiny (a few kilobytes):
+# #     cert.pem, key.pem        the DEVICE IDENTITY. A Syncthing device ID is
+# #                              the fingerprint of this keypair. Lose it and
+# #                              this node becomes a NEW device that every peer
+# #                              must re-accept by hand, and every folder must
+# #                              be re-shared from the other side.
+# #     config.xml               folder definitions, share permissions, every
+# #                              peer's device ID, ignore patterns, versioning
+# #                              settings.
+# #     https-cert.pem/key.pem   the GUI certificate. Regenerable, but free to
+# #                              keep.
+# #
+# #   REBUILDABLE, and large:
+# #     index-v2/ (1.x) or the SQLite database (2.x)
+# #                              the file index. Syncthing rebuilds it by
+# #                              rescanning the folders. On a large folder set
+# #                              that is hours of I/O -- but it is deterministic
+# #                              and it needs no backup.
+# #
+# # SO THIS JOB BACKS UP THE FIRST CATEGORY AND EXCLUDES THE SECOND, and that is
+# # not a compromise -- it is the better backup. The index is the only live
+# # database in the volume, so excluding it removes the entire consistency
+# # problem: everything included is a file Syncthing writes atomically
+# # (write-to-temp, rename) and never holds open for writing.
+# #
+# # The result is a FULLY CONSISTENT backup of a few kilobytes, rather than a
+# # possibly-torn copy of a multi-gigabyte database that would be discarded on
+# # restore anyway. Compare apps/theater/backup.yaml, where Jellyfin's database
+# # genuinely cannot be excluded because it is the only copy of the watch state.
+# ###########################################################################
+#
+# THE SYNCED DATA ITSELF IS NOT BACKED UP HERE, AND THAT IS DELIBERATE.
+# Syncthing is a replication tool, not a backup tool: every peer holds a full
+# copy, so the data has as many copies as there are devices. What it does not
+# protect against is a deletion propagating to every peer -- which is what
+# Syncthing's own File Versioning is for, configured per folder in the GUI and
+# stored in config.xml, i.e. inside this backup.
+#
+# statefulset.yaml also warns that the pinned 2.1.2 image crosses the 1.x -> 2.x
+# boundary and that Syncthing 2.0 migrated its database format and will NOT
+# downgrade cleanly. THIS JOB IS THE THING THAT MAKES THAT SURVIVABLE: with
+# config.xml and the keypair in S3, a failed 2.x migration is recoverable by
+# reinstalling 1.x, restoring these files and letting the index rebuild. Run it
+# by hand before syncing that image bump:
+#
+#     kubectl -n syncthing create job --from=cronjob/syncthing-backup pre-2x
+#
+# ---------------------------------------------------------------------------
+# ADD `syncthing/data` TO `local.restic_repos` IN bootstrap/aws-backup/main.tf.
+# For a repository this small the Glacier IR saving is pennies, so it is the one
+# case where forgetting it costs almost nothing -- but the entry also documents
+# that the repository exists, and the list is what a future reader trusts.
+# bootstrap/ is not edited by this change; it is a manual step.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: syncthing-backup
+  namespace: syncthing
+spec:
+  # 02:00. Earliest of the nightly jobs, because it is by far the smallest and
+  # because Syncthing's identity is the cheapest thing to protect and the most
+  # annoying to lose.
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # 30 minutes is generous for a few kilobytes. Kept short on purpose: if
+      # this job is still running after half an hour something is wrong with the
+      # repository, not with the data.
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: syncthing-backup
+        spec:
+          restartPolicy: OnFailure
+          # ###############################################################
+          # # THIS AFFINITY MATCHES `app: syncthing`, NOT
+          # # `app.kubernetes.io/name: syncthing`.
+          # #
+          # # Both labels are on the pod template, but `app: syncthing` is the
+          # # one that is IMMUTABLE on the live StatefulSet's selector -- see
+          # # the block at the top of statefulset.yaml. Matching the
+          # # kubernetes.io spelling would work today and break the day the
+          # # StatefulSet is recreated with a proper volumeClaimTemplate and
+          # # the labels are tidied. Matching the immutable one cannot.
+          # ###############################################################
+          #
+          # The volume is ReadWriteOnce, so this pod must land on the node
+          # already running syncthing or it will not attach.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: syncthing
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            # statefulset.yaml runs PUID/PGID 1000 with fsGroup 1000, so the
+            # volume's files are owned by 1000. Any other uid reads nothing.
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic init 2>/dev/null || true
+
+                  # An INCLUDE-list expressed as excludes, which is the only
+                  # form restic offers. The exclusions are the rebuildable
+                  # index; everything left is identity and configuration.
+                  #
+                  # Both database layouts are excluded because the pinned image
+                  # crosses the 1.x/2.x boundary: `index-v2` is 1.x's LevelDB
+                  # directory and `*.db` is 2.x's SQLite. Listing only the one
+                  # matching today's version would silently start capturing a
+                  # live database on the next major bump -- the failure mode
+                  # being avoided.
+                  restic backup /data \
+                    --tag syncthing-data \
+                    --tag syncthing-identity \
+                    --host syncthing \
+                    --exclude '/data/index-v2' \
+                    --exclude '/data/*.db' \
+                    --exclude '/data/*.db-wal' \
+                    --exclude '/data/*.db-shm' \
+                    --exclude '/data/index-v0.14.0.db' \
+                    --exclude '/data/csrftokens.txt' \
+                    --exclude '/data/*.log' \
+                    --exclude '/data/panic-*.log' \
+                    --verbose
+
+                  # Deep retention, because it is free at this size and because
+                  # a mistaken folder-configuration change (a share removed, an
+                  # ignore pattern that stopped syncing something) is exactly
+                  # the kind of thing noticed months later.
+                  restic forget \
+                    --host syncthing \
+                    --keep-daily 30 \
+                    --keep-weekly 12 \
+                    --keep-monthly 24 \
+                    --prune
+
+                  restic check --with-cache
+
+                  # ONE ASSERTION, because a backup of the wrong thing is the
+                  # risk here rather than a torn write.
+                  #
+                  # If the excludes ever over-match -- a version that renames
+                  # config.xml, a path change -- this job would keep succeeding
+                  # while backing up nothing that matters. `restic ls` of the
+                  # snapshot just written is cheap and catches that.
+                  echo "--- verifying the snapshot contains the identity files ---"
+                  files=$(restic ls --tag syncthing-identity latest)
+                  for want in config.xml cert.pem key.pem; do
+                    if printf '%s\n' "$files" | grep -q "/${want}\$"; then
+                      echo "    ok      ${want}"
+                    else
+                      echo "    MISSING ${want}"
+                      echo "FAIL: the snapshot does not contain ${want}."
+                      echo "      This backup is worthless without it -- the"
+                      echo "      device identity and folder configuration are"
+                      echo "      the only irreplaceable things in this volume."
+                      exit 1
+                    fi
+                  done
+                  echo "PASS"
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/syncthing/data
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic writes temp pack files here while uploading. Without this it uses
+                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
+                # `restic backup` fails the moment it has a pack to flush. /cache is
+                # already mounted and writable.
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            # ###############################################################
+            # # `syncthing-pvc` IS AN OUT-OF-BAND OBJECT AND IS NOT DECLARED
+            # # ANYWHERE IN THIS REPOSITORY. THAT IS ON PURPOSE.
+            # #
+            # # It exists only in the live cluster. Declaring it here would
+            # # make Argo CD adopt a volume holding live data under an
+            # # Application with `prune: true` and `selfHeal: true`
+            # # (clusters/homelab/apps/syncthing.yaml), and this repo does not
+            # # know its storageClassName, size or accessModes -- so the
+            # # declared spec would probably differ from the live object on an
+            # # IMMUTABLE field and fail every sync, or worse, be right today
+            # # and pruned tomorrow when someone renames a file.
+            # #
+            # # The safe sequence for fixing it properly is in the report and
+            # # in docs/migration-plan.md ('Immutable fields left deliberately
+            # # alone'). MOUNTING it, as here, adopts nothing: a CronJob that
+            # # references a PVC by name creates no ownership relationship.
+            # ###############################################################
+            - name: data
+              persistentVolumeClaim:
+                claimName: syncthing-pvc
+                readOnly: true
+            # emptyDir: this repository is kilobytes, so a cold cache costs
+            # nothing and a PVC would be a zvol for no reason. sizeLimit guards
+            # the node's 29GB eMMC (docs/migration-plan.md).
+            - name: cache
+              emptyDir:
+                sizeLimit: 512Mi

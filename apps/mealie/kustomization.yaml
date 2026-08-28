@@ -8,3 +8,6 @@ resources:
   - service.yaml
   - httproute.yaml
   - pvc.yaml
+  # Neither the database nor `mealie-data` was backed up, despite
+  # docs/backups.md claiming barman + 30d PITR. See the header of backup.yaml.
+  - backup.yaml

@@ -9,3 +9,7 @@ resources:
   - service.yaml
   - httproute.yaml
   - pvc.yaml
+  # /shared (blobs + Seafile's own config, which lives only in the volume) plus
+  # a consistent MariaDB dump. Both halves or neither is worth anything -- see
+  # the header of backup.yaml.
+  - backup.yaml

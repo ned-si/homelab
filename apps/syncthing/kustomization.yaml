@@ -6,3 +6,7 @@ resources:
   - statefulset.yaml
   - services.yaml
   - httproute.yaml
+  # Device identity and folder configuration to S3. Deliberately EXCLUDES the
+  # rebuildable index, which is both the large part and the only inconsistent
+  # part -- see the header of backup.yaml.
+  - backup.yaml
