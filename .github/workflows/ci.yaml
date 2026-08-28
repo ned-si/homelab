@@ -282,29 +282,38 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      # REQUIRED BY codeql-action/upload-sarif, and its absence is not obvious.
+      # The action reads the workflow run via the Actions API to attach the SARIF
+      # to the right run; without `actions: read` it fails with
+      #
+      #   Resource not accessible by integration
+      #   https://docs.github.com/rest/actions/workflow-runs#get-a-workflow-run
+      #
+      # which names neither the missing permission nor the SARIF. It surfaced only
+      # once the Trivy scan started producing a report to upload.
+      actions: read
     steps:
       - uses: actions/checkout@v5
 
       # Trivy in config mode covers Kubernetes manifests, Helm values,
       # Dockerfiles and Terraform in one pass.
       #
-      # NOTE THE `v` ON THE TAG. trivy-action's releases are tagged `v0.33.1`,
-      # not `0.33.1`. This was pinned without the prefix and the job failed at
-      # setup with "Unable to resolve action ... unable to find version 0.33.1"
-      # -- before checkout, so nothing was scanned and the only symptom was a red
-      # job with no findings. An unresolvable action is indistinguishable from a
-      # broken scan unless you read the setup log.
-      # v0.36.0, not v0.33.x, because of HOW EACH ONE INSTALLS TRIVY.
+      # TWO PINS, BOTH NECESSARY: the action AND the scanner binary.
       #
-      # v0.33.1 ran `contrib/install.sh` fetched from the trivy repository's
-      # `main` BRANCH. Pinning the action therefore pinned nothing: the installer
-      # moved underneath it and the step began failing during install, after
-      # printing "found version: 0.65.0" and before scanning anything. A pinned
-      # action that resolves an unpinned script is not pinned.
+      # `@0.33.1` was wrong twice over. The tag is `v0.33.1` -- without the `v` the
+      # job died at action resolution, before checkout, so nothing was scanned.
+      # And v0.33.x installs Trivy by running `contrib/install.sh` fetched from the
+      # trivy repository's `main` BRANCH, so pinning the action pinned nothing that
+      # mattered: the installer moved underneath it and the step began failing
+      # during install, right after printing "found version: 0.65.0".
       #
-      # v0.36.0 delegates to aquasecurity/setup-trivy, which trivy-action pins by
-      # commit hash, and exposes the trivy binary version as an input -- so both
-      # halves are now fixed and both are visible here.
+      # Both failures presented identically -- a red job with zero findings -- and
+      # neither is distinguishable from a misconfigured scanner without reading the
+      # setup log.
+      #
+      # v0.36.0 delegates installation to aquasecurity/setup-trivy, which
+      # trivy-action pins by commit hash, and exposes the binary version as an
+      # input. Both halves are now pinned and both are visible here.
       - name: Trivy config scan
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -315,25 +324,55 @@ jobs:
           # The scanner binary, pinned separately from the action.
           # renovate: datasource=github-releases depName=aquasecurity/trivy
           version: v0.70.0
-          # Fail the build only on things worth blocking a merge for. Homelab
-          # manifests trip a lot of LOW/MEDIUM "not production hardened" rules
-          # that would make this gate noise rather than signal.
+          # Report only what is worth blocking a merge for. Homelab manifests trip
+          # a lot of LOW/MEDIUM "not production hardened" rules that would make
+          # this gate noise rather than signal.
           #
-          # This threshold is load-bearing for .trivyignore: a rule below
-          # HIGH is already out of scope, so listing it there would be a
-          # no-op that reads like a decision.
+          # This threshold is load-bearing for .trivyignore: a rule below HIGH is
+          # already out of scope, so listing it there would be a no-op that reads
+          # like a decision.
           severity: HIGH,CRITICAL
-          exit-code: "1"
           trivyignores: .trivyignore
           # Apply `severity` to the SARIF too, not just to the exit code.
           #
-          # Without this, trivy-action writes EVERY severity into the SARIF while
-          # the gate blocks only on HIGH/CRITICAL -- so the Code Scanning tab
-          # fills with the LOW/MEDIUM findings the paragraph above explains are
-          # deliberately out of scope, and `.trivyignore` stops describing what is
-          # actually enforced. Same decision, applied consistently to both
-          # outputs.
+          # Without this the action writes EVERY severity into the SARIF while the
+          # gate blocks only on HIGH/CRITICAL, so the Code Scanning tab fills with
+          # the findings the paragraph above says are out of scope and
+          # `.trivyignore` stops describing what is enforced.
           limit-severities-for-sarif: "true"
+          # NOT the gate. `exit-code: 1` here fails the step with the findings
+          # written to trivy.sarif and NOTHING in the log -- 141 files scanned, a
+          # red step, and no way to see what tripped it without downloading an
+          # artifact that was never uploaded because the upload runs later.
+          #
+          # The next step is the gate, and it prints each finding as a
+          # file-anchored annotation. Same pattern as kube-linter below.
+          exit-code: "0"
+
+      # The Trivy gate. Reads the report the step above wrote, so there is one
+      # scan and the findings are legible in the log.
+      - name: Trivy findings are blocking
+        run: |
+          set -euo pipefail
+          if [ ! -s trivy.sarif ]; then
+            echo "::error::Trivy produced no SARIF -- the scan did not run."
+            exit 1
+          fi
+          n=$(jq '[.runs[]?.results[]?] | length' trivy.sarif)
+          echo "Trivy HIGH/CRITICAL findings: $n"
+          if [ "$n" -ne 0 ]; then
+            jq -r '.runs[]?.results[]?
+                   | .locations[0].physicalLocation as $loc
+                   | "::error file=\($loc.artifactLocation.uri // "?")"
+                     + ",line=\($loc.region.startLine // 1)"
+                     + "::\(.ruleId): \(.message.text)"' \
+              trivy.sarif
+            echo
+            echo "Fix the manifest, or add the check id to .trivyignore WITH A REASON."
+            echo "Reproduce locally:"
+            echo "    trivy config . --severity HIGH,CRITICAL --ignorefile .trivyignore"
+            exit 1
+          fi
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v4
@@ -349,7 +388,13 @@ jobs:
       # Scanned against deploy/ rather than `.`, for two reasons: deploy/ is
       # what Argo applies, and `.` also swept bootstrap/charts/*/templates/,
       # which are Helm templates and not parseable YAML.
+      #
+      # `if: always()` so ONE run reports BOTH scanners. Without it a Trivy finding
+      # short-circuits the job, kube-linter never runs, and you fix Trivy, push,
+      # and only then discover kube-linter's findings -- one round trip per
+      # scanner. The gate below is what fails the job.
       - name: kube-linter
+        if: always()
         uses: stackrox/kube-linter-action@v1.0.7
         with:
           directory: deploy
@@ -368,6 +413,7 @@ jobs:
       # this repo has no other reason to track). `jq` is preinstalled on
       # ubuntu-latest.
       - name: kube-linter findings are blocking
+        if: always()
         run: |
           set -euo pipefail
           if [ ! -s kube-linter.sarif ]; then
