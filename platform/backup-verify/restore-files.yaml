@@ -30,9 +30,29 @@ metadata:
   namespace: backup-verify
 data:
   verify-files.sh: |
-    #!/usr/bin/env bash
+    #!/bin/sh
     # Usage: verify-files.sh <repo-suffix> <tag>
-    set -euo pipefail
+    #
+    # ###################################################################
+    # # `sh`, NOT bash. The restic image is Alpine and has no bash -- the same
+    # # fact apps/theater/backup.yaml records for its own script.
+    # #
+    # # This file previously declared `#!/usr/bin/env bash` and used `mapfile`,
+    # # process substitution and arrays, so it could never have run at all:
+    # # `env` finds no `bash` to exec, and even under a shell that could exec
+    # # it, `dash -n` and `busybox sh -n` both stop at the process
+    # # substitution with "unexpected redirection".
+    # #
+    # # Everything below is POSIX plus what BusyBox actually implements, and it
+    # # is checked with `dash -n` and `busybox sh -n`.
+    # ###################################################################
+    #
+    # `set -eu` rather than `set -euo pipefail`: BusyBox ash does support
+    # pipefail, but dash -- which is what syntax-checks this script -- does not,
+    # and nothing here needs it. Every pipeline whose exit status matters has
+    # been split so the interesting command's status is checked directly, which
+    # is stronger than pipefail because it also produces a useful message.
+    set -eu
 
     REPO_SUFFIX="$1"
     TAG="$2"
@@ -44,9 +64,58 @@ data:
     DEST="/scratch/${TAG}"
     rm -rf "$DEST" && mkdir -p "$DEST"
 
+    # Working files live BESIDE $DEST, never inside it. Step 3 counts every
+    # regular file under $DEST, so a list file dropped in there would be
+    # counted as a successfully restored file and weaken the only assertion
+    # that proves the data blobs are readable.
+    WORK="/scratch/.work-${TAG}"
+    rm -rf "$WORK" && mkdir -p "$WORK"
+    trap 'rm -rf "$WORK"' EXIT
+
     # How stale a snapshot may be before this is a failure. The library backup
     # runs nightly, so >3 days means the CronJob has been silently failing.
     MAX_AGE_DAYS=3
+
+    # ISO week, used twice below: to rotate which files step 3 samples and which
+    # pack slice step 4 reads.
+    #
+    # The leading zero MUST be stripped. `$((08))` is an invalid octal literal
+    # in every POSIX shell, and `10#$week` -- the bash escape hatch this file
+    # used to carry -- is not POSIX: dash answers `arithmetic expression:
+    # expecting ')'` and BusyBox ash answers `arithmetic syntax error`. So the
+    # old step 4 was a hard runtime error for eight weeks of every year, on top
+    # of being unreachable behind the bash shebang.
+    week=$(date -u +%V)
+    week=${week#0}
+    : "${week:=1}"
+
+    # ISO-8601 -> unix epoch, without GNU date.
+    #
+    # WAS: `date -d "$latest_iso" +%s 2>/dev/null || echo 0` guarded by
+    # `if [ "$latest_epoch" -gt 0 ]`. BusyBox `date` has no GNU-style
+    # `-d <ISO-8601>`; it answers `invalid date` and exits 1. So the fallback
+    # fired on EVERY run, latest_epoch was always 0, and the whole staleness
+    # gate was skipped. A gate that cannot fail is not a gate.
+    #
+    # REJECTED ALTERNATIVE: express the intent in restic instead of in shell.
+    # There is no way to. `restic forget --keep-within Nd` measures from the
+    # LATEST SNAPSHOT, not from now, so it reports "nothing to forget" for a
+    # repository that has been dead for a year -- exactly backwards. `restic
+    # find --newest/--oldest` filter file modification times, not snapshot
+    # times. `restic snapshots` has no time predicate at all. So the arithmetic
+    # stays here; what changes is that it now FAILS LOUDLY.
+    epoch_of() {
+      # BusyBox: -D supplies an explicit strptime format. It parses the
+      # date-time and stops, ignoring the fractional seconds and zone offset
+      # that follow, so the result is UTC-interpreted -- at most a 14h error
+      # against a 3-day threshold.
+      date -u -D '%Y-%m-%dT%H:%M:%S' -d "$1" +%s 2>/dev/null && return 0
+      # GNU coreutils, in case this image ever stops being Alpine. GNU date
+      # rejects -D outright, so the two spellings cannot both apply and trying
+      # both costs nothing.
+      date -u -d "$1" +%s 2>/dev/null && return 0
+      return 1
+    }
 
     echo "=== $TAG  ($RESTIC_REPOSITORY) ==="
 
@@ -54,42 +123,105 @@ data:
     restic check --with-cache
 
     echo "--- 2. latest snapshot freshness ---"
-    latest_iso=$(restic snapshots --tag "$TAG" --latest 1 --json \
-                 | sed -n 's/.*"time":"\([^"]*\)".*/\1/p' | head -1)
+    # Two statements, not one pipeline. In the pipeline form the exit status
+    # belonged to `head`, so `restic snapshots` failing -- wrong credential,
+    # missing bucket, no network -- produced an empty result and was reported as
+    # "the backup has never run", which sends the reader to the wrong file.
+    if ! restic snapshots --tag "$TAG" --latest 1 --json > "$WORK/latest.json"; then
+      echo "FAIL: cannot list snapshots in $RESTIC_REPOSITORY."
+      echo "      That is a repository/credential problem, NOT a missing backup."
+      exit 1
+    fi
+    latest_iso=$(sed -n 's/.*"time":"\([^"]*\)".*/\1/p' "$WORK/latest.json" | head -1)
     if [ -z "$latest_iso" ]; then
       echo "FAIL: no snapshot found for tag '$TAG'. The backup has never run."
       exit 1
     fi
     echo "    latest: $latest_iso"
-    latest_epoch=$(date -d "$latest_iso" +%s 2>/dev/null || echo 0)
-    if [ "$latest_epoch" -gt 0 ]; then
-      age_days=$(( ( $(date +%s) - latest_epoch ) / 86400 ))
-      echo "    age: ${age_days}d"
-      if [ "$age_days" -gt "$MAX_AGE_DAYS" ]; then
-        echo "FAIL: newest snapshot is ${age_days}d old (max ${MAX_AGE_DAYS}d)."
-        echo "      The backup CronJob is not running or is failing silently."
-        exit 1
-      fi
+
+    if ! latest_epoch=$(epoch_of "$latest_iso"); then
+      echo "FAIL: cannot parse the snapshot timestamp '$latest_iso'."
+      echo "      Neither BusyBox nor GNU date understood it, so the staleness"
+      echo "      gate cannot be evaluated. Failing rather than skipping: a gate"
+      echo "      that quietly answers 'fresh' is worse than no gate at all."
+      exit 1
+    fi
+    age_days=$(( ( $(date -u +%s) - latest_epoch ) / 86400 ))
+    echo "    age: ${age_days}d"
+    if [ "$age_days" -gt "$MAX_AGE_DAYS" ]; then
+      echo "FAIL: newest snapshot is ${age_days}d old (max ${MAX_AGE_DAYS}d)."
+      echo "      The backup CronJob is not running or is failing silently."
+      exit 1
     fi
 
     echo "--- 3. sample restore ---"
     # Pick a handful of real files from the snapshot rather than restoring
     # everything: this is a proof of retrievability, not a disaster drill, and
     # restoring 2TB weekly would cost more than the backup itself.
-    mapfile -t files < <(restic ls --tag "$TAG" latest 2>/dev/null \
-                         | grep -vE '/$' | head -200 | shuf -n 5)
-    if [ "${#files[@]}" -eq 0 ]; then
-      echo "FAIL: snapshot contains no files."
+    #
+    # THREE THINGS CHANGED HERE AND ALL THREE WERE BUGS.
+    #
+    #  a. No arrays, no `mapfile`, no process substitution. The candidate list
+    #     goes to a FILE and is read with `while ... < file`. Reading it from
+    #     the end of a PIPELINE would put the loop in a SUBSHELL, so anything
+    #     accumulated in a shell variable there is discarded on exit --
+    #     scripts/dump-databases.sh documents the same trap for the same reason.
+    #
+    #  b. `--json`. Plain `restic ls` prints directories and files identically,
+    #     with no trailing slash, so the old `grep -vE '/$'` filter matched
+    #     NOTHING and directory paths were being handed to
+    #     `restic restore --include`. The JSON form labels every entry, so
+    #     "give me five real files" is expressible.
+    #
+    #  c. No `shuf`. It is a BusyBox applet that is not guaranteed to be
+    #     compiled in, and a missing applet fails this job for a reason that has
+    #     nothing to do with the backup. The sample rotates by ISO week instead,
+    #     the same mechanism step 4 uses: a different set of files each week,
+    #     and reproducible while debugging rather than different on every retry.
+    if ! restic ls --tag "$TAG" --json latest > "$WORK/ls.json"; then
+      echo "FAIL: cannot list the contents of the latest '$TAG' snapshot."
+      exit 1
+    fi
+    grep '"type":"file"' "$WORK/ls.json" \
+      | sed -n 's/.*"path":"\([^"]*\)".*/\1/p' \
+      | head -200 > "$WORK/candidates"
+    n_cand=$(wc -l < "$WORK/candidates" | tr -d ' ')
+    if [ "${n_cand:-0}" -eq 0 ]; then
+      echo "FAIL: the latest '$TAG' snapshot contains no regular files."
+      echo "      A snapshot of nothing but directories is not a backup."
       exit 1
     fi
 
-    for f in "${files[@]}"; do
+    # Five files, strided across the candidate list so the sample is spread
+    # rather than clustered at the top, and offset by the week so it moves.
+    awk -v n="$n_cand" -v k=5 -v w="$week" '
+      BEGIN {
+        if (k > n) k = n
+        stride = int(n / k); if (stride < 1) stride = 1
+        for (i = 0; i < k; i++) pick[((w - 1 + i * stride) % n) + 1] = 1
+      }
+      pick[FNR]
+    ' "$WORK/candidates" > "$WORK/sample"
+
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
       echo "    restoring $f"
       restic restore latest --tag "$TAG" --target "$DEST" --include "$f"
-    done
+    done < "$WORK/sample"
 
     restored=$(find "$DEST" -type f | wc -l | tr -d ' ')
-    empty=$(find "$DEST" -type f -empty | wc -l | tr -d ' ')
+    # `-size 0`, not `-empty`.
+    #
+    # THIS IS THE MOST VALUABLE ASSERTION IN THE FILE -- it is what proves the
+    # restored sample is not zero-length -- and it has never been evaluated
+    # once. BusyBox `find` has no `-empty`: it answers
+    # `find: unrecognized: -empty` and exits 1, the command substitution
+    # captured nothing, and `empty` was the empty string.
+    #
+    # `-size 0` is in both BusyBox and GNU find and means the same thing for
+    # regular files: 0 blocks, i.e. exactly zero bytes (a 1-byte file rounds up
+    # to one block and is not matched). Verified against both implementations.
+    empty=$(find "$DEST" -type f -size 0 | wc -l | tr -d ' ')
     echo "    restored $restored file(s), $empty empty"
 
     [ "$restored" -ge 1 ] || { echo "FAIL: nothing was restored."; exit 1; }
@@ -120,18 +252,22 @@ data:
       echo "    Set READ_DATA=1 to read remotely too (costs retrieval)."
     else
       # Which slice depends on the ISO week, so consecutive runs read different
-      # packs and a year covers the whole repository. `10#` forces base 10: week
-      # "08" would otherwise be an invalid octal literal.
-      week=$(date +%V)
-      slice=$(( (10#$week - 1) % SUBSET_TOTAL + 1 ))
+      # packs and a year covers the whole repository. $week is computed at the
+      # top of the script with its leading zero stripped -- see the comment
+      # there for why `10#$week` cannot be used in a POSIX shell.
+      slice=$(( (week - 1) % SUBSET_TOTAL + 1 ))
       echo "    week $week -> subset ${slice}/${SUBSET_TOTAL}"
       restic check --with-cache --read-data-subset="${slice}/${SUBSET_TOTAL}"
     fi
 
     echo "PASS: $TAG"
   run-all-files.sh: |
-    #!/usr/bin/env bash
-    set -uo pipefail
+    #!/bin/sh
+    # `sh` and `set -u`: the restic image is Alpine and has no bash. This script
+    # contains no pipeline, so there is nothing for pipefail to protect -- and
+    # `set -o pipefail` is an ash extension that dash rejects, which would stop
+    # this file being syntax-checkable with `dash -n`.
+    set -u
     rc=0
     while read -r suffix tag; do
       [ -z "${suffix:-}" ] && continue
@@ -140,18 +276,76 @@ data:
       echo
     # ONLY repositories that a backup CronJob actually writes to.
     #
-    # An earlier version listed seafile/syncthing/theater as well. Those restic
-    # jobs do not exist yet, so every run reported three failures -- and a check
-    # that always fails is a check you learn to ignore, which is worse than not
-    # having it. Uncomment each line as its backup CronJob is added, and add the
-    # repo to `local.restic_repos` in bootstrap/aws-backup/main.tf at the same
-    # time or its packs will never be archived.
+    # The rule this list follows, and the reason it was previously mostly
+    # commented out: a check that always fails is a check you learn to ignore,
+    # which is worse than not having it. So a line is enabled in the same change
+    # that adds the CronJob writing to it, and not before.
+    #
+    # ALL SEVEN ARE NOW ENABLED. The five that were commented out have jobs:
+    #
+    #   seafile/shared     apps/seafile/backup.yaml                        (03:00)
+    #   syncthing/data     apps/syncthing/backup.yaml                      (02:00)
+    #   theater/configs    apps/theater/backup.yaml                   (03:40-04:50)
+    #   mealie/data        apps/mealie/backup.yaml                         (03:20)
+    #   grafana/data       platform/kube-prometheus-stack/routes/
+    #                        grafana-backup.yaml                           (04:20)
+    #
+    # ###################################################################
+    # # THESE FIVE WILL FAIL UNTIL THEIR FIRST BACKUP HAS ACTUALLY RUN.
+    # #
+    # # That is correct behaviour, not a bug: step 2 of verify-files.sh fails
+    # # with "no snapshot found for tag" when a repository has never been
+    # # written. But it means the FIRST verification run after this change is
+    # # expected to report failures, and it is important not to read that as
+    # # "the new jobs are broken".
+    # #
+    # # Seed each repository by hand before the first Sunday, exactly as
+    # # docs/backups.md does for Immich:
+    # #     kubectl -n syncthing  create job --from=cronjob/syncthing-backup seed
+    # #     kubectl -n mealie     create job --from=cronjob/mealie-backup    seed
+    # #     kubectl -n seafile    create job --from=cronjob/seafile-backup   seed
+    # #     kubectl -n monitoring create job --from=cronjob/grafana-backup   seed
+    # #     kubectl -n theater    create job --from=cronjob/theater-postgres-backup seed
+    # #     kubectl -n theater    create job --from=cronjob/theater-config-backup-sonarr seed
+    # #     ... and the other five theater config jobs
+    # ###################################################################
+    #
+    # AND ADD EACH REPOSITORY TO `local.restic_repos` IN
+    # bootstrap/aws-backup/main.tf. Without it there is no Glacier IR lifecycle
+    # rule for its `data/` prefix, so its pack files sit in S3 Standard at
+    # roughly 6x the price and nothing warns you. That file currently lists only
+    # immich/library and paperless/media.
+    #
+    # `theater/configs` is deliberately ONE repository for six apps, each
+    # tagging `theater-configs` plus its own name -- so this list needs one line
+    # and main.tf needs one entry, not six of each.
+    #
+    # ON THE SECOND COLUMN: it is a TAG, and it has to be a tag that some job
+    # actually writes. `grafana/data` is the one repository here that carries
+    # TWO tags, because it holds two consistency classes:
+    #
+    #   grafana-config         provisioning dirs and plugins. Not written while
+    #                          Grafana serves requests, so CONSISTENT. This is
+    #                          the one verified.
+    #   grafana-db-besteffort  a file-level copy of the live SQLite, possibly
+    #                          torn. Deliberately NOT verified here: its
+    #                          `grafana.db-wal` companion is legitimately
+    #                          zero-length right after a checkpoint, which step
+    #                          3's empty-file assertion would report as
+    #                          unretrievable data every time it happened.
+    #
+    # This line used to read `grafana-data`, a tag nothing writes, which made
+    # the check permanently red. Adding a third tag as a synonym was rejected:
+    # the convention across the other six repositories is one tag per
+    # consistency class, and a synonym means two names for one class.
     done <<'LIST'
     immich/library      immich-library
     paperless/media     paperless-media
-    # seafile/shared    seafile-shared
-    # syncthing/data    syncthing-data
-    # theater/configs   theater-configs
+    seafile/shared      seafile-shared
+    syncthing/data      syncthing-data
+    theater/configs     theater-configs
+    mealie/data         mealie-data
+    grafana/data        grafana-config
     LIST
     [ $rc -eq 0 ] && echo "ALL FILE BACKUPS VERIFIED" || echo "ONE OR MORE FILE BACKUPS FAILED"
     exit $rc
@@ -201,6 +395,12 @@ spec:
               command: ["/bin/sh", "/scripts/run-all-files.sh"]
               env:
                 - name: RESTIC_CACHE_DIR
+                  value: /scratch/.cache
+                # restic writes temp pack files here while uploading. Without this it uses
+                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
+                # `restic backup` fails the moment it has a pack to flush. /cache is
+                # already mounted and writable.
+                - name: TMPDIR
                   value: /scratch/.cache
               envFrom:
                 # Needs AWS_* and RESTIC_PASSWORD. Same Secret shape as the
