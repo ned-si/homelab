@@ -176,6 +176,13 @@ spec:
   hostnames:
     - lidarr.lilalala.com
   rules:
+    # THROUGH THE SSO PROXY, not straight to the app. `lidarr-sso` is an
+    # oauth2-proxy that authenticates against Keycloak and then forwards to
+    # lidarr:8686. See apps/theater/sso.yaml.
+    #
+    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
+    # back to `name: lidarr` / `port: 8686`. Nothing else in this file depends
+    # on the proxy.
     - backendRefs:
-        - name: lidarr
-          port: 8686
+        - name: lidarr-sso
+          port: 4180

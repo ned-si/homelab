@@ -55,8 +55,20 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # WebUI at qbittorrent.lilalala.com.
-    # apps/theater/qbittorrent.yaml -- HTTPRoute `qbittorrent` -> Service :8080
+    # WebUI at qbittorrent.lilalala.com, now via the SSO proxy.
+    # apps/theater/sso.yaml -- `qbittorrent-sso` -> Service :8080. The HTTPRoute
+    # in apps/theater/qbittorrent.yaml points at the proxy, not at this port.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: sso-proxy
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+
+    # DIRECT from the Gateway. Unused today, kept so that reverting SSO -- a
+    # two-line HTTPRoute change -- does not also need a policy change. See the
+    # matching note on `arr-apps`.
     - fromEntities:
         - ingress
         - host
@@ -160,8 +172,30 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # sonarr.lilalala.com / radarr.lilalala.com / lidarr.lilalala.com.
-    # apps/theater/{sonarr,radarr,lidarr}.yaml -- HTTPRoute per app.
+    # The SSO proxies, which is now how the UIs are reached from outside.
+    # apps/theater/sso.yaml -- `<app>-sso` oauth2-proxy -> `<app>`, and the
+    # HTTPRoute in each app file points at the proxy rather than the app.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: sso-proxy
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP    # sonarr
+            - port: "7878"
+              protocol: TCP    # radarr
+            - port: "8686"
+              protocol: TCP    # lidarr
+
+    # DIRECT from the Gateway. KEPT ON PURPOSE even though no HTTPRoute uses it
+    # today.
+    #
+    # apps/theater/sso.yaml documents reverting SSO as a two-line change to an
+    # HTTPRoute backendRef. If this rule were deleted, that revert would appear to
+    # work and then fail once enforcement is switched on in ./90-enforcement.yaml
+    # -- a 503 with nothing in the app logs, hours after the change that caused
+    # it. An allow rule for a path that is currently unused costs nothing; a
+    # missing one costs an evening.
     - fromEntities:
         - ingress
         - host
@@ -319,8 +353,18 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # prowlarr.lilalala.com.
-    # apps/theater/prowlarr.yaml -- HTTPRoute `prowlarr` -> Service :9696.
+    # prowlarr.lilalala.com, now via the SSO proxy.
+    # apps/theater/sso.yaml -- `prowlarr-sso` -> Service :9696.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: sso-proxy
+      toPorts:
+        - ports:
+            - port: "9696"
+              protocol: TCP
+
+    # DIRECT from the Gateway. Unused today, kept for the same reason as the
+    # matching rule on `arr-apps`.
     - fromEntities:
         - ingress
         - host
@@ -556,6 +600,105 @@ spec:
     # on every run. `toEntities: [world]` on 443 only -- no 80, unlike `arr-apps`
     # and `bazarr`, because git-over-HTTPS is the only thing this job fetches and
     # there is no reason for it to follow a plaintext redirect.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# The SSO proxies
+#
+# One policy for all five, selected by `app.kubernetes.io/component: sso-proxy`
+# rather than by name. They are byte-identical apart from one upstream each, so a
+# name list would be five things to keep in step with apps/theater/sso.yaml, and
+# adding the sixth (Bazarr) would silently leave it unpoliced.
+#
+# NOTE THE ASYMMETRY: ingress is from the Gateway only, and egress reaches every
+# protected app plus Keycloak. That is the entire point of the component -- it is
+# the only thing in this namespace that both faces the internet and talks to the
+# applications.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sso-proxies
+  namespace: theater
+spec:
+  description: >-
+    oauth2-proxy instances: reachable from the Gateway on 4180, egress to the app
+    they front and to Keycloak for the OIDC flow.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: sso-proxy
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # sonarr/radarr/lidarr/prowlarr/qbittorrent .lilalala.com all terminate here
+    # now. One port for all five: apps/theater/sso.yaml uses 4180 everywhere.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "4180"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # The applications they front. One rule listing all five ports rather than
+    # five rules, because the selector cannot distinguish which proxy is which --
+    # they share the `sso-proxy` label. So each proxy is permitted to reach any of
+    # the five apps, not only its own.
+    #
+    # That is a real widening and it is accepted knowingly: `--upstream` is a
+    # fixed flag in the pod spec, not something a request can influence, so a
+    # proxy cannot be made to talk to a different app. Tightening it would mean
+    # five policies keyed on `app.kubernetes.io/name`, which is five more things
+    # to keep in step for no reachable threat.
+    - toEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [sonarr, radarr, lidarr, prowlarr, qbittorrent]
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+            - port: "7878"
+              protocol: TCP
+            - port: "8686"
+              protocol: TCP
+            - port: "9696"
+              protocol: TCP
+            - port: "8080"
+              protocol: TCP
+
+    # Keycloak, for discovery, the token exchange and the JWKS fetch.
+    #
+    # `toEntities: [world]` and NOT a cross-namespace rule to the keycloak pod,
+    # because the issuer URL is https://auth.lilalala.com -- a PUBLIC hostname.
+    # It resolves to the WAN address, leaves the cluster and comes back in through
+    # the Gateway. 20-immich.yaml documents the same split-horizon DNS trap for
+    # Immich's OIDC config; this is the same shape.
+    #
+    # If split-horizon DNS is ever added so `auth.lilalala.com` resolves to the
+    # Gateway's internal address, this rule stops matching and every login breaks
+    # with a timeout. The fix then is a rule to the `gateway` namespace, not to
+    # `keycloak`, because the TLS certificate is terminated at the Gateway.
     - toEntities:
         - world
       toPorts:

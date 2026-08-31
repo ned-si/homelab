@@ -718,6 +718,17 @@ spec:
       - radarr
       - lidarr
   ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/component: sso-proxy
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
   - fromEntities:
     - ingress
     - host
@@ -740,15 +751,6 @@ spec:
       - port: "7878"
         protocol: TCP
       - port: "8686"
-        protocol: TCP
-  - fromEndpoints:
-    - matchLabels:
-        app.kubernetes.io/name: recyclarr-sync
-    toPorts:
-    - ports:
-      - port: "8989"
-        protocol: TCP
-      - port: "7878"
         protocol: TCP
 ---
 apiVersion: cilium.io/v2
@@ -1025,6 +1027,13 @@ spec:
     matchLabels:
       app.kubernetes.io/name: prowlarr
   ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/component: sso-proxy
+    toPorts:
+    - ports:
+      - port: "9696"
+        protocol: TCP
   - fromEntities:
     - ingress
     - host
@@ -1080,6 +1089,13 @@ spec:
     matchLabels:
       app.kubernetes.io/name: qbittorrent
   ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/component: sso-proxy
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
   - fromEntities:
     - ingress
     - host
@@ -1114,11 +1130,11 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
-  name: recyclarr
+  name: sso-proxies
   namespace: theater
 spec:
-  description: 'Recyclarr sync job: egress to the Sonarr and Radarr APIs and to GitHub
-    for the TRaSH Guides repository. No ingress -- nothing connects to a CronJob.'
+  description: 'oauth2-proxy instances: reachable from the Gateway on 4180, egress
+    to the app they front and to Keycloak for the OIDC flow.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -1131,18 +1147,26 @@ spec:
       - port: "53"
         protocol: TCP
   - toEndpoints:
-    - matchLabels:
-        app.kubernetes.io/name: sonarr
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+        - prowlarr
+        - qbittorrent
     toPorts:
     - ports:
       - port: "8989"
         protocol: TCP
-  - toEndpoints:
-    - matchLabels:
-        app.kubernetes.io/name: radarr
-    toPorts:
-    - ports:
       - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+      - port: "9696"
+        protocol: TCP
+      - port: "8080"
         protocol: TCP
   - toEntities:
     - world
@@ -1155,4 +1179,13 @@ spec:
     ingress: false
   endpointSelector:
     matchLabels:
-      app.kubernetes.io/name: recyclarr-sync
+      app.kubernetes.io/component: sso-proxy
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "4180"
+        protocol: TCP

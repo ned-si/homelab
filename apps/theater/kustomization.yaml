@@ -14,6 +14,10 @@ resources:
   # Configures the two apps above rather than sitting in the media flow, so it
   # follows them. Ships suspended -- see its header.
   - recyclarr.yaml
+  # Five oauth2-proxy instances in front of the *arr UIs and qBittorrent. Listed
+  # before the players because plex.yaml and jellyfin.yaml are deliberately NOT
+  # behind it -- their TV clients cannot complete an OIDC redirect. See its header.
+  - sso.yaml
   - plex.yaml
   - jellyfin.yaml
   # Six restic CronJobs for the /config volumes plus logical dumps of the four
