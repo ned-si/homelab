@@ -9,6 +9,53 @@
 # ---------------------------------------------------------------------------
 apiVersion: v1
 data:
+  recyclarr.yml: |
+    # Base URLs are in-cluster Service addresses. They are not credentials, so
+    # they live here in plaintext; the API keys come from the
+    # `recyclarr-api-keys` Secret via envFrom. See
+    # apps/secrets/recyclarr-api-keys.sops.yaml.example.
+    #
+    # The FQDN form rather than a bare `http://sonarr:8989`: this pod is in the
+    # same namespace so the short name would resolve, but the explicit form
+    # matches what docs/runbooks/subtitles.md tells you to paste into Bazarr and
+    # is one less thing that differs between two places.
+    sonarr:
+      series:
+        base_url: http://sonarr.theater.svc.cluster.local:8989
+        api_key: !env_var SONARR_API_KEY
+
+        include:
+          # Quality definitions: the size limits per resolution. Safe and
+          # uncontroversial -- this is the part of the guides that is nearly
+          # always right.
+          - template: sonarr-quality-definition-series
+          # Quality profile + the custom formats that score into it. This is the
+          # part that changes grab behaviour, and the reason for --preview.
+          - template: sonarr-v4-quality-profile-web-1080p
+          - template: sonarr-v4-custom-formats-web-1080p
+
+    radarr:
+      movies:
+        base_url: http://radarr.theater.svc.cluster.local:7878
+        api_key: !env_var RADARR_API_KEY
+
+        include:
+          - template: radarr-quality-definition-movie
+          - template: radarr-quality-profile-hd-bluray-web
+          - template: radarr-custom-formats-hd-bluray-web
+
+    # Lidarr is deliberately absent. Recyclarr supports it, but the TRaSH music
+    # guides are far less settled than the TV and film ones, and Lidarr here has
+    # no reported problem to fix. Adding it would be change for its own sake.
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: recyclarr-config
+  namespace: theater
+---
+apiVersion: v1
+data:
   backup-config.sh: |
     #!/bin/sh
     # Usage: backup-config.sh <tag> <path> [extra restic backup args...]
@@ -1057,6 +1104,82 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: theater-data
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: recyclarr-sync
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 900
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: recyclarr-sync
+        spec:
+          containers:
+          - args:
+            - sync
+            env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: RECYCLARR_APP_DATA
+              value: /config
+            envFrom:
+            - secretRef:
+                name: recyclarr-api-keys
+            image: ghcr.io/recyclarr/recyclarr:8.7.1
+            imagePullPolicy: IfNotPresent
+            name: recyclarr
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /config/recyclarr.yml
+              name: config-file
+              readOnly: true
+              subPath: recyclarr.yml
+            - mountPath: /config
+              name: app-data
+            - mountPath: /tmp
+              name: tmp
+          restartPolicy: OnFailure
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              name: recyclarr-config
+            name: config-file
+          - emptyDir:
+              sizeLimit: 512Mi
+            name: app-data
+          - emptyDir:
+              sizeLimit: 64Mi
+            name: tmp
+  schedule: 0 6 * * *
+  successfulJobsHistoryLimit: 3
+  suspend: true
 ---
 apiVersion: batch/v1
 kind: CronJob

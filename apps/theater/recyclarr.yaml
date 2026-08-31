@@ -1,0 +1,212 @@
+# Recyclarr: syncs TRaSH Guides quality definitions, quality profiles and custom
+# formats into Sonarr and Radarr.
+#
+# ###########################################################################
+# # THIS CRONJOB SHIPS SUSPENDED. THAT IS NOT AN OVERSIGHT.
+# #
+# # Everything else in this repository DESCRIBES state. This MUTATES state in a
+# # system whose configuration is not in git: it rewrites quality profiles,
+# # scores and custom formats inside Sonarr's and Radarr's own databases, and
+# # nothing here can undo that. The only record of what those profiles looked
+# # like beforehand is the nightly `pg_dump` in ./backup.yaml.
+# #
+# # An unattended first run would therefore reshape a working library's grab
+# # rules at 06:00 with nobody watching, and the effect shows up later as "why
+# # did it start grabbing 720p".
+# #
+# # HOW TO TURN IT ON, ONCE THE CLUSTER IS UP:
+# #
+# #   1. Confirm the template names resolve. They are maintained by Recyclarr
+# #      upstream, not by this repo, and a rename is possible:
+# #
+# #        kubectl -n theater create job recyclarr-list --from=cronjob/recyclarr-sync
+# #        kubectl -n theater set args job/recyclarr-list -- list templates
+# #
+# #      (or just run `recyclarr list templates` in any local container)
+# #
+# #   2. DRY RUN, and read the diff:
+# #
+# #        kubectl -n theater create job recyclarr-preview --from=cronjob/recyclarr-sync
+# #        kubectl -n theater set args job/recyclarr-preview -- sync --preview
+# #        kubectl -n theater logs -f job/recyclarr-preview
+# #
+# #      `--preview` shows every change it would make and applies none.
+# #
+# #   3. Only if that diff is what you want:
+# #
+# #        kubectl -n theater patch cronjob recyclarr-sync \
+# #          -p '{"spec":{"suspend":false}}'
+# #
+# #      then set `suspend: false` HERE and commit, or Argo CD's selfHeal will
+# #      revert the patch within minutes and the job will silently stop running
+# #      again. That is the same trap documented in ./backup.yaml.
+# # ###########################################################################
+#
+# ---------------------------------------------------------------------------
+# WHY TEMPLATES RATHER THAN `trash_ids`
+#
+# The usual Recyclarr config pins guide entries by their TRaSH id -- opaque
+# 32-character hashes, dozens of them, that mean nothing in review and go stale
+# when the guides are reorganised. A stale id is not a hard error; it is a custom
+# format that quietly stops being applied.
+#
+# `include: - template: <name>` instead delegates that list to templates Recyclarr
+# maintains and versions alongside itself. The pin that matters becomes the IMAGE
+# TAG, which Renovate already tracks, and the config below stays short enough to
+# review honestly.
+#
+# The cost: template names are upstream's to change, and a wrong one fails the
+# sync. That failure is loud (non-zero exit, visible in the job) rather than
+# silent, which is the right way round -- and step 1 above is how to confirm them.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recyclarr-config
+  namespace: theater
+data:
+  recyclarr.yml: |
+    # Base URLs are in-cluster Service addresses. They are not credentials, so
+    # they live here in plaintext; the API keys come from the
+    # `recyclarr-api-keys` Secret via envFrom. See
+    # apps/secrets/recyclarr-api-keys.sops.yaml.example.
+    #
+    # The FQDN form rather than a bare `http://sonarr:8989`: this pod is in the
+    # same namespace so the short name would resolve, but the explicit form
+    # matches what docs/runbooks/subtitles.md tells you to paste into Bazarr and
+    # is one less thing that differs between two places.
+    sonarr:
+      series:
+        base_url: http://sonarr.theater.svc.cluster.local:8989
+        api_key: !env_var SONARR_API_KEY
+
+        include:
+          # Quality definitions: the size limits per resolution. Safe and
+          # uncontroversial -- this is the part of the guides that is nearly
+          # always right.
+          - template: sonarr-quality-definition-series
+          # Quality profile + the custom formats that score into it. This is the
+          # part that changes grab behaviour, and the reason for --preview.
+          - template: sonarr-v4-quality-profile-web-1080p
+          - template: sonarr-v4-custom-formats-web-1080p
+
+    radarr:
+      movies:
+        base_url: http://radarr.theater.svc.cluster.local:7878
+        api_key: !env_var RADARR_API_KEY
+
+        include:
+          - template: radarr-quality-definition-movie
+          - template: radarr-quality-profile-hd-bluray-web
+          - template: radarr-custom-formats-hd-bluray-web
+
+    # Lidarr is deliberately absent. Recyclarr supports it, but the TRaSH music
+    # guides are far less settled than the TV and film ones, and Lidarr here has
+    # no reported problem to fix. Adding it would be change for its own sake.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: recyclarr-sync
+  namespace: theater
+spec:
+  # SUSPENDED -- read the header before changing this.
+  suspend: true
+  # 06:00: after the last backup job (jellyfin, 05:00, which also runs the
+  # nightly restic prune) and well before anyone looks at the library. Nothing
+  # here contends with the restic repository lock, but sharing a window with a
+  # prune means two long-running jobs on the same node for no reason.
+  schedule: "0 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  # A sync that has not run for a few hours has lost nothing -- the guides change
+  # on the order of weeks. No startingDeadlineSeconds: missing a window is fine
+  # and a missed window must not queue a second run.
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: recyclarr-sync
+        spec:
+          restartPolicy: OnFailure
+          # No podAffinity: this job mounts no application volume. It reaches
+          # Sonarr and Radarr over their Services, so it can run anywhere -- the
+          # same reasoning as the `theater-postgres-backup` job in ./backup.yaml,
+          # and the reason it needs a network policy rule while the /config
+          # backup jobs do not.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: recyclarr
+              # renovate: datasource=docker depName=ghcr.io/recyclarr/recyclarr
+              image: ghcr.io/recyclarr/recyclarr:8.7.1
+              imagePullPolicy: IfNotPresent
+              args: ["sync"]
+              env:
+                - name: TZ
+                  value: Europe/Zurich
+                # Recyclarr resolves its config, its cache and its clone of the
+                # guides under this directory. Pointed at a writable emptyDir
+                # because the root filesystem is read-only.
+                - name: RECYCLARR_APP_DATA
+                  value: /config
+              envFrom:
+                # SONARR_API_KEY and RADARR_API_KEY, referenced from recyclarr.yml
+                # as `!env_var`. Sealed with PENDING sentinels until the cluster is
+                # up -- see apps/secrets/recyclarr-api-keys.sops.yaml.example.
+                - secretRef:
+                    name: recyclarr-api-keys
+              volumeMounts:
+                # The config file is read-only; everything Recyclarr WRITES goes
+                # to /config, which is why they are separate mounts rather than
+                # one.
+                - name: config-file
+                  mountPath: /config/recyclarr.yml
+                  subPath: recyclarr.yml
+                  readOnly: true
+                - name: app-data
+                  mountPath: /config
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                # Unlike the *arr apps -- which cannot do this, hence the
+                # AVD-KSV-0014 entry in .trivyignore -- Recyclarr is a plain .NET
+                # binary that writes only under RECYCLARR_APP_DATA and TMPDIR.
+                # Both are emptyDirs below.
+                #
+                # If it ever crashloops with a read-only filesystem error, the fix
+                # is to find what it is writing and give it a volume, not to drop
+                # this flag.
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            # subPath mount of a single key, so /config stays writable. Mounting
+            # the ConfigMap AT /config would make the whole directory read-only
+            # and Recyclarr could not clone the guides.
+            - name: config-file
+              configMap:
+                name: recyclarr-config
+            - name: app-data
+              emptyDir:
+                # The guides repository is a few tens of megabytes.
+                sizeLimit: 512Mi
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi

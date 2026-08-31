@@ -8,6 +8,9 @@ resources:
   - sonarr.yaml
   - radarr.yaml
   - lidarr.yaml
+  # Configures the two apps above rather than sitting in the media flow, so it
+  # follows them. Ships suspended -- see its header.
+  - recyclarr.yaml
   - plex.yaml
   - jellyfin.yaml
   # Six restic CronJobs for the /config volumes plus logical dumps of the four

@@ -189,6 +189,27 @@ spec:
               protocol: TCP
             - port: "8686"
               protocol: TCP
+
+    # Recyclarr writes quality profiles and custom formats into both APIs.
+    # apps/theater/recyclarr.yaml -- the `recyclarr-sync` CronJob.
+    #
+    # Selected by the CronJob's own label rather than by `batch.kubernetes.io/
+    # job-name: Exists` like the `backup-jobs` policy below, because this is the
+    # only job in the namespace that talks to an *arr HTTP API. The broad
+    # job-name selector would also have matched all six backup jobs, granting
+    # them 8989/7878 they have no use for.
+    #
+    # 8686 is absent: Lidarr is deliberately not in recyclarr.yml -- the TRaSH
+    # music guides are far less settled than the TV and film ones.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: recyclarr-sync
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+            - port: "7878"
+              protocol: TCP
   egress:
     # Cluster DNS.
     - toEndpoints:
@@ -354,6 +375,70 @@ spec:
             - port: "443"
               protocol: TCP
             - port: "80"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# Recyclarr
+#
+# A CronJob, so it has NO ingress at all -- nothing ever connects to it. That is
+# the whole reason it gets four lines of egress and no ingress block, and it is
+# worth noticing: an empty ingress section under `enableDefaultDeny.ingress:
+# false` is not a mistake, and when enforcement is switched on in
+# ./90-enforcement.yaml it becomes a correct deny-all-inbound.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: recyclarr
+  namespace: theater
+spec:
+  description: >-
+    Recyclarr sync job: egress to the Sonarr and Radarr APIs and to GitHub for the
+    TRaSH Guides repository. No ingress -- nothing connects to a CronJob.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: recyclarr-sync
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # The two APIs it configures. Matching ingress rule is on `arr-apps` above.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: sonarr
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: radarr
+      toPorts:
+        - ports:
+            - port: "7878"
+              protocol: TCP
+
+    # The guides themselves: Recyclarr clones/updates a git repository over HTTPS
+    # on every run. `toEntities: [world]` on 443 only -- no 80, unlike `arr-apps`
+    # and `bazarr`, because git-over-HTTPS is the only thing this job fetches and
+    # there is no reason for it to follow a plaintext redirect.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
