@@ -741,6 +741,15 @@ spec:
         protocol: TCP
       - port: "8686"
         protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: bazarr
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -788,6 +797,70 @@ spec:
   - fromEntities:
     - host
     - remote-node
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: bazarr
+  namespace: theater
+spec:
+  description: 'Bazarr: UI from the Gateway, egress to its own Postgres, to the Sonarr
+    and Radarr APIs, and to subtitle providers on the internet.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        cnpg.io/cluster: bazarr-postgresql
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: sonarr
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: radarr
+    toPorts:
+    - ports:
+      - port: "7878"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "6767"
+        protocol: TCP
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -918,6 +991,7 @@ spec:
         - radarr
         - lidarr
         - prowlarr
+        - bazarr
     toPorts:
     - ports:
       - port: "5432"
