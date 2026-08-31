@@ -61,6 +61,7 @@ and a rollback is moving it back. See
 | [adr/](docs/adr/) | Decisions that are expensive to revisit |
 
 Runbooks: [*arr ↔ qBittorrent](docs/runbooks/arr-qbittorrent.md) ·
+[subtitles keep switching off](docs/runbooks/subtitles.md) ·
 [Immich → VectorChord](docs/runbooks/immich-upgrade.md) ·
 [restart after a move](docs/runbooks/restart-after-move.md) ·
 [NFS hardening](docs/runbooks/nfs-hardening.md) ·
