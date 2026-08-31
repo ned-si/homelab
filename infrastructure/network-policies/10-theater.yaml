@@ -189,6 +189,27 @@ spec:
               protocol: TCP
             - port: "8686"
               protocol: TCP
+
+    # Bazarr polls Sonarr and Radarr for the series/movie list and the on-disk
+    # path of every episode file, then writes subtitles next to it.
+    # apps/theater/bazarr.yaml.
+    #
+    # NOT lidarr: Bazarr does music nothing. Its scope is TV and film subtitles,
+    # so 8686 is deliberately absent -- if Bazarr is ever pointed at Lidarr, this
+    # rule is where that becomes visible.
+    #
+    # This is in-cluster Service traffic, which never touches the Gateway. That
+    # is what makes the SSO proxy in front of the *arr UIs safe: it cannot break
+    # this path because this path does not go through it.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: bazarr
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+            - port: "7878"
+              protocol: TCP
   egress:
     # Cluster DNS.
     - toEndpoints:
@@ -357,6 +378,107 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
+# Bazarr
+#
+# Its own policy rather than joining `arr-apps`, because the traffic shape is
+# genuinely different and the difference is the interesting part:
+#
+#   - it is a CLIENT of Sonarr and Radarr, not a peer. It has no ingress from
+#     them and no ingress from Prowlarr.
+#   - it never talks to qBittorrent or to an indexer.
+#   - its internet egress goes to subtitle providers (OpenSubtitles, Podnapisi,
+#     Addic7ed, ...), which is a different set of third parties from the metadata
+#     providers `arr-apps` reaches, even though both are expressed as
+#     `toEntities: [world]` on 443/80.
+#
+# Folding it into the `values: [sonarr, radarr, lidarr]` list would have granted
+# it qBittorrent and Prowlarr egress it has no use for, and granted the three
+# *arrs the subtitle-provider egress. Both directions wrong.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: bazarr
+  namespace: theater
+spec:
+  description: >-
+    Bazarr: UI from the Gateway, egress to its own Postgres, to the Sonarr and
+    Radarr APIs, and to subtitle providers on the internet.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # bazarr.lilalala.com.
+    # apps/theater/bazarr.yaml -- HTTPRoute `bazarr` -> Service :6767.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "6767"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Its own CloudNativePG cluster.
+    # apps/theater/bazarr.yaml -- POSTGRES_HOST from `bazarr-postgresql-app`.
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: bazarr-postgresql
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+
+    # Sonarr and Radarr, for the library list and on-disk paths. The matching
+    # ingress rule is on `arr-apps` above, and explains why lidarr is absent.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: sonarr
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: radarr
+      toPorts:
+        - ports:
+            - port: "7878"
+              protocol: TCP
+
+    # Subtitle providers.
+    #
+    # `toEntities: [world]` for the same reason as `arr-apps`: `toFQDNs` would be
+    # tighter but routes every DNS answer through Cilium's L7 proxy. Bazarr is a
+    # worse candidate for FQDN policy than the *arrs, not a better one -- the
+    # provider list is user-configurable in the UI, so a correct FQDN allow-list
+    # would have to be edited in git every time a provider is enabled, and the
+    # failure mode is a subtitle search that silently returns nothing.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "80"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
 # Plex and Jellyfin
 #
 # One policy: from the network's point of view they are the same shape. Both
@@ -466,7 +588,7 @@ spec:
         - matchExpressions:
             - key: app.kubernetes.io/name
               operator: In
-              values: [sonarr, radarr, lidarr, prowlarr]
+              values: [sonarr, radarr, lidarr, prowlarr, bazarr]
       toPorts:
         - ports:
             - port: "5432"
