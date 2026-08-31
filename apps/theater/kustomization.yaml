@@ -11,6 +11,9 @@ resources:
   # After the *arrs it reads from and before the players that consume what it
   # writes, which is where it sits in the data flow this list is ordered by.
   - bazarr.yaml
+  # Configures the two apps above rather than sitting in the media flow, so it
+  # follows them. Ships suspended -- see its header.
+  - recyclarr.yaml
   - plex.yaml
   - jellyfin.yaml
   # Six restic CronJobs for the /config volumes plus logical dumps of the four

@@ -286,6 +286,17 @@ inline_scan() {
       if (v ~ /^[[{]/)                                 { return 1 }  # inline seq/map
       if (v ~ /^[$%]/)                                 { return 1 }  # ${..} $(..) $__env{..}
       if (v ~ /^</)                                    { return 1 }  # <placeholder>
+      # A YAML TAG NAMING AN INDIRECTION, as Recyclarr uses:
+      #     api_key: !env_var SONARR_API_KEY
+      # which reads the value from the environment at runtime. Same family as the
+      # `${..}` and `*_FILE` cases above: the text in the file is a POINTER, and
+      # excusing it is what keeps the check from arguing against the very
+      # indirection it exists to demand.
+      #
+      # Deliberately narrow -- ONE tag, then ONE identifier-shaped token. So
+      # `!env_var SONARR_API_KEY` and `!secret sonarr_key` pass, while `!!str
+      # hunter2` (two bangs) and `!env_var some literal value` do not.
+      if (v ~ /^![a-zA-Z_][a-zA-Z0-9_]*[ \t]+[a-zA-Z_][a-zA-Z0-9_]*$/) { return 1 }
       if (v ~ /[{][{]/)                                { return 1 }  # go/helm template
       u = tolower(unquote(v))
       if (u == "" || u == "null" || u == "~")          { return 1 }

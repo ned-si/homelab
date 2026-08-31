@@ -9,6 +9,53 @@
 # ---------------------------------------------------------------------------
 apiVersion: v1
 data:
+  recyclarr.yml: |
+    # Base URLs are in-cluster Service addresses. They are not credentials, so
+    # they live here in plaintext; the API keys come from the
+    # `recyclarr-api-keys` Secret via envFrom. See
+    # apps/secrets/recyclarr-api-keys.sops.yaml.example.
+    #
+    # The FQDN form rather than a bare `http://sonarr:8989`: this pod is in the
+    # same namespace so the short name would resolve, but the explicit form
+    # matches what docs/runbooks/subtitles.md tells you to paste into Bazarr and
+    # is one less thing that differs between two places.
+    sonarr:
+      series:
+        base_url: http://sonarr.theater.svc.cluster.local:8989
+        api_key: !env_var SONARR_API_KEY
+
+        include:
+          # Quality definitions: the size limits per resolution. Safe and
+          # uncontroversial -- this is the part of the guides that is nearly
+          # always right.
+          - template: sonarr-quality-definition-series
+          # Quality profile + the custom formats that score into it. This is the
+          # part that changes grab behaviour, and the reason for --preview.
+          - template: sonarr-v4-quality-profile-web-1080p
+          - template: sonarr-v4-custom-formats-web-1080p
+
+    radarr:
+      movies:
+        base_url: http://radarr.theater.svc.cluster.local:7878
+        api_key: !env_var RADARR_API_KEY
+
+        include:
+          - template: radarr-quality-definition-movie
+          - template: radarr-quality-profile-hd-bluray-web
+          - template: radarr-custom-formats-hd-bluray-web
+
+    # Lidarr is deliberately absent. Recyclarr supports it, but the TRaSH music
+    # guides are far less settled than the TV and film ones, and Lidarr here has
+    # no reported problem to fix. Adding it would be change for its own sake.
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/part-of: theater
+  name: recyclarr-config
+  namespace: theater
+---
+apiVersion: v1
+data:
   backup-config.sh: |
     #!/bin/sh
     # Usage: backup-config.sh <tag> <path> [extra restic backup args...]
@@ -59,10 +106,7 @@ data:
     # mounted as directories of files rather than as twenty environment
     # variables. CNPG rotates these itself, so there is no password in git in
     # any form -- not even encrypted.
-    # bazarr is in this list for the same reason as the other four: apps/theater/
-    # bazarr.yaml runs it on CloudNativePG rather than its default SQLite, so it
-    # gets a transactional dump here instead of a best-effort file snapshot.
-    for app in sonarr radarr lidarr prowlarr bazarr; do
+    for app in sonarr radarr lidarr prowlarr; do
       d="/creds/${app}"
       if [ ! -f "$d/password" ]; then
         echo "FAIL ${app}: no credentials mounted at ${d}"
@@ -158,24 +202,6 @@ metadata:
     app.kubernetes.io/part-of: theater
   name: theater-backup-scripts
   namespace: theater
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app.kubernetes.io/name: bazarr
-    app.kubernetes.io/part-of: theater
-  name: bazarr
-  namespace: theater
-spec:
-  ports:
-  - name: http
-    port: 6767
-    protocol: TCP
-    targetPort: http
-  selector:
-    app.kubernetes.io/name: bazarr
-  type: ClusterIP
 ---
 apiVersion: v1
 kind: Service
@@ -331,21 +357,6 @@ kind: PersistentVolumeClaim
 metadata:
   labels:
     app.kubernetes.io/part-of: theater
-  name: bazarr-config
-  namespace: theater
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
-  storageClassName: iscsi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
   name: jellyfin-cache
   namespace: theater
 spec:
@@ -475,105 +486,6 @@ spec:
     requests:
       storage: 5Gi
   storageClassName: iscsi
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app.kubernetes.io/name: bazarr
-    app.kubernetes.io/part-of: theater
-  name: bazarr
-  namespace: theater
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: bazarr
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: bazarr
-    spec:
-      containers:
-      - env:
-        - name: TZ
-          value: Europe/Zurich
-        - name: PUID
-          value: "1000"
-        - name: PGID
-          value: "1000"
-        - name: UMASK
-          value: "002"
-        - name: POSTGRES_ENABLED
-          value: "true"
-        - name: POSTGRES_HOST
-          valueFrom:
-            secretKeyRef:
-              key: host
-              name: bazarr-postgresql-app
-        - name: POSTGRES_PORT
-          valueFrom:
-            secretKeyRef:
-              key: port
-              name: bazarr-postgresql-app
-        - name: POSTGRES_USERNAME
-          valueFrom:
-            secretKeyRef:
-              key: user
-              name: bazarr-postgresql-app
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: password
-              name: bazarr-postgresql-app
-        - name: POSTGRES_DATABASE
-          valueFrom:
-            secretKeyRef:
-              key: dbname
-              name: bazarr-postgresql-app
-        image: ghcr.io/hotio/bazarr:release-1.6.0
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /
-            port: http
-          initialDelaySeconds: 90
-          periodSeconds: 30
-        name: bazarr
-        ports:
-        - containerPort: 6767
-          name: http
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 1Gi
-          requests:
-            cpu: 100m
-            memory: 384Mi
-        volumeMounts:
-        - mountPath: /config
-          name: config
-        - mountPath: /data
-          name: data
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
-      volumes:
-      - name: config
-        persistentVolumeClaim:
-          claimName: bazarr-config
-      - name: data
-        persistentVolumeClaim:
-          claimName: theater-data
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -1198,50 +1110,34 @@ kind: CronJob
 metadata:
   labels:
     app.kubernetes.io/part-of: theater
-  name: theater-config-backup-bazarr
+  name: recyclarr-sync
   namespace: theater
 spec:
   concurrencyPolicy: Forbid
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
-      activeDeadlineSeconds: 3600
+      activeDeadlineSeconds: 900
       backoffLimit: 2
       template:
         metadata:
           labels:
-            app.kubernetes.io/name: theater-config-backup-bazarr
+            app.kubernetes.io/name: recyclarr-sync
         spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: bazarr
-                topologyKey: kubernetes.io/hostname
           containers:
-          - command:
-            - /bin/sh
-            - /scripts/backup-config.sh
-            - bazarr
-            - /config
-            - --exclude=/config/log
-            - --exclude=/config/cache
-            - --exclude=/config/backup
-            - --exclude=/config/db
+          - args:
+            - sync
             env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
+            - name: TZ
+              value: Europe/Zurich
+            - name: RECYCLARR_APP_DATA
+              value: /config
             envFrom:
             - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
+                name: recyclarr-api-keys
+            image: ghcr.io/recyclarr/recyclarr:8.7.1
             imagePullPolicy: IfNotPresent
-            name: restic
+            name: recyclarr
             resources:
               limits:
                 memory: 512Mi
@@ -1255,13 +1151,14 @@ spec:
                 - ALL
               readOnlyRootFilesystem: true
             volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /config
-              name: config
+            - mountPath: /config/recyclarr.yml
+              name: config-file
               readOnly: true
-            - mountPath: /cache
-              name: cache
+              subPath: recyclarr.yml
+            - mountPath: /config
+              name: app-data
+            - mountPath: /tmp
+              name: tmp
           restartPolicy: OnFailure
           securityContext:
             fsGroup: 1000
@@ -1272,18 +1169,17 @@ spec:
               type: RuntimeDefault
           volumes:
           - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - name: config
-            persistentVolumeClaim:
-              claimName: bazarr-config
-              readOnly: true
+              name: recyclarr-config
+            name: config-file
           - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-  schedule: 50 4 * * *
+              sizeLimit: 512Mi
+            name: app-data
+          - emptyDir:
+              sizeLimit: 64Mi
+            name: tmp
+  schedule: 0 6 * * *
   successfulJobsHistoryLimit: 3
+  suspend: true
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -1411,7 +1307,7 @@ spec:
           - emptyDir:
               sizeLimit: 3Gi
             name: cache
-  schedule: 0 5 * * *
+  schedule: 50 4 * * *
   successfulJobsHistoryLimit: 3
 ---
 apiVersion: batch/v1
@@ -1985,9 +1881,6 @@ spec:
             - mountPath: /creds/prowlarr
               name: creds-prowlarr
               readOnly: true
-            - mountPath: /creds/bazarr
-              name: creds-bazarr
-              readOnly: true
           restartPolicy: OnFailure
           securityContext:
             fsGroup: 1000
@@ -2019,30 +1912,8 @@ spec:
           - name: creds-prowlarr
             secret:
               secretName: prowlarr-postgresql-app
-          - name: creds-bazarr
-            secret:
-              secretName: bazarr-postgresql-app
   schedule: 40 3 * * *
   successfulJobsHistoryLimit: 3
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: bazarr
-  namespace: theater
-spec:
-  hostnames:
-  - bazarr.lilalala.com
-  parentRefs:
-  - name: shared
-    namespace: gateway
-    sectionName: https
-  rules:
-  - backendRefs:
-    - name: bazarr
-      port: 6767
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -2182,28 +2053,6 @@ spec:
   - backendRefs:
     - name: sonarr
       port: 8989
----
-apiVersion: postgresql.cnpg.io/v1
-kind: Cluster
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: bazarr-postgresql
-  namespace: theater
-spec:
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
-  instances: 1
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    limits:
-      memory: 384Mi
-    requests:
-      cpu: 50m
-      memory: 192Mi
-  storage:
-    size: 5Gi
-    storageClass: iscsi
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
