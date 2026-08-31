@@ -1,0 +1,817 @@
+# SSO in front of the *arr web UIs and qBittorrent, via Keycloak.
+#
+# Five oauth2-proxy instances. Each sits between the Gateway and one application:
+#
+#     Gateway (shared/https) --> <app>-sso:4180 --> <app>:<port>
+#
+# The HTTPRoute in each app's own file points at `<app>-sso` instead of `<app>`;
+# that two-line change is the only edit outside this file.
+#
+# ###########################################################################
+# # WHY THIS IS A PROXY IN THE REQUEST PATH AND NOT SOMETHING NICER
+# #
+# # The *arr applications have no OIDC support. Sonarr, Radarr, Lidarr and
+# # Prowlarr offer Forms and Basic authentication against a local user, and
+# # nothing else. So SSO has to be added in front of them, not inside them.
+# #
+# # Rejected: forward-auth / ExtAuth at the Gateway. That is the tidy answer --
+# # one auth service, a filter on each route, no extra hop per app -- and Gateway
+# # API v1.2.0 (the experimental channel this cluster pins) has no ExtAuth
+# # filter. On Cilium it would mean a hand-written CiliumEnvoyConfig injecting an
+# # ext_authz filter into the Gateway's Envoy, which is exactly the kind of
+# # component that breaks on a Cilium upgrade and takes every published hostname
+# # with it. Revisit when Gateway API standardises it.
+# #
+# # Rejected: one shared oauth2-proxy. It selects its upstream from
+# # `--upstream`, not from the Host header, so serving five hostnames from one
+# # instance requires path-prefix routing -- which requires setting `URLBase` in
+# # each *arr. URLBase lives in the application database, not in git, and
+# # apps/theater/sonarr.yaml records that it was deliberately REMOVED. Five small
+# # proxies cost about 50m CPU in total and fail independently.
+# #
+# # So: verbose, and each block below differs in exactly two lines
+# # (`--upstream` and `--redirect-url`). Generated rather than hand-copied for
+# # that reason.
+# ###########################################################################
+#
+# ---------------------------------------------------------------------------
+# WHAT IS DELIBERATELY *NOT* BEHIND THIS
+#
+#   Plex and Jellyfin. Their clients -- a Samsung Tizen TV app, phones, consoles
+#   -- cannot complete an interactive OIDC redirect. A proxy in front of them
+#   does not add a login screen, it breaks every device in the house. Both keep
+#   their own account systems, which they have and the *arrs do not.
+#
+#   The Bazarr UI, only because it arrives in a separate change. When both are
+#   merged it belongs here: add a sixth block, a sixth redirect URI in Keycloak,
+#   and repoint its HTTPRoute. Nothing else.
+#
+#   Every in-cluster API call. Prowlarr -> Sonarr, Bazarr -> Sonarr, Recyclarr ->
+#   Radarr and the *arrs -> qBittorrent all resolve a Service and connect
+#   pod-to-pod. That traffic never reaches the Gateway, so it never reaches these
+#   proxies, and this change cannot break it. It is also why the network policy
+#   still allows those flows on the application ports directly.
+#
+# ---------------------------------------------------------------------------
+# WHAT THIS BREAKS, HONESTLY
+#
+#   Mobile *arr clients used from OUTSIDE the LAN -- nzb360, LunaSea and similar.
+#   They authenticate with `X-Api-Key` against `/api/...`, and oauth2-proxy will
+#   send them to a Keycloak login page they cannot render.
+#
+#   The one-line fix, if that matters, is to add to the args of the affected
+#   instance:
+#
+#       - --skip-auth-route=^/api/
+#
+#   That is a real trade, not an oversight. The API key is a 32-character secret
+#   the application itself enforces, so skipping SSO for `/api/` leaves those
+#   paths exactly as exposed as they are today -- no worse. It is off by default
+#   because "no worse than today" is not the same as "protected", and the choice
+#   should be made deliberately by someone who wants the phone app.
+#
+# ---------------------------------------------------------------------------
+# THE FOLLOW-UP, AND DO NOT DO IT IN THIS CHANGE
+#
+#   With a proxy in front, each application still shows its OWN login form, so
+#   you authenticate twice. Sonarr v4 and Radarr v5 support
+#   `<APP>__AUTH__METHOD=External`, which tells them authentication is handled
+#   upstream, and these proxies already send `X-Auth-Request-*` headers for it.
+#
+#   That is deliberately NOT set here. Setting it before the proxy is verified
+#   working converts a "two logins" annoyance into a lockout: the application
+#   stops asking for credentials and trusts a proxy that may not be passing
+#   them. Verify SSO end to end first, then set it in a follow-up.
+#
+# ---------------------------------------------------------------------------
+# BEFORE THIS CAN WORK
+#
+#   The Keycloak client, the `theater-admins` group and the group-claim mapper
+#   are manual steps -- there is no realm-as-code in this repository. The exact
+#   procedure, including why the group path needs a leading slash, is in
+#   apps/secrets/theater-sso.sops.yaml.example.
+#
+#   Until the sealed Secret holds real values, every proxy crashloops and the
+#   five hostnames return 503. Their APIs stay reachable in-cluster throughout,
+#   so downloads and imports keep working while the UIs are down.
+# ---------------------------------------------------------------------------
+---
+# sonarr -> sonarr.lilalala.com
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: sonarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  # RollingUpdate, unlike every other workload in this namespace. `Recreate`
+  # elsewhere exists because those pods hold a ReadWriteOnce volume; this one
+  # holds no volume at all, so a rolling update is both possible and better -- a
+  # config change does not black out the UI.
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sonarr-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # 65532 is `nonroot` in the distroless base oauth2-proxy ships on. No
+        # fsGroup and no PUID/PGID: the 1000 every other pod in this namespace
+        # needs is about ownership of shared media files, and this pod touches no
+        # files at all.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+            - --client-id=theater-sso
+            # These two lines are the ONLY substantive difference between the five
+            # instances.
+            - --redirect-url=https://sonarr.lilalala.com/oauth2/callback
+            - --upstream=http://sonarr.theater.svc.cluster.local:8989
+            - --http-address=0.0.0.0:4180
+            # Behind the Gateway, so trust X-Forwarded-* for scheme and host.
+            # Without it oauth2-proxy builds its redirect as http:// and the login
+            # loop never terminates.
+            - --reverse-proxy=true
+            # Authorization is by GROUP. `--email-domain=*` only asserts the token
+            # carries an email; the group check is what actually decides. See
+            # apps/secrets/theater-sso.sops.yaml.example step 4, including why the
+            # leading slash on the group path is required.
+            - --email-domain=*
+            - --allowed-group=/theater-admins
+            # One cookie across all five hosts, so one login covers the namespace.
+            # This is why they share a client and a cookie secret.
+            - --cookie-domain=.lilalala.com
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # Bounds how long a stolen cookie stays useful; the refresh renews it
+            # silently rather than interrupting a session.
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            # Confines post-login redirects to the zone. Without it a crafted `rd=`
+            # parameter can bounce an authenticated user to another site.
+            - --whitelist-domain=.lilalala.com
+            # Go straight to Keycloak instead of rendering oauth2-proxy's own
+            # "Sign in with" page -- one less click, and that intermediate page is
+            # the part that looks broken on a phone.
+            - --skip-provider-button=true
+            # Identity forwarded to the upstream. The *arr apps ignore these today;
+            # sending them is what makes `AUTH__METHOD=External` a later one-line
+            # change rather than a rewrite. See THE FOLLOW-UP in the header.
+            - --set-xauthrequest=true
+            - --pass-basic-auth=false
+            - --pass-user-headers=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping is oauth2-proxy's own health endpoint and needs no auth. It does
+          # NOT prove Keycloak is reachable -- that surfaces as a 500 on login, not
+          # as an unready pod, which is the right split: a Keycloak outage must not
+          # roll these pods.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sonarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: sonarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: sonarr-sso
+---
+# radarr -> radarr.lilalala.com
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: radarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  # RollingUpdate, unlike every other workload in this namespace. `Recreate`
+  # elsewhere exists because those pods hold a ReadWriteOnce volume; this one
+  # holds no volume at all, so a rolling update is both possible and better -- a
+  # config change does not black out the UI.
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: radarr-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: radarr-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # 65532 is `nonroot` in the distroless base oauth2-proxy ships on. No
+        # fsGroup and no PUID/PGID: the 1000 every other pod in this namespace
+        # needs is about ownership of shared media files, and this pod touches no
+        # files at all.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+            - --client-id=theater-sso
+            # These two lines are the ONLY substantive difference between the five
+            # instances.
+            - --redirect-url=https://radarr.lilalala.com/oauth2/callback
+            - --upstream=http://radarr.theater.svc.cluster.local:7878
+            - --http-address=0.0.0.0:4180
+            # Behind the Gateway, so trust X-Forwarded-* for scheme and host.
+            # Without it oauth2-proxy builds its redirect as http:// and the login
+            # loop never terminates.
+            - --reverse-proxy=true
+            # Authorization is by GROUP. `--email-domain=*` only asserts the token
+            # carries an email; the group check is what actually decides. See
+            # apps/secrets/theater-sso.sops.yaml.example step 4, including why the
+            # leading slash on the group path is required.
+            - --email-domain=*
+            - --allowed-group=/theater-admins
+            # One cookie across all five hosts, so one login covers the namespace.
+            # This is why they share a client and a cookie secret.
+            - --cookie-domain=.lilalala.com
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # Bounds how long a stolen cookie stays useful; the refresh renews it
+            # silently rather than interrupting a session.
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            # Confines post-login redirects to the zone. Without it a crafted `rd=`
+            # parameter can bounce an authenticated user to another site.
+            - --whitelist-domain=.lilalala.com
+            # Go straight to Keycloak instead of rendering oauth2-proxy's own
+            # "Sign in with" page -- one less click, and that intermediate page is
+            # the part that looks broken on a phone.
+            - --skip-provider-button=true
+            # Identity forwarded to the upstream. The *arr apps ignore these today;
+            # sending them is what makes `AUTH__METHOD=External` a later one-line
+            # change rather than a rewrite. See THE FOLLOW-UP in the header.
+            - --set-xauthrequest=true
+            - --pass-basic-auth=false
+            - --pass-user-headers=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping is oauth2-proxy's own health endpoint and needs no auth. It does
+          # NOT prove Keycloak is reachable -- that surfaces as a 500 on login, not
+          # as an unready pod, which is the right split: a Keycloak outage must not
+          # roll these pods.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: radarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: radarr-sso
+---
+# lidarr -> lidarr.lilalala.com
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lidarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: lidarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  # RollingUpdate, unlike every other workload in this namespace. `Recreate`
+  # elsewhere exists because those pods hold a ReadWriteOnce volume; this one
+  # holds no volume at all, so a rolling update is both possible and better -- a
+  # config change does not black out the UI.
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lidarr-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lidarr-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # 65532 is `nonroot` in the distroless base oauth2-proxy ships on. No
+        # fsGroup and no PUID/PGID: the 1000 every other pod in this namespace
+        # needs is about ownership of shared media files, and this pod touches no
+        # files at all.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+            - --client-id=theater-sso
+            # These two lines are the ONLY substantive difference between the five
+            # instances.
+            - --redirect-url=https://lidarr.lilalala.com/oauth2/callback
+            - --upstream=http://lidarr.theater.svc.cluster.local:8686
+            - --http-address=0.0.0.0:4180
+            # Behind the Gateway, so trust X-Forwarded-* for scheme and host.
+            # Without it oauth2-proxy builds its redirect as http:// and the login
+            # loop never terminates.
+            - --reverse-proxy=true
+            # Authorization is by GROUP. `--email-domain=*` only asserts the token
+            # carries an email; the group check is what actually decides. See
+            # apps/secrets/theater-sso.sops.yaml.example step 4, including why the
+            # leading slash on the group path is required.
+            - --email-domain=*
+            - --allowed-group=/theater-admins
+            # One cookie across all five hosts, so one login covers the namespace.
+            # This is why they share a client and a cookie secret.
+            - --cookie-domain=.lilalala.com
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # Bounds how long a stolen cookie stays useful; the refresh renews it
+            # silently rather than interrupting a session.
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            # Confines post-login redirects to the zone. Without it a crafted `rd=`
+            # parameter can bounce an authenticated user to another site.
+            - --whitelist-domain=.lilalala.com
+            # Go straight to Keycloak instead of rendering oauth2-proxy's own
+            # "Sign in with" page -- one less click, and that intermediate page is
+            # the part that looks broken on a phone.
+            - --skip-provider-button=true
+            # Identity forwarded to the upstream. The *arr apps ignore these today;
+            # sending them is what makes `AUTH__METHOD=External` a later one-line
+            # change rather than a rewrite. See THE FOLLOW-UP in the header.
+            - --set-xauthrequest=true
+            - --pass-basic-auth=false
+            - --pass-user-headers=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping is oauth2-proxy's own health endpoint and needs no auth. It does
+          # NOT prove Keycloak is reachable -- that surfaces as a 500 on login, not
+          # as an unready pod, which is the right split: a Keycloak outage must not
+          # roll these pods.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lidarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: lidarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: lidarr-sso
+---
+# prowlarr -> prowlarr.lilalala.com
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: prowlarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  # RollingUpdate, unlike every other workload in this namespace. `Recreate`
+  # elsewhere exists because those pods hold a ReadWriteOnce volume; this one
+  # holds no volume at all, so a rolling update is both possible and better -- a
+  # config change does not black out the UI.
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: prowlarr-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # 65532 is `nonroot` in the distroless base oauth2-proxy ships on. No
+        # fsGroup and no PUID/PGID: the 1000 every other pod in this namespace
+        # needs is about ownership of shared media files, and this pod touches no
+        # files at all.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+            - --client-id=theater-sso
+            # These two lines are the ONLY substantive difference between the five
+            # instances.
+            - --redirect-url=https://prowlarr.lilalala.com/oauth2/callback
+            - --upstream=http://prowlarr.theater.svc.cluster.local:9696
+            - --http-address=0.0.0.0:4180
+            # Behind the Gateway, so trust X-Forwarded-* for scheme and host.
+            # Without it oauth2-proxy builds its redirect as http:// and the login
+            # loop never terminates.
+            - --reverse-proxy=true
+            # Authorization is by GROUP. `--email-domain=*` only asserts the token
+            # carries an email; the group check is what actually decides. See
+            # apps/secrets/theater-sso.sops.yaml.example step 4, including why the
+            # leading slash on the group path is required.
+            - --email-domain=*
+            - --allowed-group=/theater-admins
+            # One cookie across all five hosts, so one login covers the namespace.
+            # This is why they share a client and a cookie secret.
+            - --cookie-domain=.lilalala.com
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # Bounds how long a stolen cookie stays useful; the refresh renews it
+            # silently rather than interrupting a session.
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            # Confines post-login redirects to the zone. Without it a crafted `rd=`
+            # parameter can bounce an authenticated user to another site.
+            - --whitelist-domain=.lilalala.com
+            # Go straight to Keycloak instead of rendering oauth2-proxy's own
+            # "Sign in with" page -- one less click, and that intermediate page is
+            # the part that looks broken on a phone.
+            - --skip-provider-button=true
+            # Identity forwarded to the upstream. The *arr apps ignore these today;
+            # sending them is what makes `AUTH__METHOD=External` a later one-line
+            # change rather than a rewrite. See THE FOLLOW-UP in the header.
+            - --set-xauthrequest=true
+            - --pass-basic-auth=false
+            - --pass-user-headers=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping is oauth2-proxy's own health endpoint and needs no auth. It does
+          # NOT prove Keycloak is reachable -- that surfaces as a 500 on login, not
+          # as an unready pod, which is the right split: a Keycloak outage must not
+          # roll these pods.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prowlarr-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: prowlarr-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: prowlarr-sso
+---
+# qbittorrent -> qbittorrent.lilalala.com
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: qbittorrent-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  # RollingUpdate, unlike every other workload in this namespace. `Recreate`
+  # elsewhere exists because those pods hold a ReadWriteOnce volume; this one
+  # holds no volume at all, so a rolling update is both possible and better -- a
+  # config change does not black out the UI.
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qbittorrent-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        # 65532 is `nonroot` in the distroless base oauth2-proxy ships on. No
+        # fsGroup and no PUID/PGID: the 1000 every other pod in this namespace
+        # needs is about ownership of shared media files, and this pod touches no
+        # files at all.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=keycloak-oidc
+            - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+            - --client-id=theater-sso
+            # These two lines are the ONLY substantive difference between the five
+            # instances.
+            - --redirect-url=https://qbittorrent.lilalala.com/oauth2/callback
+            - --upstream=http://qbittorrent.theater.svc.cluster.local:8080
+            - --http-address=0.0.0.0:4180
+            # Behind the Gateway, so trust X-Forwarded-* for scheme and host.
+            # Without it oauth2-proxy builds its redirect as http:// and the login
+            # loop never terminates.
+            - --reverse-proxy=true
+            # Authorization is by GROUP. `--email-domain=*` only asserts the token
+            # carries an email; the group check is what actually decides. See
+            # apps/secrets/theater-sso.sops.yaml.example step 4, including why the
+            # leading slash on the group path is required.
+            - --email-domain=*
+            - --allowed-group=/theater-admins
+            # One cookie across all five hosts, so one login covers the namespace.
+            # This is why they share a client and a cookie secret.
+            - --cookie-domain=.lilalala.com
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # Bounds how long a stolen cookie stays useful; the refresh renews it
+            # silently rather than interrupting a session.
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            # Confines post-login redirects to the zone. Without it a crafted `rd=`
+            # parameter can bounce an authenticated user to another site.
+            - --whitelist-domain=.lilalala.com
+            # Go straight to Keycloak instead of rendering oauth2-proxy's own
+            # "Sign in with" page -- one less click, and that intermediate page is
+            # the part that looks broken on a phone.
+            - --skip-provider-button=true
+            # Identity forwarded to the upstream. The *arr apps ignore these today;
+            # sending them is what makes `AUTH__METHOD=External` a later one-line
+            # change rather than a rewrite. See THE FOLLOW-UP in the header.
+            - --set-xauthrequest=true
+            - --pass-basic-auth=false
+            - --pass-user-headers=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: theater-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping is oauth2-proxy's own health endpoint and needs no auth. It does
+          # NOT prove Keycloak is reachable -- that surfaces as a 500 on login, not
+          # as an unready pod, which is the right split: a Keycloak outage must not
+          # roll these pods.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qbittorrent-sso
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: qbittorrent-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: qbittorrent-sso

@@ -196,6 +196,25 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: lidarr-sso
+    app.kubernetes.io/part-of: theater
+  name: lidarr-sso
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 4180
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: lidarr-sso
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
     app.kubernetes.io/name: plex
     app.kubernetes.io/part-of: theater
   name: plex
@@ -226,6 +245,25 @@ spec:
     targetPort: http
   selector:
     app.kubernetes.io/name: prowlarr
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: prowlarr-sso
+    app.kubernetes.io/part-of: theater
+  name: prowlarr-sso
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 4180
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: prowlarr-sso
   type: ClusterIP
 ---
 apiVersion: v1
@@ -273,6 +311,25 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: qbittorrent-sso
+    app.kubernetes.io/part-of: theater
+  name: qbittorrent-sso
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 4180
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: qbittorrent-sso
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
     app.kubernetes.io/name: radarr
     app.kubernetes.io/part-of: theater
   name: radarr
@@ -291,6 +348,25 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: radarr-sso
+    app.kubernetes.io/part-of: theater
+  name: radarr-sso
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 4180
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: radarr-sso
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
     app.kubernetes.io/name: sonarr
     app.kubernetes.io/part-of: theater
   name: sonarr
@@ -303,6 +379,25 @@ spec:
     targetPort: http
   selector:
     app.kubernetes.io/name: sonarr
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: sonarr-sso
+    app.kubernetes.io/part-of: theater
+  name: sonarr-sso
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 4180
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: sonarr-sso
   type: ClusterIP
 ---
 apiVersion: v1
@@ -618,6 +713,99 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: lidarr-sso
+    app.kubernetes.io/part-of: theater
+  name: lidarr-sso
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lidarr-sso
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sso-proxy
+        app.kubernetes.io/name: lidarr-sso
+    spec:
+      containers:
+      - args:
+        - --provider=keycloak-oidc
+        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+        - --client-id=theater-sso
+        - --redirect-url=https://lidarr.lilalala.com/oauth2/callback
+        - --upstream=http://lidarr.theater.svc.cluster.local:8686
+        - --http-address=0.0.0.0:4180
+        - --reverse-proxy=true
+        - --email-domain=*
+        - --allowed-group=/theater-admins
+        - --cookie-domain=.lilalala.com
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-expire=12h
+        - --cookie-refresh=1h
+        - --whitelist-domain=.lilalala.com
+        - --skip-provider-button=true
+        - --set-xauthrequest=true
+        - --pass-basic-auth=false
+        - --pass-user-headers=true
+        env:
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: client-secret
+              name: theater-sso
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: cookie-secret
+              name: theater-sso
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: oauth2-proxy
+        ports:
+        - containerPort: 4180
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
     app.kubernetes.io/name: plex
     app.kubernetes.io/part-of: theater
   name: plex
@@ -787,6 +975,99 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: prowlarr-sso
+    app.kubernetes.io/part-of: theater
+  name: prowlarr-sso
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prowlarr-sso
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sso-proxy
+        app.kubernetes.io/name: prowlarr-sso
+    spec:
+      containers:
+      - args:
+        - --provider=keycloak-oidc
+        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+        - --client-id=theater-sso
+        - --redirect-url=https://prowlarr.lilalala.com/oauth2/callback
+        - --upstream=http://prowlarr.theater.svc.cluster.local:9696
+        - --http-address=0.0.0.0:4180
+        - --reverse-proxy=true
+        - --email-domain=*
+        - --allowed-group=/theater-admins
+        - --cookie-domain=.lilalala.com
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-expire=12h
+        - --cookie-refresh=1h
+        - --whitelist-domain=.lilalala.com
+        - --skip-provider-button=true
+        - --set-xauthrequest=true
+        - --pass-basic-auth=false
+        - --pass-user-headers=true
+        env:
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: client-secret
+              name: theater-sso
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: cookie-secret
+              name: theater-sso
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: oauth2-proxy
+        ports:
+        - containerPort: 4180
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
     app.kubernetes.io/name: qbittorrent
     app.kubernetes.io/part-of: theater
   name: qbittorrent
@@ -859,6 +1140,99 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: theater-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: qbittorrent-sso
+    app.kubernetes.io/part-of: theater
+  name: qbittorrent-sso
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent-sso
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sso-proxy
+        app.kubernetes.io/name: qbittorrent-sso
+    spec:
+      containers:
+      - args:
+        - --provider=keycloak-oidc
+        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+        - --client-id=theater-sso
+        - --redirect-url=https://qbittorrent.lilalala.com/oauth2/callback
+        - --upstream=http://qbittorrent.theater.svc.cluster.local:8080
+        - --http-address=0.0.0.0:4180
+        - --reverse-proxy=true
+        - --email-domain=*
+        - --allowed-group=/theater-admins
+        - --cookie-domain=.lilalala.com
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-expire=12h
+        - --cookie-refresh=1h
+        - --whitelist-domain=.lilalala.com
+        - --skip-provider-button=true
+        - --set-xauthrequest=true
+        - --pass-basic-auth=false
+        - --pass-user-headers=true
+        env:
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: client-secret
+              name: theater-sso
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: cookie-secret
+              name: theater-sso
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: oauth2-proxy
+        ports:
+        - containerPort: 4180
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -963,6 +1337,99 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: radarr-sso
+    app.kubernetes.io/part-of: theater
+  name: radarr-sso
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: radarr-sso
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sso-proxy
+        app.kubernetes.io/name: radarr-sso
+    spec:
+      containers:
+      - args:
+        - --provider=keycloak-oidc
+        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+        - --client-id=theater-sso
+        - --redirect-url=https://radarr.lilalala.com/oauth2/callback
+        - --upstream=http://radarr.theater.svc.cluster.local:7878
+        - --http-address=0.0.0.0:4180
+        - --reverse-proxy=true
+        - --email-domain=*
+        - --allowed-group=/theater-admins
+        - --cookie-domain=.lilalala.com
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-expire=12h
+        - --cookie-refresh=1h
+        - --whitelist-domain=.lilalala.com
+        - --skip-provider-button=true
+        - --set-xauthrequest=true
+        - --pass-basic-auth=false
+        - --pass-user-headers=true
+        env:
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: client-secret
+              name: theater-sso
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: cookie-secret
+              name: theater-sso
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: oauth2-proxy
+        ports:
+        - containerPort: 4180
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
     app.kubernetes.io/name: sonarr
     app.kubernetes.io/part-of: theater
   name: sonarr
@@ -1057,6 +1524,99 @@ spec:
       - name: data
         persistentVolumeClaim:
           claimName: theater-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: sonarr-sso
+    app.kubernetes.io/part-of: theater
+  name: sonarr-sso
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr-sso
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sso-proxy
+        app.kubernetes.io/name: sonarr-sso
+    spec:
+      containers:
+      - args:
+        - --provider=keycloak-oidc
+        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
+        - --client-id=theater-sso
+        - --redirect-url=https://sonarr.lilalala.com/oauth2/callback
+        - --upstream=http://sonarr.theater.svc.cluster.local:8989
+        - --http-address=0.0.0.0:4180
+        - --reverse-proxy=true
+        - --email-domain=*
+        - --allowed-group=/theater-admins
+        - --cookie-domain=.lilalala.com
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-expire=12h
+        - --cookie-refresh=1h
+        - --whitelist-domain=.lilalala.com
+        - --skip-provider-button=true
+        - --set-xauthrequest=true
+        - --pass-basic-auth=false
+        - --pass-user-headers=true
+        env:
+        - name: OAUTH2_PROXY_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: client-secret
+              name: theater-sso
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: cookie-secret
+              name: theater-sso
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: oauth2-proxy
+        ports:
+        - containerPort: 4180
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -1830,8 +2390,8 @@ spec:
     sectionName: https
   rules:
   - backendRefs:
-    - name: lidarr
-      port: 8686
+    - name: lidarr-sso
+      port: 4180
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -1871,8 +2431,8 @@ spec:
     sectionName: https
   rules:
   - backendRefs:
-    - name: prowlarr
-      port: 9696
+    - name: prowlarr-sso
+      port: 4180
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -1890,8 +2450,8 @@ spec:
     sectionName: https
   rules:
   - backendRefs:
-    - name: qbittorrent
-      port: 8080
+    - name: qbittorrent-sso
+      port: 4180
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -1909,8 +2469,8 @@ spec:
     sectionName: https
   rules:
   - backendRefs:
-    - name: radarr
-      port: 7878
+    - name: radarr-sso
+      port: 4180
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -1928,8 +2488,8 @@ spec:
     sectionName: https
   rules:
   - backendRefs:
-    - name: sonarr
-      port: 8989
+    - name: sonarr-sso
+      port: 4180
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
