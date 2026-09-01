@@ -411,9 +411,35 @@ jobs:
             exit 1
           fi
 
+      # ###########################################################################
+      # # THE TWO SARIF UPLOADS ARE `continue-on-error`. THEY ARE REPORTING, NOT
+      # # GATES, AND ON THIS REPOSITORY THEY CANNOT SUCCEED.
+      # #
+      # # upload-sarif writes into GitHub Code Scanning, which needs either a
+      # # public repository or GitHub Advanced Security. This repository is PRIVATE
+      # # with no GHAS, so the API answers
+      # #
+      # #     Code scanning is not enabled for this repository.
+      # #
+      # # and the step fails. Without continue-on-error that failure fails the SAST
+      # # job -- and therefore `ci` -- even when both scanners found nothing. That
+      # # is exactly what happened: for several runs the job was red while
+      # # `Trivy findings are blocking` and `kube-linter findings are blocking`
+      # # both PASSED, which reads like a security failure and is not one.
+      # #
+      # # THE GATES ARE THE TWO `... findings are blocking` STEPS. They parse the
+      # # SARIF with jq and exit non-zero on any finding, so making the upload
+      # # advisory removes no enforcement whatsoever.
+      # #
+      # # Kept rather than deleted: if the repository is ever made public, or GHAS
+      # # is enabled, these start populating the Security tab again with no change
+      # # here. `if: always()` so a finding still gets uploaded rather than only
+      # # clean runs.
+      # ###########################################################################
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v4
         if: always()
+        continue-on-error: true
         with:
           sarif_file: trivy.sarif
           category: trivy-config
@@ -470,9 +496,12 @@ jobs:
             exit 1
           fi
 
+      # Advisory for the same reason as the Trivy upload above. The gate is the
+      # `kube-linter findings are blocking` step.
       - name: Upload kube-linter SARIF
         uses: github/codeql-action/upload-sarif@v4
         if: always()
+        continue-on-error: true
         with:
           sarif_file: kube-linter.sarif
           category: kube-linter
