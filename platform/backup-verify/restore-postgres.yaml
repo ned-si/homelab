@@ -348,6 +348,28 @@ spec:
         spec:
           restartPolicy: Never
           serviceAccountName: backup-verify
+          # Matches ./restore-files.yaml exactly. It was ABSENT here, and that was
+          # a real gap rather than a considered choice: this pod ran with the
+          # default security context -- i.e. permitted to run as root -- while its
+          # sibling in the same namespace did not.
+          #
+          # It went unnoticed because .trivyignore carried a blanket
+          # `AVD-KSV-0118` waiver written for the linuxserver/hotio images, whose
+          # entrypoints genuinely need root. A rule-ID waiver with no path scope
+          # silenced this file too. That is the whole reason this PR moves to
+          # path-scoped waivers.
+          #
+          # `readOnlyRootFilesystem` is deliberately NOT set, matching
+          # restore-files.yaml and covered by the AVD-KSV-0014 waiver. This is the
+          # weekly job that proves backups restore; its failure IS the alarm, so
+          # adding an untestable hardening flag to it trades a real signal for a
+          # theoretical gain. Tracked as a follow-up instead.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: verify
               # Needs kubectl only: psql is exec'd *inside* the restored pod,
@@ -357,17 +379,35 @@ spec:
               # renovate: datasource=docker depName=bitnami/kubectl
               image: bitnami/kubectl:1.31.2
               command: ["/bin/bash", "/scripts/run-all.sh"]
+              env:
+                # runAsUser 1000 is NOT this image's own uid (Bitnami images ship
+                # USER 1001), so $HOME from the image is not writable by us.
+                # kubectl writes a discovery cache on every invocation and dies on
+                # EACCES, so both are redirected to a writable emptyDir.
+                - name: HOME
+                  value: /tmp
+                - name: KUBECACHEDIR
+                  value: /tmp/.kube/cache
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
+                - name: tmp
+                  mountPath: /tmp
               resources:
                 requests:
                   cpu: 50m
                   memory: 128Mi
                 limits:
                   memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
           volumes:
             - name: scripts
               configMap:
                 name: backup-verify-scripts
                 defaultMode: 0755
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi

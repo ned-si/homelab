@@ -303,6 +303,14 @@ jobs:
           # so persisting the token buys nothing and hands a future compromise one
           # more thing to steal.
           persist-credentials: false
+          # REQUIRED BY THE DELTA GATE. scripts/trivy-gate.sh creates a git
+          # worktree at the merge-base with the target branch and scans it, so the
+          # default depth-1 clone would have no baseline and the gate would
+          # silently degrade to "fail on any finding" -- blocking every PR on
+          # inherited debt, which is the behaviour this whole change exists to
+          # avoid. The degradation is announced in the log, but a warning nobody
+          # reads is not a control.
+          fetch-depth: 0
 
       # Trivy in config mode covers Kubernetes manifests, Helm values,
       # Dockerfiles and Terraform in one pass.
@@ -365,17 +373,19 @@ jobs:
           # a lot of LOW/MEDIUM "not production hardened" rules that would make
           # this gate noise rather than signal.
           #
-          # This threshold is load-bearing for .trivyignore: a rule below HIGH is
+          # This threshold is load-bearing for the waiver file: a rule below HIGH is
           # already out of scope, so listing it there would be a no-op that reads
           # like a decision.
           severity: HIGH,CRITICAL
-          trivyignores: .trivyignore
+          # The structured waiver file: path-scoped, expiring, reasoned. See its
+          # header for why the flat .trivyignore was not good enough.
+          trivyignores: .trivyignore.yaml
           # Apply `severity` to the SARIF too, not just to the exit code.
           #
           # Without this the action writes EVERY severity into the SARIF while the
           # gate blocks only on HIGH/CRITICAL, so the Code Scanning tab fills with
           # the findings the paragraph above says are out of scope and
-          # `.trivyignore` stops describing what is enforced.
+          # `.trivyignore.yaml` stops describing what is enforced.
           limit-severities-for-sarif: "true"
           # NOT the gate. `exit-code: 1` here fails the step with the findings
           # written to trivy.sarif and NOTHING in the log -- 141 files scanned, a
@@ -386,30 +396,44 @@ jobs:
           # file-anchored annotation. Same pattern as kube-linter below.
           exit-code: "0"
 
-      # The Trivy gate. Reads the report the step above wrote, so there is one
-      # scan and the findings are legible in the log.
-      - name: Trivy findings are blocking
-        run: |
-          set -euo pipefail
-          if [ ! -s trivy.sarif ]; then
-            echo "::error::Trivy produced no SARIF -- the scan did not run."
-            exit 1
-          fi
-          n=$(jq '[.runs[]?.results[]?] | length' trivy.sarif)
-          echo "Trivy HIGH/CRITICAL findings: $n"
-          if [ "$n" -ne 0 ]; then
-            jq -r '.runs[]?.results[]?
-                   | .locations[0].physicalLocation as $loc
-                   | "::error file=\($loc.artifactLocation.uri // "?")"
-                     + ",line=\($loc.region.startLine // 1)"
-                     + "::\(.ruleId): \(.message.text)"' \
-              trivy.sarif
-            echo
-            echo "Fix the manifest, or add the check id to .trivyignore WITH A REASON."
-            echo "Reproduce locally:"
-            echo "    trivy config . --severity HIGH,CRITICAL --ignorefile .trivyignore"
-            exit 1
-          fi
+      # Waiver hygiene, before the gate. Every entry in .trivyignore.yaml must
+      # carry a reason and an expiry, and no entry may already be expired.
+      #
+      # Runs BEFORE the gate on purpose: an expired or malformed waiver makes the
+      # gate report findings it would otherwise suppress, and this step names that
+      # cause instead of leaving someone to work out why a finding reappeared.
+      #
+      # NOT strict. Hard errors already fail: a missing reason, a missing expiry,
+      # an ALREADY-expired waiver, an expiry beyond the 6-month cap.
+      #
+      # Approaching expiry stays a warning on purpose. TRIVY_WAIVERS_STRICT=1 would
+      # make a waiver 29 days from its date fail the build with no code change --
+      # turning a heads-up into a block, on a PR that has nothing to do with it.
+      # `::warning::` annotations surface it in the run summary, which is the right
+      # weight for "renew this soon". The escalation to fatal happens on the expiry
+      # date itself, which is what the date is for.
+      - name: Trivy waiver hygiene
+        run: ./scripts/trivy-waivers.sh
+
+      # THE GATE. Severity-tiered, and for HIGH it compares against the merge-base
+      # rather than an absolute count:
+      #
+      #   CRITICAL   fails on presence -- inheriting one is not a reason to keep it
+      #   HIGH       fails only when NEW relative to the baseline
+      #   inherited  reported, does not block
+      #
+      # The absolute-count gate this replaces had two settings and both were wrong:
+      # fail on any finding (inherited debt blocks every unrelated PR, so the gate
+      # gets waived wholesale) or waive by rule ID (which is how Bazarr added two
+      # findings of an already-waived class with CI unable to say so).
+      #
+      # Verified against that exact case: a new KSV-0118 on a file outside the
+      # waiver's `paths` fails, while the twelve waived occurrences stay silent.
+      - name: Trivy gate (delta vs merge-base)
+        run: ./scripts/trivy-gate.sh
+        env:
+          # Written for the sticky PR comment two steps down.
+          TRIVY_GATE_SUMMARY: trivy-summary.md
 
       # ###########################################################################
       # # THE TWO SARIF UPLOADS ARE `continue-on-error`. THEY ARE REPORTING, NOT
@@ -505,6 +529,30 @@ jobs:
         with:
           sarif_file: kube-linter.sarif
           category: kube-linter
+
+      # A readable summary on the PR: new vs inherited, what was fixed, and what
+      # each waiver covers.
+      #
+      # DELIBERATELY NOT A GATE, and worth being explicit about why, because the
+      # tempting version of this is "have a model read the findings and approve or
+      # reject". That would trade a deterministic control for a plausible one: the
+      # same diff could pass on Monday and fail on Tuesday, the reasoning would not
+      # be diffable, and "why was this allowed" would answer "something judged it
+      # so". A gate people cannot predict is a gate people re-run.
+      #
+      # So the split is: the gate is scripts/trivy-gate.sh, whose policy lives in
+      # git and whose waivers are a reviewable diff. This comment is for the human
+      # reading the PR.
+      #
+      # `if: always()` so the summary appears on a FAILING run -- which is the run
+      # where it is actually wanted.
+      - name: Comment the scan summary on the PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: always() && github.event_name == 'pull_request'
+        continue-on-error: true
+        with:
+          header: trivy-scan
+          path: trivy-summary.md
 
   # ---------------------------------------------------------------------------
   # A single required check, so branch protection needs one entry rather than

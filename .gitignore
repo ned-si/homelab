@@ -58,3 +58,9 @@ terraform.rc
 
 # Clear-text secret source of truth for scripts/seal-secrets-from-env.sh
 *.local.env
+
+# Python bytecode. This repository had no Python until scripts/lib/trivy_*.py, so
+# these patterns were never needed before -- `python3 -m py_compile` on those two
+# files is what created the first __pycache__ and it very nearly got committed.
+__pycache__/
+*.py[cod]

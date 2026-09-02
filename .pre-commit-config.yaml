@@ -192,6 +192,32 @@ repos:
       # `homelab-backups-REPLACE-ME` is well-formed YAML that validates against
       # the API schema and renders deterministically. Deferrals live in
       # scripts/placeholder-allowlist.tsv with a reason each.
+      # Waiver hygiene only -- reason present, expiry present, not already
+      # expired, not absurdly far out. Cheap: reads one file, needs no Trivy, no
+      # network and no cluster, so it can be unconditional.
+      #
+      # The GATE is not here. scripts/trivy-gate.sh scans the tree twice (HEAD and
+      # the merge-base) and takes ~30s, which is too slow for every commit; CI owns
+      # it. This hook catches the mistake that is actually common: adding a waiver
+      # without a reason or an expiry.
+      #
+      # `always_run`, NOT `files: ^\.trivyignore\.yaml$`, and the difference
+      # matters: expiry is a function of TIME, not of the file changing. Scoped to
+      # the file, a waiver quietly aging past its date would never trigger the
+      # hook, and the first sign would be CI failing on a finding that reappeared
+      # for no reason visible in the diff. That is exactly the failure this whole
+      # mechanism exists to prevent.
+      #
+      # `verbose: true` because pre-commit hides the output of a hook that exits 0,
+      # and the approaching-expiry warning is the entire point.
+      - id: trivy-waivers
+        name: trivy waivers carry a reason and an expiry
+        entry: ./scripts/trivy-waivers.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
       - id: placeholder-check
         name: no unfilled placeholders in anything Argo syncs
         entry: ./scripts/placeholder-check.sh
