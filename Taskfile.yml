@@ -207,6 +207,10 @@ tasks:
       - task: secrets:leak-check
       - task: lint:placeholders
       - task: lint:secrets
+      # Waivers only, not the full gate: `task lint` should stay fast enough to
+      # run habitually, and the gate scans the tree twice (HEAD and the
+      # merge-base). Run `task lint:trivy` for that, or let CI do it.
+      - task: lint:trivy:waivers
 
   lint:yaml:
     desc: yamllint over the manifest tree
@@ -243,6 +247,28 @@ tasks:
     cmds:
       # The script defaults to warn-only; the strictness is set above, not here.
       - ./scripts/secrets-check.sh
+
+  lint:trivy:
+    desc: 'Trivy gate: CRITICAL fails on presence, HIGH fails only when NEW vs the merge-base'
+    cmds:
+      # Waiver hygiene first. An expired or malformed waiver makes the gate report
+      # findings it would otherwise suppress, and this names that cause rather than
+      # leaving you to work out why a finding reappeared.
+      - ./scripts/trivy-waivers.sh
+      - ./scripts/trivy-gate.sh
+
+  lint:trivy:waivers:
+    desc: 'Check .trivyignore.yaml waivers carry a reason and an expiry (fast, no scan)'
+    cmds:
+      - ./scripts/trivy-waivers.sh
+
+  lint:trivy:all:
+    desc: 'Every Trivy finding including waived ones -- what the gate would see with no waivers'
+    cmds:
+      # `--skip-check-update`: without it Trivy tries to pull its checks bundle
+      # from a registry and, on a slow link, spends minutes getting nothing and
+      # then dies instead of falling back to the embedded checks.
+      - trivy config . --severity HIGH,CRITICAL --ignorefile /dev/null --skip-check-update
 
   lint:kube-linter:
     desc: Run the blocking kube-linter set over deploy/, exactly as CI does

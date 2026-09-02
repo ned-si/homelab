@@ -712,6 +712,11 @@ spec:
           - command:
             - /bin/bash
             - /scripts/run-all.sh
+            env:
+            - name: HOME
+              value: /tmp
+            - name: KUBECACHEDIR
+              value: /tmp/.kube/cache
             image: bitnami/kubectl:1.31.2
             name: verify
             resources:
@@ -720,16 +725,32 @@ spec:
               requests:
                 cpu: 50m
                 memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
             volumeMounts:
             - mountPath: /scripts
               name: scripts
+            - mountPath: /tmp
+              name: tmp
           restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
           serviceAccountName: backup-verify
           volumes:
           - configMap:
               defaultMode: 493
               name: backup-verify-scripts
             name: scripts
+          - emptyDir:
+              sizeLimit: 64Mi
+            name: tmp
   schedule: 0 5 * * 0
   successfulJobsHistoryLimit: 4
 ---
