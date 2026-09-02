@@ -292,6 +292,19 @@ jobs:
       # which names neither the missing permission nor the SARIF. It surfaced only
       # once the Trivy scan started producing a report to upload.
       actions: read
+      # REQUIRED BY THE STICKY SUMMARY COMMENT.
+      #
+      # An explicit `permissions:` block is a DENY-BY-DEFAULT list -- anything not
+      # named here is unavailable, whatever the repository default is. So adding a
+      # step that comments on a PR is not enough; the scope has to be added too.
+      #
+      # Without it the action fails with "Resource not accessible by integration",
+      # and because that step is `continue-on-error` the job still reported success
+      # with no comment posted. Which is the same masking problem the SARIF upload
+      # comment below warns about, arrived at from the other direction: a step
+      # allowed to fail is a step whose failure nobody sees, so it has to be
+      # verified working at least once rather than assumed.
+      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
