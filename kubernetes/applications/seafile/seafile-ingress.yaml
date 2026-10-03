@@ -4,7 +4,7 @@ kind: Ingress
 metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
-    external-dns.alpha.kubernetes.io/target: 188.155.74.203
+    # Public DNS target is set once: external-dns --default-targets in kubernetes/applications/external-dns/external-dns.yaml
   labels:
     app.kubernetes.io/name: seafile
   name: seafile
