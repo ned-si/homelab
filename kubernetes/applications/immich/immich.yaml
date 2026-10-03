@@ -85,7 +85,10 @@ spec:
               accessMode: ReadWriteOnce
               storageClass: iscsi
     repoURL: https://immich-app.github.io/immich-charts
-    targetRevision: v0.10.3
+    # Chart 0.10.x moved to bjw-s common 4.x and rejects these values
+    # ("Not a valid persistence.type (pvc)"). Migrate the values and diff the
+    # render against live before bumping. Every successful sync used v0.9.0.
+    targetRevision: v0.9.0
   syncPolicy:
     automated: {}
     syncOptions:
