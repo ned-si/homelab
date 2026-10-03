@@ -16,6 +16,14 @@
 
 Deploy certmanager + argocd with helm, then the rest using those.
 
+## Public WAN IP
+
+- The public IP lives in one place only: `--default-targets` in
+  `kubernetes/applications/external-dns/external-dns.yaml`. Change it there
+  only, never in Ingresses (they carry no target annotation).
+- After pushing, move the `all-apps` `targetRevision` pin to the new commit.
+- Follow-up: replace the static IP with a DDNS-updated record.
+
 
 ## NOTES:
 

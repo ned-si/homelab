@@ -22,7 +22,17 @@ spec:
               secretKeyRef:
                 name: cloudflare-api-token-secret
                 key: api-token
+        # PUBLIC WAN IP: change the WAN IP here only.
+        # Every public hostname (all Ingresses) is published as an A record to
+        # this address. Ingresses carry no external-dns target annotation.
+        # A future Service with a hostname annotation would get it too.
+        # The ISP (Sunrise) gives a dynamic address: re-check after router reboots.
+        # Semantics verified for chart 1.15.0 / external-dns v0.15.0, where
+        # default targets replace all targets of every endpoint.
+        extraArgs:
+          - --default-targets=31.164.170.92
     repoURL: https://kubernetes-sigs.github.io/external-dns/
+    # Before bumping: external-dns >=0.16 changed --default-targets semantics; add --force-default-targets or every record flips to the ingress LB IP 192.168.1.254 (see external-dns#6134).
     targetRevision: v1.15.0
   syncPolicy:
     automated: {}

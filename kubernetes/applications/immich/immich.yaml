@@ -60,7 +60,7 @@ spec:
               annotations:
                 nginx.ingress.kubernetes.io/proxy-body-size: "0"
                 cert-manager.io/cluster-issuer: letsencrypt
-                external-dns.alpha.kubernetes.io/target: 188.155.74.203
+                # Public DNS target is set once: external-dns --default-targets in kubernetes/applications/external-dns/external-dns.yaml
               hosts:
                 - host: media.lilalala.com
                   paths:
