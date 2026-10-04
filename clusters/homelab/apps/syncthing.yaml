@@ -30,11 +30,3 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  ignoreDifferences:
-    # Argo CD < 2.12 reports a permanent diff on LoadBalancer status ipMode
-    # (argoproj/argo-cd#17548). Harmless on 2.14; remove with the next Argo
-    # CD change.
-    - group: ""
-      kind: Service
-      jqPathExpressions:
-        - .status.loadBalancer.ingress[].ipMode
