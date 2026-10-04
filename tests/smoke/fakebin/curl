@@ -1,0 +1,38 @@
+#!/bin/bash
+# Fake curl for tests/smoke. Responses come from $SMOKE_FIX/curl.tsv, lines
+#   <url> <resolved ip or -> <code or body> <location or -> <cert: VALID|EXPIRING|->
+# A request without -m 10 fails (unbounded); an unknown request behaves like a
+# timeout ("000", exit 28).
+f=${SMOKE_FIX:?}
+echo "curl $*" >> "$f/calls.log"
+case " $* " in *" -m 10 "*) ;; *) echo "fake curl: no -m 10" >&2; exit 2 ;; esac
+resolve="" fmt="" url=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --resolve) resolve=$2; shift ;;
+    -w) fmt=$2; shift ;;
+    -m|--connect-timeout|-o) shift ;;
+    -*) ;;
+    *) url=$1 ;;
+  esac
+  shift
+done
+ip=-
+[ -n "$resolve" ] && ip=${resolve##*:}
+line=$(awk -v u="$url" -v ip="$ip" '$1 == u && $2 == ip { print; exit }' "$f/curl.tsv")
+if [ -z "$line" ]; then
+  [ -n "$fmt" ] && printf '000 '
+  exit 28
+fi
+read -r _ _ code loc cert <<<"$line"
+[ "$loc" = - ] && loc=""
+if [ -z "$fmt" ]; then
+  printf '%s\n' "$code"
+  exit 0
+fi
+printf '%s %s' "$code" "$loc"
+case "$fmt" in
+  *'%{certs}'*)
+    printf '\nSubject:CN = fake\n-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n' "$cert" ;;
+esac
+exit 0
