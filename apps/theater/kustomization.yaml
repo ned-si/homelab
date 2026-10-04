@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: theater
+
+# Parity with the running cluster (ADR 0002). Kept in git, not rendered:
+#   bazarr.yaml  (new app, its own adoption change)
+#   sso.yaml, sso-routes.yaml  (oauth2-proxy SSO for the *arr UIs: new
+#                public hostnames, its own change)
+#   backup.yaml  (restic CronJobs, with off-site backups, ADR 0008)
+# recyclarr.yaml is rendered but ships suspended (spec.suspend: true) and
+# its API-key Secret holds PENDING sentinels.
+resources:
+  - sonarr.yaml
+  - radarr.yaml
+  - lidarr.yaml
+  - prowlarr.yaml
+  - qbittorrent.yaml
+  - recyclarr.yaml
+  - plex.yaml
+  - jellyfin.yaml
+  - httproute.yaml

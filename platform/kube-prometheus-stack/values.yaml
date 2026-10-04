@@ -1,0 +1,58 @@
+# kube-prometheus-stack chart 56.2.0 values, at parity with the running release
+# (ADR 0002): the legacy child Application's values, with one intended change.
+#
+# The Grafana OIDC client secret is no longer inline in grafana.ini (which the
+# chart renders into a ConfigMap). Grafana reads it from the environment
+# variable GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET, set from the SOPS Secret
+# `grafana-oidc` (platform/secrets/grafana-oidc.sops.yaml, same value as live,
+# sha256 checked). Adopting this restarts Grafana once.
+#
+# Upgrading the chart (56 -> current) is a separate change with its own CRD
+# upgrade: docs/roadmap.md.
+prometheus:
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - "ReadWriteOnce"
+          resources:
+            requests:
+              storage: 15Gi
+
+grafana:
+  defaultDashboardsTimezone: browser
+  assertNoLeakedSecrets: false
+  envFromSecret: grafana-oidc
+  grafana.ini:
+    server:
+      domain: grafana.lilalala.com
+      root_url: https://%(domain)s/
+    auth.generic_oauth:
+      enabled: true
+      name: Keycloak-OAuth
+      allow_sign_up: true
+      client_id: grafana-oauth
+      # client_secret: from GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET (see above)
+      scopes: openid email profile offline_access roles
+      email_attribute_path: email
+      login_attribute_path: username
+      name_attribute_path: full_name
+      auth_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/auth
+      token_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/token
+      api_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/userinfo
+      role_attribute_path: contains(roles[*], 'admin') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
+  # The live Ingress, kept until ingress-nginx is removed (ADR 0011). The
+  # Gateway route is in routes/grafana.yaml.
+  ingress:
+    ingressClassName: nginx
+    enabled: true
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+    hosts:
+      - grafana.lilalala.com
+    pathType: ImplementationSpecific
+    tls:
+      - secretName: grafana-general-tls
+        hosts:
+          - grafana.lilalala.com

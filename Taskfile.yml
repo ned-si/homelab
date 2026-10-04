@@ -1,0 +1,410 @@
+# Task runner: https://taskfile.dev
+#
+#   task              list every task with its description
+#   task <name>       run one
+#
+# Install: brew install go-task
+---
+version: "3"
+
+vars:
+  # Where `task secrets:decrypt` writes plaintext. Git-ignored.
+  DECRYPT_DIR: .decrypted
+  # NOTE: there is deliberately no GATEWAY_API_VERSION here. The pinned CRD
+  # bundle URL lives in infrastructure/gateway-api/kustomization.yaml and nowhere
+  # else. A second copy in this file drifted from it immediately -- it still said
+  # v1.6.1/standard while the cluster ran v1.2.0/experimental.
+  # No `2>/dev/null` on this one. It used to swallow find's errors, and because
+  # the pipeline's status is `sort`'s, a failing find produced an EMPTY variable
+  # and a silent exit 0 -- so `task build` and `task validate` iterated over
+  # nothing and reported success. The tasks that consume this also assert it is
+  # non-empty; the two together are what make "all kustomizations render" mean
+  # something.
+  KUSTOMIZE_DIRS:
+    sh: find clusters infrastructure platform apps -name kustomization.yaml -exec dirname {} \; | sort
+  # Twelve sealed files today, one per credential the cluster needs from outside
+  # (see scripts/secrets-check.sh for what SHOULD be here). `secrets:decrypt`
+  # still handles the empty case rather than reporting success over nothing --
+  # that is the state a fresh clone is in before `task secrets:seal:all`.
+  SOPS_FILES:
+    sh: git ls-files '*.sops.yaml' 2>/dev/null || true
+
+tasks:
+  default:
+    desc: List available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  # -------------------------------------------------------------------------
+  # Tooling
+  # -------------------------------------------------------------------------
+  tools:
+    desc: Install the local toolchain (macOS / Homebrew)
+    cmds:
+      # ksops is not optional. `task build` and `task validate` render the three
+      # */secrets directories, and those need `kustomize --enable-alpha-plugins
+      # --enable-exec` PLUS the ksops exec plugin on PATH. ci.yaml documents
+      # local rendering as the only coverage those directories get; without ksops
+      # here that escape hatch does not exist, which is what it was until
+      # 2026-08.
+      # opentofu is needed by more than `task bootstrap:*`. The terraform_fmt
+      # pre-commit hook resolves its binary as PCT_TFPATH, then `terraform`, then
+      # `tofu`, and when it finds none it fails with exit 127 -- "command not
+      # found" -- reported under a hook name that reads like a formatting problem.
+      # nmap is for scripts/discover-lan.sh.
+      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops opentofu nmap
+      - pre-commit install --install-hooks
+      - pre-commit install --hook-type commit-msg
+
+  tools:check:
+    desc: Verify required tools are present
+    silent: true
+    cmds:
+      - |
+        missing=0
+        # tofu is here because `task lint` runs terraform_fmt, which fails with a
+        # bare exit 127 when no tofu/terraform is on PATH -- a failure that names
+        # the wrong problem. Better to say so before the linter does.
+        for t in sops age kustomize helm kubeconform ksops tofu; do
+          command -v "$t" >/dev/null 2>&1 || { echo "missing: $t"; missing=1; }
+        done
+        [ "$missing" -eq 0 ] || { echo; echo "Run 'task tools' first."; exit 1; }
+        echo "toolchain ok"
+
+  # -------------------------------------------------------------------------
+  # Secrets
+  # -------------------------------------------------------------------------
+  secrets:keygen:
+    desc: Generate the cluster age identity (run ONCE, then back it up)
+    cmds:
+      - ./scripts/age-key.sh
+
+  # -------------------------------------------------------------------------
+  # Site / network
+  # -------------------------------------------------------------------------
+  net:discover:
+    desc: 'Scan the LAN and identify homelab devices by open port. Usage: task net:discover [-- 192.168.1.0/24]'
+    cmds:
+      - ./scripts/discover-lan.sh {{.CLI_ARGS}}
+
+  secrets:inventory:
+    desc: Write every secret you must encrypt into a git-ignored crib sheet
+    cmds:
+      - ./scripts/secrets-inventory.sh
+
+  # -------------------------------------------------------------------------
+  # Backups you can take today, with no S3 bucket
+  # -------------------------------------------------------------------------
+  backup:dump:
+    desc: 'Dump every database to ~/homelab-backups/<utc>/ and verify each one'
+    cmds:
+      - ./scripts/dump-databases.sh
+
+  backup:verify-restore:
+    desc: 'Restore a dump into a throwaway cluster and diff it against live. Usage: task backup:verify-restore -- <ns> <cluster> <dump>'
+    cmds:
+      - ./scripts/verify-dump-restore.sh {{.CLI_ARGS}}
+
+  backup:set-target:
+    desc: 'Point every backup manifest at one bucket. Usage: task backup:set-target -- <bucket> <region>'
+    cmds:
+      - ./scripts/set-backup-target.sh {{.CLI_ARGS}}
+      - task: render
+
+  backup:pre-upgrade:
+    desc: 'Rollback point before a risky change: dumps + volume snapshots. Usage: task backup:pre-upgrade -- <tag>'
+    cmds:
+      - ./scripts/pre-upgrade-snapshot.sh {{.CLI_ARGS}}
+
+  backup:snapshots:
+    desc: List existing pre-upgrade rollback points
+    cmds:
+      - ./scripts/pre-upgrade-snapshot.sh --list
+
+  backup:drop-snapshots:
+    desc: 'Delete a rollback point once the upgrade is confirmed good. Usage: task backup:drop-snapshots -- <tag>'
+    cmds:
+      - ./scripts/pre-upgrade-snapshot.sh --delete {{.CLI_ARGS}}
+
+  # Every task below that DECRYPTS sources scripts/lib/sops-age.sh first, which
+  # exports SOPS_AGE_KEY_FILE. On macOS sops looks for the identity in
+  # ~/Library/Application Support/sops/age/keys.txt, not ~/.config, so without
+  # this a `sops --decrypt` fails with "failed to load age identities" even
+  # though the key is exactly where every guide says to put it. Encryption is
+  # unaffected -- it only needs the recipient from .sops.yaml -- which is what
+  # makes the asymmetry so easy to miss.
+  secrets:seal:
+    desc: 'Encrypt a plaintext file in place. Usage: task secrets:seal -- path/to/x.sops.yaml'
+    deps: [tools:check]
+    cmds:
+      - |
+        f='{{.CLI_ARGS}}'
+        [ -n "$f" ] || { echo 'usage: task secrets:seal -- path/to/secret.sops.yaml'; exit 1; }
+        . ./scripts/lib/sops-age.sh && sops_age_env || exit 1
+        sops --encrypt --in-place "$f"
+        # Encryption returning 0 does not mean the file can be read back, so
+        # prove it before saying "sealed".
+        sops --decrypt "$f" >/dev/null || {
+          echo "SEALED BUT NOT READABLE: $f -- the age identity does not match .sops.yaml" >&2
+          exit 1
+        }
+        echo "sealed: $f"
+
+  secrets:seal:all:
+    desc: Seal every *.sops.yaml from secrets.local.env, then prove each one decrypts
+    deps: [tools:check]
+    cmds:
+      - ./scripts/seal-secrets-from-env.sh {{.CLI_ARGS}}
+
+  secrets:edit:
+    desc: 'Edit an encrypted file. Usage: task secrets:edit -- path/to/x.sops.yaml'
+    deps: [tools:check]
+    cmds:
+      - |
+        f='{{.CLI_ARGS}}'
+        [ -n "$f" ] || { echo 'usage: task secrets:edit -- path/to/secret.sops.yaml'; exit 1; }
+        . ./scripts/lib/sops-age.sh && sops_age_env || exit 1
+        sops "$f"
+
+  secrets:decrypt:
+    desc: Decrypt every *.sops.yaml into .decrypted/ for local rendering
+    deps: [tools:check]
+    cmds:
+      - rm -rf {{.DECRYPT_DIR}} && mkdir -p {{.DECRYPT_DIR}}
+      - |
+        set -e
+        set -o pipefail
+        . ./scripts/lib/sops-age.sh && sops_age_env
+        files="{{.SOPS_FILES}}"
+        if [ -z "$files" ]; then
+          echo "no *.sops.yaml files exist yet -- nothing to decrypt."
+          echo "Run 'task lint:secrets' to see which ones the KSOPS generators expect."
+          exit 0
+        fi
+        for f in $files; do
+          out="{{.DECRYPT_DIR}}/$f"
+          mkdir -p "$(dirname "$out")"
+          sops --decrypt "$f" > "$out"
+        done
+        echo "decrypted into {{.DECRYPT_DIR}}/"
+
+  secrets:leak-check:
+    desc: Fail if unencrypted secret material is staged for commit
+    cmds:
+      - ./scripts/leak-check.sh
+
+  # -------------------------------------------------------------------------
+  # Validation
+  # -------------------------------------------------------------------------
+  lint:
+    desc: Run every linter (same set as CI)
+    cmds:
+      - task: lint:yaml
+      - task: lint:renovate
+      - task: lint:tofu
+      - task: render:check
+      - task: secrets:leak-check
+      - task: lint:placeholders
+      - task: lint:secrets
+      # Waivers only, not the full gate: `task lint` should stay fast enough to
+      # run habitually, and the gate scans the tree twice (HEAD and the
+      # merge-base). Run `task lint:trivy` for that, or let CI do it.
+      - task: lint:trivy:waivers
+
+  lint:yaml:
+    desc: yamllint over the manifest tree
+    cmds:
+      - yamllint .
+
+  lint:renovate:
+    desc: Validate the Renovate config and prove every annotation matches
+    cmds:
+      - npx --yes --package renovate -- renovate-config-validator .github/renovate.json5
+      - node scripts/renovate-dryrun.js
+
+  lint:tofu:
+    desc: Check OpenTofu formatting
+    cmds:
+      # Runs the pre-commit hook rather than `tofu fmt -check` directly. There is
+      # one rule, so there is one implementation of it: the hook rewrites and
+      # fails, this reports the same thing, and neither can be satisfied while
+      # the other complains.
+      - pre-commit run --all-files terraform_fmt
+
+  lint:placeholders:
+    desc: Fail if an unfilled placeholder would be applied to the cluster
+    cmds:
+      - ./scripts/placeholder-check.sh
+
+  lint:secrets:
+    desc: 'Check the KSOPS generators reference files that exist and are sealed'
+    env:
+      # Fatal. All twelve sealed files exist, so a missing or unsealed one is a
+      # regression, not unfinished work -- and it stalls every Application below
+      # sync-wave -25 in that layer. pre-commit and ci.yaml set the same value.
+      SECRETS_CHECK_STRICT: "1"
+    cmds:
+      # The script defaults to warn-only; the strictness is set above, not here.
+      - ./scripts/secrets-check.sh
+
+  lint:trivy:
+    desc: 'Trivy gate: CRITICAL fails on presence, HIGH fails only when NEW vs the merge-base'
+    cmds:
+      # Waiver hygiene first. An expired or malformed waiver makes the gate report
+      # findings it would otherwise suppress, and this names that cause rather than
+      # leaving you to work out why a finding reappeared.
+      - ./scripts/trivy-waivers.sh
+      - ./scripts/trivy-gate.sh
+
+  lint:trivy:waivers:
+    desc: 'Check .trivyignore.yaml waivers carry a reason and an expiry (fast, no scan)'
+    cmds:
+      - ./scripts/trivy-waivers.sh
+
+  lint:trivy:all:
+    desc: 'Every Trivy finding including waived ones -- what the gate would see with no waivers'
+    cmds:
+      # `--skip-check-update`: without it Trivy tries to pull its checks bundle
+      # from a registry and, on a slow link, spends minutes getting nothing and
+      # then dies instead of falling back to the embedded checks.
+      - trivy config . --severity HIGH,CRITICAL --ignorefile /dev/null --skip-check-update
+
+  lint:kube-linter:
+    desc: Run the blocking kube-linter set over deploy/, exactly as CI does
+    cmds:
+      - kube-linter lint deploy --config .kube-linter.yaml
+
+  lint:kube-linter:advisory:
+    desc: Run the checks .kube-linter.yaml deliberately does NOT enforce
+    cmds:
+      # Findings here are known gaps, documented one by one in the ADVISORY
+      # section of .kube-linter.yaml. This exists so the information is runnable
+      # instead of only being a comment; it is not wired into CI, because a gate
+      # that is red on arrival is a gate that gets ignored.
+      - |
+        kube-linter lint deploy --do-not-auto-add-defaults \
+          --include no-read-only-root-fs \
+          --include run-as-non-root \
+          --include privilege-escalation-container \
+          --include drop-net-raw-capability \
+          --include no-liveness-probe \
+          --include no-readiness-probe \
+          --include unset-memory-requirements \
+          --include unset-cpu-requirements || true
+
+  build:
+    desc: Render every kustomization (secrets stay encrypted)
+    deps: [tools:check]
+    cmds:
+      - |
+        set -e
+        set -o pipefail
+        dirs="{{.KUSTOMIZE_DIRS}}"
+        [ -n "$dirs" ] || { echo "no kustomizations found -- refusing to report success" >&2; exit 1; }
+        for d in $dirs; do
+          printf '\033[36m==> %s\033[0m\n' "$d"
+          kustomize build --enable-alpha-plugins --enable-exec "$d" >/dev/null
+        done
+        echo "all kustomizations render"
+
+  build:no-plugins:
+    desc: 'Diagnostic: which kustomization is broken, without writing anything'
+    cmds:
+      # A read-only diagnostic, not a gate. `task render:check` covers the same
+      # ground and more (it also diffs deploy/), which is why render-check.sh is
+      # no longer a pre-commit hook.
+      - ./scripts/render-check.sh
+
+  render:
+    desc: Regenerate deploy/, the rendered manifests Argo CD syncs
+    cmds:
+      - ./scripts/render-deploy.sh
+
+  render:check:
+    desc: Fail if deploy/ does not match its sources (what CI runs)
+    cmds:
+      - ./scripts/render-deploy.sh --check
+
+  validate:
+    desc: Render + schema-validate against the cluster's Kubernetes version
+    deps: [tools:check]
+    cmds:
+      # `set -o pipefail` IS THE POINT OF THIS BLOCK. Without it the status of
+      # `kustomize build | kubeconform` is kubeconform's alone, and kubeconform
+      # on empty stdin exits 0 -- so every kustomize build failure in this task
+      # was invisible and the task reported success having validated nothing.
+      #
+      # `set -e` alone does not help: it looks at the pipeline's status, which is
+      # the last command's. Every other pipeline in this file has been audited
+      # for the same shape.
+      - |
+        set -e
+        set -o pipefail
+        dirs="{{.KUSTOMIZE_DIRS}}"
+        [ -n "$dirs" ] || { echo "no kustomizations found -- refusing to report success" >&2; exit 1; }
+        # Split across two variables purely to stay under yamllint's 160-column
+        # limit: the CRD-catalog URL plus kubeconform's own brace templating does
+        # not fit on one line. The backtick fences below are go-task escaping, so
+        # that kubeconform and not task is the one that sees the braces.
+        #
+        # Nothing in this comment may contain a double brace -- go-task templates
+        # the whole command string and would try to evaluate it as an action.
+        crd_base='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main'
+        crd_path='{{`{{.Group}}`}}/{{`{{.ResourceKind}}`}}_{{`{{.ResourceAPIVersion}}`}}.json'
+        for d in $dirs; do
+          printf '\033[36m==> %s\033[0m\n' "$d"
+          kustomize build --enable-alpha-plugins --enable-exec "$d" \
+            | kubeconform -strict -summary -ignore-missing-schemas \
+                -schema-location default \
+                -schema-location "$crd_base/$crd_path"
+        done
+
+  # -------------------------------------------------------------------------
+  # Bootstrap
+  # -------------------------------------------------------------------------
+  bootstrap:plan:
+    desc: OpenTofu plan for the Argo CD bootstrap
+    dir: bootstrap
+    cmds:
+      - tofu init -upgrade
+      - tofu plan
+
+  bootstrap:apply:
+    desc: OpenTofu apply for the Argo CD bootstrap
+    dir: bootstrap
+    cmds:
+      - tofu init -upgrade
+      - tofu apply
+
+  # -------------------------------------------------------------------------
+  # Cluster operations
+  # -------------------------------------------------------------------------
+  gateway-api:url:
+    desc: Print the pinned Gateway API CRD bundle URL
+    silent: true
+    cmds:
+      # Read from the kustomization rather than restating it, so this can never
+      # disagree with what is actually applied.
+      - grep -o 'https://github.com/kubernetes-sigs/gateway-api/[^ ]*' infrastructure/gateway-api/kustomization.yaml
+
+  apps:status:
+    desc: Show every Argo CD Application and its sync/health state
+    silent: true
+    cmds:
+      - kubectl -n argocd get applications -o wide
+
+  apps:diff:
+    desc: 'Diff a live Application against git. Usage: task apps:diff -- theater'
+    cmds:
+      - argocd app diff '{{.CLI_ARGS}}'
+
+  shutdown:
+    desc: Gracefully quiesce the cluster before a physical move
+    cmds:
+      - ./scripts/graceful-shutdown.sh
+
+  startup:
+    desc: Bring the cluster back up after a physical move
+    cmds:
+      - ./scripts/graceful-startup.sh

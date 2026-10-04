@@ -1,0 +1,39 @@
+# Applications: the things this cluster actually exists to run.
+#
+# Namespaced only. An application that needs a cluster-scoped resource is a
+# design smell and should be promoted to the platform layer instead of having
+# this list widened.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: apps
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: End-user workloads - media, photos, documents, recipes, sync
+  sourceRepos:
+    - https://github.com/ned-si/homelab.git
+    - https://immich-app.github.io/immich-charts
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: theater
+    - server: https://kubernetes.default.svc
+      namespace: immich
+    - server: https://kubernetes.default.svc
+      namespace: mealie
+    - server: https://kubernetes.default.svc
+      namespace: paperless
+    - server: https://kubernetes.default.svc
+      namespace: seafile
+    - server: https://kubernetes.default.svc
+      namespace: syncthing
+  # Empty means "no cluster-scoped resource of any kind", which is what makes
+  # the header comment true. The six namespaces these apps deploy into are
+  # declared in infrastructure/namespaces/ with their Pod Security labels; an
+  # app creating its own namespace would produce an unlabelled one.
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

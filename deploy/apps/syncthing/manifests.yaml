@@ -1,0 +1,132 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/syncthing
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/syncthing and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing-dashboard
+  namespace: syncthing
+spec:
+  ports:
+  - name: syncthing-dashboard
+    port: 8384
+    protocol: TCP
+    targetPort: 8384
+  selector:
+    app: syncthing
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    lbipam.cilium.io/ips: 192.168.1.201
+  name: syncthing-protocol
+  namespace: syncthing
+spec:
+  ports:
+  - name: syncthing-tcp
+    port: 22000
+    protocol: TCP
+    targetPort: 22000
+  - name: syncthing-udp
+    port: 22000
+    protocol: UDP
+    targetPort: 22000
+  - name: syncthing-disc
+    port: 21027
+    protocol: UDP
+    targetPort: 21027
+  selector:
+    app: syncthing
+  type: LoadBalancer
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: syncthing-pvc
+  namespace: syncthing
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: iscsi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
+  name: syncthing
+  namespace: syncthing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: syncthing
+  serviceName: syncthing
+  template:
+    metadata:
+      labels:
+        app: syncthing
+    spec:
+      containers:
+      - env:
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        image: syncthing/syncthing:latest
+        name: syncthing
+        ports:
+        - containerPort: 8384
+          name: web-ui
+        - containerPort: 22000
+          name: syncthing-tcp
+          protocol: TCP
+        - containerPort: 22000
+          name: syncthing-udp
+          protocol: UDP
+        - containerPort: 21027
+          name: syncthing-disc
+          protocol: UDP
+        volumeMounts:
+        - mountPath: /var/syncthing
+          name: syncthing
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: syncthing
+        persistentVolumeClaim:
+          claimName: syncthing-pvc
+          readOnly: false
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: syncthing
+  namespace: syncthing
+spec:
+  hostnames:
+  - syncthing.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: syncthing-dashboard
+      port: 8384
+    timeouts:
+      request: 0s

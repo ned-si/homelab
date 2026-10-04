@@ -194,7 +194,7 @@ def test_cronjobs_outside_apps_platform_and_legacy_are_ignored(tmp_path):
     ("root-ns-argocd.yaml", "metadata.namespace"),
     ("root-finalizer.yaml", "finalizers"),
     ("root-prune-true.yaml", "automated"),
-    ("root-target-main.yaml", "targetRevision"),
+    ("root-target-deployed.yaml", "targetRevision"),
 ])
 def test_root_profile_in_git(tmp_path, fixture, needle):
     r = policy(tmp_path, files={"clusters/homelab/root.yaml": (FIXTURES / "apps" / fixture).read_text()})

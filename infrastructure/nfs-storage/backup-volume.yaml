@@ -1,0 +1,139 @@
+# Local backup target on NFS: the restic repositories and database dumps that
+# make up the LOCAL tier described in docs/backups.md.
+#
+# ###########################################################################
+# # SITE-SPECIFIC -- the TrueNAS address appears here and in nfs-volumes.yaml,
+# # and nowhere else in the manifests. Update both after the house move.
+# ###########################################################################
+#
+# WHAT THIS IS FOR, AND WHAT IT IS NOT
+#
+# This is the tier that defends against a bad upgrade, a bad migration, or an app
+# rewriting its own data -- the things that actually happen. Reads are free and on
+# the LAN, which is why the EXPENSIVE verification (a full
+# `restic check --read-data`, weekly) runs against this copy rather than S3.
+#
+# It is NOT disaster protection. It sits on the same ZFS pool as the data it
+# backs up, so losing the pool loses both. That is what the S3 tier is for.
+# Two mechanisms, two threat models; see docs/backups.md.
+#
+# THE DATASET
+#   homelab/k8s/backups  ->  /mnt/homelab/k8s/backups
+#   LZ4 compression, atime off, no quota (16.3T free on the pool).
+#   Owned by uid/gid 1000, mode 0770, exported to 192.168.1.0/24 only.
+#
+# A SEPARATE DATASET from homelab/k8s/nfs on purpose:
+#   - its own snapshot schedule and compression setting
+#   - the media export is open to the whole LAN; this one is restricted
+#   - backups should not share a fill-up with 9.5T of media
+#
+# UID 1000 MATTERS. The restic CronJobs run as `runAsUser: 1000` with
+# `fsGroup: 1000`, and NFS with AUTH_SYS passes those numeric ids straight through
+# to the server. If the dataset were not owned by 1000, every write would fail with
+# EACCES and surface as an opaque restic error at 3am. Verified from inside the
+# cluster: it mounts, and it is writable as uid 1000.
+#
+# ---------------------------------------------------------------------------
+# ONE PV PER NAMESPACE, all pointing at the SAME export.
+#
+# A PersistentVolume binds to exactly one PersistentVolumeClaim. ReadWriteMany
+# governs how many NODES may mount it, not how many claims may bind it -- so a
+# single PV cannot be shared by claims in `immich` and `backup-verify`. The second
+# claim would sit Pending forever with no obvious reason.
+#
+# Several NFS PVs may safely reference the same server path, so the fix is one
+# PV/PVC pair per namespace. Each workload then uses a `subPath` so the
+# repositories cannot collide inside the share.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: backup-local-immich
+  labels:
+    homelab.lilalala.com/share: backup-local
+spec:
+  capacity:
+    # Advisory only for NFS. 16.3T was free on the pool when this was created.
+    storage: 16Ti
+  accessModes:
+    - ReadWriteMany
+  # A deleted PVC must never be able to trigger deletion of the backups.
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  # Pin this PV to exactly one claim, so the two PVs cannot bind the wrong way
+  # round when both are created at once.
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: backup-local
+    namespace: immich
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - noatime
+    - timeo=600
+    - retrans=2
+  nfs:
+    server: 192.168.1.228 # SITE-SPECIFIC
+    path: /mnt/homelab/k8s/backups
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-local
+  namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: backup-local-immich
+  resources:
+    requests:
+      storage: 16Ti
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: backup-local-verify
+  labels:
+    homelab.lilalala.com/share: backup-local
+spec:
+  capacity:
+    storage: 16Ti
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: backup-local
+    namespace: backup-verify
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - noatime
+    - timeo=600
+    - retrans=2
+  nfs:
+    server: 192.168.1.228 # SITE-SPECIFIC
+    path: /mnt/homelab/k8s/backups
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backup-local
+  namespace: backup-verify
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: backup-local-verify
+  resources:
+    requests:
+      storage: 16Ti

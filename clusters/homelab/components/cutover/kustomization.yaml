@@ -1,0 +1,26 @@
+# Adoption ("cutover") mode for the layered tree.
+#
+# Removes `syncPolicy.automated` from every leaf Application a layer renders,
+# so that adopting the tree never syncs a leaf by itself: each leaf is diffed
+# against live and synced by hand, one at a time, per
+# docs/runbooks/adopt-layered-tree.md. The leaf files keep their intended
+# automated policy (prune: false, selfHeal: true); removing this component from
+# a layer's kustomization turns it on for that layer, once every leaf in it is
+# adopted, Synced and Healthy.
+#
+# The root and the three layer Applications are not rendered through this
+# component, so they keep `automated` and create/update the leaf Application
+# objects (and nothing else).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+patches:
+  - target:
+      group: argoproj.io
+      kind: Application
+    patch: |-
+      - op: add
+        path: /spec/syncPolicy/automated
+        value: {}
+      - op: remove
+        path: /spec/syncPolicy/automated

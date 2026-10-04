@@ -1,0 +1,248 @@
+{
+  // ---------------------------------------------------------------------------
+  // COMMENT-DRIVEN dependency tracking.
+  //
+  // Every pinned version in this repo is preceded by a `# renovate:` comment
+  // that tells Renovate exactly which datasource to query.
+  //
+  // CANONICAL FIELD ORDER -- this matters. Renovate regex managers use RE2,
+  // which has no lookahead, so the fields cannot be parsed order-independently.
+  // Always write them in this order, with depName immediately after datasource:
+  //
+  //   # renovate: datasource=<ds> depName=<name> [packageName=] [registryUrl=] [versioning=] [extractVersion=]
+  //
+  // Examples:
+  //
+  //   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
+  //   targetRevision: 1.16.3
+  //
+  //   # renovate: datasource=docker depName=ghcr.io/hotio/qbittorrent
+  //   image: ghcr.io/hotio/qbittorrent:release-5.2.3
+  //
+  //   # renovate: datasource=github-releases depName=kubernetes-sigs/gateway-api
+  //   - https://github.com/.../releases/download/v1.2.0/experimental-install.yaml
+  //
+  // Verify with `node scripts/renovate-dryrun.js`, which applies these regexes
+  // to the tree and fails if any annotation yields no match. Run it after
+  // touching either this file or an annotation.
+  //
+  // The native `helm-values`, `helmv3` and `argocd` managers are deliberately
+  // DISABLED so a dependency is never tracked twice and so that adding a tracked
+  // version is always an explicit, reviewable act.
+  //
+  // `managerFilePatterns` requires Renovate >= 41 (the hosted GitHub App is
+  // always current). On an older self-hosted runner, rename it to `fileMatch`.
+  // ---------------------------------------------------------------------------
+
+  extends: [
+    'config:recommended',
+    ':dependencyDashboard',
+    ':semanticCommits',
+    // ---------------------------------------------------------------------
+    // Rewrite every `uses: owner/repo@v1` to `uses: owner/repo@<sha> # v1`,
+    // and keep the SHAs updated.
+    //
+    // A git tag is a MUTABLE pointer, and this repo has first-hand reason to
+    // care: on 2026-03-19 an attacker force-pushed 76 of 77 tags in
+    // aquasecurity/trivy-action and all 7 in aquasecurity/setup-trivy at
+    // commits carrying a credential stealer, then let the real scan run so
+    // every affected pipeline stayed green. .github/workflows/ci.yaml uses
+    // trivy-action, and it is now pinned by SHA by hand -- see the block there.
+    //
+    // Nine other actions are still on tags, three of them third-party
+    // (stackrox/kube-linter-action, marocchino/sticky-pull-request-comment,
+    // zaproxy/action-*). `actions/*` and `github/*` are first-party but their
+    // tags are just as mutable.
+    //
+    // Doing this by hand for all of them would go stale immediately; this
+    // preset makes the digest the tracked thing and the version comment the
+    // readable label.
+    'helpers:pinGitHubActionDigests',
+  ],
+
+  timezone: 'Europe/Zurich',
+  schedule: ['* 0-6 * * 1'],
+  prConcurrentLimit: 5,
+  prHourlyLimit: 0,
+  labels: ['dependencies', 'renovate'],
+  separateMinorPatch: true,
+
+  enabledManagers: [
+    'custom.regex',
+    'terraform',
+    'github-actions',
+    // .pre-commit-config.yaml states that its `rev` pins "are pinned and tracked
+    // by Renovate's native pre-commit manager, which is why these need no
+    // `# renovate:` comment". That was only true if the manager is on, and
+    // `enabledManagers` is an allow-list -- omitting it here meant nothing
+    // updated those revs and the claim in that file was false.
+    'pre-commit',
+  ],
+
+  // The pre-commit manager is opt-in even when listed above, so both settings
+  // are required. Renovate documents it as disabled by default.
+  'pre-commit': {
+    enabled: true,
+  },
+
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'Annotated version on a known key. Deliberately excludes `image:` and `imageName:` -- those carry a full `repo:tag` reference and are handled by the next manager. Matching both here would double-report every container and capture the repo as the version.',
+      managerFilePatterns: [
+        '/\\.ya?ml$/',
+        '/\\.tf$/',
+        '/\\.sh$/',
+        '/Makefile$/',
+      ],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)(?:\\s+depName=(?<depName>[^\\s]+))?(?:\\s+packageName=(?<packageName>[^\\s]+))?(?:\\s+registryUrl=(?<registryUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?[^\\n]*\\n\\s*(?:targetRevision|version|tag|chart|[A-Z][A-Z0-9_]*)\\s*[:=]+\\s*[\'"]?(?<currentValue>[^\'"\\s]+)[\'"]?',
+      ],
+      datasourceTemplate: '{{{datasource}}}',
+      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}',
+    },
+    {
+      customType: 'regex',
+      description: 'Annotated `image:`/`imageName:` reference carrying a full repo:tag. Captures only the tag. `imageName` is what CloudNativePG Clusters use.',
+      managerFilePatterns: ['/\\.ya?ml$/'],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?[^\\n]*\\n\\s*-?\\s*(?:image|imageName):\\s*[\'"]?[^\\s:\'"]+:(?<currentValue>[^\'"\\s@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\'"]?',
+      ],
+      datasourceTemplate: 'docker',
+      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}',
+    },
+    {
+      customType: 'regex',
+      description: 'Annotated GitHub release-asset URL, e.g. the Gateway API CRD bundle. The version sits mid-path so the generic manager above cannot reach it.',
+      managerFilePatterns: ['/\\.ya?ml$/'],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=github-releases\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n(?:[^\\n]*\\n){0,3}?[^\\n]*/releases/download/(?<currentValue>[^/\\s]+)/',
+      ],
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      customType: 'regex',
+      description: 'Annotated raw.githubusercontent.com URL, for manifests vendored from a TAGGED PATH in a repo rather than published as a release asset -- e.g. the external-snapshotter CRDs. The tag sits mid-path, and it is not a /releases/download/ URL, so neither manager above can reach it. Several URLs usually follow one annotation, and only the first needs to match: Renovate rewrites every occurrence of the old version in the file.',
+      managerFilePatterns: ['/\\.ya?ml$/'],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=github-releases\\s+depName=(?<depName>[^\\s]+)[^\\n]*\\n(?:[^\\n]*\\n){0,3}?[^\\n]*raw\\.githubusercontent\\.com/[^/]+/[^/]+/(?<currentValue>[^/\\s]+)/',
+      ],
+      datasourceTemplate: 'github-releases',
+    },
+  ],
+
+  packageRules: [
+    {
+      // THE AUTOMERGE SWITCH. One rule, first in the list so the grouping and
+      // manual-review rules below still override it (later rules win). Flip
+      // `automerge` to true when both exist: (1) automatic rollback (Argo CD
+      // Notifications -> repository_dispatch -> auto-merged revert PR), and
+      // (2) deploy/ re-rendered on Renovate PRs, without which every image or
+      // chart bump fails `render-deploy --check` (see the note further down).
+      description: 'Automerge switch for patch, minor and digest updates (off)',
+      matchUpdateTypes: ['patch', 'minor', 'digest', 'pin', 'pinDigest'],
+      automerge: false,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    {
+      description: 'Make Helm chart PR titles obvious',
+      matchDatasources: ['helm'],
+      commitMessageTopic: 'chart {{depName}}',
+    },
+    {
+      // Cilium ships against a specific Gateway API version. If these drift the
+      // Gateway stops programming and every HTTPRoute goes dark.
+      description: 'Cilium and Gateway API CRDs move together, reviewed by hand',
+      groupName: 'cluster networking',
+      matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
+      automerge: false,
+      labels: ['dependencies', 'renovate', 'needs-manual-review'],
+    },
+    {
+      // The *arr apps and qBittorrent share a download-client credential
+      // contract. Bumping qBittorrent alone is what broke this cluster once.
+      description: 'theater stack moves as one unit',
+      groupName: 'theater stack',
+      matchPackageNames: ['/^ghcr\\.io\\/hotio\\//'],
+      automerge: false,
+    },
+    {
+      description: 'hotio images use `release-<x.y.z.build>` tags, which are not semver',
+      matchPackageNames: ['/^ghcr\\.io\\/hotio\\//'],
+      versioning: 'regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?$',
+    },
+    {
+      description: 'Immich majors run irreversible DB migrations, never automatic',
+      matchDepNames: ['immich', 'ghcr.io/immich-app/immich-server'],
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+      labels: ['dependencies', 'renovate', 'needs-manual-review'],
+    },
+    {
+      description: 'Postgres / VectorChord majors refuse to start on an existing datadir',
+      matchPackageNames: [
+        '/cloudnative-vectorchord/',
+        '/postgres/',
+        '/^mariadb$/',
+      ],
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+      labels: ['dependencies', 'renovate', 'needs-manual-review'],
+    },
+    {
+      description: 'Keycloak majors change OIDC defaults; every federated app is downstream',
+      matchDepNames: ['quay.io/keycloak/keycloak'],
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+      labels: ['dependencies', 'renovate', 'needs-manual-review'],
+    },
+    // ---------------------------------------------------------------------
+    // THE ONLY AUTO-MERGE RULE IS THE SWITCH AT THE TOP, and it is off.
+    //
+    // A rule like `{matchDatasources: ['docker'], matchUpdateTypes: ['patch'],
+    // automerge: true}` used to sit here. It was removed because it could never
+    // have merged anything, and because it was quietly breaking a rule above it.
+    //
+    // WHY IT COULD NEVER PASS. Bumping an image tag edits a source manifest
+    // under apps/, platform/ or infrastructure/. `deploy/` is the rendered tree
+    // Argo CD actually applies, and the `rendered-manifests` job in
+    // .github/workflows/ci.yaml runs `scripts/render-deploy.sh --check`, which
+    // fails if `deploy/` does not match the sources IN THE SAME COMMIT. Renovate
+    // does not re-render, so every such PR sat with a red required check
+    // forever: an auto-merge that never fires, plus a permanent queue of PRs
+    // that look like they are being handled.
+    //
+    // WHY IT CANNOT BE MADE TO WORK HERE EITHER. The fix would be
+    // `postUpgradeTasks` running `task render`. That requires SELF-HOSTED
+    // Renovate: the commands have to be allow-listed in `allowedCommands` in the
+    // administrator's global config, which a repository-level config cannot set.
+    // This repo has no Renovate runner workflow in .github/workflows/, so it is
+    // on the hosted GitHub App -- see also the `managerFilePatterns` note at the
+    // top of this file, which assumes it. Standing up a self-hosted Renovate,
+    // with a credentialed runner allowed to execute a render task and push the
+    // result, to save reviewing a one-line tag bump in a single-operator
+    // homelab, is a worse trade than clicking merge.
+    //
+    // WHY IT WAS ALSO A BUG. packageRules are applied in array order and later
+    // entries win, so `matchDatasources: ['docker']` matched every hotio image
+    // and overrode the `automerge: false` on the "theater stack moves as one
+    // unit" rule above -- the one rule written because bumping qBittorrent alone
+    // broke this cluster once. Any auto-merge rule added here in future must go
+    // BEFORE those grouping rules, or explicitly exclude their packages.
+    // ---------------------------------------------------------------------
+    {
+      description: 'Pin OpenTofu providers exactly',
+      matchManagers: ['terraform'],
+      rangeStrategy: 'pin',
+    },
+  ],
+
+  vulnerabilityAlerts: {
+    labels: ['security'],
+    schedule: ['at any time'],
+    prCreation: 'immediate',
+  },
+
+  osvVulnerabilityAlerts: true,
+}

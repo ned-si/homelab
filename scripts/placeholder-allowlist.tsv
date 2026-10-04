@@ -1,0 +1,20 @@
+# Placeholders deliberately deferred, and the command that removes each one.
+#
+# THIS FILE IS THE ESCAPE HATCH, NOT THE OFF SWITCH. It exists so one specific
+# placeholder can wait without anybody having to disable
+# scripts/placeholder-check.sh -- which is how a check stops existing.
+#
+# Format, TAB-separated, three columns, all required:
+#
+#   <path glob>  <token>  <reason>
+#
+# The glob is a shell `case` pattern, so `*` spans directory separators.
+# The reason must name the command or runbook that deletes the line. An entry
+# whose placeholder is already gone is reported as stale on every run.
+#
+# Columns are TABS. A space-separated line is rejected, on purpose: a silently
+# misparsed allowlist is worse than no allowlist.
+
+apps/*	REPLACE-ME	S3 bucket not created yet. Two halves, same milestone: (1) task backup:set-target -- <bucket> <region> rewrites the destinations, (2) s3-backup.sops.yaml is sealed with PENDING-S3_* sentinels and must be re-sealed with the real IAM keys. Blocks nothing today (no S3 backup has ever run, and the LOCAL restic jobs are unaffected) but MUST be done before the first S3 CronJob fires. docs/backups.md, 'Setup, start to finish'.
+platform/*	REPLACE-ME	Same bucket and same two halves as the apps/* entry: task backup:set-target -- <bucket> <region>, then re-seal s3-backup.sops.yaml. Covers the keycloak and backup-verify destinations.
+deploy/*	REPLACE-ME	Generated output. task backup:set-target already re-renders deploy/, so this entry disappears with the two above.

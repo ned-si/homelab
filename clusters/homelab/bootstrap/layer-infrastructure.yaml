@@ -1,0 +1,55 @@
+# Layer 1 - infrastructure. Nothing else can be healthy until this is.
+#
+# Tracks the `deployed` git tag, like everything else in this repo. CI moves that
+# tag, syncs THIS Application and waits for it to report Synced+Healthy before it
+# refreshes the next layer.
+#
+# TWO LIMITS ON THAT GATE, both real:
+#   - This Application owns nothing but other Application objects, so its health
+#     is purely the roll-up of theirs -- and Argo CD ships no built-in health
+#     check for `argoproj.io/Application`, having removed it in 1.8. The roll-up
+#     works only because `resource.customizations.health.argoproj.io_Application`
+#     is set in bootstrap/argocd-values.yaml. Take that away and this wait
+#     reports Healthy within seconds whatever the leaves are doing.
+#   - Every leaf has `automated` sync, so leaves in later layers still pick the
+#     new tag up on their own reconciliation timer. What the gate buys is that a
+#     failing layer stops the job and the tag goes back; it does not hold the
+#     next layer untouched.
+#
+# See clusters/homelab/root.yaml for why a tag and not a branch, and
+# docs/adr/0001-deploy-by-moving-a-git-tag.md for the rest.
+#
+# This Application only ever creates other Applications, so it lives in the
+# `default` project; the workloads it spawns live in the `infrastructure`
+# project and are the ones subject to the RBAC there.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: layer-infrastructure
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/clusters/homelab/infrastructure
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

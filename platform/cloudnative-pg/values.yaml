@@ -1,0 +1,7 @@
+# CloudNativePG chart 0.22.1 values, at parity with the running release
+# (the legacy child Application's values).
+replicaCount: 1
+monitoring:
+  podMonitorEnabled: true
+  grafanaDashboard:
+    create: true

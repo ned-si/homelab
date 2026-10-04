@@ -1,0 +1,114 @@
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: qbittorrent
+  name: qbittorrent
+  namespace: theater
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002); the digest pin is its own change, see docs/roadmap.md
+spec:
+  replicas: 1
+  strategy:
+    rollingUpdate: null
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: qbittorrent
+    spec:
+      containers:
+        - name: qbittorrent
+          image: ghcr.io/hotio/qbittorrent:latest
+          imagePullPolicy: Always
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "002"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: seed
+              containerPort: 50000
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: torrents
+              mountPath: /data/torrents
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config
+        - name: torrents
+          nfs:
+            server: 192.168.1.228
+            path: /mnt/homelab/k8s/nfs/torrents
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config
+  namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: qbittorrent
+  name: qbittorrent
+  namespace: theater
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: qbittorrent
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: qbittorrent
+  name: qbittorrent-seed
+  namespace: theater
+  annotations:
+    lbipam.cilium.io/ips: "192.168.1.200"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: seed
+      port: 50000
+      targetPort: seed
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: qbittorrent

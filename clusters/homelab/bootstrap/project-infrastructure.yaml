@@ -1,0 +1,91 @@
+# Infrastructure: CNI, CRDs, certificates, DNS, storage drivers.
+#
+# This is the layer that legitimately needs cluster-scoped resources -- CRDs,
+# ClusterRoles, StorageClasses, the cert-manager webhooks. It is still an
+# ENUMERATED list rather than `group: "*" kind: "*"`.
+#
+# Why enumerate the most privileged layer at all, given it already holds the
+# CNI and every CRD: `clusterResourceWhitelist` is the only mechanism that
+# reports "this chart started creating a kind of object it never used to". With
+# a wildcard, a chart upgrade that begins shipping a ValidatingAdmissionPolicy,
+# an APIService or a PriorityClass installs it silently and the diff is 40k
+# lines of rendered CRD. With the list below, that upgrade fails to sync and
+# says which kind it wanted. A failed sync in this layer is cheap; a webhook
+# nobody noticed is not.
+#
+# HOW TO WIDEN IT, because you will need to one day: add the group/kind, and
+# put the reason on the same line. If a sync fails with
+# "<Kind> is not permitted in project infrastructure", that is this list doing
+# its job -- read what asked for it before adding it.
+#
+# Every entry below is traceable to something this layer actually installs;
+# nothing is here speculatively.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: infrastructure
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: Cluster plumbing - CNI, Gateway API, cert-manager, DNS, CSI
+  sourceRepos:
+    - https://github.com/ned-si/homelab.git
+    - https://helm.cilium.io
+    - https://charts.jetstack.io
+    - https://kubernetes-sigs.github.io/external-dns/
+    - https://democratic-csi.github.io/charts/
+    - https://kubernetes.github.io/ingress-nginx
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "*"
+  clusterResourceWhitelist:
+    # Declared as plain manifests in infrastructure/.
+    - group: ""
+      kind: Namespace # namespaces/ -- the whole inventory
+    - group: ""
+      kind: PersistentVolume # nfs-storage/ -- the media shares
+    - group: cert-manager.io
+      kind: ClusterIssuer # cert-manager-issuers/
+    - group: cilium.io
+      kind: CiliumLoadBalancerIPPool # cilium/ip-pools.yaml
+    - group: cilium.io
+      kind: CiliumL2AnnouncementPolicy # cilium/l2-announcement-policy.yaml
+    # Created by the charts this layer installs (cilium, cert-manager,
+    # external-dns, democratic-csi) and by the two vendored CRD bundles
+    # (gateway-api, snapshot-controller).
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: storage.k8s.io
+      kind: CSIDriver # democratic-csi
+    - group: storage.k8s.io
+      kind: StorageClass # iscsi + iscsi-retain
+    - group: snapshot.storage.k8s.io
+      kind: VolumeSnapshotClass # democratic-csi, needs the CRDs above
+    - group: gateway.networking.k8s.io
+      kind: GatewayClass # the `cilium` GatewayClass
+    - group: networking.k8s.io
+      kind: IngressClass # ingress-nginx, until it is removed (ADR 0011)
+    # Webhooks. cert-manager is the only chart in this repo that ships any: its
+    # webhook Deployment validates every Certificate/Issuer, and cainjector
+    # writes the CA bundle into both configurations at runtime (which is why
+    # bootstrap/argocd-values.yaml also ignores that field when diffing).
+    # If a future chart wants a webhook, it should have to be added here on
+    # purpose.
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+  # Namespaced resources stay wildcarded: this layer installs DaemonSets,
+  # Deployments, Secrets, Services and CRs across kube-system, cert-manager,
+  # external-dns, democratic-csi and gateway. Enumerating those buys nothing --
+  # a namespaced object cannot grant reach outside its namespace, which is the
+  # property the list above exists to protect.
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

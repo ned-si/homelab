@@ -1,0 +1,14 @@
+# L2 announcements (ARP) for LoadBalancer IPs, at parity with the running
+# cluster: every node may announce, LoadBalancer IPs only.
+#
+# kube-vip (static pods on the control planes, `svc_enable=true`) also binds
+# LoadBalancer IPs on its lease holder. Both announcers are live and both
+# forward correctly (externalTrafficPolicy Cluster + kube-proxy replacement);
+# docs/networking.md describes the arrangement and the open decision.
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: default
+spec:
+  loadBalancerIPs: true

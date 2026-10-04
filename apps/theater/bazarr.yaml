@@ -1,0 +1,246 @@
+# Bazarr: subtitle fetcher for Sonarr and Radarr.
+#
+# Follows the reference shape in ./sonarr.yaml -- CNPG Cluster, config PVC,
+# Deployment, Service, HTTPRoute -- and differs from it in four ways that are all
+# consequences of what Bazarr actually does. Each is called out below.
+#
+# ---------------------------------------------------------------------------
+# WHY THIS EXISTS: IT IS A FIX FOR PLEX SUBTITLES, NOT A NEW FEATURE
+#
+# The reported symptom is Plex subtitles switching themselves off mid-playback,
+# where seeking backwards brings them back. That pattern is diagnostic, and it
+# does not point at filenames:
+#
+#   - A NAMING or detection problem is static. If `Movie.en.srt` is not matched,
+#     the track never appears in the list, on every play, forever. Seeking cannot
+#     repair it.
+#   - Seeking makes Plex tear down the transcode session and start a new one.
+#     When "restart the transcode" is the cure, the TRANSCODE is the fault.
+#
+# The cause is almost certainly image-based subtitles. PGS (Blu-ray rips) and
+# VOBSUB (DVD rips) are bitmaps, not text, so no client can render them --
+# Plex composites them into the video, which forces a full decode/overlay/encode
+# cycle. On this cluster that means software transcoding on Cortex-A76 cores,
+# because Plex cannot use the RK3588 video engine (Jellyfin can; Plex has an open
+# feature request). When the transcoder falls behind, the overlay is the first
+# thing to go.
+#
+# Bazarr fixes the cause rather than the symptom: it fetches TEXT subtitles
+# (SRT/ASS), which are passed through to the client as text. No burn-in, no video
+# transcode, no failure mode. It also names and places them the way Plex and
+# Jellyfin expect, which addresses the naming theory as a side effect.
+#
+# Verify before believing any of this -- four checks, in
+# docs/runbooks/subtitles.md.
+# ---------------------------------------------------------------------------
+---
+# Postgres, not the SQLite default.
+#
+# Bazarr defaults to SQLite in /config. Every other *arr here runs on
+# CloudNativePG, and the difference is visible in ./backup.yaml: a live SQLite
+# file inside a /config snapshot is explicitly "best effort" (see the jellyfin
+# job, which tags its database snapshot `jellyfin-db-besteffort` and says why),
+# whereas a CNPG cluster gets a transactional `pg_dump` in the 03:40 job.
+#
+# docs/backups.md and apps/paperless/ both treat app-managed SQLite as a known
+# wart. Not adding another one.
+#
+# If Bazarr's Postgres support misbehaves, the escape hatch is one line:
+# POSTGRES_ENABLED=false in the Deployment below. It then uses SQLite in /config,
+# which is still backed up, just with a weaker guarantee.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: bazarr-postgresql
+  namespace: theater
+spec:
+  instances: 1
+  # Pin the image. Unset means the operator's default, which changes major
+  # version across operator upgrades and then refuses to start on existing data.
+  #
+  # 17.6 matches the other four theater clusters exactly, which is what lets the
+  # single pinned pg_dump image in ./backup.yaml cover all five.
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
+  storage:
+    size: 5Gi
+    storageClass: iscsi
+  monitoring:
+    enablePodMonitor: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 192Mi
+    limits:
+      memory: 384Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bazarr-config
+  namespace: theater
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bazarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: bazarr
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bazarr
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+      containers:
+        - name: bazarr
+          # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
+          image: ghcr.io/hotio/bazarr:release-1.6.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            # Same PUID/PGID/UMASK as every other app in this namespace. This is
+            # not cosmetic here: Bazarr WRITES subtitle files into the media
+            # tree, and 002 is what makes them group-writable so Sonarr/Radarr
+            # can still manage the directory afterwards. sonarr.yaml:95 has the
+            # matching note.
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "002"
+            - name: POSTGRES_ENABLED
+              value: "true"
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: bazarr-postgresql-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: bazarr-postgresql-app
+                  key: port
+            - name: POSTGRES_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: bazarr-postgresql-app
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bazarr-postgresql-app
+                  key: password
+            - name: POSTGRES_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: bazarr-postgresql-app
+                  key: dbname
+          ports:
+            - name: http
+              containerPort: 6767
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            # THE WHOLE SHARE AT /data, WRITABLE, AND THE PATH MUST MATCH THE
+            # *arr APPS EXACTLY.
+            #
+            # Bazarr asks Sonarr and Radarr where each file lives and gets back
+            # paths like /data/media/tv/..., then writes the .srt next to it. If
+            # Bazarr mounted the share anywhere else -- or mounted a subPath --
+            # every lookup would fail with a path it cannot resolve, and the
+            # symptom is "Bazarr sees the series but never finds the episode
+            # file". Path mapping in the UI exists to paper over this; matching
+            # the mount is better.
+            #
+            # readOnly is impossible for the same reason plex/jellyfin can use
+            # it and the *arrs cannot: this container's job is to write.
+            - name: data
+              mountPath: /data
+          # Bazarr has no dedicated health endpoint that works unauthenticated
+          # (/api/* wants the API key). `/` returns a redirect to the UI, and
+          # httpGet counts 2xx AND 3xx as success, so this is a real check that
+          # the HTTP server is up rather than a TCP-open check.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 90
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              # No CPU limit, matching every other workload in this namespace --
+              # the reasoning is on plex.yaml's container. Bazarr is bursty: idle
+              # almost always, then a scan across the whole library.
+              memory: 1Gi
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: bazarr-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: theater-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bazarr
+  namespace: theater
+  labels:
+    app.kubernetes.io/name: bazarr
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 6767
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: bazarr
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bazarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - bazarr.lilalala.com
+  rules:
+    - backendRefs:
+        - name: bazarr
+          port: 6767

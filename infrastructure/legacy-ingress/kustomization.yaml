@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The eight Ingresses the legacy root `all-apps` owns today, byte-equal in spec
+# to live (ADR 0011). The other two live Ingresses come from the immich and
+# kube-prometheus-stack charts (`ingress.enabled: true` in their values).
+# ci/expected-ingresses.txt lists all ten; CI fails if one is missing.
+#
+# Removal happens together with ingress-nginx, after the Gateway has taken
+# over 192.168.1.254: remove this leaf from the infrastructure layer, then
+# delete each Ingress explicitly (prune is off everywhere).
+resources:
+  - argo.yaml
+  - keycloak.yaml
+  - mealie.yaml
+  - paperless.yaml
+  - seafile.yaml
+  - syncthing.yaml
+  - theater-jellyfin.yaml
+  - theater-theater.yaml

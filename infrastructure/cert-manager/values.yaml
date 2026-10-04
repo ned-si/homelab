@@ -1,0 +1,31 @@
+# cert-manager v1.15.0 values, at parity with the running release (ADR 0002):
+# exactly the values the legacy child Application carries. Anything beyond
+# parity (resource requests, public DNS-01 resolvers, a newer chart) is its own
+# later change; see docs/roadmap.md.
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true
+
+crds:
+  enabled: true
+  # Keep CRDs if the release is ever uninstalled. Deleting them would delete
+  # every Certificate and Secret cert-manager manages, taking TLS down site-wide.
+  keep: true
+
+# Ingress objects without an explicit issuer annotation get this one.
+ingressShim:
+  defaultIssuerName: letsencrypt
+  defaultIssuerKind: ClusterIssuer
+
+# Gateway API support: cert-manager watches Gateways too (the shared Gateway's
+# wildcard certificate is an explicit Certificate, see infrastructure/gateway/).
+config:
+  apiVersion: controller.config.cert-manager.io/v1alpha1
+  kind: ControllerConfiguration
+  enableGatewayAPI: true
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true

@@ -1,0 +1,52 @@
+# Cilium: CNI, kube-proxy replacement, L2 announcements, Gateway API controller.
+#
+# DIFF VISIBILITY ONLY. Cilium is a helm-CLI release (`cilium` in kube-system):
+# it is installed by the OpenTofu bootstrap on a new cluster and upgraded with
+# `helm upgrade` using the chart version from ci/helm-releases.yaml and the
+# values from infrastructure/cilium/values.yaml, both read from a CI-green
+# commit on main. This Application has no `automated` block, so Argo CD shows
+# drift between git and the release but never syncs the CNI by itself. CI
+# (repo-policy `cilium-version`) keeps its chart version equal to
+# ci/helm-releases.yaml.
+#
+# Upgrade one minor at a time (1.16 -> 1.17 -> 1.18 ...); see
+# docs/migration-plan.md.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: cilium
+      # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
+      targetRevision: 1.17.18
+      helm:
+        releaseName: cilium
+        valueFiles:
+          - $values/infrastructure/cilium/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  revisionHistoryLimit: 10
+  syncPolicy:
+    # No `automated`: never sync the CNI from Argo CD. Pruning it would take the
+    # cluster's network down.
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  ignoreDifferences:
+    # The operator writes status into these; they are not desired state.
+    - group: ""
+      kind: ConfigMap
+      name: cilium-config
+      jsonPointers:
+        - /data/cluster-id

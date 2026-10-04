@@ -1,0 +1,51 @@
+# Gateway API CRDs.
+#
+# Cilium implements the Gateway API but does NOT ship its CRDs, so they have to
+# be installed separately and kept in lockstep with the Cilium version. Cilium
+# 1.16.3 (what is running) implements Gateway API v1.2.
+#
+# The pinned version and channel live in
+# infrastructure/gateway-api/kustomization.yaml -- the single source of truth --
+# where Renovate tracks them via a `# renovate:` comment on the release URL.
+# Currently v1.2.0, **experimental** channel, matching the cluster.
+#
+# The channel is not a free choice: the experimental bundle installs TCPRoute,
+# UDPRoute, TLSRoute and BackendLBPolicy, and applying the standard bundle over
+# it would delete those CRDs. See docs/migration-plan.md.
+#
+# Replaces: the manual `kubectl apply -f .../experimental-install.yaml` step that
+# used to live in the README.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-20"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/infrastructure/gateway-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      # CRDs are never pruned automatically. Removing a Gateway API CRD would
+      # cascade-delete every Gateway and HTTPRoute in the cluster.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

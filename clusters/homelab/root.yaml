@@ -1,0 +1,59 @@
+# Root of the layered tree. It owns only Argo CD objects: the three
+# AppProjects and the three layer Applications; each layer owns only leaf
+# Applications, one per app; each leaf owns its app's resources.
+#
+#   root  ->  clusters/homelab/bootstrap  (AppProjects + the three layer apps)
+#               ->  clusters/homelab/infrastructure  ->  infrastructure/*
+#               ->  clusters/homelab/platform        ->  platform/*
+#               ->  clusters/homelab/apps            ->  apps/*
+#
+# NOT APPLIED YET. The cluster runs the legacy root `all-apps`
+# (bootstrap/root-app.yaml, tracking main, path kubernetes/applications).
+# The two roots never own the same object: an app moves to this tree in one
+# PR that removes it from kubernetes/applications/ and adds it here
+# (docs/runbooks/adopt-layered-tree.md).
+#
+# TRUNK-BASED. Every Application tracks `main`: what is merged is what runs,
+# and a rollback is a revert PR. That is why prune stays off on the root and
+# the layers (an Application object removed by mistake must not vanish with
+# its app) while app leaves prune, with
+# `argocd.argoproj.io/sync-options: Delete=false,Prune=false` on every PVC,
+# CNPG Cluster, StatefulSet and Namespace as the data guard. Leaves that ship
+# CRDs (cert-manager, CloudNativePG, kube-prometheus-stack, Gateway API) do not
+# prune either: pruning a CRD deletes every object of its kind.
+#
+# No Application carries the resources-finalizer (CI: repo_policy.py), so
+# deleting an Application never cascades.
+#
+# `revisionHistoryLimit: 10` and `retry` (5 x 5s doubling, capped at 3m) are
+# set on every Application: enough history to diagnose a bad sync, and enough
+# retry to ride out a CRD that is not established yet or a slow iSCSI attach.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argo
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/clusters/homelab/bootstrap
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,48 @@
+# CloudNativePG operator (chart 0.22.1 = operator 1.24.1), at parity with the
+# running release: Application `cnpg`, release `cnpg`, namespace `immich`.
+#
+# The operator is cluster-wide (config.clusterWide defaults to true), so this
+# one instance serves the Clusters in immich/, keycloak/, mealie/ and theater/.
+# It sits in the photo app's namespace for historical reasons. Moving it to
+# `cnpg-system` and upgrading it are separate changes (docs/roadmap.md): a
+# second operator beside this one would reconcile the same Clusters.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnpg
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://cloudnative-pg.github.io/charts
+      chart: cloudnative-pg
+      # renovate: datasource=helm depName=cloudnative-pg registryUrl=https://cloudnative-pg.github.io/charts
+      targetRevision: v0.22.1
+      helm:
+        releaseName: cnpg
+        valueFiles:
+          - $values/platform/cloudnative-pg/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: immich
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      # Pruning the operator would leave every Postgres Cluster unmanaged.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

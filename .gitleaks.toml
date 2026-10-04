@@ -1,0 +1,18 @@
+# gitleaks configuration: the default rules, plus two path allowlists. Each
+# entry says why it cannot be a credential; anything else stays reported.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Templates with placeholders, and an upstream non-credential Secret"
+paths = [
+  # SOPS templates: the shape of a Secret with PUT_..._HERE placeholders
+  # (including inside a private-key armour block). Real values only ever live
+  # in the sealed *.sops.yaml next to them; scripts/leak-check.sh also checks
+  # that a template holds nothing but placeholders.
+  '''(^|/)[^/]+\.sops\.ya?ml\.example$''',
+  # Rendered upstream plugin-barman-cloud v0.12.0 bundle. Its only Secret holds
+  # SIDECAR_IMAGE, a base64 container image reference (see
+  # scripts/leak-check.sh, is_allowed_secret).
+  '''^deploy/platform/barman-cloud-plugin/manifests\.yaml$''',
+]

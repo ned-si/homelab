@@ -1,0 +1,47 @@
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing-dashboard
+  namespace: syncthing
+spec:
+  type: ClusterIP
+  ports:
+    - name: syncthing-dashboard
+      protocol: TCP
+      port: 8384
+      targetPort: 8384
+  selector:
+    app: syncthing
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syncthing-protocol
+  namespace: syncthing
+  annotations:
+    lbipam.cilium.io/ips: "192.168.1.201"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: syncthing-tcp
+      port: 22000
+      protocol: TCP
+      targetPort: 22000
+    - name: syncthing-udp
+      port: 22000
+      protocol: UDP
+      targetPort: 22000
+    - name: syncthing-disc
+      port: 21027
+      protocol: UDP
+      targetPort: 21027
+  selector:
+    app: syncthing

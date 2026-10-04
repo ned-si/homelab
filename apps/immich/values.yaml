@@ -1,0 +1,88 @@
+# Immich chart 0.9.0 values, at parity with the running release (ADR 0002).
+#
+# NEVER CHANGE WITHOUT THE RUNBOOK: the server image (v2.3.1) and the database
+# image (apps/immich/resources/database.yaml, pgvecto.rs 16.5) move together,
+# and the move to VectorChord is irreversible (docs/runbooks/immich-upgrade.md).
+#
+# One intended difference from live: the runtime config file. Live renders it
+# from `immich.configuration` into the ConfigMap immich-immich-config, which
+# puts the OIDC client secret in a ConfigMap. Here `immich.configuration` is
+# unset and the same file (same bytes, sha256 checked) is mounted from the SOPS
+# Secret `immich-config` (apps/secrets/immich-config.sops.yaml) at /config.
+# Adopting this restarts the server pod once. The old ConfigMap is left in
+# place (prune is off) and deleted by hand after adoption.
+env:
+  REDIS_HOSTNAME: "valkey.immich.svc.cluster.local"
+  DB_URL:
+    valueFrom:
+      secretKeyRef:
+        name: immich-db-app
+        key: uri
+  TZ: Europe/Zurich
+
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+image:
+  tag: v2.3.1
+
+immich:
+  metrics:
+    enabled: true
+  persistence:
+    library:
+      # The photo library (2Ti). The PVC itself is not managed by this tree.
+      existingClaim: immich-data
+
+server:
+  enabled: true
+  image:
+    repository: ghcr.io/immich-app/immich-server
+    pullPolicy: IfNotPresent
+  env:
+    IMMICH_CONFIG_FILE: /config/immich-config.yaml
+  persistence:
+    config:
+      enabled: true
+      type: secret
+      name: immich-config
+      mountPath: /config
+      readOnly: true
+  ingress:
+    # The live Ingress, kept until ingress-nginx is removed (ADR 0011). Body
+    # size 0 = no upload limit (videos).
+    main:
+      ingressClassName: nginx
+      enabled: true
+      annotations:
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        cert-manager.io/cluster-issuer: letsencrypt
+      hosts:
+        - host: media.lilalala.com
+          paths:
+            - path: "/"
+      tls:
+        - secretName: immich-tls
+          hosts:
+            - media.lilalala.com
+
+machine-learning:
+  enabled: true
+  image:
+    repository: ghcr.io/immich-app/immich-machine-learning
+    pullPolicy: IfNotPresent
+  env:
+    TRANSFORMERS_CACHE: /cache
+    MACHINE_LEARNING_PRELOAD__CLIP: ViT-B-16-SigLIP-i18n-256__webli
+  persistence:
+    cache:
+      enabled: true
+      size: 10Gi
+      type: pvc
+      accessMode: ReadWriteOnce
+      storageClass: iscsi
+      annotations:
+        argocd.argoproj.io/sync-options: Delete=false,Prune=false

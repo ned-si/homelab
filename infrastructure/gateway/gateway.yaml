@@ -1,0 +1,53 @@
+# The shared Gateway: one entrypoint, one wildcard certificate, one LAN address.
+#
+# Implemented by Cilium (GatewayClass `cilium`, Gateway API v1.2 CRDs). Cilium
+# creates the LoadBalancer Service `cilium-gateway-shared` in this namespace and
+# copies `spec.infrastructure.annotations` onto it, which is how the address is
+# pinned (the same `lbipam.cilium.io/ips` mechanism as the .200/.201 Services).
+#
+# PARALLEL RUN (ADR 0007). ingress-nginx keeps 192.168.1.254 and every public
+# hostname until the handover; this Gateway answers on 192.168.1.202, which the
+# router does not forward to. Prove each hostname with
+#   curl --resolve <host>:443:192.168.1.202 https://<host>/
+# before the handover. The handover is a separate change that swaps the two
+# pins (nginx -> .203, this Gateway -> .254), so the router's 80/443 forwards
+# stay valid; rolling back swaps them again.
+#
+# DNS. external-dns publishes every HTTPRoute hostname with the single WAN
+# address from its `--default-targets` (infrastructure/external-dns/values.yaml).
+# No target annotation here: a second copy of the WAN IP would drift.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shared
+  namespace: gateway
+spec:
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      lbipam.cilium.io/ips: "192.168.1.202"
+  listeners:
+    # Plain HTTP exists only to redirect: see http-redirect.yaml.
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: "*.lilalala.com"
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: https
+      protocol: HTTPS
+      port: 443
+      hostname: "*.lilalala.com"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: wildcard-lilalala-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - kind: HTTPRoute

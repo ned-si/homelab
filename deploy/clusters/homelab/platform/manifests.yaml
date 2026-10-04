@@ -1,0 +1,147 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/platform
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/platform and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  name: cnpg
+  namespace: argo
+spec:
+  destination:
+    namespace: immich
+    server: https://kubernetes.default.svc
+  project: platform
+  revisionHistoryLimit: 10
+  sources:
+  - chart: cloudnative-pg
+    helm:
+      releaseName: cnpg
+      valueFiles:
+      - $values/platform/cloudnative-pg/values.yaml
+    repoURL: https://cloudnative-pg.github.io/charts
+    targetRevision: v0.22.1
+  - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  name: keycloak
+  namespace: argo
+spec:
+  destination:
+    namespace: keycloak
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: postgresql.cnpg.io
+    jsonPointers:
+    - /status
+    kind: Cluster
+  project: platform
+  revisionHistoryLimit: 10
+  source:
+    path: deploy/platform/keycloak
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+  name: kube-prometheus-stack
+  namespace: argo
+spec:
+  destination:
+    namespace: monitoring
+    server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: monitoring.coreos.com
+    jsonPointers:
+    - /spec/replicas
+    kind: Prometheus
+  project: platform
+  revisionHistoryLimit: 10
+  sources:
+  - chart: kube-prometheus-stack
+    helm:
+      releaseName: kube-prometheus-stack
+      valueFiles:
+      - $values/platform/kube-prometheus-stack/values.yaml
+    repoURL: https://prometheus-community.github.io/helm-charts
+    targetRevision: v56.2.0
+  - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  - path: deploy/platform/kube-prometheus-stack/routes
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    retry:
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-25"
+  name: secrets-platform
+  namespace: argo
+spec:
+  destination:
+    namespace: default
+    server: https://kubernetes.default.svc
+  project: platform
+  revisionHistoryLimit: 10
+  source:
+    path: platform/secrets
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true

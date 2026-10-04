@@ -1,0 +1,57 @@
+# Barman Cloud plugin for CloudNativePG.
+#
+# ###########################################################################
+# # NOT WIRED IN YET. This file is deliberately absent from
+# # clusters/homelab/platform/kustomization.yaml.
+# #
+# # The plugin requires CloudNativePG >= 1.26. The running operator is 1.24.1,
+# # so every database currently uses the in-tree `spec.backup.barmanObjectStore`
+# # instead. This manifest is kept, ready, for the step right after the CNPG
+# # upgrade -- see docs/migration-plan.md.
+# ###########################################################################
+#
+# WHY THE PLUGIN IS THE DESTINATION
+#   CloudNativePG deprecated its in-tree Barman Cloud support in 1.26 and will
+#   remove it. Once the operator is new enough, the plugin is the only
+#   supported path, so the in-tree form is a stopgap with a known end date.
+#
+# The plugin must be installed in the SAME NAMESPACE as the CNPG operator
+# (cnpg-system), and it uses cert-manager to issue its own serving certificate --
+# which is why it syncs after cert-manager (infrastructure) and after the
+# operator itself.
+#
+# It runs as a sidecar next to each PostgreSQL instance, so enabling it on a
+# Cluster triggers a rollout of that Cluster.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: barman-cloud-plugin
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/platform/barman-cloud-plugin
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      # Pruning this would silently disable WAL archiving on every database.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - SkipDryRunOnMissingResource=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

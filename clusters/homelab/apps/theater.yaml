@@ -1,0 +1,41 @@
+# theater: Plex, Jellyfin, the *arr stack and qBittorrent.
+#
+# All in one namespace and one Application because they are genuinely one system:
+# Prowlarr feeds the *arrs, the *arrs push to qBittorrent, qBittorrent writes to
+# the same NFS share the players read from. Splitting them into six Applications
+# would make the hardlink/permissions contract between them invisible.
+#
+# NOTE: if the *arr apps cannot reach qBittorrent, that is almost certainly the
+# qBittorrent 4.6.1+ credential change, not a networking fault.
+# See docs/runbooks/arr-qbittorrent.md before debugging Cilium.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: theater
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/apps/theater
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: theater
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

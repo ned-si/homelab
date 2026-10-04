@@ -46,7 +46,7 @@ their TV apps can sign in.
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress, upsert only | Argo CD |
 | CloudNativePG | PostgreSQL for Immich, Keycloak, Mealie, Sonarr, Radarr, Lidarr and Prowlarr | Argo CD |
-| democratic-csi | iSCSI volumes on TrueNAS | Helm release `iscsi`, values in [`iac/truenas-iscsi.yaml`](iac/truenas-iscsi.yaml) |
+| democratic-csi | iSCSI volumes on TrueNAS | Helm release `iscsi`, values in [`infrastructure/democratic-csi/values-iscsi.yaml`](infrastructure/democratic-csi/values-iscsi.yaml) plus the SOPS-sealed driver config |
 | kube-prometheus-stack | Prometheus, Alertmanager, Grafana | Argo CD |
 
 The public WAN IP is set in one place only: `--default-targets` in
@@ -83,6 +83,7 @@ flowchart LR
 | `192.168.1.200`-`.227` | Cilium pool `pool-2` (LoadBalancer Services) |
 | `192.168.1.200` | `theater/qbittorrent-seed`, pinned |
 | `192.168.1.201` | `syncthing/syncthing-protocol`, pinned |
+| `192.168.1.202` | `gateway/cilium-gateway-shared`, pinned (Gateway parallel run, once the layered tree is adopted) |
 | `192.168.1.254` | Cilium pool `pool-1`: `ingress/ingress-nginx-controller` |
 
 Nodes use static addresses outside the DHCP pool. Pinned LoadBalancer IPs use
@@ -100,6 +101,28 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | [`scripts/`](scripts) | CI entry points (`scripts/ci/`), read-only cluster smoke suite (`smoke.sh`), guarded merge (`pr-merge.sh`), Trivy gate |
 | [`tests/`](tests) | pytest and bash tests for the scripts |
 | [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) | CI |
+
+### The layered tree (in git, not applied yet)
+
+The tree that replaces `kubernetes/applications/`. It renders to what runs today
+(same names, namespaces, claims, images and chart versions), and nothing in it is
+applied until the cutover ([runbook](docs/runbooks/adopt-layered-tree.md)), which
+moves one app at a time so the two roots never own the same object.
+
+| Path | Contents |
+| --- | --- |
+| [`clusters/homelab/`](clusters/homelab) | Argo CD objects only: `root.yaml` -> three layers (`infrastructure`, `platform`, `apps`) -> one Application per app |
+| [`infrastructure/`](infrastructure) | Namespaces, Cilium pools, cert-manager, external-dns, ingress-nginx and its Ingresses, the shared Gateway, democratic-csi |
+| [`platform/`](platform) | CloudNativePG, kube-prometheus-stack, Keycloak |
+| [`apps/`](apps) | Immich, Mealie, Paperless, Seafile, Syncthing, the theater stack |
+| `*/secrets/` | SOPS-encrypted Secrets (age), decrypted by KSOPS in Argo CD |
+| [`deploy/`](deploy) | Rendered manifests Argo CD reads (`scripts/render-deploy.sh`; CI fails if stale) |
+| [`docs/`](docs) | Architecture, networking, backups, secrets, ADRs, runbooks, [roadmap](docs/roadmap.md) |
+
+Every Application tracks `main`. App leaves prune; the root, the layers and
+CRD-bearing leaves do not. Every PVC, CNPG Cluster, StatefulSet and Namespace
+carries `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, and no
+Application has a cascading finalizer.
 
 ## CI
 
@@ -147,13 +170,15 @@ Expected output: `main` followed by the SHA of the latest commit on `main`.
 
 ## Status and roadmap
 
-- Restructure: a layered layout (`apps/`, `platform/`, `infrastructure/`,
-  `clusters/`, `bootstrap/`, `deploy/`) with SOPS-encrypted secrets is in
-  progress. It replaces `kubernetes/applications/` and the inline credentials
-  that tree still carries.
-- Gateway API: the Cilium GatewayClass is installed; the cutover from
-  ingress-nginx is planned.
+- Restructure: the layered tree is in git at parity with the cluster and
+  waits for the app-by-app cutover. It replaces `kubernetes/applications/` and
+  the inline credentials that tree still carries.
+- Gateway API: the shared Cilium Gateway is written for a parallel run on
+  `192.168.1.202`; after that, one change hands `192.168.1.254` over from
+  ingress-nginx, so the router forwards stay as they are.
 - Platform upgrades: Argo CD and Cilium to the versions in
   `ci/helm-releases.yaml`, then Kubernetes and the node OS.
 - Off-site backups: not active yet. Backups today are local database dumps
-  and etcd snapshots.
+  and etcd snapshots. Data PVs are on reclaim policy `Retain`
+  ([details](docs/backups.md#reclaim-policy-current-state)).
+- Everything else that is deliberately deferred: [docs/roadmap.md](docs/roadmap.md).

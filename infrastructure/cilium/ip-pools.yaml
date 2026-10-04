@@ -1,0 +1,33 @@
+# LoadBalancer IP pools, at parity with the running cluster.
+#
+# Both pools are on the LAN (192.168.1.0/24) and outside the router's DHCP pool
+# (.50-.199). Neither has a serviceSelector, so LB-IPAM may hand any address to
+# any Service; the addresses that matter are pinned on the Services themselves
+# with `lbipam.cilium.io/ips` (docs/networking.md has the table):
+#
+#   .254  ingress-nginx today; the router forwards 80/443 TCP here
+#   .200  theater/qbittorrent-seed (router: 50000 TCP)
+#   .201  syncthing/syncthing-protocol (router: 22000 TCP+UDP)
+#   .202  gateway/cilium-gateway-shared (parallel run of the Gateway)
+#
+# Moving .254 from ingress-nginx to the Gateway is a change to those two pins,
+# not to these pools.
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: pool-1
+spec:
+  blocks:
+    - cidr: 192.168.1.254/32
+  disabled: false
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: pool-2
+spec:
+  blocks:
+    - start: 192.168.1.200
+      stop: 192.168.1.227
+  disabled: false

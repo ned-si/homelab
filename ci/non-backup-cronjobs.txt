@@ -1,0 +1,3 @@
+# CronJobs that are not backups, so they carry no pending-guard initContainer.
+# They must still be suspended (repo-policy cronjob-suspended).
+theater/recyclarr-sync

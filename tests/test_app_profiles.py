@@ -33,7 +33,7 @@ def test_legacy_root_no_automated():
     ("root-ns-argocd.yaml", "metadata.namespace"),
     ("root-finalizer.yaml", "finalizers"),
     ("root-prune-true.yaml", "automated"),
-    ("root-target-main.yaml", "targetRevision"),
+    ("root-target-deployed.yaml", "targetRevision"),
 ])
 def test_root_failures(name, needle):
     fails = app_profiles.check_root(load(name))

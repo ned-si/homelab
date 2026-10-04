@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Gateway API CRDs.
+#
+# ###########################################################################
+# # PINNED TO WHAT IS INSTALLED, AND TO THE **EXPERIMENTAL** CHANNEL.
+# # Verified on the live cluster 2026-07-31:
+# #
+# #   gateway.networking.k8s.io/bundle-version: v1.2.0
+# #   gateway.networking.k8s.io/channel:         experimental
+# #
+# # WHY NOT v1.6.1 STANDARD, WHICH AN EARLIER DRAFT USED:
+# #
+# #   1. Cilium 1.16.3 (what is running) implements Gateway API v1.2. Installing
+# #      newer CRDs than the controller understands leaves Gateways unprogrammed.
+# #
+# #   2. The installed channel is EXPERIMENTAL, which ships CRDs the standard
+# #      channel does not: TCPRoute, UDPRoute, BackendLBPolicy. Applying the
+# #      standard bundle would not "upgrade" those -- with Argo pruning enabled it
+# #      would DELETE them, along with any resource of those kinds.
+# #
+# # Gateway API and Cilium must move together, and only after Kubernetes does.
+# # Renovate groups them for exactly this reason ("cluster networking" rule).
+# # See docs/migration-plan.md.
+# ###########################################################################
+#
+# renovate: datasource=github-releases depName=kubernetes-sigs/gateway-api
+resources:
+  - https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml

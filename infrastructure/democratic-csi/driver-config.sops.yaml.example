@@ -1,0 +1,103 @@
+# TEMPLATE -- copy to democratic-csi-iscsi.sops.yaml, fill in, then:
+#     task secrets:seal -- infrastructure/secrets/democratic-csi-iscsi.sops.yaml
+#
+# ###########################################################################
+# # THIS FILE REPLACES iac/truenas-iscsi.yaml, WHICH CONTAINED A ROOT SSH
+# # PRIVATE KEY AND A TRUENAS API KEY IN PLAINTEXT, COMMITTED TO GIT.
+# #
+# # BEFORE creating this file you MUST:
+# #   1. delete the old key from TrueNAS: root's ~/.ssh/authorized_keys
+# #   2. revoke the old TrueNAS API key in the web UI
+# #   3. generate a NEW dedicated keypair for democratic-csi
+# #
+# # Both old credentials are permanently compromised -- they are in the git
+# # history of this repository. See docs/security-incident.md.
+# ###########################################################################
+#
+# Hardening notes for the replacement credentials:
+#   - Do NOT reuse root. Create a dedicated TrueNAS user for democratic-csi and
+#     grant it passwordless sudo for `zfs` and `zpool` only.
+#   - Scope the API key to what the driver needs; do not use a full-access key.
+#   - The old config had `allowInsecure: true` with an https connection, which
+#     silently disabled certificate verification. Fix the TrueNAS certificate
+#     and set it to false.
+#
+# The whole `driver.config` block goes in ONE key, `driver-config-file.yaml`,
+# because that is what the chart's `driver.existingConfigSecret` expects.
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: democratic-csi-iscsi-config
+  namespace: democratic-csi
+type: Opaque
+stringData:
+  driver-config-file.yaml: |
+    driver: freenas-iscsi
+    instance_id:
+    httpConnection:
+      protocol: https
+      host: 192.168.1.228          # SITE-SPECIFIC: TrueNAS address
+      port: 443
+      apiKey: PUT_A_NEW_TRUENAS_API_KEY_HERE
+      # Was `true` in the old config, which disabled TLS verification entirely.
+      allowInsecure: false
+      apiVersion: 2
+    sshConnection:
+      host: 192.168.1.228          # SITE-SPECIFIC
+      port: 22
+      # The account this key authenticates as, i.e. whose ~/.ssh/authorized_keys
+      # holds the matching public key.
+      #
+      # SHOULD BE A DEDICATED ACCOUNT, NOT root -- create a TrueNAS user with
+      # passwordless sudo limited to `zfs` and `zpool` and put the public key
+      # there. That is a change ON THE NAS, so it cannot be made from this repo,
+      # and hardcoding a username here that does not exist yet produces a driver
+      # that cannot provision anything. So this is a substituted value: it says
+      # what the key actually is today, and the hardening is tracked as a
+      # follow-up rather than pretended to be done.
+      username: PUT_THE_TRUENAS_SSH_USERNAME_HERE
+      # ONE placeholder for the WHOLE key, armour lines included. Paste the file
+      # exactly as `ssh-keygen` wrote it, first line to last.
+      #
+      # This block used to print the BEGIN and END armour lines itself, with the
+      # placeholder between them. Every real key already carries its own armour,
+      # so filling it in produced a key with each armour line DUPLICATED: OpenSSH
+      # refuses to parse it, democratic-csi cannot open its SSH connection, and
+      # every iSCSI volume fails to provision -- while the Secret itself stays
+      # well-formed YAML and every check in the repo passes. The seal script now
+      # counts armour lines to catch exactly this.
+      privateKey: |
+        PUT_A_NEWLY_GENERATED_PRIVATE_KEY_HERE
+    zfs:
+      cli:
+        paths:
+          zfs: /usr/local/sbin/zfs
+          zpool: /usr/local/sbin/zpool
+          sudo: /usr/local/bin/sudo
+          chroot: /usr/sbin/chroot
+      # Total zvol name length cannot exceed 63 chars and the standard naming
+      # overhead is 46, so datasetParentName must stay <= 17 characters.
+      datasetParentName: homelab/k8s/v
+      detachedSnapshotsDatasetParentName: homelab/k8s/s
+      zvolCompression:
+      zvolDedup:
+      zvolEnableReservation: false
+      zvolBlocksize:
+    iscsi:
+      targetPortal: "192.168.1.228:3260"   # SITE-SPECIFIC
+      targetPortals: []
+      interface:
+      namePrefix: csi-
+      nameSuffix: "-cluster"
+      targetGroups:
+        - targetGroupPortalGroup: 1
+          targetGroupInitiatorGroup: 1
+          targetGroupAuthType: None
+          targetGroupAuthGroup:
+      extentInsecureTpc: true
+      extentXenCompat: false
+      extentDisablePhysicalBlocksize: true
+      extentBlocksize: 4096
+      extentRpm: "SSD"
+      extentAvailThreshold: 0

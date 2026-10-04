@@ -1,0 +1,13 @@
+# Every Ingress serving a public hostname today (ADR 0011). repo-policy
+# (expected-ingresses) fails if the layered tree stops rendering one of them.
+# Empty this file in the change that removes ingress-nginx.
+argo/argo-server-ingress
+immich/immich-server
+keycloak/keycloak
+mealie/mealie
+monitoring/kube-prometheus-stack-grafana
+paperless/paperless
+seafile/seafile
+syncthing/synchting-ingress
+theater/jellyfin
+theater/theater
