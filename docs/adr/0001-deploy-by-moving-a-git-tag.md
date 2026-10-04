@@ -1,6 +1,10 @@
 # ADR 0001 — Deploy by moving a git tag
 
-**Status:** accepted
+**Status:** superseded on 2026-10-04 by trunk-based delivery: every
+Application tracks `main`, a rollback is a revert pull request, and
+`.github/workflows/cd.yaml` is removed. Automatic rollback (Argo CD
+Notifications -> revert PR) is on the [roadmap](../roadmap.md). Kept for the
+reasoning about self-heal and rollback races, which still applies.
 **Date:** 2026-08-28
 **Applies to:** `.github/workflows/cd.yaml`, every `Application` in
 `clusters/homelab/`, `bootstrap/`
