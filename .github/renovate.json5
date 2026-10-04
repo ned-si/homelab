@@ -133,6 +133,19 @@
 
   packageRules: [
     {
+      // THE AUTOMERGE SWITCH. One rule, first in the list so the grouping and
+      // manual-review rules below still override it (later rules win). Flip
+      // `automerge` to true when both exist: (1) automatic rollback (Argo CD
+      // Notifications -> repository_dispatch -> auto-merged revert PR), and
+      // (2) deploy/ re-rendered on Renovate PRs, without which every image or
+      // chart bump fails `render-deploy --check` (see the note further down).
+      description: 'Automerge switch for patch, minor and digest updates (off)',
+      matchUpdateTypes: ['patch', 'minor', 'digest', 'pin', 'pinDigest'],
+      automerge: false,
+      automergeType: 'pr',
+      platformAutomerge: true,
+    },
+    {
       description: 'Make Helm chart PR titles obvious',
       matchDatasources: ['helm'],
       commitMessageTopic: 'chart {{depName}}',
@@ -185,7 +198,7 @@
       labels: ['dependencies', 'renovate', 'needs-manual-review'],
     },
     // ---------------------------------------------------------------------
-    // THERE IS DELIBERATELY NO AUTO-MERGE RULE, and this is where one would go.
+    // THE ONLY AUTO-MERGE RULE IS THE SWITCH AT THE TOP, and it is off.
     //
     // A rule like `{matchDatasources: ['docker'], matchUpdateTypes: ['patch'],
     // automerge: true}` used to sit here. It was removed because it could never
