@@ -2,26 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: monitoring
 
-# NAMING WART, FLAGGED RATHER THAN FIXED.
-#
-# This directory is called `routes/` and now holds three things, only one of
-# which is a route. That is because it is the ONLY git path the
-# kube-prometheus-stack Application syncs -- see the third source in
-# clusters/homelab/platform/kube-prometheus-stack.yaml. Anything that has to
-# live in the `monitoring` namespace and cannot be expressed as a Helm value
-# has to go here.
-#
-# Renaming it to `manifests/` requires editing that Application's `path`, which
-# is a one-line follow-up. Left undone deliberately: a rename and a set of new
-# manifests in the same change makes both harder to review, and the Application
-# is being edited elsewhere.
+# Only the Grafana route is rendered. alerts.yaml, dashboard-data-protection.yaml
+# and grafana-backup.yaml are new behaviour (alerting and backups) and ship in
+# their own changes.
 resources:
   - grafana.yaml
-  # Alert rules for the cluster itself. A PrometheusRule rather than an
-  # `additionalPrometheusRulesMap` entry, so the PromQL is reviewable.
-  - alerts.yaml
-  # Grafana's SQLite, to restic. Grafana is the one app in the `monitoring`
-  # namespace with state worth keeping.
-  - grafana-backup.yaml
-  # ONE dashboard, loaded by the sidecar. Deliberately not one per app.
-  - dashboard-data-protection.yaml

@@ -1,12 +1,12 @@
 # kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter.
 #
-# Multi-source: the chart, plus a git path holding the Grafana HTTPRoute. The
-# chart's built-in ingress support is not used -- ingress-nginx is gone and the
-# Grafana subchart has no Gateway API template, so the route is a plain manifest.
+# Chart 56.2.0, at parity with the running release (values in
+# platform/kube-prometheus-stack/values.yaml). Multi-source: the chart, plus a
+# git path holding the Grafana HTTPRoute for the shared Gateway (the Grafana
+# subchart has no Gateway API template). The chart's own Ingress stays enabled
+# until ingress-nginx is removed (ADR 0011).
 #
-# Observability is explicitly NOT the focus of this restructure. This gets the
-# stack back to a working, Gateway-API-native state with its OIDC secret out of
-# plaintext; dashboards, alert rules and retention tuning come later.
+# Alert rules, dashboards and the chart upgrade are later, separate changes.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -21,7 +21,7 @@ spec:
     - repoURL: https://prometheus-community.github.io/helm-charts
       chart: kube-prometheus-stack
       # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
-      targetRevision: 88.0.1
+      targetRevision: v56.2.0
       helm:
         releaseName: kube-prometheus-stack
         valueFiles:
