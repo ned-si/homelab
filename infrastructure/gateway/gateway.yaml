@@ -1,46 +1,34 @@
-# The single shared Gateway. Everything HTTP in this cluster attaches here.
+# The shared Gateway: one entrypoint, one wildcard certificate, one LAN address.
 #
-# ###########################################################################
-# # SITE-SPECIFIC -- THIS IS THE ONE FILE TO EDIT AFTER THE HOUSE MOVE
-# #
-# # `external-dns.alpha.kubernetes.io/target` below is the PUBLIC WAN IP that
-# # every hostname in Cloudflare will point at. It is the only copy of that
-# # value in the whole repo.
-# #
-# # After the move:
-# #   1. update the target annotation to the new WAN IP
-# #   2. re-point the router's 80/443 forwards at the Gateway's LAN address
-# #      (from the `gateway` pool in infrastructure/cilium/ip-pools.yaml)
-# #   3. commit; external-dns rewrites every record automatically
-# #
-# # If the WAN address is dynamic, replace the annotation with a DDNS setup
-# # rather than editing this file on every lease change.
-# ###########################################################################
+# Implemented by Cilium (GatewayClass `cilium`, Gateway API v1.2 CRDs). Cilium
+# creates the LoadBalancer Service `cilium-gateway-shared` in this namespace and
+# copies `spec.infrastructure.annotations` onto it, which is how the address is
+# pinned (the same `lbipam.cilium.io/ips` mechanism as the .200/.201 Services).
+#
+# PARALLEL RUN (ADR 0007). ingress-nginx keeps 192.168.1.254 and every public
+# hostname until the handover; this Gateway answers on 192.168.1.202, which the
+# router does not forward to. Prove each hostname with
+#   curl --resolve <host>:443:192.168.1.202 https://<host>/
+# before the handover. The handover is a separate change that swaps the two
+# pins (nginx -> .203, this Gateway -> .254), so the router's 80/443 forwards
+# stay valid; rolling back swaps them again.
+#
+# DNS. external-dns publishes every HTTPRoute hostname with the single WAN
+# address from its `--default-targets` (infrastructure/external-dns/values.yaml).
+# No target annotation here: a second copy of the WAN IP would drift.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: shared
   namespace: gateway
-  annotations:
-    # Publish the public address for every HTTPRoute attached to this Gateway.
-    # external-dns only honours this annotation on the Gateway, never on the
-    # routes themselves (kubernetes-sigs/external-dns#4056), which is precisely
-    # why it is a single-line change here instead of a dozen edits.
-    external-dns.alpha.kubernetes.io/target: "188.155.74.203"   # SITE-SPECIFIC
 spec:
   gatewayClassName: cilium
-  # Cilium propagates these onto the LoadBalancer Service it generates for the
-  # Gateway (`cilium-gateway-shared`). The label is what makes LB IPAM hand out
-  # an address from the dedicated `gateway` pool rather than the shared range.
   infrastructure:
-    labels:
-      homelab.lilalala.com/lb-pool: gateway
+    annotations:
+      lbipam.cilium.io/ips: "192.168.1.202"
   listeners:
-    # Port 80 exists only to redirect. The redirect itself is an HTTPRoute, see
-    # ./http-redirect.yaml -- Gateway API has no "force ssl redirect" flag, which
-    # is the main behavioural difference from the old
-    # `nginx.ingress.kubernetes.io/force-ssl-redirect` annotation.
+    # Plain HTTP exists only to redirect: see http-redirect.yaml.
     - name: http
       protocol: HTTP
       port: 80
@@ -59,12 +47,7 @@ spec:
           - kind: Secret
             name: wildcard-lilalala-tls
       allowedRoutes:
-        # Any namespace may attach a route. This is a single-tenant homelab, so
-        # the alternative (a label selector plus a ReferenceGrant per namespace)
-        # buys process, not safety. Revisit if this cluster ever hosts something
-        # you do not control.
         namespaces:
           from: All
         kinds:
           - kind: HTTPRoute
-          - kind: GRPCRoute

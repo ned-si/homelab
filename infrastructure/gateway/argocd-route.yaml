@@ -1,29 +1,19 @@
-# argo.lilalala.com -> Argo CD.
+# argo.lilalala.com -> argocd-server.
 #
-# Lives with the Gateway rather than in the bootstrap values on purpose: Argo CD
-# manages its own routing the same way as every other service, so there is one
-# place to look for "what hostnames does this cluster answer on".
+# In Argo CD's own namespace, next to its Service, so no ReferenceGrant is
+# needed. Port 80 = plain HTTP: TLS ends at the Gateway (ADR 0007).
 #
-# Chicken-and-egg, resolved: the bootstrap installs Argo CD with its Ingress
-# disabled and reachable only in-cluster. Argo then syncs this route to itself.
-# If routing ever breaks, `kubectl port-forward svc/argocd-server -n argocd 8080:80`
-# still works and does not depend on the Gateway at all.
-#
-# THE ROUTE IS IN THE `gateway` NAMESPACE, THE SERVICE IS IN `argocd`.
-# That needs a ReferenceGrant -- Gateway API forbids cross-namespace backendRefs
-# by default, precisely so that one namespace cannot hijack another's traffic.
-# See ./reference-grant-argocd.yaml.
-#
-# gRPC note: `configs.params.server.insecure: true` is set in the bootstrap, so
-# argocd-server serves HTTP/2 cleartext and the Gateway terminates TLS. The CLI
-# works over this with `--grpc-web`:
-#     argocd login argo.lilalala.com --grpc-web
+# DEPENDENCY: this route only works once argocd-server runs with
+# `server.insecure: true` (`configs.params` in bootstrap/argocd-values.yaml,
+# its own change). Until then argocd-server answers plain HTTP with a redirect
+# to HTTPS, so through the Gateway argo.lilalala.com loops. The legacy Ingress
+# (infrastructure/legacy-ingress/) keeps serving it over HTTPS meanwhile.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: argocd
-  namespace: gateway
+  namespace: argo
 spec:
   parentRefs:
     - name: shared
@@ -34,5 +24,6 @@ spec:
   rules:
     - backendRefs:
         - name: argocd-server
-          namespace: argocd
           port: 80
+      timeouts:
+        request: 0s
