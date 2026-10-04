@@ -317,9 +317,14 @@ read_wan() {
   WAN=$t
 }
 
-dig_one() { # dig_one <name> <want>: last answer line equals <want>
+dig_one() { # dig_one <name> <want>: the complete A-record set is exactly {<want>}
+  # Every IPv4 answer counts: one stale address next to the expected one fails,
+  # because a client may pick either. Non-address lines (a CNAME target, a dig
+  # error message) are not addresses and are dropped. The set is saved sorted
+  # and comma-separated; a single address is saved as itself.
   local got
-  got=$(dig +short +time=3 +tries=1 "$1" @1.1.1.1 2>/dev/null | tail -n 1)
+  got=$(dig +short +time=3 +tries=1 "$1" @1.1.1.1 2>/dev/null \
+        | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' | sort -u | paste -s -d , -)
   printf '%s' "$got" > "$RES/dig-$1"
   [ "$got" = "$2" ]
 }
@@ -420,8 +425,14 @@ item_http() {
         reason 7 "https://$fqdn via public DNS: $(cat "$RES/p-$h.code") $(cat "$RES/p-$h.loc") cert_ok=$(cat "$RES/p-$h.cert") (want $pcode $ploc)"
       fi
     else
+      # Not exactly one address: nothing is probed, because picking one of
+      # several published addresses would hide the others.
       printf '000' > "$RES/p-$h.code"; : > "$RES/p-$h.loc"; echo false > "$RES/p-$h.cert"
-      reason 7 "https://$fqdn via public DNS: no public answer"
+      if [ -z "$pub" ]; then
+        reason 7 "https://$fqdn via public DNS: no public answer"
+      else
+        reason 7 "https://$fqdn via public DNS: answer set '$pub' is not a single address, not probed"
+      fi
     fi
     row=$(jq -n --arg ec "$(cat "$RES/e-$h.code")" --arg el "$(cat "$RES/e-$h.loc")" --argjson ecert "$(cat "$RES/e-$h.cert")" \
       --arg rc "$(cat "$RES/r-$h.code")" --arg rl "$(cat "$RES/r-$h.loc")" \
