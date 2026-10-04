@@ -1,0 +1,37 @@
+# Root Application (app-of-apps). Applied once by hand at bootstrap; every
+# other Application is created by Argo CD from kubernetes/applications.
+#
+#   kubectl apply -f bootstrap/root-app.yaml
+#
+# It tracks `main`: whatever is merged to main is what runs. Rollback is a
+# revert PR. Prune stays off so a bad merge can never delete data; remove
+# orphaned objects deliberately.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: all-apps
+  namespace: argo
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ned-si/homelab
+    targetRevision: main
+    path: kubernetes/applications
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  # Cilium writes status.loadBalancer.ingress[].ipMode; Argo CD < 2.12 could
+  # not diff it (argoproj/argo-cd#17548). Harmless on newer versions.
+  ignoreDifferences:
+    - group: ""
+      kind: Service
+      jqPathExpressions:
+        - .status.loadBalancer.ingress[].ipMode
