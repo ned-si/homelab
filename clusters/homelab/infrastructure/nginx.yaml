@@ -1,0 +1,51 @@
+# ingress-nginx, at parity with the running release (Application `nginx`,
+# chart 4.11.3, release `ingress-nginx`, namespace `ingress`). It keeps serving
+# every public hostname on 192.168.1.254 until the shared Gateway takes that
+# address over (ADR 0007), and is removed afterwards in its own change
+# (ADR 0011). ingress-nginx is retired upstream; nothing new goes through it.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "12"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      chart: ingress-nginx
+      targetRevision: "4.11.3"
+      helm:
+        releaseName: ingress-nginx
+        valueFiles:
+          - $values/infrastructure/ingress-nginx/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: deployed
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ingress
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      # Client-side apply, as the running child Application does. Its objects carry last-applied-configuration from client-side apply; switching this leaf to server-side apply on adoption would keep fields the new render drops (e.g. a volume source) and fail validation. Move to ServerSideApply=true in its own change, after adoption.
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    # Argo CD < 2.12 reports a permanent diff on the LoadBalancer status
+    # ipMode (argoproj/argo-cd#17548). Harmless on 2.14; remove with the next
+    # Argo CD change.
+    - group: ""
+      kind: Service
+      jqPathExpressions:
+        - .status.loadBalancer.ingress[].ipMode

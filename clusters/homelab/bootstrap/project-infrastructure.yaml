@@ -36,6 +36,7 @@ spec:
     - https://charts.jetstack.io
     - https://kubernetes-sigs.github.io/external-dns/
     - https://democratic-csi.github.io/charts/
+    - https://kubernetes.github.io/ingress-nginx
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -68,6 +69,8 @@ spec:
       kind: VolumeSnapshotClass # democratic-csi, needs the CRDs above
     - group: gateway.networking.k8s.io
       kind: GatewayClass # the `cilium` GatewayClass
+    - group: networking.k8s.io
+      kind: IngressClass # ingress-nginx, until it is removed (ADR 0011)
     # Webhooks. cert-manager is the only chart in this repo that ships any: its
     # webhook Deployment validates every Certificate/Issuer, and cainjector
     # writes the CA bundle into both configurations at runtime (which is why
