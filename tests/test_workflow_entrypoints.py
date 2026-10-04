@@ -12,6 +12,8 @@ def direct_calls():
     calls = set()
     for wf in sorted(WORKFLOWS.glob("*.y*ml")):
         for line in wf.read_text().splitlines():
+            if line.lstrip().startswith("#"):
+                continue
             for m in CALL.finditer(line):
                 before = line[: m.start(1)].rstrip()
                 # `bash x.sh` / `python3 x.py` do not need the executable bit.
