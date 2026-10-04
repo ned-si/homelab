@@ -1,0 +1,22 @@
+# Fails `root`: prune true.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argo
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: deployed
+    path: deploy/clusters/homelab/bootstrap
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true

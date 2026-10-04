@@ -7,6 +7,14 @@
   "labels": [
     "dependencies",
     "triggered_by:renovate"
+  ],
+  "automerge": false,
+  "packageRules": [
+    {
+      "matchManagers": [
+        "github-actions"
+      ],
+      "pinDigests": true
+    }
   ]
 }
-
