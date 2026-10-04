@@ -45,6 +45,16 @@ echo "Scanning $scope files..."
 is_exempt() {
   case "$1" in
     *.example|.sops.yaml|docs/*|"$SELF") return 0 ;;
+    # The legacy tree that all-apps applies today. These three files hold the
+    # credentials docs/security-incident.md lists as compromised; their sealed
+    # replacements already exist (infrastructure/secrets/cloudflare-*.sops.yaml,
+    # infrastructure/democratic-csi/driver-config.sops.yaml). They leave git when
+    # their apps move to the layered tree and the history is rewritten; editing
+    # them in place would redeploy the live objects. Exact paths only: anything
+    # NEW in kubernetes/applications/ is still checked.
+    kubernetes/applications/cert-manager/cf-api-token-secret.yaml|\
+    kubernetes/applications/external-dns/cf-api-token-secret.yaml|\
+    iac/truenas-iscsi.yaml) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -115,6 +125,9 @@ is_allowed_inline() {
     #     deploy/platform/barman-cloud-plugin/manifests.yaml
     deploy/platform/barman-cloud-plugin/manifests.yaml:cnpg.io/pluginclientsecret) return 0 ;;
     deploy/platform/barman-cloud-plugin/manifests.yaml:cnpg.io/pluginserversecret) return 0 ;;
+    # Grafana chart value naming the Secret to load as environment variables
+    # (`grafana-oidc`, sealed in platform/secrets/). A Secret NAME, not a value.
+    platform/kube-prometheus-stack/values.yaml:envfromsecret) return 0 ;;
     *) return 1 ;;
   esac
 }

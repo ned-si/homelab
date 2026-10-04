@@ -13,6 +13,7 @@ metadata:
   namespace: syncthing
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002); the digest pin is its own change, see docs/roadmap.md
 spec:
   selector:
     matchLabels:

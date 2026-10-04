@@ -25,6 +25,8 @@ metadata:
     app.kubernetes.io/name: sonarr
   name: sonarr
   namespace: theater
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002); the digest pin is its own change, see docs/roadmap.md
 spec:
   replicas: 1
   selector:
