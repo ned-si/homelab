@@ -1,0 +1,23 @@
+#!/bin/bash
+# Fake macOS arp for tests/smoke: `arp -n <ip>`. $SMOKE_FIX/arp.txt has lines
+# "<ip> <mac>[,<mac>...]"; successive calls cycle through the list, and the
+# value "incomplete" prints an incomplete entry.
+f=${SMOKE_FIX:?}
+echo "arp $*" >> "$f/calls.log"
+[ "$1" = -n ] || { echo "fake arp: want -n" >&2; exit 2; }
+ip=$2
+list=$(awk -v ip="$ip" '$1 == ip { print $2 }' "$f/arp.txt")
+if [ -z "$list" ]; then
+  echo "$ip ($ip) -- no entry"
+  exit 1
+fi
+c=0
+[ -f "$f/arp-count-$ip" ] && c=$(cat "$f/arp-count-$ip")
+echo $((c + 1)) > "$f/arp-count-$ip"
+n=$(printf '%s' "$list" | tr ',' '\n' | grep -c .)
+mac=$(printf '%s' "$list" | tr ',' '\n' | sed -n "$((c % n + 1))p")
+if [ "$mac" = incomplete ]; then
+  echo "? ($ip) at (incomplete) on en0 ifscope [ethernet]"
+else
+  echo "? ($ip) at $mac on en0 ifscope [ethernet]"
+fi

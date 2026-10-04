@@ -1,0 +1,7 @@
+#!/bin/bash
+# Fake nc for tests/smoke: `nc -z -G 3 <ip> <port>` succeeds when "<ip>:<port>"
+# is a line of $SMOKE_FIX/nc-open.txt.
+f=${SMOKE_FIX:?}
+echo "nc $*" >> "$f/calls.log"
+[ "$1 $2 $3" = "-z -G 3" ] || { echo "fake nc: want -z -G 3" >&2; exit 2; }
+grep -qxF "$4:$5" "$f/nc-open.txt"

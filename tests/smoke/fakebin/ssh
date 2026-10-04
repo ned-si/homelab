@@ -1,0 +1,22 @@
+#!/bin/bash
+# Fake ssh for tests/smoke: only `ip -4 -o addr show`, only with
+# ConnectTimeout=5 and BatchMode=yes; output from $SMOKE_FIX/ssh/<ip>.txt.
+# Like the real ssh it consumes stdin unless -n is given.
+f=${SMOKE_FIX:?}
+echo "ssh $*" >> "$f/calls.log"
+case " $* " in *" -n "*) ;; *) cat > /dev/null ;; esac
+case " $* " in *" -o ConnectTimeout=5 "*) ;; *) echo "fake ssh: no ConnectTimeout=5" >&2; exit 255 ;; esac
+case " $* " in *" -o BatchMode=yes "*) ;; *) echo "fake ssh: no BatchMode=yes" >&2; exit 255 ;; esac
+dest="" cmd=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) shift ;;
+    -*) ;;
+    *) if [ -z "$dest" ]; then dest=$1; else cmd="$cmd $1"; fi ;;
+  esac
+  shift
+done
+[ "${cmd# }" = "ip -4 -o addr show" ] || { echo "fake ssh: unexpected command" >&2; exit 1; }
+ip=${dest#*@}
+[ -f "$f/ssh/$ip.txt" ] || { echo "ssh: connect to host $ip port 22: Operation timed out" >&2; exit 255; }
+cat "$f/ssh/$ip.txt"

@@ -1,0 +1,6 @@
+#!/bin/bash
+# Fake ping for tests/smoke: only `ping -c 1 -W 1000 <ip>`; always answers.
+f=${SMOKE_FIX:?}
+echo "ping $*" >> "$f/calls.log"
+[ "$1 $2 $3 $4" = "-c 1 -W 1000" ] || { echo "fake ping: want -c 1 -W 1000" >&2; exit 2; }
+exit 0
