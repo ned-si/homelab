@@ -1,0 +1,242 @@
+# Mealie backup: the Postgres database and the recipe images.
+#
+# ###########################################################################
+# # docs/backups.md CLAIMS "Mealie Postgres | Barman Cloud -> S3 | 30d PITR".
+# # THAT IS NOT TRUE OF THE MANIFESTS.
+# #
+# # apps/mealie/database.yaml has:
+# #
+# #     backup:
+# #       retentionPolicy: 14d
+# #
+# # and NO `barmanObjectStore` underneath it. So CloudNativePG has a retention
+# # policy for a destination that does not exist -- it archives nothing, and it
+# # does not complain, because a retention policy with no object store is not a
+# # configuration error.
+# #
+# # This is worse than the REPLACE-ME placeholders elsewhere. A placeholder is
+# # caught by scripts/placeholder-check.sh; a retentionPolicy with no
+# # destination passes every check in this repository, renders cleanly, and
+# # validates against the CRD schema. It reads as "backed up" to anyone
+# # skimming, and it is the only Postgres cluster in the repo that fails this
+# # way -- the four *arr clusters have no `spec.backup` at all, which at least
+# # looks like the absence it is.
+# #
+# # `mealie-data` (100Gi) had no backup either. It holds user-uploaded recipe
+# # images and imported recipe assets, which pvc.yaml correctly describes and
+# # nothing was protecting.
+# ###########################################################################
+#
+# WHAT THIS FIXES, AND WHAT IT DOES NOT
+#
+# It adds a nightly logical dump and a file backup. It does NOT add WAL
+# archiving: `spec.backup.barmanObjectStore` has to go on the Cluster resource
+# in apps/mealie/database.yaml, which this change does not edit. So Mealie gets
+# point-in-time SNAPSHOTS, not point-in-time RECOVERY -- worst case, a day of
+# recipes. Adding the barman block is a listed manual step, and doing it makes
+# the dump below redundant rather than wrong.
+#
+# CONSISTENCY
+#   pg-mealie   CONSISTENT. pg_dump runs in a single transaction.
+#   mealie-data CONSISTENT. Uploaded images are write-once files; nothing
+#               rewrites them in place. Worst case is catching an upload in
+#               flight, which restic picks up correctly next run -- the same
+#               property that made restic the right answer for Immich's library.
+#
+# ---------------------------------------------------------------------------
+# ADD `mealie/data` TO `local.restic_repos` IN bootstrap/aws-backup/main.tf, or
+# its pack files stay in S3 Standard at roughly 6x the price and nothing warns
+# you. bootstrap/ is not edited by this change; it is a manual step.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mealie-backup
+  namespace: mealie
+spec:
+  # 03:20. In the gap between Seafile (03:00) and theater's Postgres dumps
+  # (03:40), so the uplink is not shared.
+  schedule: "20 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 21600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: mealie-backup
+        spec:
+          restartPolicy: OnFailure
+          # `mealie-data` is ReadWriteOnce, so this pod must be co-scheduled
+          # with the mealie pod. The dump half needs no co-location (it goes
+          # over the `-rw` Service) but the pod is one scheduling unit.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: mealie
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: dump
+              # Pinned to match the cluster: apps/mealie/database.yaml runs
+              # ghcr.io/cloudnative-pg/postgresql:17.6, so pg_dump 17.6 is an
+              # exact match.
+              #
+              # This repo does NOT have a uniform Postgres image -- keycloak-db
+              # is on 17.0 and immich-db on cloudnative-vectorchord:17-1.1.0
+              # (and on the live cluster today, cloudnative-pgvecto.rs:16.5 on
+              # PG 16 with vectors.so preloaded). An Immich dump will not
+              # restore against a stock postgresql image at all. Those two are
+              # covered by barman rather than by a dump job for that reason;
+              # see the same note in apps/theater/backup.yaml.
+              # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+              image: ghcr.io/cloudnative-pg/postgresql:17.6
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  set -uo pipefail
+
+                  d=/creds
+                  f=/dumps/pg-mealie-mealie-postgresql.dump
+
+                  # -Fc, custom format. Compressed, and pg_restore can inspect
+                  # it -- which is what makes verification possible at all. The
+                  # filename matches what scripts/dump-databases.sh produces so
+                  # a restored copy can be handed straight to
+                  # scripts/verify-dump-restore.sh.
+                  if ! PGPASSWORD="$(cat "$d/password")" pg_dump \
+                       -h "$(cat "$d/host")" -p "$(cat "$d/port")" \
+                       -U "$(cat "$d/user")" -d "$(cat "$d/dbname")" \
+                       -Fc -f "$f"; then
+                    echo "FAIL: pg_dump exited non-zero"
+                    # Remove the partial file, or restic uploads a truncated
+                    # dump that restores to nothing while the snapshot looks
+                    # complete.
+                    rm -f "$f"
+                    exit 1
+                  fi
+
+                  # A pg_dump custom archive always begins with the five bytes
+                  # "PGDMP". Instant, cannot hang, and it catches the case where
+                  # the file is actually an error message -- which an exit code
+                  # does not always give you.
+                  if [ "$(head -c 5 "$f")" != "PGDMP" ]; then
+                    echo "FAIL: output is not a pg_dump archive"
+                    rm -f "$f"
+                    exit 1
+                  fi
+
+                  echo "ok: $(du -h "$f" | cut -f1)"
+              volumeMounts:
+                - name: dumps
+                  mountPath: /dumps
+                - name: creds
+                  mountPath: /creds
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic init 2>/dev/null || true
+
+                  # The dump first and in its own snapshot, so it can be
+                  # restored without pulling the image library out of Glacier to
+                  # get at it. It is also the half that holds the work you did:
+                  # every recipe you typed in.
+                  restic backup /dumps \
+                    --tag mealie-data \
+                    --tag mealie-postgres \
+                    --host mealie \
+                    --verbose
+
+                  restic backup /data \
+                    --tag mealie-data \
+                    --tag mealie-files \
+                    --host mealie \
+                    --exclude '**/.temp/**' \
+                    --verbose
+
+                  restic forget \
+                    --host mealie \
+                    --keep-daily 14 --keep-weekly 8 --keep-monthly 12 \
+                    --prune
+
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/mealie/data
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic writes temp pack files here while uploading. Without this it uses
+                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
+                # `restic backup` fails the moment it has a pack to flush. /cache is
+                # already mounted and writable.
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: dumps
+                  mountPath: /dumps
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: mealie-data
+                readOnly: true
+            - name: dumps
+              emptyDir:
+                sizeLimit: 2Gi
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi
+            - name: creds
+              secret:
+                # CloudNativePG generates this, so the database password never
+                # enters git in any form -- not even encrypted.
+                secretName: mealie-postgresql-app

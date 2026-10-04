@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Wave -1: the AppProjects must exist before any Application references them.
+# Waves 1/2/3: the three layer app-of-apps, ordered so that networking and
+# storage are healthy before databases, and databases before workloads.
+resources:
+  - project-infrastructure.yaml
+  - project-platform.yaml
+  - project-apps.yaml
+  - layer-infrastructure.yaml
+  - layer-platform.yaml
+  - layer-apps.yaml

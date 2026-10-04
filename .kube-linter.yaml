@@ -1,0 +1,134 @@
+---
+# kube-linter configuration.
+#
+# THIS LIST IS BLOCKING. `.github/workflows/ci.yaml` reads the SARIF and fails
+# the `sast` job on any finding, so every check below is one the repo satisfies
+# today (verified against deploy/ on 2026-08-27, 22 workload containers).
+#
+# That constraint is the whole design. A gate that fires on every manifest gets
+# ignored, and an ignored gate is worse than no gate -- but a gate whose exit
+# code is discarded is worse still, because it looks like a decision. The
+# previous version of this file was the second kind: it included checks that fire
+# on 14 to 18 of 22 containers, and the job passed anyway because
+# `stackrox/kube-linter-action` pipes kube-linter into `tee` without `pipefail`.
+#
+# HOW TO ADD A CHECK: run it against deploy/ first
+#
+#     kube-linter lint deploy --do-not-auto-add-defaults --include <check>
+#
+# If it is clean, add it here. If it is not, either fix the manifests or add it
+# to the ADVISORY list at the bottom with a reason.
+checks:
+  # BOTH OF THESE ARE REQUIRED to get "only the list below".
+  #
+  # `addAllBuiltIn: false` does NOT mean "no checks unless included". kube-linter
+  # adds its DEFAULT check set on top of `include` unless
+  # `doNotAutoAddDefaults` is set (pkg/config/config.go: "DoNotAutoAddDefaults,
+  # if set, prevents the automatic addition of default checks"). Without it this
+  # file was running roughly twenty-five default checks -- no-read-only-root-fs,
+  # run-as-non-root, the probe checks, unset-cpu-requirements -- and the
+  # `include` list was decorative.
+  #
+  # It also means an `exclude:` entry for a DEFAULT check is load-bearing while
+  # `doNotAutoAddDefaults` is false, and dead once it is true.
+  doNotAutoAddDefaults: true
+  # `addAllBuiltIn: true` would silently acquire new checks on a kube-linter
+  # upgrade and turn a dependency bump into a red gate on unrelated manifests.
+  # The action resolves `version: latest`, so that is not hypothetical.
+  addAllBuiltIn: false
+  include:
+    # `:latest` on qBittorrent is what silently upgraded past the credential
+    # change and broke the whole *arr stack for a year.
+    - latest-tag
+    # A Service whose selector matches nothing looks healthy and routes nowhere.
+    - dangling-service
+    - mismatching-selector
+    # A workload naming a ServiceAccount that no manifest creates gets the
+    # `default` SA's permissions instead of the ones it was designed for.
+    - non-existent-service-account
+    # Two env entries with the same name: the last wins, silently. This has
+    # already cost config here once.
+    - duplicate-env-var
+    # A credential passed as a literal `value:` instead of `valueFrom`.
+    - env-var-secret
+    - privileged-container
+    # Currently vacuous -- there are no ServiceMonitors yet. Kept because
+    # observability is the next piece of work and a ServiceMonitor pointing at
+    # nothing scrapes nothing while looking configured.
+    #
+    # The name is `dangling-servicemonitor`, one word. `dangling-service-monitor`
+    # is not a check kube-linter has, and an unknown name in `include` aborts the
+    # whole lint -- which produced no SARIF at all, which the `tee` in
+    # kube-linter-action then reported as success.
+    - dangling-servicemonitor
+
+  # Nothing to exclude: with `doNotAutoAddDefaults: true` only the list above
+  # runs, so an `exclude:` entry can only ever contradict an `include:` entry
+  # eleven lines earlier. Add or remove from `include`.
+  exclude: []
+
+customChecks: []
+
+# ---------------------------------------------------------------------------
+# ADVISORY -- deliberately NOT enforced, each with the reason.
+#
+# Run the whole set locally with `task lint:kube-linter:advisory`.
+#
+#   no-read-only-root-fs
+#     18 of 22 containers do not set readOnlyRootFilesystem. Keycloak, the *arr
+#     apps, Plex, Seafile, Paperless and Mealie all write to their own
+#     filesystem at runtime with no way to relocate it, so enforcing this means
+#     forking images. `.trivyignore.yaml` takes exactly this position for the
+#     equivalent Trivy rule (AVD-KSV-0014); the two files used to disagree, and
+#     the Trivy side is the one backed by a reason.
+#
+#   run-as-non-root, privilege-escalation-container, drop-net-raw-capability
+#     14 of 22 containers. Genuinely worth fixing, and the right fix is in the
+#     manifests, not here. Enforcing before that work makes the gate red on
+#     arrival and teaches everyone to ignore it.
+#
+#   no-liveness-probe, no-readiness-probe
+#     9 and 6 findings, and most of them are CronJob containers (restic backup
+#     jobs, backup-verify) where a probe is meaningless: kube-linter's probe
+#     checks apply to every DeploymentLike kind, including Job and CronJob, and
+#     there is no way to scope them by kind. The residue that IS real -- the
+#     paperless valkey and seafile memcached Deployments -- is a manifest fix.
+#
+#   unset-memory-requirements
+#     2 findings, both in vendored upstream bundles
+#     (deploy/platform/barman-cloud-plugin, deploy/infrastructure/snapshot-controller).
+#     Everything this repo authors already sets memory requests AND limits, so
+#     this is the closest of the advisory checks to being promotable. The route
+#     is `checks.ignorePaths` -- kube-linter's own path exclusion -- scoped to
+#     those two directories. Not done here only because the action resolves
+#     `version: latest` and viper silently ignores config keys it does not know,
+#     so an unsupported `ignorePaths` would look like it worked and turn the gate
+#     red. Verify the flag exists (`kube-linter lint --help | grep ignore-paths`)
+#     before promoting.
+#     The per-object annotation route is not available: those objects live in
+#     generated output that render-deploy.sh overwrites.
+#
+#   unset-cpu-requirements
+#     Not a gap: CPU limits are omitted on purpose, because throttling a
+#     transcode mid-stream is worse than letting it contend. Memory limits ARE
+#     set everywhere this repo authors.
+#
+#   required-label-owner
+#     There are zero `owner:` labels in the repo, and adding them via kustomize
+#     `commonLabels` would rewrite Deployment/StatefulSet selectors, which are
+#     immutable -- every workload would need deleting and recreating. The
+#     `labels: [{includeSelectors: false}]` form avoids that, but on a
+#     single-operator homelab an `owner` label carries no information: there is
+#     one owner and the repo is the record.
+#
+# Per-object exemptions are supported and are the right tool when ONE object
+# needs excusing from a check the rest of the repo satisfies:
+#
+#     metadata:
+#       annotations:
+#         ignore-check.kube-linter.io/no-read-only-root-fs: >-
+#           Keycloak writes to /opt/keycloak/data at runtime.
+#
+# There are none in the repo today, which is consistent: the include list above
+# is clean without them.
+# ---------------------------------------------------------------------------

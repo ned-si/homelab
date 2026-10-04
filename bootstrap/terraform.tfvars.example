@@ -1,0 +1,29 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+#
+# Do NOT put `sops_age_key` or `git_token` in this file. Pass both through the
+# environment so they never land on disk in cleartext:
+#
+#     export TF_VAR_sops_age_key="$(cat ~/.config/sops/age/keys.txt)"
+#     export TF_VAR_git_token="ghp_..."
+#
+# then:
+#
+#     task bootstrap:apply
+
+git_username = "ned-si"
+
+# LEFT COMMENTED OUT ON PURPOSE, so that a copy of this file inherits the
+# variable's default of `deployed` -- the tag CD moves only after a health-gated
+# rollout.
+#
+# The root Application is created with `automated: {prune: true, selfHeal: true}`,
+# so setting this to a branch makes the cluster follow every push to that branch
+# within one reconcile, pruning as it goes, with no health gate and no rollback
+# path in front of it -- which is the entire mechanism ADR 0001 exists to avoid.
+#
+# Uncomment ONLY while rebuilding a cluster that owns nothing yet, and delete the
+# line again the moment the branch is merged.
+# target_revision = "some-working-branch"
+
+# SITE-SPECIFIC: update after the house move if the LAN subnet changes.
+api_server_ip = "192.168.1.11"

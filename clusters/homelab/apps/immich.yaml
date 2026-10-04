@@ -1,0 +1,89 @@
+# Immich - photo library.
+#
+# THREE BREAKING CHANGES vs the old setup. Read docs/runbooks/immich-upgrade.md
+# BEFORE syncing this, because one of them cannot be rolled back.
+#
+#   1. VECTOR EXTENSION. Immich 3.0 dropped support for pgvecto.rs entirely and
+#      requires VectorChord (`vchord`). The old DB ran
+#      `ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0` with
+#      `shared_preload_libraries: vectors.so`. That image can never run Immich 3.x.
+#      The database image changes AND the extension has to be migrated.
+#
+#   2. CHART LAYOUT. immich-charts 0.13.x is built on the bjw-s common library,
+#      so every values key moved: `image.tag` is now
+#      `controllers.main.containers.main.image.tag`, and so on. The old values
+#      file would silently apply almost nothing.
+#
+#   3. VALKEY IS NOW BUNDLED. The chart ships its own Valkey, so the hand-rolled
+#      valkey Deployment that used to live alongside Immich is deleted.
+#
+# Multi-source: chart + a git path carrying the database, the library PVC and the
+# HTTPRoute, none of which the chart provides.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: immich
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: apps
+  sources:
+    - repoURL: https://immich-app.github.io/immich-charts
+      chart: immich
+      # renovate: datasource=helm depName=immich registryUrl=https://immich-
+      # app.github.io/immich-charts
+      targetRevision: 0.9.0
+      helm:
+        releaseName: immich
+        valueFiles:
+          - $values/apps/immich/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/apps/immich/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: immich
+  revisionHistoryLimit: 10
+  syncPolicy:
+    # ###################################################################
+    # # THE ONE APPLICATION WITH NO `automated:` BLOCK. Sync it by hand:
+    # #     argocd app sync immich
+    # #
+    # # An Immich major upgrade runs irreversible database migrations -- once
+    # # 3.x has migrated the schema, the 2.x image will not start on it. Moving
+    # # the `deployed` tag must not be able to trigger that while you are still
+    # # reading docs/runbooks/immich-upgrade.md.
+    # #
+    # # `automated: {prune: false, selfHeal: false}` does NOT achieve this, which
+    # # is the trap: `selfHeal` only governs re-syncing after CLUSTER drift. With
+    # # an `automated` block present at all, a new GIT revision still auto-syncs.
+    # # The only way to require a human is to omit the block, as here.
+    # #
+    # # Consequence: this Application sits OutOfSync after a deploy that touches
+    # # it, deliberately. That does not block the CD health gate -- the gate
+    # # waits on HEALTH, and an OutOfSync-but-Healthy Immich is healthy.
+    # ###################################################################
+    syncOptions:
+      # Client-side apply, as the running child Application does. Its
+      # objects carry last-applied-configuration from client-side apply;
+      # switching this leaf to server-side apply on adoption would keep
+      # fields the new render drops (e.g. a volume source) and fail
+      # validation. Move to ServerSideApply=true in its own change, after
+      # adoption.
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: postgresql.cnpg.io
+      kind: Cluster
+      jsonPointers:
+        - /status

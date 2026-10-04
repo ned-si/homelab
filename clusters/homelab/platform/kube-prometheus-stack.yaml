@@ -1,0 +1,64 @@
+# kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter.
+#
+# Chart 56.2.0, at parity with the running release (values in
+# platform/kube-prometheus-stack/values.yaml). Multi-source: the chart, plus a
+# git path holding the Grafana HTTPRoute for the shared Gateway (the Grafana
+# subchart has no Gateway API template). The chart's own Ingress stays enabled
+# until ingress-nginx is removed (ADR 0011).
+#
+# Alert rules, dashboards and the chart upgrade are later, separate changes.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
+      targetRevision: v56.2.0
+      helm:
+        releaseName: kube-prometheus-stack
+        valueFiles:
+          - $values/platform/kube-prometheus-stack/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    # Grafana's HTTPRoute.
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/kube-prometheus-stack/routes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false # ships CRDs: pruning one cascades to every object of that kind
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    # The only Application that does not use the repo-wide 5s/3m retry window.
+    # This chart applies ~13MB of CRDs; the API server takes tens of seconds to
+    # establish them, and the first pass routinely fails on a kind that is
+    # mid-establishment. 30s doubling to a 10m cap covers that. A shorter window
+    # exhausts its attempts before the CRDs are servable and reports a failure
+    # that would have resolved itself.
+    retry:
+      limit: 5
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 10m
+  ignoreDifferences:
+    # The operator rewrites these continuously.
+    - group: monitoring.coreos.com
+      kind: Prometheus
+      jsonPointers:
+        - /spec/replicas

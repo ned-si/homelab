@@ -1,0 +1,66 @@
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: seafile
+  name: seafile
+  namespace: seafile
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: seafile
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: seafile
+    spec:
+      containers:
+        - name: seafile
+          image: seafileltd/seafile-mc:11.0-latest
+          imagePullPolicy: Always
+          env:
+            - name: DB_HOST
+              value: "mariadb"
+            - name: DB_ROOT_PASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-db
+                  key: root-password
+            - name: TIME_ZONE
+              value: "Europe/Zurich"
+            - name: SEAFILE_ADMIN_EMAIL
+              value: "nedsi@pm.me"
+            - name: SEAFILE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-admin
+                  key: SEAFILE_ADMIN_PASSWORD
+            - name: SEAFILE_SERVER_LETSENCRYPT
+              value: "false"
+            - name: SEAFILE_SERVER_HOSTNAME
+              value: "https://drive.lilalala.com"
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            limits:
+              memory: "1000Mi"
+          volumeMounts:
+            - name: seafile-data
+              mountPath: /shared
+      volumes:
+        - name: seafile-data
+          persistentVolumeClaim:
+            claimName: seafile-pvc

@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The Cloudflare token these issuers reference is created by the
+# `secrets-infrastructure` Application at sync wave -25, not here. That keeps
+# this path renderable with plain `kustomize build`, no SOPS plugin needed.
+#
+# Parity (ADR 0002): only the running issuer `letsencrypt`. The staging issuer
+# is kept in git, not rendered; add it back here when a change needs it.
+resources:
+  - cluster-issuer-production.yaml

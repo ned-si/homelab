@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Ordering inside the infrastructure layer, by sync-wave:
+#
+#   -30  namespaces        namespace inventory (PSA warn/audit labels)
+#   -25  secrets           SOPS-decrypted Secrets (needs the namespaces above)
+#   -20  gateway-api       Gateway API CRDs v1.2.0 (experimental channel)
+#   -10  cilium            diff only: helm-CLI release, never synced
+#    -5  cilium-config     LB IP pools + L2 announcement policy
+#     0  cert-manager      its CRDs must be established before issuers appear
+#     5  cert-manager-issuers
+#    10  external-dns      publishes the public hostnames
+#    12  nginx             ingress-nginx, until the Gateway takes over .254
+#    13  legacy-ingress    the eight all-apps Ingresses (ADR 0011)
+#    15  gateway           the shared Gateway, parallel on .202 (ADR 0007)
+#    20  democratic-csi    diff only: helm-CLI release, never synced
+#
+# Kept in git, not part of the layer yet (each is new behaviour and ships in
+# its own change, ADR 0002):
+#   snapshot-controller.yaml  would run beside the unmanaged snapshot-controller
+#                             v6.3.1 in kube-system; enabling it must replace it
+#   nfs-storage.yaml          would create new NFS PVs/PVCs; theater keeps its
+#                             inline NFS volumes as live
+#   network-policies.yaml     CiliumNetworkPolicies
+resources:
+  - namespaces.yaml
+  - secrets.yaml
+  - gateway-api.yaml
+  - cilium.yaml
+  - cilium-config.yaml
+  - cert-manager.yaml
+  - cert-manager-issuers.yaml
+  - external-dns.yaml
+  - nginx.yaml
+  - legacy-ingress.yaml
+  - gateway.yaml
+  - democratic-csi.yaml
+
+# Adoption mode: no leaf syncs by itself (see the component).
+components:
+  - ../components/cutover

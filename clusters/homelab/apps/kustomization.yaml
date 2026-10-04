@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - secrets.yaml
+  - theater.yaml
+  - immich.yaml
+  - mealie.yaml
+  - paperless.yaml
+  - seafile.yaml
+  - syncthing.yaml
+
+# Adoption mode: no leaf syncs by itself.
+components:
+  - ../components/cutover

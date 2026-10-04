@@ -1,0 +1,61 @@
+# democratic-csi chart 0.14.7 values for the helm-CLI release `iscsi`
+# (namespace democratic-csi), at parity with the running release.
+#
+# The driver configuration (TrueNAS API key, SSH key, portal) is NOT here. It
+# lives in SOPS (infrastructure/democratic-csi/driver-config.sops.yaml, the
+# exact Secret the chart renders) and is turned back into a values overlay at
+# upgrade time:
+#
+#   helm upgrade iscsi democratic-csi \
+#     --repo https://democratic-csi.github.io/charts/ --version 0.14.7 \
+#     -n democratic-csi -f infrastructure/democratic-csi/values-iscsi.yaml \
+#     -f <(scripts/democratic-csi-values.sh)
+#
+# Only `driver.config.driver` is kept in plain text: the chart derives names
+# from it, and it is not secret. Argo CD renders this file alone, so its
+# diff-only Application shows the driver-config Secret as differing; that is
+# expected (the Application never syncs).
+csiDriver:
+  name: org.democratic-csi.iscsi
+
+driver:
+  config:
+    driver: freenas-iscsi
+
+storageClasses:
+  # The running class. Default class, reclaimPolicy Delete. Every existing
+  # PersistentVolumeClaim uses it and keeps it: a PVC's storageClassName is
+  # immutable, and a StorageClass's reclaimPolicy is immutable too. The data
+  # PVs bound through it were switched to Retain individually on 2026-10-04
+  # (docs/backups.md); caches stay on Delete.
+  - name: iscsi
+    defaultClass: true
+    reclaimPolicy: Delete
+    volumeBindingMode: Immediate
+    allowVolumeExpansion: true
+    parameters:
+      fsType: xfs
+    mountOptions: []
+    secrets:
+      provisioner-secret:
+      controller-publish-secret:
+      node-stage-secret:
+      node-publish-secret:
+      controller-expand-secret:
+  # For NEW data volumes: same backend, but deleting the PVC keeps the volume
+  # on the NAS (the PV goes to Released and can be re-bound). Use it for
+  # anything that is not a regenerable cache.
+  - name: iscsi-retain
+    defaultClass: false
+    reclaimPolicy: Retain
+    volumeBindingMode: Immediate
+    allowVolumeExpansion: true
+    parameters:
+      fsType: xfs
+    mountOptions: []
+    secrets:
+      provisioner-secret:
+      controller-publish-secret:
+      node-stage-secret:
+      node-publish-secret:
+      controller-expand-secret:

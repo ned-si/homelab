@@ -1,0 +1,29 @@
+# Byte-equal in spec to the running Ingress (ADR 0011). Removed with ingress-nginx.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    cert-manager.io/revision-history-limit: "1"
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+  name: argo-server-ingress
+  namespace: argo
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: argo.lilalala.com
+      http:
+        paths:
+          - backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 443
+            path: /
+            pathType: Prefix
+  tls:
+    - hosts:
+        - argo.lilalala.com
+      secretName: argocd-server-tls

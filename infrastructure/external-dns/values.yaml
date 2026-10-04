@@ -1,0 +1,40 @@
+# external-dns chart 1.15.0 (v0.15.0) values: the running release's values
+# plus one deliberate addition, the `gateway-httproute` source (ADR 0007).
+#
+# Behaviour kept from the running release (chart defaults, not repeated here):
+# policy `upsert-only` (records are created and updated, never deleted), TXT
+# registry with the default owner id, no TXT prefix, no domain filter.
+provider:
+  name: cloudflare
+
+env:
+  - name: CF_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        # Created by the `secrets-infrastructure` Application (SOPS), same
+        # Secret name and per-key digest as the running cluster.
+        name: cloudflare-api-token-secret
+        key: api-token
+
+# `service` and `ingress` are what runs today. `gateway-httproute` is added so
+# the HTTPRoutes of the shared Gateway publish the same hostnames; every record
+# gets the same single target below, so the two sources agree and upsert-only
+# never flips a record. The redirect route opts out with
+# `external-dns.alpha.kubernetes.io/controller: none`. Drop `ingress` when
+# ingress-nginx is removed (ADR 0011). The chart adds the matching read-only
+# RBAC for Gateway API objects when a gateway source is listed.
+sources:
+  - service
+  - ingress
+  - gateway-httproute
+
+# PUBLIC WAN IP: the single place it is set in this layout (CI rule
+# `wan-ip-single-source`). Every published hostname is an A record to this
+# address; no Ingress, Gateway or HTTPRoute carries a target annotation.
+# The ISP (Sunrise) gives a dynamic address: re-check after router reboots.
+# Semantics verified for chart 1.15.0 / external-dns v0.15.0, where default
+# targets replace all targets of every endpoint. Before upgrading to >= 0.16,
+# add --force-default-targets, or every record flips to the LoadBalancer
+# address (external-dns#6134).
+extraArgs:
+  - --default-targets=31.164.170.92

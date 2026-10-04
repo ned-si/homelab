@@ -1,0 +1,92 @@
+# paperless: the Paperless-ngx Deployment, its Valkey task queue, and the nightly
+# restic backup CronJob.
+#
+# ONE policy for the whole namespace, `endpointSelector: {}`. That is not
+# laziness: apps/paperless/backup.yaml gives its CronJob pod template no labels
+# at all, so the backup pod is only selectable by the labels Kubernetes generates
+# (`batch.kubernetes.io/job-name`, whose value changes on every run). A policy
+# keyed on workload labels would silently exclude the one pod in this namespace
+# that needs S3 egress, and the failure would appear at 04:00 as a restic error.
+#
+# The fix on the other side -- adding
+# `metadata.labels: {app.kubernetes.io/name: paperless-backup}` to that
+# jobTemplate's pod template -- belongs to whoever owns apps/. Until then, the
+# namespace is the unit.
+#
+# NO POSTGRES HERE, deliberately. apps/paperless/deployment.yaml records that
+# Paperless is still on SQLite inside the `paperless-data` volume and that
+# pointing it at Postgres would present it with an empty database. So there is no
+# CloudNativePG cluster, no operator rule and no port 5432 in this file.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: paperless
+  namespace: paperless
+spec:
+  description: >-
+    Everything in the paperless namespace. Free movement inside it; outside it
+    only the Gateway, DNS and HTTPS to the internet.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # archive.lilalala.com -> paperless :8000.
+    # apps/paperless/httproute.yaml -- HTTPRoute `paperless`, `request: 0s` for
+    # bulk uploads with OCR.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+
+    # paperless -> valkey :6379.
+    # apps/paperless/deployment.yaml -- PAPERLESS_REDIS
+    # redis://valkey.paperless.svc.cluster.local:6379
+    # Expressed as intra-namespace rather than as a single port pair, so that the
+    # unlabelled backup CronJob pod is also covered without a second rule.
+    - fromEndpoints:
+        - {}
+
+    # No Prometheus rule. Nothing in apps/paperless/ declares a ServiceMonitor or
+    # PodMonitor, so there is nothing to scrape. If one is added, it needs
+    # `fromEndpoints: [{matchLabels: {io.kubernetes.pod.namespace: monitoring}}]`
+    # here, or the target reports as down with no explanation.
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+
+    # Intra-namespace, the counterpart of the ingress rule above.
+    - toEndpoints:
+        - {}
+
+    # HTTPS to the internet, for two distinct consumers:
+    #
+    #   - Paperless' OIDC login. apps/paperless/deployment.yaml --
+    #     PAPERLESS_APPS enables the openid_connect provider and
+    #     PAPERLESS_SOCIALACCOUNT_PROVIDERS (from the `paperless-secrets` Secret)
+    #     carries the issuer URL, which is auth.lilalala.com and therefore
+    #     reached over the WAN.
+    #   - the restic CronJob. apps/paperless/backup.yaml -- RESTIC_REPOSITORY
+    #     s3:https://s3.eu-central-1.amazonaws.com/...
+    #
+    # Same split-horizon-DNS caveat as immich: see the note in 20-immich.yaml.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

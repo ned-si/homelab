@@ -1,0 +1,319 @@
+# Seafile backup: /shared plus a consistent MariaDB dump.
+#
+# ###########################################################################
+# # SEAFILE NEEDS BOTH HALVES OR NEITHER IS WORTH ANYTHING.
+# #
+# #   THE BLOBS      /shared/seafile-data/storage -- content-addressed,
+# #                  immutable, write-once. Every file anyone has ever synced.
+# #
+# #   THE METADATA   MariaDB (ccnet_db, seafile_db, seahub_db) -- which blob is
+# #                  which file, which library, which version, who owns it, who
+# #                  it is shared with, and every user account.
+# #
+# # A blob backup with no database is a directory of SHA-named files with no
+# # index and no way to reconstruct one. A database backup with no blobs is a
+# # complete catalogue of content that no longer exists. They must be taken
+# # together, which is why one CronJob does both.
+# #
+# # A third thing, easy to miss and called out in apps/seafile/pvc.yaml:
+# # SEAFILE'S OWN CONFIGURATION LIVES INSIDE THE VOLUME, not in git.
+# # /shared/seafile/conf/{ccnet.conf,seafile.conf,seahub_settings.py} is the one
+# # app configuration in this cluster that is not under version control --
+# # including SECRET_KEY, without which existing sessions and some encrypted
+# # fields cannot be read. It is included here, and that makes this snapshot
+# # the only copy of it that exists anywhere.
+# ###########################################################################
+#
+# CONSISTENCY -- and this one is genuinely good, not best-effort
+#
+#   The MariaDB dump uses `--single-transaction`, which for InnoDB gives a
+#   transactionally consistent snapshot WITHOUT locking the tables, so Seafile
+#   keeps serving while it runs. Same flags as scripts/dump-databases.sh, for
+#   the same reasons documented there.
+#
+#   The blobs are content-addressed and immutable: a file is written once under
+#   the hash of its contents and never modified. So a live copy cannot be torn
+#   -- the worst case is catching a blob mid-upload, and restic picks it up
+#   correctly on the next run. Exactly the property that made restic (rather
+#   than VolSync) the right answer for Immich's library.
+#
+#   The only real gap is ORDERING: the database is dumped first and the blobs
+#   second, so a file uploaded between the two appears as a blob with no
+#   database row. That is the harmless direction -- an orphan blob wastes space
+#   and nothing else. The dangerous direction (a database row pointing at a blob
+#   that was never captured) is prevented by that order, and it is the reason
+#   the dump is an initContainer rather than a sidecar.
+#
+# There is no seahub SQLite to worry about: this deployment uses MariaDB for all
+# three databases (DB_HOST=mariadb in deployment.yaml), so seahub.db is not in
+# use.
+#
+# ---------------------------------------------------------------------------
+# ADD `seafile/shared` TO `local.restic_repos` IN bootstrap/aws-backup/main.tf.
+# Without it there is no Glacier IR lifecycle rule for
+# `seafile/shared/data/`, so the pack files sit in S3 Standard at roughly 6x
+# the price and nothing warns you. bootstrap/ is not edited by this change; it
+# is a manual step.
+#
+# Then uncomment the `seafile/shared  seafile-shared` line in
+# platform/backup-verify/restore-files.yaml -- done in this change.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: seafile-backup
+  namespace: seafile
+spec:
+  # 03:00. Between Immich's Postgres base backup (02:30) and the theater config
+  # jobs (04:00+), so the domestic uplink is not shared.
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  # A first run of a 100Gi library over a domestic uplink takes many hours.
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      # 20h: long enough for a large incremental, short enough that a wedged run
+      # does not block tomorrow's. Same reasoning as the Immich library job.
+      activeDeadlineSeconds: 72000
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: seafile-backup
+        spec:
+          restartPolicy: OnFailure
+          # `seafile-data` is ReadWriteOnce, so this pod must land on the node
+          # already running seafile. The MariaDB dump does not need co-location
+          # (it goes over the Service) but the pod is one unit, so the affinity
+          # is set by the stricter of the two requirements.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: seafile
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            # NOT runAsNonRoot.
+            #
+            # deployment.yaml sets `fsGroup: 0` and the upstream seafile-mc image
+            # runs as root, so everything under /shared is owned by uid 0. A
+            # non-root reader gets EACCES on most of the volume and the job fails
+            # with a permissions error that reads like a restic bug.
+            #
+            # This is a genuine, unwelcome exception to the pattern every other
+            # backup job in this repo follows, and it is a property of the
+            # upstream image rather than a choice made here. It is contained:
+            # the mount is readOnly, every capability is dropped, privilege
+            # escalation is off, and the root filesystem is read-only -- so this
+            # is uid 0 with no capabilities and nothing writable except the
+            # cache. pvc.yaml already notes this image's config-in-volume habit
+            # as a reason to prefer Syncthing where it fits; add this to the
+            # list.
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            # THE DATABASE FIRST. See the ordering note in the header: dumping
+            # before the blobs means a file uploaded mid-run becomes an orphan
+            # blob (harmless) rather than a database row pointing at a blob that
+            # was never captured (data loss on restore).
+            - name: mariadb-dump
+              # This is the one database in the cluster NOT managed by
+              # CloudNativePG, because Seafile requires MySQL/MariaDB. It
+              # therefore has no PITR and no generated credentials -- see
+              # mariadb.yaml. Image tag tracks the server's 12.3; a dump client
+              # older than the server can silently omit newer syntax.
+              # renovate: datasource=docker depName=mariadb
+              image: mariadb:12.3
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/bash", "-c"]
+              args:
+                - |
+                  # `bash -c` with an explicit status check rather than `set -e`:
+                  # the pipeline's exit status is what matters and it is checked
+                  # directly below.
+                  set -uo pipefail
+
+                  # --single-transaction   InnoDB-consistent snapshot with no
+                  #                        table locks, so Seafile keeps working.
+                  # --routines --events --triggers
+                  #                        the default omits all three, and
+                  #                        their absence only shows up at
+                  #                        restore time.
+                  # --databases            names them explicitly so a fourth
+                  #                        database appearing later is a visible
+                  #                        omission rather than a silent one.
+                  mariadb-dump \
+                    -h mariadb -u root -p"$MARIADB_ROOT_PASSWORD" \
+                    --single-transaction --routines --events --triggers \
+                    --databases ccnet_db seafile_db seahub_db \
+                    | gzip -c > /dumps/seafile-mariadb.sql.gz
+                  rc=$?
+
+                  if [ "$rc" -ne 0 ]; then
+                    echo "FAIL: mariadb-dump pipeline exited $rc"
+                    # Delete the partial file. Without this, restic uploads a
+                    # truncated dump that restores to nothing -- and the
+                    # snapshot looks complete.
+                    rm -f /dumps/seafile-mariadb.sql.gz
+                    exit "$rc"
+                  fi
+
+                  # mariadb-dump writes a completion marker as its final line.
+                  # Its absence is the ONLY way to detect a dump that died
+                  # halfway while still exiting 0 -- the same check
+                  # scripts/dump-databases.sh makes, for the same reason.
+                  if ! gzip -dc /dumps/seafile-mariadb.sql.gz | tail -3 | grep -q 'Dump completed'; then
+                    echo "FAIL: dump has no end-of-dump marker -- it is truncated"
+                    rm -f /dumps/seafile-mariadb.sql.gz
+                    exit 1
+                  fi
+
+                  echo "ok: $(du -h /dumps/seafile-mariadb.sql.gz | cut -f1), end marker present"
+              env:
+                - name: MARIADB_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      # The same Secret the MariaDB Deployment and the Seafile
+                      # Deployment read, so there is exactly one copy of this
+                      # password in the cluster.
+                      name: seafile-db
+                      key: root-password
+              volumeMounts:
+                - name: dumps
+                  mountPath: /dumps
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic init 2>/dev/null || true
+
+                  # 1. The database dump. Small, consistent, and the half
+                  #    without which the blobs are meaningless -- so it goes
+                  #    first, in its own snapshot, so it can be restored without
+                  #    pulling 100GB of blobs out of Glacier to get at it.
+                  restic backup /dumps \
+                    --tag seafile-shared \
+                    --tag seafile-mariadb \
+                    --host seafile \
+                    --verbose
+
+                  # 2. /shared: the blobs, and Seafile's own configuration.
+                  #
+                  #    Excludes are all genuinely derived or transient:
+                  #      logs/           app logs
+                  #      *-data/httptemp uploads in flight
+                  #      seahub-data/thumbnail
+                  #                      regenerated from the originals
+                  #      pro-data        search index (Pro only; harmless if
+                  #                      absent)
+                  restic backup /shared \
+                    --tag seafile-shared \
+                    --tag seafile-data \
+                    --host seafile \
+                    --exclude '/shared/logs' \
+                    --exclude '**/httptemp/**' \
+                    --exclude '**/seahub-data/thumbnail/**' \
+                    --exclude '**/pro-data/**' \
+                    --verbose
+
+                  # Retention. Deeper on monthly than Immich's remote copy
+                  # because this is a document store: someone noticing in March
+                  # that a library was mangled in January is a realistic way to
+                  # need this.
+                  restic forget \
+                    --host seafile \
+                    --keep-daily 14 \
+                    --keep-weekly 8 \
+                    --keep-monthly 24 \
+                    --prune
+
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/seafile/shared
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic writes temp pack files here while uploading. Without this it uses
+                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
+                # `restic backup` fails the moment it has a pack to flush. /cache is
+                # already mounted and writable.
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: data
+                  mountPath: /shared
+                  readOnly: true
+                - name: dumps
+                  mountPath: /dumps
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  # A 100Gi repository's deduplication index is memory-hungry
+                  # during prune.
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: seafile-data
+                readOnly: true
+            # The dump is a few tens of megabytes for a homelab Seafile.
+            # sizeLimit guards the node's 29GB eMMC, which is also where kubelet
+            # and containerd live (docs/migration-plan.md).
+            - name: dumps
+              emptyDir:
+                sizeLimit: 4Gi
+            # A PERSISTENT cache, unlike the theater jobs. This repository holds
+            # up to 100Gi, and restic re-downloads the repository index on every
+            # run without one -- which for a repository this size is slow enough
+            # to matter over a domestic uplink. Same trade-off Immich makes, at a
+            # smaller scale.
+            - name: cache
+              persistentVolumeClaim:
+                claimName: seafile-restic-cache
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: seafile-restic-cache
+  namespace: seafile
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

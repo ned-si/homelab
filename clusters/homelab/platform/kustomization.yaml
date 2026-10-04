@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Kept in git, not part of the layer yet (new behaviour, each ships in its own
+# change, ADR 0002): backup-verify.yaml (restore tests), barman-cloud-plugin.yaml
+# (CNPG off-site backups, ADR 0008).
+resources:
+  - secrets.yaml
+  - cnpg.yaml
+  - kube-prometheus-stack.yaml
+  - keycloak.yaml
+
+# Adoption mode: no leaf syncs by itself.
+components:
+  - ../components/cutover

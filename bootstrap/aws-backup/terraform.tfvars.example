@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars (git-ignored) and fill in.
+#
+# Then, with an ADMIN IAM USER -- not root:
+#
+#     export AWS_PROFILE=homelab
+#     tofu init && tofu plan && tofu apply
+#     tofu output next_steps
+
+# Must be globally unique across all of AWS, so `homelab-backups` alone will be
+# taken. Changing it later means copying every object, so choose once.
+bucket_name = "homelab-backups-CHANGEME"
+
+# eu-central-1 (Frankfurt) unless you have a reason. It is the closest large
+# region to Zurich, keeps the data in the EU, and is where the annual restore
+# drill must run for S3 -> EC2 transfer to be free.
+region = "eu-central-1"

@@ -1,0 +1,26 @@
+# Keycloak database backup.
+#
+# Worth as much as it looks: this holds every user, every OIDC client and every
+# role mapping. Losing it means rebuilding the realm by hand AND re-issuing every
+# client secret referenced from `apps/secrets/`, because those live in Keycloak,
+# not here.
+#
+# Uses the in-tree `barmanObjectStore`. See apps/immich/resources/backup.yaml for
+# why the Barman Cloud plugin is not usable on CNPG 1.24.1.
+#
+# The object-store configuration itself lives on the Cluster
+# (./database.yaml `spec.backup`); this only schedules the base backups.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: keycloak-nightly
+  namespace: keycloak
+spec:
+  # Six-field cron (CNPG includes seconds). 02:00 daily.
+  schedule: "0 0 2 * * *"
+  backupOwnerReference: self
+  immediate: true
+  cluster:
+    name: keycloak-db
+  method: barmanObjectStore

@@ -1,0 +1,758 @@
+# Alerts for the cluster itself.
+#
+# ###########################################################################
+# # EVERY RULE HERE EXISTS BECAUSE OF AN INCIDENT THIS CLUSTER ACTUALLY HAD.
+# #
+# # Not a generic starter pack. The chart's own `defaultRules` already cover
+# # kubelet, etcd, scheduler, apiserver and the standard Kube* set, and they are
+# # left enabled. What is here is the set of failures that happened, went
+# # unnoticed for months, and had no signal pointing at them:
+# #
+# #   qBittorrent `Running 1/1`, 0 restarts, endpoint present, nothing
+# #   listening -- for THREE MONTHS.        docs/runbooks/arr-qbittorrent.md
+# #
+# #   cilium-mgr9z in CreateContainerError for 137 days, 790,890 kubelet
+# #   retries.                              docs/migration-plan.md
+# #
+# #   ten TLS certificates within days of expiry during the move.
+# #                                         docs/migration-plan.md
+# #
+# #   /controller at 83% of a 29GB eMMC -- the volume kubelet and containerd
+# #   live on.                              docs/migration-plan.md
+# # ###########################################################################
+#
+# ---------------------------------------------------------------------------
+# WHY THIS FILE IS IN A DIRECTORY CALLED `routes/`
+#
+# Because that is the only git path the kube-prometheus-stack Application syncs:
+# clusters/homelab/platform/kube-prometheus-stack.yaml declares
+# `path: deploy/platform/kube-prometheus-stack/routes` as its third source, and
+# the kustomization there already pins `namespace: monitoring`, which is where a
+# PrometheusRule for this stack belongs.
+#
+# The directory is now misnamed. Renaming it to `manifests/` means editing the
+# Application's `path`, and the Application is owned elsewhere in this change --
+# so it is flagged rather than done. It is a one-line follow-up.
+#
+# Rejected alternative: `additionalPrometheusRulesMap` in values.yaml. It works,
+# and it buries 400 lines of PromQL four levels deep inside a Helm values file
+# where a diff is unreadable and a YAML indentation slip silently changes which
+# group a rule belongs to.
+#
+# ---------------------------------------------------------------------------
+# METRIC PROVENANCE -- what is confirmed scraped, and how it is confirmed
+#
+#   kube_*                kube-state-metrics. `kubeStateMetrics.enabled: true`
+#                         in ../values.yaml; the chart ships its ServiceMonitor.
+#
+#   node_*                prometheus-node-exporter. `nodeExporter.enabled: true`
+#                         in ../values.yaml; chart-shipped ServiceMonitor.
+#
+#   kubelet_volume_stats_*  the kubelet's own /metrics endpoint, scraped by the
+#                         chart's `kubelet` ServiceMonitor, which is created
+#                         unconditionally. This is the ONLY source of per-PVC
+#                         usage -- kube-state-metrics reports a PVC's REQUESTED
+#                         size and knows nothing about how full it is.
+#
+#   certmanager_*         cert-manager's controller. Confirmed enabled at
+#                         infrastructure/cert-manager/values.yaml:22-26 --
+#                         `prometheus.enabled: true` AND
+#                         `prometheus.servicemonitor.enabled: true`. The
+#                         ServiceMonitor lands in the `cert-manager` namespace,
+#                         which Prometheus honours only because
+#                         serviceMonitorSelectorNilUsesHelmValues is false.
+#                         Both halves are required; either one alone gives a
+#                         metric that is never collected.
+#
+#   alertmanager_*        Alertmanager's own endpoint, scraped by the chart.
+#
+# NOT AVAILABLE, and therefore not used anywhere below:
+#
+#   probe_success         needs blackbox-exporter. Not deployed. This is the
+#                         metric that would genuinely have caught qBittorrent
+#                         without a readiness probe, and its absence is
+#                         discussed at ServiceHasNoReadyBackend.
+#
+#   any CRD status        kube-state-metrics has no CustomResourceStateMetrics
+#                         configuration here, so `Cluster.status.phase`,
+#                         `Application.status.sync` and `VolumeSnapshot.status`
+#                         are invisible to Prometheus. Several tempting rules
+#                         are impossible for this reason and are not written.
+#
+# ---------------------------------------------------------------------------
+# OVERLAP WITH THE CHART'S `defaultRules`, AND WHERE IT IS DELIBERATE
+#
+# The chart's defaults are left enabled, so some of what follows overlaps them.
+# Each case is a judgement, not an oversight, and each is justified where the
+# rule is defined. Summarised here because "why are there two of these" is the
+# first question a reader will have:
+#
+#   KEPT DESPITE OVERLAP, because the upstream thresholds are wrong for a
+#   4-node homelab on small iSCSI volumes:
+#
+#     PersistentVolume{NearlyFull,CriticallyFull,FillingUp}
+#       vs upstream KubePersistentVolumeFillingUp. Upstream's CRITICAL fires at
+#       3% free, which on a 5Gi Postgres volume is 150MB -- far past the point
+#       where anything can be done calmly -- and its warning needs a FOUR-DAY
+#       prediction, which never triggers for WAL accumulating over one night.
+#       15%/5% with a 24h projection is materially earlier.
+#
+#     AlertmanagerNotificationsFailing
+#       vs upstream AlertmanagerFailedToSendAlerts, which is `warning`. This one
+#       is the "every alert is being silently thrown away" case, and it is the
+#       single rule whose failure invalidates all the others. Worth a duplicate
+#       notification at critical.
+#
+#   KEPT BECAUSE UPSTREAM CANNOT SEE THE SAME THING:
+#
+#     KubeStateMetricsAbsent, NodeExporterAbsent, CertManagerMetricsAbsent,
+#     PostgresBackupMetricsAbsent, FileBackupCronJobsAbsent
+#       upstream's `TargetDown` fires when a job's targets are FAILING. It
+#       cannot fire when a ServiceMonitor has been deleted and there are no
+#       targets to be down -- there is no series, so there is nothing to
+#       evaluate. `absent()` is the only construct that sees an exporter that
+#       has stopped existing rather than stopped working. This distinction is
+#       the whole reason this repo needed an alerting pass: its ServiceMonitors
+#       WERE being ignored, and nothing said so.
+#
+#   DROPPED IN FAVOUR OF UPSTREAM:
+#
+#     PrometheusNotIngestingSamples   (see the note in homelab.meta.rules)
+#     CrashLoopBackOff                (see the note in PodStuckNotRunning)
+#     node/kubelet/etcd/apiserver     the whole standard Kube* set, untouched.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-cluster
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # =====================================================================
+    - name: homelab.workload.rules
+      rules:
+        - alert: PodStuckNotRunning
+          # ###############################################################
+          # # THE cilium-mgr9z RULE.
+          # #
+          # # That pod sat in CreateContainerError for 137 days with 298
+          # # restarts while the kubelet retried 790,890 times. Nothing told
+          # # anyone. The chart's KubePodCrashLooping only covers
+          # # CrashLoopBackOff, and a container that never STARTS does not
+          # # crash-loop -- it waits.
+          # ###############################################################
+          #
+          # kube_pod_container_status_waiting_reason is the right metric
+          # precisely because it exposes the reason as a label, so the
+          # never-starts family can be selected explicitly.
+          #
+          # TWO REASONS ARE DELIBERATELY EXCLUDED:
+          #
+          #   ContainerCreating   the normal, transient state of every pod for
+          #                       its first few seconds. Including it would make
+          #                       this fire on every deploy.
+          #
+          #   CrashLoopBackOff    already covered, better, by the chart's own
+          #                       KubePodCrashLooping, which measures the restart
+          #                       RATE rather than the instantaneous state and so
+          #                       does not fire on a single crash. Duplicating it
+          #                       would mean two notifications for one pod. The
+          #                       gap this rule fills is the container that never
+          #                       STARTS -- which does not crash-loop, it waits,
+          #                       and which is what cilium-mgr9z did for 137 days.
+          #
+          # What is left is exactly the never-starts family.
+          #
+          # `group_left(node)` from kube_pod_info is not decoration. The
+          # inhibit_rule for KubeNodeNotReady in ../values.yaml matches on
+          # `equal: [node]`, and kube_pod_container_status_waiting_reason has no
+          # node label. Without this join the inhibition looks configured and
+          # silently never applies, so a single dead node pages once per pod.
+          expr: |
+            max by (namespace, pod, container, reason, node) (
+              kube_pod_container_status_waiting_reason{
+                reason=~"CreateContainerError|CreateContainerConfigError|ErrImagePull|ImagePullBackOff|InvalidImageName"
+              }
+              * on (namespace, pod) group_left (node) kube_pod_info
+            ) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} stuck in {{ $labels.reason }}"
+            description: >-
+              Container {{ $labels.container }} has been unable to start for 15
+              minutes on node {{ $labels.node }}. Read `state`, not `lastState`
+              -- see docs/migration-plan.md, the cilium-mgr9z diagnosis, where
+              the log pointed at the network and the cause was a stale
+              containerd name reservation.
+
+        - alert: PodStuckNotRunningLongTerm
+          # The same condition, escalated. 137 days of CreateContainerError is
+          # not a warning; the only reason the original was not caught is that
+          # nobody looked. Six hours is long past 'it will sort itself out'.
+          expr: |
+            max by (namespace, pod, container, reason, node) (
+              kube_pod_container_status_waiting_reason{
+                reason=~"CreateContainerError|CreateContainerConfigError|ErrImagePull|ImagePullBackOff|InvalidImageName"
+              }
+              * on (namespace, pod) group_left (node) kube_pod_info
+            ) > 0
+          for: 6h
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} has been broken for 6h ({{ $labels.reason }})"
+
+        - alert: PodPendingTooLong
+          # The other way a pod never runs: it is never scheduled. On this
+          # cluster the usual cause is a ReadWriteOnce iSCSI volume still
+          # attached on another node, which is exactly what happens when a
+          # single-replica Deployment is left on RollingUpdate -- see
+          # docs/migration-plan.md, 'One-time normalisations'.
+          #
+          # 30m rather than 15: an iSCSI detach/attach cycle after a node
+          # reboot legitimately takes minutes.
+          expr: |
+            max by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown"}) > 0
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} has been Pending for 30m"
+            description: >-
+              Usually an unschedulable pod or a ReadWriteOnce volume still
+              attached elsewhere. kubectl -n {{ $labels.namespace }} describe pod
+              {{ $labels.pod }} -- read the Events, not the status.
+
+        - alert: PodNotReady
+          # A pod that is Running but not Ready. THIS is the state a readiness
+          # probe puts qBittorrent into, and this rule is what makes that verdict
+          # leave the cluster.
+          #
+          # THE `unless` CLAUSE EXCLUDES THREE PHASES, EACH FOR ITS OWN REASON:
+          #
+          #   Succeeded/Failed  a completed CronJob pod is Ready: false forever.
+          #                     Without this, every nightly backup pages in the
+          #                     morning -- eleven of them, once this change's
+          #                     CronJobs are running. This exclusion is what
+          #                     stops the backup work from breaking the alerting
+          #                     work.
+          #   Pending           a pod that was never scheduled is also not Ready,
+          #                     but that is PodPendingTooLong's job and it names
+          #                     the actual cause. Without this, an unschedulable
+          #                     pod produces two differently-worded alerts about
+          #                     one problem, and the grouping key
+          #                     (alertname, namespace) means two notifications.
+          #
+          # So this rule means strictly what its summary says: Running, and not
+          # Ready.
+          #
+          # The `== 0` is applied AFTER the join, not before. `(x == 0) * y`
+          # yields series whose value is 0, and a rule with no comparison fires
+          # on any series it returns -- so it would work by accident and read as
+          # if it did not. Joining first and comparing last is the same result
+          # and says what it means.
+          expr: |
+            max by (namespace, pod, node) (
+              kube_pod_status_ready{condition="true"}
+              * on (namespace, pod) group_left (node) kube_pod_info
+            ) == 0
+            unless on (namespace, pod) (
+              kube_pod_status_phase{phase=~"Succeeded|Failed|Pending"} == 1
+            )
+          for: 20m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} is Running but not Ready"
+            description: >-
+              Its readiness probe has been failing for 20 minutes, so the
+              Service has removed it. If this is the only replica the app is
+              down. This is the signal that did not exist during the qBittorrent
+              outage -- there was no probe to fail.
+
+        - alert: ServiceHasNoReadyBackend
+          # ###############################################################
+          # # THE qBITTORRENT RULE, AND AN HONEST ACCOUNT OF ITS LIMITS.
+          # #
+          # # The outage: pod `Running 1/1`, `0` restarts, endpoint present in
+          # # the Service, and `ss -lntp` empty. Three months.
+          # #
+          # # NO METRIC IN THIS CLUSTER WOULD HAVE CAUGHT THAT, and it is
+          # # important not to pretend otherwise. Kubernetes believed the pod
+          # # was healthy, so kube-state-metrics reported it healthy, so the
+          # # endpoint was reported present, so `available replicas` was 1.
+          # # Every derived metric inherited the wrong premise.
+          # #
+          # # What would have caught it, in order of directness:
+          # #
+          # #   1. A READINESS PROBE. Now present on every workload in this
+          # #      repo. It converts the failure from invisible into
+          # #      NotReady -> endpoint withdrawn -> this rule fires. The probe
+          # #      is the fix; this rule is the delivery mechanism.
+          # #
+          # #   2. A BLACKBOX PROBE from outside the pod, which would have
+          # #      caught it even with no readiness probe, because it tests the
+          # #      thing rather than asking Kubernetes about it.
+          # #      blackbox-exporter is NOT deployed, so `probe_success` does
+          # #      not exist and no rule here uses it. Adding it needs a chart
+          # #      and an Application; it is the single highest-value addition
+          # #      left in this area and is flagged, not faked.
+          # #
+          # # So: this rule is real and useful, and it is honest that it is
+          # # downstream of a probe existing. A rule written on
+          # # `kube_endpoint_address_available` would have been neither -- see
+          # # below.
+          # ###############################################################
+          #
+          # WHY NOT AN ENDPOINTS METRIC. The obvious expression is
+          #
+          #     kube_endpoint_address_available == 0
+          #
+          # and it is a trap on this chart version. kube-state-metrics
+          # deprecated `kube_endpoint_address_available` and
+          # `kube_endpoint_address_not_ready` in favour of
+          # `kube_endpoint_address{ready="true|false"}` and then removed the old
+          # pair. Chart 88.0.1 ships a kube-state-metrics far past that change,
+          # so the old name is very likely gone -- and a rule on a metric that
+          # does not exist never fires and never complains. Which name is
+          # correct here is decidable in one command:
+          #
+          #     kubectl -n monitoring exec deploy/kube-prometheus-stack-kube-state-metrics \
+          #       -- wget -qO- localhost:8080/metrics | grep kube_endpoint_address
+          #
+          # Until that is checked, this uses Deployment availability, which has
+          # been stable in kube-state-metrics for years and answers the same
+          # question for every workload in this cluster (all are single-replica
+          # Deployments or one StatefulSet).
+          expr: |
+            kube_deployment_status_replicas_available == 0
+            and on (namespace, deployment) (kube_deployment_spec_replicas > 0)
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has ZERO available replicas"
+            description: >-
+              Nothing is serving this Deployment, so its Service has no ready
+              backend. Callers see connection refused, which the *arr apps
+              surface as 'download client unavailable' -- a message that reads
+              like an auth failure. See docs/runbooks/arr-qbittorrent.md.
+
+        - alert: StatefulSetHasNoReadyReplica
+          # Syncthing is the only StatefulSet here, and it is the one holding
+          # device identity keys. Covered separately because the Deployment
+          # metric above cannot see it.
+          expr: |
+            kube_statefulset_status_replicas_ready == 0
+            and on (namespace, statefulset) (kube_statefulset_replicas > 0)
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.statefulset }} has no ready replica"
+
+    # =====================================================================
+    - name: homelab.storage.rules
+      rules:
+        - alert: PersistentVolumeNearlyFull
+          # kubelet_volume_stats_*, not kube_persistentvolumeclaim_*. The
+          # kube-state-metrics PVC metrics report the REQUESTED size and have no
+          # idea how much is used; only the kubelet knows.
+          #
+          # A consequence worth knowing: these series exist only while a pod has
+          # the volume MOUNTED. An unmounted PVC reports nothing, which is why
+          # there is no absent() companion per PVC -- 'not mounted' is not a
+          # fault.
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes
+              / kubelet_volume_stats_capacity_bytes
+            ) < 0.15
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is over 85% full"
+            description: >-
+              The `iscsi` StorageClass sets allowVolumeExpansion: true, so this
+              is fixable by editing spec.resources.requests.storage on the PVC
+              and letting the filesystem grow -- no data movement. Do it before
+              it becomes critical: a full volume under a database is an outage,
+              and under an iSCSI zvol with xfs it is not always a clean one.
+
+        - alert: PersistentVolumeCriticallyFull
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes
+              / kubelet_volume_stats_capacity_bytes
+            ) < 0.05
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is over 95% full"
+
+        - alert: PersistentVolumeFillingUp
+          # A trend rule, which catches the case the two thresholds above miss:
+          # a volume at 40% that will be at 100% by tomorrow morning. WAL
+          # accumulating because archiving is broken looks exactly like this,
+          # and it is the mechanism by which a backup failure becomes a database
+          # outage.
+          #
+          # predict_linear over 6h projecting 24h ahead. The `< 0.6` guard stops
+          # it double-reporting volumes already covered by the threshold rules,
+          # and stops a small volume's normal churn projecting to zero.
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes
+              / kubelet_volume_stats_capacity_bytes
+            ) < 0.6
+            and
+            predict_linear(kubelet_volume_stats_available_bytes[6h], 24 * 3600) < 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} will be full within 24h"
+            description: >-
+              Extrapolating the last 6 hours. If this is a Postgres data volume,
+              check WAL archiving first -- unarchivable WAL is retained locally
+              and fills the volume, and PostgresWALArchiveFailing is the cause,
+              not this.
+
+        - alert: PrometheusTsdbVolumeNearlyFull
+          # Prometheus's own volume, called out separately because filling it
+          # takes the monitoring system down -- and a monitoring system that has
+          # stopped ingesting cannot alert on anything, including itself.
+          #
+          # retentionSize is 12GiB inside a 15Gi volume. That headroom is for
+          # the WAL and for compaction, which retentionSize does not count. If
+          # this fires, the volume is being used by something other than the
+          # blocks Prometheus is accounting for.
+          expr: |
+            (
+              kubelet_volume_stats_available_bytes{namespace="monitoring", persistentvolumeclaim=~"prometheus-.*"}
+              / kubelet_volume_stats_capacity_bytes
+            ) < 0.12
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Prometheus TSDB volume is nearly full"
+            description: >-
+              retentionSize (12GiB) is meant to keep this from happening inside
+              the 15Gi volume. If it has, the WAL or a compaction is using the
+              headroom. Grow the volume -- `iscsi` allows expansion -- rather
+              than cutting retention, and see the comment on retentionSize in
+              platform/kube-prometheus-stack/values.yaml.
+
+        - alert: NodeFilesystemNearlyFull
+          # ###############################################################
+          # # THE /controller RULE.
+          # #
+          # # docs/migration-plan.md: '/controller on the nodes is at 83% disk
+          # # use (29GB eMMC) ... it is the volume kubelet and containerd live
+          # # on.' A full one means images cannot be pulled, containers cannot
+          # # be created, and logs stop -- on a node that still reports Ready
+          # # for a while.
+          # ###############################################################
+          #
+          # Deliberately NOT scoped to `mountpoint="/controller"`. Hard-coding a
+          # mountpoint means the rule silently stops covering anything the day
+          # the layout changes, and a Turing Pi node has several small
+          # filesystems that matter. The fstype exclusion list is what keeps
+          # this from firing on tmpfs and overlay mounts, which are supposed to
+          # be near-full.
+          #
+          # NOTE THE FILTER APPEARS ONCE, ON THE NUMERATOR ONLY, and that is not
+          # an omission. Binary arithmetic in PromQL matches on ALL labels except
+          # __name__ by default, so a numerator series can only pair with the
+          # denominator series carrying identical labels -- filtering one side
+          # filters the result. Writing the regex twice is the common form and it
+          # is strictly worse: it is the same expression maintained in two
+          # places, and the failure mode when they drift is a silently empty
+          # result rather than an error.
+          expr: |
+            (
+              node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+              / node_filesystem_size_bytes
+            ) < 0.15
+            and on (instance, mountpoint) (
+              node_filesystem_readonly == 0
+            )
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is over 85% full"
+            description: >-
+              On these nodes the root/eMMC filesystem holds kubelet and
+              containerd. Reclaim with `crictl rmi --prune` before it stops
+              being able to create containers.
+
+        - alert: NodeFilesystemCriticallyFull
+          expr: |
+            (
+              node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+              / node_filesystem_size_bytes
+            ) < 0.08
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is over 92% full"
+
+        - alert: NodeFilesystemReadOnly
+          # A filesystem remounted read-only is what an eMMC does when it starts
+          # to fail. It is not a capacity problem and no fullness rule sees it;
+          # the node keeps reporting Ready and everything on it slowly breaks.
+          expr: |
+            node_filesystem_readonly{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.instance }} remounted {{ $labels.mountpoint }} READ-ONLY"
+            description: >-
+              Usually the beginning of eMMC failure, not a configuration change.
+              Check dmesg on the node. Four nodes, one of which is a control
+              plane member -- confirm which before rebooting anything.
+
+        - alert: NodeFilesystemInodesNearlyFull
+          # Free bytes and free inodes run out independently. A containerd image
+          # store on a small eMMC exhausts inodes first surprisingly often, and
+          # the error it produces ('no space left on device' with df showing
+          # free space) sends people looking in the wrong place for an hour.
+          expr: |
+            (
+              node_filesystem_files_free{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+              / node_filesystem_files
+            ) < 0.10
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has under 10% of inodes free"
+            description: >-
+              This reports as ENOSPC while `df -h` shows free space. Check
+              `df -i` on the node.
+
+    # =====================================================================
+    - name: homelab.certificates.rules
+      rules:
+        - alert: CertificateExpiringSoon
+          # ###############################################################
+          # # TEN CERTIFICATES CAME WITHIN DAYS OF EXPIRY DURING THE MOVE.
+          # #
+          # # docs/migration-plan.md records renewals due 2026-08-11 and
+          # # expiry 2026-09-10, plus two repo bugs that would have made
+          # # renewal fail QUIETLY: a ClusterIssuer pointing at a Secret name
+          # # that does not exist, and a privateKeySecretRef that would have
+          # # registered a brand-new ACME account.
+          # #
+          # # Quiet is the operative word. cert-manager logs a failure and
+          # # keeps the old, still-valid certificate. Everything works until
+          # # the day it does not.
+          # ###############################################################
+          #
+          # 21 days. cert-manager renews at 2/3 of lifetime, so a 90-day Let's
+          # Encrypt certificate is normally replaced with 30 days left. 21 days
+          # therefore means at least one renewal attempt has already failed,
+          # while leaving three weeks to fix it -- and DNS-01 through Cloudflare
+          # has more moving parts than HTTP-01, so three weeks is not generous.
+          #
+          # CONFIRMED SCRAPED: infrastructure/cert-manager/values.yaml sets both
+          # `prometheus.enabled: true` and `prometheus.servicemonitor.enabled:
+          # true`. The second is the one people miss -- enabling the metrics
+          # port without a ServiceMonitor gives a metric nobody collects.
+          expr: |
+            certmanager_certificate_expiration_timestamp_seconds - time() < 21 * 24 * 3600
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 21 days"
+            description: >-
+              cert-manager should have renewed this at 30 days remaining, so a
+              renewal has already failed silently. Check the Certificate's
+              conditions and the ClusterIssuer's Secret reference:
+              kubectl -n {{ $labels.namespace }} describe certificate {{ $labels.name }}
+
+        - alert: CertificateExpiringVerySoon
+          expr: |
+            certmanager_certificate_expiration_timestamp_seconds - time() < 7 * 24 * 3600
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 7 days"
+            description: >-
+              Every published hostname is served from the wildcard certificate on
+              the shared Gateway. When this expires, everything breaks at once.
+              Let's Encrypt rate-limits, so do not fix it by deleting and
+              recreating in a loop.
+
+        - alert: CertificateNotReady
+          # The leading indicator: cert-manager knows the certificate is not in
+          # a good state well before it expires. The wedged `test-cert-4` in
+          # docs/migration-plan.md sat Pending for 474 DAYS -- long past Let's
+          # Encrypt's 7-day order expiry, so permanently dead rather than slow.
+          # This rule is what would have said so on day one.
+          #
+          # Written as 'the True gauge is 0' rather than 'the False gauge is 1'
+          # on purpose. cert-manager emits one series per condition value and
+          # spells them with Kubernetes' capitalisation (`True`/`False`/
+          # `Unknown`); guessing the case of `False` wrong gives a rule that
+          # never fires. Asking whether the True series is zero also covers
+          # `Unknown`, which is the state a stuck challenge actually sits in.
+          expr: |
+            certmanager_certificate_ready_status{condition=~"True|true"} == 0
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready"
+            description: >-
+              An order or challenge is failing. A Let's Encrypt order expires
+              after 7 days and then never completes, so a stuck Certificate does
+              not recover on its own -- it has to be deleted and reissued.
+
+        - alert: CertManagerMetricsAbsent
+          # The absent() guard for this whole group.
+          #
+          # This cluster has already had the exact failure this catches: the
+          # ServiceMonitors shipped by Cilium, cert-manager and CloudNativePG
+          # were ignored because Prometheus was not configured to look outside
+          # its release namespace. The four *SelectorNilUsesHelmValues flags in
+          # ../values.yaml fix that -- and if one is ever reverted, every
+          # certificate rule above goes quiet with no other symptom.
+          expr: |
+            absent(certmanager_certificate_expiration_timestamp_seconds)
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "cert-manager metrics are not being scraped"
+            description: >-
+              No certificate expiry series exists, so every certificate alert is
+              inert and the next expiry will be a surprise. Check
+              `kubectl -n cert-manager get servicemonitor` and that Prometheus
+              still has serviceMonitorSelectorNilUsesHelmValues: false.
+
+    # =====================================================================
+    # THE MONITORING SYSTEM MONITORING ITSELF.
+    #
+    # These matter more than any individual rule above. A monitoring system
+    # whose failure mode is silence is worse than none, because silence gets
+    # read as health.
+    #
+    # The primary defence is NOT here and cannot be: it is the `Watchdog`
+    # alert routed to an external dead-man's switch in ../values.yaml. Nothing
+    # running inside this cluster can report that this cluster is unreachable.
+    # What is here covers the cases where Prometheus is alive but a piece of the
+    # delivery path is not.
+    # =====================================================================
+    - name: homelab.meta.rules
+      rules:
+        - alert: AlertmanagerNotificationsFailing
+          # `alertmanager_notifications_failed_total` is a COUNTER. `> 0` on it
+          # would latch permanently after the first transient failure -- the same
+          # bug that was in PostgresWALArchiveFailing. rate() over 15m asks
+          # whether delivery is failing now.
+          #
+          # This is the rule that catches a wrong Pushover token, a revoked key,
+          # or a heartbeat URL that 404s -- i.e. 'alerting is configured and
+          # every alert is being thrown away'. Note the irony it lives with: if
+          # ALL delivery is broken, this alert cannot be delivered either. That
+          # is what the external heartbeat is for.
+          expr: |
+            rate(alertmanager_notifications_failed_total[15m]) > 0
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Alertmanager cannot deliver notifications ({{ $labels.integration }})"
+            description: >-
+              Alerts are firing and not arriving. Check the credentials in the
+              `alertmanager-notify` Secret and the Alertmanager pod log. If the
+              phone has gone quiet, this is why.
+
+        - alert: AlertmanagerHasNoReceiverConfigured
+          # The regression guard for the change that added receivers at all.
+          #
+          # `alertmanager_notifications_total` is only ever incremented by a
+          # receiver actually sending something. The Watchdog route sends every
+          # 5 minutes, so on a healthy system this counter always moves. Absent
+          # or flat for six hours means either every route leads to a null
+          # receiver again, or Alertmanager is not processing alerts.
+          #
+          # 6h is long on purpose: `increase()` over a shorter window is noisy
+          # across an Alertmanager restart, and this is a configuration
+          # regression, not an incident.
+          expr: |
+            increase(alertmanager_notifications_total[6h]) == 0
+            or absent(alertmanager_notifications_total)
+          for: 1h
+          labels:
+            severity: critical
+          annotations:
+            summary: "Alertmanager has sent nothing in 6 hours"
+            description: >-
+              The Watchdog route sends a heartbeat every 5 minutes, so this
+              counter should never be flat. Either the receivers have been
+              removed -- the state this repo was in before the alerting work --
+              or Alertmanager is wedged. This is one of the very few places
+              where `or absent(...)` is combined into a single rule rather than
+              split: both halves mean the identical thing, 'nothing is being
+              sent', and there is one action either way.
+
+        - alert: KubeStateMetricsAbsent
+          # Roughly half the rules in this repo are built on kube_*. If
+          # kube-state-metrics stops being scraped, all of them evaluate over an
+          # empty set and report nothing wrong.
+          expr: |
+            absent(kube_pod_info)
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "kube-state-metrics is not being scraped"
+            description: >-
+              Every kube_* alert in this cluster -- pods, jobs, cronjobs, PVCs,
+              deployments -- is currently inert.
+
+        - alert: NodeExporterAbsent
+          expr: |
+            absent(node_filesystem_avail_bytes)
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "node-exporter is not being scraped"
+            description: >-
+              No node disk, memory or filesystem alerting is active. The
+              /controller eMMC is unmonitored while this fires.
+
+        # ---------------------------------------------------------------
+        # NOT WRITTEN HERE, BECAUSE THE CHART ALREADY DOES IT BETTER.
+        #
+        # A rule was drafted for "Prometheus is up but has stopped ingesting
+        # samples" -- the most deceptive state the stack can be in, because the
+        # UI looks fine and every rule quietly evaluates against data that
+        # stops at a point in the past.
+        #
+        # kube-prometheus-stack already ships `PrometheusNotIngestingSamples`
+        # in its `prometheus` rule group, with the same expression. Adding a
+        # second copy would mean two notifications for one condition.
+        #
+        # The only difference is severity: upstream marks it `warning` and this
+        # would have marked it `critical`. That difference does not matter here,
+        # because the route in ../values.yaml sends warnings to the same phone
+        # as criticals -- just batched harder. A duplicate rule to change a
+        # label is not worth a duplicate notification.
+        # ---------------------------------------------------------------

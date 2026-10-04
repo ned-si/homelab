@@ -1,0 +1,39 @@
+# One wildcard certificate for the whole site.
+#
+# Declared explicitly rather than relying on cert-manager's Gateway annotation
+# shim, because a wildcard SAN is easier to reason about when it is written down,
+# and because this makes the DNS-01 dependency visible: a wildcard can ONLY be
+# issued via DNS-01, never HTTP-01.
+#
+# The resulting Secret must live in the same namespace as the Gateway that
+# references it -- Gateway API does not allow a cross-namespace certificateRef
+# without a ReferenceGrant, and there is no reason to add one here.
+#
+# WHILE BRINGING THE CLUSTER UP: point `issuerRef.name` at `letsencrypt-staging`
+# first. Production Let's Encrypt allows 50 certificates per registered domain
+# per week and a misconfigured DNS-01 solver will burn through that quickly.
+# Switch to `letsencrypt` once you see `Ready=True` below.
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-lilalala
+  namespace: gateway
+spec:
+  secretName: wildcard-lilalala-tls
+  # A wildcard does not match the apex, so both are listed.
+  commonName: "*.lilalala.com"
+  dnsNames:
+    - "*.lilalala.com"
+    - "lilalala.com"
+  issuerRef:
+    name: letsencrypt
+    kind: ClusterIssuer
+    group: cert-manager.io
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    # Rotate the key on every renewal rather than reusing it for years.
+    rotationPolicy: Always
+  duration: 2160h    # 90d, the only value Let's Encrypt issues
+  renewBefore: 720h  # 30d, so there is a month of slack to notice a failure

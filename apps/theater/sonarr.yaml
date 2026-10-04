@@ -1,0 +1,130 @@
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: sonarr-postgresql
+  namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: sonarr
+  name: sonarr
+  namespace: theater
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002); the digest pin is its own change, see docs/roadmap.md
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sonarr
+    spec:
+      containers:
+        - name: sonarr
+          image: ghcr.io/hotio/sonarr:latest
+          imagePullPolicy: Always
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "002"
+            - name: SONARR__LOG__DBENABLED
+              value: "false"
+            - name: SONARR__POSTGRES__HOST
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: host
+            - name: SONARR__POSTGRES__PORT
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: port
+            - name: SONARR__POSTGRES__USER
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: user
+            - name: SONARR__POSTGRES__PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: password
+            - name: SONARR__POSTGRES__MAINDB
+              valueFrom:
+                secretKeyRef:
+                  name: sonarr-postgresql-app
+                  key: dbname
+            - name: SONARR__SERVER__URLBASE
+              value: /arr/sonarr
+          ports:
+            - name: http
+              containerPort: 8989
+              protocol: TCP
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+        - name: media
+          nfs:
+            server: 192.168.1.228
+            path: /mnt/homelab/k8s/nfs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarr-config
+  namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: sonarr
+  name: sonarr
+  namespace: theater
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8989
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: sonarr

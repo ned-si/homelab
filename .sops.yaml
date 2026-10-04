@@ -1,0 +1,84 @@
+# SOPS encryption rules.
+#
+# Every file matching `path_regex` is encrypted to the age recipients listed
+# below. Only the VALUES of the matched keys are encrypted; YAML keys, comments
+# and structure stay in plaintext so diffs remain reviewable.
+#
+# The matching private key lives in TWO places and nowhere else:
+#   1. your password manager (backup)
+#   2. the `sops-age` Secret in the `argocd` namespace (seeded by OpenTofu)
+#
+# See docs/secrets.md before touching this file.
+#
+# ---------------------------------------------------------------------------
+# WHY THE PATH REGEX IS ANCHORED WITH `(^|/)[^/]+`
+#
+# The obvious form, `.*\.sops\.ya?ml$`, also matches THIS FILE. `.*` matches the
+# empty string, so `.sops.yaml` satisfies it, and the consequence is not
+# theoretical: `task secrets:seal:all` iterates
+#
+#     git ls-files -co --exclude-standard '*.sops.yaml'
+#
+# and a git pathspec glob matches the empty prefix too, so `.sops.yaml` is in that
+# list. It has no `sops:` block, so the task would try to encrypt the SOPS
+# configuration itself. With a creation rule that matches, sops succeeds and
+# appends a `sops:` metadata block to the file that tells sops what to do.
+#
+# Requiring at least one character of basename before `.sops.` removes the match,
+# which turns that silent self-encryption into a clean "no matching creation
+# rules found" and a skipped file. scripts/leak-check.sh and
+# scripts/placeholder-check.sh both carry the same exclusion for the same reason;
+# this is the third place the accident had to be handled.
+#
+# The pattern still matches every location a sealed file actually lives -- the
+# regex is applied to the path as given, and `(^|/)` accepts a bare basename, a
+# relative path (`infrastructure/secrets/x.sops.yaml`, `./x.sops.yaml`) and an
+# absolute one:
+#
+#     infrastructure/secrets/   cloudflare tokens, democratic-csi driver config
+#     platform/secrets/         keycloak admin, grafana OIDC, s3 backup, alertmanager
+#     apps/secrets/             immich config, mealie/paperless OIDC, seafile
+#
+# `*.sops.yaml.example` templates do NOT match, which is correct -- they hold
+# placeholders and must stay readable.
+#
+# ---------------------------------------------------------------------------
+# EDITING A SEALED FILE: USE `task secrets:edit`, NEVER A TEXT EDITOR
+#
+# `encrypted_regex` leaves metadata in plaintext, which makes a sealed Secret
+# look hand-editable. It is not. The MAC sops stores covers every value in the
+# file, encrypted or not, so changing `metadata.namespace` by hand makes the
+# whole file fail to decrypt with a MAC mismatch -- and it fails at Argo CD sync
+# time, not at edit time.
+#
+# `mac_only_encrypted: true` would relax that. It is deliberately not set: the
+# fields it would leave unprotected are `metadata.name` and
+# `metadata.namespace`, i.e. which Secret this becomes and which namespace it
+# lands in, and being able to alter those undetectably is worse than the
+# inconvenience it saves.
+# ---------------------------------------------------------------------------
+---
+creation_rules:
+  # Kubernetes Secret manifests: encrypt only the payload, not the metadata.
+  # This keeps `kubectl`-shaped diffs readable in pull requests.
+  #
+  # `^(data|stringData)$` is anchored on the whole key name, and sops matches it
+  # at any depth -- which is what makes it correct for the one template whose
+  # payload is itself a document
+  # (infrastructure/secrets/democratic-csi-iscsi.sops.yaml.example puts the entire
+  # driver config in a single `stringData.driver-config-file.yaml` block string).
+  # The block is encrypted as one value; nothing inside it needs its own rule.
+  - path_regex: (^|/)[^/]+\.sops\.ya?ml$
+    encrypted_regex: ^(data|stringData)$
+    age: >-
+      age13pq2dxc9tyhwupz5c83rlt4fp7jcr2lknqsjvzhv9q9xjz9dfv4qnzvruy
+
+  # Helm values / plain config that contain secrets but are not Secret objects.
+  #
+  # No `encrypted_regex` on purpose: a dotenv file has no metadata to preserve, so
+  # every value is encrypted. There are no `*.sops.env` files in the tree today;
+  # the rule exists so that adding one cannot accidentally land in git as
+  # plaintext for want of a matching creation rule.
+  - path_regex: (^|/)[^/]+\.sops\.env$
+    age: >-
+      age13pq2dxc9tyhwupz5c83rlt4fp7jcr2lknqsjvzhv9q9xjz9dfv4qnzvruy

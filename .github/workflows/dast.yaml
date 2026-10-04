@@ -1,0 +1,167 @@
+---
+# DAST: dynamic scanning of the running site.
+#
+# ###########################################################################
+# # WHY THIS IS NOT A PR GATE.
+# #
+# # DAST exercises a RUNNING application over HTTP. On a pull request there is
+# # nothing running -- no preview environment, no ephemeral cluster -- so a
+# # PR-triggered DAST job would either scan production (wrong: PRs must not be
+# # able to hammer the live site) or scan nothing and report green (worse:
+# # security theatre).
+# #
+# # So it runs on a schedule and on demand, from a runner that can reach the
+# # Gateway, against the real deployment. That is what DAST is actually for.
+# ###########################################################################
+#
+# WHAT GATES AND WHAT REPORTS
+#
+#   zap  REPORTS. `fail_action: false` below, and .zap/rules.tsv contains no
+#        FAIL rows. Those two agree on purpose: every rule worth failing on is
+#        a response header the Gateway does not set yet, so a gate would be red
+#        from its first run. Findings become a GitHub issue.
+#
+#   tls  GATES. scripts/tls-check.sh hard-fails on reachability, a missing
+#        http -> https redirect, and certificate expiry -- all green today, all
+#        real regressions if they stop being. Its header checks are warnings,
+#        promoted by STRICT_HEADERS=1 when the Gateway grows a
+#        ResponseHeaderModifier filter. The promotion path is documented at the
+#        top of .zap/rules.tsv and must be applied to all three files at once.
+#
+# The targets are authenticated behind Keycloak, so an unauthenticated baseline
+# scan mostly checks headers, TLS and error handling. That is still worth having:
+# it is exactly the class of thing that regresses silently when routing changes.
+name: dast
+
+on:
+  schedule:
+    # Sunday 03:00 UTC. Weekly is right for a homelab whose surface changes
+    # rarely; the scan is noisy on CPU and these are 8-core SBCs.
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      target:
+        # Quoted: an unquoted plain scalar may not contain ": ", and this one did.
+        # PyYAML -- which is what both the check-yaml hook and yamllint use --
+        # rejects the whole file, so `lint` was failing on a description string.
+        description: "Single hostname to scan (default: every published hostname)"
+        required: false
+        type: string
+      full_scan:
+        description: Active scan (SENDS ATTACK TRAFFIC). Baseline if false.
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dast
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: runner available?
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.c.outputs.enabled }}
+      hosts: ${{ steps.h.outputs.hosts }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - id: c
+        run: |
+          if [ "${{ vars.CLUSTER_RUNNER_READY }}" = "true" ]; then
+            echo "enabled=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >>"$GITHUB_OUTPUT"
+            echo "::notice::DAST skipped: no self-hosted runner yet."
+          fi
+
+      # DERIVED, not listed. This job used to carry a hand-written list of seven
+      # hostnames while the manifests published fifteen, so the eight newest
+      # apps -- the ones most likely to be misrouted -- were never scanned.
+      # scripts/published-hostnames.sh exits non-zero on an empty result, so a
+      # broken extractor fails this job instead of collapsing the matrix to
+      # nothing and reporting green.
+      - id: h
+        run: |
+          set -euo pipefail
+          hosts=$(./scripts/published-hostnames.sh --json)
+          echo "hosts=$hosts" >>"$GITHUB_OUTPUT"
+          echo "targets: $hosts"
+
+  zap:
+    name: ZAP ${{ matrix.host }}
+    needs: guard
+    if: needs.guard.outputs.enabled == 'true'
+    runs-on: [self-hosted, homelab]
+    permissions:
+      contents: read
+      issues: write
+    strategy:
+      # Sequentially, not in parallel: concurrent scans against one Gateway on
+      # four RK1 nodes is a self-inflicted denial of service.
+      max-parallel: 1
+      fail-fast: false
+      matrix:
+        host: ${{ fromJSON(needs.guard.outputs.hosts) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Skip hosts not selected
+        id: sel
+        run: |
+          want='${{ github.event.inputs.target }}'
+          if [ -n "$want" ] && [ "$want" != '${{ matrix.host }}' ]; then
+            echo "skip=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # Baseline = passive. It spiders and inspects responses but sends no attack
+      # payloads, so it is safe against a live service.
+      - name: ZAP baseline scan
+        if: steps.sel.outputs.skip == 'false' && github.event.inputs.full_scan != 'true'
+        uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
+        with:
+          target: https://${{ matrix.host }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a -j -T 10"
+          # Reporting, not gating. See the header of this file and of
+          # .zap/rules.tsv -- rules.tsv has no FAIL rows, so this setting and
+          # that file agree. Change both together or not at all.
+          fail_action: false
+          issue_title: "DAST: ${{ matrix.host }}"
+          allow_issue_writing: true
+
+      # Full = ACTIVE. Sends real attack traffic (injection, traversal, fuzzing).
+      # Manual opt-in only.
+      - name: ZAP full scan (active)
+        if: steps.sel.outputs.skip == 'false' && github.event.inputs.full_scan == 'true'
+        uses: zaproxy/action-full-scan@75ee1686750ab1511a73b26b77a2aedd295053ed # v0.12.0
+        with:
+          target: https://${{ matrix.host }}
+          rules_file_name: .zap/rules.tsv
+          cmd_options: "-a -j"
+          fail_action: false
+          issue_title: "DAST (active): ${{ matrix.host }}"
+          allow_issue_writing: true
+
+  # ---------------------------------------------------------------------------
+  # TLS and header posture. Cheap, deterministic, and catches the regressions
+  # that matter most after a routing change. This is the gate.
+  # ---------------------------------------------------------------------------
+  tls:
+    name: TLS + security headers
+    needs: guard
+    if: needs.guard.outputs.enabled == 'true'
+    runs-on: [self-hosted, homelab]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # STRICT_HEADERS is deliberately unset: the four security headers are
+      # warnings until the Gateway sets them. See .zap/rules.tsv for the
+      # promotion checklist.
+      - name: Check every published hostname
+        run: ./scripts/tls-check.sh

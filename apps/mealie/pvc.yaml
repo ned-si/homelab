@@ -1,0 +1,22 @@
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mealie-pvc
+  namespace: mealie
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi

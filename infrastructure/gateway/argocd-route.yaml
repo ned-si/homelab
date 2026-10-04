@@ -1,0 +1,29 @@
+# argo.lilalala.com -> argocd-server.
+#
+# In Argo CD's own namespace, next to its Service, so no ReferenceGrant is
+# needed. Port 80 = plain HTTP: TLS ends at the Gateway (ADR 0007).
+#
+# DEPENDENCY: this route only works once argocd-server runs with
+# `server.insecure: true` (`configs.params` in bootstrap/argocd-values.yaml,
+# its own change). Until then argocd-server answers plain HTTP with a redirect
+# to HTTPS, so through the Gateway argo.lilalala.com loops. The legacy Ingress
+# (infrastructure/legacy-ingress/) keeps serving it over HTTPS meanwhile.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argo
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - argo.lilalala.com
+  rules:
+    - backendRefs:
+        - name: argocd-server
+          port: 80
+      timeouts:
+        request: 0s

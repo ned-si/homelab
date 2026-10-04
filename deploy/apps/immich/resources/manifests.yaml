@@ -1,0 +1,95 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/immich/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/immich/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: immich
+spec:
+  clusterIP: None
+  ports:
+  - port: 6379
+    protocol: TCP
+    targetPort: 6379
+  selector:
+    app.kubernetes.io/name: valkey
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: immich
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: valkey
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: valkey
+    spec:
+      containers:
+      - image: valkey/valkey:8.0.1-alpine
+        name: valkey
+        ports:
+        - containerPort: 6379
+          protocol: TCP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: immich
+  namespace: immich
+spec:
+  hostnames:
+  - media.lilalala.com
+  parentRefs:
+  - name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - name: immich-server
+      port: 2283
+    timeouts:
+      request: 0s
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: immich-db
+  namespace: immich
+spec:
+  bootstrap:
+    initdb:
+      postInitApplicationSQL:
+      - ALTER SYSTEM SET search_path TO "$user", public, vectors;
+      - SET search_path TO "$user", public, vectors;
+      - CREATE EXTENSION IF NOT EXISTS "vectors";
+      - CREATE EXTENSION IF NOT EXISTS "cube";
+      - CREATE EXTENSION IF NOT EXISTS "earthdistance";
+      - ALTER SCHEMA vectors OWNER TO "app";
+      - GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA vectors TO "app";
+      - GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "app";
+  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
+  instances: 1
+  postgresql:
+    shared_preload_libraries:
+    - vectors.so
+  storage:
+    size: 5Gi

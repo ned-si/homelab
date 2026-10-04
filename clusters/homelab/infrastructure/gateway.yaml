@@ -1,0 +1,44 @@
+# The shared Gateway: one entrypoint, one certificate, one LAN address.
+#
+# This is the direct replacement for ingress-nginx, which the Kubernetes project
+# archived in March 2026 (no more releases, no more CVE fixes). Cilium is the
+# Gateway controller, so there is no separate ingress controller Deployment to
+# run or patch any more.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "15"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/infrastructure/gateway
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: gateway
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    # Cilium writes the assigned address and per-listener attachment counts into
+    # Gateway status. Argo would otherwise report permanent drift.
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      jsonPointers:
+        - /status

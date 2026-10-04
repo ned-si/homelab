@@ -1,0 +1,56 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Kubernetes VolumeSnapshot support: CRDs + the cluster-side snapshot controller.
+#
+# ###########################################################################
+# # WHY THIS IS NEEDED, AND WHY IT WAS MISSING
+# #
+# # Snapshots take two halves. democratic-csi ALREADY runs the driver half --
+# # the `external-snapshotter` sidecar has been in its controller Deployment all
+# # along -- and the chart already declares a `VolumeSnapshotClass`. But the
+# # CLUSTER half was never installed: no CRDs, no snapshot-controller. So the
+# # VolumeSnapshotClass silently never got created and snapshots were simply
+# # unavailable:
+# #
+# #   $ kubectl get volumesnapshotclass
+# #   error: the server doesn't have a resource type "volumesnapshotclass"
+# #
+# # These CRDs are cluster-scoped and are deliberately NOT bundled with any CSI
+# # driver, because several drivers would fight over them. Installing them is the
+# # cluster operator's job. That is this directory.
+# ###########################################################################
+#
+# WHAT IT UNLOCKS
+#   Instant, space-efficient, local rollback points on ZFS. A VolumeSnapshot of
+#   the 317GB Immich library costs no meaningful space or time, because it is a
+#   copy-on-write ZFS snapshot rather than a copy. That is what makes
+#   "snapshot before a risky upgrade, delete it afterwards" practical --
+#   see scripts/pre-upgrade-snapshot.sh and docs/backups.md.
+#
+# VERSION: pinned to v6.3.2, matching the `csi-snapshotter:v6.3.0` sidecar
+# democratic-csi runs. The v1 CRDs are stable, but keeping the cluster controller
+# and the driver sidecar on the same minor avoids arguing about which side is
+# wrong when a snapshot misbehaves. Bump both together.
+
+resources:
+  # --- the CRDs -------------------------------------------------------------
+  # renovate: datasource=github-releases depName=kubernetes-csi/external-snapshotter
+  - https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
+  - https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
+  - https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
+
+  # --- the controller ------------------------------------------------------
+  - https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml
+  - https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml
+
+patches:
+  # Upstream ships 2 replicas for HA. One is enough here: it is leader-elected,
+  # idle almost always, and a few minutes without it only delays a snapshot.
+  - target:
+      kind: Deployment
+      name: snapshot-controller
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1

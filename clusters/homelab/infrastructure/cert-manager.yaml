@@ -1,0 +1,50 @@
+# cert-manager. Issues the wildcard certificate that the shared Gateway serves.
+#
+# Split into two Applications on purpose: the controller (this one) must be
+# running and its CRDs established before any ClusterIssuer can be validated.
+# A single Application would try to apply both in one pass and fail the first
+# sync every time.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://charts.jetstack.io
+      chart: cert-manager
+      # renovate: datasource=helm depName=cert-manager registryUrl=https://charts.jetstack.io
+      targetRevision: v1.15.0
+      helm:
+        releaseName: cert-manager
+        valueFiles:
+          - $values/infrastructure/cert-manager/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cert-manager
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false # ships CRDs: pruning one deletes every Certificate
+      selfHeal: true
+    syncOptions:
+      # Client-side apply, as the running child Application does. Its
+      # objects carry last-applied-configuration from client-side apply;
+      # switching this leaf to server-side apply on adoption would keep
+      # fields the new render drops (e.g. a volume source) and fail
+      # validation. Move to ServerSideApply=true in its own change, after
+      # adoption.
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

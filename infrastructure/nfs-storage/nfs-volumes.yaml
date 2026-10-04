@@ -1,0 +1,97 @@
+# Bulk storage on NFS for the theater namespace.
+#
+# ###########################################################################
+# # SITE-SPECIFIC -- the TrueNAS address appears ONCE here and TWICE in
+# # ./backup-volume.yaml (one PV per namespace). Update all three after the
+# # house move / NAS change, then re-render: Argo CD reads deploy/, so editing
+# # this file alone changes nothing in the cluster and fails CI.
+# #
+# # It is also in infrastructure/secrets/democratic-csi-iscsi.sops.yaml (API
+# # host, SSH host, iSCSI portal), which is encrypted and therefore invisible to
+# # grep. `grep -rn SITE-SPECIFIC` is the authoritative list; the map is in
+# # docs/architecture.md.
+# ###########################################################################
+#
+# ONE PersistentVolume, mounted at the PARENT of both the download directory and
+# the media library. This is deliberate and it is the single most important
+# detail in this file.
+#
+# WHY NOT TWO VOLUMES
+#   Hardlinks cannot cross a mount point. Even though /mnt/homelab/k8s/nfs/media
+#   and /mnt/homelab/k8s/nfs/torrents live on the same ZFS dataset on the same
+#   server, exposing them as two PVs gives the pod two separate NFS mounts, and
+#   `link()` between them fails with EXDEV.
+#
+#   The *arr apps rely on hardlinking to "import" a finished download: they
+#   create a second directory entry for the same inode in the library, which is
+#   instant and uses no extra space, while qBittorrent keeps seeding the original.
+#   Break hardlinks and every import silently degrades to a full copy -- doubling
+#   disk usage and taking minutes per file on a 1GbE NAS.
+#
+#   So: one mount at /data, containing both ./torrents and ./media. This is the
+#   layout the old repo happened to get right (it mounted the parent directory
+#   inline) and it must be preserved.
+#
+# WHO MOUNTS WHAT
+#   sonarr/radarr/lidarr   the whole PVC at /data       (needs both subtrees)
+#   qbittorrent            subPath: torrents at /data/torrents
+#   plex/jellyfin          subPath: media  at /media    (read-only)
+#
+# `storageClassName: ""` plus `volumeName` on the claim pins the PVC to this PV.
+# Without the empty storage class the default `iscsi` class would try to
+# dynamically provision and the claim would never bind.
+#
+# `persistentVolumeReclaimPolicy: Retain` because this is the media library: a
+# deleted PVC must never be able to trigger deletion of the backing share.
+#
+# HARDENING, STILL OUTSTANDING (flagged as "nfs: harden (!)" in the old README
+# and still true): this export is almost certainly reachable by anything on the
+# LAN, and NFS has no meaningful authentication. Restrict the export to the four
+# node IPs on the TrueNAS side. See docs/runbooks/nfs-hardening.md.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: theater-data
+  labels:
+    homelab.lilalala.com/share: theater-data
+spec:
+  capacity:
+    # NFS ignores this; Kubernetes requires it and uses it only for matching.
+    # The share is 26T with 9.5T used as of 2026-07-31.
+    storage: 26Ti
+  accessModes:
+    # RWX: every app in the namespace mounts it simultaneously.
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    - nfsvers=4.1
+    - hard
+    - noatime
+    # `hard` means I/O retries forever if the NAS disappears, which is correct
+    # for a media library (better to stall than to corrupt), but it does mean a
+    # NAS outage will wedge these pods until it returns. timeo/retrans keep the
+    # retry cadence sane rather than hammering the server.
+    - timeo=600
+    - retrans=2
+  nfs:
+    server: 192.168.1.228 # SITE-SPECIFIC
+    # The PARENT of both `media/` and `torrents/`. Do not narrow this.
+    path: /mnt/homelab/k8s/nfs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: theater-data
+  namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: theater-data
+  resources:
+    requests:
+      storage: 26Ti

@@ -1,0 +1,43 @@
+# The root Application. Mirrors clusters/homelab/root.yaml, with repoURL and
+# targetRevision injected by OpenTofu so the bootstrap can follow a working
+# branch while the committed manifest tracks the `deployed` tag.
+#
+# KEEP THIS IN STEP WITH clusters/homelab/root.yaml. Once root syncs, Argo CD
+# reconciles itself against that file, so any field that differs here is
+# overwritten within minutes -- which looks like OpenTofu drift and is not.
+# `targetRevision` is the deliberate exception, and the only one.
+#
+# No resources-finalizer and no prune: deleting this Application never deletes
+# what it created. Teardown is explicit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: {{ .Values.namespace }}
+  annotations:
+    # Hand ownership to Argo CD: Helm created this object, but it must not try to
+    # reconcile or delete it afterwards.
+    helm.sh/resource-policy: keep
+spec:
+  project: default
+  source:
+    repoURL: {{ .Values.repoURL | quote }}
+    targetRevision: {{ .Values.targetRevision | quote }}
+    path: {{ .Values.path | quote }}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ .Values.namespace }}
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

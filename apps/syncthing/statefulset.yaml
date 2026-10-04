@@ -1,0 +1,56 @@
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: syncthing
+  namespace: syncthing
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002); the digest pin is its own change, see docs/roadmap.md
+spec:
+  selector:
+    matchLabels:
+      app: syncthing
+  serviceName: syncthing
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: syncthing
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: syncthing
+          image: syncthing/syncthing:latest
+          ports:
+            - name: web-ui
+              containerPort: 8384
+            - name: syncthing-tcp
+              containerPort: 22000
+              protocol: TCP
+            - name: syncthing-udp
+              containerPort: 22000
+              protocol: UDP
+            - name: syncthing-disc
+              containerPort: 21027
+              protocol: UDP
+          volumeMounts:
+            - name: syncthing
+              mountPath: /var/syncthing
+          env:
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+      volumes:
+        - name: syncthing
+          persistentVolumeClaim:
+            claimName: syncthing-pvc
+            readOnly: false

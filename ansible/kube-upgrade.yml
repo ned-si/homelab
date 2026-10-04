@@ -1,0 +1,283 @@
+---
+# Rolling Kubernetes minor upgrade (kubeadm).
+#
+# ###########################################################################
+# # READ BEFORE RUNNING.
+# #
+# # 1. ONE MINOR AT A TIME. kubeadm supports n -> n+1 only. Going 1.31 -> 1.34
+# #    means running this three times, verifying in between. It will refuse to
+# #    skip, but do not try.
+# #
+# # 2. THE FIRST CONTROL-PLANE NODE IS SPECIAL. It runs `kubeadm upgrade apply`,
+# #    which upgrades the control plane components and the cluster-wide config.
+# #    Every other node runs `kubeadm upgrade node`, which does not.
+# #
+# # 3. CHECK CILIUM COMPATIBILITY FIRST. Cilium supports a specific Kubernetes
+# #    range. Cilium 1.20 is built against Kubernetes 1.36. Upgrading Kubernetes
+# #    past what the running Cilium supports breaks the CNI, which breaks
+# #    everything.
+# #
+# # 4. TAKE A BACKUP OF ETCD. This playbook does that automatically, but verify
+# #    the file exists before continuing.
+# # ###########################################################################
+#
+# Usage:
+#   ansible-playbook kube-upgrade.yml -e kube_version=1.35.0
+#   ansible-playbook kube-upgrade.yml -e kube_version=1.35.0 --check
+#
+# `kube_version` is the FULL patch version. The apt repo is per-minor, so the
+# repo URL is derived from it.
+
+- name: Pre-flight
+  hosts: localhost
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Require an explicit target version
+      ansible.builtin.assert:
+        that:
+          - kube_version is defined
+          - kube_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+        fail_msg: "Pass -e kube_version=1.35.0 (full patch version)."
+
+    - name: Read the current server version
+      changed_when: false
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl version -o json | jq -r '.serverVersion.minor'
+      args:
+        executable: /bin/bash
+      register: current_minor
+
+    - name: Refuse to skip a minor version
+      vars:
+        target_minor: "{{ kube_version.split('.')[1] | int }}"
+        now_minor: "{{ current_minor.stdout | regex_replace('[^0-9]', '') | int }}"
+      ansible.builtin.assert:
+        that:
+          - target_minor | int == (now_minor | int) + 1 or target_minor | int == now_minor | int
+        fail_msg: >-
+          Current minor is 1.{{ now_minor }}, target is 1.{{ target_minor }}.
+          kubeadm supports one minor at a time. Run this once per minor version.
+
+    - name: Show what Cilium expects
+      ansible.builtin.debug:
+        msg: >-
+          Confirm Cilium supports Kubernetes 1.{{ kube_version.split('.')[1] }}
+          before proceeding. Cilium version currently deployed is pinned in
+          infrastructure/cilium/values.yaml via clusters/homelab/infrastructure/cilium.yaml.
+
+# ---------------------------------------------------------------------------
+- name: Back up etcd
+  hosts: controlplane[0]
+  become: true
+  any_errors_fatal: true
+  tasks:
+    - name: Snapshot etcd
+      # Belt and braces. The CNPG backups cover application data; this covers the
+      # cluster's own state, which nothing else backs up.
+      ansible.builtin.shell: |
+        set -euo pipefail
+        ts=$(date +%Y%m%d-%H%M%S)
+        ETCDCTL_API=3 etcdctl \
+          --endpoints=https://127.0.0.1:2379 \
+          --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+          --cert=/etc/kubernetes/pki/etcd/server.crt \
+          --key=/etc/kubernetes/pki/etcd/server.key \
+          snapshot save /root/etcd-snapshot-$ts.db
+        ls -lh /root/etcd-snapshot-$ts.db
+      args:
+        executable: /bin/bash
+      register: etcd_backup
+      changed_when: true
+
+    - name: Show the snapshot
+      ansible.builtin.debug:
+        var: etcd_backup.stdout_lines
+
+    - name: Remind about off-box storage
+      ansible.builtin.debug:
+        msg: >-
+          The snapshot is on this node only. Copy it off before continuing if you
+          want it to survive losing this node.
+
+# ---------------------------------------------------------------------------
+- name: Upgrade the first control-plane node
+  hosts: controlplane[0]
+  become: true
+  any_errors_fatal: true
+  vars:
+    kube_minor: "{{ kube_version.split('.')[0] }}.{{ kube_version.split('.')[1] }}"
+  tasks:
+    - name: Point apt at the target minor's repository
+      # The pkgs.k8s.io repos are per-minor, so a minor upgrade means changing
+      # the repo, not just the pinned version.
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg]
+          https://pkgs.k8s.io/core:/stable:/v{{ kube_minor }}/deb/ /
+        filename: kubernetes
+        state: present
+        update_cache: false
+
+    - name: Refresh the signing key for the new repo
+      ansible.builtin.shell: |
+        set -euo pipefail
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ kube_minor }}/deb/Release.key \
+          | gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Unhold kubeadm
+      ansible.builtin.dpkg_selections:
+        name: kubeadm
+        selection: install
+
+    - name: Install the target kubeadm
+      ansible.builtin.apt:
+        name: "kubeadm={{ kube_version }}-*"
+        state: present
+        update_cache: true
+        allow_change_held_packages: true
+
+    - name: Re-hold kubeadm
+      ansible.builtin.dpkg_selections:
+        name: kubeadm
+        selection: hold
+
+    - name: kubeadm upgrade plan (informational)
+      ansible.builtin.command: kubeadm upgrade plan
+      changed_when: false
+      register: upgrade_plan
+
+    - name: Show the plan
+      ansible.builtin.debug:
+        var: upgrade_plan.stdout_lines
+
+    - name: Apply the control-plane upgrade
+      # Only ever on the FIRST control-plane node. This is what actually upgrades
+      # the API server, controller-manager, scheduler and etcd manifests.
+      ansible.builtin.command: "kubeadm upgrade apply v{{ kube_version }} --yes"
+      changed_when: true
+
+# ---------------------------------------------------------------------------
+- name: Upgrade the remaining nodes
+  # Order: remaining control-plane nodes, then workers. `serial: 1` keeps it a
+  # rolling upgrade.
+  hosts: controlplane[1:]:workers
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  vars:
+    kube_minor: "{{ kube_version.split('.')[0] }}.{{ kube_version.split('.')[1] }}"
+  tasks:
+    - name: Point apt at the target minor's repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg]
+          https://pkgs.k8s.io/core:/stable:/v{{ kube_minor }}/deb/ /
+        filename: kubernetes
+        state: present
+        update_cache: false
+
+    - name: Refresh the signing key
+      ansible.builtin.shell: |
+        set -euo pipefail
+        mkdir -p /etc/apt/keyrings
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ kube_minor }}/deb/Release.key \
+          | gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Unhold the Kubernetes packages
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: install
+      loop: [kubeadm, kubelet, kubectl]
+
+    - name: Install the target kubeadm
+      ansible.builtin.apt:
+        name: "kubeadm={{ kube_version }}-*"
+        state: present
+        update_cache: true
+        allow_change_held_packages: true
+
+    - name: Drain the node
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command: >-
+        kubectl drain {{ inventory_hostname }}
+        --ignore-daemonsets --delete-emptydir-data --force --timeout=600s
+      changed_when: true
+
+    - name: kubeadm upgrade node
+      # NOT `upgrade apply`: that would try to re-upgrade the control plane.
+      ansible.builtin.command: kubeadm upgrade node
+      changed_when: true
+
+    - name: Upgrade kubelet and kubectl
+      ansible.builtin.apt:
+        name:
+          - "kubelet={{ kube_version }}-*"
+          - "kubectl={{ kube_version }}-*"
+        state: present
+        allow_change_held_packages: true
+
+    - name: Re-hold the Kubernetes packages
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: [kubeadm, kubelet, kubectl]
+
+    - name: Restart the kubelet
+      ansible.builtin.systemd:
+        name: kubelet
+        state: restarted
+        daemon_reload: true
+
+    - name: Wait for Ready
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command: >-
+        kubectl wait --for=condition=Ready node/{{ inventory_hostname }} --timeout=600s
+      changed_when: false
+
+    - name: Uncordon
+      delegate_to: localhost
+      become: false
+      ansible.builtin.command: "kubectl uncordon {{ inventory_hostname }}"
+      changed_when: true
+
+    - name: Settle
+      ansible.builtin.pause:
+        seconds: 60
+
+# ---------------------------------------------------------------------------
+- name: Verify
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Node versions
+      changed_when: false
+      ansible.builtin.command: kubectl get nodes -o wide
+      register: nodes
+
+    - name: Show
+      ansible.builtin.debug:
+        var: nodes.stdout_lines
+
+    - name: Next steps
+      ansible.builtin.debug:
+        msg: |
+          Kubernetes is now at v{{ kube_version }}.
+
+          Remaining, in this order:
+            1. Bump K8S_VERSION in .github/workflows/ci.yaml so manifest
+               validation checks against what the cluster actually runs.
+            2. Check whether Cilium needs a matching bump
+               (infrastructure/cilium/values.yaml + the Application).
+            3. Re-run: task validate
+            4. Confirm all Argo Applications are Healthy.

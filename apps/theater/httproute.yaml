@@ -1,0 +1,86 @@
+# Theater on the shared Gateway, mirroring the two live Ingresses
+# (theater/theater and theater/jellyfin) path for path. No rewrite: the *arr
+# apps run with URL base /arr/<name>, so the prefix is passed through as-is.
+#
+# `timeouts.request: 0s` disables Envoy's default 15 s route timeout, which
+# would cut streams and long API calls.
+#
+# Plex and Jellyfin stay off SSO: their TV apps cannot complete an OIDC login.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: theater
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - theater.lilalala.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /arr/radarr
+      backendRefs:
+        - name: radarr
+          port: 7878
+      timeouts:
+        request: 0s
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /arr/sonarr
+      backendRefs:
+        - name: sonarr
+          port: 8989
+      timeouts:
+        request: 0s
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /arr/prowlarr
+      backendRefs:
+        - name: prowlarr
+          port: 9696
+      timeouts:
+        request: 0s
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /arr/lidarr
+      backendRefs:
+        - name: lidarr
+          port: 8686
+      timeouts:
+        request: 0s
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: plex
+          port: 32400
+      timeouts:
+        request: 0s
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: jellyfin
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - cinema.lilalala.com
+  rules:
+    - backendRefs:
+        - name: jellyfin
+          port: 8096
+      timeouts:
+        request: 0s

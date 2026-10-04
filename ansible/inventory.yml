@@ -1,0 +1,73 @@
+---
+# Node inventory.
+#
+# SITE-SPECIFIC: `ansible_host` values are RAW IPv4 ADDRESSES, so every one of them
+# changes with the LAN subnet. mDNS (`.local`) names would survive a subnet change
+# and are the obvious improvement -- but they are not what is here, and swapping
+# them in is a change to test, not a comment to write. Until then: set static DHCP
+# leases on the router, and re-address this file after a move alongside the other
+# SITE-SPECIFIC values (see docs/architecture.md).
+#
+# ---------------------------------------------------------------------------
+# ORDERING: THE TWO PLAYBOOKS WANT OPPOSITE THINGS, AND THIS FILE SERVES
+# kube-upgrade.yml. READ THIS BEFORE REORDERING ANYTHING.
+#
+#   kube-upgrade.yml addresses `controlplane[0]` POSITIONALLY -- twice. It takes
+#   the etcd snapshot there and runs `kubeadm upgrade apply` there, and every
+#   other node runs `kubeadm upgrade node` instead. So whichever host is listed
+#   first in `controlplane` IS the node that upgrades the control plane. Moving a
+#   host to the top of that group silently changes which node that is.
+#
+#   os-upgrade.yml runs `hosts: kube` with `serial: 1`, so it simply follows
+#   inventory order: homelab-cp-1 first, homelab-w-1 last.
+#
+# THAT IS THE CONFLICT. homelab-cp-1 is both `controlplane[0]` and the node the
+# API VIP (192.168.1.11) currently fronts, and for OS patching the VIP holder is
+# the one you would rather do LAST. It cannot be both.
+#
+# RESOLVED IN FAVOUR OF kube-upgrade.yml, because its requirement is structural
+# and enforced by a positional reference, whereas the OS-patching preference is
+# just a preference -- draining the VIP holder is survivable, kube-vip fails the
+# VIP over. If you want it last anyway, control it with --limit rather than by
+# reordering this file:
+#
+#     ansible-playbook os-upgrade.yml --limit '!homelab-cp-1'
+#     ansible-playbook os-upgrade.yml --limit homelab-cp-1
+# ---------------------------------------------------------------------------
+all:
+  vars:
+    ansible_user: nedsi
+    ansible_python_interpreter: /usr/bin/python3
+    # The API server VIP, for reference and for the --limit recipe above.
+    #
+    # NOTE: nothing reads this variable. Neither playbook detects which node holds
+    # the VIP -- the ordering above is static, and the operator is the one who has
+    # to know. Wiring up real detection would make the two playbooks able to
+    # disagree with the inventory on purpose; until then this is documentation.
+    api_vip: 192.168.1.11          # SITE-SPECIFIC
+
+  children:
+    # Addresses VERIFIED against the live cluster on 2026-07-31.
+    #
+    # homelab-cp-1 IS FIRST DELIBERATELY: it is `controlplane[0]`, so it is where
+    # kube-upgrade.yml snapshots etcd and runs `kubeadm upgrade apply`. See the
+    # block above before changing this order.
+    controlplane:
+      hosts:
+        homelab-cp-1:
+          ansible_host: 192.168.1.247
+        homelab-cp-2:
+          ansible_host: 192.168.1.238
+        homelab-cp-3:
+          ansible_host: 192.168.1.239
+
+    workers:
+      hosts:
+        homelab-w-1:
+          ansible_host: 192.168.1.240
+
+    # Convenience group: everything that runs a kubelet.
+    kube:
+      children:
+        controlplane:
+        workers:

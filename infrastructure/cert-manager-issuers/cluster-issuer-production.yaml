@@ -1,0 +1,34 @@
+# Let's Encrypt production, byte-equal in spec to the running ClusterIssuer.
+# Rate-limited to 50 certificates per registered domain per week.
+#
+# DNS-01 is used rather than HTTP-01 for two reasons:
+#   - it is the only solver that can issue a WILDCARD certificate, which is what
+#     lets every subdomain share one cert on the Gateway;
+#   - it does not require inbound port 80 to be reachable, so certificates keep
+#     renewing even while the router / port forwarding is being reconfigured.
+#     That matters during the house move.
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: igontfh79hks@opayq.com
+    privateKeySecretRef:
+      # `letsencrypt`, not `letsencrypt-account-key`: this Secret holds the ACME
+      # ACCOUNT KEY, and the running cluster's is already registered as
+      # https://acme-v02.api.letsencrypt.org/acme/acct/2075617627. Renaming it
+      # would make cert-manager generate a new key, register a NEW Let's Encrypt
+      # account, and abandon the existing one along with its authorizations --
+      # for no benefit, against an endpoint that rate-limits account creation.
+      name: letsencrypt
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token-secret
+              key: api-token

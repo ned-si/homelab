@@ -1,0 +1,41 @@
+# Seafile - file sync and share.
+#
+# CONSIDER RETIRING THIS. Seafile overlaps almost entirely with Syncthing (which
+# is also deployed here) and it is the most complex app in the cluster: it needs
+# its own MariaDB and memcached, its config lives inside a volume rather than in
+# git, and its container wants to run privileged setup on first boot.
+#
+# It is carried forward here because dropping a data store is your call, not a
+# refactor's. But if Syncthing covers the use case, deleting this Application
+# removes three workloads, a database and two secrets from the cluster.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: seafile
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/apps/seafile
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: seafile
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
