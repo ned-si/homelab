@@ -1,31 +1,7 @@
-# CloudNativePG operator.
-#
-# One replica: this is the control plane for Postgres, not Postgres itself. If
-# the operator is briefly down, running databases keep serving traffic -- only
-# reconciliation pauses. On a 4-node cluster, a second replica costs memory to
-# protect against an outage that has no user-visible effect.
+# CloudNativePG chart 0.22.1 values, at parity with the running release
+# (the legacy child Application's values).
 replicaCount: 1
-
-crds:
-  create: true
-
 monitoring:
-  # Requires the Prometheus Operator CRDs. Those arrive at wave 10, AFTER this
-  # chart, so the very first sync of this Application will fail on
-  # `no matches for kind "PodMonitor"` and then succeed on retry once
-  # kube-prometheus-stack has landed. The retry policy on the Application
-  # handles it; it is not worth reordering the whole layer to avoid one
-  # transient error.
   podMonitorEnabled: true
   grafanaDashboard:
     create: true
-    labels:
-      grafana_dashboard: "1"
-    namespace: monitoring
-
-resources:
-  requests:
-    cpu: 50m
-    memory: 128Mi
-  limits:
-    memory: 256Mi
