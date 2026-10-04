@@ -32,7 +32,9 @@ TF=bootstrap/aws-backup/main.tf
 #   s3:https://s3.<region>.amazonaws.com/<bucket>/<owner>/<name>
 # Take the last two path segments. Excludes deploy/ -- it is generated from
 # these same sources, so counting it would double every entry.
-manifest_repos=$(grep -rho 'RESTIC_REPOSITORY' -A2 --include='*.yaml' apps platform 2>/dev/null \
+# No `-o` on the first grep: GNU grep drops the -A context lines with -o (BSD
+# grep keeps them), and the value is on the line after the name.
+manifest_repos=$(grep -rh -A2 'RESTIC_REPOSITORY' --include='*.yaml' apps platform 2>/dev/null \
   | grep -o 's3:https://[^[:space:]]*' \
   | sed -E 's|^s3:https://[^/]+/[^/]+/||' \
   | grep -E '^[a-z0-9-]+/[a-z0-9-]+$' \
