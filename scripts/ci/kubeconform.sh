@@ -2,7 +2,7 @@
 # kubeconform.sh <render-dir>
 #
 # The `kubeconform` CI check over every render_apps.py output file:
-#   -strict -summary -kubernetes-version $K8S_VERSION (default 1.31.2)
+#   -strict -summary -kubernetes-version $K8S_VERSION (default 1.32.13)
 #   core schemas: one pinned commit of yannh/kubernetes-json-schema (never the
 #                 default branch); CRD schemas: the vendored ci/schemas/
 #   no -ignore-missing-schemas: a kind without a schema fails.
@@ -12,8 +12,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 render=${1:?usage: kubeconform.sh <render-dir>}
-K8S_VERSION=${K8S_VERSION:-1.31.2}
-# yannh/kubernetes-json-schema @ 2026-09-29; contains v1.31.2..v1.33.x directories.
+K8S_VERSION=${K8S_VERSION:-1.32.13}
+# yannh/kubernetes-json-schema @ 2026-09-29; contains v1.31.2..v1.33.x directories (v1.32.13 included).
 SCHEMA_SHA=${KUBE_SCHEMA_SHA:-8df8a883b68a24a104b4a9e43c1288090ae60b3b}
 
 core="https://raw.githubusercontent.com/yannh/kubernetes-json-schema/${SCHEMA_SHA}/{{.NormalizedKubernetesVersion}}-standalone{{.StrictSuffix}}/{{.ResourceKind}}{{.KindSuffix}}.json"

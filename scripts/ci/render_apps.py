@@ -351,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
     default_out = Path(os.environ.get("RUNNER_TEMP") or tempfile.gettempdir()) / "render"
     ap.add_argument("--out", default=str(default_out))
     ap.add_argument("--scopes", default="1,2,3,4", help="comma list of scope items to render")
-    ap.add_argument("--kube-version", default=os.environ.get("K8S_VERSION", "1.31.2"))
+    ap.add_argument("--kube-version", default=os.environ.get("K8S_VERSION", "1.32.13"))
     args = ap.parse_args(argv)
 
     root = Path(args.repo_root).resolve()
