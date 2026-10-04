@@ -2,10 +2,16 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: immich
 
-# Resources the Immich chart does not provide.
+# Resources the Immich chart does not provide, at parity with the running
+# cluster (ADR 0002).
+#
+# NOT RENDERED, on purpose:
+#   library-pvc.yaml   the photo library PVC immich-data (2Ti). It stays owned
+#                      by nothing in this tree until the operator signs off its
+#                      adoption; CI (repo-policy pvc-sync-options) fails any
+#                      render that contains it.
+#   backup.yaml, backup-files.yaml   restic CronJobs (ADR 0008).
 resources:
   - database.yaml
-  - library-pvc.yaml
+  - valkey.yaml
   - httproute.yaml
-  - backup.yaml
-  - backup-files.yaml

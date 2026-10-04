@@ -1,25 +1,10 @@
-# Immich's Postgres, with the VectorChord extension.
-#
-# ###########################################################################
-# # THIS IS A BREAKING CHANGE. DO NOT SYNC BLIND.
-# #
-# # The previous cluster ran pgvecto.rs:
-# #     imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
-# #     shared_preload_libraries: [vectors.so]
-# #     CREATE EXTENSION vectors
-# #
-# # Immich 3.0 REMOVED pgvecto.rs support. It now requires VectorChord (`vchord`)
-# # and validates the extension at startup, refusing to boot outside
-# # VectorChord >= 0.3, < 2.0. So this is not optional and not reversible: once
-# # Immich 3.x has migrated the schema you cannot go back to the 2.x image.
-# #
-# # Applying this manifest to the EXISTING cluster changes both the container
-# # image and shared_preload_libraries, which CloudNativePG will roll out as a
-# # restart. The `vectors` extension will then be missing its library and the old
-# # embedding columns will be unusable until the migration below is done.
-# #
-# # FOLLOW docs/runbooks/immich-upgrade.md. Take a backup first.
-# ###########################################################################
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -28,69 +13,20 @@ metadata:
   namespace: immich
 spec:
   instances: 1
-  # CloudNativePG requires the image tag to begin with the Postgres major
-  # version, which is why the tag reads <pg-major>-<vchord-version>.
-  # renovate: datasource=docker depName=ghcr.io/tensorchord/cloudnative-vectorchord
-  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:17-1.1.0
-  storage:
-    size: 20Gi
-    storageClass: iscsi
-  monitoring:
-    enablePodMonitor: true
-  # ---------------------------------------------------------------------------
-  # Continuous WAL archiving to S3. This is what gives point-in-time recovery
-  # rather than only nightly snapshots.
-  #
-  # In-tree `barmanObjectStore` rather than the Barman Cloud plugin: CNPG 1.24.1
-  # (what is running) does not support the plugin's `isWALArchiver` field and the
-  # plugin CRD is not installed. See ./backup.yaml for the full reasoning and
-  # docs/migration-plan.md for the eventual move to the plugin.
-  #
-  # Set the bucket/endpoint to match your provider -- see
-  # platform/secrets/s3-backup.sops.yaml.example.
-  # ---------------------------------------------------------------------------
-  backup:
-    retentionPolicy: "30d"
-    barmanObjectStore:
-      destinationPath: s3://homelab-backups-REPLACE-ME/immich/postgres
-      endpointURL: https://s3.eu-central-1.amazonaws.com
-      s3Credentials:
-        accessKeyId:
-          name: s3-backup
-          key: ACCESS_KEY_ID
-        secretAccessKey:
-          name: s3-backup
-          key: ACCESS_SECRET_KEY
-      wal:
-        # WAL is highly compressible and this goes over a domestic uplink.
-        compression: gzip
-        maxParallel: 2
-      data:
-        compression: gzip
-        jobs: 2
-  postgresql:
-    shared_preload_libraries:
-      # Was `vectors.so` (pgvecto.rs). Loading the wrong library here is a
-      # start-up failure, not a warning.
-      - vchord.so
-    parameters:
-      max_connections: "200"
-      shared_buffers: 256MB
+  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
   bootstrap:
     initdb:
       postInitApplicationSQL:
-        # `CASCADE` pulls in pgvector, which VectorChord builds on. Immich needs
-        # pgvector >= 0.7 < 0.9 alongside vchord.
-        - CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
-        # Immich uses earthdistance/cube for the map view.
-        - CREATE EXTENSION IF NOT EXISTS cube;
-        - CREATE EXTENSION IF NOT EXISTS earthdistance;
-        # Immich creates and alters its own types, so it needs ownership of the
-        # public schema rather than just table privileges.
-        - ALTER SCHEMA public OWNER TO "app";
-  resources:
-    requests:
-      cpu: 200m
-      memory: 512Mi
-    limits:
-      memory: 2Gi
+        - ALTER SYSTEM SET search_path TO "$user", public, vectors;
+        - SET search_path TO "$user", public, vectors;
+        - CREATE EXTENSION IF NOT EXISTS "vectors";
+        - CREATE EXTENSION IF NOT EXISTS "cube";
+        - CREATE EXTENSION IF NOT EXISTS "earthdistance";
+        - ALTER SCHEMA vectors OWNER TO "app";
+        - GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA vectors TO "app";
+        - GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "app";
+  postgresql:
+    shared_preload_libraries:
+      - "vectors.so"
+  storage:
+    size: 5Gi

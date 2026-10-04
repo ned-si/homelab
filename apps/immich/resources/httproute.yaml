@@ -27,6 +27,4 @@ spec:
         - name: immich-server
           port: 2283
       timeouts:
-        # Large uploads and long-running library scans.
-        request: "0s"
-        backendRequest: "0s"
+        request: 0s
