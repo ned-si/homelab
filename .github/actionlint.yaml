@@ -1,0 +1,6 @@
+# actionlint configuration.
+self-hosted-runner:
+  # The in-cluster runner label used by dast.yaml's gated jobs (they only run
+  # when vars.CLUSTER_RUNNER_READY is "true", which is not set).
+  labels:
+    - homelab
