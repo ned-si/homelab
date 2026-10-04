@@ -1,0 +1,5 @@
+#!/bin/bash
+# Fake openssl for tests/smoke: `openssl x509 -noout -checkend <s>` passes when
+# the PEM body on stdin is "VALID" and fails otherwise (e.g. "EXPIRING").
+[ "$1 $2 $3" = "x509 -noout -checkend" ] || { echo "fake openssl: unexpected call" >&2; exit 2; }
+grep -qx VALID

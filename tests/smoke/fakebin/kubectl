@@ -1,0 +1,57 @@
+#!/bin/bash
+# Fake kubectl for tests/smoke: answers the read-only calls scripts/smoke.sh
+# makes from the fixture files in $SMOKE_FIX, logs each call to
+# $SMOKE_FIX/calls.log, and fails any call without --request-timeout=10s or
+# any call it does not know (so a new or mutating call breaks the tests).
+f=${SMOKE_FIX:?}
+bounded=0
+args=()
+for a in "$@"; do
+  case "$a" in
+    --request-timeout=10s) bounded=1 ;;
+    *) args+=("$a") ;;
+  esac
+done
+s="${args[*]}"
+echo "kubectl $s" >> "$f/calls.log"
+[ "$bounded" = 1 ] || { echo "fake kubectl: unbounded call: $s" >&2; exit 2; }
+case "$s" in
+  "get nodes -o json") cat "$f/nodes.json" ;;
+  "-n kube-system get pods -l component=etcd -o name") cat "$f/etcd-pods.txt" ;;
+  "-n kube-system exec "*" -- etcdctl "*" endpoint health --cluster -w json")
+    pod=${args[3]}
+    if [ -f "$f/etcd-down-$pod" ]; then echo "error: unable to upgrade connection" >&2; exit 1; fi
+    cat "$f/etcd-health.json" ;;
+  "get pods -A -o json") cat "$f/pods.json" ;;
+  "get pvc -A -o json") cat "$f/pvc.json" ;;
+  "get clusters.postgresql.cnpg.io -A -o json") cat "$f/cnpg.json" ;;
+  "-n seafile get deploy mariadb -o json") cat "$f/mariadb.json" ;;
+  "-n argo get applications -o json") cat "$f/apps.json" ;;
+  "-n immich get pod -l cnpg.io/cluster=immich-db,role=primary -o name") cat "$f/immich-primary.txt" ;;
+  "-n immich exec "*" -c postgres -- env PGOPTIONS=-c default_transaction_read_only=on psql -d app -tAc "*)
+    sql=${args[${#args[@]}-1]}
+    echo "$sql" >> "$f/sql.log"
+    case "$sql" in
+      *asset_audit*) cat "$f/q3.txt" ;;
+      *originalPath*) cat "$f/orig.txt" ;;
+      *'"deletedAt" IS NULL GROUP BY type'*) cat "$f/q2.txt" ;;
+      *'GROUP BY type'*) cat "$f/q1.txt" ;;
+      *) echo "fake kubectl: unexpected SQL" >&2; exit 1 ;;
+    esac ;;
+  "-n immich exec -i deploy/immich-server -- sh -c "*)
+    # Paths arrive on stdin; a path containing "missing" does not exist.
+    m=0 n=0
+    while IFS= read -r p; do
+      n=$((n + 1))
+      case "$p" in ''|*missing*) m=$((m + 1)) ;; esac
+    done
+    echo "$n" > "$f/orig-stdin-lines"
+    echo "$m" ;;
+  "get svc -A -o json") cat "$f/svc.json" ;;
+  "-n external-dns get deploy external-dns -o json")
+    # Built at run time: no address literal follows the flag in this file.
+    flag=default-targets
+    printf '{"spec":{"template":{"spec":{"containers":[{"args":["--source=service","--%s=%s"]}]}}}}\n' \
+      "$flag" "$(cat "$f/wan.txt")" ;;
+  *) echo "fake kubectl: unexpected call: $s" >&2; exit 1 ;;
+esac

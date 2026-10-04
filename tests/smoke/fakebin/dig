@@ -1,0 +1,11 @@
+#!/bin/bash
+# Fake dig for tests/smoke: `dig +short +time=3 +tries=1 <name> @1.1.1.1`,
+# answers from $SMOKE_FIX/dig.txt ("<name> <address>").
+f=${SMOKE_FIX:?}
+echo "dig $*" >> "$f/calls.log"
+case " $* " in *" +time=3 "*) ;; *) echo "fake dig: no +time=3" >&2; exit 2 ;; esac
+name=""
+for a in "$@"; do
+  case "$a" in +*|@*) ;; *) name=$a ;; esac
+done
+awk -v n="$name" '$1 == n { print $2 }' "$f/dig.txt"
