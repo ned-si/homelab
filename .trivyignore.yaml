@@ -218,6 +218,24 @@ misconfigurations:
       snapshot-controller is vendored upstream.
     expired_at: 2027-03-01
 
+  # Parity ports (ADR 0002): these workloads are byte-equal to the running
+  # cluster, which sets no securityContext on them. Adding one changes the pod
+  # template and restarts the pod, which parity forbids; hardening them is its
+  # own change (docs/roadmap.md, "Hardening"). Short expiry on purpose.
+  - id: AVD-KSV-0118
+    paths:
+      - "apps/immich/resources/valkey.yaml"
+      - "apps/paperless/valkey.yaml"
+      - "apps/seafile/memcached.yaml"
+      - "platform/keycloak/deployment.yaml"
+      - "deploy/apps/immich/resources/manifests.yaml"
+      - "deploy/platform/keycloak/manifests.yaml"
+    statement: >-
+      Default security context on workloads ported unchanged from the running
+      cluster (valkey x2, memcached, Keycloak); setting one restarts them, so it
+      ships with the hardening change, not with the parity adoption.
+    expired_at: 2027-01-31
+
   # readOnlyRootFilesystem. Several upstream images (Keycloak, the *arr apps,
   # Plex, Seafile, Paperless, Mealie) write to their own filesystem at runtime
   # with no way to relocate it, so enforcing this would mean forking every image.
