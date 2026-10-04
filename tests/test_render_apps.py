@@ -137,7 +137,7 @@ def test_legacy_directory_and_inline_values(tmp_path, fake_helm):
     # The child helm app: release name, namespace, version, inline values, CRDs.
     call = fake_helm.read_text().strip()
     assert call.startswith("template inline-release inline-chart --repo https://charts.example.org --version v1.2.3")
-    assert "--namespace inline-ns" in call and "--include-crds" in call and "--kube-version 1.31.2" in call
+    assert "--namespace inline-ns" in call and "--include-crds" in call and "--kube-version 1.32.13" in call
     cm = read_render(out, "legacy/inline")[0]
     assert cm["metadata"]["name"] == "inline-release"
     assert "replicas: 2" in cm["data"]["values"]

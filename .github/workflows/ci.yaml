@@ -31,7 +31,7 @@ concurrency:
 env:
   # Kubernetes version the manifests are validated against: the live cluster's.
   # Bumped only in the PR that records a cluster upgrade.
-  K8S_VERSION: "1.31.2"
+  K8S_VERSION: "1.32.13"
   # yannh/kubernetes-json-schema commit (2026-09-29) used for core schemas.
   KUBE_SCHEMA_SHA: 8df8a883b68a24a104b4a9e43c1288090ae60b3b
   KUBECONFORM_VERSION: v0.7.0
