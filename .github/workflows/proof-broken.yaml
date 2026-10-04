@@ -1,0 +1,15 @@
+---
+# Throwaway proof that CI catches an unpinned action. Never runs (if: false).
+name: proof-broken
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  never:
+    if: false
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
