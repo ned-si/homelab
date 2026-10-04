@@ -32,6 +32,10 @@ configs:
     server.rbac.log.enforce.enable: false
     timeout.reconciliation: 180s
     timeout.hard.reconciliation: 0s
+    # KSOPS is a kustomize exec plugin. Only the three */secrets directories
+    # are built by kustomize on the repo-server; everything else is
+    # pre-rendered under deploy/ or a helm chart (scripts/render-deploy.sh).
+    kustomize.buildOptions: --enable-alpha-plugins --enable-exec
     oidc.config: |
       name: Keycloak
       issuer: https://auth.lilalala.com/realms/homelab
@@ -87,6 +91,49 @@ dex:
 
 notifications:
   enabled: true
+
+# KSOPS on the repo-server: an init container copies the ksops binary into an
+# emptyDir that is mounted on PATH; Argo CD's bundled kustomize (v5.4.3) runs
+# it as a KRM exec function. The age identity comes from the Secret
+# `sops-age` (key `keys.txt`), which is created at bootstrap from the
+# operator's key and never stored in git (docs/bootstrap.md).
+repoServer:
+  env:
+    - name: SOPS_AGE_KEY_FILE
+      value: /sops-age/keys.txt
+  initContainers:
+    - name: install-ksops
+      # renovate: datasource=docker depName=viaductoss/ksops
+      image: viaductoss/ksops:v4.5.1@sha256:4def9fdd4e2f850265740ebe9592c5455d19b76891e88e602df8b52d74b95334
+      command: ["/usr/local/bin/ksops", "install", "/custom-tools"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+  volumes:
+    - name: custom-tools
+      emptyDir: {}
+    - name: sops-age
+      secret:
+        secretName: sops-age
+        # Files are root-owned and the pod sets no fsGroup; the repo-server
+        # runs as uid 999, so the key must be readable by others.
+        defaultMode: 0444
+  volumeMounts:
+    - mountPath: /usr/local/bin/ksops
+      name: custom-tools
+      subPath: ksops
+    - mountPath: /sops-age
+      name: sops-age
+      readOnly: true
 
 controller:
   metrics:
