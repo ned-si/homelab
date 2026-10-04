@@ -140,7 +140,7 @@ spec:
     - toCIDRSet:
         - cidr: 0.0.0.0/0
           except:
-            - 192.168.0.0/16    # the LAN, plus the 192.168.2.0/24 LoadBalancer pool
+            - 192.168.0.0/16    # the LAN, including the LoadBalancer pools
             - 10.0.0.0/8        # Cilium's default cluster-pool pod CIDR
             - 172.16.0.0/12
             - 169.254.0.0/16    # link-local, incl. cloud metadata addresses

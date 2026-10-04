@@ -1,18 +1,22 @@
 # Cilium: CNI, kube-proxy replacement, L2 announcements, Gateway API controller.
 #
-# Chicken-and-egg note: Cilium is installed FIRST by the OpenTofu bootstrap,
-# because no pod (including Argo CD itself) can be scheduled without a CNI.
-# This Application then adopts that release so drift is visible and future
-# upgrades flow through git instead of a `helm upgrade` from someone's laptop.
+# DIFF VISIBILITY ONLY. Cilium is a helm-CLI release (`cilium` in kube-system):
+# it is installed by the OpenTofu bootstrap on a new cluster and upgraded with
+# `helm upgrade` using the chart version from ci/helm-releases.yaml and the
+# values from infrastructure/cilium/values.yaml, both read from a CI-green
+# commit on main. This Application has no `automated` block, so Argo CD shows
+# drift between git and the release but never syncs the CNI by itself. CI
+# (repo-policy `cilium-version`) keeps its chart version equal to
+# ci/helm-releases.yaml.
 #
-# Both the bootstrap and this Application read the SAME values file
-# (infrastructure/cilium/values.yaml), so there is exactly one source of truth.
+# Upgrade one minor at a time (1.16 -> 1.17 -> 1.18 ...); see
+# docs/migration-plan.md.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cilium
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
 spec:
@@ -20,15 +24,8 @@ spec:
   sources:
     - repoURL: https://helm.cilium.io
       chart: cilium
-      # PINNED TO WHAT IS RUNNING. Verified 2026-07-31: chart cilium-1.16.3.
-      #
-      # DO NOT let Renovate walk this to 1.20 in one step. Cilium supports
-      # upgrading ONE minor at a time (1.16 -> 1.17 -> 1.18 -> ...), and 1.20
-      # targets Kubernetes 1.36 while this cluster runs 1.31. Kubernetes has to
-      # move first. See docs/migration-plan.md.
-      #
       # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-      targetRevision: 1.16.3
+      targetRevision: 1.17.18
       helm:
         releaseName: cilium
         valueFiles:
@@ -41,18 +38,11 @@ spec:
     namespace: kube-system
   revisionHistoryLimit: 10
   syncPolicy:
-    automated:
-      # Pruning the CNI would take the cluster's network down. Do it by hand.
-      prune: false
-      selfHeal: true
+    # No `automated`: never sync the CNI from Argo CD. Pruning it would take the
+    # cluster's network down.
     syncOptions:
+      - CreateNamespace=true
       - ServerSideApply=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
   ignoreDifferences:
     # The operator writes status into these; they are not desired state.
     - group: ""

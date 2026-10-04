@@ -1,75 +1,33 @@
-# LoadBalancer IP address pools.
+# LoadBalancer IP pools, at parity with the running cluster.
 #
-# ###########################################################################
-# # THESE VALUES ARE THE ONES THE CLUSTER IS ACTUALLY RUNNING (verified
-# # 2026-07-31). Do not "tidy" them without re-reading the note below.
-# #
-# # apiVersion is v2alpha1, NOT v2. Cilium 1.16.3 serves ONLY v2alpha1 for both
-# # CiliumLoadBalancerIPPool and CiliumL2AnnouncementPolicy:
-# #
-# #   kubectl get crd ciliumloadbalancerippools.cilium.io \
-# #     -o jsonpath='{range .spec.versions[*]}{.name} served={.served}{"\n"}{end}'
-# #   -> v2alpha1 served=true
-# #
-# # These types graduate to v2 in a later Cilium release. Re-check on the next
-# # Cilium minor bump; applying v2 today fails with "no matches for kind".
-# ###########################################################################
+# Both pools are on the LAN (192.168.1.0/24) and outside the router's DHCP pool
+# (.50-.199). Neither has a serviceSelector, so LB-IPAM may hand any address to
+# any Service; the addresses that matter are pinned on the Services themselves
+# with `lbipam.cilium.io/ips` (docs/networking.md has the table):
 #
-# ###########################################################################
-# # SITE-SPECIFIC -- REVIEW AFTER THE HOUSE MOVE
-# #
-# # A pool must sit inside a routable range, outside the router's DHCP range, and
-# # MUST NOT overlap the node addresses. The nodes are currently:
-# #
-# #   homelab-cp-1  192.168.1.247
-# #   homelab-cp-2  192.168.1.238
-# #   homelab-cp-3  192.168.1.239
-# #   homelab-w-1   192.168.1.240
-# #
-# # An earlier draft of this file proposed 192.168.1.240-249 for the services
-# # pool. That overlaps homelab-w-1 (.240) and homelab-cp-1 (.247) and would have
-# # handed a LoadBalancer the same address as a node. Hence the dedicated
-# # 192.168.2.0/24 range below, which is what the cluster already uses.
-# ###########################################################################
+#   .254  ingress-nginx today; the router forwards 80/443 TCP here
+#   .200  theater/qbittorrent-seed (router: 50000 TCP)
+#   .201  syncthing/syncthing-protocol (router: 22000 TCP+UDP)
+#   .202  gateway/cilium-gateway-shared (parallel run of the Gateway)
+#
+# Moving .254 from ingress-nginx to the Gateway is a change to those two pins,
+# not to these pools.
 ---
-# The single address every HTTP(S) service shares through the Gateway.
-#
-# CURRENTLY HELD BY ingress-nginx. During the Gateway API migration this address
-# has to be handed over: ingress-nginx must release it before the Gateway can
-# claim it, so the two cannot run side by side on this IP.
-# See docs/migration-plan.md, step "cut over to the Gateway".
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
 metadata:
-  name: gateway
+  name: pool-1
 spec:
-  # Only the shared Gateway may claim from this pool. Without the selector, any
-  # LoadBalancer Service could grab the address the whole site depends on, purely
-  # by being reconciled first.
-  serviceSelector:
-    matchLabels:
-      homelab.lilalala.com/lb-pool: gateway
   blocks:
-    - cidr: 192.168.1.254/32     # SITE-SPECIFIC
+    - cidr: 192.168.1.254/32
+  disabled: false
 ---
-# Non-HTTP services that need a raw TCP/UDP port on the network: Syncthing's
-# sync protocol and qBittorrent's peer port.
-#
-# A separate /24 rather than a slice of the LAN, which is what the cluster
-# already does and which sidesteps the node-overlap problem entirely.
-# Currently allocated: 192.168.2.0 (syncthing), 192.168.2.1 (qbittorrent).
-#
-# NOTE: the router must actually route 192.168.2.0/24 to the LAN segment, and
-# port forwards must target these addresses. qBittorrent currently reports
-# `connection_status: firewalled`, which suggests that forward is missing --
-# see docs/runbooks/arr-qbittorrent.md.
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
 metadata:
-  name: services
+  name: pool-2
 spec:
-  serviceSelector:
-    matchLabels:
-      homelab.lilalala.com/lb-pool: services
   blocks:
-    - cidr: 192.168.2.0/24       # SITE-SPECIFIC
+    - start: 192.168.1.200
+      stop: 192.168.1.227
+  disabled: false

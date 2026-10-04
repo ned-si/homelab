@@ -1,55 +1,14 @@
-# L2 announcement policy: makes LoadBalancer IPs answer ARP on the LAN.
+# L2 announcements (ARP) for LoadBalancer IPs, at parity with the running
+# cluster: every node may announce, LoadBalancer IPs only.
 #
-# Without a policy, LB IPAM still assigns addresses but nothing replies to ARP
-# and every service looks "up" in Kubernetes while being unreachable from the
-# network. This was the root of the old README's "ingress issue" section.
-#
-# API VERSION: `cilium.io/v2alpha1`, VERIFIED against the running cluster --
-# Cilium 1.16.3 serves only v2alpha1 for this type (and for
-# CiliumLoadBalancerIPPool). Re-check on the next Cilium minor bump.
-#
-# NOTE ON WHAT IS CHANGING HERE. The policy currently live in the cluster is
-# minimal:
-#
-#     spec:
-#       loadBalancerIPs: true
-#
-# No nodeSelector and no interfaces, i.e. announce from every node on every
-# interface. This version narrows it to workers only and to the LAN NIC. The
-# interface name has been verified as `eth0` on all four nodes:
-#
-#     kubectl -n kube-system exec ds/cilium -c cilium-agent -- ip -br link
-#
-# Two hard constraints, both easy to trip over:
-#
-#   1. `externalTrafficPolicy: Local` is INCOMPATIBLE with L2 announcements --
-#      IPs get announced from nodes that have no backing pod, and that traffic
-#      is silently dropped. No Service in this repo sets it.
-#
-#   2. A Service is only eligible if its `loadBalancerClass` is unset or set to
-#      `io.cilium/l2-announcer`.
+# kube-vip (static pods on the control planes, `svc_enable=true`) also binds
+# LoadBalancer IPs on its lease holder. Both announcers are live and both
+# forward correctly (externalTrafficPolicy Cluster + kube-proxy replacement);
+# docs/networking.md describes the arrangement and the open decision.
 ---
 apiVersion: cilium.io/v2alpha1
 kind: CiliumL2AnnouncementPolicy
 metadata:
   name: default
 spec:
-  # No serviceSelector: announce every eligible LoadBalancer Service. The
-  # pools in ip-pools.yaml already gate *which* services get an address.
-  #
-  # Announce only from workers. Control-plane nodes host the API VIP and we do
-  # not want data-plane traffic contending with it.
-  nodeSelector:
-    matchExpressions:
-      - key: node-role.kubernetes.io/control-plane
-        operator: DoesNotExist
-  # VERIFIED: all four RK1 nodes present the LAN NIC as `eth0`. The regex is kept
-  # slightly broader than `^eth0$` so that a node replacement presenting `enp1s0`
-  # or `end0` still announces rather than silently going dark.
-  interfaces:
-    - ^e(th|nd|np)[0-9]s?[0-9]*$
-  # We only announce IPs handed out by LB IPAM, never hand-written
-  # `spec.externalIPs`. Keeping externalIPs false means a typo in a Service
-  # cannot hijack an arbitrary LAN address.
   loadBalancerIPs: true
-  externalIPs: false

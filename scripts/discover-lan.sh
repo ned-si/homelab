@@ -198,9 +198,8 @@ EOF
 cat <<EOF
 
 Also set the DHCP pool to ${PREFIX}.50 - ${PREFIX}.199 so it cannot reach any of
-the addresses above, and add a static route for 192.168.2.0/24 via the LAN (the
-Syncthing and qBittorrent LoadBalancers live there, announced by ARP from the
-worker node).
+the addresses above. The LoadBalancer pools (${PREFIX}.200-.227 and ${PREFIX}.254)
+sit outside that range, so no static route is needed.
 
 EOF
 
