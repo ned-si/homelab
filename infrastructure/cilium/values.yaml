@@ -1,0 +1,23 @@
+# Helm values for the `cilium` release (namespace `kube-system`). The chart
+# version is in ci/helm-releases.yaml. The release is managed with the helm
+# CLI, not by an Argo CD Application.
+#
+# These are exactly the user values of the live release (helm revision 15,
+# Cilium 1.16.3), plus upgradeCompatibility. That key keeps the 1.16 defaults
+# where 1.17 changed them, so the upgrade changes versions and not the
+# datapath. Nothing else belongs here until the upgrade has been verified.
+#
+# Apply only from a CI-green commit on main:
+#   git show <sha>:infrastructure/cilium/values.yaml > /tmp/hv.yaml   (mode 600)
+#   helm upgrade cilium cilium/cilium --version <ci/helm-releases.yaml> \
+#     -n kube-system -f /tmp/hv.yaml --wait --timeout 15m
+upgradeCompatibility: "1.16"
+k8sServiceHost: 192.168.1.11
+k8sServicePort: 6443
+kubeProxyReplacement: true
+externalIPs:
+  enabled: true
+gatewayAPI:
+  enabled: true
+l2announcements:
+  enabled: true

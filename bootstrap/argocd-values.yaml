@@ -1,0 +1,95 @@
+# Helm values for the `argocd` release (namespace `argo`), chart argo-cd 7.9.1
+# (Argo CD v2.14.11). The release is managed with the helm CLI, not by an Argo
+# CD Application, so merging a change here has no live effect on its own.
+#
+# Apply only from a CI-green commit on main, never from a working tree:
+#   git show <sha>:bootstrap/argocd-values.yaml > /tmp/hv.yaml   (mode 600)
+#   helm upgrade argocd argo/argo-cd --version <ci/helm-releases.yaml> \
+#     -n argo -f /tmp/hv.yaml --wait --timeout 10m
+# No --set, no --reuse-values: this file is the whole configuration.
+#
+# Every key of the live argocd-cm, argocd-rbac-cm and argocd-cmd-params-cm
+# is reproduced below, including the argocd-cm keys that were set outside
+# Helm (url, oidc.config and the timeouts). Without them a chart upgrade
+# would drop the Keycloak login.
+#
+# No secret value lives here. oidc.config refers to the key
+# `oidc.keycloak.clientSecret` of argocd-secret, which Argo CD resolves at
+# runtime. configs.secret.createSecret stays true: with false, Helm would
+# delete argocd-secret on upgrade.
+
+global:
+  domain: argo.lilalala.com
+
+configs:
+  cm:
+    url: https://argo.lilalala.com
+    admin.enabled: true
+    exec.enabled: false
+    application.instanceLabelKey: argocd.argoproj.io/instance
+    # Pinned: Argo CD 3.0 changes the default to annotation tracking.
+    application.resourceTrackingMethod: label
+    server.rbac.log.enforce.enable: false
+    timeout.reconciliation: 180s
+    timeout.hard.reconciliation: 0s
+    oidc.config: |
+      name: Keycloak
+      issuer: https://auth.lilalala.com/realms/homelab
+      clientID: argocd
+      clientSecret: $oidc.keycloak.clientSecret
+      requestedScopes: ["openid", "profile", "email", "groups"]
+
+  rbac:
+    policy.default: ""
+    policy.csv: |
+      g, ArgoCDAdmins, role:admin
+    scopes: "[groups]"
+
+  params:
+    application.namespaces: ""
+    applicationsetcontroller.enable.leader.election: false
+    applicationsetcontroller.enable.progressive.syncs: false
+    applicationsetcontroller.log.format: text
+    applicationsetcontroller.log.level: info
+    applicationsetcontroller.policy: sync
+    controller.log.format: text
+    controller.log.level: info
+    controller.operation.processors: 10
+    controller.repo.server.timeout.seconds: 60
+    controller.self.heal.timeout.seconds: 5
+    controller.status.processors: 20
+    otlp.address: ""
+    redis.server: argocd-redis:6379
+    repo.server: argocd-repo-server:8081
+    reposerver.log.format: text
+    reposerver.log.level: info
+    reposerver.parallelism.limit: 0
+    server.basehref: /
+    server.dex.server: https://argocd-dex-server:5556
+    server.dex.server.strict.tls: false
+    server.disable.auth: false
+    server.enable.gzip: true
+    # The server terminates TLS itself; plain HTTP behind the Gateway is a
+    # separate, later change.
+    server.insecure: false
+    server.log.format: text
+    server.log.level: info
+    server.repo.server.strict.tls: false
+    server.rootpath: ""
+    server.staticassets: /shared/app
+    server.x.frame.options: sameorigin
+
+  secret:
+    createSecret: true
+
+dex:
+  enabled: true
+
+notifications:
+  enabled: true
+
+controller:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
