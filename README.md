@@ -129,19 +129,21 @@ Every action is pinned to a commit SHA and every tool to a version and checksum.
 3. Squash-merge with `scripts/pr-merge.sh <pr-number>`. It refuses unless
    every required check is green, the title and commits pass, every commit is
    verified, the branch is up to date with `main` and no merge freeze is set.
-4. Move the root Application `all-apps` to the merged commit. It tracks a
-   pinned commit SHA, not `main`, so a merge has no live effect until the pin
-   moves. Sync is automated with self-heal and without prune.
+4. That is the deployment. The root Application `all-apps`
+   ([`bootstrap/root-app.yaml`](bootstrap/root-app.yaml)) tracks `main`, so
+   Argo CD applies the merge within its sync interval. Sync is automated with
+   self-heal and without prune. Rollback is a revert pull request.
 5. The Helm CLI releases (`argocd`, `cilium`, `iscsi`) are upgraded by hand
    from a merged commit, as described at the top of each values file.
 
-Check the current pin:
+Check what is deployed:
 
 ```sh
-kubectl -n argo get application all-apps -o jsonpath='{.spec.source.targetRevision}'
+kubectl -n argo get application all-apps \
+  -o jsonpath='{.spec.source.targetRevision} {.status.sync.revision}{"\n"}'
 ```
 
-Expected output: a 40-character commit SHA from `main`.
+Expected output: `main` followed by the SHA of the latest commit on `main`.
 
 ## Status and roadmap
 
