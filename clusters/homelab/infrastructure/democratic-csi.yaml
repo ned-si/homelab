@@ -1,10 +1,13 @@
-# democratic-csi: iSCSI StorageClass backed by TrueNAS.
+# democratic-csi: the iSCSI CSI driver and StorageClasses `iscsi` and
+# `iscsi-retain`, backed by TrueNAS.
 #
-# The driver config -- which contains the TrueNAS API key AND an SSH private key
-# with root access to the storage box -- is NOT in this chart's values any more.
-# It lives in a SOPS-encrypted Secret and is pulled in via
-# `driver.existingConfigSecret`. That plaintext key in `iac/truenas-iscsi.yaml`
-# was the single worst thing in the old repo: see docs/security-incident.md.
+# DIFF VISIBILITY ONLY. The driver is the helm-CLI release `iscsi` (chart
+# 0.14.7) and stays one: this Application has no `automated` block and is
+# never synced, because a second controller for the same CSI driver, or a
+# wrong driver config, would affect every PVC. Upgrade with `helm upgrade`
+# as described in infrastructure/democratic-csi/values-iscsi.yaml; the driver
+# config comes from SOPS (scripts/democratic-csi-values.sh). Argo CD renders
+# the plain values only, so it shows the driver-config Secret as differing.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -19,9 +22,9 @@ spec:
     - repoURL: https://democratic-csi.github.io/charts/
       chart: democratic-csi
       # renovate: datasource=helm depName=democratic-csi registryUrl=https://democratic-csi.github.io/charts/
-      targetRevision: 0.15.1
+      targetRevision: 0.14.7
       helm:
-        releaseName: democratic-csi-iscsi
+        releaseName: iscsi
         valueFiles:
           - $values/infrastructure/democratic-csi/values-iscsi.yaml
     - repoURL: https://github.com/ned-si/homelab.git
@@ -32,10 +35,6 @@ spec:
     namespace: democratic-csi
   revisionHistoryLimit: 10
   syncPolicy:
-    automated:
-      # Pruning the CSI driver would orphan every PVC in the cluster.
-      prune: false
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

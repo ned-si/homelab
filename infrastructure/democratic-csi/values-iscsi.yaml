@@ -1,197 +1,36 @@
-# democratic-csi, freenas-iscsi driver. Provides the `iscsi` StorageClass that
-# every stateful workload in this cluster uses for its config/data volume.
+# democratic-csi chart 0.14.7 values for the helm-CLI release `iscsi`
+# (namespace democratic-csi), at parity with the running release.
 #
-# The driver's own configuration (TrueNAS host, API key, SSH credentials, zvol
-# layout) is NOT here. It is a SOPS-encrypted Secret created by the
-# `secrets-infrastructure` Application -- see
-# infrastructure/secrets/democratic-csi-iscsi.sops.yaml.example.
+# The driver configuration (TrueNAS API key, SSH key, portal) is NOT here. It
+# lives in SOPS (infrastructure/democratic-csi/driver-config.sops.yaml, the
+# exact Secret the chart renders) and is turned back into a values overlay at
+# upgrade time:
 #
-# This split is the whole point: chart values stay reviewable in plaintext,
-# credentials never appear in git unencrypted.
-
+#   helm upgrade iscsi democratic-csi \
+#     --repo https://democratic-csi.github.io/charts/ --version 0.14.7 \
+#     -n democratic-csi -f infrastructure/democratic-csi/values-iscsi.yaml \
+#     -f <(scripts/democratic-csi-values.sh)
+#
+# Only `driver.config.driver` is kept in plain text: the chart derives names
+# from it, and it is not secret. Argo CD renders this file alone, so its
+# diff-only Application shows the driver-config Secret as differing; that is
+# expected (the Application never syncs).
 csiDriver:
-  # Must be globally unique per cluster. Changing it orphans existing volumes.
   name: org.democratic-csi.iscsi
 
-# Pull the entire `driver.config` block from an existing Secret whose
-# `driver-config-file.yaml` key holds it.
 driver:
-  existingConfigSecret: democratic-csi-iscsi-config
+  config:
+    driver: freenas-iscsi
 
 storageClasses:
-  # ---------------------------------------------------------------------------
-  # TWO CLASSES, differing only in reclaimPolicy.
-  #
-  # `iscsi` stays the default with `Delete`, which is right for the majority:
-  # caches, transcode scratch, and */config volumes an app rebuilds by itself.
-  # Leaving orphaned zvols behind for those would slowly fill the pool.
-  #
-  # `iscsi-retain` is for volumes whose loss would be expensive or permanent. With
-  # `Retain`, deleting the PVC releases the PV but does NOT destroy the zvol, so a
-  # mistaken `kubectl delete pvc` is recoverable.
-  #
-  # This matters because it was not the case: on 2026-08-05 every volume in the
-  # cluster was `Delete`, INCLUDING immich-data holding 317GB of photos. A single
-  # `kubectl delete pvc immich-data` would have destroyed them, and the Immich
-  # upgrade runbook has a step that deletes a PVC. The existing PVs were patched
-  # to Retain in place; this class is so new ones do not repeat it.
-  #
-  # ###########################################################################
-  # # `iscsi-retain` IS STILL REFERENCED BY NOTHING, AND THAT IS PARTLY
-  # # CORRECT AND PARTLY AN EXPOSURE. THE DISTINCTION MATTERS.
-  # #
-  # # WHY IT IS PARTLY CORRECT: `storageClassName` ON AN EXISTING PVC IS
-  # # IMMUTABLE. Every stateful workload in this cluster already has its
-  # # volume, provisioned by `iscsi`. Editing `storageClassName: iscsi` to
-  # # `iscsi-retain` in a manifest does NOT migrate anything -- it makes every
-  # # sync fail with "field is immutable", and the only way to make the edit
-  # # take effect is to delete and recreate the PVC, which is precisely the
-  # # data-loss event the class exists to prevent. So an edit to the existing
-  # # PVC manifests would be actively dangerous, and leaving them alone was the
-  # # right call.
-  # #
-  # # WHY IT IS AN EXPOSURE ANYWAY: the protection currently rests entirely on
-  # # a one-off `kubectl patch` applied by hand on 2026-08-05, recorded in a
-  # # comment. Nothing in git asserts it, nothing verifies it, and a volume
-  # # recreated for any reason (a restore from a VolumeSnapshot, as
-  # # scripts/pre-upgrade-snapshot.sh instructs, or a PVC recreated during the
-  # # Immich upgrade) comes back with `Delete` again -- silently.
-  # #
-  # # THE ROLLBACK PROCEDURE IN scripts/pre-upgrade-snapshot.sh IS EXACTLY THIS
-  # # TRAP. It prints a PVC with `storageClassName: iscsi`. Rolling back a
-  # # volume therefore SILENTLY DOWNGRADES it from Retain to Delete. That
-  # # script now prints `iscsi-retain` for the volumes listed below instead.
-  # # ###########################################################################
-  #
-  # ---------------------------------------------------------------------------
-  # WHICH VOLUMES SHOULD BE `Retain`, AND HOW TO GET THERE WITHOUT DATA LOSS
-  #
-  # The correct migration is NOT a change of StorageClass. It is a patch to the
-  # PersistentVolume, because:
-  #
-  #   - `reclaimPolicy` on a StorageClass is IMMUTABLE, and
-  #   - `persistentVolumeReclaimPolicy` on a PersistentVolume is MUTABLE.
-  #
-  # (The previous wording here -- "reclaimPolicy is IMMUTABLE on both
-  # StorageClasses and PVs-via-class" -- was imprecise, and then gave the patch
-  # command that proves the PV field is editable. The class only sets a PV's
-  # INITIAL policy; after provisioning the two are independent, and a PVC on
-  # class `iscsi` bound to a PV patched to `Retain` is a perfectly normal and
-  # fully supported state. It is also the state this cluster is already in.)
-  #
-  # A patch moves no data, needs no downtime, and touches nothing the workload
-  # can see. Run it as a loop so nothing is missed:
-  #
-  #   for e in \
-  #     immich/immich-data          paperless/paperless-media \
-  #     paperless/paperless-data    seafile/seafile-data \
-  #     seafile/seafile-mariadb     mealie/mealie-data \
-  #     syncthing/syncthing-pvc     theater/plex-config \
-  #     theater/jellyfin-config     theater/qbittorrent-config ; do
-  #     ns=${e%%/*}; pvc=${e#*/}
-  #     pv=$(kubectl -n "$ns" get pvc "$pvc" -o jsonpath='{.spec.volumeName}' 2>/dev/null)
-  #     [ -n "$pv" ] || { printf '  SKIP %-40s (no such PVC)\n' "$e"; continue; }
-  #     kubectl patch pv "$pv" -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}' >/dev/null
-  #     printf '  %-40s -> %s Retain\n' "$e" "$pv"
-  #   done
-  #
-  # Plus the CloudNativePG data volumes, whose PVC names are generated by the
-  # operator and so cannot be listed literally:
-  #
-  #   kubectl get pvc -A -l cnpg.io/cluster \
-  #     -o jsonpath='{range .items[*]}{.spec.volumeName}{"\n"}{end}' \
-  #   | while read -r pv; do
-  #       [ -n "$pv" ] && kubectl patch pv "$pv" \
-  #         -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
-  #     done
-  #
-  # Then VERIFY, because a patch that silently did nothing is the failure mode:
-  #
-  #   kubectl get pv -o custom-columns=\
-  # 'NAME:.metadata.name,POLICY:.spec.persistentVolumeReclaimPolicy,CLAIM:.spec.claimRef.namespace/.spec.claimRef.name' \
-  #     | sort -k2
-  #
-  # RATIONALE FOR THE LIST -- Retain is not free, so it is not universal:
-  #
-  #   Retain, because loss is permanent or expensive:
-  #     immich-data          317GB of photos. The one genuinely irreplaceable
-  #                          thing in the cluster.
-  #     paperless-media      scanned originals. If the paper is gone, this is
-  #                          the only copy.
-  #     paperless-data       the SQLite database: tags, correspondents, document
-  #                          types -- all the work of organising the archive.
-  #     seafile-data         blobs AND Seafile's own configuration, which lives
-  #                          only inside this volume (see apps/seafile/pvc.yaml).
-  #     seafile-mariadb      without it the blobs are hash-named files with no
-  #                          index and no way to build one.
-  #     mealie-data          user-uploaded recipe images.
-  #     syncthing-pvc        the device identity keypair. Losing it makes this a
-  #                          NEW Syncthing device that every peer must re-accept.
-  #     plex-config          the library database: watch history and play counts,
-  #                          which apps/theater/backup.yaml can only capture on a
-  #                          best-effort basis. Retain is the stronger guarantee
-  #                          of the two, and it is free.
-  #     jellyfin-config      same reasoning: user accounts and watch state, whose
-  #                          file backup is explicitly tagged best-effort.
-  #     qbittorrent-config   deliberately NOT backed up at all
-  #                          (docs/backups.md), so `Retain` is the ONLY thing
-  #                          standing between a mistaken delete and losing every
-  #                          torrent's resume data. This is the volume where the
-  #                          policy matters most and where it is easiest to
-  #                          overlook, precisely because it has no backup job to
-  #                          remind anyone it exists.
-  #     every CNPG data volume
-  #                          immich-db and keycloak-db archive to S3; the other
-  #                          five (mealie, sonarr, radarr, lidarr, prowlarr)
-  #                          have no barmanObjectStore at all, so for those the
-  #                          zvol plus a nightly logical dump is the whole of
-  #                          the protection.
-  #
-  #   Leave as `Delete`, because the content is derived or transient and an
-  #   orphaned zvol is a real cost with no garbage collector:
-  #     plex-transcode, jellyfin-cache, paperless-consume,
-  #     immich-restic-cache, immich-restic-cache-local, paperless-restic-cache,
-  #     seafile-restic-cache, backup-verify-scratch,
-  #     the *arr */config volumes (backed up consistently every night, and a
-  #       few hundred KB each),
-  #     Prometheus, Alertmanager and Grafana volumes.
-  #
-  # SHOULD THE DEFAULT CLASS JUST BE `Retain` INSTEAD? Considered, and NO.
-  #
-  # It is tempting -- one edit and nothing can ever be destroyed. Three reasons
-  # against, in order of weight:
-  #
-  #   1. There is no garbage collector for Released PVs. Every deleted PVC in
-  #      the list above -- restic caches, transcode scratch, the backup-verify
-  #      scratch volume recreated on every schema change, and every throwaway
-  #      CNPG cluster that platform/backup-verify/ creates and destroys WEEKLY
-  #      -- would leave a zvol behind forever. The verifier alone would
-  #      accumulate a 20Gi orphan every Sunday. Within a year that is the pool.
-  #
-  #   2. `reclaimPolicy` on a StorageClass is immutable, so this is not an edit:
-  #      it is a delete-and-recreate of the default class. Argo CD with
-  #      ServerSideApply fails on the immutable field, so it needs
-  #      `Replace=true` or a manual `kubectl delete storageclass iscsi` -- and
-  #      between the delete and the recreate, any PVC created without an
-  #      explicit class binds to nothing and sits Pending.
-  #
-  #   3. It would make `Retain` the invisible default. The value of the two-class
-  #      split is that `iscsi-retain` in a manifest is a statement that this
-  #      volume matters. A blanket default protects everything and communicates
-  #      nothing.
-  #
-  # So: two classes, existing volumes protected by PV patch, and NEW volumes
-  # holding anything valuable created with `storageClassName: iscsi-retain` from
-  # the start -- which is the one case where the class name in a manifest does
-  # the work, because a PVC that does not exist yet has no immutable field to
-  # violate.
-  # ---------------------------------------------------------------------------
+  # The running class. Default class, reclaimPolicy Delete. Every existing
+  # PersistentVolumeClaim uses it and keeps it: a PVC's storageClassName is
+  # immutable, and a StorageClass's reclaimPolicy is immutable too. The data
+  # PVs bound through it were switched to Retain individually on 2026-10-04
+  # (docs/backups.md); caches stay on Delete.
   - name: iscsi
     defaultClass: true
     reclaimPolicy: Delete
-    # `Immediate` matches the old behaviour. WaitForFirstConsumer would be
-    # better for topology, but these are all single-replica workloads on a flat
-    # 4-node LAN where every node can reach the same portal, so it buys nothing.
     volumeBindingMode: Immediate
     allowVolumeExpansion: true
     parameters:
@@ -203,10 +42,11 @@ storageClasses:
       node-stage-secret:
       node-publish-secret:
       controller-expand-secret:
-
+  # For NEW data volumes: same backend, but deleting the PVC keeps the volume
+  # on the NAS (the PV goes to Released and can be re-bound). Use it for
+  # anything that is not a regenerable cache.
   - name: iscsi-retain
     defaultClass: false
-    # The whole point of this class.
     reclaimPolicy: Retain
     volumeBindingMode: Immediate
     allowVolumeExpansion: true
@@ -219,23 +59,3 @@ storageClasses:
       node-stage-secret:
       node-publish-secret:
       controller-expand-secret:
-
-# Snapshot support. The CRDs and cluster controller this depends on are installed
-# separately by infrastructure/snapshot-controller/ -- they are cluster-scoped and
-# shared, so they are not a CSI driver's business.
-#
-# Without those CRDs already present, this class is silently never created. That is
-# what had happened on the running cluster: the sidecar was there, this stanza was
-# there, and `kubectl get volumesnapshotclass` reported no such resource type.
-#
-# `deletionPolicy: Delete` means removing a VolumeSnapshot removes the underlying
-# ZFS snapshot. That is what you want for pre-upgrade rollback points, which are
-# meant to be cleaned up -- see scripts/pre-upgrade-snapshot.sh.
-volumeSnapshotClasses:
-  - name: iscsi
-    deletionPolicy: Delete
-
-node:
-  driver:
-    # iSCSI initiators need to talk to the host's iscsid.
-    localtimeHostPath: false
