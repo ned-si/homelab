@@ -32,17 +32,18 @@ spec:
   sources:
     - repoURL: https://immich-app.github.io/immich-charts
       chart: immich
-      # renovate: datasource=helm depName=immich registryUrl=https://immich-app.github.io/immich-charts
+      # renovate: datasource=helm depName=immich registryUrl=https://immich-
+      # app.github.io/immich-charts
       targetRevision: 0.9.0
       helm:
         releaseName: immich
         valueFiles:
           - $values/apps/immich/values.yaml
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: deployed
+      targetRevision: main
       ref: values
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: deployed
+      targetRevision: main
       path: deploy/apps/immich/resources
   destination:
     server: https://kubernetes.default.svc
@@ -68,7 +69,12 @@ spec:
     # # waits on HEALTH, and an OutOfSync-but-Healthy Immich is healthy.
     # ###################################################################
     syncOptions:
-      # Client-side apply, as the running child Application does. Its objects carry last-applied-configuration from client-side apply; switching this leaf to server-side apply on adoption would keep fields the new render drops (e.g. a volume source) and fail validation. Move to ServerSideApply=true in its own change, after adoption.
+      # Client-side apply, as the running child Application does. Its
+      # objects carry last-applied-configuration from client-side apply;
+      # switching this leaf to server-side apply on adoption would keep
+      # fields the new render drops (e.g. a volume source) and fail
+      # validation. Move to ServerSideApply=true in its own change, after
+      # adoption.
       - CreateNamespace=true
     retry:
       limit: 5

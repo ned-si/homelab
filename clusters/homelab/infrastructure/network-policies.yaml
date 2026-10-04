@@ -50,7 +50,7 @@ spec:
   project: infrastructure
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
     path: deploy/infrastructure/network-policies
   destination:
     server: https://kubernetes.default.svc
@@ -67,7 +67,7 @@ spec:
       # taking a `CiliumNetworkPolicy` out of git; without prune the object stays
       # in the cluster and the revert commit does nothing, which is the worst
       # possible behaviour for a safety switch.
-      prune: false
+      prune: true
       # selfHeal: false, and this is the ONLY Application in this repo that sets
       # it. Every other one self-heals, which is right for a workload: drift is
       # noise and Argo should win.

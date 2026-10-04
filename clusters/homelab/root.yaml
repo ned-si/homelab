@@ -1,60 +1,33 @@
-# The ONE Application that OpenTofu applies. Everything else in the cluster is
-# a descendant of this object, so `tofu apply` never needs to know about any
-# individual workload.
+# Root of the layered tree. It owns only Argo CD objects: the three
+# AppProjects and the three layer Applications; each layer owns only leaf
+# Applications, one per app; each leaf owns its app's resources.
 #
 #   root  ->  clusters/homelab/bootstrap  (AppProjects + the three layer apps)
 #               ->  clusters/homelab/infrastructure  ->  infrastructure/*
 #               ->  clusters/homelab/platform        ->  platform/*
 #               ->  clusters/homelab/apps            ->  apps/*
 #
-# No Application in this tree carries the resources-finalizer, and none prunes:
-# deleting an Application, or removing a file from git, never deletes a live
-# object. Teardown is an explicit, per-object action (CI enforces both rules in
-# scripts/ci/repo_policy.py).
+# NOT APPLIED YET. The cluster runs the legacy root `all-apps`
+# (bootstrap/root-app.yaml, tracking main, path kubernetes/applications).
+# The two roots never own the same object: an app moves to this tree in one
+# PR that removes it from kubernetes/applications/ and adds it here
+# (docs/runbooks/adopt-layered-tree.md).
 #
-# NOT APPLIED YET. The cluster still runs the legacy root `all-apps`
-# (clusters/homelab/legacy/all-apps.yaml). Adopting this tree is a runbook
-# (docs/runbooks/adopt-layered-tree.md), not a merge: merging changes nothing
-# live.
+# TRUNK-BASED. Every Application tracks `main`: what is merged is what runs,
+# and a rollback is a revert PR. That is why prune stays off on the root and
+# the layers (an Application object removed by mistake must not vanish with
+# its app) while app leaves prune, with
+# `argocd.argoproj.io/sync-options: Delete=false,Prune=false` on every PVC,
+# CNPG Cluster, StatefulSet and Namespace as the data guard. Leaves that ship
+# CRDs (cert-manager, CloudNativePG, kube-prometheus-stack, Gateway API) do not
+# prune either: pruning a CRD deletes every object of its kind.
 #
-# ###########################################################################
-# # WHY `targetRevision: deployed` AND NOT `main`
-# #
-# # `deployed` is a git TAG that CI moves. Every Application in this repo --
-# # root, the three layer app-of-apps, and every leaf -- tracks it, so the
-# # cluster's desired state is "whatever commit that tag points at".
-# #
-# #   deploy    = move the tag forward, then sync and health-gate each layer
-# #   roll back = move the tag back
-# #
-# # Tracking `main` cannot be rolled back. Every Application here runs
-# # `automated.selfHeal: true`, and selfHeal re-reads `spec.source.targetRevision`
-# # on every reconcile. A rollback expressed as `argocd app sync --revision <sha>`
-# # is therefore undone within minutes by Argo re-applying `main` -- which is the
-# # bad commit. Expressing it as `argocd app set --revision` fails the same way
-# # for a second reason: these Application objects are themselves managed by
-# # root/layer-* with selfHeal, so the edit reads as drift and is reverted.
-# #
-# # Moving a tag works WITH the sync policy instead of racing it, and leaves
-# # exactly one mutation point for a deploy. It also means the cluster never
-# # tracks an unreviewed commit: merging to main proposes a change, moving the
-# # tag deploys it.
-# #
-# # Consequence to keep in mind: `main` and `deployed` can disagree. That is the
-# # design, not drift -- `main` is what has been reviewed, `deployed` is what has
-# # been verified against a live health gate. `.github/workflows/cd.yaml` opens an
-# # issue when it rolls the tag back so the gap is visible.
-# #
-# # `revisionHistoryLimit` and `syncPolicy.retry` below are set on every
-# # Application in the tree for the same reason they are set here:
-# #   - history 10 keeps enough `argocd app history` entries to diagnose a bad
-# #     deploy without letting the Application status grow unbounded.
-# #   - retry 5 x 5s doubling, capped at 3m, spans ~2.5 minutes of transient
-# #     failure (a CRD not yet established, an image pull on ARM, an iSCSI
-# #     attach) which fits comfortably inside the CD health-gate timeout. It is
-# #     what makes the known CloudNativePG-before-Prometheus-CRDs ordering
-# #     wrinkle self-correcting -- see docs/architecture.md.
-# ###########################################################################
+# No Application carries the resources-finalizer (CI: repo_policy.py), so
+# deleting an Application never cascades.
+#
+# `revisionHistoryLimit: 10` and `retry` (5 x 5s doubling, capped at 3m) are
+# set on every Application: enough history to diagnose a bad sync, and enough
+# retry to ride out a CRD that is not established yet or a slow iSCSI attach.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -65,7 +38,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
     path: deploy/clusters/homelab/bootstrap
   destination:
     server: https://kubernetes.default.svc
@@ -85,7 +58,9 @@ spec:
         factor: 2
         maxDuration: 3m
   ignoreDifferences:
-    # Argo CD < 2.12 reports a permanent diff on LoadBalancer status ipMode (argoproj/argo-cd#17548). Harmless on 2.14; remove with the next Argo CD change.
+    # Argo CD < 2.12 reported a permanent diff on LoadBalancer status ipMode
+    # (argoproj/argo-cd#17548). Harmless on 2.14; remove with the next Argo CD
+    # change.
     - group: ""
       kind: Service
       jqPathExpressions:

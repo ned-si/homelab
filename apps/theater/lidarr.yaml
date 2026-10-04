@@ -11,6 +11,8 @@ kind: Cluster
 metadata:
   name: lidarr-postgresql
   namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   instances: 1
   storage:

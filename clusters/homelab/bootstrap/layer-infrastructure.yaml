@@ -34,7 +34,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
     path: deploy/clusters/homelab/infrastructure
   destination:
     server: https://kubernetes.default.svc

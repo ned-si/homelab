@@ -11,7 +11,7 @@ spec:
   project: apps
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
     path: deploy/apps/mealie
   destination:
     server: https://kubernetes.default.svc
@@ -19,7 +19,7 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

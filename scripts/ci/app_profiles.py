@@ -3,7 +3,7 @@
 
   root         clusters/homelab/root.yaml: name `root`, namespace `argo`, no
                finalizers, automated == {prune: false, selfHeal: true},
-               targetRevision `deployed`, path deploy/clusters/homelab/bootstrap,
+               targetRevision `main` (trunk-based), path deploy/clusters/homelab/bootstrap,
                repoURL equal to the config repository URL (`.git` stripped on
                both sides), `ServerSideApply=true` in syncOptions.
   legacy-root  clusters/homelab/legacy/all-apps.yaml: name `all-apps`, namespace
@@ -54,8 +54,8 @@ def check_root(doc: dict, repo_url: str = CONFIG_REPO) -> list[str]:
     sync = spec.get("syncPolicy") or {}
     if sync.get("automated") != {"prune": False, "selfHeal": True}:
         fails.append("syncPolicy.automated must be exactly {prune: false, selfHeal: true}")
-    if src.get("targetRevision") != "deployed":
-        fails.append(f"source.targetRevision is {src.get('targetRevision')!r}, expected 'deployed'")
+    if src.get("targetRevision") != "main":
+        fails.append(f"source.targetRevision is {src.get('targetRevision')!r}, expected 'main'")
     if src.get("path") != "deploy/clusters/homelab/bootstrap":
         fails.append(f"source.path is {src.get('path')!r}, expected 'deploy/clusters/homelab/bootstrap'")
     if _norm(src.get("repoURL", "")) != _norm(repo_url):

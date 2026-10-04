@@ -24,7 +24,7 @@ spec:
         valueFiles:
           - $values/infrastructure/cert-manager/values.yaml
     - repoURL: https://github.com/ned-si/homelab.git
-      targetRevision: deployed
+      targetRevision: main
       ref: values
   destination:
     server: https://kubernetes.default.svc
@@ -32,10 +32,15 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: false
+      prune: false # ships CRDs: pruning one deletes every Certificate
       selfHeal: true
     syncOptions:
-      # Client-side apply, as the running child Application does. Its objects carry last-applied-configuration from client-side apply; switching this leaf to server-side apply on adoption would keep fields the new render drops (e.g. a volume source) and fail validation. Move to ServerSideApply=true in its own change, after adoption.
+      # Client-side apply, as the running child Application does. Its
+      # objects carry last-applied-configuration from client-side apply;
+      # switching this leaf to server-side apply on adoption would keep
+      # fields the new render drops (e.g. a volume source) and fail
+      # validation. Move to ServerSideApply=true in its own change, after
+      # adoption.
       - CreateNamespace=true
     retry:
       limit: 5

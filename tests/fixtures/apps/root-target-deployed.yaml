@@ -1,4 +1,5 @@
-# Fails `root`: targetRevision main.
+# Fails `root`: targetRevision deployed (the retired deploy tag; trunk-based
+# delivery tracks main).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -8,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
+    targetRevision: deployed
     path: deploy/clusters/homelab/bootstrap
   destination:
     server: https://kubernetes.default.svc

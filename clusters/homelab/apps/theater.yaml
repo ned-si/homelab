@@ -20,7 +20,7 @@ spec:
   project: apps
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
     path: deploy/apps/theater
   destination:
     server: https://kubernetes.default.svc
@@ -28,7 +28,7 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
@@ -40,7 +40,9 @@ spec:
         factor: 2
         maxDuration: 3m
   ignoreDifferences:
-    # Argo CD < 2.12 reports a permanent diff on LoadBalancer status ipMode (argoproj/argo-cd#17548). Harmless on 2.14; remove with the next Argo CD change.
+    # Argo CD < 2.12 reports a permanent diff on LoadBalancer status ipMode
+    # (argoproj/argo-cd#17548). Harmless on 2.14; remove with the next Argo
+    # CD change.
     - group: ""
       kind: Service
       jqPathExpressions:

@@ -31,7 +31,7 @@ spec:
   project: infrastructure
   source:
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
     path: deploy/infrastructure/snapshot-controller
   destination:
     server: https://kubernetes.default.svc
