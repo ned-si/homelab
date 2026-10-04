@@ -68,7 +68,7 @@ jobs:
       enabled: ${{ steps.c.outputs.enabled }}
       hosts: ${{ steps.h.outputs.hosts }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - id: c
         run: |
@@ -108,7 +108,7 @@ jobs:
       matrix:
         host: ${{ fromJSON(needs.guard.outputs.hosts) }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Skip hosts not selected
         id: sel
@@ -124,7 +124,7 @@ jobs:
       # payloads, so it is safe against a live service.
       - name: ZAP baseline scan
         if: steps.sel.outputs.skip == 'false' && github.event.inputs.full_scan != 'true'
-        uses: zaproxy/action-baseline@v0.14.0
+        uses: zaproxy/action-baseline@7c4deb10e6261301961c86d65d54a516394f9aed # v0.14.0
         with:
           target: https://${{ matrix.host }}
           rules_file_name: .zap/rules.tsv
@@ -140,7 +140,7 @@ jobs:
       # Manual opt-in only.
       - name: ZAP full scan (active)
         if: steps.sel.outputs.skip == 'false' && github.event.inputs.full_scan == 'true'
-        uses: zaproxy/action-full-scan@v0.12.0
+        uses: zaproxy/action-full-scan@75ee1686750ab1511a73b26b77a2aedd295053ed # v0.12.0
         with:
           target: https://${{ matrix.host }}
           rules_file_name: .zap/rules.tsv
@@ -159,7 +159,7 @@ jobs:
     if: needs.guard.outputs.enabled == 'true'
     runs-on: [self-hosted, homelab]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # STRICT_HEADERS is deliberately unset: the four security headers are
       # warnings until the Gateway sets them. See .zap/rules.tsv for the
       # promotion checklist.
