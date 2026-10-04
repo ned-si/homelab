@@ -13,7 +13,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   name: cert-manager
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: cert-manager
@@ -27,14 +27,11 @@ spec:
       valueFiles:
       - $values/infrastructure/cert-manager/values.yaml
     repoURL: https://charts.jetstack.io
-    targetRevision: v1.21.1
+    targetRevision: v1.15.0
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -43,7 +40,6 @@ spec:
       limit: 5
     syncOptions:
     - CreateNamespace=true
-    - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -51,7 +47,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "5"
   name: cert-manager-issuers
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: cert-manager
@@ -61,11 +57,8 @@ spec:
   source:
     path: deploy/infrastructure/cert-manager-issuers
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -74,6 +67,7 @@ spec:
       limit: 5
     syncOptions:
     - SkipDryRunOnMissingResource=true
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -82,7 +76,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-10"
   name: cilium
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: kube-system
@@ -102,21 +96,13 @@ spec:
       valueFiles:
       - $values/infrastructure/cilium/values.yaml
     repoURL: https://helm.cilium.io
-    targetRevision: 1.16.3
+    targetRevision: 1.17.18
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
-    retry:
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-      limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -125,7 +111,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-5"
   name: cilium-config
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: kube-system
@@ -135,11 +121,8 @@ spec:
   source:
     path: deploy/infrastructure/cilium
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -147,6 +130,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -155,7 +139,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "20"
   name: democratic-csi
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: democratic-csi
@@ -165,18 +149,15 @@ spec:
   sources:
   - chart: democratic-csi
     helm:
-      releaseName: democratic-csi-iscsi
+      releaseName: iscsi
       valueFiles:
       - $values/infrastructure/democratic-csi/values-iscsi.yaml
     repoURL: https://democratic-csi.github.io/charts/
-    targetRevision: 0.15.1
+    targetRevision: 0.14.7
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -184,6 +165,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -192,7 +174,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "10"
   name: external-dns
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: external-dns
@@ -206,14 +188,11 @@ spec:
       valueFiles:
       - $values/infrastructure/external-dns/values.yaml
     repoURL: https://kubernetes-sigs.github.io/external-dns/
-    targetRevision: 1.21.1
+    targetRevision: v1.15.0
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -221,7 +200,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
-    - ServerSideApply=true
+    - CreateNamespace=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -229,7 +208,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "15"
   name: gateway
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: gateway
@@ -244,11 +223,8 @@ spec:
   source:
     path: deploy/infrastructure/gateway
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -256,6 +232,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -264,7 +241,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-20"
   name: gateway-api
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: kube-system
@@ -274,11 +251,8 @@ spec:
   source:
     path: deploy/infrastructure/gateway-api
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -286,8 +260,37 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
-    - ServerSideApply=true
     - SkipDryRunOnMissingResource=true
+    - CreateNamespace=true
+    - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "13"
+  name: legacy-ingress
+  namespace: argo
+spec:
+  destination:
+    namespace: ingress
+    server: https://kubernetes.default.svc
+  project: infrastructure
+  revisionHistoryLimit: 10
+  source:
+    path: deploy/infrastructure/legacy-ingress
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -295,7 +298,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-30"
   name: namespaces
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: default
@@ -305,11 +308,8 @@ spec:
   source:
     path: deploy/infrastructure/namespaces
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -317,64 +317,39 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   annotations:
-    argocd.argoproj.io/sync-wave: "30"
-  name: network-policies
-  namespace: argocd
+    argocd.argoproj.io/sync-wave: "12"
+  name: nginx
+  namespace: argo
 spec:
   destination:
-    namespace: argocd
-    server: https://kubernetes.default.svc
-  project: infrastructure
-  revisionHistoryLimit: 10
-  source:
-    path: deploy/infrastructure/network-policies
-    repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: false
-    retry:
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-      limit: 5
-    syncOptions:
-    - ServerSideApply=true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-wave: "25"
-  name: nfs-storage
-  namespace: argocd
-spec:
-  destination:
-    namespace: theater
+    namespace: ingress
     server: https://kubernetes.default.svc
   ignoreDifferences:
   - group: ""
-    jsonPointers:
-    - /spec/claimRef
-    kind: PersistentVolume
+    jqPathExpressions:
+    - .status.loadBalancer.ingress[].ipMode
+    kind: Service
   project: infrastructure
   revisionHistoryLimit: 10
-  source:
-    path: deploy/infrastructure/nfs-storage
+  sources:
+  - chart: ingress-nginx
+    helm:
+      releaseName: ingress-nginx
+      valueFiles:
+      - $values/infrastructure/ingress-nginx/values.yaml
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    targetRevision: 4.11.3
+  - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -382,7 +357,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
-    - ServerSideApply=true
+    - CreateNamespace=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -390,7 +365,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-25"
   name: secrets-infrastructure
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: default
@@ -400,11 +375,8 @@ spec:
   source:
     path: infrastructure/secrets
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -412,41 +384,5 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-wave: "18"
-  name: snapshot-controller
-  namespace: argocd
-spec:
-  destination:
-    namespace: kube-system
-    server: https://kubernetes.default.svc
-  ignoreDifferences:
-  - group: apiextensions.k8s.io
-    jsonPointers:
-    - /status
-    - /spec/conversion
-    kind: CustomResourceDefinition
-  project: infrastructure
-  revisionHistoryLimit: 10
-  source:
-    path: deploy/infrastructure/snapshot-controller
-    repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
-    retry:
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-      limit: 5
-    syncOptions:
-    - ServerSideApply=true
-    - SkipDryRunOnMissingResource=true

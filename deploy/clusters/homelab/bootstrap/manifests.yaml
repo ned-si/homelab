@@ -13,7 +13,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
   name: apps
-  namespace: argocd
+  namespace: argo
 spec:
   clusterResourceWhitelist: []
   description: End-user workloads - media, photos, documents, recipes, sync
@@ -43,7 +43,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
   name: infrastructure
-  namespace: argocd
+  namespace: argo
 spec:
   clusterResourceWhitelist:
   - group: ""
@@ -70,6 +70,8 @@ spec:
     kind: VolumeSnapshotClass
   - group: gateway.networking.k8s.io
     kind: GatewayClass
+  - group: networking.k8s.io
+    kind: IngressClass
   - group: admissionregistration.k8s.io
     kind: MutatingWebhookConfiguration
   - group: admissionregistration.k8s.io
@@ -87,6 +89,7 @@ spec:
   - https://charts.jetstack.io
   - https://kubernetes-sigs.github.io/external-dns/
   - https://democratic-csi.github.io/charts/
+  - https://kubernetes.github.io/ingress-nginx
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -94,7 +97,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
   name: platform
-  namespace: argocd
+  namespace: argo
 spec:
   clusterResourceWhitelist:
   - group: apiextensions.k8s.io
@@ -124,23 +127,21 @@ kind: Application
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "3"
-  finalizers:
-  - resources-finalizer.argocd.argoproj.io
   name: layer-apps
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
-    namespace: argocd
+    namespace: argo
     server: https://kubernetes.default.svc
   project: default
   revisionHistoryLimit: 10
   source:
     path: deploy/clusters/homelab/apps
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     retry:
       backoff:
@@ -149,6 +150,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -156,23 +158,21 @@ kind: Application
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "1"
-  finalizers:
-  - resources-finalizer.argocd.argoproj.io
   name: layer-infrastructure
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
-    namespace: argocd
+    namespace: argo
     server: https://kubernetes.default.svc
   project: default
   revisionHistoryLimit: 10
   source:
     path: deploy/clusters/homelab/infrastructure
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     retry:
       backoff:
@@ -181,6 +181,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -188,23 +189,21 @@ kind: Application
 metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-  finalizers:
-  - resources-finalizer.argocd.argoproj.io
   name: layer-platform
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
-    namespace: argocd
+    namespace: argo
     server: https://kubernetes.default.svc
   project: default
   revisionHistoryLimit: 10
   source:
     path: deploy/clusters/homelab/platform
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     retry:
       backoff:
@@ -213,4 +212,5 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true

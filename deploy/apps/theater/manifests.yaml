@@ -49,158 +49,7 @@ data:
     # no reported problem to fix. Adding it would be change for its own sake.
 kind: ConfigMap
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
   name: recyclarr-config
-  namespace: theater
----
-apiVersion: v1
-data:
-  backup-config.sh: |
-    #!/bin/sh
-    # Usage: backup-config.sh <tag> <path> [extra restic backup args...]
-    #
-    # `sh`, not bash: the restic image is Alpine and has no bash. Nothing here
-    # needs it.
-    set -eu
-
-    TAG="$1"
-    shift
-    SRC="$1"
-    shift
-
-    # Idempotent-by-failure: `init` errors if the repository already exists,
-    # which is the normal case from the second run onwards.
-    restic init 2>/dev/null || true
-
-    echo "=== ${TAG}: backing up ${SRC} ==="
-
-    # Two tags on every snapshot, doing two different jobs:
-    #
-    #   theater-configs  a repository-wide marker, so
-    #                    platform/backup-verify/restore-files.yaml can verify this
-    #                    repository with a single entry.
-    #   $TAG             the per-app identity (sonarr-config, radarr-config, ...).
-    #                    This is what `--group-by host,paths,tags` in
-    #                    forget-and-check.sh keys on to give each app its own
-    #                    retention budget. Without the per-app tag in the
-    #                    grouping, all six would share one.
-    restic backup "$SRC" \
-      --tag theater-configs \
-      --tag "$TAG" \
-      --host theater \
-      "$@" \
-      --verbose
-
-    echo "=== ${TAG}: done ==="
-  dump-postgres.sh: |
-    #!/bin/bash
-    # `bash`, deliberately: `set -o pipefail` is required below and dash does
-    # not have it. The CNPG postgres image is Debian-based and has bash.
-    set -uo pipefail
-
-    OUT=/dumps
-    rc=0
-
-    # Credentials come from the CloudNativePG-generated `<cluster>-app` Secrets,
-    # mounted as directories of files rather than as twenty environment
-    # variables. CNPG rotates these itself, so there is no password in git in
-    # any form -- not even encrypted.
-    for app in sonarr radarr lidarr prowlarr; do
-      d="/creds/${app}"
-      if [ ! -f "$d/password" ]; then
-        echo "FAIL ${app}: no credentials mounted at ${d}"
-        rc=1
-        continue
-      fi
-
-      host=$(cat "$d/host")
-      port=$(cat "$d/port")
-      user=$(cat "$d/user")
-      db=$(cat "$d/dbname")
-      f="${OUT}/pg-${app}.dump"
-
-      # -Fc, custom format: compressed, and pg_restore can inspect it, which is
-      # what makes verification possible at all. Matches what
-      # scripts/dump-databases.sh produces, so scripts/verify-dump-restore.sh
-      # can be pointed straight at a restored file.
-      #
-      # pg_dump is transactional: the dump is a snapshot of one instant, not a
-      # smear across the run. This is the ONLY consistency guarantee in this
-      # file that needs no caveat.
-      if PGPASSWORD="$(cat "$d/password")" \
-         pg_dump -h "$host" -p "$port" -U "$user" -d "$db" -Fc -f "$f"; then
-        # A pg_dump custom archive always begins with the five bytes "PGDMP".
-        # Local, instant, and it catches the case where the file is actually an
-        # error message -- which a non-zero exit code does not always give you.
-        if [ "$(head -c 5 "$f")" = "PGDMP" ]; then
-          echo "ok   ${app}  $(du -h "$f" | cut -f1)"
-        else
-          echo "FAIL ${app}: output is not a pg_dump archive"
-          rm -f "$f"
-          rc=1
-        fi
-      else
-        echo "FAIL ${app}: pg_dump exited non-zero"
-        # Remove the partial file. Leaving it would let restic back up a
-        # truncated dump that restores to nothing -- the classic silent backup
-        # failure, and the one this whole repository is written against.
-        rm -f "$f"
-        rc=1
-      fi
-    done
-
-    # Non-zero fails the initContainer, which fails the pod, which is what makes
-    # FileBackupJobFailed fire. A dump job that half-worked must not report
-    # success, because the restic container would then upload three of four
-    # databases and the snapshot would look complete.
-    exit $rc
-  forget-and-check.sh: |
-    #!/bin/sh
-    set -eu
-
-    # ###########################################################################
-    # `--group-by host,paths,tags` IS LOAD-BEARING. DO NOT REMOVE IT.
-    #
-    # restic's default is `--group-by host,paths` -- TAGS ARE NOT INCLUDED.
-    #
-    # Every one of the six config jobs backs up the path `/config` with
-    # `--host theater`. So under the default grouping they all land in ONE group,
-    # and `--keep-daily 14` keeps ONE snapshot per day for the whole group: the
-    # most recent, which is jellyfin's 04:50 run. sonarr's, radarr's, lidarr's,
-    # prowlarr's and plex's snapshots from 10-50 minutes earlier the same night
-    # are forgotten and pruned.
-    #
-    # It fails SILENTLY, which is what makes it dangerous: the weekly restore
-    # drill in platform/backup-verify/restore-files.yaml verifies this repository
-    # by the tag `theater-configs`, and jellyfin's surviving snapshot carries that
-    # tag -- so the drill stays green while five apps have no config backup older
-    # than a few hours.
-    #
-    # Adding `tags` to the grouping gives each app its own retention budget, which
-    # is what the 14/8/12 numbers below were always meant to express.
-    # ###########################################################################
-    #
-    # 14/8/12 is shallower than Immich's local copy and deeper than its remote
-    # one. These volumes are a few hundred megabytes in total, so depth is
-    # nearly free, and a bad *arr configuration change (a mangled quality
-    # profile, a deleted indexer) is the kind of thing noticed weeks later.
-    restic forget \
-      --host theater \
-      --group-by host,paths,tags \
-      --keep-daily 14 \
-      --keep-weekly 8 \
-      --keep-monthly 12 \
-      --prune
-
-    # Cheap structural check on every run. Actually restoring data is a separate
-    # CronJob: platform/backup-verify/.
-    restic check --with-cache
-kind: ConfigMap
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-backup-scripts
   namespace: theater
 ---
 apiVersion: v1
@@ -208,7 +57,6 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/name: jellyfin
-    app.kubernetes.io/part-of: theater
   name: jellyfin
   namespace: theater
 spec:
@@ -217,6 +65,10 @@ spec:
     port: 8096
     protocol: TCP
     targetPort: http
+  - name: udp
+    port: 7359
+    protocol: UDP
+    targetPort: udp
   selector:
     app.kubernetes.io/name: jellyfin
   type: ClusterIP
@@ -226,7 +78,6 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/name: lidarr
-    app.kubernetes.io/part-of: theater
   name: lidarr
   namespace: theater
 spec:
@@ -243,27 +94,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: lidarr-sso
-    app.kubernetes.io/part-of: theater
-  name: lidarr-sso
-  namespace: theater
-spec:
-  ports:
-  - name: http
-    port: 4180
-    protocol: TCP
-    targetPort: http
-  selector:
-    app.kubernetes.io/name: lidarr-sso
-  type: ClusterIP
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
     app.kubernetes.io/name: plex
-    app.kubernetes.io/part-of: theater
   name: plex
   namespace: theater
 spec:
@@ -281,7 +112,6 @@ kind: Service
 metadata:
   labels:
     app.kubernetes.io/name: prowlarr
-    app.kubernetes.io/part-of: theater
   name: prowlarr
   namespace: theater
 spec:
@@ -298,27 +128,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: prowlarr-sso
-    app.kubernetes.io/part-of: theater
-  name: prowlarr-sso
-  namespace: theater
-spec:
-  ports:
-  - name: http
-    port: 4180
-    protocol: TCP
-    targetPort: http
-  selector:
-    app.kubernetes.io/name: prowlarr-sso
-  type: ClusterIP
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
     app.kubernetes.io/name: qbittorrent
-    app.kubernetes.io/part-of: theater
   name: qbittorrent
   namespace: theater
 spec:
@@ -334,22 +144,18 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    lbipam.cilium.io/ips: 192.168.1.200
   labels:
     app.kubernetes.io/name: qbittorrent
-    app.kubernetes.io/part-of: theater
-    homelab.lilalala.com/lb-pool: services
-  name: qbittorrent-peer
+  name: qbittorrent-seed
   namespace: theater
 spec:
   ports:
-  - name: peer
+  - name: seed
     port: 50000
     protocol: TCP
-    targetPort: peer
-  - name: peer-udp
-    port: 50000
-    protocol: UDP
-    targetPort: peer-udp
+    targetPort: seed
   selector:
     app.kubernetes.io/name: qbittorrent
   type: LoadBalancer
@@ -358,27 +164,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: qbittorrent-sso
-    app.kubernetes.io/part-of: theater
-  name: qbittorrent-sso
-  namespace: theater
-spec:
-  ports:
-  - name: http
-    port: 4180
-    protocol: TCP
-    targetPort: http
-  selector:
-    app.kubernetes.io/name: qbittorrent-sso
-  type: ClusterIP
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
     app.kubernetes.io/name: radarr
-    app.kubernetes.io/part-of: theater
   name: radarr
   namespace: theater
 spec:
@@ -395,27 +181,7 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: radarr-sso
-    app.kubernetes.io/part-of: theater
-  name: radarr-sso
-  namespace: theater
-spec:
-  ports:
-  - name: http
-    port: 4180
-    protocol: TCP
-    targetPort: http
-  selector:
-    app.kubernetes.io/name: radarr-sso
-  type: ClusterIP
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
     app.kubernetes.io/name: sonarr
-    app.kubernetes.io/part-of: theater
   name: sonarr
   namespace: theater
 spec:
@@ -429,29 +195,10 @@ spec:
   type: ClusterIP
 ---
 apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: sonarr-sso
-    app.kubernetes.io/part-of: theater
-  name: sonarr-sso
-  namespace: theater
-spec:
-  ports:
-  - name: http
-    port: 4180
-    protocol: TCP
-    targetPort: http
-  selector:
-    app.kubernetes.io/name: sonarr-sso
-  type: ClusterIP
----
-apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: jellyfin-cache
   namespace: theater
 spec:
@@ -459,14 +206,14 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 20Gi
+      storage: 5Gi
   storageClassName: iscsi
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: jellyfin-config
   namespace: theater
 spec:
@@ -480,8 +227,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: lidarr-config
   namespace: theater
 spec:
@@ -495,8 +242,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: plex-config
   namespace: theater
 spec:
@@ -510,8 +257,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: plex-transcode
   namespace: theater
 spec:
@@ -525,8 +272,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: prowlarr-config
   namespace: theater
 spec:
@@ -540,8 +287,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: qbittorrent-config
   namespace: theater
 spec:
@@ -555,8 +302,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: radarr-config
   namespace: theater
 spec:
@@ -570,8 +317,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: sonarr-config
   namespace: theater
 spec:
@@ -585,9 +332,11 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
   labels:
     app.kubernetes.io/name: jellyfin
-    app.kubernetes.io/part-of: theater
   name: jellyfin
   namespace: theater
 spec:
@@ -596,6 +345,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: jellyfin
   strategy:
+    rollingUpdate: null
     type: Recreate
   template:
     metadata:
@@ -604,65 +354,45 @@ spec:
     spec:
       containers:
       - env:
-        - name: TZ
-          value: Europe/Zurich
         - name: JELLYFIN_PublishedServerUrl
-          value: https://cinema.lilalala.com
-        image: ghcr.io/jellyfin/jellyfin:10.11.11
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /health
-            port: http
-          initialDelaySeconds: 120
-          periodSeconds: 30
+          value: https://cinema.lilalala.com/
+        image: ghcr.io/jellyfin/jellyfin
+        imagePullPolicy: Always
         name: jellyfin
         ports:
         - containerPort: 8096
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 4Gi
-          requests:
-            cpu: 200m
-            memory: 512Mi
+        - containerPort: 7359
+          name: udp
+          protocol: UDP
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /cache
           name: cache
         - mountPath: /media
-          name: data
-          readOnly: true
-          subPath: media
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+          name: media
       volumes:
-      - name: config
-        persistentVolumeClaim:
-          claimName: jellyfin-config
       - name: cache
         persistentVolumeClaim:
           claimName: jellyfin-cache
-      - name: data
+      - name: config
         persistentVolumeClaim:
-          claimName: theater-data
+          claimName: jellyfin-config
+      - name: media
+        nfs:
+          path: /mnt/homelab/k8s/nfs/media
+          server: 192.168.1.228
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
   labels:
     app.kubernetes.io/name: lidarr
-    app.kubernetes.io/part-of: theater
   name: lidarr
   namespace: theater
 spec:
@@ -670,8 +400,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: lidarr
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
@@ -687,174 +415,37 @@ spec:
           value: "1000"
         - name: UMASK
           value: "002"
-        - name: LIDARR__LOG__DBENABLED
-          value: "false"
-        - name: LIDARR__POSTGRES__HOST
-          valueFrom:
-            secretKeyRef:
-              key: host
-              name: lidarr-postgresql-app
-        - name: LIDARR__POSTGRES__PORT
-          valueFrom:
-            secretKeyRef:
-              key: port
-              name: lidarr-postgresql-app
-        - name: LIDARR__POSTGRES__USER
-          valueFrom:
-            secretKeyRef:
-              key: user
-              name: lidarr-postgresql-app
-        - name: LIDARR__POSTGRES__PASSWORD
-          valueFrom:
-            secretKeyRef:
-              key: password
-              name: lidarr-postgresql-app
-        - name: LIDARR__POSTGRES__MAINDB
-          valueFrom:
-            secretKeyRef:
-              key: dbname
-              name: lidarr-postgresql-app
-        image: ghcr.io/hotio/lidarr:release-3.1.0.4875
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 90
-          periodSeconds: 30
+        - name: LIDARR__SERVER__URLBASE
+          value: /arr/lidarr
+        image: ghcr.io/hotio/lidarr:latest
+        imagePullPolicy: Always
         name: lidarr
         ports:
         - containerPort: 8686
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 1Gi
-          requests:
-            cpu: 100m
-            memory: 384Mi
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /data
-          name: data
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+          name: media
       volumes:
       - name: config
         persistentVolumeClaim:
           claimName: lidarr-config
-      - name: data
-        persistentVolumeClaim:
-          claimName: theater-data
+      - name: media
+        nfs:
+          path: /mnt/homelab/k8s/nfs
+          server: 192.168.1.228
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: lidarr-sso
-    app.kubernetes.io/part-of: theater
-  name: lidarr-sso
-  namespace: theater
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: lidarr-sso
-  strategy:
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/component: sso-proxy
-        app.kubernetes.io/name: lidarr-sso
-    spec:
-      containers:
-      - args:
-        - --provider=keycloak-oidc
-        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
-        - --client-id=theater-sso
-        - --redirect-url=https://lidarr.lilalala.com/oauth2/callback
-        - --upstream=http://lidarr.theater.svc.cluster.local:8686
-        - --http-address=0.0.0.0:4180
-        - --reverse-proxy=true
-        - --email-domain=*
-        - --allowed-group=/theater-admins
-        - --cookie-domain=.lilalala.com
-        - --cookie-secure=true
-        - --cookie-samesite=lax
-        - --cookie-expire=12h
-        - --cookie-refresh=1h
-        - --whitelist-domain=.lilalala.com
-        - --skip-provider-button=true
-        - --set-xauthrequest=true
-        - --pass-basic-auth=false
-        - --pass-user-headers=true
-        env:
-        - name: OAUTH2_PROXY_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: client-secret
-              name: theater-sso
-        - name: OAUTH2_PROXY_COOKIE_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: cookie-secret
-              name: theater-sso
-        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 30
-        name: oauth2-proxy
-        ports:
-        - containerPort: 4180
-          name: http
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          limits:
-            memory: 64Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-      securityContext:
-        runAsGroup: 65532
-        runAsNonRoot: true
-        runAsUser: 65532
-        seccompProfile:
-          type: RuntimeDefault
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
   labels:
     app.kubernetes.io/name: plex
-    app.kubernetes.io/part-of: theater
   name: plex
   namespace: theater
 spec:
@@ -863,6 +454,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: plex
   strategy:
+    rollingUpdate: null
     type: Recreate
   template:
     metadata:
@@ -873,46 +465,25 @@ spec:
       - env:
         - name: TZ
           value: Europe/Zurich
-        - name: ADVERTISE_IP
-          value: https://theater.lilalala.com:443
-        image: plexinc/pms-docker:1.43.3.10828-00f62d37d
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /identity
-            port: http
-          initialDelaySeconds: 120
-          periodSeconds: 30
+        - name: PLEX_CLAIM
+          valueFrom:
+            secretKeyRef:
+              key: PLEX_CLAIM
+              name: plex-claim
+        image: plexinc/pms-docker
+        imagePullPolicy: Always
         name: plex
         ports:
         - containerPort: 32400
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /identity
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 4Gi
-          requests:
-            cpu: 200m
-            memory: 512Mi
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /transcode
           name: transcode
         - mountPath: /media
-          name: data
-          readOnly: true
-          subPath: media
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+          name: media
       volumes:
       - name: config
         persistentVolumeClaim:
@@ -920,16 +491,19 @@ spec:
       - name: transcode
         persistentVolumeClaim:
           claimName: plex-transcode
-      - name: data
-        persistentVolumeClaim:
-          claimName: theater-data
+      - name: media
+        nfs:
+          path: /mnt/homelab/k8s/nfs/media
+          server: 192.168.1.228
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
   labels:
     app.kubernetes.io/name: prowlarr
-    app.kubernetes.io/part-of: theater
   name: prowlarr
   namespace: theater
 spec:
@@ -937,8 +511,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: prowlarr
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
@@ -981,38 +553,18 @@ spec:
             secretKeyRef:
               key: dbname
               name: prowlarr-postgresql-app
-        image: ghcr.io/hotio/prowlarr:release-2.5.2.5491
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 90
-          periodSeconds: 30
+        - name: PROWLARR__SERVER__URLBASE
+          value: /arr/prowlarr
+        image: ghcr.io/hotio/prowlarr:latest
+        imagePullPolicy: Always
         name: prowlarr
         ports:
         - containerPort: 9696
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 768Mi
-          requests:
-            cpu: 100m
-            memory: 256Mi
         volumeMounts:
         - mountPath: /config
           name: config
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
       volumes:
       - name: config
         persistentVolumeClaim:
@@ -1021,102 +573,11 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: prowlarr-sso
-    app.kubernetes.io/part-of: theater
-  name: prowlarr-sso
-  namespace: theater
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: prowlarr-sso
-  strategy:
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/component: sso-proxy
-        app.kubernetes.io/name: prowlarr-sso
-    spec:
-      containers:
-      - args:
-        - --provider=keycloak-oidc
-        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
-        - --client-id=theater-sso
-        - --redirect-url=https://prowlarr.lilalala.com/oauth2/callback
-        - --upstream=http://prowlarr.theater.svc.cluster.local:9696
-        - --http-address=0.0.0.0:4180
-        - --reverse-proxy=true
-        - --email-domain=*
-        - --allowed-group=/theater-admins
-        - --cookie-domain=.lilalala.com
-        - --cookie-secure=true
-        - --cookie-samesite=lax
-        - --cookie-expire=12h
-        - --cookie-refresh=1h
-        - --whitelist-domain=.lilalala.com
-        - --skip-provider-button=true
-        - --set-xauthrequest=true
-        - --pass-basic-auth=false
-        - --pass-user-headers=true
-        env:
-        - name: OAUTH2_PROXY_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: client-secret
-              name: theater-sso
-        - name: OAUTH2_PROXY_COOKIE_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: cookie-secret
-              name: theater-sso
-        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 30
-        name: oauth2-proxy
-        ports:
-        - containerPort: 4180
-          name: http
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          limits:
-            memory: 64Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-      securityContext:
-        runAsGroup: 65532
-        runAsNonRoot: true
-        runAsUser: 65532
-        seccompProfile:
-          type: RuntimeDefault
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
   labels:
     app.kubernetes.io/name: qbittorrent
-    app.kubernetes.io/part-of: theater
   name: qbittorrent
   namespace: theater
 spec:
@@ -1125,6 +586,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: qbittorrent
   strategy:
+    rollingUpdate: null
     type: Recreate
   template:
     metadata:
@@ -1141,152 +603,38 @@ spec:
           value: "1000"
         - name: UMASK
           value: "002"
-        image: ghcr.io/hotio/qbittorrent:release-5.2.3
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          initialDelaySeconds: 60
-          periodSeconds: 30
-          tcpSocket:
-            port: http
+        image: ghcr.io/hotio/qbittorrent:latest
+        imagePullPolicy: Always
         name: qbittorrent
         ports:
         - containerPort: 8080
           name: http
           protocol: TCP
         - containerPort: 50000
-          name: peer
+          name: seed
           protocol: TCP
-        - containerPort: 50000
-          name: peer-udp
-          protocol: UDP
-        readinessProbe:
-          httpGet:
-            path: /
-            port: http
-          initialDelaySeconds: 15
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 2Gi
-          requests:
-            cpu: 100m
-            memory: 512Mi
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /data/torrents
-          name: data
-          subPath: torrents
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+          name: torrents
       volumes:
       - name: config
         persistentVolumeClaim:
           claimName: qbittorrent-config
-      - name: data
-        persistentVolumeClaim:
-          claimName: theater-data
+      - name: torrents
+        nfs:
+          path: /mnt/homelab/k8s/nfs/torrents
+          server: 192.168.1.228
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: qbittorrent-sso
-    app.kubernetes.io/part-of: theater
-  name: qbittorrent-sso
-  namespace: theater
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: qbittorrent-sso
-  strategy:
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/component: sso-proxy
-        app.kubernetes.io/name: qbittorrent-sso
-    spec:
-      containers:
-      - args:
-        - --provider=keycloak-oidc
-        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
-        - --client-id=theater-sso
-        - --redirect-url=https://qbittorrent.lilalala.com/oauth2/callback
-        - --upstream=http://qbittorrent.theater.svc.cluster.local:8080
-        - --http-address=0.0.0.0:4180
-        - --reverse-proxy=true
-        - --email-domain=*
-        - --allowed-group=/theater-admins
-        - --cookie-domain=.lilalala.com
-        - --cookie-secure=true
-        - --cookie-samesite=lax
-        - --cookie-expire=12h
-        - --cookie-refresh=1h
-        - --whitelist-domain=.lilalala.com
-        - --skip-provider-button=true
-        - --set-xauthrequest=true
-        - --pass-basic-auth=false
-        - --pass-user-headers=true
-        env:
-        - name: OAUTH2_PROXY_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: client-secret
-              name: theater-sso
-        - name: OAUTH2_PROXY_COOKIE_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: cookie-secret
-              name: theater-sso
-        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 30
-        name: oauth2-proxy
-        ports:
-        - containerPort: 4180
-          name: http
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          limits:
-            memory: 64Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-      securityContext:
-        runAsGroup: 65532
-        runAsNonRoot: true
-        runAsUser: 65532
-        seccompProfile:
-          type: RuntimeDefault
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
   labels:
     app.kubernetes.io/name: radarr
-    app.kubernetes.io/part-of: theater
   name: radarr
   namespace: theater
 spec:
@@ -1294,8 +642,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: radarr
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
@@ -1338,147 +684,37 @@ spec:
             secretKeyRef:
               key: dbname
               name: radarr-postgresql-app
-        image: ghcr.io/hotio/radarr:release-6.3.0.10514
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 90
-          periodSeconds: 30
+        - name: RADARR__SERVER__URLBASE
+          value: /arr/radarr
+        image: ghcr.io/hotio/radarr:latest
+        imagePullPolicy: Always
         name: radarr
         ports:
         - containerPort: 7878
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 1Gi
-          requests:
-            cpu: 100m
-            memory: 384Mi
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /data
-          name: data
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+          name: media
       volumes:
       - name: config
         persistentVolumeClaim:
           claimName: radarr-config
-      - name: data
-        persistentVolumeClaim:
-          claimName: theater-data
+      - name: media
+        nfs:
+          path: /mnt/homelab/k8s/nfs
+          server: 192.168.1.228
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: radarr-sso
-    app.kubernetes.io/part-of: theater
-  name: radarr-sso
-  namespace: theater
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: radarr-sso
-  strategy:
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/component: sso-proxy
-        app.kubernetes.io/name: radarr-sso
-    spec:
-      containers:
-      - args:
-        - --provider=keycloak-oidc
-        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
-        - --client-id=theater-sso
-        - --redirect-url=https://radarr.lilalala.com/oauth2/callback
-        - --upstream=http://radarr.theater.svc.cluster.local:7878
-        - --http-address=0.0.0.0:4180
-        - --reverse-proxy=true
-        - --email-domain=*
-        - --allowed-group=/theater-admins
-        - --cookie-domain=.lilalala.com
-        - --cookie-secure=true
-        - --cookie-samesite=lax
-        - --cookie-expire=12h
-        - --cookie-refresh=1h
-        - --whitelist-domain=.lilalala.com
-        - --skip-provider-button=true
-        - --set-xauthrequest=true
-        - --pass-basic-auth=false
-        - --pass-user-headers=true
-        env:
-        - name: OAUTH2_PROXY_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: client-secret
-              name: theater-sso
-        - name: OAUTH2_PROXY_COOKIE_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: cookie-secret
-              name: theater-sso
-        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 30
-        name: oauth2-proxy
-        ports:
-        - containerPort: 4180
-          name: http
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          limits:
-            memory: 64Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-      securityContext:
-        runAsGroup: 65532
-        runAsNonRoot: true
-        runAsUser: 65532
-        seccompProfile:
-          type: RuntimeDefault
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
   labels:
     app.kubernetes.io/name: sonarr
-    app.kubernetes.io/part-of: theater
   name: sonarr
   namespace: theater
 spec:
@@ -1486,8 +722,6 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: sonarr
-  strategy:
-    type: Recreate
   template:
     metadata:
       labels:
@@ -1530,146 +764,32 @@ spec:
             secretKeyRef:
               key: dbname
               name: sonarr-postgresql-app
-        image: ghcr.io/hotio/sonarr:release-4.0.19.2979
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 90
-          periodSeconds: 30
+        - name: SONARR__SERVER__URLBASE
+          value: /arr/sonarr
+        image: ghcr.io/hotio/sonarr:latest
+        imagePullPolicy: Always
         name: sonarr
         ports:
         - containerPort: 8989
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
-        resources:
-          limits:
-            memory: 1Gi
-          requests:
-            cpu: 100m
-            memory: 384Mi
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /data
-          name: data
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+          name: media
       volumes:
       - name: config
         persistentVolumeClaim:
           claimName: sonarr-config
-      - name: data
-        persistentVolumeClaim:
-          claimName: theater-data
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app.kubernetes.io/component: sso-proxy
-    app.kubernetes.io/name: sonarr-sso
-    app.kubernetes.io/part-of: theater
-  name: sonarr-sso
-  namespace: theater
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: sonarr-sso
-  strategy:
-    type: RollingUpdate
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/component: sso-proxy
-        app.kubernetes.io/name: sonarr-sso
-    spec:
-      containers:
-      - args:
-        - --provider=keycloak-oidc
-        - --oidc-issuer-url=https://auth.lilalala.com/realms/homelab
-        - --client-id=theater-sso
-        - --redirect-url=https://sonarr.lilalala.com/oauth2/callback
-        - --upstream=http://sonarr.theater.svc.cluster.local:8989
-        - --http-address=0.0.0.0:4180
-        - --reverse-proxy=true
-        - --email-domain=*
-        - --allowed-group=/theater-admins
-        - --cookie-domain=.lilalala.com
-        - --cookie-secure=true
-        - --cookie-samesite=lax
-        - --cookie-expire=12h
-        - --cookie-refresh=1h
-        - --whitelist-domain=.lilalala.com
-        - --skip-provider-button=true
-        - --set-xauthrequest=true
-        - --pass-basic-auth=false
-        - --pass-user-headers=true
-        env:
-        - name: OAUTH2_PROXY_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: client-secret
-              name: theater-sso
-        - name: OAUTH2_PROXY_COOKIE_SECRET
-          valueFrom:
-            secretKeyRef:
-              key: cookie-secret
-              name: theater-sso
-        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.4
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 30
-        name: oauth2-proxy
-        ports:
-        - containerPort: 4180
-          name: http
-          protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /ping
-            port: http
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        resources:
-          limits:
-            memory: 64Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-      securityContext:
-        runAsGroup: 65532
-        runAsNonRoot: true
-        runAsUser: 65532
-        seccompProfile:
-          type: RuntimeDefault
+      - name: media
+        nfs:
+          path: /mnt/homelab/k8s/nfs
+          server: 192.168.1.228
 ---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
   name: recyclarr-sync
   namespace: theater
 spec:
@@ -1741,745 +861,9 @@ spec:
   successfulJobsHistoryLimit: 3
   suspend: true
 ---
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-config-backup-jellyfin
-  namespace: theater
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 10800
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-config-backup-jellyfin
-        spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: jellyfin
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - args:
-            - |
-              restic init 2>/dev/null || true
-
-              # 1. CONSISTENT: the XML configuration and plugin settings.
-              restic backup /config \
-                --tag theater-configs \
-                --tag jellyfin-config \
-                --host theater \
-                --exclude '/config/data/*.db' \
-                --exclude '/config/data/*.db-wal' \
-                --exclude '/config/data/*.db-shm' \
-                --exclude '/config/data/subtitles' \
-                --exclude '/config/data/transcodes' \
-                --exclude '/config/metadata' \
-                --exclude '/config/log' \
-                --exclude '/config/cache' \
-                --verbose
-
-              # 2. BEST EFFORT: the live databases, in their own snapshot
-              #    with a tag that says so. The -wal/-shm files are included
-              #    because SQLite needs them to recover the database on
-              #    open; taking the .db alone would silently discard
-              #    committed transactions. It still is not atomic across the
-              #    three files, which is precisely what the tag admits.
-              #
-              #    `|| true`: a missing -wal is normal in rollback-journal
-              #    mode, and a glob that matches nothing must not fail the
-              #    whole job and lose snapshot 1's retention pass below.
-              restic backup /config/data \
-                --tag theater-configs \
-                --tag jellyfin-db-besteffort \
-                --host theater \
-                --exclude '/config/data/subtitles' \
-                --exclude '/config/data/transcodes' \
-                --verbose || true
-
-              # 3. Retention and integrity for the WHOLE repository, once
-              #    per night, from the last job. See forget-and-check.sh
-              #    for why this is not in every job.
-              /bin/sh /scripts/forget-and-check.sh
-            command:
-            - /bin/sh
-            - -euo
-            - pipefail
-            - -c
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 1536Mi
-              requests:
-                cpu: 100m
-                memory: 256Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /config
-              name: config
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - name: config
-            persistentVolumeClaim:
-              claimName: jellyfin-config
-              readOnly: true
-          - emptyDir:
-              sizeLimit: 3Gi
-            name: cache
-  schedule: 50 4 * * *
-  successfulJobsHistoryLimit: 3
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-config-backup-lidarr
-  namespace: theater
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 3600
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-config-backup-lidarr
-        spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: lidarr
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - command:
-            - /bin/sh
-            - /scripts/backup-config.sh
-            - lidarr
-            - /config
-            - --exclude=/config/MediaCover
-            - --exclude=/config/logs.db
-            - --exclude=/config/logs.db-shm
-            - --exclude=/config/logs.db-wal
-            - --exclude=/config/logs
-            - --exclude=/config/Sentry
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 512Mi
-              requests:
-                cpu: 50m
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /config
-              name: config
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - name: config
-            persistentVolumeClaim:
-              claimName: lidarr-config
-              readOnly: true
-          - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-  schedule: 20 4 * * *
-  successfulJobsHistoryLimit: 3
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-config-backup-plex
-  namespace: theater
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 7200
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-config-backup-plex
-        spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: plex
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - command:
-            - /bin/sh
-            - /scripts/backup-config.sh
-            - plex
-            - /config
-            - --exclude=**/Databases/com.plexapp.plugins.library.db
-            - --exclude=**/Databases/com.plexapp.plugins.library.db-wal
-            - --exclude=**/Databases/com.plexapp.plugins.library.db-shm
-            - --exclude=**/Databases/com.plexapp.plugins.blobs.db
-            - --exclude=**/Databases/com.plexapp.plugins.blobs.db-wal
-            - --exclude=**/Databases/com.plexapp.plugins.blobs.db-shm
-            - --exclude=**/Metadata
-            - --exclude=**/Media
-            - --exclude=**/Cache
-            - --exclude=**/Codecs
-            - --exclude=**/Crash?Reports
-            - --exclude=**/Logs
-            - --exclude=**/Diagnostics
-            - --exclude=**/Updates
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 1Gi
-              requests:
-                cpu: 100m
-                memory: 256Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /config
-              name: config
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - name: config
-            persistentVolumeClaim:
-              claimName: plex-config
-              readOnly: true
-          - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-  schedule: 40 4 * * *
-  successfulJobsHistoryLimit: 3
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-config-backup-prowlarr
-  namespace: theater
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 3600
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-config-backup-prowlarr
-        spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: prowlarr
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - command:
-            - /bin/sh
-            - /scripts/backup-config.sh
-            - prowlarr
-            - /config
-            - --exclude=/config/logs.db
-            - --exclude=/config/logs.db-shm
-            - --exclude=/config/logs.db-wal
-            - --exclude=/config/logs
-            - --exclude=/config/Sentry
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 512Mi
-              requests:
-                cpu: 50m
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /config
-              name: config
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - name: config
-            persistentVolumeClaim:
-              claimName: prowlarr-config
-              readOnly: true
-          - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-  schedule: 30 4 * * *
-  successfulJobsHistoryLimit: 3
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-config-backup-radarr
-  namespace: theater
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 3600
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-config-backup-radarr
-        spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: radarr
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - command:
-            - /bin/sh
-            - /scripts/backup-config.sh
-            - radarr
-            - /config
-            - --exclude=/config/MediaCover
-            - --exclude=/config/logs.db
-            - --exclude=/config/logs.db-shm
-            - --exclude=/config/logs.db-wal
-            - --exclude=/config/logs
-            - --exclude=/config/Sentry
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 512Mi
-              requests:
-                cpu: 50m
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /config
-              name: config
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - name: config
-            persistentVolumeClaim:
-              claimName: radarr-config
-              readOnly: true
-          - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-  schedule: 10 4 * * *
-  successfulJobsHistoryLimit: 3
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-config-backup-sonarr
-  namespace: theater
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 3600
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-config-backup-sonarr
-        spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: sonarr
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - command:
-            - /bin/sh
-            - /scripts/backup-config.sh
-            - sonarr
-            - /config
-            - --exclude=/config/MediaCover
-            - --exclude=/config/logs.db
-            - --exclude=/config/logs.db-shm
-            - --exclude=/config/logs.db-wal
-            - --exclude=/config/logs
-            - --exclude=/config/Sentry
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 512Mi
-              requests:
-                cpu: 50m
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /config
-              name: config
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - name: config
-            persistentVolumeClaim:
-              claimName: sonarr-config
-              readOnly: true
-          - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-  schedule: 0 4 * * *
-  successfulJobsHistoryLimit: 3
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: theater-postgres-backup
-  namespace: theater
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 3600
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-postgres-backup
-        spec:
-          containers:
-          - command:
-            - /bin/sh
-            - /scripts/backup-config.sh
-            - theater-postgres
-            - /dumps
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 1Gi
-              requests:
-                cpu: 100m
-                memory: 256Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /dumps
-              name: dumps
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          initContainers:
-          - command:
-            - /bin/bash
-            - /scripts/dump-postgres.sh
-            image: ghcr.io/cloudnative-pg/postgresql:17.6
-            imagePullPolicy: IfNotPresent
-            name: dump
-            resources:
-              limits:
-                memory: 512Mi
-              requests:
-                cpu: 100m
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /scripts
-              name: scripts
-            - mountPath: /dumps
-              name: dumps
-            - mountPath: /creds/sonarr
-              name: creds-sonarr
-              readOnly: true
-            - mountPath: /creds/radarr
-              name: creds-radarr
-              readOnly: true
-            - mountPath: /creds/lidarr
-              name: creds-lidarr
-              readOnly: true
-            - mountPath: /creds/prowlarr
-              name: creds-prowlarr
-              readOnly: true
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - configMap:
-              defaultMode: 493
-              name: theater-backup-scripts
-            name: scripts
-          - emptyDir:
-              sizeLimit: 2Gi
-            name: dumps
-          - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-          - name: creds-sonarr
-            secret:
-              secretName: sonarr-postgresql-app
-          - name: creds-radarr
-            secret:
-              secretName: radarr-postgresql-app
-          - name: creds-lidarr
-            secret:
-              secretName: lidarr-postgresql-app
-          - name: creds-prowlarr
-            secret:
-              secretName: prowlarr-postgresql-app
-  schedule: 40 3 * * *
-  successfulJobsHistoryLimit: 3
----
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
   name: jellyfin
   namespace: theater
 spec:
@@ -2494,34 +878,12 @@ spec:
     - name: jellyfin
       port: 8096
     timeouts:
-      backendRequest: 0s
       request: 0s
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: lidarr
-  namespace: theater
-spec:
-  hostnames:
-  - lidarr.lilalala.com
-  parentRefs:
-  - name: shared
-    namespace: gateway
-    sectionName: https
-  rules:
-  - backendRefs:
-    - name: lidarr-sso
-      port: 4180
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: plex
+  name: theater
   namespace: theater
 spec:
   hostnames:
@@ -2532,172 +894,95 @@ spec:
     sectionName: https
   rules:
   - backendRefs:
+    - name: radarr
+      port: 7878
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/radarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - name: sonarr
+      port: 8989
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/sonarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - name: prowlarr
+      port: 9696
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/prowlarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - name: lidarr
+      port: 8686
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/lidarr
+    timeouts:
+      request: 0s
+  - backendRefs:
     - name: plex
       port: 32400
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
     timeouts:
-      backendRequest: 0s
       request: 0s
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: prowlarr
-  namespace: theater
-spec:
-  hostnames:
-  - prowlarr.lilalala.com
-  parentRefs:
-  - name: shared
-    namespace: gateway
-    sectionName: https
-  rules:
-  - backendRefs:
-    - name: prowlarr-sso
-      port: 4180
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: qbittorrent
-  namespace: theater
-spec:
-  hostnames:
-  - qbittorrent.lilalala.com
-  parentRefs:
-  - name: shared
-    namespace: gateway
-    sectionName: https
-  rules:
-  - backendRefs:
-    - name: qbittorrent-sso
-      port: 4180
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: radarr
-  namespace: theater
-spec:
-  hostnames:
-  - radarr.lilalala.com
-  parentRefs:
-  - name: shared
-    namespace: gateway
-    sectionName: https
-  rules:
-  - backendRefs:
-    - name: radarr-sso
-      port: 4180
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
-  name: sonarr
-  namespace: theater
-spec:
-  hostnames:
-  - sonarr.lilalala.com
-  parentRefs:
-  - name: shared
-    namespace: gateway
-    sectionName: https
-  rules:
-  - backendRefs:
-    - name: sonarr-sso
-      port: 4180
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: lidarr-postgresql
   namespace: theater
 spec:
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
   instances: 1
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    limits:
-      memory: 384Mi
-    requests:
-      cpu: 50m
-      memory: 192Mi
   storage:
     size: 5Gi
-    storageClass: iscsi
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: prowlarr-postgresql
   namespace: theater
 spec:
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
   instances: 1
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    limits:
-      memory: 384Mi
-    requests:
-      cpu: 50m
-      memory: 192Mi
   storage:
     size: 5Gi
-    storageClass: iscsi
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: radarr-postgresql
   namespace: theater
 spec:
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
   instances: 1
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    limits:
-      memory: 384Mi
-    requests:
-      cpu: 50m
-      memory: 192Mi
   storage:
     size: 5Gi
-    storageClass: iscsi
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  labels:
-    app.kubernetes.io/part-of: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: sonarr-postgresql
   namespace: theater
 spec:
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
   instances: 1
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    limits:
-      memory: 384Mi
-    requests:
-      cpu: 50m
-      memory: 192Mi
   storage:
     size: 5Gi
-    storageClass: iscsi

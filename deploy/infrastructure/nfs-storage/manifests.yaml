@@ -89,6 +89,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: backup-local
   namespace: backup-verify
 spec:
@@ -103,6 +105,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: backup-local
   namespace: immich
 spec:
@@ -117,6 +121,8 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: theater-data
   namespace: theater
 spec:

@@ -13,7 +13,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   name: immich
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: immich
@@ -32,13 +32,13 @@ spec:
       valueFiles:
       - $values/apps/immich/values.yaml
     repoURL: https://immich-app.github.io/immich-charts
-    targetRevision: 0.13.1
+    targetRevision: 0.9.0
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   - path: deploy/apps/immich/resources
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
     retry:
       backoff:
@@ -47,7 +47,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
-    - ServerSideApply=true
+    - CreateNamespace=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -55,7 +55,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   name: mealie
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: mealie
@@ -70,11 +70,8 @@ spec:
   source:
     path: deploy/apps/mealie
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -82,6 +79,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -90,7 +88,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   name: paperless
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: paperless
@@ -100,11 +98,8 @@ spec:
   source:
     path: deploy/apps/paperless
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -112,6 +107,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -120,7 +116,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   name: seafile
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: seafile
@@ -130,11 +126,8 @@ spec:
   source:
     path: deploy/apps/seafile
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -142,6 +135,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -150,7 +144,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "-25"
   name: secrets-apps
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: default
@@ -160,11 +154,8 @@ spec:
   source:
     path: apps/secrets
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -172,6 +163,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -180,21 +172,23 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   name: syncthing
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: syncthing
     server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: ""
+    jqPathExpressions:
+    - .status.loadBalancer.ingress[].ipMode
+    kind: Service
   project: apps
   revisionHistoryLimit: 10
   source:
     path: deploy/apps/syncthing
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -202,6 +196,7 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -210,21 +205,23 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-wave: "0"
   name: theater
-  namespace: argocd
+  namespace: argo
 spec:
   destination:
     namespace: theater
     server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: ""
+    jqPathExpressions:
+    - .status.loadBalancer.ingress[].ipMode
+    kind: Service
   project: apps
   revisionHistoryLimit: 10
   source:
     path: deploy/apps/theater
     repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: deployed
+    targetRevision: main
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -232,4 +229,5 @@ spec:
         maxDuration: 3m
       limit: 5
     syncOptions:
+    - CreateNamespace=true
     - ServerSideApply=true

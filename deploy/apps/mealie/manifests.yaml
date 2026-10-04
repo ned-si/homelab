@@ -27,7 +27,9 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mealie-data
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: mealie-pvc
   namespace: mealie
 spec:
   accessModes:
@@ -50,6 +52,7 @@ spec:
     matchLabels:
       app.kubernetes.io/name: mealie
   strategy:
+    rollingUpdate: null
     type: Recreate
   template:
     metadata:
@@ -58,18 +61,20 @@ spec:
     spec:
       containers:
       - env:
+        - name: ALLOW_SIGNUP
+          value: "false"
         - name: TZ
           value: Europe/Zurich
         - name: PUID
           value: "1000"
         - name: PGID
           value: "1000"
-        - name: ALLOW_SIGNUP
-          value: "false"
         - name: BASE_URL
           value: https://cook.lilalala.com
         - name: DB_ENGINE
           value: postgres
+        - name: mealie__LOG__DBENABLED
+          value: "false"
         - name: POSTGRES_SERVER
           valueFrom:
             secretKeyRef:
@@ -83,7 +88,7 @@ spec:
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
-              key: username
+              key: user
               name: mealie-postgresql-app
         - name: POSTGRES_PASSWORD
           valueFrom:
@@ -101,228 +106,34 @@ spec:
           value: https://auth.lilalala.com/realms/homelab/.well-known/openid-configuration
         - name: OIDC_CLIENT_ID
           value: mealie
+        - name: OIDC_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: OIDC_CLIENT_SECRET
+              name: mealie-oidc
         - name: OIDC_AUTO_REDIRECT
           value: "true"
         - name: OIDC_PROVIDER_NAME
           value: Keycloak
         - name: OIDC_REMEMBER_ME
           value: "true"
-        envFrom:
-        - secretRef:
-            name: mealie-oidc
-        image: ghcr.io/mealie-recipes/mealie:v3.22.0
-        imagePullPolicy: IfNotPresent
-        livenessProbe:
-          failureThreshold: 5
-          httpGet:
-            path: /api/app/about
-            port: http
-          initialDelaySeconds: 90
-          periodSeconds: 30
+        image: ghcr.io/mealie-recipes/mealie:v2.4.0
+        imagePullPolicy: Always
         name: mealie
         ports:
         - containerPort: 9000
           name: http
           protocol: TCP
-        readinessProbe:
-          httpGet:
-            path: /api/app/about
-            port: http
-          initialDelaySeconds: 20
-          periodSeconds: 15
         resources:
           limits:
-            memory: 1Gi
-          requests:
-            cpu: 100m
-            memory: 384Mi
+            memory: 1000Mi
         volumeMounts:
         - mountPath: /app/data
-          name: data
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
+          name: mealie-data
       volumes:
-      - name: data
+      - name: mealie-data
         persistentVolumeClaim:
-          claimName: mealie-data
----
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: mealie-backup
-  namespace: mealie
-spec:
-  concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      activeDeadlineSeconds: 21600
-      backoffLimit: 2
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: mealie-backup
-        spec:
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-              - labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: mealie
-                topologyKey: kubernetes.io/hostname
-          containers:
-          - args:
-            - |
-              restic init 2>/dev/null || true
-
-              # The dump first and in its own snapshot, so it can be
-              # restored without pulling the image library out of Glacier to
-              # get at it. It is also the half that holds the work you did:
-              # every recipe you typed in.
-              restic backup /dumps \
-                --tag mealie-data \
-                --tag mealie-postgres \
-                --host mealie \
-                --verbose
-
-              restic backup /data \
-                --tag mealie-data \
-                --tag mealie-files \
-                --host mealie \
-                --exclude '**/.temp/**' \
-                --verbose
-
-              restic forget \
-                --host mealie \
-                --keep-daily 14 --keep-weekly 8 --keep-monthly 12 \
-                --prune
-
-              restic check --with-cache
-            command:
-            - /bin/sh
-            - -euo
-            - pipefail
-            - -c
-            env:
-            - name: RESTIC_REPOSITORY
-              value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/mealie/data
-            - name: RESTIC_CACHE_DIR
-              value: /cache
-            - name: TMPDIR
-              value: /cache
-            envFrom:
-            - secretRef:
-                name: s3-backup
-            image: restic/restic:0.19.0
-            imagePullPolicy: IfNotPresent
-            name: restic
-            resources:
-              limits:
-                memory: 1Gi
-              requests:
-                cpu: 100m
-                memory: 256Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /data
-              name: data
-              readOnly: true
-            - mountPath: /dumps
-              name: dumps
-              readOnly: true
-            - mountPath: /cache
-              name: cache
-          initContainers:
-          - args:
-            - |
-              set -uo pipefail
-
-              d=/creds
-              f=/dumps/pg-mealie-mealie-postgresql.dump
-
-              # -Fc, custom format. Compressed, and pg_restore can inspect
-              # it -- which is what makes verification possible at all. The
-              # filename matches what scripts/dump-databases.sh produces so
-              # a restored copy can be handed straight to
-              # scripts/verify-dump-restore.sh.
-              if ! PGPASSWORD="$(cat "$d/password")" pg_dump \
-                   -h "$(cat "$d/host")" -p "$(cat "$d/port")" \
-                   -U "$(cat "$d/user")" -d "$(cat "$d/dbname")" \
-                   -Fc -f "$f"; then
-                echo "FAIL: pg_dump exited non-zero"
-                # Remove the partial file, or restic uploads a truncated
-                # dump that restores to nothing while the snapshot looks
-                # complete.
-                rm -f "$f"
-                exit 1
-              fi
-
-              # A pg_dump custom archive always begins with the five bytes
-              # "PGDMP". Instant, cannot hang, and it catches the case where
-              # the file is actually an error message -- which an exit code
-              # does not always give you.
-              if [ "$(head -c 5 "$f")" != "PGDMP" ]; then
-                echo "FAIL: output is not a pg_dump archive"
-                rm -f "$f"
-                exit 1
-              fi
-
-              echo "ok: $(du -h "$f" | cut -f1)"
-            command:
-            - /bin/bash
-            - -c
-            image: ghcr.io/cloudnative-pg/postgresql:17.6
-            imagePullPolicy: IfNotPresent
-            name: dump
-            resources:
-              limits:
-                memory: 512Mi
-              requests:
-                cpu: 100m
-                memory: 128Mi
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - ALL
-              readOnlyRootFilesystem: true
-            volumeMounts:
-            - mountPath: /dumps
-              name: dumps
-            - mountPath: /creds
-              name: creds
-              readOnly: true
-          restartPolicy: OnFailure
-          securityContext:
-            fsGroup: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            runAsUser: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          volumes:
-          - name: data
-            persistentVolumeClaim:
-              claimName: mealie-data
-              readOnly: true
-          - emptyDir:
-              sizeLimit: 2Gi
-            name: dumps
-          - emptyDir:
-              sizeLimit: 1Gi
-            name: cache
-          - name: creds
-            secret:
-              secretName: mealie-postgresql-app
-  schedule: 20 3 * * *
-  startingDeadlineSeconds: 3600
-  successfulJobsHistoryLimit: 3
+          claimName: mealie-pvc
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -340,25 +151,17 @@ spec:
   - backendRefs:
     - name: mealie
       port: 9000
+    timeouts:
+      request: 0s
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
   name: mealie-postgresql
   namespace: mealie
 spec:
-  backup:
-    retentionPolicy: 14d
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
   instances: 1
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    limits:
-      memory: 384Mi
-    requests:
-      cpu: 50m
-      memory: 192Mi
   storage:
     size: 5Gi
-    storageClass: iscsi
