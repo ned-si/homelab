@@ -62,9 +62,9 @@ variable "sops_age_key" {
 }
 
 variable "argocd_namespace" {
-  description = "Namespace for Argo CD. Changed from `argo` to the conventional `argocd`."
+  description = "Namespace for Argo CD. `argo`, where the running cluster has it (helm release `argocd`)."
   type        = string
-  default     = "argocd"
+  default     = "argo"
 }
 
 variable "api_server_ip" {

@@ -20,7 +20,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: gateway-api
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "-20"
 spec:
@@ -40,8 +40,9 @@ spec:
       prune: false
       selfHeal: true
     syncOptions:
-      - ServerSideApply=true
       - SkipDryRunOnMissingResource=true
+      - CreateNamespace=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:

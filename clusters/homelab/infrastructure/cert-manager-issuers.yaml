@@ -8,7 +8,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cert-manager-issuers
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "5"
 spec:
@@ -23,11 +23,12 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
       # The ClusterIssuer CRD may not be established on the very first pass.
       - SkipDryRunOnMissingResource=true
+      - CreateNamespace=true
       - ServerSideApply=true
     retry:
       limit: 5

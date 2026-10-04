@@ -12,7 +12,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: kube-prometheus-stack
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "10"
 spec:
@@ -39,10 +39,10 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
-      # The CRDs in this chart are far too large for client-side apply.
+      - CreateNamespace=true
       - ServerSideApply=true
     # The only Application that does not use the repo-wide 5s/3m retry window.
     # This chart applies ~13MB of CRDs; the API server takes tens of seconds to

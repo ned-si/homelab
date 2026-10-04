@@ -24,7 +24,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: platform
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
@@ -38,16 +38,15 @@ spec:
       namespace: "*"
   clusterResourceWhitelist:
     - group: apiextensions.k8s.io
-      kind: CustomResourceDefinition     # cnpg crds.create, kube-prometheus-stack
+      kind: CustomResourceDefinition # cnpg crds.create, kube-prometheus-stack
     - group: rbac.authorization.k8s.io
-      kind: ClusterRole                  # both operators watch cluster-wide
+      kind: ClusterRole # both operators watch cluster-wide
     - group: rbac.authorization.k8s.io
       kind: ClusterRoleBinding
     - group: admissionregistration.k8s.io
-      kind: MutatingWebhookConfiguration    # cnpg, prometheus-operator
+      kind: MutatingWebhookConfiguration # cnpg, prometheus-operator
     - group: admissionregistration.k8s.io
-      kind: ValidatingWebhookConfiguration  # cnpg, prometheus-operator
-
+      kind: ValidatingWebhookConfiguration # cnpg, prometheus-operator
   # Deliberately NOT here:
   #   Namespace       -- every namespace in the cluster is declared once, in the
   #                      infrastructure layer (infrastructure/namespaces/), so

@@ -12,7 +12,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: backup-verify
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "30"
 spec:
@@ -27,10 +27,9 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
-      - ServerSideApply=true
       # Do not send the fields listed in ignoreDifferences below as part of an
       # apply -- `spec` is ours, `status` is the operator's.
       #
@@ -38,6 +37,8 @@ spec:
       # they are created by the CronJob at runtime, so they carry no Argo
       # tracking label and are not part of this Application's managed set.
       - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
     retry:
       limit: 5
       backoff:

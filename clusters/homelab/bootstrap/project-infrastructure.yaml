@@ -25,7 +25,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: infrastructure
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
@@ -42,16 +42,15 @@ spec:
   clusterResourceWhitelist:
     # Declared as plain manifests in infrastructure/.
     - group: ""
-      kind: Namespace                    # namespaces/ -- the whole inventory
+      kind: Namespace # namespaces/ -- the whole inventory
     - group: ""
-      kind: PersistentVolume             # nfs-storage/ -- the media shares
+      kind: PersistentVolume # nfs-storage/ -- the media shares
     - group: cert-manager.io
-      kind: ClusterIssuer                # cert-manager-issuers/
+      kind: ClusterIssuer # cert-manager-issuers/
     - group: cilium.io
-      kind: CiliumLoadBalancerIPPool     # cilium/ip-pools.yaml
+      kind: CiliumLoadBalancerIPPool # cilium/ip-pools.yaml
     - group: cilium.io
-      kind: CiliumL2AnnouncementPolicy   # cilium/l2-announcement-policy.yaml
-
+      kind: CiliumL2AnnouncementPolicy # cilium/l2-announcement-policy.yaml
     # Created by the charts this layer installs (cilium, cert-manager,
     # external-dns, democratic-csi) and by the two vendored CRD bundles
     # (gateway-api, snapshot-controller).
@@ -62,14 +61,13 @@ spec:
     - group: rbac.authorization.k8s.io
       kind: ClusterRoleBinding
     - group: storage.k8s.io
-      kind: CSIDriver                    # democratic-csi
+      kind: CSIDriver # democratic-csi
     - group: storage.k8s.io
-      kind: StorageClass                 # iscsi + iscsi-retain
+      kind: StorageClass # iscsi + iscsi-retain
     - group: snapshot.storage.k8s.io
-      kind: VolumeSnapshotClass          # democratic-csi, needs the CRDs above
+      kind: VolumeSnapshotClass # democratic-csi, needs the CRDs above
     - group: gateway.networking.k8s.io
-      kind: GatewayClass                 # the `cilium` GatewayClass
-
+      kind: GatewayClass # the `cilium` GatewayClass
     # Webhooks. cert-manager is the only chart in this repo that ships any: its
     # webhook Deployment validates every Certificate/Issuer, and cainjector
     # writes the CA bundle into both configurations at runtime (which is why
@@ -80,7 +78,6 @@ spec:
       kind: MutatingWebhookConfiguration
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
-
   # Namespaced resources stay wildcarded: this layer installs DaemonSets,
   # Deployments, Secrets, Services and CRs across kube-system, cert-manager,
   # external-dns, democratic-csi and gateway. Enumerating those buys nothing --

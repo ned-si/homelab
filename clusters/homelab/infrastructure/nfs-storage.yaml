@@ -21,7 +21,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: nfs-storage
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "25"
 spec:
@@ -41,6 +41,7 @@ spec:
       prune: false
       selfHeal: true
     syncOptions:
+      - CreateNamespace=true
       - ServerSideApply=true
     retry:
       limit: 5

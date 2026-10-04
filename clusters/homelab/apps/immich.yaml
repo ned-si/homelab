@@ -24,7 +24,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: immich
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
@@ -68,6 +68,7 @@ spec:
     # # waits on HEALTH, and an OutOfSync-but-Healthy Immich is healthy.
     # ###################################################################
     syncOptions:
+      - CreateNamespace=true
       - ServerSideApply=true
     retry:
       limit: 5

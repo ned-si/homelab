@@ -9,7 +9,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cert-manager
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "0"
 spec:
@@ -32,7 +32,7 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

@@ -5,5 +5,5 @@
 repoURL: https://github.com/ned-si/homelab.git
 # The tag CD moves. See clusters/homelab/root.yaml and bootstrap/variables.tf.
 targetRevision: deployed
-namespace: argocd
+namespace: argo
 path: deploy/clusters/homelab/bootstrap

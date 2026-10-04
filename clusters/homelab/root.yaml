@@ -7,9 +7,15 @@
 #               ->  clusters/homelab/platform        ->  platform/*
 #               ->  clusters/homelab/apps            ->  apps/*
 #
-# Deleting this Application cascades to the whole cluster. That is intentional
-# and is why it carries the resources-finalizer: it makes teardown a single,
-# explicit action rather than a surprise.
+# No Application in this tree carries the resources-finalizer, and none prunes:
+# deleting an Application, or removing a file from git, never deletes a live
+# object. Teardown is an explicit, per-object action (CI enforces both rules in
+# scripts/ci/repo_policy.py).
+#
+# NOT APPLIED YET. The cluster still runs the legacy root `all-apps`
+# (clusters/homelab/legacy/all-apps.yaml). Adopting this tree is a runbook
+# (docs/runbooks/adopt-layered-tree.md), not a merge: merging changes nothing
+# live.
 #
 # ###########################################################################
 # # WHY `targetRevision: deployed` AND NOT `main`
@@ -54,9 +60,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: root
-  namespace: argocd
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
+  namespace: argo
 spec:
   project: default
   source:
@@ -65,14 +69,14 @@ spec:
     path: deploy/clusters/homelab/bootstrap
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: argo
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
-      - CreateNamespace=false
+      - CreateNamespace=true
       - ServerSideApply=true
     retry:
       limit: 5

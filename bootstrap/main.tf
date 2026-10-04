@@ -38,10 +38,10 @@ resource "helm_release" "cilium" {
   name       = "cilium"
   repository = "https://helm.cilium.io"
   chart      = "cilium"
-  # Must match clusters/homelab/infrastructure/cilium.yaml, which is pinned to the
-  # version actually running. See docs/migration-plan.md before bumping.
+  # Must match ci/helm-releases.yaml (the helm-CLI release record) and
+  # clusters/homelab/infrastructure/cilium.yaml; CI checks the latter.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-  version   = "1.16.3"
+  version   = "1.17.18"
   namespace = "kube-system"
 
   values = [file("${path.module}/../infrastructure/cilium/values.yaml")]
@@ -109,8 +109,9 @@ resource "helm_release" "argocd" {
   name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
+  # Must match the argocd entry of ci/helm-releases.yaml.
   # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
-  version   = "10.2.1"
+  version   = "7.9.1"
   namespace = kubernetes_namespace_v1.argocd.metadata[0].name
 
   values = [file("${path.module}/argocd-values.yaml")]

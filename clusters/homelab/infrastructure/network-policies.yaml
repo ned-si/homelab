@@ -43,7 +43,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: network-policies
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "30"
 spec:
@@ -59,7 +59,7 @@ spec:
     # object that does not. `argocd` is the inert choice: a CiliumNetworkPolicy
     # that accidentally landed here would select nothing, whereas naming one of
     # the six would silently apply a stray policy to real workloads.
-    namespace: argocd
+    namespace: argo
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
@@ -67,7 +67,7 @@ spec:
       # taking a `CiliumNetworkPolicy` out of git; without prune the object stays
       # in the cluster and the revert commit does nothing, which is the worst
       # possible behaviour for a safety switch.
-      prune: true
+      prune: false
       # selfHeal: false, and this is the ONLY Application in this repo that sets
       # it. Every other one self-heals, which is right for a workload: drift is
       # noise and Argo should win.
@@ -96,6 +96,7 @@ spec:
       # out of git -- `prune: true` above is what makes that work in one commit.
       selfHeal: false
     syncOptions:
+      - CreateNamespace=true
       - ServerSideApply=true
     retry:
       limit: 5

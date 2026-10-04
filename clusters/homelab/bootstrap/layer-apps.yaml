@@ -25,11 +25,9 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: layer-apps
-  namespace: argocd
+  namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "3"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   source:
@@ -38,13 +36,14 @@ spec:
     path: deploy/clusters/homelab/apps
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: argo
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: true
+      prune: false
       selfHeal: true
     syncOptions:
+      - CreateNamespace=true
       - ServerSideApply=true
     retry:
       limit: 5
