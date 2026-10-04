@@ -1,0 +1,326 @@
+---
+# CI: every check that can run without a cluster, for both repository layouts
+# (the legacy kubernetes/applications/ tree Argo CD syncs today, and the layered
+# clusters/ apps/ platform/ infrastructure/ deploy/ tree once it lands).
+#
+# Pinning rules (enforced by scripts/ci/check-pins.sh in `repo-policy`):
+#   - every remote `uses:` is a 40-hex commit SHA with a `# vX.Y.Z` comment;
+#   - every binary is downloaded by exact version and verified against the
+#     sha256 below (scripts/ci/install-tool.sh), never `latest`;
+#   - Python tools come from ci/requirements-ci.txt with `--require-hashes`;
+#   - core Kubernetes schemas come from one pinned commit, CRD schemas from the
+#     vendored ci/schemas/ (no -ignore-missing-schemas).
+# Never `pull_request_target`; `permissions: {}` at the top, each job asks for
+# the minimum; checkouts never persist the token. Rendered manifests are never
+# uploaded or printed: legacy inline Helm values contain credentials.
+name: ci
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Kubernetes version the manifests are validated against: the live cluster's.
+  # Bumped only in the PR that records a cluster upgrade.
+  K8S_VERSION: "1.31.2"
+  # yannh/kubernetes-json-schema commit (2026-09-29) used for core schemas.
+  KUBE_SCHEMA_SHA: 8df8a883b68a24a104b4a9e43c1288090ae60b3b
+  KUBECONFORM_VERSION: v0.7.0
+  KUBECONFORM_SHA256: c31518ddd122663b3f3aa874cfe8178cb0988de944f29c74a0b9260920d115d3
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+  SHELLCHECK_VERSION: v0.11.0
+  SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
+  GITLEAKS_VERSION: 8.30.0
+  GITLEAKS_SHA256: 79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
+  # trivy is installed here and the action is told to skip its own installer,
+  # so the binary is covered by the checksum rule. v0.70.0 is after the
+  # 2026-03 compromised releases (0.69.4-0.69.6).
+  TRIVY_VERSION: 0.70.0
+  TRIVY_SHA256: 8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9
+  KUBE_LINTER_VERSION: v0.8.3
+  KUBE_LINTER_SHA256: 1a6d8419b11971372971fdbc22682b684ebfb7cf1c39591662d1b6ca736c41df
+  HELM_VERSION: v3.22.0
+  HELM_SHA256: 1e4ab49e429626cf6c6958d914248b78c9730803c2751b87627e171dc800e7bb
+  # kubectl is the kustomize renderer: v1.36.3 embeds kustomize v5.8.1, the
+  # EXPECT_KUSTOMIZE of scripts/render-deploy.sh in the layered tree.
+  KUBECTL_VERSION: v1.36.3
+  KUBECTL_SHA256: ebbd080e7c2e275093b55915722043257eb24004363e20acb3c4d71919f88336
+  TOFU_VERSION: 1.12.6
+  TOFU_SHA256: 50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec
+
+jobs:
+  yamllint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Python tools
+        run: scripts/ci/setup-python-deps.sh
+      - name: yamllint (strict, layered tree and CI files)
+        run: yamllint -c .yamllint.yaml .
+      - name: yamllint (legacy tree, relaxed + key-duplicates)
+        run: |
+          set -euo pipefail
+          dirs=()
+          for d in kubernetes/applications iac; do [ -d "$d" ] && dirs+=("$d"); done
+          if [ "${#dirs[@]}" -gt 0 ]; then yamllint -c ci/yamllint-legacy.yaml "${dirs[@]}"; else echo "no legacy tree"; fi
+
+  actionlint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned actionlint and shellcheck
+        run: scripts/ci/install-tool.sh actionlint shellcheck
+      - name: actionlint
+        run: actionlint -color
+
+  shellcheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned shellcheck
+        run: scripts/ci/install-tool.sh shellcheck
+      - name: shellcheck every shell script
+        run: scripts/ci/shellcheck-all.sh
+
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned tools
+        run: |
+          scripts/ci/install-tool.sh helm kubectl
+          scripts/ci/setup-python-deps.sh
+      - name: Unit tests (pytest)
+        run: python -m pytest -q tests
+      - name: Unit tests (bash)
+        run: bash tests/run-bash-tests.sh
+      - name: Render every Application in scope
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render" | tee "$RUNNER_TEMP/render.log"
+          { echo "### render"; echo '```'; cat "$RUNNER_TEMP/render.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+  repo-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned tools
+        run: scripts/ci/install-tool.sh helm kubectl kube-linter
+      - name: Repository policy
+        run: scripts/ci/repo-policy.sh
+
+  kubeconform:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned tools
+        run: scripts/ci/install-tool.sh helm kubectl kubeconform
+      - name: Render every Application in scope
+        run: python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render"
+      - name: kubeconform (strict, pinned core schemas, vendored CRD schemas)
+        run: scripts/ci/kubeconform.sh "$RUNNER_TEMP/render"
+
+  gitleaks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install pinned gitleaks
+        run: scripts/ci/install-tool.sh gitleaks
+      - name: gitleaks on the new commits only
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            base=$PR_BASE; head=$PR_HEAD
+          elif [ "$EVENT" = "push" ] && [ -n "$PUSH_BEFORE" ] && ! [[ "$PUSH_BEFORE" =~ ^0+$ ]]; then
+            base=$PUSH_BEFORE; head=$SHA
+          else
+            base=$(git rev-parse origin/main); head=$SHA
+          fi
+          echo "scanning ${base}..${head}: $(git rev-list --count "${base}..${head}") commit(s)"
+          gitleaks git --no-banner --redact --exit-code 1 --log-opts="${base}..${head}" .
+
+  trivy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The delta gate scans the merge-base in a worktree.
+          fetch-depth: 0
+      - name: Install pinned trivy
+        run: scripts/ci/install-tool.sh trivy
+      - name: Trivy waiver hygiene
+        run: scripts/trivy-waivers.sh
+      - name: Trivy config scan (SARIF)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          skip-setup-trivy: true
+          scan-type: config
+          scan-ref: .
+          format: sarif
+          output: trivy.sarif
+          severity: HIGH,CRITICAL
+          trivyignores: .trivyignore.yaml
+          limit-severities-for-sarif: "true"
+          exit-code: "0"
+      - name: Trivy gate (CRITICAL on presence, HIGH on delta vs merge-base)
+        env:
+          TRIVY_GATE_SUMMARY: ${{ runner.temp }}/trivy-summary.md
+        run: scripts/trivy-gate.sh
+      - name: Trivy summary
+        if: always()
+        env:
+          SUMMARY: ${{ runner.temp }}/trivy-summary.md
+        run: if [ -f "$SUMMARY" ]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi
+      # Reporting only: Code Scanning is unavailable on a private repository
+      # without GHAS, so the upload fails there. The gate is the step above.
+      - name: Upload Trivy SARIF
+        if: always()
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        with:
+          sarif_file: trivy.sarif
+          category: trivy-config
+
+  tofu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned OpenTofu
+        run: scripts/ci/install-tool.sh tofu
+      - name: tofu fmt
+        run: tofu fmt -check -recursive -diff
+      - name: tofu init + validate
+        run: |
+          set -euo pipefail
+          for d in bootstrap bootstrap/aws-backup iac/opentofu; do
+            if [ -d "$d" ] && ls "$d"/*.tf >/dev/null 2>&1; then
+              echo "::group::$d"
+              # cd rather than -chdir: iac/opentofu reads files relative to path.cwd.
+              (cd "$d" && tofu init -backend=false -input=false -no-color && tofu validate -no-color)
+              echo "::endgroup::"
+            fi
+          done
+
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # contents: read only to check out scripts/ci/check-title.sh (private repository).
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: PR title is a Conventional Commits subject under 70 characters
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/ci/check-title.sh "$TITLE"
+
+  commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Every commit subject passes and every commit is verified
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: scripts/ci/check-commits.sh "$REPO" "$PR"
+
+  # The single aggregate check. Every job above must be listed in `needs`.
+  ci:
+    if: always()
+    needs: [yamllint, actionlint, shellcheck, render, repo-policy, kubeconform, gitleaks, trivy, tofu, pr-title, commits]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every needed job succeeded
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          rc=0
+          while IFS=$'\t' read -r job result; do
+            if [ "$result" = "success" ]; then
+              echo "ok      $job"
+            elif [ "$result" = "skipped" ] && [ "$EVENT" != "pull_request" ] && { [ "$job" = "pr-title" ] || [ "$job" = "commits" ]; }; then
+              echo "skipped $job (not a pull request)"
+            else
+              echo "::error::$job: $result"
+              rc=1
+            fi
+          done < <(jq -r 'to_entries[] | [.key, .value.result] | @tsv' <<<"$NEEDS")
+          exit "$rc"

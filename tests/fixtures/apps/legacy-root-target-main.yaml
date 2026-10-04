@@ -1,0 +1,27 @@
+# Fails `legacy-root`: targetRevision main.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: all-apps
+  namespace: argo
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: kubernetes/applications
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  ignoreDifferences:
+    - kind: Service
+      jsonPointers:
+        - /status/loadBalancer/ingress/0/ipMode
