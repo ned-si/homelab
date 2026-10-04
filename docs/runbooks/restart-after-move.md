@@ -11,6 +11,35 @@ the Turing Pi 2.
 
 ---
 
+## Corrections from the 2026-10-03 restart — read first
+
+The restart was done on 2026-10-03. Several assumptions below turned out to be
+wrong:
+
+- **The DHCP server is the Sunrise Connect Box 3 Fiber (`192.168.1.1`), not the
+  Deco.** The Decos are access points. DHCP is set under *DHCPv4 server
+  settings*: Starting local address `192.168.1.50`, Number of CPEs `150`.
+- **The router cannot reserve addresses outside its pool and has no static
+  routes.** Every infrastructure address is therefore set on the device itself.
+  The `192.168.2.0/24` LoadBalancer pool is unreachable until it is moved into
+  `192.168.1.200`–`.227`.
+- **The nodes were on DHCP, not static netplan.** The old router held
+  reservations. Since 2026-10-03 each node has
+  `/etc/netplan/01-homelab-static.yaml` and cloud-init networking is disabled.
+- **The NAS was on DHCP too.** It now has a static `192.168.1.228/24` on `igb0`,
+  the Digitus card port with MAC `3C:49:37:05:B8:28`. The second card port
+  (`igb1`) is unconfigured, and the onboard NIC has **no driver** in TrueNAS
+  CORE. Plug the cable into the `…B8:28` port only.
+- **The NAS has no display output** (Ryzen 5 3600, no iGPU). Console access
+  needs a GPU in the only PCIe slot, which removes the network card.
+- **NAS drives:** the 2.5" SATA SSD is the **boot** drive; the M.2 NVMe
+  (`nvd0`) is the L2ARC cache.
+- **The Turing Pi powers all nodes on with the board.** There is no per-node
+  ordering to do.
+- **kube-vip needed a fix to claim the VIP** (see Step 3).
+
+---
+
 ## Verified from the new house on 2026-08-07, before you start
 
 Measured from the Mac on the new network, so Step 1 is much shorter than it
@@ -163,9 +192,10 @@ here — it has to be freed on the router.
 **One thing must change: the DHCP pool is handing out addresses in the range the
 static devices live in.** The two TP-Link Deco units hold `.247` and `.251`.
 
-The network is a **TP-Link Deco** mesh. The admin page is at
-`https://192.168.1.247/webpages/index.html`, or use the Deco phone app — the app
-is easier for the DHCP settings.
+DHCP is served by the **Sunrise Connect Box 3 Fiber** at `192.168.1.1`, not by
+the Deco mesh. On its admin page, set *DHCPv4 server settings* → Starting local
+address `192.168.1.50`, Number of CPEs `150`. The Deco-specific instructions
+below are kept for reference only.
 
 | Setting | Value | Why |
 |---|---|---|
@@ -382,6 +412,21 @@ nc -z -G 3 -w 3 "$VIP" 6443 && echo listening || echo "NOT LISTENING"
 
 All four `up` and the VIP `listening` before continuing.
 
+> **If the VIP does not come up and kube-vip logs
+> `lookup kubernetes on <dns>:53: no such host`:** the kube-vip image has no
+> `/etc/nsswitch.conf`, so Go asks DNS before `/etc/hosts` and stops on the
+> router's NXDOMAIN. On 2026-10-03 this was fixed on all three control planes
+> by mounting the host's `/etc/nsswitch.conf` read-only into
+> `/etc/kubernetes/manifests/kube-vip.yaml` (originals in
+> `/root/kube-vip.yaml.bak-*`). If kube-vip then dies with
+> `listen tcp :2112: bind: address already in use`, a pre-shutdown sandbox is
+> still running: `crictl pods --name kube-vip`, then `crictl stopp` and
+> `crictl rmp` the old one.
+>
+> **If etcd or the apiserver sit in CrashLoopBackOff after the addresses are
+> fixed,** run `sudo systemctl restart kubelet` on each control plane to reset
+> the 5-minute back-off.
+
 ```sh
 kubectl get nodes -o wide
 ```
@@ -515,6 +560,12 @@ kubectl get pods -A --no-headers | grep -Ev 'Running|Completed' \
 
 Keep this output. Step 6 fixes what shows up here. Expect some churn for the
 first few minutes while images pull.
+
+> **If pods on `homelab-w-1` show `Evicted` with `DiskPressure`:** the nodes
+> boot from a 29 GB eMMC, and w-1 had reached 81%. Pruning unused images freed
+> about 3 GB on 2026-10-03:
+> `sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock rmi --prune`.
+> The node condition clears on its own a few minutes later.
 
 ---
 
