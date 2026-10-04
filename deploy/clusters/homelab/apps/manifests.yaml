@@ -177,11 +177,6 @@ spec:
   destination:
     namespace: syncthing
     server: https://kubernetes.default.svc
-  ignoreDifferences:
-  - group: ""
-    jqPathExpressions:
-    - .status.loadBalancer.ingress[].ipMode
-    kind: Service
   project: apps
   revisionHistoryLimit: 10
   source:
@@ -210,11 +205,6 @@ spec:
   destination:
     namespace: theater
     server: https://kubernetes.default.svc
-  ignoreDifferences:
-  - group: ""
-    jqPathExpressions:
-    - .status.loadBalancer.ingress[].ipMode
-    kind: Service
   project: apps
   revisionHistoryLimit: 10
   source:

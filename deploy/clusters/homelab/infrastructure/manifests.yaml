@@ -331,11 +331,6 @@ spec:
   destination:
     namespace: ingress
     server: https://kubernetes.default.svc
-  ignoreDifferences:
-  - group: ""
-    jqPathExpressions:
-    - .status.loadBalancer.ingress[].ipMode
-    kind: Service
   project: infrastructure
   revisionHistoryLimit: 10
   sources:
