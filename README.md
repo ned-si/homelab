@@ -9,7 +9,7 @@ behind one Keycloak single sign-on. Argo CD deploys everything under
 
 - Hardware: 4x Turing RK1 (Rockchip RK3588, arm64, 32 GB) on a Turing Pi 2
   board. 3 control planes and 1 worker.
-- OS and Kubernetes: Ubuntu 22.04, kubeadm, Kubernetes v1.31.2, containerd.
+- OS and Kubernetes: Ubuntu 22.04, kubeadm, Kubernetes v1.32.13, containerd.
 - Storage: TrueNAS CORE NAS at `192.168.1.228`. iSCSI block volumes through
   democratic-csi (StorageClass `iscsi`, default) and an NFS share for media.
 - Public names: `<name>.lilalala.com`, TLS from Let's Encrypt, DNS records
@@ -110,7 +110,7 @@ Every pull request and every push to `main` runs
 - `yamllint`, `actionlint`, `shellcheck`.
 - `render`: unit tests, then renders every Application and Helm release.
 - `kubeconform`: strict schema validation of the render against Kubernetes
-  1.31.2 and the vendored CRD schemas.
+  1.32.13 and the vendored CRD schemas.
 - `repo-policy`: pinned actions and repository invariants.
 - `gitleaks`: secret scan of the new commits.
 - `trivy`: config scan. CRITICAL fails; HIGH fails only when it increases
