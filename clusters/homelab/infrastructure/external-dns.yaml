@@ -1,14 +1,10 @@
-# external-dns: publishes Cloudflare DNS records for Gateway API resources.
+# external-dns (chart 1.15.0, v0.15.0): publishes the public hostnames to
+# Cloudflare. Sources: Services, Ingresses (ingress-nginx, until it is removed)
+# and the shared Gateway's HTTPRoutes. Every record points at the single WAN
+# address set by `--default-targets` in infrastructure/external-dns/values.yaml.
 #
-# The important change from the old setup: the `gateway-httproute` source. Under
-# Ingress, external-dns read hostnames off Ingress objects. With Gateway API it
-# reads them off HTTPRoutes and resolves the address from the parent Gateway, so
-# adding a new service means adding an HTTPRoute and nothing else -- no more
-# per-service `external-dns.alpha.kubernetes.io/target` annotation carrying a
-# hard-coded WAN IP around the repo. The WAN IP now lives in exactly one place:
-# infrastructure/gateway/gateway.yaml.
-#
-# Its Cloudflare token comes from the `secrets` Application (wave -25).
+# Its Cloudflare token comes from the `secrets-infrastructure` Application
+# (wave -25).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -23,7 +19,7 @@ spec:
     - repoURL: https://kubernetes-sigs.github.io/external-dns/
       chart: external-dns
       # renovate: datasource=helm depName=external-dns registryUrl=https://kubernetes-sigs.github.io/external-dns/
-      targetRevision: 1.21.1
+      targetRevision: v1.15.0
       helm:
         releaseName: external-dns
         valueFiles:
@@ -40,8 +36,8 @@ spec:
       prune: false
       selfHeal: true
     syncOptions:
+      # Client-side apply, as the running child Application does. Its objects carry last-applied-configuration from client-side apply; switching this leaf to server-side apply on adoption would keep fields the new render drops (e.g. a volume source) and fail validation. Move to ServerSideApply=true in its own change, after adoption.
       - CreateNamespace=true
-      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
