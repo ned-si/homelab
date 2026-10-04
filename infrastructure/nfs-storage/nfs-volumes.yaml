@@ -76,7 +76,7 @@ spec:
     - timeo=600
     - retrans=2
   nfs:
-    server: 192.168.1.228                     # SITE-SPECIFIC
+    server: 192.168.1.228 # SITE-SPECIFIC
     # The PARENT of both `media/` and `torrents/`. Do not narrow this.
     path: /mnt/homelab/k8s/nfs
 ---
@@ -85,6 +85,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: theater-data
   namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   accessModes:
     - ReadWriteMany

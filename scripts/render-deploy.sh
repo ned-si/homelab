@@ -182,6 +182,13 @@ for d in $DIRS; do
       continue
       ;;
   esac
+  # A kustomize Component is only meaningful inside the kustomization that
+  # uses it; it has no standalone render.
+  if grep -qE '^kind:[[:space:]]*Component[[:space:]]*$' "$d/kustomization.yaml"; then
+    printf 'skip   %-44s (component; rendered by its users)\n' "$d"
+    skipped=$((skipped + 1))
+    continue
+  fi
 
   out="$OUT/$d/manifests.yaml"
   mkdir -p "$(dirname "$out")"

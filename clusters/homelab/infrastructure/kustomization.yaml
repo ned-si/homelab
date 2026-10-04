@@ -3,23 +3,26 @@ kind: Kustomization
 
 # Ordering inside the infrastructure layer, by sync-wave:
 #
-#   -30  namespaces        explicit namespace inventory, with PSA labels
+#   -30  namespaces        namespace inventory (PSA warn/audit labels)
 #   -25  secrets           SOPS-decrypted Secrets (needs the namespaces above)
-#   -20  gateway-api       CRDs must exist before Cilium can program a Gateway
-#   -10  cilium            CNI + kube-proxy replacement + Gateway controller
-#    -5  cilium-config     LB IP pools + L2 announcement policy (needs Cilium CRDs)
+#   -20  gateway-api       Gateway API CRDs v1.2.0 (experimental channel)
+#   -10  cilium            diff only: helm-CLI release, never synced
+#    -5  cilium-config     LB IP pools + L2 announcement policy
 #     0  cert-manager      its CRDs must be established before issuers appear
 #     5  cert-manager-issuers
-#    10  external-dns      publishes records for Gateway addresses
-#    15  gateway           the single shared entrypoint every HTTPRoute attaches to
-#    18  snapshot-controller  VolumeSnapshot CRDs; must exist before the CSI chart
-#                             can create its VolumeSnapshotClass
-#    20  democratic-csi    StorageClasses, needed before any PVC in later layers
-#    25  nfs-storage       static NFS PVs/PVCs for the media library
-#    30  network-policies  CiliumNetworkPolicies. Last, because a CNP that selects
-#                          a pod which does not exist yet is inert, whereas an
-#                          enforcing policy applied before the workloads it
-#                          describes would deny their first connection.
+#    10  external-dns      publishes the public hostnames
+#    12  nginx             ingress-nginx, until the Gateway takes over .254
+#    13  legacy-ingress    the eight all-apps Ingresses (ADR 0011)
+#    15  gateway           the shared Gateway, parallel on .202 (ADR 0007)
+#    20  democratic-csi    diff only: helm-CLI release, never synced
+#
+# Kept in git, not part of the layer yet (each is new behaviour and ships in
+# its own change, ADR 0002):
+#   snapshot-controller.yaml  would run beside the unmanaged snapshot-controller
+#                             v6.3.1 in kube-system; enabling it must replace it
+#   nfs-storage.yaml          would create new NFS PVs/PVCs; theater keeps its
+#                             inline NFS volumes as live
+#   network-policies.yaml     CiliumNetworkPolicies
 resources:
   - namespaces.yaml
   - secrets.yaml
@@ -29,8 +32,11 @@ resources:
   - cert-manager.yaml
   - cert-manager-issuers.yaml
   - external-dns.yaml
+  - nginx.yaml
+  - legacy-ingress.yaml
   - gateway.yaml
-  - snapshot-controller.yaml
   - democratic-csi.yaml
-  - nfs-storage.yaml
-  - network-policies.yaml
+
+# Adoption mode: no leaf syncs by itself (see the component).
+components:
+  - ../components/cutover

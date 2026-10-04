@@ -1,25 +1,15 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Ordering inside the platform layer, by sync-wave:
-#
-#   -25  secrets                 SOPS-decrypted Secrets for this layer
-#     0  cloudnative-pg          the operator; its CRDs gate every Cluster below
-#    10  kube-prometheus-stack   ServiceMonitor/PodMonitor CRDs that earlier
-#                                layers already reference (Cilium, cert-manager).
-#                                Those references are harmless while missing,
-#                                which is why monitoring can come after them.
-#    20  keycloak                needs a database and a Gateway to be useful
-#    30  backup-verify           needs the operator and the Prometheus CRDs
-#
-# NOT INCLUDED YET: barman-cloud-plugin.yaml. The Barman Cloud plugin requires
-# CloudNativePG >= 1.26 and the running operator is 1.24.1, so backups use the
-# in-tree `barmanObjectStore` for now. The manifest is kept in
-# platform/barman-cloud-plugin/ ready to be enabled straight after the CNPG
-# upgrade -- see docs/migration-plan.md.
+# Kept in git, not part of the layer yet (new behaviour, each ships in its own
+# change, ADR 0002): backup-verify.yaml (restore tests), barman-cloud-plugin.yaml
+# (CNPG off-site backups, ADR 0008).
 resources:
   - secrets.yaml
-  - cloudnative-pg.yaml
+  - cnpg.yaml
   - kube-prometheus-stack.yaml
   - keycloak.yaml
-  - backup-verify.yaml
+
+# Adoption mode: no leaf syncs by itself.
+components:
+  - ../components/cutover

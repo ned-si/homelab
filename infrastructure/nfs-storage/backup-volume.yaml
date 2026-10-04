@@ -75,7 +75,7 @@ spec:
     - timeo=600
     - retrans=2
   nfs:
-    server: 192.168.1.228                     # SITE-SPECIFIC
+    server: 192.168.1.228 # SITE-SPECIFIC
     path: /mnt/homelab/k8s/backups
 ---
 apiVersion: v1
@@ -83,6 +83,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: backup-local
   namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   accessModes:
     - ReadWriteMany
@@ -117,7 +119,7 @@ spec:
     - timeo=600
     - retrans=2
   nfs:
-    server: 192.168.1.228                     # SITE-SPECIFIC
+    server: 192.168.1.228 # SITE-SPECIFIC
     path: /mnt/homelab/k8s/backups
 ---
 apiVersion: v1
@@ -125,6 +127,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: backup-local
   namespace: backup-verify
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   accessModes:
     - ReadWriteMany
