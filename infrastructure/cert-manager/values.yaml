@@ -1,43 +1,31 @@
-# cert-manager configuration.
+# cert-manager v1.15.0 values, at parity with the running release (ADR 0002):
+# exactly the values the legacy child Application carries. Anything beyond
+# parity (resource requests, public DNS-01 resolvers, a newer chart) is its own
+# later change; see docs/roadmap.md.
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true
+
 crds:
   enabled: true
   # Keep CRDs if the release is ever uninstalled. Deleting them would delete
   # every Certificate and Secret cert-manager manages, taking TLS down site-wide.
   keep: true
 
-# Gateway API support. This is what lets cert-manager watch Gateway resources
-# and mint a Certificate from the `cert-manager.io/cluster-issuer` annotation,
-# exactly the way it used to do for Ingress objects.
+# Ingress objects without an explicit issuer annotation get this one.
+ingressShim:
+  defaultIssuerName: letsencrypt
+  defaultIssuerKind: ClusterIssuer
+
+# Gateway API support: cert-manager watches Gateways too (the shared Gateway's
+# wildcard certificate is an explicit Certificate, see infrastructure/gateway/).
 config:
   apiVersion: controller.config.cert-manager.io/v1alpha1
   kind: ControllerConfiguration
   enableGatewayAPI: true
 
-# Only DNS-01 is used here (see ../cert-manager-issuers). Point the self-checks
-# at public resolvers so validation does not depend on the LAN's DNS, which
-# split-horizons lilalala.com to internal addresses.
-dns01RecursiveNameservers: "1.1.1.1:53,9.9.9.9:53"
-dns01RecursiveNameserversOnly: true
-
-prometheus:
+metrics:
   enabled: true
-  servicemonitor:
+  serviceMonitor:
     enabled: true
-
-# Four small ARM nodes: keep the footprint honest.
-resources:
-  requests:
-    cpu: 10m
-    memory: 64Mi
-
-webhook:
-  resources:
-    requests:
-      cpu: 10m
-      memory: 32Mi
-
-cainjector:
-  resources:
-    requests:
-      cpu: 10m
-      memory: 128Mi

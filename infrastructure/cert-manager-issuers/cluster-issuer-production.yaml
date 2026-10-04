@@ -1,5 +1,5 @@
-# Let's Encrypt production. Rate-limited to 50 certificates per registered
-# domain per week, so validate changes against the staging issuer first.
+# Let's Encrypt production, byte-equal in spec to the running ClusterIssuer.
+# Rate-limited to 50 certificates per registered domain per week.
 #
 # DNS-01 is used rather than HTTP-01 for two reasons:
 #   - it is the only solver that can issue a WILDCARD certificate, which is what
@@ -32,6 +32,3 @@ spec:
             apiTokenSecretRef:
               name: cloudflare-api-token-secret
               key: api-token
-        selector:
-          dnsZones:
-            - lilalala.com

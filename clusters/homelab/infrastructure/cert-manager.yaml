@@ -18,7 +18,7 @@ spec:
     - repoURL: https://charts.jetstack.io
       chart: cert-manager
       # renovate: datasource=helm depName=cert-manager registryUrl=https://charts.jetstack.io
-      targetRevision: v1.21.1
+      targetRevision: v1.15.0
       helm:
         releaseName: cert-manager
         valueFiles:
@@ -35,8 +35,8 @@ spec:
       prune: false
       selfHeal: true
     syncOptions:
+      # Client-side apply, as the running child Application does. Its objects carry last-applied-configuration from client-side apply; switching this leaf to server-side apply on adoption would keep fields the new render drops (e.g. a volume source) and fail validation. Move to ServerSideApply=true in its own change, after adoption.
       - CreateNamespace=true
-      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
