@@ -142,16 +142,43 @@ appears as an orphan blob, which wastes space and nothing else, whereas the reve
 order gives a database row pointing at a blob that was never captured. That
 ordering is why the dump is an `initContainer` and not a sidecar.
 
+## Reclaim policy: current state
+
+Recorded 2026-10-04. A PersistentVolume's reclaim policy decides what happens on
+the NAS when its claim is deleted: `Delete` destroys the iSCSI volume, `Retain`
+keeps it (the PV goes to `Released` and can be re-bound by hand).
+
+| What | Policy | How it got there |
+|---|---|---|
+| StorageClass `iscsi` (default) | `Delete` for new volumes | democratic-csi release `iscsi`. A StorageClass's `reclaimPolicy` is immutable, so it stays. |
+| StorageClass `iscsi-retain` | `Retain` for new volumes | `infrastructure/democratic-csi/values-iscsi.yaml`. Use it for every new data volume. |
+| 18 existing data PVs on `iscsi` (incl. `immich-data` and every CNPG volume) | `Retain` | Patched in place on 2026-10-04 (`spec.persistentVolumeReclaimPolicy`). |
+| `immich-machine-learning-cache`, `jellyfin-cache`, `plex-transcode` | `Delete` | Regenerable caches, left on purpose. |
+
+Existing claims keep `storageClassName: iscsi`: a PVC's class is immutable, and
+changing it would mean a new volume and a data copy. The PV patch is not stored
+in git (PVs are provisioned objects); re-check it after any restore or rebuild:
+
+```sh
+kubectl get pv -o custom-columns=NAME:.spec.claimRef.name,POLICY:.spec.persistentVolumeReclaimPolicy
+```
+
+In the layered tree every PVC, CNPG Cluster, StatefulSet and Namespace also
+carries `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, so Argo CD
+never deletes one, even when its manifest disappears from git.
+
 ## What is deliberately not backed up
 
 **The media library** — 26TB NFS, 9.5TB used. Roughly €50–120/month growing, and a
 restore would mean egressing all of it, for content that is by its nature
 re-acquirable.
 
-What protects it instead, verified against the manifests rather than taken on
-trust: ZFS snapshots on the NAS, `persistentVolumeReclaimPolicy: Retain` on the PV
-so no Kubernetes action can delete it, and Plex and Jellyfin both mounting it
-`readOnly: true` with `subPath: media` so neither media server can write to it.
+What protects it instead: ZFS snapshots on the NAS, and an NFS share that no
+Kubernetes object can delete (the theater workloads mount it inline). Today
+Plex and Jellyfin mount it read-write, as they always have; mounting it
+`readOnly: true` for the two media servers, and moving the mounts to the
+`nfs-storage` leaf (`Retain` PVs, written but not enabled), are listed in
+[docs/roadmap.md](roadmap.md).
 
 If you disagree, the change is a copy of
 `apps/immich/resources/backup-files.yaml` pointed at the `theater-data` PVC. The
@@ -239,10 +266,9 @@ are silently expensive if skipped.
 
    It re-renders `deploy/` as part of the same command.
 
-6. **Patch the existing PVs to `Retain`.** Every volume in the cluster was
-   `Delete`, including the Immich library — and the Immich upgrade runbook contains
-   a step that deletes a PVC. The `iscsi-retain` StorageClass stops new ones
-   repeating it; existing volumes have to be patched in place.
+6. **Existing PVs are already `Retain` (done 2026-10-04).** See
+   [Reclaim policy: current state](#reclaim-policy-current-state). Check it is
+   still true before relying on it.
 
 7. **Seed each new restic repository once, by hand, before the first verification
    run.** Step 2 of `verify-files.sh` fails with `no snapshot found for tag` against
