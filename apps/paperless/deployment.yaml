@@ -1,23 +1,10 @@
-# Paperless-ngx.
-#
-# WHAT CHANGED
-#   - PAPERLESS_ADMIN_PASSWORD and the OIDC client secret (which was buried
-#     inside the PAPERLESS_SOCIALACCOUNT_PROVIDERS JSON blob) were both literal
-#     strings in git. Both now come from the `paperless-secrets` Secret. Both old
-#     values are compromised -- see docs/security-incident.md.
-#   - PAPERLESS_SECRET_KEY is now set explicitly. It was never set before, so
-#     Django fell back to a well-known default, meaning session cookies and
-#     password-reset tokens were forgeable by anyone who knows the default.
-#   - image 2.13.5 -> v3.0.4. Major upgrade; read the upstream release notes.
-#   - imagePullPolicy Always -> IfNotPresent.
-#
-# STILL ON SQLITE, DELIBERATELY. The old manifest set no PAPERLESS_DBHOST, so
-# Paperless has been using SQLite inside the `paperless-data` volume this whole
-# time. Pointing it at Postgres now would present it with an EMPTY database, not
-# migrate the existing one -- Paperless has no in-place converter. The supported
-# path is `document_exporter` -> switch DB -> `document_importer`.
-# Left as-is on purpose; see docs/runbooks/paperless-postgres.md if you want to
-# move it. This is a data-safety decision, not an oversight.
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -29,6 +16,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
+    rollingUpdate: null
     type: Recreate
   selector:
     matchLabels:
@@ -38,92 +26,61 @@ spec:
       labels:
         app.kubernetes.io/name: paperless
     spec:
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: paperless
-          # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
-          image: ghcr.io/paperless-ngx/paperless-ngx:v3.0.4
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/paperless-ngx/paperless-ngx:2.13.5
+          imagePullPolicy: Always
           env:
-            - name: TZ
-              value: Europe/Zurich
-            - name: PAPERLESS_TIME_ZONE
-              value: Europe/Zurich
             - name: PAPERLESS_REDIS
-              value: redis://valkey.paperless.svc.cluster.local:6379
+              value: "redis://valkey.paperless.svc.cluster.local:6379"
             - name: PAPERLESS_DATA_DIR
-              value: /data/data
+              value: "/data/data"
             - name: PAPERLESS_MEDIA_ROOT
-              value: /data/media
+              value: "/data/media"
             - name: PAPERLESS_CONSUMPTION_DIR
-              value: /data/consume
+              value: "/data/consume"
+            - name: PAPERLESS_ADMIN_USER
+              value: "nedsi-admin"
+            - name: PAPERLESS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-secrets
+                  key: PAPERLESS_ADMIN_PASSWORD
             - name: PAPERLESS_URL
-              value: https://archive.lilalala.com
-            # Django needs to trust the Gateway's forwarded host, otherwise it
-            # rejects requests with DisallowedHost.
-            - name: PAPERLESS_ALLOWED_HOSTS
-              value: archive.lilalala.com
-            - name: PAPERLESS_CSRF_TRUSTED_ORIGINS
-              value: https://archive.lilalala.com
+              value: "https://archive.lilalala.com"
             - name: PAPERLESS_BIND_ADDR
-              value: 0.0.0.0
+              value: "0.0.0.0"
             - name: PAPERLESS_PORT
               value: "8000"
-            - name: PAPERLESS_OCR_LANGUAGE
-              value: fra+eng+deu
-            # --- SSO -------------------------------------------------------
             - name: PAPERLESS_APPS
-              value: allauth.socialaccount.providers.openid_connect
+              value: "allauth.socialaccount.providers.openid_connect"
+            - name: PAPERLESS_SOCIALACCOUNT_PROVIDERS
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-secrets
+                  key: PAPERLESS_SOCIALACCOUNT_PROVIDERS
             - name: PAPERLESS_SOCIAL_AUTO_SIGNUP
               value: "true"
             - name: PAPERLESS_REDIRECT_LOGIN_TO_SSO
               value: "true"
-          envFrom:
-            # Supplies PAPERLESS_SECRET_KEY, PAPERLESS_ADMIN_USER,
-            # PAPERLESS_ADMIN_PASSWORD and PAPERLESS_SOCIALACCOUNT_PROVIDERS
-            # (the last one carries the OIDC client secret inside its JSON).
-            - secretRef:
-                name: paperless-secrets
           ports:
             - name: http
               containerPort: 8000
               protocol: TCP
           volumeMounts:
-            - name: data
-              mountPath: /data/data
-            - name: media
-              mountPath: /data/media
-            - name: consume
-              mountPath: /data/consume
-          readinessProbe:
-            httpGet:
-              path: /accounts/login/
-              port: http
-            initialDelaySeconds: 30
-            periodSeconds: 15
-          livenessProbe:
-            httpGet:
-              path: /accounts/login/
-              port: http
-            initialDelaySeconds: 180
-            periodSeconds: 30
-            failureThreshold: 5
-          resources:
-            requests:
-              cpu: 200m
-              memory: 512Mi
-            limits:
-              # OCR (tesseract + ghostscript) is the memory spike here.
-              memory: 3Gi
+            - mountPath: "/data/data"
+              name: paperless-data
+            - mountPath: "/data/media"
+              name: paperless-media
+            - mountPath: "/data/consume"
+              name: paperless-consume
       volumes:
-        - name: data
+        - name: paperless-data
           persistentVolumeClaim:
             claimName: paperless-data
-        - name: media
+        - name: paperless-media
           persistentVolumeClaim:
             claimName: paperless-media
-        - name: consume
+        - name: paperless-consume
           persistentVolumeClaim:
             claimName: paperless-consume

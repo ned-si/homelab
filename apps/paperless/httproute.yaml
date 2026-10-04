@@ -20,6 +20,4 @@ spec:
         - name: paperless
           port: 8000
       timeouts:
-        # Bulk document uploads and OCR-on-upload can take a while.
-        request: "0s"
-        backendRequest: "0s"
+        request: 0s

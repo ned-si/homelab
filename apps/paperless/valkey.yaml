@@ -1,40 +1,20 @@
-# Valkey for Paperless' task queue.
-#
-# Kept as a hand-rolled Deployment (unlike Immich, whose chart now bundles one).
-# Paperless has no chart here, and a single-replica Valkey is 20 lines.
-#
-# WHAT CHANGED
-#   - image 8.0.1-alpine -> 9.1.1-alpine, now Renovate-tracked.
-#   - added a PVC. The old Deployment had no volume at all, so the queue lived in
-#     the container filesystem: every restart dropped in-flight OCR jobs, and
-#     documents dropped into the consume directory during that window were never
-#     processed. That is a quiet data-loss path, not just an inconvenience.
-#   - added probes and resource requests.
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: paperless-valkey
-  namespace: paperless
-spec:
-  storageClassName: iscsi
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 2Gi
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: valkey
-  namespace: paperless
   labels:
     app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: paperless
 spec:
   replicas: 1
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: valkey
@@ -43,66 +23,26 @@ spec:
       labels:
         app.kubernetes.io/name: valkey
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-        fsGroup: 999
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: valkey
-          # renovate: datasource=docker depName=valkey/valkey
-          image: valkey/valkey:9.1.1-alpine
-          imagePullPolicy: IfNotPresent
-          args:
-            # Persist to disk so a restart does not lose the queue.
-            - --save
-            - "60"
-            - "1"
-            - --appendonly
-            - "yes"
-            - --dir
-            - /data
+          image: valkey/valkey:8.0.1-alpine
           ports:
-            - name: redis
-              containerPort: 6379
+            - containerPort: 6379
               protocol: TCP
-          volumeMounts:
-            - name: data
-              mountPath: /data
-          readinessProbe:
-            exec:
-              command: ["valkey-cli", "ping"]
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests:
-              cpu: 10m
-              memory: 64Mi
-            limits:
-              memory: 256Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-      volumes:
-        - name: data
-          persistentVolumeClaim:
-            claimName: paperless-valkey
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: valkey
-  namespace: paperless
   labels:
     app.kubernetes.io/name: valkey
+  name: valkey
+  namespace: paperless
 spec:
   type: ClusterIP
+  clusterIP: None
   ports:
-    - name: redis
-      port: 6379
-      targetPort: redis
+    - port: 6379
+      targetPort: 6379
       protocol: TCP
   selector:
     app.kubernetes.io/name: valkey

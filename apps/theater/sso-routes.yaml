@@ -1,0 +1,122 @@
+# Per-host routes of the *arr SSO feature (apps/theater/sso.yaml). Not rendered:
+# they publish five new hostnames and ship with that feature.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: sonarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - sonarr.lilalala.com
+  rules:
+    # THROUGH THE SSO PROXY, not straight to the app. `sonarr-sso` is an
+    # oauth2-proxy that authenticates against Keycloak and then forwards to
+    # sonarr:8989. See apps/theater/sso.yaml.
+    #
+    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
+    # back to `name: sonarr` / `port: 8989`. Nothing else in this file depends
+    # on the proxy.
+    - backendRefs:
+        - name: sonarr-sso
+          port: 4180
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: radarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - radarr.lilalala.com
+  rules:
+    # THROUGH THE SSO PROXY, not straight to the app. `radarr-sso` is an
+    # oauth2-proxy that authenticates against Keycloak and then forwards to
+    # radarr:7878. See apps/theater/sso.yaml.
+    #
+    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
+    # back to `name: radarr` / `port: 7878`. Nothing else in this file depends
+    # on the proxy.
+    - backendRefs:
+        - name: radarr-sso
+          port: 4180
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: lidarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - lidarr.lilalala.com
+  rules:
+    # THROUGH THE SSO PROXY, not straight to the app. `lidarr-sso` is an
+    # oauth2-proxy that authenticates against Keycloak and then forwards to
+    # lidarr:8686. See apps/theater/sso.yaml.
+    #
+    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
+    # back to `name: lidarr` / `port: 8686`. Nothing else in this file depends
+    # on the proxy.
+    - backendRefs:
+        - name: lidarr-sso
+          port: 4180
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: prowlarr
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - prowlarr.lilalala.com
+  rules:
+    # THROUGH THE SSO PROXY, not straight to the app. `prowlarr-sso` is an
+    # oauth2-proxy that authenticates against Keycloak and then forwards to
+    # prowlarr:9696. See apps/theater/sso.yaml.
+    #
+    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
+    # back to `name: prowlarr` / `port: 9696`. Nothing else in this file depends
+    # on the proxy.
+    - backendRefs:
+        - name: prowlarr-sso
+          port: 4180
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: qbittorrent
+  namespace: theater
+spec:
+  parentRefs:
+    - name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - qbittorrent.lilalala.com
+  rules:
+    # THROUGH THE SSO PROXY, not straight to the app. `qbittorrent-sso` is an
+    # oauth2-proxy that authenticates against Keycloak and then forwards to
+    # qbittorrent:8080. See apps/theater/sso.yaml.
+    #
+    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
+    # back to `name: qbittorrent` / `port: 8080`. Nothing else in this file depends
+    # on the proxy.
+    - backendRefs:
+        - name: qbittorrent-sso
+          port: 4180

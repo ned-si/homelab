@@ -2,12 +2,12 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: mealie
 
+# Parity with the running cluster (ADR 0002). backup.yaml is kept in git but
+# not rendered: the restic CronJobs ship with off-site backups (ADR 0008), once
+# real storage credentials exist. Enabling them is one line here.
 resources:
   - database.yaml
+  - pvc.yaml
   - deployment.yaml
   - service.yaml
   - httproute.yaml
-  - pvc.yaml
-  # Neither the database nor `mealie-data` was backed up, despite
-  # docs/backups.md claiming barman + 30d PITR. See the header of backup.yaml.
-  - backup.yaml

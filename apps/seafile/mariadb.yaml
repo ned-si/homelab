@@ -1,138 +1,56 @@
-# MariaDB for Seafile.
-#
-# Note this is the one database in the cluster NOT managed by CloudNativePG,
-# because Seafile requires MySQL/MariaDB rather than Postgres. It therefore has
-# none of the things CNPG gives the others: no generated credentials, no
-# PodMonitor, no PITR. The root password has to be a real managed secret.
-#
-# WHAT CHANGED
-#   - MARIADB_ROOT_PASSWORD was a literal string in git, and the SAME string was
-#     pasted a second time into the Seafile Deployment as DB_ROOT_PASSWD. Both
-#     now read from the `seafile-db` Secret, so there is one copy of the value
-#     and it is encrypted. The old password is compromised.
-#   - image `mariadb:10.11` -> `12.3` (current LTS). 10.11 reached EOL.
-#     MariaDB does not support skipping major versions on an existing datadir --
-#     see docs/runbooks/seafile-mariadb-upgrade.md before syncing this.
-#   - the PVC had no storageClassName, so it silently used the default class.
-#     Now explicit.
-#   - added probes; a MariaDB that is up but not accepting connections used to
-#     look healthy.
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: seafile-mariadb
-  namespace: seafile
-spec:
-  storageClassName: iscsi
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 10Gi
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mariadb
   namespace: seafile
-  labels:
-    app: mariadb
-    app.kubernetes.io/name: mariadb
 spec:
-  replicas: 1
-  strategy:
-    # One replica on a ReadWriteOnce volume. A RollingUpdate would try to start
-    # the replacement pod before terminating the old one, and the new pod can
-    # never attach the volume, so the rollout hangs until it times out. This is
-    # what the old repo's comment "rollingUpdate: null -- this errors with argo
-    # for some reason" was groping at.
-    #
-    # Switching an EXISTING Deployment to Recreate needs a one-time patch first,
-    # because the API server has already defaulted a `rollingUpdate` block and a
-    # server-side apply cannot remove a field it does not own:
-    #
-    #   spec.strategy.rollingUpdate: Forbidden: may not be specified when
-    #   strategy `type` is 'Recreate'
-    #
-    # `scripts/normalize-deployment-strategy.sh` does that patch. It is
-    # non-disruptive: verified against the live cluster that the pod template
-    # hash is unchanged, so no new ReplicaSet and no restart.
-    type: Recreate
-  # SELECTOR: kept as `app: mariadb`, which is what the live Deployment uses.
-  # Deployment selectors are IMMUTABLE, so normalising this to
-  # app.kubernetes.io/name would also require a delete + recreate. Both labels are
-  # set on the pod template so a future migration is a selector change only.
   selector:
     matchLabels:
       app: mariadb
+  replicas: 1
   template:
     metadata:
       labels:
         app: mariadb
-        app.kubernetes.io/name: mariadb
     spec:
-      securityContext:
-        fsGroup: 999
-        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: mariadb
-          # renovate: datasource=docker depName=mariadb
-          image: mariadb:12.3
-          imagePullPolicy: IfNotPresent
+          image: mariadb:10.11
           env:
             - name: MARIADB_ROOT_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: seafile-db
                   key: root-password
-            # Run mariadb-upgrade automatically after a version bump. Without
-            # this, a major upgrade starts and then refuses queries against an
-            # older datadir.
             - name: MARIADB_AUTO_UPGRADE
               value: "true"
           ports:
-            - name: mysql
-              containerPort: 3306
-              protocol: TCP
+            - containerPort: 3306
           volumeMounts:
-            - name: data
+            - name: mariadb-data
               mountPath: /var/lib/mysql
-          readinessProbe:
-            exec:
-              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
-            initialDelaySeconds: 20
-            periodSeconds: 15
-          livenessProbe:
-            exec:
-              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
-            initialDelaySeconds: 120
-            periodSeconds: 30
-            failureThreshold: 5
-          resources:
-            requests:
-              cpu: 100m
-              memory: 384Mi
-            limits:
-              memory: 1Gi
       volumes:
-        - name: data
+        - name: mariadb-data
           persistentVolumeClaim:
-            claimName: seafile-mariadb
+            claimName: mariadb-pvc
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: mariadb
   namespace: seafile
-  labels:
-    app.kubernetes.io/name: mariadb
 spec:
-  type: ClusterIP
-  ports:
-    - name: mysql
-      port: 3306
-      targetPort: mysql
-      protocol: TCP
   selector:
     app: mariadb
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306

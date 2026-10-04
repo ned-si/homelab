@@ -1,55 +1,22 @@
-# qBittorrent.
-#
-# ###########################################################################
-# # THIS IS THE APP THAT BROKE THE *ARR STACK.
-# #
-# # The old manifest ran `ghcr.io/hotio/qbittorrent:latest` with
-# # `imagePullPolicy: Always`. Every pod restart pulled whatever was newest, so
-# # over a year it silently crossed qBittorrent 4.6.1, which REMOVED the
-# # `admin`/`adminadmin` default: it now generates a random temporary WebUI
-# # password and prints it to the container log on every start.
-# #
-# # Sonarr/Radarr/Lidarr still had `adminadmin` saved as their download-client
-# # credential, so every request started returning 401 and the *arrs reported
-# # the client as unavailable. Nothing about the network changed.
-# #
-# # See docs/runbooks/arr-qbittorrent.md for the recovery procedure. It needs one
-# # manual step that cannot be expressed in a manifest.
-# ###########################################################################
-#
-# WHAT CHANGED
-#   - image pinned to an explicit release tag, tracked by Renovate
-#   - imagePullPolicy Always -> IfNotPresent, so a restart is no longer an
-#     unreviewed upgrade
-#   - NFS moved from an inline volume to the shared `theater-data` PVC
-#   - the peer-listen Service gets its own LoadBalancer IP from the `services`
-#     pool instead of relying on pool ordering
-#   - probes added: there were none, so a wedged WebUI looked healthy
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: qbittorrent-config
-  namespace: theater
-spec:
-  storageClassName: iscsi
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: qbittorrent
-  namespace: theater
   labels:
     app.kubernetes.io/name: qbittorrent
+  name: qbittorrent
+  namespace: theater
 spec:
   replicas: 1
   strategy:
-    # Single RWO config volume: a second pod could never attach it.
+    rollingUpdate: null
     type: Recreate
   selector:
     matchLabels:
@@ -59,16 +26,10 @@ spec:
       labels:
         app.kubernetes.io/name: qbittorrent
     spec:
-      securityContext:
-        fsGroup: 1000
-        # fsGroupChangePolicy avoids a full recursive chown of the torrents
-        # share on every start, which on a large library takes minutes.
-        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: qbittorrent
-          # renovate: datasource=docker depName=ghcr.io/hotio/qbittorrent
-          image: ghcr.io/hotio/qbittorrent:release-5.2.3
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/hotio/qbittorrent:latest
+          imagePullPolicy: Always
           env:
             - name: TZ
               value: Europe/Zurich
@@ -76,66 +37,51 @@ spec:
               value: "1000"
             - name: PGID
               value: "1000"
-            # 002 so that group-writable files land on the share and the *arr
-            # apps (same PUID/PGID) can hardlink and move them.
             - name: UMASK
               value: "002"
           ports:
             - name: http
               containerPort: 8080
               protocol: TCP
-            - name: peer
+            - name: seed
               containerPort: 50000
               protocol: TCP
-            - name: peer-udp
-              containerPort: 50000
-              protocol: UDP
           volumeMounts:
             - name: config
               mountPath: /config
-            # subPath into the shared theater-data volume. The path must be
-            # IDENTICAL to what the *arr apps see (/data/torrents) or imports
-            # fall back to copying instead of hardlinking.
-            - name: data
+            - name: torrents
               mountPath: /data/torrents
-              subPath: torrents
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 15
-          livenessProbe:
-            tcpSocket:
-              port: http
-            initialDelaySeconds: 60
-            periodSeconds: 30
-          resources:
-            requests:
-              cpu: 100m
-              memory: 512Mi
-            limits:
-              # Torrent clients will happily use all available page cache for
-              # piece buffers; cap it so it cannot evict Plex transcoding.
-              memory: 2Gi
       volumes:
         - name: config
           persistentVolumeClaim:
             claimName: qbittorrent-config
-        - name: data
-          persistentVolumeClaim:
-            claimName: theater-data
+        - name: torrents
+          nfs:
+            server: 192.168.1.228
+            path: /mnt/homelab/k8s/nfs/torrents
 ---
-# WebUI. ClusterIP only: reached by the *arr apps in-cluster as
-# http://qbittorrent.theater.svc.cluster.local:8080 and by humans through the
-# HTTPRoute below.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: qbittorrent-config
+  namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
 apiVersion: v1
 kind: Service
 metadata:
-  name: qbittorrent
-  namespace: theater
   labels:
     app.kubernetes.io/name: qbittorrent
+  name: qbittorrent
+  namespace: theater
 spec:
   type: ClusterIP
   ports:
@@ -146,55 +92,21 @@ spec:
   selector:
     app.kubernetes.io/name: qbittorrent
 ---
-# Peer listen port, exposed on the LAN so the router can forward it. Without an
-# externally reachable port qBittorrent can only make outbound connections and
-# effectively cannot seed.
 apiVersion: v1
 kind: Service
 metadata:
-  name: qbittorrent-peer
-  namespace: theater
   labels:
     app.kubernetes.io/name: qbittorrent
-    # Claim an address from the `services` pool, not the Gateway's.
-    homelab.lilalala.com/lb-pool: services
+  name: qbittorrent-seed
+  namespace: theater
+  annotations:
+    lbipam.cilium.io/ips: "192.168.1.200"
 spec:
   type: LoadBalancer
-  # NOT externalTrafficPolicy: Local -- that is incompatible with Cilium L2
-  # announcements and causes silent drops. See
-  # infrastructure/cilium/l2-announcement-policy.yaml.
   ports:
-    - name: peer
+    - name: seed
       port: 50000
-      targetPort: peer
+      targetPort: seed
       protocol: TCP
-    - name: peer-udp
-      port: 50000
-      targetPort: peer-udp
-      protocol: UDP
   selector:
     app.kubernetes.io/name: qbittorrent
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: qbittorrent
-  namespace: theater
-spec:
-  parentRefs:
-    - name: shared
-      namespace: gateway
-      sectionName: https
-  hostnames:
-    - qbittorrent.lilalala.com
-  rules:
-    # THROUGH THE SSO PROXY, not straight to the app. `qbittorrent-sso` is an
-    # oauth2-proxy that authenticates against Keycloak and then forwards to
-    # qbittorrent:8080. See apps/theater/sso.yaml.
-    #
-    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
-    # back to `name: qbittorrent` / `port: 8080`. Nothing else in this file depends
-    # on the proxy.
-    - backendRefs:
-        - name: qbittorrent-sso
-          port: 4180

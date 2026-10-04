@@ -1,67 +1,47 @@
-# Two Services:
-#
-#   syncthing       ClusterIP. The web UI, behind the Gateway, and also the
-#                   StatefulSet's governing Service (see below).
-#   syncthing-sync  LoadBalancer for the peer-to-peer protocol. This is the one
-#                   the router forwards 22000 to.
-#
-# The old repo called these `syncthing-dashboard` and `syncthing-protocol`. The
-# names change; the live `syncthing` Service is what the StatefulSet's immutable
-# `serviceName` refers to, so that one keeps its name.
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: syncthing
+  name: syncthing-dashboard
   namespace: syncthing
-  labels:
-    app: syncthing
-    app.kubernetes.io/name: syncthing
 spec:
-  # The StatefulSet's `serviceName` points here (it is `syncthing` on the live
-  # object and immutable). A governing Service is conventionally headless, but
-  # this one is a normal ClusterIP because it is ALSO the HTTPRoute backend.
-  # Splitting the two would mean changing serviceName, which cannot be done in
-  # place -- see the note in ./statefulset.yaml.
   type: ClusterIP
   ports:
-    - name: web
-      port: 8384
-      targetPort: web
+    - name: syncthing-dashboard
       protocol: TCP
+      port: 8384
+      targetPort: 8384
   selector:
     app: syncthing
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: syncthing-sync
+  name: syncthing-protocol
   namespace: syncthing
-  labels:
-    app: syncthing
-    app.kubernetes.io/name: syncthing
-    # Take an address from the `services` pool, not the Gateway's.
-    homelab.lilalala.com/lb-pool: services
   annotations:
-    # Publish this address so remote peers can find it by name. Note this is the
-    # LAN address; the router must forward 22000 from the WAN to it.
-    external-dns.alpha.kubernetes.io/hostname: sync.lilalala.com
+    lbipam.cilium.io/ips: "192.168.1.201"
 spec:
   type: LoadBalancer
-  # Deliberately NOT externalTrafficPolicy: Local -- incompatible with Cilium
-  # L2 announcements, causes silent drops.
   ports:
-    - name: sync-tcp
+    - name: syncthing-tcp
       port: 22000
-      targetPort: sync-tcp
       protocol: TCP
-    - name: sync-udp
+      targetPort: 22000
+    - name: syncthing-udp
       port: 22000
-      targetPort: sync-udp
       protocol: UDP
-    - name: discovery
+      targetPort: 22000
+    - name: syncthing-disc
       port: 21027
-      targetPort: discovery
       protocol: UDP
+      targetPort: 21027
   selector:
     app: syncthing

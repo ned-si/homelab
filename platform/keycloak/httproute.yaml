@@ -22,3 +22,5 @@ spec:
     - backendRefs:
         - name: keycloak
           port: 8080
+      timeouts:
+        request: 0s

@@ -2,14 +2,13 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: seafile
 
+# Parity with the running cluster (ADR 0002). backup.yaml is kept in git but
+# not rendered: the restic CronJobs ship with off-site backups (ADR 0008), once
+# real storage credentials exist. Enabling them is one line here.
 resources:
+  - pvc.yaml
   - mariadb.yaml
   - memcached.yaml
   - deployment.yaml
   - service.yaml
   - httproute.yaml
-  - pvc.yaml
-  # /shared (blobs + Seafile's own config, which lives only in the volume) plus
-  # a consistent MariaDB dump. Both halves or neither is worth anything -- see
-  # the header of backup.yaml.
-  - backup.yaml

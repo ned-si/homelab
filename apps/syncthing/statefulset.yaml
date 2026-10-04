@@ -1,117 +1,53 @@
-# Syncthing.
-#
-# ###########################################################################
-# # THREE FIELDS HERE ARE CONSTRAINED BY THE LIVE OBJECT, NOT BY PREFERENCE.
-# #
-# # A StatefulSet only permits updates to `replicas`, `ordinals`, `template`,
-# # `updateStrategy`, `persistentVolumeClaimRetentionPolicy` and
-# # `minReadySeconds`. Everything else is immutable.
-# #
-# # An earlier draft changed all three of the following and was rejected by the
-# # API server (verified 2026-07-31):
-# #
-# #   selector          live: {app: syncthing}     -- immutable
-# #   serviceName       live: syncthing            -- immutable
-# #   volumeClaimTemplates  live: EMPTY; the volume is a standalone PVC
-# #                         (syncthing-pvc). Adding a template is immutable too.
-# #
-# # A volumeClaimTemplate would be the better design -- it ties the volume's
-# # lifecycle to the StatefulSet. Getting there means deleting the StatefulSet
-# # with --cascade=orphan and recreating it, which is a deliberate one-time action
-# # listed in docs/migration-plan.md, not something to bury in a refactor.
-# ###########################################################################
-#
-# WHAT THIS CHANGE DOES DELIVER
-#   - image pinned: was `syncthing/syncthing:latest`. Note this crosses the
-#     1.x -> 2.x boundary, and Syncthing 2.0 migrated its database format and will
-#     NOT downgrade cleanly. Back up the config volume before syncing.
-#   - readiness and liveness probes, so a wedged instance is visible. This is the
-#     same gap that hid the qBittorrent outage for three months.
-#   - resource requests, and a 60s termination grace period so Syncthing can
-#     finish writing its index database; a hard kill mid-write is the usual cause
-#     of "database corrupted" on restart.
-#
-# OPERATIONAL NOTE, unchanged and still true: peer-to-peer sync needs the router
-# to forward TCP/UDP 22000 to the LoadBalancer address in ./services.yaml, and
-# clients need Global Discovery. Without the forward, Syncthing falls back to
-# relays and throughput collapses.
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: syncthing
   namespace: syncthing
-  labels:
-    app: syncthing
-    app.kubernetes.io/name: syncthing
 spec:
-  # IMMUTABLE - must match the live object.
-  serviceName: syncthing
-  replicas: 1
-  # IMMUTABLE - must match the live object.
   selector:
     matchLabels:
       app: syncthing
+  serviceName: syncthing
+  replicas: 1
   template:
     metadata:
       labels:
         app: syncthing
-        app.kubernetes.io/name: syncthing
     spec:
       terminationGracePeriodSeconds: 60
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: syncthing
-          # renovate: datasource=docker depName=syncthing/syncthing
-          image: syncthing/syncthing:2.1.2
-          imagePullPolicy: IfNotPresent
+          image: syncthing/syncthing:latest
+          ports:
+            - name: web-ui
+              containerPort: 8384
+            - name: syncthing-tcp
+              containerPort: 22000
+              protocol: TCP
+            - name: syncthing-udp
+              containerPort: 22000
+              protocol: UDP
+            - name: syncthing-disc
+              containerPort: 21027
+              protocol: UDP
+          volumeMounts:
+            - name: syncthing
+              mountPath: /var/syncthing
           env:
-            - name: TZ
-              value: Europe/Zurich
             - name: PUID
               value: "1000"
             - name: PGID
               value: "1000"
-          ports:
-            - name: web
-              containerPort: 8384
-              protocol: TCP
-            - name: sync-tcp
-              containerPort: 22000
-              protocol: TCP
-            - name: sync-udp
-              containerPort: 22000
-              protocol: UDP
-            - name: discovery
-              containerPort: 21027
-              protocol: UDP
-          volumeMounts:
-            - name: data
-              mountPath: /var/syncthing
-          readinessProbe:
-            httpGet:
-              path: /rest/noauth/health
-              port: web
-            initialDelaySeconds: 15
-            periodSeconds: 15
-          livenessProbe:
-            httpGet:
-              path: /rest/noauth/health
-              port: web
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            failureThreshold: 5
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              memory: 1Gi
       volumes:
-        # Standalone PVC, matching the live object. See the note at the top about
-        # why this is not a volumeClaimTemplate.
-        - name: data
+        - name: syncthing
           persistentVolumeClaim:
             claimName: syncthing-pvc
+            readOnly: false

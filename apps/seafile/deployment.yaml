@@ -1,53 +1,18 @@
-# Seafile.
-#
-# WHAT CHANGED
-#   - DB_ROOT_PASSWD and SEAFILE_ADMIN_PASSWORD were literal strings in git (and
-#     the DB password was duplicated from the MariaDB manifest). Both now come
-#     from Secrets. Both old values are compromised.
-#   - `rollingUpdate: null` removed. It was commented out with "this errors with
-#     argo for some reason": the reason is that `rollingUpdate` is invalid when
-#     `type: Recreate`, and an explicit null confuses server-side apply. Setting
-#     only `type: Recreate` is correct and the error goes away.
-#
-# ON THE IMAGE TAG
-#   Pinned to a concrete patch release, like every other image in this repo. The
-#   tag `11.0-latest` is a floating alias that Docker Hub re-points on each 11.0.x
-#   release, so a pod restart was an unreviewed upgrade. It survived the earlier
-#   pinning sweep because it does not end in `:latest`: neither the `.*:latest$`
-#   pattern nor kube-linter's `latest-tag` check (see .kube-linter.yaml) matches
-#   `11.0-latest`.
-#
-#   `seafileltd/seafile-mc` does publish orderable patch tags -- 11.0.9 through
-#   11.0.13 -- and 11.0.13 is a multi-arch manifest list covering linux/amd64 and
-#   linux/arm64/v8, which the RK1 nodes need. As of 2026-08-28 the tags
-#   `11.0.13` and `11.0-latest` resolve to the SAME manifest-list digest
-#   (sha256:1239b087aa4bdf1b60a3802e80855f230736ac5d5fa3325a40b15d4c598f422c), so
-#   this pin selects the image the cluster would have pulled anyway. Verify with:
-#
-#     crane digest seafileltd/seafile-mc:11.0.13
-#
-#   Note the `-arm` and `-testing` suffixed tags in that repository. They are not
-#   what this should point at: `11.0.13-arm` is the single-architecture variant and
-#   `11.0.13-testing` is a pre-release. Both sort as semver pre-releases and are
-#   therefore ignored by the `semver-coerced` versioning this repo defaults to,
-#   which is why no explicit `versioning=` is needed on the annotation below.
-#
-#   MOVING PAST 11.0 IS NOT A TAG CHANGE. Seafile requires running its own upgrade
-#   scripts inside the container, and MariaDB has its own constraint on top --
-#   see docs/runbooks/seafile-mariadb-upgrade.md before accepting any bump here.
-#
-#   RENOVATE IS CURRENTLY OFF FOR THIS IMAGE. `.github/renovate.json5` carries a
-#   packageRule for `seafileltd/seafile-mc` with `enabled: false`, written when the
-#   tag was floating and there was nothing to update. With a concrete pin there is,
-#   so that rule now suppresses real patch updates and should be removed.
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: seafile
-  namespace: seafile
   labels:
     app.kubernetes.io/name: seafile
+  name: seafile
+  namespace: seafile
 spec:
   replicas: 1
   strategy:
@@ -60,62 +25,42 @@ spec:
       labels:
         app.kubernetes.io/name: seafile
     spec:
-      securityContext:
-        fsGroup: 0
       containers:
         - name: seafile
-          # renovate: datasource=docker depName=seafileltd/seafile-mc
-          image: seafileltd/seafile-mc:11.0.13
-          imagePullPolicy: IfNotPresent
+          image: seafileltd/seafile-mc:11.0-latest
+          imagePullPolicy: Always
           env:
-            - name: TIME_ZONE
-              value: Europe/Zurich
             - name: DB_HOST
-              value: mariadb
+              value: "mariadb"
             - name: DB_ROOT_PASSWD
               valueFrom:
                 secretKeyRef:
-                  # Same Secret the MariaDB Deployment reads, so there is exactly
-                  # one copy of this password.
                   name: seafile-db
                   key: root-password
-            - name: SEAFILE_SERVER_HOSTNAME
-              value: drive.lilalala.com
-            # TLS is terminated at the Gateway, so Seafile must not try to get
-            # its own certificate.
+            - name: TIME_ZONE
+              value: "Europe/Zurich"
+            - name: SEAFILE_ADMIN_EMAIL
+              value: "nedsi@pm.me"
+            - name: SEAFILE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: seafile-admin
+                  key: SEAFILE_ADMIN_PASSWORD
             - name: SEAFILE_SERVER_LETSENCRYPT
               value: "false"
-          envFrom:
-            # Supplies SEAFILE_ADMIN_EMAIL and SEAFILE_ADMIN_PASSWORD.
-            - secretRef:
-                name: seafile-admin
+            - name: SEAFILE_SERVER_HOSTNAME
+              value: "https://drive.lilalala.com"
           ports:
             - name: http
               containerPort: 80
               protocol: TCP
-          volumeMounts:
-            - name: data
-              mountPath: /shared
-          readinessProbe:
-            httpGet:
-              path: /accounts/login/
-              port: http
-            initialDelaySeconds: 60
-            periodSeconds: 15
-            failureThreshold: 10
-          livenessProbe:
-            tcpSocket:
-              port: http
-            initialDelaySeconds: 240
-            periodSeconds: 30
-            failureThreshold: 5
           resources:
-            requests:
-              cpu: 100m
-              memory: 512Mi
             limits:
-              memory: 1536Mi
+              memory: "1000Mi"
+          volumeMounts:
+            - name: seafile-data
+              mountPath: /shared
       volumes:
-        - name: data
+        - name: seafile-data
           persistentVolumeClaim:
-            claimName: seafile-data
+            claimName: seafile-pvc

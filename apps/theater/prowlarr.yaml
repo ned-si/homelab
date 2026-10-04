@@ -1,12 +1,10 @@
-# Prowlarr - indexer aggregator. Feeds Sonarr/Radarr/Lidarr.
-#
-# Same shape as sonarr.yaml. Two differences worth noting:
-#
-#   - No /data mount. Prowlarr never touches media files; it only talks to
-#     indexers and pushes releases to the other *arr apps over HTTP. Giving it
-#     the media share would be pointless extra reach.
-#
-#   - Port 9696.
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -15,44 +13,18 @@ metadata:
   namespace: theater
 spec:
   instances: 1
-  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
   storage:
     size: 5Gi
-    storageClass: iscsi
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    requests:
-      cpu: 50m
-      memory: 192Mi
-    limits:
-      memory: 384Mi
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: prowlarr-config
-  namespace: theater
-spec:
-  storageClassName: iscsi
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prowlarr
-  namespace: theater
   labels:
     app.kubernetes.io/name: prowlarr
+  name: prowlarr
+  namespace: theater
 spec:
   replicas: 1
-  strategy:
-    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: prowlarr
@@ -61,14 +33,10 @@ spec:
       labels:
         app.kubernetes.io/name: prowlarr
     spec:
-      securityContext:
-        fsGroup: 1000
-        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: prowlarr
-          # renovate: datasource=docker depName=ghcr.io/hotio/prowlarr
-          image: ghcr.io/hotio/prowlarr:release-2.5.2.5491
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/hotio/prowlarr:latest
+          imagePullPolicy: Always
           env:
             - name: TZ
               value: Europe/Zurich
@@ -105,6 +73,8 @@ spec:
                 secretKeyRef:
                   name: prowlarr-postgresql-app
                   key: dbname
+            - name: PROWLARR__SERVER__URLBASE
+              value: /arr/prowlarr
           ports:
             - name: http
               containerPort: 9696
@@ -112,37 +82,33 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-          readinessProbe:
-            httpGet:
-              path: /ping
-              port: http
-            initialDelaySeconds: 20
-            periodSeconds: 15
-          livenessProbe:
-            httpGet:
-              path: /ping
-              port: http
-            initialDelaySeconds: 90
-            periodSeconds: 30
-            failureThreshold: 5
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              memory: 768Mi
       volumes:
         - name: config
           persistentVolumeClaim:
             claimName: prowlarr-config
 ---
 apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prowlarr-config
+  namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
 kind: Service
 metadata:
-  name: prowlarr
-  namespace: theater
   labels:
     app.kubernetes.io/name: prowlarr
+  name: prowlarr
+  namespace: theater
 spec:
   type: ClusterIP
   ports:
@@ -152,27 +118,3 @@ spec:
       protocol: TCP
   selector:
     app.kubernetes.io/name: prowlarr
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: prowlarr
-  namespace: theater
-spec:
-  parentRefs:
-    - name: shared
-      namespace: gateway
-      sectionName: https
-  hostnames:
-    - prowlarr.lilalala.com
-  rules:
-    # THROUGH THE SSO PROXY, not straight to the app. `prowlarr-sso` is an
-    # oauth2-proxy that authenticates against Keycloak and then forwards to
-    # prowlarr:9696. See apps/theater/sso.yaml.
-    #
-    # To bypass SSO -- for a diagnosis, or to revert -- change these two lines
-    # back to `name: prowlarr` / `port: 9696`. Nothing else in this file depends
-    # on the proxy.
-    - backendRefs:
-        - name: prowlarr-sso
-          port: 4180

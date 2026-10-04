@@ -1,16 +1,18 @@
-# Seafile's /shared: object store, config files and logs all in one volume.
-#
-# Worth knowing: Seafile's actual configuration (seahub_settings.py, ccnet.conf,
-# seafile.conf) lives INSIDE this volume, not in git. So Seafile is the one app
-# in this cluster whose config is not under version control. That is a property
-# of the upstream image, and it is a good reason to prefer Syncthing if it covers
-# your use case.
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: seafile-data
+  name: seafile-pvc
   namespace: seafile
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   storageClassName: iscsi
   accessModes:
@@ -18,3 +20,17 @@ spec:
   resources:
     requests:
       storage: 100Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mariadb-pvc
+  namespace: seafile
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

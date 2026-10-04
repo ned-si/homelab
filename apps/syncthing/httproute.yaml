@@ -18,5 +18,7 @@ spec:
     - syncthing.lilalala.com
   rules:
     - backendRefs:
-        - name: syncthing
+        - name: syncthing-dashboard
           port: 8384
+      timeouts:
+        request: 0s

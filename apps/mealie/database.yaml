@@ -1,3 +1,10 @@
+# Ported byte-for-byte in spec from the running cluster (legacy tree at the
+# all-apps pin), ADR 0002. Differences from live, all intended:
+#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
+#     value (per-key sha256 checked), which restarts the pod once on adoption;
+#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
+# Hardening (probes, security contexts, resources, image digests) is a later,
+# separate change: docs/roadmap.md.
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -6,20 +13,5 @@ metadata:
   namespace: mealie
 spec:
   instances: 1
-  # Pinned: an unset image means the operator's default, which shifts major
-  # version across operator upgrades and then refuses to start on existing data.
-  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.6
   storage:
     size: 5Gi
-    storageClass: iscsi
-  monitoring:
-    enablePodMonitor: true
-  resources:
-    requests:
-      cpu: 50m
-      memory: 192Mi
-    limits:
-      memory: 384Mi
-  backup:
-    retentionPolicy: 14d

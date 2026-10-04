@@ -2,36 +2,20 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: theater
 
+# Parity with the running cluster (ADR 0002). Kept in git, not rendered:
+#   bazarr.yaml  (new app, its own adoption change)
+#   sso.yaml, sso-routes.yaml  (oauth2-proxy SSO for the *arr UIs: new
+#                public hostnames, its own change)
+#   backup.yaml  (restic CronJobs, with off-site backups, ADR 0008)
+# recyclarr.yaml is rendered but ships suspended (spec.suspend: true) and
+# its API-key Secret holds PENDING sentinels.
 resources:
-  - qbittorrent.yaml
-  - prowlarr.yaml
   - sonarr.yaml
   - radarr.yaml
   - lidarr.yaml
-  # After the *arrs it reads from and before the players that consume what it
-  # writes, which is where it sits in the data flow this list is ordered by.
-  - bazarr.yaml
-  # Configures the two apps above rather than sitting in the media flow, so it
-  # follows them. Ships suspended -- see its header.
+  - prowlarr.yaml
+  - qbittorrent.yaml
   - recyclarr.yaml
-  # Five oauth2-proxy instances in front of the *arr UIs and qBittorrent. Listed
-  # before the players because plex.yaml and jellyfin.yaml are deliberately NOT
-  # behind it -- their TV clients cannot complete an OIDC redirect. See its header.
-  - sso.yaml
   - plex.yaml
   - jellyfin.yaml
-  # Six restic CronJobs for the /config volumes plus logical dumps of the four
-  # *arr Postgres clusters. This namespace previously had no backup of any kind
-  # -- see the header of backup.yaml.
-  - backup.yaml
-
-# `labels` with includeSelectors: false, NOT `commonLabels`.
-#
-# `commonLabels` also injects into Deployment.spec.selector.matchLabels, which is
-# IMMUTABLE once a Deployment exists. On this cluster -- where the Deployments
-# are already running -- that would make every sync fail with
-# "field is immutable" and require deleting and recreating each workload.
-labels:
-  - includeSelectors: false
-    pairs:
-      app.kubernetes.io/part-of: theater
+  - httproute.yaml

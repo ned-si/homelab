@@ -16,6 +16,4 @@ spec:
         - name: seafile
           port: 80
       timeouts:
-        # Large file uploads / syncs.
-        request: "0s"
-        backendRequest: "0s"
+        request: 0s
