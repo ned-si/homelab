@@ -1,0 +1,24 @@
+# Helm releases installed with the helm CLI rather than by an Argo CD
+# Application. CI renders each entry (scripts/ci/render_apps.py scope 4) and
+# validates the render with kubeconform. A live upgrade takes the chart
+# version from this file and the values from the listed file, both read with
+# `git show <sha>:<path>` at a CI-green commit on main.
+releases:
+  # Live: chart argo-cd 5.53.0 (Argo CD v2.9.3), helm revision 1.
+  - name: argocd
+    repo: https://argoproj.github.io/argo-helm
+    chart: argo-cd
+    version: 7.9.1
+    release: argocd
+    namespace: argo
+    values: bootstrap/argocd-values.yaml
+  # Live: chart cilium 1.16.3, helm revision 15. 1.17.18 is the latest 1.17
+  # patch in the repository index; chart digest
+  # 6a9a929a4bfa7a7cbb1fbb429514dde61fdf70622aac3adfd0bed8a4b09e34e9.
+  - name: cilium
+    repo: https://helm.cilium.io
+    chart: cilium
+    version: 1.17.18
+    release: cilium
+    namespace: kube-system
+    values: infrastructure/cilium/values.yaml
