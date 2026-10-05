@@ -59,7 +59,7 @@ data:
     # 52 slices, one per week, so a year gives complete pack coverage. Lower it
     # to read more per run and finish sooner, at proportionally more retrieval.
     SUBSET_TOTAL="${SUBSET_TOTAL:-52}"
-    export RESTIC_REPOSITORY="s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/${REPO_SUFFIX}"
+    export RESTIC_REPOSITORY="s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/${REPO_SUFFIX}"
     # Fresh scratch dir per repo so runs cannot contaminate each other.
     DEST="/scratch/${TAG}"
     rm -rf "$DEST" && mkdir -p "$DEST"

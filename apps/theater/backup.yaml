@@ -406,7 +406,7 @@ spec:
               command: ["/bin/sh", "/scripts/backup-config.sh", "theater-postgres", "/dumps"]
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
@@ -550,7 +550,7 @@ spec:
                 - --exclude=/config/Sentry
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
@@ -653,7 +653,7 @@ spec:
                 - --exclude=/config/Sentry
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
@@ -750,7 +750,7 @@ spec:
                 - --exclude=/config/Sentry
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
@@ -846,7 +846,7 @@ spec:
                 - --exclude=/config/Sentry
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
@@ -991,7 +991,7 @@ spec:
                 - --exclude=**/Updates
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
@@ -1131,7 +1131,7 @@ spec:
                 - --exclude=/config/db
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
@@ -1269,7 +1269,7 @@ spec:
                   /bin/sh /scripts/forget-and-check.sh
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/theater/configs
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
