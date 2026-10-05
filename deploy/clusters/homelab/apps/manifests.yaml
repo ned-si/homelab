@@ -72,6 +72,9 @@ spec:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -100,6 +103,9 @@ spec:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -128,6 +134,9 @@ spec:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -156,6 +165,9 @@ spec:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -184,6 +196,9 @@ spec:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     retry:
       backoff:
         duration: 5s
@@ -212,6 +227,9 @@ spec:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
     retry:
       backoff:
         duration: 5s
