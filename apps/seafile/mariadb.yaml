@@ -16,6 +16,15 @@ spec:
     matchLabels:
       app: mariadb
   replicas: 1
+  # One replica on a ReadWriteOnce claim: the old pod must stop before the new
+  # one can attach the volume, so never surge. (Recreate gives the same order
+  # but is rejected by server-side apply while the live object still carries
+  # the defaulted rollingUpdate block.)
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   template:
     metadata:
       labels:
