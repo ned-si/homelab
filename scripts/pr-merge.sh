@@ -36,7 +36,9 @@ CHECK_TITLE="$HERE/ci/check-title.sh"
 REPO=${PR_MERGE_REPO:-${GH_VAR_REPO:-ned-si/homelab}}
 export GH_VAR_REPO=$REPO
 REMOTE=${PR_MERGE_REMOTE:-origin}
-REQUIRED_CHECKS="yamllint actionlint shellcheck render repo-policy kubeconform gitleaks trivy tofu pr-title commits ci"
+# ci.yaml runs every check as a step of its single `ci` job, which fails if
+# any check failed or did not run.
+REQUIRED_CHECKS="ci"
 
 dry_run=0
 mode=squash
