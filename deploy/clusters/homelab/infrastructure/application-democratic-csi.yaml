@@ -33,6 +33,9 @@ spec:
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
     retry:
       backoff:
         duration: 5s

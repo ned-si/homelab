@@ -13,9 +13,8 @@ csiDriver:
 # The driver image, pinned by digest. The chart default is the moving `latest`
 # tag, and Kubernetes pulls `latest` on every pod start, so a restart could
 # bring up a different driver. The digest is the one the running pods use
-# (`latest` on 2026-10-05; no version tag carries it). The running pods
-# still have the plain `latest` tag, so this pin takes effect, and the
-# controller and node pods restart, at the first Argo CD sync.
+# (`latest` on 2026-10-05; no version tag carries it). Changing it restarts
+# the controller and every node pod.
 controller:
   driver:
     # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
