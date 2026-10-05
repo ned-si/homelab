@@ -25,6 +25,18 @@ spec:
     - /data/cluster-id
     kind: ConfigMap
     name: cilium-config
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: cilium-ca
+    namespace: kube-system
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: hubble-server-certs
+    namespace: kube-system
   project: infrastructure
   revisionHistoryLimit: 10
   sources:
@@ -42,3 +54,4 @@ spec:
     syncOptions:
     - CreateNamespace=true
     - ServerSideApply=true
+    - RespectIgnoreDifferences=true
