@@ -86,16 +86,15 @@ spec:
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"
-  # cilium and democratic-csi are helm-CLI releases; their leaves exist for
-  # `argocd app diff` only. A sync (even by hand) would apply the CSI driver
-  # Secret without the SOPS overlay and restart every iSCSI mount on a stub
-  # config, or re-render the CNI. This window denies every sync of the two,
-  # manual included, at all times. Remove it only when Argo CD owns them.
+  # cilium is still a helm-CLI release; its leaf exists for `argocd app diff`
+  # only, and a sync (even by hand) would re-render the CNI. This window denies
+  # every sync of it, manual included, at all times. Remove it only when Argo CD
+  # owns Cilium. democratic-csi left this window when Argo CD took it over from
+  # the helm release `iscsi`.
   syncWindows:
     - kind: deny
       schedule: "* * * * *"
       duration: 24h
       applications:
         - cilium
-        - democratic-csi
       manualSync: false
