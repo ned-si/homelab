@@ -36,7 +36,3 @@ resources:
   - legacy-ingress.yaml
   - gateway.yaml
   - democratic-csi.yaml
-
-# Adoption mode: no leaf syncs by itself (see the component).
-components:
-  - ../components/cutover
