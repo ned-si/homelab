@@ -46,7 +46,7 @@ their TV apps can sign in.
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
 | CloudNativePG | PostgreSQL for Immich, Keycloak, Mealie, Sonarr, Radarr, Lidarr and Prowlarr | Argo CD |
-| democratic-csi | iSCSI volumes on TrueNAS | Helm release `iscsi`, values in [`infrastructure/democratic-csi/values-iscsi.yaml`](infrastructure/democratic-csi/values-iscsi.yaml); driver config sealed in [`infrastructure/secrets/`](infrastructure/secrets) |
+| democratic-csi | iSCSI volumes on TrueNAS | Argo CD (release name `iscsi`), values in [`infrastructure/democratic-csi/values-iscsi.yaml`](infrastructure/democratic-csi/values-iscsi.yaml); driver config sealed in [`infrastructure/secrets/`](infrastructure/secrets) |
 | kube-prometheus-stack | Prometheus, Alertmanager, Grafana | Argo CD |
 
 The public WAN IP is set in one place only: `--default-targets` in
@@ -108,10 +108,10 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 
 Every Application tracks `main` and syncs automatically with self-heal, except
 `immich`. Immich is synced by hand, because an Immich upgrade runs database
-migrations that cannot be undone. `cilium` and `democratic-csi` are there only
-to show drift: they stay Helm CLI releases, and a sync window blocks any Argo CD
-sync of them. App leaves prune. The root, the layers, `namespaces` and the leaves
-that ship CRDs do not. Every PVC, CNPG Cluster, StatefulSet and Namespace
+migrations that cannot be undone. `cilium` is there only to show drift: it
+stays a Helm CLI release, and a sync window blocks any Argo CD sync of it. App
+leaves prune. The root, the layers, `namespaces`, `democratic-csi` and the
+leaves that ship CRDs do not. Every PVC, CNPG Cluster, StatefulSet and Namespace
 carries `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, and no
 Application has a cascading finalizer. The photo library PVC `immich/immich-data`
 is in no Application at all.
@@ -153,7 +153,7 @@ Every action is pinned to a commit SHA and every tool to a version and checksum.
 5. Two things are not automatic. `immich` is synced by hand
    (`argocd app sync immich`, see
    [docs/runbooks/immich-upgrade.md](docs/runbooks/immich-upgrade.md)). The Helm
-   CLI releases (`argocd`, `cilium`, `iscsi`) are upgraded by hand from a merged
+   CLI releases (`argocd`, `cilium`) are upgraded by hand from a merged
    commit, as described at the top of each values file.
 
 Check what is deployed:
@@ -163,8 +163,8 @@ kubectl -n argo get applications \
   -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REVISION:.status.sync.revision
 ```
 
-Expected output: every Application is `Synced` and `Healthy`, except `cilium`
-and `democratic-csi`, which show `OutOfSync` because they are never synced.
+Expected output: every Application is `Synced` and `Healthy`, except `cilium`,
+which shows `OutOfSync` because it is never synced.
 Single-source Applications show the SHA of the latest commit on `main`.
 Multi-source ones (the Helm charts) leave `REVISION` empty.
 

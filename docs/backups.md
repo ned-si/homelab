@@ -150,7 +150,7 @@ keeps it (the PV goes to `Released` and can be re-bound by hand).
 
 | What | Policy | How it got there |
 |---|---|---|
-| StorageClass `iscsi` (default) | `Delete` for new volumes | democratic-csi release `iscsi`. A StorageClass's `reclaimPolicy` is immutable, so it stays. |
+| StorageClass `iscsi` (default) | `Delete` for new volumes | democratic-csi (`infrastructure/democratic-csi/values-iscsi.yaml`). A StorageClass's `reclaimPolicy` is immutable, so it stays. |
 | StorageClass `iscsi-retain` | `Retain` for new volumes | `infrastructure/democratic-csi/values-iscsi.yaml`. Use it for every new data volume. |
 | 18 existing data PVs on `iscsi` (incl. `immich-data` and every CNPG volume) | `Retain` | Patched in place on 2026-10-04 (`spec.persistentVolumeReclaimPolicy`). |
 | `immich-machine-learning-cache`, `jellyfin-cache`, `plex-transcode` | `Delete` | Regenerable caches, left on purpose. |

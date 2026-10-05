@@ -6,8 +6,17 @@
 # driver config is not rendered here: it is the SOPS-sealed Secret applied by
 # `secrets-infrastructure`, read through `driver.existingConfigSecret`.
 #
-# Synced by hand for the takeover from the helm release; no `automated`
-# block yet.
+# Argo CD owns the lifecycle since 2026-10-05 (taken over from the helm
+# release by one manual sync). Automated sync with self-heal, but NO prune: a
+# pruned CSIDriver, StorageClass or node DaemonSet would cut every iSCSI
+# volume. Remove objects from this chart deliberately, by hand.
+#
+# The helm release Secrets `sh.helm.release.v1.iscsi.*` remain as stale
+# metadata; they are the rollback path (`helm rollback iscsi 9`). Never
+# `helm uninstall iscsi`: it deletes the driver and the StorageClasses.
+#
+# Fresh cluster: this Application installs the driver like any other leaf,
+# after `secrets-infrastructure` (wave -25) has created the driver config.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -35,6 +44,9 @@ spec:
     namespace: democratic-csi
   revisionHistoryLimit: 10
   syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
