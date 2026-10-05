@@ -1,29 +1,21 @@
-# democratic-csi chart 0.14.7 values for the helm-CLI release `iscsi`
-# (namespace democratic-csi), at parity with the running release.
+# democratic-csi chart 0.14.7 values for the `democratic-csi` Application
+# (release name `iscsi`, namespace democratic-csi), at parity with the
+# running release.
 #
 # The driver configuration (TrueNAS API key, SSH key, portal) is NOT here. It
-# lives in SOPS (infrastructure/democratic-csi/driver-config.sops.yaml, the
-# exact Secret the chart renders) and is turned back into a values overlay at
-# upgrade time:
-#
-#   helm upgrade iscsi democratic-csi \
-#     --repo https://democratic-csi.github.io/charts/ --version 0.14.7 \
-#     -n democratic-csi -f infrastructure/democratic-csi/values-iscsi.yaml \
-#     -f <(scripts/democratic-csi-values.sh)
-#
-# Only `driver.config.driver` is kept in plain text: the chart derives names
-# from it, and it is not secret. Argo CD renders this file alone, so its
-# diff-only Application shows the driver-config Secret as differing; that is
-# expected (the Application never syncs).
+# is the SOPS-sealed Secret iscsi-democratic-csi-driver-config
+# (infrastructure/secrets/democratic-csi-iscsi.sops.yaml), applied by the
+# `secrets-infrastructure` Application and read through
+# `driver.existingConfigSecret`, so the chart renders no Secret of its own.
 csiDriver:
   name: org.democratic-csi.iscsi
 
 # The driver image, pinned by digest. The chart default is the moving `latest`
 # tag, and Kubernetes pulls `latest` on every pod start, so a restart could
 # bring up a different driver. The digest is the one the running pods use
-# (`latest` on 2026-10-05; no version tag carries it). The running release
-# still has the plain `latest` tag, so this pin takes effect, and the
-# controller and node pods restart, at the next `helm upgrade` of `iscsi`.
+# (`latest` on 2026-10-05; no version tag carries it). The running pods
+# still have the plain `latest` tag, so this pin takes effect, and the
+# controller and node pods restart, at the first Argo CD sync.
 controller:
   driver:
     # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
@@ -34,6 +26,11 @@ node:
     image: docker.io/democraticcsi/democratic-csi:latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
 
 driver:
+  # Same name as the Secret the chart used to render, so the pods' volume
+  # does not change.
+  existingConfigSecret: iscsi-democratic-csi-driver-config
+  # Only `driver` is kept in plain text: the chart derives the iSCSI node
+  # settings from it, and it is not secret.
   config:
     driver: freenas-iscsi
 
