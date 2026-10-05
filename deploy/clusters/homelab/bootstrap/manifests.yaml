@@ -70,8 +70,6 @@ spec:
     kind: VolumeSnapshotClass
   - group: gateway.networking.k8s.io
     kind: GatewayClass
-  - group: networking.k8s.io
-    kind: IngressClass
   - group: admissionregistration.k8s.io
     kind: MutatingWebhookConfiguration
   - group: admissionregistration.k8s.io
@@ -89,7 +87,6 @@ spec:
   - https://charts.jetstack.io
   - https://kubernetes-sigs.github.io/external-dns/
   - https://democratic-csi.github.io/charts/
-  - https://kubernetes.github.io/ingress-nginx
   syncWindows:
   - applications:
     - cilium
