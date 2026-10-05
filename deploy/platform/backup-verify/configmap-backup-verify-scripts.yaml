@@ -146,7 +146,7 @@ data:
       externalClusters:
         - name: src
           barmanObjectStore:
-            destinationPath: s3://homelab-backups-REPLACE-ME/${SRC_NS}/postgres
+            destinationPath: s3://ned-si-homelab-backups/${SRC_NS}/postgres
             endpointURL: https://s3.eu-central-1.amazonaws.com
             serverName: $SRC
             s3Credentials:
