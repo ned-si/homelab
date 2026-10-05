@@ -30,7 +30,8 @@ objects and rule ids only; values are never printed.
                         are guarded (initContainers[0] pending-guard, see
                         check_guard); ci/guard-modes.txt entries exist and use a
                         known mode
-  root-profiles         clusters/homelab/root.yaml passes `root`,
+  root-profiles         clusters/homelab/root.yaml and bootstrap/root-app.yaml pass
+                        `root` and are the same Application;
                         clusters/homelab/legacy/all-apps.yaml passes `legacy-root`
   cilium-version        the cilium Application's chart version equals the cilium
                         entry of ci/helm-releases.yaml
@@ -283,7 +284,9 @@ class Policy:
                 self.fail("guard-modes", f"ci/guard-modes.txt: {key} is not a rendered guarded CronJob (stale entry)")
 
     def rule_root_profiles(self) -> None:
-        for rel, profile in (("clusters/homelab/root.yaml", "root"), ("clusters/homelab/legacy/all-apps.yaml", "legacy-root")):
+        found = {}
+        for rel, profile in (("clusters/homelab/root.yaml", "root"), ("bootstrap/root-app.yaml", "root"),
+                             ("clusters/homelab/legacy/all-apps.yaml", "legacy-root")):
             p = self.root / rel
             if not p.is_file():
                 continue
@@ -292,9 +295,14 @@ class Policy:
             if len(apps) != 1:
                 self.fail("root-profiles", f"{rel}: expected exactly one Application, found {len(apps)}")
                 continue
+            found[rel] = apps[0]
             check = app_profiles.check_root if profile == "root" else app_profiles.check_legacy_root
             for problem in check(apps[0]):
                 self.fail("root-profiles", f"{rel} ({profile}): {problem}")
+        # bootstrap/root-app.yaml is the file applied by hand at bootstrap; it must be the same object as the root.
+        a, b = found.get("clusters/homelab/root.yaml"), found.get("bootstrap/root-app.yaml")
+        if a is not None and b is not None and a != b:
+            self.fail("root-profiles", "bootstrap/root-app.yaml is not the same Application as clusters/homelab/root.yaml")
 
     def rule_cilium_version(self) -> None:
         hr = self.root / "ci/helm-releases.yaml"
