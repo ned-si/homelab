@@ -20,9 +20,13 @@ age.agekey
 # Crib sheet written by scripts/secrets-inventory.sh. Contains LIVE credentials
 # in plaintext. The script refuses to run if this is not ignored.
 secrets-to-encrypt.local.md
-*.local.md
-*.local.txt
-*.local.yaml
+# Any `<name>.local.<ext>` file is a local-only working copy (plaintext secrets,
+# password-manager exports). Covers *.local.env below as well.
+*.local.*
+
+# Personal notes kept beside the docs; never published.
+/docs/logs/
+/docs/todo.md
 
 # Kubeconfigs
 kubeconfig*
