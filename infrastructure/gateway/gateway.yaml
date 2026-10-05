@@ -41,13 +41,18 @@ spec:
       protocol: HTTPS
       port: 443
       hostname: "*.lilalala.com"
+      # The `group` fields are the API server's defaults, spelled out so that
+      # Argo CD's diff (server-side apply, no last-applied annotation) sees no
+      # drift.
       tls:
         mode: Terminate
         certificateRefs:
-          - kind: Secret
+          - group: ""
+            kind: Secret
             name: wildcard-lilalala-tls
       allowedRoutes:
         namespaces:
           from: All
         kinds:
-          - kind: HTTPRoute
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute

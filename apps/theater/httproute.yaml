@@ -13,8 +13,12 @@ metadata:
   name: theater
   namespace: theater
 spec:
+  # group/kind/weight and the catch-all match are the API server's defaults,
+  # spelled out so that Argo CD's diff sees no drift.
   parentRefs:
-    - name: shared
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
       namespace: gateway
       sectionName: https
   hostnames:
@@ -25,8 +29,11 @@ spec:
             type: PathPrefix
             value: /arr/radarr
       backendRefs:
-        - name: radarr
+        - group: ""
+          kind: Service
+          name: radarr
           port: 7878
+          weight: 1
       timeouts:
         request: 0s
     - matches:
@@ -34,8 +41,11 @@ spec:
             type: PathPrefix
             value: /arr/sonarr
       backendRefs:
-        - name: sonarr
+        - group: ""
+          kind: Service
+          name: sonarr
           port: 8989
+          weight: 1
       timeouts:
         request: 0s
     - matches:
@@ -43,8 +53,11 @@ spec:
             type: PathPrefix
             value: /arr/prowlarr
       backendRefs:
-        - name: prowlarr
+        - group: ""
+          kind: Service
+          name: prowlarr
           port: 9696
+          weight: 1
       timeouts:
         request: 0s
     - matches:
@@ -52,8 +65,11 @@ spec:
             type: PathPrefix
             value: /arr/lidarr
       backendRefs:
-        - name: lidarr
+        - group: ""
+          kind: Service
+          name: lidarr
           port: 8686
+          weight: 1
       timeouts:
         request: 0s
     - matches:
@@ -61,8 +77,11 @@ spec:
             type: PathPrefix
             value: /
       backendRefs:
-        - name: plex
+        - group: ""
+          kind: Service
+          name: plex
           port: 32400
+          weight: 1
       timeouts:
         request: 0s
 ---
@@ -72,15 +91,26 @@ metadata:
   name: jellyfin
   namespace: theater
 spec:
+  # group/kind/weight and the catch-all match are the API server's defaults,
+  # spelled out so that Argo CD's diff sees no drift.
   parentRefs:
-    - name: shared
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
       namespace: gateway
       sectionName: https
   hostnames:
     - cinema.lilalala.com
   rules:
-    - backendRefs:
-        - name: jellyfin
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: jellyfin
           port: 8096
+          weight: 1
       timeouts:
         request: 0s
