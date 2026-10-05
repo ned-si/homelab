@@ -147,7 +147,7 @@ metadata:
   namespace: argo
 spec:
   destination:
-    namespace: default
+    namespace: theater
     server: https://kubernetes.default.svc
   project: apps
   revisionHistoryLimit: 10
