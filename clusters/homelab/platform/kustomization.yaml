@@ -9,7 +9,3 @@ resources:
   - cnpg.yaml
   - kube-prometheus-stack.yaml
   - keycloak.yaml
-
-# Adoption mode: no leaf syncs by itself.
-components:
-  - ../components/cutover
