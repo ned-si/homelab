@@ -86,15 +86,6 @@ spec:
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"
-  # cilium is still a helm-CLI release; its leaf exists for `argocd app diff`
-  # only, and a sync (even by hand) would re-render the CNI. This window denies
-  # every sync of it, manual included, at all times. Remove it only when Argo CD
-  # owns Cilium. democratic-csi left this window when Argo CD took it over from
-  # the helm release `iscsi`.
-  syncWindows:
-    - kind: deny
-      schedule: "* * * * *"
-      duration: 24h
-      applications:
-        - cilium
-      manualSync: false
+  # No sync windows. A deny window kept Argo CD off the helm-CLI releases
+  # `cilium` and `iscsi` (democratic-csi) until Argo CD took each of them over
+  # with one manual sync on 2026-10-05.
