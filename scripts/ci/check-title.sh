@@ -2,7 +2,7 @@
 # check-title.sh <subject>
 #
 # The one implementation of the commit-subject / PR-title rule. Used by the
-# `pr-title` and `commits` CI jobs and by scripts/pr-merge.sh.
+# `pr-title` and `commits` CI steps and by scripts/pr-merge.sh.
 #
 # A subject passes when it matches the Conventional Commits regex below AND is
 # shorter than 70 characters. The regex alone does not bound a long scope, so

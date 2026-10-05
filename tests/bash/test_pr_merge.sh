@@ -23,7 +23,8 @@ git -C "$tmp/work" -c commit.gpgsign=false commit -q --allow-empty -m "ci: add b
 git -C "$tmp/work" push -q origin feature
 HEAD_SHA=$(git -C "$tmp/work" rev-parse HEAD)
 
-CHECKS="yamllint actionlint shellcheck render repo-policy kubeconform gitleaks trivy tofu pr-title commits ci"
+# `ci` is the required check; `dast` stands for any other, unrequired one.
+CHECKS="dast ci"
 
 setup() { # name
   export FAKE_GH_DIR="$tmp/$1"
@@ -84,20 +85,26 @@ expect_eq "--ff with protection 403 -> exit 0" 0 "$rc"
 expect_contains "--ff with protection 403 -> would merge (ff)" "would merge (ff) PR #7" "$out"
 
 setup checkfail
-sed -i.bak 's/"name":"kubeconform","state":"SUCCESS"/"name":"kubeconform","state":"FAILURE"/' "$FAKE_GH_DIR/pr-checks.json"
+sed -i.bak 's/"name":"ci","state":"SUCCESS"/"name":"ci","state":"FAILURE"/' "$FAKE_GH_DIR/pr-checks.json"
 echo 1 > "$FAKE_GH_DIR/pr-checks.exit"
 run_merge --dry-run 7
 expect_eq "failing check -> exit 2" 2 "$rc"
-expect_contains "failing check -> checks guard" "refused: checks: kubeconform is FAILURE" "$out"
+expect_contains "failing check -> checks guard" "refused: checks: ci is FAILURE" "$out"
+
+setup unrequiredfail
+sed -i.bak 's/"name":"dast","state":"SUCCESS"/"name":"dast","state":"FAILURE"/' "$FAKE_GH_DIR/pr-checks.json"
+echo 1 > "$FAKE_GH_DIR/pr-checks.exit"
+run_merge --dry-run 7
+expect_eq "failing unrequired check -> exit 0" 0 "$rc"
 
 setup missingcheck
-sed -i.bak 's/{"name":"commits","state":"SUCCESS","startedAt":"2026-10-04T07:00:00Z","link":"x"},//' "$FAKE_GH_DIR/pr-checks.json"
+sed -i.bak 's/,{"name":"ci","state":"SUCCESS","startedAt":"2026-10-04T07:00:00Z","link":"x"}//' "$FAKE_GH_DIR/pr-checks.json"
 run_merge --dry-run 7
-expect_contains "missing check -> checks guard" "refused: checks: commits is MISSING" "$out"
+expect_contains "missing check -> checks guard" "refused: checks: ci is MISSING" "$out"
 
 setup rerun
 # An older cancelled run of the same check is superseded by the newer success.
-sed -i.bak 's/^\[/[{"name":"render","state":"CANCELLED","startedAt":"2026-10-04T06:00:00Z","link":"x"},/' "$FAKE_GH_DIR/pr-checks.json"
+sed -i.bak 's/^\[/[{"name":"ci","state":"CANCELLED","startedAt":"2026-10-04T06:00:00Z","link":"x"},/' "$FAKE_GH_DIR/pr-checks.json"
 run_merge --dry-run 7
 expect_eq "superseded cancelled run -> exit 0" 0 "$rc"
 

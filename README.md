@@ -119,21 +119,24 @@ is in no Application at all.
 ## CI
 
 Every pull request and every push to `main` runs
-[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml). The aggregate check
-`ci` passes only when every job passes:
+[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml): one job, `ci`, with
+one step per check. Every check runs even when an earlier one fails, and the
+job fails if any check failed. One job instead of twelve because GitHub bills
+each job rounded up to a whole minute.
 
-- `yamllint`, `actionlint`, `shellcheck`.
-- `render`: unit tests, then renders every Application and Helm release.
-- `kubeconform`: strict schema validation of the render against Kubernetes
-  1.32.13 and the vendored CRD schemas.
-- `repo-policy`: pinned actions and repository invariants.
+- `pr-title`, `commits` (pull requests only): Conventional Commits, titles
+  under 70 characters, every commit signed and verified.
 - `gitleaks`: secret scan of the new commits.
+- `yamllint`, `actionlint`, `shellcheck`.
 - `trivy`: config scan. CRITICAL fails; HIGH fails only when it increases
   against the merge base. Waivers in [`.trivyignore.yaml`](.trivyignore.yaml)
   are scoped and expire.
+- Unit tests (pytest and bash), then a render of every Application and Helm
+  release.
+- `kubeconform`: strict schema validation of the render against Kubernetes
+  1.32.13 and the vendored CRD schemas.
+- `repo-policy`: pinned actions and repository invariants.
 - `tofu`: `fmt` and `validate`.
-- `pr-title`, `commits`: Conventional Commits, titles under 70 characters,
-  every commit signed and verified.
 
 Every action is pinned to a commit SHA and every tool to a version and checksum.
 
