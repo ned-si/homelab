@@ -1,13 +1,13 @@
 # democratic-csi: the iSCSI CSI driver and StorageClasses `iscsi` and
 # `iscsi-retain`, backed by TrueNAS.
 #
-# DIFF VISIBILITY ONLY. The driver is the helm-CLI release `iscsi` (chart
-# 0.14.7) and stays one: this Application has no `automated` block and is
-# never synced, because a second controller for the same CSI driver, or a
-# wrong driver config, would affect every PVC. Upgrade with `helm upgrade`
-# as described in infrastructure/democratic-csi/values-iscsi.yaml; the driver
-# config comes from SOPS (scripts/democratic-csi-values.sh). Argo CD renders
-# the plain values only, so it shows the driver-config Secret as differing.
+# The chart is rendered with release name `iscsi`, the name of the helm-CLI
+# release that installed it, so every object keeps its name and selector. The
+# driver config is not rendered here: it is the SOPS-sealed Secret applied by
+# `secrets-infrastructure`, read through `driver.existingConfigSecret`.
+#
+# Not synced yet: the sync window in project-infrastructure.yaml still denies
+# every sync of this leaf, until Argo CD takes it over from the helm release.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
