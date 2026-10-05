@@ -11,9 +11,7 @@ kind: Kustomization
 #     0  cert-manager      its CRDs must be established before issuers appear
 #     5  cert-manager-issuers
 #    10  external-dns      publishes the public hostnames
-#    12  nginx             ingress-nginx, until the Gateway takes over .254
-#    13  legacy-ingress    the eight all-apps Ingresses (ADR 0011)
-#    15  gateway           the shared Gateway, parallel on .202 (ADR 0007)
+#    15  gateway           the shared Gateway on .254 (ADR 0007)
 #    20  democratic-csi    diff only: helm-CLI release, never synced
 #
 # Kept in git, not part of the layer yet (each is new behaviour and ships in
@@ -32,7 +30,5 @@ resources:
   - cert-manager.yaml
   - cert-manager-issuers.yaml
   - external-dns.yaml
-  - nginx.yaml
-  - legacy-ingress.yaml
   - gateway.yaml
   - democratic-csi.yaml

@@ -47,8 +47,7 @@ selectors (`infrastructure/cilium/ip-pools.yaml`):
 
 Addresses that something depends on are pinned on the Service with the
 `lbipam.cilium.io/ips` annotation: `.200` qbittorrent-seed, `.201`
-syncthing-protocol, `.203` ingress-nginx (no public role, until removed),
-`.254` the Gateway.
+syncthing-protocol, `.254` the Gateway.
 LB-IPAM keeps an allocation that matches the request, so adding a pin equal to
 the current address moves nothing.
 
@@ -68,9 +67,8 @@ the two is on the [roadmap](roadmap.md). L2 announcements do not work with
 
 The Gateway API, implemented by Cilium (already the CNI; Cilium 1.17, Gateway
 API v1.2 CRDs, GatewayClass `cilium`), serves the ten public hostnames. It
-replaces ingress-nginx (chart 4.11.3, retired upstream), which still runs on
-`.203` with its ten Ingresses but receives no public traffic until it is
-removed.
+replaced ingress-nginx (retired upstream), which is removed along with its
+Ingresses (ADR 0011).
 
 The shared Gateway (`infrastructure/gateway/`):
 
@@ -89,10 +87,8 @@ The shared Gateway (`infrastructure/gateway/`):
   size limit.
 - Theater mirrors the Ingress paths: `/` -> Plex, `/arr/<app>` -> each *arr app
   (they run with URL base `/arr/<app>`).
-- Argo CD's route targets `argocd-server:80` and works once Argo CD runs with
-  `server.insecure: true` (its own change); until then the legacy Ingress
-  serves it.
-
+- Argo CD's route targets `argocd-server:80` (Argo CD runs with
+  `server.insecure: true`).
 - The redirect's `Location` carries `:443` (`https://<host>:443/`): Cilium
   sets the port explicitly. Same URL; the smoke suite compares URLs without
   default ports.
@@ -100,8 +96,8 @@ The shared Gateway (`infrastructure/gateway/`):
 Sequence (ADR 0007): parallel run on `.202`, proven per hostname with
 `curl --resolve <host>:443:192.168.1.202 https://<host>/`; then one change
 swapped the pins (ingress-nginx `.254` -> `.203`, Gateway `.202` -> `.254`), so
-the router forwards stay valid; revert = swap back. ingress-nginx and its
-Ingresses are removed afterwards, in their own change.
+the router forwards stay valid. ingress-nginx and its Ingresses were removed
+afterwards, in their own change.
 
 ## DNS
 

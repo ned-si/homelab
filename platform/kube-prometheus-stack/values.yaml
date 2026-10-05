@@ -42,17 +42,7 @@ grafana:
       token_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/token
       api_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/userinfo
       role_attribute_path: contains(roles[*], 'admin') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
-  # The live Ingress, kept until ingress-nginx is removed (ADR 0011). The
-  # Gateway route is in routes/grafana.yaml.
+  # No Ingress: grafana.lilalala.com is served by the shared Gateway
+  # (routes/grafana.yaml). ingress-nginx is removed (ADR 0011).
   ingress:
-    ingressClassName: nginx
-    enabled: true
-    annotations:
-      cert-manager.io/cluster-issuer: letsencrypt
-    hosts:
-      - grafana.lilalala.com
-    pathType: ImplementationSpecific
-    tls:
-      - secretName: grafana-general-tls
-        hosts:
-          - grafana.lilalala.com
+    enabled: false

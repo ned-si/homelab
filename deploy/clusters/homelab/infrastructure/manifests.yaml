@@ -286,37 +286,6 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   annotations:
-    argocd.argoproj.io/sync-wave: "13"
-  name: legacy-ingress
-  namespace: argo
-spec:
-  destination:
-    namespace: ingress
-    server: https://kubernetes.default.svc
-  project: infrastructure
-  revisionHistoryLimit: 10
-  source:
-    path: deploy/infrastructure/legacy-ingress
-    repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    retry:
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-      limit: 5
-    syncOptions:
-    - CreateNamespace=true
-    - ServerSideApply=true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  annotations:
     argocd.argoproj.io/sync-wave: "-30"
   name: namespaces
   namespace: argo
@@ -343,43 +312,6 @@ spec:
     syncOptions:
     - CreateNamespace=true
     - ServerSideApply=true
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  annotations:
-    argocd.argoproj.io/sync-wave: "12"
-  name: nginx
-  namespace: argo
-spec:
-  destination:
-    namespace: ingress
-    server: https://kubernetes.default.svc
-  project: infrastructure
-  revisionHistoryLimit: 10
-  sources:
-  - chart: ingress-nginx
-    helm:
-      releaseName: ingress-nginx
-      valueFiles:
-      - $values/infrastructure/ingress-nginx/values.yaml
-    repoURL: https://kubernetes.github.io/ingress-nginx
-    targetRevision: 4.11.3
-  - ref: values
-    repoURL: https://github.com/ned-si/homelab.git
-    targetRevision: main
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    retry:
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-      limit: 5
-    syncOptions:
-    - CreateNamespace=true
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
