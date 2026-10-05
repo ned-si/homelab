@@ -1,12 +1,10 @@
 # Cilium: CNI, kube-proxy replacement, L2 announcements, Gateway API controller.
 #
-# DIFF VISIBILITY ONLY. Cilium is a helm-CLI release (`cilium` in kube-system):
-# it is installed by the OpenTofu bootstrap on a new cluster and upgraded with
-# `helm upgrade` using the chart version from ci/helm-releases.yaml and the
-# values from infrastructure/cilium/values.yaml, both read from a CI-green
-# commit on main. This Application has no `automated` block, so Argo CD shows
-# drift between git and the release but never syncs the CNI by itself. CI
-# (repo-policy `cilium-version`) keeps its chart version equal to
+# Being taken over from the helm-CLI release `cilium` (kube-system), which the
+# OpenTofu bootstrap installs on a new cluster. The chart is rendered with the
+# same release name and values file, so every object keeps its name. No sync
+# window any more; synced by hand for the takeover, no `automated` block yet.
+# CI (repo-policy `cilium-version`) keeps the chart version equal to
 # ci/helm-releases.yaml.
 #
 # Upgrade one minor at a time (1.16 -> 1.17 -> 1.18 ...); see
