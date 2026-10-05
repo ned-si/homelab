@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/seafile
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/seafile and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memcached
+  namespace: seafile
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memcached
+  template:
+    metadata:
+      labels:
+        app: memcached
+    spec:
+      containers:
+      - args:
+        - -m
+        - "256"
+        image: memcached:1.6.18
+        name: memcached
+        ports:
+        - containerPort: 11211

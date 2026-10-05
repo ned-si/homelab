@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: sonarr
+  name: sonarr
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 8989
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: sonarr
+  type: ClusterIP

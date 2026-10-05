@@ -1,0 +1,102 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postgres
+  namespace: theater
+spec:
+  description: 'CloudNativePG instances in theater: reachable by their own application
+    and by the operator, egress to the Kubernetes API only.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "6443"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: cnpg.io/cluster
+      operator: Exists
+  ingress:
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+        - prowlarr
+        - bazarr
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: cloudnative-pg
+        io.kubernetes.pod.namespace: cnpg-system
+    toPorts:
+    - ports:
+      - port: "8000"
+        protocol: TCP
+      - port: "5432"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+      - port: "8000"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "9187"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP

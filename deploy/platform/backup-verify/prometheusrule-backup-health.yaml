@@ -1,0 +1,248 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: backup-health
+  namespace: backup-verify
+spec:
+  groups:
+  - name: backup.verification.rules
+    rules:
+    - alert: BackupVerificationFailed
+      annotations:
+        description: 'A weekly restore test failed. This means a backup may not be
+          restorable. Treat as data-loss risk, not as a flaky job. Runbook: docs/backups.md#when-verification-fails'
+        summary: Backup restore verification FAILED ({{ $labels.job_name }})
+      expr: |
+        max by (namespace, job_name) (kube_job_failed{namespace="backup-verify", condition="true"}) > 0
+      for: 15m
+      labels:
+        severity: critical
+    - alert: BackupVerificationStale
+      annotations:
+        description: 'The {{ $labels.owner_name }} CronJob has not completed successfully
+          for two weeks. Either it is not running, or every run is failing. Check:
+          kubectl -n backup-verify get jobs'
+        summary: No successful backup verification in 14 days ({{ $labels.owner_name
+          }})
+      expr: |
+        time() - max by (owner_name) (
+          kube_job_status_completion_time{namespace="backup-verify"}
+          * on (namespace, job_name) group_left (owner_name)
+            kube_job_owner{namespace="backup-verify", owner_kind="CronJob"}
+        ) > 14 * 24 * 3600
+      for: 1h
+      labels:
+        severity: critical
+    - alert: BackupVerificationNeverRan
+      annotations:
+        description: 'No Job in the backup-verify namespace has ever reached completion.
+          Every backup in this cluster is therefore an untested hypothesis. Most likely:
+          the S3 bucket and credentials do not exist yet (docs/backups.md, ''Setup,
+          start to finish''), or the `s3-backup` Secret is missing from the backup-verify
+          namespace.'
+        summary: Backup verification has NEVER completed successfully
+      expr: |
+        absent(kube_job_status_completion_time{namespace="backup-verify"})
+      for: 6h
+      labels:
+        severity: critical
+    - alert: BackupVerificationCronJobSuspended
+      annotations:
+        description: Someone suspended it, probably temporarily. Nothing else in this
+          rule group can tell you that verification has stopped, because a suspended
+          CronJob creates no Jobs to fail.
+        summary: Backup verification CronJob is SUSPENDED ({{ $labels.cronjob }})
+      expr: |
+        kube_cronjob_spec_suspend{namespace="backup-verify"} == 1
+      for: 30m
+      labels:
+        severity: warning
+  - name: backup.postgres.rules
+    rules:
+    - alert: PostgresBackupFailed
+      annotations:
+        description: The most recent backup attempt failed and is newer than the most
+          recent successful one. Recovery is still possible to the older point, but
+          the window is no longer growing.
+        summary: CloudNativePG backup failing for {{ $labels.namespace }}/{{ $labels.pod
+          }}
+      expr: |
+        cnpg_collector_last_failed_backup_timestamp
+          > cnpg_collector_last_available_backup_timestamp
+      for: 30m
+      labels:
+        severity: critical
+    - alert: PostgresBackupNeverSucceeded
+      annotations:
+        description: Barman has never written a base backup for this cluster. There
+          is no point-in-time recovery and no snapshot to fall back to.
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} has NEVER had a successful
+          backup'
+      expr: |
+        cnpg_collector_last_available_backup_timestamp == 0
+      for: 2h
+      labels:
+        severity: critical
+    - alert: PostgresClusterHasNoBackupConfigured
+      annotations:
+        description: This Postgres cluster is running and scraped, but publishes no
+          backup timestamp -- it has no spec.backup.barmanObjectStore, so barman is
+          not archiving anything for it. Add the block to its Cluster manifest (copy
+          platform/keycloak/database.yaml) and a ScheduledBackup alongside it.
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} has NO object-store backup
+          configured'
+      expr: |
+        (cnpg_collector_up == 1)
+        unless on (namespace, pod)
+        cnpg_collector_last_available_backup_timestamp
+      for: 6h
+      labels:
+        severity: critical
+    - alert: PostgresBackupStale
+      annotations:
+        description: Nightly base backups run at 02:30. More than 36h without one
+          means two consecutive failures.
+        summary: No Postgres base backup in 36h ({{ $labels.namespace }})
+      expr: |
+        time() - cnpg_collector_last_available_backup_timestamp > 36 * 3600
+      for: 1h
+      labels:
+        severity: critical
+    - alert: PostgresBackupMetricsAbsent
+      annotations:
+        description: 'No cnpg_collector_up series exists, so every Postgres backup
+          alert in this repository is inert. Check the PodMonitors (kubectl get podmonitor
+          -A) and that Prometheus still has podMonitorSelectorNilUsesHelmValues: false.'
+        summary: CloudNativePG metrics are not being scraped AT ALL
+      expr: |
+        absent(cnpg_collector_up)
+      for: 30m
+      labels:
+        severity: critical
+    - alert: PostgresClusterUnhealthy
+      annotations:
+        description: The CloudNativePG instance manager is up but cannot query its
+          own PostgreSQL. The database is down, not merely unmonitored.
+        summary: Postgres not answering in {{ $labels.namespace }}/{{ $labels.pod
+          }}
+      expr: |
+        cnpg_collector_up == 0
+      for: 10m
+      labels:
+        severity: critical
+    - alert: PostgresWALArchiveFailing
+      annotations:
+        description: Point-in-time recovery is broken while this fires, and WAL will
+          accumulate on the data volume until it fills. This can take the database
+          down on its own -- treat it as more urgent than a failed base backup.
+        summary: WAL archiving failing ({{ $labels.namespace }}/{{ $labels.pod }})
+      expr: |
+        increase({__name__=~"cnpg_(collector_)?pg_stat_archiver_failed_count"}[1h]) > 0
+      for: 15m
+      labels:
+        severity: critical
+    - alert: PostgresWALArchiveMetricAbsent
+      annotations:
+        description: 'This cluster archives to an object store but publishes no pg_stat_archiver
+          counter under either spelling, so PostgresWALArchiveFailing cannot fire
+          for it. Find the real name: kubectl -n {{ $labels.namespace }} exec {{ $labels.pod
+          }} -c postgres -- curl -s localhost:9187/metrics | grep archiver'
+        summary: No WAL-archiver metric for {{ $labels.namespace }}/{{ $labels.pod
+          }}
+      expr: |
+        (cnpg_collector_last_available_backup_timestamp > 0)
+        unless on (namespace, pod)
+        {__name__=~"cnpg_(collector_)?pg_stat_archiver_failed_count"}
+      for: 1h
+      labels:
+        severity: warning
+    - alert: PostgresWALArchiveBacklog
+      annotations:
+        description: 'No WAL segment has been archived for over 4 hours. Unarchived
+          WAL is retained on the data volume; check pg_wal usage before this becomes
+          a disk-full outage: kubectl -n {{ $labels.namespace }} exec {{ $labels.pod
+          }} -c postgres -- df -h /var/lib/postgresql/data'
+        summary: WAL archive backlog in {{ $labels.namespace }}/{{ $labels.pod }}
+      expr: |
+        {__name__=~"cnpg_(collector_)?pg_stat_archiver_seconds_since_last_archival"} > 4 * 3600
+      for: 30m
+      labels:
+        severity: critical
+  - name: backup.files.rules
+    rules:
+    - alert: FileBackupJobFailed
+      annotations:
+        description: 'A restic CronJob gave up after its retries. Check the log: kubectl
+          -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}'
+        summary: 'File backup job failing: {{ $labels.namespace }}/{{ $labels.job_name
+          }}'
+      expr: |
+        max by (namespace, job_name) (
+          kube_job_failed{namespace!="backup-verify", job_name=~".*backup.*", condition="true"}
+        ) > 0
+      for: 30m
+      labels:
+        severity: warning
+    - alert: FileBackupNotRunRecently
+      annotations:
+        description: 'The CronJob controller has not created a Job for this schedule.
+          Nothing failed -- nothing ran. Check kubectl -n {{ $labels.namespace }}
+          describe cronjob {{ $labels.cronjob }} for a missed startingDeadlineSeconds
+          or concurrencyPolicy: Forbid blocking on a wedged previous run.'
+        summary: Backup CronJob has not been scheduled in 36h ({{ $labels.namespace
+          }}/{{ $labels.cronjob }})
+      expr: |
+        time() - kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"} > 36 * 3600
+      for: 1h
+      labels:
+        severity: critical
+    - alert: FileBackupCronJobSuspended
+      annotations:
+        summary: Backup CronJob is SUSPENDED ({{ $labels.namespace }}/{{ $labels.cronjob
+          }})
+      expr: |
+        kube_cronjob_spec_suspend{namespace!="backup-verify", cronjob=~".*backup.*"} == 1
+      for: 30m
+      labels:
+        severity: warning
+    - alert: FileBackupCronJobsAbsent
+      annotations:
+        description: kube-state-metrics reports no CronJob whose name contains 'backup'.
+          Either nothing is backing anything up, or kube-state-metrics is not being
+          scraped -- both are worth interrupting whatever you were doing.
+        summary: No backup CronJobs exist in this cluster
+      expr: |
+        absent(kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"})
+      for: 2h
+      labels:
+        severity: critical
+  - name: backup.correlation.rules
+    rules:
+    - alert: BackupCredentialUnusable
+      annotations:
+        description: 'Multiple unrelated Postgres clusters stopped backing up at the
+          same time. They share exactly one thing: the `s3-backup` Secret and the
+          bucket it points at. Check the bucket still exists, the IAM key is active,
+          and `homelab-backups-REPLACE-ME` has actually been replaced (task backup:set-target).'
+        summary: Two or more databases are failing to back up -- suspect the shared
+          credential
+      expr: |
+        count(
+          cnpg_collector_last_failed_backup_timestamp
+            > cnpg_collector_last_available_backup_timestamp
+        ) >= 2
+      for: 30m
+      labels:
+        severity: critical

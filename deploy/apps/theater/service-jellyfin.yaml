@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: jellyfin
+  name: jellyfin
+  namespace: theater
+spec:
+  ports:
+  - name: http
+    port: 8096
+    protocol: TCP
+    targetPort: http
+  - name: udp
+    port: 7359
+    protocol: UDP
+    targetPort: udp
+  selector:
+    app.kubernetes.io/name: jellyfin
+  type: ClusterIP

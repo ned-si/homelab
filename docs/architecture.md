@@ -43,8 +43,14 @@ and commits the result to `deploy/`. Every Application's `path:` points there.
 
 ```
 apps/theater/                          source: kustomization + patches
-  └─ (render) ──→ deploy/apps/theater/manifests.yaml    what Argo applies
+  └─ (render) ──→ deploy/apps/theater/<kind>-<name>.yaml    what Argo applies
 ```
+
+One file per object, named `<kind>-<name>.yaml` in lowercase (for example
+`deploy/apps/theater/deployment-sonarr.yaml`), so the directory listing reads as
+the list of what runs. `-<namespace>` is appended only when two objects in one
+directory would otherwise share a name. Argo reads every `*.yaml` in the
+directory, so the split does not change what it applies.
 
 **`deploy/` is build output.** It is checked in because Argo has to read it from
 git, and it is verified in CI to be byte-identical to what the sources produce.

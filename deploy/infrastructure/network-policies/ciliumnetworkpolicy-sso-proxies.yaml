@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: sso-proxies
+  namespace: theater
+spec:
+  description: 'oauth2-proxy instances: reachable from the Gateway on 4180, egress
+    to the app they front and to Keycloak for the OIDC flow.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+        - prowlarr
+        - qbittorrent
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+      - port: "9696"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: sso-proxy
+  ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "4180"
+        protocol: TCP
