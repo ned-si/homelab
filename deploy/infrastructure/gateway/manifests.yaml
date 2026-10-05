@@ -49,7 +49,8 @@ spec:
     protocol: HTTP
   - allowedRoutes:
       kinds:
-      - kind: HTTPRoute
+      - group: gateway.networking.k8s.io
+        kind: HTTPRoute
       namespaces:
         from: All
     hostname: '*.lilalala.com'
@@ -58,7 +59,8 @@ spec:
     protocol: HTTPS
     tls:
       certificateRefs:
-      - kind: Secret
+      - group: ""
+        kind: Secret
         name: wildcard-lilalala-tls
       mode: Terminate
 ---
@@ -71,13 +73,22 @@ spec:
   hostnames:
   - argo.lilalala.com
   parentRefs:
-  - name: shared
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
     namespace: gateway
     sectionName: https
   rules:
   - backendRefs:
-    - name: argocd-server
+    - group: ""
+      kind: Service
+      name: argocd-server
       port: 80
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
     timeouts:
       request: 0s
 ---
@@ -92,7 +103,9 @@ spec:
   hostnames:
   - '*.lilalala.com'
   parentRefs:
-  - name: shared
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
     namespace: gateway
     sectionName: http
   rules:
@@ -101,3 +114,7 @@ spec:
         scheme: https
         statusCode: 301
       type: RequestRedirect
+    matches:
+    - path:
+        type: PathPrefix
+        value: /

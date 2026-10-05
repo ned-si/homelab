@@ -14,14 +14,22 @@ metadata:
   annotations:
     external-dns.alpha.kubernetes.io/controller: none
 spec:
+  # group/kind and the catch-all match are the API server's defaults, spelled
+  # out so that Argo CD's diff sees no drift.
   parentRefs:
-    - name: shared
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
       namespace: gateway
       sectionName: http
   hostnames:
     - "*.lilalala.com"
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             scheme: https

@@ -16,12 +16,21 @@ spec:
   hostnames:
   - grafana.lilalala.com
   parentRefs:
-  - name: shared
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
     namespace: gateway
     sectionName: https
   rules:
   - backendRefs:
-    - name: kube-prometheus-stack-grafana
+    - group: ""
+      kind: Service
+      name: kube-prometheus-stack-grafana
       port: 80
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
     timeouts:
       request: 0s
