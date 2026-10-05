@@ -1,7 +1,6 @@
 ---
-# CI: every check that can run without a cluster, for both repository layouts
-# (the legacy kubernetes/applications/ tree Argo CD syncs today, and the layered
-# clusters/ apps/ platform/ infrastructure/ deploy/ tree once it lands).
+# CI: every check that can run without a cluster, for the layered
+# clusters/ apps/ platform/ infrastructure/ deploy/ tree Argo CD syncs.
 #
 # Pinning rules (enforced by scripts/ci/check-pins.sh in `repo-policy`):
 #   - every remote `uses:` is a 40-hex commit SHA with a `# vX.Y.Z` comment;
@@ -70,14 +69,8 @@ jobs:
           persist-credentials: false
       - name: Install pinned Python tools
         run: scripts/ci/setup-python-deps.sh
-      - name: yamllint (strict, layered tree and CI files)
+      - name: yamllint (strict)
         run: yamllint -c .yamllint.yaml .
-      - name: yamllint (legacy tree, relaxed + key-duplicates)
-        run: |
-          set -euo pipefail
-          dirs=()
-          for d in kubernetes/applications iac; do [ -d "$d" ] && dirs+=("$d"); done
-          if [ "${#dirs[@]}" -gt 0 ]; then yamllint -c ci/yamllint-legacy.yaml "${dirs[@]}"; else echo "no legacy tree"; fi
 
   actionlint:
     runs-on: ubuntu-24.04
@@ -255,10 +248,9 @@ jobs:
       - name: tofu init + validate
         run: |
           set -euo pipefail
-          for d in bootstrap bootstrap/aws-backup iac/opentofu; do
+          for d in bootstrap bootstrap/aws-backup; do
             if [ -d "$d" ] && ls "$d"/*.tf >/dev/null 2>&1; then
               echo "::group::$d"
-              # cd rather than -chdir: iac/opentofu reads files relative to path.cwd.
               (cd "$d" && tofu init -backend=false -input=false -no-color && tofu validate -no-color)
               echo "::endgroup::"
             fi
