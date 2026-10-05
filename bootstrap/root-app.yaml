@@ -1,37 +1,37 @@
-# Root Application (app-of-apps). Applied once by hand at bootstrap; every
-# other Application is created by Argo CD from kubernetes/applications.
+# Root Application of the layered tree. Applied once by hand at bootstrap;
+# Argo CD creates every other Application from it:
 #
 #   kubectl apply -f bootstrap/root-app.yaml
 #
-# It tracks `main`: whatever is merged to main is what runs. Rollback is a
-# revert PR. Prune stays off so a bad merge can never delete data; remove
-# orphaned objects deliberately.
+# The same object as clusters/homelab/root.yaml (CI: repo_policy.py
+# root-profiles fails if they differ); that file describes the tree and its
+# prune policy. It tracks `main`: whatever is merged to main is what runs, and
+# a rollback is a revert pull request.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: all-apps
+  name: root
   namespace: argo
 spec:
   project: default
   source:
-    repoURL: https://github.com/ned-si/homelab
+    repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
-    path: kubernetes/applications
-    directory:
-      recurse: true
+    path: deploy/clusters/homelab/bootstrap
   destination:
     server: https://kubernetes.default.svc
-    namespace: default
+    namespace: argo
+  revisionHistoryLimit: 10
   syncPolicy:
     automated:
+      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-  # Cilium writes status.loadBalancer.ingress[].ipMode; Argo CD < 2.12 could
-  # not diff it (argoproj/argo-cd#17548). Harmless on newer versions.
-  ignoreDifferences:
-    - group: ""
-      kind: Service
-      jqPathExpressions:
-        - .status.loadBalancer.ingress[].ipMode
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
