@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# The shared Gateway (ADR 0007), on its parallel address 192.168.1.202.
+# The shared Gateway (ADR 0007), on 192.168.1.254 (the router's 80/443 target).
 # Each application's HTTPRoute lives with the application; this directory has
 # only the Gateway itself, its certificate, the HTTP->HTTPS redirect and the
 # route for Argo CD (which has no leaf of its own).

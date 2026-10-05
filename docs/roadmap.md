@@ -10,9 +10,6 @@ cluster came first (ADR 0002).
 - KSOPS on the Argo CD repo-server (`bootstrap/argocd-values.yaml`).
 - Argo CD behind the Gateway: `configs.params.server.insecure: true`, then the
   legacy Argo Ingress to backend port 80 / HTTP, in the same window.
-- Gateway handover: prove every hostname on `192.168.1.202`
-  (`curl --resolve <host>:443:192.168.1.202`), then one PR swaps the pins
-  (ingress-nginx `.254` -> `.203`, Gateway `.202` -> `.254`). Revert = swap back.
 - Remove ingress-nginx and the ten Ingresses after the Gateway has served
   `.254` cleanly, then drop the `ingress` source from external-dns.
 - Decide between kube-vip `svc_enable` and Cilium L2 announcements for

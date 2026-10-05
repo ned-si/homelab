@@ -37,7 +37,7 @@ spec:
   gatewayClassName: cilium
   infrastructure:
     annotations:
-      lbipam.cilium.io/ips: 192.168.1.202
+      lbipam.cilium.io/ips: 192.168.1.254
   listeners:
   - allowedRoutes:
       namespaces:
