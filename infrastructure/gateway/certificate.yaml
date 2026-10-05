@@ -21,11 +21,16 @@ metadata:
   namespace: gateway
 spec:
   secretName: wildcard-lilalala-tls
-  # A wildcard does not match the apex, so both are listed.
+  # Wildcard only. Both listeners are `*.lilalala.com`, which does not match
+  # the apex, so nothing here serves `lilalala.com`. Listing the apex too means
+  # a second DNS-01 challenge on the same TXT name, which cert-manager runs
+  # only after the first is cleaned up -- and v1.15 cannot clean up on
+  # Cloudflare (cert-manager#7540, fixed in v1.16.4), so the Order never
+  # completes. Add the apex back once cert-manager is upgraded, if a listener
+  # ever serves it.
   commonName: "*.lilalala.com"
   dnsNames:
     - "*.lilalala.com"
-    - "lilalala.com"
   issuerRef:
     name: letsencrypt
     kind: ClusterIssuer

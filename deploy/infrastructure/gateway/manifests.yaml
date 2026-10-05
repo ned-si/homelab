@@ -16,7 +16,6 @@ spec:
   commonName: '*.lilalala.com'
   dnsNames:
   - '*.lilalala.com'
-  - lilalala.com
   duration: 2160h
   issuerRef:
     group: cert-manager.io
