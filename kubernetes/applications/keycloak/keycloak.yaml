@@ -105,10 +105,3 @@ spec:
     protocol: TCP
   selector:
     app.kubernetes.io/name: keycloak
----
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: keycloak
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"
