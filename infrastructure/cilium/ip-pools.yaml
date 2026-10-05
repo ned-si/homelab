@@ -5,13 +5,13 @@
 # any Service; the addresses that matter are pinned on the Services themselves
 # with `lbipam.cilium.io/ips` (docs/networking.md has the table):
 #
-#   .254  ingress-nginx today; the router forwards 80/443 TCP here
+#   .254  gateway/cilium-gateway-shared; the router forwards 80/443 TCP here
 #   .200  theater/qbittorrent-seed (router: 50000 TCP)
 #   .201  syncthing/syncthing-protocol (router: 22000 TCP+UDP)
-#   .202  gateway/cilium-gateway-shared (parallel run of the Gateway)
+#   .203  ingress/ingress-nginx-controller (no public role, until removed)
 #
-# Moving .254 from ingress-nginx to the Gateway is a change to those two pins,
-# not to these pools.
+# Moving .254 between ingress-nginx and the Gateway is a change to those two
+# pins, not to these pools.
 ---
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool

@@ -42,7 +42,8 @@ their TV apps can sign in.
 | Argo CD | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm release `argocd`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
 | Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools | Helm release `cilium`, values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml) |
 | kube-vip | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes |
-| ingress-nginx | Ingress for every public hostname, on `192.168.1.254` | Argo CD |
+| Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
+| ingress-nginx | Retired: on `192.168.1.203` with no public role, until removed | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
 | CloudNativePG | PostgreSQL for Immich, Keycloak, Mealie, Sonarr, Radarr, Lidarr and Prowlarr | Argo CD |
@@ -62,10 +63,10 @@ installed with the Helm CLI.
 ```mermaid
 flowchart LR
   internet((Internet)) --> router[ISP router 192.168.1.1]
-  router -- "80, 443 TCP" --> nginx[ingress-nginx .254]
+  router -- "80, 443 TCP" --> gw[Gateway shared .254]
   router -- "22000 TCP+UDP" --> st[syncthing-protocol .201]
   router -- "50000 TCP" --> qb[qbittorrent-seed .200]
-  nginx --> apps[Services]
+  gw --> apps[Services]
   apps --> nas[(TrueNAS .228)]
 ```
 
@@ -83,8 +84,8 @@ flowchart LR
 | `192.168.1.200`-`.227` | Cilium pool `pool-2` (LoadBalancer Services) |
 | `192.168.1.200` | `theater/qbittorrent-seed`, pinned |
 | `192.168.1.201` | `syncthing/syncthing-protocol`, pinned |
-| `192.168.1.202` | `gateway/cilium-gateway-shared`, pinned (Gateway parallel run) |
-| `192.168.1.254` | Cilium pool `pool-1`: `ingress/ingress-nginx-controller` |
+| `192.168.1.203` | `ingress/ingress-nginx-controller`, pinned (no public role, until removed) |
+| `192.168.1.254` | Cilium pool `pool-1`: `gateway/cilium-gateway-shared`, pinned |
 
 Nodes use static addresses outside the DHCP pool. Pinned LoadBalancer IPs use
 the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
@@ -168,9 +169,9 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
 
 ## Status and roadmap
 
-- Gateway API: the shared Cilium Gateway runs in parallel on
-  `192.168.1.202`. One change will hand `192.168.1.254` over from
-  ingress-nginx, so the router forwards stay as they are.
+- Gateway API: the shared Cilium Gateway serves every public hostname on
+  `192.168.1.254`. ingress-nginx and its Ingresses are removed next, in their
+  own change.
 - Platform upgrades: Argo CD and Cilium to the versions in
   `ci/helm-releases.yaml`, then Kubernetes and the node OS.
 - Off-site backups: not active yet. Backups today are local database dumps

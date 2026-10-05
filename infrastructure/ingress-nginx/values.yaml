@@ -1,15 +1,13 @@
 # ingress-nginx chart 4.11.3 values (release `ingress-nginx`, namespace
-# `ingress`): the running release's values plus one parity pin.
+# `ingress`): the running release's values plus one address pin.
 #
-# The router forwards 80/443 TCP to 192.168.1.254. Live, the controller holds
-# .254 only because LB-IPAM auto-allocated it from pool-1. The explicit request
-# below equals the address it already has, so LB-IPAM keeps the allocation and
-# nothing moves (ADR 0002 class `lb-ip-parity-pin`). It makes the Gateway
-# handover reversible: the handover change swaps this pin to .203 and the
-# Gateway's to .254; reverting that change puts .254 back here.
+# The router forwards 80/443 TCP to 192.168.1.254, which the shared Gateway
+# now holds (ADR 0007). ingress-nginx stays installed on 192.168.1.203, with
+# no public role, until it is removed in its own change (ADR 0011). Reverting
+# the handover change puts .254 back here and the Gateway back on .202.
 controller:
   metrics:
     enabled: true
   service:
     annotations:
-      lbipam.cilium.io/ips: "192.168.1.254"
+      lbipam.cilium.io/ips: "192.168.1.203"
