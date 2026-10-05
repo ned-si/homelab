@@ -39,8 +39,8 @@
 #        `syncthing.lilalala.com`, and that one is an HTTPRoute.
 #
 # Parsing is done with awk against the RENDERED output rather than with a YAML
-# library, so this stays dependency-free and runs on the self-hosted runner and
-# on macOS. That is safe only because deploy/ is normalised kustomize output:
+# library, so this stays dependency-free and runs on a stock CI runner and on
+# macOS. That is safe only because deploy/ is normalised kustomize output:
 # `kind:` is always at column 0 and `spec.hostnames` always at exactly two
 # spaces. It would not be safe against hand-written manifests, where the same
 # key can appear at any indentation -- which is also why this reads deploy/ and
@@ -93,8 +93,8 @@ hosts=$(find deploy -name '*.yaml' -print0 \
 
 if [ -z "$hosts" ]; then
   # A silently empty list is the failure mode this script exists to prevent: it
-  # would make tls-check.sh pass without probing anything, and collapse the DAST
-  # matrix to nothing. Treat it as a bug in the extractor or in deploy/.
+  # would make tls-check.sh pass without probing anything, and leave DAST with
+  # nothing to scan. Treat it as a bug in the extractor or in deploy/.
   echo "ERROR: no HTTPRoute hostnames found under deploy/." >&2
   echo "       Either deploy/ is empty (run 'task render') or the rendered" >&2
   echo "       layout changed and the awk program above needs updating." >&2
@@ -102,8 +102,8 @@ if [ -z "$hosts" ]; then
 fi
 
 if [ "$FORMAT" = json ]; then
-  # Hand-rolled rather than jq: this runs on a self-hosted runner with nothing
-  # installed, and DNS hostnames need no JSON escaping.
+  # Hand-rolled rather than jq, to stay dependency-free; DNS hostnames need no
+  # JSON escaping.
   printf '['
   sep=''
   while IFS= read -r h; do
