@@ -18,6 +18,21 @@
 csiDriver:
   name: org.democratic-csi.iscsi
 
+# The driver image, pinned by digest. The chart default is the moving `latest`
+# tag, and Kubernetes pulls `latest` on every pod start, so a restart could
+# bring up a different driver. The digest is the one the running pods use
+# (`latest` on 2026-10-05; no version tag carries it). The running release
+# still has the plain `latest` tag, so this pin takes effect, and the
+# controller and node pods restart, at the next `helm upgrade` of `iscsi`.
+controller:
+  driver:
+    # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
+    image: docker.io/democraticcsi/democratic-csi:latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+node:
+  driver:
+    # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
+    image: docker.io/democraticcsi/democratic-csi:latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+
 driver:
   config:
     driver: freenas-iscsi
