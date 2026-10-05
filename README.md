@@ -40,7 +40,7 @@ their TV apps can sign in.
 | Component | Role | Managed by |
 | --- | --- | --- |
 | Argo CD | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm release `argocd`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
-| Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools | Helm release `cilium`, values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml) |
+| Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by the bootstrap on a fresh cluster |
 | kube-vip | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
@@ -108,10 +108,8 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 
 Every Application tracks `main` and syncs automatically with self-heal, except
 `immich`. Immich is synced by hand, because an Immich upgrade runs database
-migrations that cannot be undone. `cilium` is there only to show drift: it
-stays a Helm CLI release, and a sync window blocks any Argo CD sync of it. App
-leaves prune. The root, the layers, `namespaces`, `democratic-csi` and the
-leaves that ship CRDs do not. Every PVC, CNPG Cluster, StatefulSet and Namespace
+migrations that cannot be undone. App leaves prune. The root, the layers,
+`namespaces`, `cilium`, `democratic-csi` and the leaves that ship CRDs do not. Every PVC, CNPG Cluster, StatefulSet and Namespace
 carries `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, and no
 Application has a cascading finalizer. The photo library PVC `immich/immich-data`
 is in no Application at all.
@@ -153,8 +151,8 @@ Every action is pinned to a commit SHA and every tool to a version and checksum.
 5. Two things are not automatic. `immich` is synced by hand
    (`argocd app sync immich`, see
    [docs/runbooks/immich-upgrade.md](docs/runbooks/immich-upgrade.md)). The Helm
-   CLI releases (`argocd`, `cilium`) are upgraded by hand from a merged
-   commit, as described at the top of each values file.
+   CLI release `argocd` is upgraded by hand from a merged commit, as
+   described at the top of its values file.
 
 Check what is deployed:
 
@@ -163,8 +161,7 @@ kubectl -n argo get applications \
   -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status,REVISION:.status.sync.revision
 ```
 
-Expected output: every Application is `Synced` and `Healthy`, except `cilium`,
-which shows `OutOfSync` because it is never synced.
+Expected output: every Application is `Synced` and `Healthy`.
 Single-source Applications show the SHA of the latest commit on `main`.
 Multi-source ones (the Helm charts) leave `REVISION` empty.
 

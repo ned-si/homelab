@@ -6,7 +6,7 @@ kind: Kustomization
 #   -30  namespaces        namespace inventory (PSA warn/audit labels)
 #   -25  secrets           SOPS-decrypted Secrets (needs the namespaces above)
 #   -20  gateway-api       Gateway API CRDs v1.2.0 (experimental channel)
-#   -10  cilium            CNI; synced by hand while taken over from helm
+#   -10  cilium            CNI; auto-sync, no prune
 #    -5  cilium-config     LB IP pools + L2 announcement policy
 #     0  cert-manager      its CRDs must be established before issuers appear
 #     5  cert-manager-issuers

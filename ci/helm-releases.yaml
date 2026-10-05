@@ -12,8 +12,10 @@ releases:
     release: argocd
     namespace: argo
     values: bootstrap/argocd-values.yaml
-  # Live: chart cilium 1.16.3, helm revision 15. 1.17.18 is the latest 1.17
-  # patch in the repository index; chart digest
+  # Bootstrap only: Argo CD owns the release since 2026-10-05 (Application
+  # clusters/homelab/infrastructure/cilium.yaml). This entry is the version
+  # the bootstrap installs before Argo CD exists; CI keeps it equal to the
+  # Application's chart version. Chart digest of 1.17.18:
   # 6a9a929a4bfa7a7cbb1fbb429514dde61fdf70622aac3adfd0bed8a4b09e34e9.
   - name: cilium
     repo: https://helm.cilium.io
