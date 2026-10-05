@@ -25,8 +25,6 @@ cluster came first (ADR 0002).
 - Automatic rollback: Argo CD Notifications on sync-failed/degraded and probe
   alerts -> GitHub `repository_dispatch` -> auto-merged revert PR. One
   Application per app keeps every app revertable on its own.
-- Turn `automated` on per layer (remove the cutover component) once every leaf
-  in it is adopted.
 
 ## Versions (each a separate upgrade)
 
