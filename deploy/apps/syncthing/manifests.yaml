@@ -121,12 +121,21 @@ spec:
   hostnames:
   - syncthing.lilalala.com
   parentRefs:
-  - name: shared
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
     namespace: gateway
     sectionName: https
   rules:
   - backendRefs:
-    - name: syncthing-dashboard
+    - group: ""
+      kind: Service
+      name: syncthing-dashboard
       port: 8384
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
     timeouts:
       request: 0s

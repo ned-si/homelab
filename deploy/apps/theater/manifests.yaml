@@ -870,13 +870,22 @@ spec:
   hostnames:
   - cinema.lilalala.com
   parentRefs:
-  - name: shared
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
     namespace: gateway
     sectionName: https
   rules:
   - backendRefs:
-    - name: jellyfin
+    - group: ""
+      kind: Service
+      name: jellyfin
       port: 8096
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
     timeouts:
       request: 0s
 ---
@@ -889,13 +898,18 @@ spec:
   hostnames:
   - theater.lilalala.com
   parentRefs:
-  - name: shared
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
     namespace: gateway
     sectionName: https
   rules:
   - backendRefs:
-    - name: radarr
+    - group: ""
+      kind: Service
+      name: radarr
       port: 7878
+      weight: 1
     matches:
     - path:
         type: PathPrefix
@@ -903,8 +917,11 @@ spec:
     timeouts:
       request: 0s
   - backendRefs:
-    - name: sonarr
+    - group: ""
+      kind: Service
+      name: sonarr
       port: 8989
+      weight: 1
     matches:
     - path:
         type: PathPrefix
@@ -912,8 +929,11 @@ spec:
     timeouts:
       request: 0s
   - backendRefs:
-    - name: prowlarr
+    - group: ""
+      kind: Service
+      name: prowlarr
       port: 9696
+      weight: 1
     matches:
     - path:
         type: PathPrefix
@@ -921,8 +941,11 @@ spec:
     timeouts:
       request: 0s
   - backendRefs:
-    - name: lidarr
+    - group: ""
+      kind: Service
+      name: lidarr
       port: 8686
+      weight: 1
     matches:
     - path:
         type: PathPrefix
@@ -930,8 +953,11 @@ spec:
     timeouts:
       request: 0s
   - backendRefs:
-    - name: plex
+    - group: ""
+      kind: Service
+      name: plex
       port: 32400
+      weight: 1
     matches:
     - path:
         type: PathPrefix

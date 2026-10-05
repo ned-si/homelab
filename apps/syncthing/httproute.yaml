@@ -10,15 +10,26 @@ metadata:
   name: syncthing
   namespace: syncthing
 spec:
+  # group/kind/weight and the catch-all match are the API server's defaults,
+  # spelled out so that Argo CD's diff sees no drift.
   parentRefs:
-    - name: shared
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
       namespace: gateway
       sectionName: https
   hostnames:
     - syncthing.lilalala.com
   rules:
-    - backendRefs:
-        - name: syncthing-dashboard
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: syncthing-dashboard
           port: 8384
+          weight: 1
       timeouts:
         request: 0s

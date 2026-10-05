@@ -126,13 +126,22 @@ spec:
   hostnames:
   - auth.lilalala.com
   parentRefs:
-  - name: shared
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
     namespace: gateway
     sectionName: https
   rules:
   - backendRefs:
-    - name: keycloak
+    - group: ""
+      kind: Service
+      name: keycloak
       port: 8080
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
     timeouts:
       request: 0s
 ---
