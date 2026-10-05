@@ -25,6 +25,9 @@
 # in so Argo can read it, and verified in CI to be exactly what the sources
 # produce. If deploy/ is ever edited by hand, CI fails.
 #
+# Layout: deploy/<source dir>/<kind>-<name>.yaml, one file per object (see
+# split_objects below).
+#
 # WHAT IS NOT RENDERED HERE
 #
 #   */secrets   Rendering these means running KSOPS, which DECRYPTS them. The
@@ -160,7 +163,7 @@ ERRF="$WORK/stderr"
 #
 # Do NOT merge them with `2>&1`. `kubectl kustomize` writes deprecation warnings
 # to stderr ON SUCCESS, so a merged capture puts the warning text verbatim into
-# manifests.yaml -- invalid YAML, in a file the exit status still calls ok. The
+# deploy/ -- invalid YAML, in a file the exit status still calls ok. The
 # tree happens to be warning-free today; that is a property of the current
 # kustomize version, not of this script.
 render_one() {
@@ -171,6 +174,84 @@ render_one() {
 # Only a kustomization that actually names a URL can fail for network reasons.
 has_remote_resource() {
   grep -qE 'https?://' "$1/kustomization.yaml" 2>/dev/null
+}
+
+# split_objects <out-dir> <source-dir>
+#
+# Read one rendered kustomize stream on stdin and write ONE FILE PER OBJECT into
+# <out-dir>, named `<kind>-<name>.yaml`, lowercase. Only when two objects in the
+# same directory would get the same name (same kind and name, different
+# namespaces) do both get `-<namespace>` appended. Characters outside
+# [a-z0-9.-] become `_` (RBAC names may hold `:`). Every file carries the
+# generated-file header, a `---`, then the object exactly as kustomize printed
+# it, so `cat <dir>/*.yaml` is a valid multi-document stream again.
+#
+# Why one file per object: a single concatenated stream per directory is
+# unreadable when the question is "what is running". Argo CD reads every
+# *.yaml in a directory source, so the set of objects it applies is unchanged.
+#
+# Parsing is safe on kustomize output only, for the same reason
+# published-hostnames.sh gives: documents are separated by `---` at column 0,
+# `kind:` is at column 0, and `metadata.name` / `metadata.namespace` are at
+# exactly two spaces under `metadata:`. A document without a kind or a name, or
+# two objects that still map to one file name, is an error rather than a guess.
+split_objects() {
+  awk -v dir="$1" -v src="$2" '
+    function unquote(s) {
+      sub(/[[:space:]]+$/, "", s)
+      if (s ~ /^".*"$/ || s ~ /^\x27.*\x27$/) { s = substr(s, 2, length(s) - 2) }
+      return s
+    }
+    function clean(s) { s = tolower(s); gsub(/[^a-z0-9.-]/, "_", s); return s }
+    function flush() {
+      if (body != "") {
+        if (kind == "" || name == "") {
+          printf "split: %s: object %d has no kind or metadata.name\n", src, n + 1 > "/dev/stderr"
+          bad = 1
+        } else {
+          n++; K[n] = kind; N[n] = name; NS[n] = ns; B[n] = body
+          base = clean(kind) "-" clean(name); C[base]++
+        }
+      }
+      body = ""; kind = ""; name = ""; ns = ""; inmeta = 0
+    }
+    /^---[[:space:]]*$/ { flush(); next }
+    {
+      body = body $0 "\n"
+      if ($0 ~ /^kind:[[:space:]]/)       { v = $0; sub(/^kind:[[:space:]]*/, "", v); kind = unquote(v) }
+      if ($0 ~ /^metadata:[[:space:]]*$/) { inmeta = 1; next }
+      if ($0 ~ /^[^[:space:]#]/)          { inmeta = 0 }
+      if (inmeta && $0 ~ /^  name:[[:space:]]/)      { v = $0; sub(/^  name:[[:space:]]*/, "", v); name = unquote(v) }
+      if (inmeta && $0 ~ /^  namespace:[[:space:]]/) { v = $0; sub(/^  namespace:[[:space:]]*/, "", v); ns = unquote(v) }
+    }
+    END {
+      flush()
+      if (bad) { exit 1 }
+      for (i = 1; i <= n; i++) {
+        f = clean(K[i]) "-" clean(N[i])
+        if (C[f] > 1 && NS[i] != "") { f = f "-" clean(NS[i]) }
+        if (f in seen) {
+          printf "split: %s: %s/%s and another object both map to %s.yaml\n", src, K[i], N[i], f > "/dev/stderr"
+          exit 1
+        }
+        seen[f] = 1
+        path = dir "/" f ".yaml"
+        # Deliberately no timestamp, no tool version, no hostname: the output
+        # has to be byte-identical for identical input or --check is useless.
+        printf "# ---------------------------------------------------------------------------\n" > path
+        printf "# GENERATED FILE -- DO NOT EDIT.\n#\n" > path
+        printf "# Source:     %s\n", src > path
+        printf "# Regenerate: task render     (scripts/render-deploy.sh)\n#\n" > path
+        printf "# Edit the kustomization in %s and re-render. Editing this file\n", src > path
+        printf "# directly will be reverted by the next render and rejected by CI.\n" > path
+        printf "# ---------------------------------------------------------------------------\n" > path
+        # Leading document marker: `cat <dir>/*.yaml` is then a valid stream.
+        printf "%s", "---\n" B[i] > path
+        close(path)
+      }
+      print n
+    }
+  '
 }
 
 for d in $DIRS; do
@@ -190,8 +271,7 @@ for d in $DIRS; do
     continue
   fi
 
-  out="$OUT/$d/manifests.yaml"
-  mkdir -p "$(dirname "$out")"
+  out="$OUT/$d"
 
   attempts=1
   remote=no
@@ -230,22 +310,14 @@ for d in $DIRS; do
     continue
   fi
 
-  # Deliberately no timestamp, no tool version, no hostname: the output has to
-  # be byte-identical for identical input or --check is useless.
-  {
-    echo "# ---------------------------------------------------------------------------"
-    echo "# GENERATED FILE -- DO NOT EDIT."
-    echo "#"
-    echo "# Source:     $d"
-    echo "# Regenerate: task render     (scripts/render-deploy.sh)"
-    echo "#"
-    echo "# Edit the kustomization in $d and re-render. Editing this file"
-    echo "# directly will be reverted by the next render and rejected by CI."
-    echo "# ---------------------------------------------------------------------------"
-    printf '%s\n' "$body"
-  } > "$out"
-
-  objects=$(grep -c '^kind:' "$out")
+  # No per-directory cleanup needed: OUT was wiped before the loop, so a file
+  # whose object left the source cannot survive as a stale leftover.
+  mkdir -p "$out"
+  if ! objects=$(printf '%s\n' "$body" | split_objects "$out" "$d"); then
+    printf 'FAIL   %s (could not split the render into one file per object)\n' "$d"
+    failed=$((failed + 1))
+    continue
+  fi
   printf 'ok     %-44s %s objects\n' "$d" "$objects"
 
   # A successful render that still said something. Surfaced here rather than

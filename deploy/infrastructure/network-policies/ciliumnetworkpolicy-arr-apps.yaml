@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-apps
+  namespace: theater
+spec:
+  description: 'Sonarr/Radarr/Lidarr: UI from the Gateway, release pushes from Prowlarr,
+    egress to their own Postgres, to qBittorrent, to Prowlarr and to indexers.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: cnpg.io/cluster
+        operator: In
+        values:
+        - sonarr-postgresql
+        - radarr-postgresql
+        - lidarr-postgresql
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: qbittorrent
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: prowlarr
+    toPorts:
+    - ports:
+      - port: "9696"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+      - port: "80"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - sonarr
+      - radarr
+      - lidarr
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/component: sso-proxy
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: prowlarr
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: bazarr
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: recyclarr-sync
+    toPorts:
+    - ports:
+      - port: "8989"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP

@@ -1,0 +1,69 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-postgres
+  namespace: backup-verify
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 8
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 10800
+      backoffLimit: 0
+      template:
+        spec:
+          containers:
+          - command:
+            - /bin/bash
+            - /scripts/run-all.sh
+            env:
+            - name: HOME
+              value: /tmp
+            - name: KUBECACHEDIR
+              value: /tmp/.kube/cache
+            image: bitnami/kubectl:1.31.2
+            name: verify
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /tmp
+              name: tmp
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: backup-verify
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: backup-verify-scripts
+            name: scripts
+          - emptyDir:
+              sizeLimit: 64Mi
+            name: tmp
+  schedule: 0 5 * * 0
+  successfulJobsHistoryLimit: 4

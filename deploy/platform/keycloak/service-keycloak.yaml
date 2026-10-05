@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/keycloak
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/keycloak and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: keycloak
+  name: keycloak
+  namespace: keycloak
+spec:
+  clusterIP: None
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: http
+  - name: mgmt
+    port: 9000
+    protocol: TCP
+    targetPort: mgmt
+  selector:
+    app.kubernetes.io/name: keycloak
+  type: ClusterIP

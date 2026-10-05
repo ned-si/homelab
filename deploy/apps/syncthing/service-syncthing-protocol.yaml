@@ -1,0 +1,34 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/syncthing
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/syncthing and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    lbipam.cilium.io/ips: 192.168.1.201
+  name: syncthing-protocol
+  namespace: syncthing
+spec:
+  ports:
+  - name: syncthing-tcp
+    port: 22000
+    protocol: TCP
+    targetPort: 22000
+  - name: syncthing-udp
+    port: 22000
+    protocol: UDP
+    targetPort: 22000
+  - name: syncthing-disc
+    port: 21027
+    protocol: UDP
+    targetPort: 21027
+  selector:
+    app: syncthing
+  type: LoadBalancer

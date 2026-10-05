@@ -90,7 +90,7 @@ is_allowed_secret() {
     # is a base64-encoded container image reference -- not a credential. Upstream
     # ships it as a Secret rather than a ConfigMap; that is their choice, not a
     # leak. Verify after a bundle bump with:
-    #   grep -A4 'kind: Secret' deploy/platform/barman-cloud-plugin/manifests.yaml
+    #   cat deploy/platform/barman-cloud-plugin/secret-plugin-barman-cloud-*.yaml
     cnpg-system/plugin-barman-cloud-*) return 0 ;;
     *) return 1 ;;
   esac
@@ -112,9 +112,9 @@ is_allowed_inline() {
     #
     # Re-verify after a bundle bump with:
     #   grep -n 'pluginClientSecret\|pluginServerSecret' \
-    #     deploy/platform/barman-cloud-plugin/manifests.yaml
-    deploy/platform/barman-cloud-plugin/manifests.yaml:cnpg.io/pluginclientsecret) return 0 ;;
-    deploy/platform/barman-cloud-plugin/manifests.yaml:cnpg.io/pluginserversecret) return 0 ;;
+    #     deploy/platform/barman-cloud-plugin/service-barman-cloud.yaml
+    deploy/platform/barman-cloud-plugin/service-barman-cloud.yaml:cnpg.io/pluginclientsecret) return 0 ;;
+    deploy/platform/barman-cloud-plugin/service-barman-cloud.yaml:cnpg.io/pluginserversecret) return 0 ;;
     # Grafana chart value naming the Secret to load as environment variables
     # (`grafana-oidc`, sealed in platform/secrets/). A Secret NAME, not a value.
     platform/kube-prometheus-stack/values.yaml:envfromsecret) return 0 ;;
@@ -153,7 +153,7 @@ while IFS= read -r f; do
   #    not SOPS-encrypted (encrypted files were skipped above).
   #
   #    This is PER YAML DOCUMENT, not per file. A naive per-file grep breaks on
-  #    the rendered multi-document files in deploy/, where `kind: Secret` in one
+  #    any multi-document file, where `kind: Secret` in one
   #    document and a `data:` key in an unrelated CRD schema in another look
   #    identical to a leaked Secret. Two false positives, both silenced by
   #    scoping to a single document and requiring `data:`/`stringData:` at zero

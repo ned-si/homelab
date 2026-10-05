@@ -11,8 +11,9 @@ paths = [
   # in the sealed *.sops.yaml next to them; scripts/leak-check.sh also checks
   # that a template holds nothing but placeholders.
   '''(^|/)[^/]+\.sops\.ya?ml\.example$''',
-  # Rendered upstream plugin-barman-cloud v0.12.0 bundle. Its only Secret holds
-  # SIDECAR_IMAGE, a base64 container image reference (see
-  # scripts/leak-check.sh, is_allowed_secret).
-  '''^deploy/platform/barman-cloud-plugin/manifests\.yaml$''',
+  # Rendered upstream plugin-barman-cloud v0.12.0 bundle: the file of its only
+  # Secret (kustomize hash suffix in the name), which holds SIDECAR_IMAGE, a
+  # base64 container image reference (see scripts/leak-check.sh,
+  # is_allowed_secret).
+  '''^deploy/platform/barman-cloud-plugin/secret-plugin-barman-cloud-[a-z0-9]+\.yaml$''',
 ]

@@ -1,0 +1,89 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
+  labels:
+    app.kubernetes.io/name: radarr
+  name: radarr
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: radarr
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: radarr
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: UMASK
+          value: "002"
+        - name: RADARR__LOG__DBENABLED
+          value: "false"
+        - name: RADARR__POSTGRES__HOST
+          valueFrom:
+            secretKeyRef:
+              key: host
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__PORT
+          valueFrom:
+            secretKeyRef:
+              key: port
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__USER
+          valueFrom:
+            secretKeyRef:
+              key: user
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: radarr-postgresql-app
+        - name: RADARR__POSTGRES__MAINDB
+          valueFrom:
+            secretKeyRef:
+              key: dbname
+              name: radarr-postgresql-app
+        - name: RADARR__SERVER__URLBASE
+          value: /arr/radarr
+        image: ghcr.io/hotio/radarr:latest
+        imagePullPolicy: Always
+        name: radarr
+        ports:
+        - containerPort: 7878
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /data
+          name: media
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: radarr-config
+      - name: media
+        nfs:
+          path: /mnt/homelab/k8s/nfs
+          server: 192.168.1.228

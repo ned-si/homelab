@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
+  labels:
+    app.kubernetes.io/name: jellyfin
+  name: jellyfin
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+  strategy:
+    rollingUpdate: null
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jellyfin
+    spec:
+      containers:
+      - env:
+        - name: JELLYFIN_PublishedServerUrl
+          value: https://cinema.lilalala.com/
+        image: ghcr.io/jellyfin/jellyfin
+        imagePullPolicy: Always
+        name: jellyfin
+        ports:
+        - containerPort: 8096
+          name: http
+          protocol: TCP
+        - containerPort: 7359
+          name: udp
+          protocol: UDP
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /cache
+          name: cache
+        - mountPath: /media
+          name: media
+      volumes:
+      - name: cache
+        persistentVolumeClaim:
+          claimName: jellyfin-cache
+      - name: config
+        persistentVolumeClaim:
+          claimName: jellyfin-config
+      - name: media
+        nfs:
+          path: /mnt/homelab/k8s/nfs/media
+          server: 192.168.1.228

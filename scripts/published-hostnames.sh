@@ -74,9 +74,10 @@ fi
 # substitute this script's own positional parameters -- usually empty -- and the
 # program would silently match nothing.
 # shellcheck disable=SC2016
-hosts=$(find deploy -name 'manifests.yaml' -print0 \
+hosts=$(find deploy -name '*.yaml' -print0 \
         | xargs -0 awk '
-    # Each file is a fresh multi-document stream.
+    # Each file is a fresh stream (one object per file since render-deploy.sh
+    # splits them, but the program does not depend on that).
     FNR == 1                            { kind = ""; inhosts = 0 }
     /^---[[:space:]]*$/                 { kind = ""; inhosts = 0; next }
     /^kind:[[:space:]]/                 { kind = $2; inhosts = 0; next }

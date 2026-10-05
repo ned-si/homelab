@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    lbipam.cilium.io/ips: 192.168.1.200
+  labels:
+    app.kubernetes.io/name: qbittorrent
+  name: qbittorrent-seed
+  namespace: theater
+spec:
+  ports:
+  - name: seed
+    port: 50000
+    protocol: TCP
+    targetPort: seed
+  selector:
+    app.kubernetes.io/name: qbittorrent
+  type: LoadBalancer
