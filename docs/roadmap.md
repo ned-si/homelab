@@ -8,8 +8,6 @@ cluster came first (ADR 0002).
 
 - Adopt the layered tree app by app: [runbooks/adopt-layered-tree.md](runbooks/adopt-layered-tree.md).
 - KSOPS on the Argo CD repo-server (`bootstrap/argocd-values.yaml`).
-- external-dns: `gateway-httproute` as the only source (ingress-nginx is
-  removed).
 - Decide between kube-vip `svc_enable` and Cilium L2 announcements for
   LoadBalancer IPs (both announce today).
 
