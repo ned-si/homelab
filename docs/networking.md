@@ -17,7 +17,7 @@ README's [Networking](../README.md#networking) table.
 
   | Port | Target | What |
   |---|---|---|
-  | 80, 443 TCP | `192.168.1.254` | every public hostname (ingress-nginx today, the Gateway after the handover) |
+  | 80, 443 TCP | `192.168.1.254` | every public hostname (the shared Gateway) |
   | 22000 TCP + UDP | `192.168.1.201` | Syncthing sync protocol, so phones sync from anywhere |
   | 50000 TCP | `192.168.1.200` | qBittorrent seeding |
 
@@ -42,12 +42,13 @@ selectors (`infrastructure/cilium/ip-pools.yaml`):
 
 | Pool | Range | Who |
 |---|---|---|
-| `pool-1` | `192.168.1.254/32` | ingress-nginx (the Gateway after the handover) |
+| `pool-1` | `192.168.1.254/32` | the shared Gateway |
 | `pool-2` | `192.168.1.200`-`.227` | every other LoadBalancer Service |
 
 Addresses that something depends on are pinned on the Service with the
 `lbipam.cilium.io/ips` annotation: `.200` qbittorrent-seed, `.201`
-syncthing-protocol, `.202` the Gateway (parallel run), `.254` ingress-nginx.
+syncthing-protocol, `.203` ingress-nginx (no public role, until removed),
+`.254` the Gateway.
 LB-IPAM keeps an allocation that matches the request, so adding a pin equal to
 the current address moves nothing.
 
@@ -63,18 +64,18 @@ answers forwards correctly, so a holder change is not a fault. Choosing one of
 the two is on the [roadmap](roadmap.md). L2 announcements do not work with
 `externalTrafficPolicy: Local`; no Service here sets it.
 
-## Ingress today, Gateway next
+## Gateway
 
-ingress-nginx (chart 4.11.3) serves the ten public hostnames through ten
-Ingresses, each with its own certificate. It is retired upstream, so it is
-being replaced by the Gateway API, implemented by Cilium (already the CNI;
-Cilium 1.17, Gateway API v1.2 CRDs, GatewayClass `cilium`).
+The Gateway API, implemented by Cilium (already the CNI; Cilium 1.17, Gateway
+API v1.2 CRDs, GatewayClass `cilium`), serves the ten public hostnames. It
+replaces ingress-nginx (chart 4.11.3, retired upstream), which still runs on
+`.203` with its ten Ingresses but receives no public traffic until it is
+removed.
 
 The shared Gateway (`infrastructure/gateway/`):
 
 ```
-        router 80/443 -> .254 (today ingress-nginx; after the handover the Gateway)
-                          .202 (the Gateway during the parallel run)
+        router 80/443 -> .254
    Gateway `shared` (namespace gateway)
      :80  listener -> HTTPRoute https-redirect -> 301 to https
      :443 listener -> one HTTPRoute per hostname, in the app's namespace
@@ -92,9 +93,13 @@ The shared Gateway (`infrastructure/gateway/`):
   `server.insecure: true` (its own change); until then the legacy Ingress
   serves it.
 
+- The redirect's `Location` carries `:443` (`https://<host>:443/`): Cilium
+  sets the port explicitly. Same URL; the smoke suite compares URLs without
+  default ports.
+
 Sequence (ADR 0007): parallel run on `.202`, proven per hostname with
 `curl --resolve <host>:443:192.168.1.202 https://<host>/`; then one change
-swaps the pins (ingress-nginx `.254` -> `.203`, Gateway `.202` -> `.254`), so
+swapped the pins (ingress-nginx `.254` -> `.203`, Gateway `.202` -> `.254`), so
 the router forwards stay valid; revert = swap back. ingress-nginx and its
 Ingresses are removed afterwards, in their own change.
 

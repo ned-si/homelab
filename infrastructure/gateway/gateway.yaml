@@ -5,13 +5,11 @@
 # copies `spec.infrastructure.annotations` onto it, which is how the address is
 # pinned (the same `lbipam.cilium.io/ips` mechanism as the .200/.201 Services).
 #
-# PARALLEL RUN (ADR 0007). ingress-nginx keeps 192.168.1.254 and every public
-# hostname until the handover; this Gateway answers on 192.168.1.202, which the
-# router does not forward to. Prove each hostname with
-#   curl --resolve <host>:443:192.168.1.202 https://<host>/
-# before the handover. The handover is a separate change that swaps the two
-# pins (nginx -> .203, this Gateway -> .254), so the router's 80/443 forwards
-# stay valid; rolling back swaps them again.
+# ADDRESS (ADR 0007). This Gateway holds 192.168.1.254, the address the
+# router forwards 80/443 TCP to. It took it over from ingress-nginx after a
+# parallel run on 192.168.1.202; the handover change swapped the two pins
+# (nginx -> .203, this Gateway -> .254), so the router's forwards stay valid.
+# Rolling back is reverting that change (nginx -> .254, this Gateway -> .202).
 #
 # DNS. external-dns publishes every HTTPRoute hostname with the single WAN
 # address from its `--default-targets` (infrastructure/external-dns/values.yaml).
@@ -26,7 +24,7 @@ spec:
   gatewayClassName: cilium
   infrastructure:
     annotations:
-      lbipam.cilium.io/ips: "192.168.1.202"
+      lbipam.cilium.io/ips: "192.168.1.254"
   listeners:
     # Plain HTTP exists only to redirect: see http-redirect.yaml.
     - name: http
