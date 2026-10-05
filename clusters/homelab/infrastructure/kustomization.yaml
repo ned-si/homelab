@@ -12,7 +12,7 @@ kind: Kustomization
 #     5  cert-manager-issuers
 #    10  external-dns      publishes the public hostnames
 #    15  gateway           the shared Gateway on .254 (ADR 0007)
-#    20  democratic-csi    diff only: helm-CLI release, never synced
+#    20  democratic-csi    iSCSI CSI driver + StorageClasses; auto-sync, no prune
 #
 # Kept in git, not part of the layer yet (each is new behaviour and ships in
 # its own change, ADR 0002):
