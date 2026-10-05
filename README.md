@@ -46,7 +46,7 @@ their TV apps can sign in.
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
 | CloudNativePG | PostgreSQL for Immich, Keycloak, Mealie, Sonarr, Radarr, Lidarr and Prowlarr | Argo CD |
-| democratic-csi | iSCSI volumes on TrueNAS | Helm release `iscsi`, values in [`infrastructure/democratic-csi/values-iscsi.yaml`](infrastructure/democratic-csi/values-iscsi.yaml) plus the SOPS-sealed driver config |
+| democratic-csi | iSCSI volumes on TrueNAS | Helm release `iscsi`, values in [`infrastructure/democratic-csi/values-iscsi.yaml`](infrastructure/democratic-csi/values-iscsi.yaml); driver config sealed in [`infrastructure/secrets/`](infrastructure/secrets) |
 | kube-prometheus-stack | Prometheus, Alertmanager, Grafana | Argo CD |
 
 The public WAN IP is set in one place only: `--default-targets` in
