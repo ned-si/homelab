@@ -7,7 +7,8 @@ stands:
 - `backup-verify.yaml`: weekly restore tests of the restic and Postgres
   backups. Its two CronJobs need the `pending-guard` initContainer
   (ADR 0008) before they can be enabled, and they only make sense once off-site
-  backups run.
+  backups run. Enabling it also means removing the patch in
+  `platform/secrets/kustomization.yaml` that drops its `s3-backup` Secret.
 
 To enable one: move it into `clusters/homelab/<layer>/`, list it in that
 layer's `kustomization.yaml`, and make CI pass (`scripts/ci/repo-policy.sh`).
