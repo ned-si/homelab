@@ -50,7 +50,7 @@ their TV apps can sign in.
 | kube-prometheus-stack | Prometheus, Alertmanager, Grafana | Argo CD |
 
 The public WAN IP is set in one place only: `--default-targets` in
-[`kubernetes/applications/external-dns/external-dns.yaml`](kubernetes/applications/external-dns/external-dns.yaml).
+[`infrastructure/external-dns/values.yaml`](infrastructure/external-dns/values.yaml).
 Ingresses carry no target annotation.
 
 Chart versions live next to each Application in `kubernetes/applications/`,
