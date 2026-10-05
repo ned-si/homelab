@@ -102,8 +102,8 @@ afterwards, in their own change.
 ## DNS
 
 external-dns v0.15.0, Cloudflare, `policy: upsert-only` (never deletes), TXT
-registry with the default owner. Sources: `service`, `ingress` and, in the
-layered tree, `gateway-httproute`. Every record points at the single
+registry with the default owner. Source: `gateway-httproute` only (the
+Gateway's HTTPRoutes). Every record points at the single
 `--default-targets` address. The redirect route opts out with
 `external-dns.alpha.kubernetes.io/controller: none` (v0.15.0 has no `exclude`
 annotation); CI requires that on any wildcard route.
@@ -111,9 +111,10 @@ annotation); CI requires that on any wildcard route.
 ## Certificates
 
 cert-manager v1.15.0, ClusterIssuer `letsencrypt`, DNS-01 through Cloudflare.
-Today every Ingress has its own certificate; the Gateway uses one wildcard
-`Certificate` (`*.lilalala.com` and the apex). DNS-01 works without inbound
-port 80, so renewals keep working while the router is being changed.
+The Gateway uses one wildcard `Certificate` (`*.lilalala.com`; the apex is
+left out until cert-manager is upgraded, see
+`infrastructure/gateway/certificate.yaml`). DNS-01 works
+without inbound port 80.
 
 ## Network policy
 

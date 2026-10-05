@@ -1,5 +1,5 @@
 # external-dns chart 1.15.0 (v0.15.0) values: the running release's values
-# plus one deliberate addition, the `gateway-httproute` source (ADR 0007).
+# with `gateway-httproute` as the only source (ADR 0007, ADR 0011).
 #
 # Behaviour kept from the running release (chart defaults, not repeated here):
 # policy `upsert-only` (records are created and updated, never deleted), TXT
@@ -16,16 +16,12 @@ env:
         name: cloudflare-api-token-secret
         key: api-token
 
-# `service` and `ingress` are what runs today. `gateway-httproute` is added so
-# the HTTPRoutes of the shared Gateway publish the same hostnames; every record
-# gets the same single target below, so the two sources agree and upsert-only
-# never flips a record. The redirect route opts out with
-# `external-dns.alpha.kubernetes.io/controller: none`. Drop `ingress` when
-# ingress-nginx is removed (ADR 0011). The chart adds the matching read-only
-# RBAC for Gateway API objects when a gateway source is listed.
+# Only the shared Gateway's HTTPRoutes publish hostnames. ingress-nginx and its
+# Ingresses are removed (ADR 0011), and no Service carries an external-dns
+# hostname annotation, so `ingress` and `service` would publish nothing. The
+# redirect route opts out with `external-dns.alpha.kubernetes.io/controller:
+# none`. The chart adds the matching read-only RBAC for Gateway API objects.
 sources:
-  - service
-  - ingress
   - gateway-httproute
 
 # PUBLIC WAN IP: the single place it is set in this layout (CI rule
