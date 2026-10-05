@@ -8,10 +8,8 @@
 #   .254  gateway/cilium-gateway-shared; the router forwards 80/443 TCP here
 #   .200  theater/qbittorrent-seed (router: 50000 TCP)
 #   .201  syncthing/syncthing-protocol (router: 22000 TCP+UDP)
-#   .203  ingress/ingress-nginx-controller (no public role, until removed)
 #
-# Moving .254 between ingress-nginx and the Gateway is a change to those two
-# pins, not to these pools.
+# Moving an address is a change to the Service pins, not to these pools.
 ---
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
