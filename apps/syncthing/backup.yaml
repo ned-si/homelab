@@ -187,7 +187,7 @@ spec:
                   echo "PASS"
               env:
                 - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/homelab-backups-REPLACE-ME/syncthing/data
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/syncthing/data
                 - name: RESTIC_CACHE_DIR
                   value: /cache
                 # restic writes temp pack files here while uploading. Without this it uses
