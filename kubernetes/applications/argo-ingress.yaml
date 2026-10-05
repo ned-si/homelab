@@ -4,7 +4,10 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt
     cert-manager.io/revision-history-limit: "1"
-    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    # Plain HTTP to port 80: argocd-server runs with server.insecure (bootstrap/argocd-values.yaml).
+    # Set explicitly, not dropped: the old HTTPS value is co-owned by another field manager, so
+    # removing the key under server-side apply would leave HTTPS in place.
+    nginx.ingress.kubernetes.io/backend-protocol: HTTP
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
     # Public DNS target is set once: external-dns --default-targets in kubernetes/applications/external-dns/external-dns.yaml
   name: argo-server-ingress
@@ -19,7 +22,7 @@ spec:
           service:
             name: argocd-server
             port:
-              number: 443
+              number: 80
         path: /
         pathType: Prefix
   tls:
