@@ -38,7 +38,7 @@ resource "helm_release" "cilium" {
   name       = "cilium"
   repository = "https://helm.cilium.io"
   chart      = "cilium"
-  # Must match ci/helm-releases.yaml (the helm-CLI release record) and
+  # Must match ci/helm-releases.yaml (the bootstrap version) and
   # clusters/homelab/infrastructure/cilium.yaml; CI checks the latter.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
   version   = "1.17.18"

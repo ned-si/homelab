@@ -10,7 +10,7 @@ belongs in `clusters/homelab/` instead.
 
 | Step | Why it is here |
 |---|---|
-| Cilium | No pod can be scheduled without a CNI — including Argo CD. |
+| Cilium | No pod can be scheduled without a CNI — including Argo CD. Installed once, then adopted by Argo CD (step 4). |
 | `sops-age` Secret | Argo CD cannot read encrypted secrets until it holds the key, and the key cannot live in the repo it protects. |
 | `homelab-repo` Secret | Argo CD needs credentials before it can clone. |
 | Argo CD | Something has to install the thing that installs everything. |
@@ -140,6 +140,44 @@ task bootstrap:apply
 
 This installs Cilium (waits for it), then Argo CD (waits), then the root
 Application. Expect 5–10 minutes on RK1 hardware.
+
+#### Cilium is a one-off here
+
+The bootstrap install is the only time Cilium is installed outside Argo CD.
+Argo CD's `cilium` Application then adopts that release and owns its lifecycle
+(automated sync with self-heal, no prune). Both read the same inputs from git,
+so the adoption changes nothing but Argo CD's tracking label:
+
+| Input | Where |
+|---|---|
+| Chart version | `ci/helm-releases.yaml` (`cilium` entry), kept equal to `clusters/homelab/infrastructure/cilium.yaml` by CI |
+| Values | `infrastructure/cilium/values.yaml` |
+| Release name, namespace | `cilium`, `kube-system` |
+
+Without OpenTofu, the same install by hand, from a CI-green commit on `main`:
+
+```sh
+sha=$(git rev-parse origin/main)
+git show "$sha:infrastructure/cilium/values.yaml" > /tmp/cilium-values.yaml
+version=$(yq '.releases[] | select(.name == "cilium") | .version' ci/helm-releases.yaml)
+helm install cilium cilium --repo https://helm.cilium.io --version "$version" \
+  -n kube-system -f /tmp/cilium-values.yaml --wait --timeout 15m
+rm /tmp/cilium-values.yaml
+```
+
+After Argo CD is up, `argocd app diff cilium` should show only the
+`argocd.argoproj.io/instance: cilium` label on each object. The chart generates
+`cilium-ca` and `hubble-server-certs` itself; the Application ignores their
+data and keeps the live certificates (`RespectIgnoreDifferences=true`).
+
+Never `helm upgrade` or `helm uninstall` the release once Argo CD owns it:
+upgrades are a merged change to the chart version or the values file, and
+`helm uninstall` deletes the CNI. Rollback is a revert pull request. The
+`sh.helm.release.v1.cilium.*` Secrets stay as stale metadata for break-glass
+only: `helm rollback cilium <revision>` holds only while self-heal is off, so
+revert in git as well.
+democratic-csi is not a bootstrap step: its Application installs it like any
+other leaf.
 
 ### 5. Get in
 

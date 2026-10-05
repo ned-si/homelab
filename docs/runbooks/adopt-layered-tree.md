@@ -66,9 +66,8 @@ runs, `all-apps` keeps running everything exactly as before.
 Suggested order: `namespaces`, `secrets-*`, `cilium-config`, `gateway-api`,
 `cert-manager`, `cert-manager-issuers`, `external-dns`, `nginx`,
 `legacy-ingress`, `gateway`, `cnpg`, `keycloak`, `kube-prometheus-stack`, then
-the apps, `immich` last. `cilium` is never synced: it stays a helm-CLI
-release. (`democratic-csi` was taken over from its helm release later, on
-2026-10-05.)
+the apps, `immich` last. (`democratic-csi` and then `cilium` were taken over
+from their helm releases later, on 2026-10-05.)
 
 ## Expected differences
 
