@@ -61,7 +61,6 @@ spec:
   syncWindows:
   - applications:
     - cilium
-    - democratic-csi
     duration: 24h
     kind: deny
     manualSync: false

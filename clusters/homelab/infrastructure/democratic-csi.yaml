@@ -6,8 +6,8 @@
 # driver config is not rendered here: it is the SOPS-sealed Secret applied by
 # `secrets-infrastructure`, read through `driver.existingConfigSecret`.
 #
-# Not synced yet: the sync window in project-infrastructure.yaml still denies
-# every sync of this leaf, until Argo CD takes it over from the helm release.
+# Synced by hand for the takeover from the helm release; no `automated`
+# block yet.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
