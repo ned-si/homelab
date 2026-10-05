@@ -358,7 +358,13 @@ item_dns() {
 }
 
 # --- 7. HTTP matrix ---------------------------------------------------------------
-scheme_host() { printf '%s' "$1" | sed -n 's#^\([A-Za-z][A-Za-z0-9+.-]*://[^/?#]*\).*#\1#p'; }
+# scheme_host <url>: "<scheme>://<authority>", without the scheme's default port
+# (RFC 3986 6.2.3: https://h:443 and https://h are the same URL). Cilium's
+# Gateway puts ":443" in its HTTP->HTTPS redirect Location; ingress-nginx does not.
+scheme_host() {
+  printf '%s' "$1" | sed -n 's#^\([A-Za-z][A-Za-z0-9+.-]*://[^/?#]*\).*#\1#p' \
+    | sed -e 's#^\([Hh][Tt][Tt][Pp][Ss]://.*\):443$#\1#' -e 's#^\([Hh][Tt][Tt][Pp]://.*\):80$#\1#'
+}
 
 https_probe() { # https_probe <fqdn> <ip> <key>: writes <key>.code/.loc/.cert, 0 when curl got an answer
   local out rc code loc
