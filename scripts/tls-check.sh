@@ -12,9 +12,8 @@
 #
 # Resolved as follows, and all three files say the same thing:
 #
-#   * ZAP is REPORTING. It runs weekly against the live site, files an issue,
-#     and gates nothing. rules.tsv contains no FAIL rows, so its exit code and
-#     `fail_action: false` agree.
+#   * ZAP REPORTS to code scanning (SARIF) and gates only on HIGH alerts. The
+#     four header rules are WARN in rules.tsv.
 #   * This script is the GATE, because it is cheap, deterministic, and its hard
 #     checks are things that are true today and would be regressions if they
 #     stopped being true.
@@ -36,11 +35,10 @@
 #
 #         STRICT_HEADERS=1 ./scripts/tls-check.sh
 #
-#     and then the same flag goes in dast.yaml. .zap/rules.tsv moves those rule
-#     IDs from WARN to FAIL in the same commit.
+#     and then the same flag goes in dast.yaml, in the same commit.
 #
-# Deliberately dependency-free (curl + openssl) so it runs on a self-hosted
-# runner with nothing installed, and locally on macOS.
+# Deliberately dependency-free (curl + openssl) so it runs on a stock CI
+# runner and locally on macOS. dast.yaml keeps its output off the public log.
 #
 # Hostnames are DERIVED from deploy/ by scripts/published-hostnames.sh -- see
 # that script for why the list is 15 names and not the 17 a naive grep finds.
@@ -159,8 +157,7 @@ echo
 if [ "$warned" -eq 1 ] && [ "$STRICT_HEADERS" != "1" ]; then
   yellow "security headers are missing on at least one host. The Gateway sets no"
   yellow "response headers yet -- add a ResponseHeaderModifier filter in"
-  yellow "infrastructure/gateway, then flip STRICT_HEADERS=1 here and move the"
-  yellow "matching rule IDs in .zap/rules.tsv from WARN to FAIL."
+  yellow "infrastructure/gateway, then flip STRICT_HEADERS=1 here and in dast.yaml."
   echo
 fi
 if [ "$fail" -eq 0 ]; then

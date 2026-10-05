@@ -1,26 +1,23 @@
 # ZAP alert filter. Tab-separated: <ruleId>	<WARN|IGNORE|FAIL>	<comment>
 #
-# NOTHING HERE GATES ANYTHING, BY DESIGN.
+# ZAP runs weekly against the live site from a GitHub-hosted runner
+# (.github/workflows/dast.yaml). Findings go to code scanning as SARIF, never to
+# the public log, an issue or an artifact.
 #
-# ZAP runs weekly against the live site from a self-hosted runner and files a
-# GitHub issue with what it found. `.github/workflows/dast.yaml` sets
-# `fail_action: false`, and this file contains no FAIL rows -- those two facts
-# agree on purpose, and they must be changed together.
+# WHAT GATES: any HIGH alert, by count (scripts/zap_sarif.py, then the gate
+# step). The accepted baseline is zero HIGH. A HIGH that is accepted gets an
+# IGNORE row below with its reason; IGNORE rows are dropped before the count,
+# so every HIGH that reaches the gate is new. Medium and below report only.
+# FAIL rows are not used: the HIGH count is the gate.
 #
-# The reason: every rule that would be worth failing on is a header the shared
-# Gateway does not set yet (there is no ResponseHeaderModifier filter anywhere in
-# the repo). A FAIL row here would make the weekly cron red from its first run,
-# and a cron job that is always red is one nobody reads.
+# The four header rules are WARN because the shared Gateway sets no response
+# headers yet (no ResponseHeaderModifier filter in the repo).
+# scripts/tls-check.sh checks the same four headers, and hard-fails on
+# reachability, the http -> https redirect and certificate expiry.
 #
-# THE GATE IS scripts/tls-check.sh. It runs in the same workflow, checks the same
-# four headers, and hard-fails on the things that are green today and would be
-# regressions: reachability, the http -> https redirect, and certificate expiry.
-#
-# TO PROMOTE A HEADER TO A GATE, in one commit:
+# TO PROMOTE THE HEADERS TO A GATE, in one commit:
 #   1. add the ResponseHeaderModifier filter in infrastructure/gateway
-#   2. move the rule ID below from WARN to FAIL
-#   3. set `fail_action: true` in dast.yaml
-#   4. set STRICT_HEADERS=1 on the tls step in dast.yaml
+#   2. set STRICT_HEADERS=1 on the tls step in dast.yaml
 #
 # Only rules with a stated reason belong here. Everything not listed keeps its
 # default behaviour, which for a baseline scan is WARN.
