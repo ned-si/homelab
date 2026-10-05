@@ -45,6 +45,10 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 !*.tfvars.example
+# Plans embed variable values and resource attributes, secrets included.
+*.tfplan
+*.tfplan.json
+plan.bin
 override.tf
 override.tf.json
 *_override.tf

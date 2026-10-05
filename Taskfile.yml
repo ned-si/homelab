@@ -363,19 +363,19 @@ tasks:
   # -------------------------------------------------------------------------
   # Bootstrap
   # -------------------------------------------------------------------------
+  # scripts/tofu.sh supplies the `aws login` session (remote state in S3) and
+  # the state passphrase. Run `aws login --profile homelab` first.
   bootstrap:plan:
     desc: OpenTofu plan for the Argo CD bootstrap
-    dir: bootstrap
     cmds:
-      - tofu init -upgrade
-      - tofu plan
+      - scripts/tofu.sh bootstrap init -upgrade
+      - scripts/tofu.sh bootstrap plan
 
   bootstrap:apply:
     desc: OpenTofu apply for the Argo CD bootstrap
-    dir: bootstrap
     cmds:
-      - tofu init -upgrade
-      - tofu apply
+      - scripts/tofu.sh bootstrap init -upgrade
+      - scripts/tofu.sh bootstrap apply
 
   # -------------------------------------------------------------------------
   # Cluster operations

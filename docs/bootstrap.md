@@ -174,10 +174,68 @@ task bootstrap:plan
 task bootstrap:apply
 ```
 
-State is local (`bootstrap/terraform.tfstate`, git-ignored) and contains the
-age key and the token in clear text: keep it encrypted or delete it after the
-run. `helm_release.root_application` has `prevent_destroy`, so `tofu destroy`
-refuses at plan time.
+State is remote and encrypted ([OpenTofu state](#opentofu-state)); it will hold
+the age key and the token. `helm_release.root_application` has
+`prevent_destroy`, so `tofu destroy` refuses at plan time.
+
+## OpenTofu state
+
+> [!CAUTION]
+> Without `TOFU_STATE_PASSPHRASE` every module's state is unreadable and there
+> is no recovery: the next apply tries to recreate everything. Keep it in the
+> password manager as well as in `secrets.local.env` (git-ignored).
+
+Every root module under `bootstrap/` keeps its state in the S3 bucket
+`ned-si-homelab-tofu-state` (eu-central-1), key `<module path>/terraform.tfstate`:
+
+| Module | Holds |
+|---|---|
+| `bootstrap/tofu-state` | the state bucket itself |
+| `bootstrap/aws-backup` | backup bucket, both IAM users and their secret keys |
+| `bootstrap` | once applied, the age key and the Git token |
+
+- **Client-side encryption.** The `encryption` block in each `providers.tf`
+  encrypts state and plans with AES-GCM, key derived (PBKDF2) from
+  `var.state_passphrase`, `enforced = true`. S3 only holds ciphertext.
+- **Locking.** S3-native (`use_lockfile = true`): a `.tflock` object next to the
+  state while a command runs. No DynamoDB table.
+- **The bucket.** Versioning (90 days of previous states), SSE-S3, public access
+  blocked, TLS-only bucket policy, `prevent_destroy`. Separate from the backup
+  bucket, whose writer must not read the state that holds its own key.
+
+Run OpenTofu through the wrapper, never bare `tofu`:
+
+```sh
+aws login --profile homelab --region eu-central-1   # browser, once per session
+scripts/tofu.sh bootstrap/aws-backup init
+scripts/tofu.sh bootstrap/aws-backup plan
+```
+
+`scripts/tofu.sh <module> <tofu args>` exports the login session as environment
+credentials, passes `TOFU_STATE_PASSPHRASE` from `secrets.local.env` as
+`TF_VAR_state_passphrase`, prints neither, and runs `tofu` in the module.
+`task bootstrap:plan` and `task bootstrap:apply` use it. CI only runs
+`tofu fmt -check` and `tofu init -backend=false && tofu validate`.
+
+**Creating the state bucket (fresh account only).** `bootstrap/tofu-state`
+stores its state in the bucket it creates, so apply it first with local
+(already encrypted) state, then move it:
+
+```sh
+printf 'terraform {\n  backend "local" {}\n}\n' \
+  > bootstrap/tofu-state/backend_override.tf          # git-ignored
+scripts/tofu.sh bootstrap/tofu-state init
+scripts/tofu.sh bootstrap/tofu-state apply
+rm bootstrap/tofu-state/backend_override.tf
+scripts/tofu.sh bootstrap/tofu-state init -migrate-state -force-copy
+rm -P bootstrap/tofu-state/terraform.tfstate*
+```
+
+**Moving a plaintext state in, or changing the passphrase.** For one run, in the
+module's `providers.tf`, add the old method (`method "unencrypted" "migrate" {}`
+or the old key provider) as `fallback` and set `enforced = false`; run
+`scripts/tofu.sh <module> init -migrate-state -force-copy`; revert, confirm
+`plan` shows no changes, and delete any local `terraform.tfstate*`.
 
 ## Removing Argo CD without deleting workloads
 
