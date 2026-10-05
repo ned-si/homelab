@@ -73,9 +73,11 @@ configs:
     server.dex.server.strict.tls: false
     server.disable.auth: false
     server.enable.gzip: true
-    # The server terminates TLS itself; plain HTTP behind the Gateway is a
-    # separate, later change.
-    server.insecure: false
+    # TLS ends at the edge (ingress-nginx today, the Gateway after the .254
+    # handover); argocd-server serves plain HTTP on the Service's port 80.
+    # The legacy Ingress (kubernetes/applications/argo-ingress.yaml) and the
+    # HTTPRoute (infrastructure/gateway/argocd-route.yaml) both target port 80.
+    server.insecure: true
     server.log.format: text
     server.log.level: info
     server.repo.server.strict.tls: false
