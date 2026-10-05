@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/gateway
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/gateway and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shared
+  namespace: gateway
+spec:
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      lbipam.cilium.io/ips: 192.168.1.254
+  listeners:
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: '*.lilalala.com'
+    name: http
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      kinds:
+      - group: gateway.networking.k8s.io
+        kind: HTTPRoute
+      namespaces:
+        from: All
+    hostname: '*.lilalala.com'
+    name: https
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: wildcard-lilalala-tls
+      mode: Terminate

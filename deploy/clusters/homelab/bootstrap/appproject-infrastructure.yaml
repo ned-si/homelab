@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/bootstrap
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/bootstrap and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: infrastructure
+  namespace: argo
+spec:
+  clusterResourceWhitelist:
+  - group: ""
+    kind: Namespace
+  - group: ""
+    kind: PersistentVolume
+  - group: cert-manager.io
+    kind: ClusterIssuer
+  - group: cilium.io
+    kind: CiliumLoadBalancerIPPool
+  - group: cilium.io
+    kind: CiliumL2AnnouncementPolicy
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRole
+  - group: rbac.authorization.k8s.io
+    kind: ClusterRoleBinding
+  - group: storage.k8s.io
+    kind: CSIDriver
+  - group: storage.k8s.io
+    kind: StorageClass
+  - group: snapshot.storage.k8s.io
+    kind: VolumeSnapshotClass
+  - group: gateway.networking.k8s.io
+    kind: GatewayClass
+  - group: admissionregistration.k8s.io
+    kind: MutatingWebhookConfiguration
+  - group: admissionregistration.k8s.io
+    kind: ValidatingWebhookConfiguration
+  description: Cluster plumbing - CNI, Gateway API, cert-manager, DNS, CSI
+  destinations:
+  - namespace: '*'
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  sourceRepos:
+  - https://github.com/ned-si/homelab.git
+  - https://helm.cilium.io
+  - https://charts.jetstack.io
+  - https://kubernetes-sigs.github.io/external-dns/
+  - https://democratic-csi.github.io/charts/
+  syncWindows:
+  - applications:
+    - cilium
+    - democratic-csi
+    duration: 24h
+    kind: deny
+    manualSync: false
+    schedule: '* * * * *'

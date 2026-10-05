@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/infrastructure
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/infrastructure and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  name: democratic-csi
+  namespace: argo
+spec:
+  destination:
+    namespace: democratic-csi
+    server: https://kubernetes.default.svc
+  project: infrastructure
+  revisionHistoryLimit: 10
+  sources:
+  - chart: democratic-csi
+    helm:
+      releaseName: iscsi
+      valueFiles:
+      - $values/infrastructure/democratic-csi/values-iscsi.yaml
+    repoURL: https://democratic-csi.github.io/charts/
+    targetRevision: 0.14.7
+  - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true

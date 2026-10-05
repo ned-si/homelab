@@ -1,0 +1,23 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/seafile
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/seafile and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: mariadb-pvc
+  namespace: seafile
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

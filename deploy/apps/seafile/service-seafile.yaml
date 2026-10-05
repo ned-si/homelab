@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/seafile
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/seafile and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: seafile
+  name: seafile
+  namespace: seafile
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: seafile
+  type: ClusterIP

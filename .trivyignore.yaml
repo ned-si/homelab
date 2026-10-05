@@ -77,7 +77,7 @@ misconfigurations:
   # question to ask is whether the plugin has gained a namespace-scoped install.
   - id: AVD-KSV-0041
     paths:
-      - "deploy/platform/barman-cloud-plugin/manifests.yaml"
+      - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"
     statement: >-
       Vendored upstream ClusterRole (plugin-barman-cloud v0.12.0). Needs
       create/delete/get/list/watch on secrets to manage its own per-Cluster
@@ -87,7 +87,7 @@ misconfigurations:
     expired_at: 2026-12-01
   - id: AVD-KSV-0050
     paths:
-      - "deploy/platform/barman-cloud-plugin/manifests.yaml"
+      - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"
     statement: >-
       Same vendored upstream ClusterRole. Holds only create/get/list on
       roles/rolebindings -- no update, no delete, no wildcard -- to create
@@ -118,7 +118,8 @@ misconfigurations:
     paths:
       - "platform/backup-verify/restore-files.yaml"
       - "platform/backup-verify/restore-postgres.yaml"
-      - "deploy/platform/backup-verify/manifests.yaml"
+      - "deploy/platform/backup-verify/configmap-backup-verify-files-scripts.yaml"
+      - "deploy/platform/backup-verify/configmap-backup-verify-scripts.yaml"
     statement: >-
       False positive, verified by grep. The flagged value is the shell string
       'echo "PASS' from the drills' PASS/FAIL output, matched as the prefix of
@@ -139,7 +140,7 @@ misconfigurations:
   - id: AVD-KSV-0053
     paths:
       - "platform/backup-verify/restore-postgres.yaml"
-      - "deploy/platform/backup-verify/manifests.yaml"
+      - "deploy/platform/backup-verify/role-backup-verify.yaml"
     statement: >-
       Namespaced Role, not cluster-wide. pods/exec is how the weekly drill runs
       psql inside the restored cluster to compare table/row counts and extension
@@ -202,14 +203,15 @@ misconfigurations:
       - "apps/seafile/deployment.yaml"
       - "apps/seafile/mariadb.yaml"
       - "apps/syncthing/statefulset.yaml"
-      - "deploy/apps/theater/manifests.yaml"
-      - "deploy/apps/mealie/manifests.yaml"
-      - "deploy/apps/paperless/manifests.yaml"
-      - "deploy/apps/seafile/manifests.yaml"
-      - "deploy/apps/syncthing/manifests.yaml"
+      - "deploy/apps/theater/*.yaml"
+      - "deploy/apps/mealie/deployment-mealie.yaml"
+      - "deploy/apps/paperless/deployment-paperless.yaml"
+      - "deploy/apps/seafile/deployment-seafile.yaml"
+      - "deploy/apps/seafile/deployment-mariadb.yaml"
+      - "deploy/apps/syncthing/statefulset-syncthing.yaml"
       # Vendored upstream: the CSI external-snapshotter release manifest, not
       # written here. Same class as the barman plugin above.
-      - "deploy/infrastructure/snapshot-controller/manifests.yaml"
+      - "deploy/infrastructure/snapshot-controller/deployment-snapshot-controller.yaml"
     statement: >-
       linuxserver/hotio-style images start s6 as root and drop to PUID/PGID 1000;
       runAsNonRoot breaks the entrypoint before the app starts. Mitigated by
@@ -228,8 +230,10 @@ misconfigurations:
       - "apps/paperless/valkey.yaml"
       - "apps/seafile/memcached.yaml"
       - "platform/keycloak/deployment.yaml"
-      - "deploy/apps/immich/resources/manifests.yaml"
-      - "deploy/platform/keycloak/manifests.yaml"
+      - "deploy/apps/immich/resources/deployment-valkey.yaml"
+      - "deploy/apps/paperless/deployment-valkey.yaml"
+      - "deploy/apps/seafile/deployment-memcached.yaml"
+      - "deploy/platform/keycloak/deployment-keycloak.yaml"
     statement: >-
       Default security context on workloads ported unchanged from the running
       cluster (valkey x2, memcached, Keycloak); setting one restarts them, so it

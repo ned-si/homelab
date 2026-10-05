@@ -1,0 +1,71 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-files
+  namespace: backup-verify
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 8
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 10800
+      backoffLimit: 0
+      template:
+        spec:
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/run-all-files.sh
+            env:
+            - name: RESTIC_CACHE_DIR
+              value: /scratch/.cache
+            - name: TMPDIR
+              value: /scratch/.cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            name: verify
+            resources:
+              limits:
+                memory: 2Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /scratch
+              name: scratch
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: backup-verify-files-scripts
+            name: scripts
+          - name: scratch
+            persistentVolumeClaim:
+              claimName: backup-verify-scratch
+  schedule: 0 7 * * 0
+  successfulJobsHistoryLimit: 4

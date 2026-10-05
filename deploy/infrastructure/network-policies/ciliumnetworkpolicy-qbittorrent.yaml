@@ -1,0 +1,81 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: qbittorrent
+  namespace: theater
+spec:
+  description: 'qBittorrent: WebUI reachable from the Gateway and the *arr apps, peer
+    port reachable from the LAN, egress to internet peers but NOT to the LAN.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toCIDRSet:
+    - cidr: 0.0.0.0/0
+      except:
+      - 192.168.0.0/16
+      - 10.0.0.0/8
+      - 172.16.0.0/12
+      - 169.254.0.0/16
+      - 127.0.0.0/8
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/component: sso-proxy
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - lidarr
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - fromEntities:
+    - world
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "50000"
+        protocol: TCP
+      - port: "50000"
+        protocol: UDP

@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/bootstrap
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/bootstrap and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: apps
+  namespace: argo
+spec:
+  clusterResourceWhitelist: []
+  description: End-user workloads - media, photos, documents, recipes, sync
+  destinations:
+  - namespace: theater
+    server: https://kubernetes.default.svc
+  - namespace: immich
+    server: https://kubernetes.default.svc
+  - namespace: mealie
+    server: https://kubernetes.default.svc
+  - namespace: paperless
+    server: https://kubernetes.default.svc
+  - namespace: seafile
+    server: https://kubernetes.default.svc
+  - namespace: syncthing
+    server: https://kubernetes.default.svc
+  namespaceResourceWhitelist:
+  - group: '*'
+    kind: '*'
+  sourceRepos:
+  - https://github.com/ned-si/homelab.git
+  - https://immich-app.github.io/immich-charts

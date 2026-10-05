@@ -1,0 +1,59 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/syncthing
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/syncthing and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
+      the digest pin is its own change, see docs/roadmap.md
+  name: syncthing
+  namespace: syncthing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: syncthing
+  serviceName: syncthing
+  template:
+    metadata:
+      labels:
+        app: syncthing
+    spec:
+      containers:
+      - env:
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        image: syncthing/syncthing:latest
+        name: syncthing
+        ports:
+        - containerPort: 8384
+          name: web-ui
+        - containerPort: 22000
+          name: syncthing-tcp
+          protocol: TCP
+        - containerPort: 22000
+          name: syncthing-udp
+          protocol: UDP
+        - containerPort: 21027
+          name: syncthing-disc
+          protocol: UDP
+        volumeMounts:
+        - mountPath: /var/syncthing
+          name: syncthing
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: syncthing
+        persistentVolumeClaim:
+          claimName: syncthing-pvc
+          readOnly: false

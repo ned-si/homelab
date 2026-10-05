@@ -48,10 +48,10 @@ repos:
           )$
       - id: check-added-large-files
         args: [--maxkb=512]
-        # deploy/infrastructure/gateway-api/manifests.yaml is ~830KB: the
-        # Gateway API experimental CRD bundle, vendored so Argo does not need to
-        # reach github.com at sync time. It changes only on a Gateway API version
-        # bump, which is behind manual review anyway.
+        # deploy/infrastructure/gateway-api/ holds the Gateway API experimental
+        # CRDs (~830KB in total, the HTTPRoute CRD alone ~370KB), vendored so
+        # Argo does not need to reach github.com at sync time. They change only
+        # on a Gateway API version bump, which is behind manual review anyway.
         exclude: ^deploy/
       - id: check-executables-have-shebangs
       # The one that actually matters here, and the mirror image of the above:

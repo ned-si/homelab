@@ -10,8 +10,9 @@ Scope, exactly (each item is active only when its paths exist):
               the plain manifests next to them.
   2. root     the Applications reachable from clusters/homelab/root.yaml by
               following each git source as Argo does: root -> layer-* -> leaves.
-              deploy/** directories hold only manifests.yaml and are read as
-              plain YAML documents, never kustomized.
+              deploy/** directories hold one rendered file per object
+              (<kind>-<name>.yaml) and are read as plain YAML documents, never
+              kustomized.
   3. files    every Application file under clusters/homelab/{infrastructure,
               platform,apps}/, including those excluded from their layer's
               kustomization, so inert content stays validated. An Application
@@ -35,7 +36,8 @@ read as plain documents (recursing when `directory.recurse`), `kubectl
 kustomize` when it holds a kustomization, `helm template` when it holds a
 Chart.yaml.
 
-Output: <out>/<app>/manifests.yaml (legacy apps under <out>/legacy/<app>/,
+Output (CI scratch, not deploy/): <out>/<app>/manifests.yaml, all of an
+Application's objects in one file (legacy apps under <out>/legacy/<app>/,
 helm-CLI releases under <out>/helm-releases/<name>/), <out>/index.json and
 <out>/files.txt. stdout carries application names and object counts only: the
 legacy inline Helm values contain credentials, so rendered content is never

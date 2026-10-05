@@ -1,0 +1,17 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/barman-cloud-plugin
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/barman-cloud-plugin and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: cnpg-system
+spec:
+  selfSigned: {}

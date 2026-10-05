@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/platform
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/platform and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+  name: cnpg
+  namespace: argo
+spec:
+  destination:
+    namespace: immich
+    server: https://kubernetes.default.svc
+  project: platform
+  revisionHistoryLimit: 10
+  sources:
+  - chart: cloudnative-pg
+    helm:
+      releaseName: cnpg
+      valueFiles:
+      - $values/platform/cloudnative-pg/values.yaml
+    repoURL: https://cloudnative-pg.github.io/charts
+    targetRevision: v0.22.1
+  - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - CreateNamespace=true
+    - ServerSideApply=true

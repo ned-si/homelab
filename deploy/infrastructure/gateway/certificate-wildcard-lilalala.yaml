@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/gateway
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/gateway and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wildcard-lilalala
+  namespace: gateway
+spec:
+  commonName: '*.lilalala.com'
+  dnsNames:
+  - '*.lilalala.com'
+  duration: 2160h
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: letsencrypt
+  privateKey:
+    algorithm: ECDSA
+    rotationPolicy: Always
+    size: 256
+  renewBefore: 720h
+  secretName: wildcard-lilalala-tls

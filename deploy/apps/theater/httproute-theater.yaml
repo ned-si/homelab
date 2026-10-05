@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: theater
+  namespace: theater
+spec:
+  hostnames:
+  - theater.lilalala.com
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
+    namespace: gateway
+    sectionName: https
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: radarr
+      port: 7878
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/radarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: sonarr
+      port: 8989
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/sonarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: prowlarr
+      port: 9696
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/prowlarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: lidarr
+      port: 8686
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/lidarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: plex
+      port: 32400
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
+    timeouts:
+      request: 0s
