@@ -2,16 +2,23 @@
 # CI: every check that can run without a cluster, for the layered
 # clusters/ apps/ platform/ infrastructure/ deploy/ tree Argo CD syncs.
 #
-# Pinning rules (enforced by scripts/ci/check-pins.sh in `repo-policy`):
+# ONE JOB, ON PURPOSE. GitHub bills every job rounded up to a whole minute, so
+# twelve 5-90 s jobs cost ~13 billable minutes for ~2 minutes of compute. Every
+# check is a separate step of the single `ci` job instead: each one runs even
+# when an earlier one failed (`!cancelled()`), and the last step lists every
+# outcome and fails the job if any check failed or did not run. `ci` is the
+# check name scripts/pr-merge.sh requires.
+#
+# Pinning rules (enforced by scripts/ci/check-pins.sh in the repo-policy step):
 #   - every remote `uses:` is a 40-hex commit SHA with a `# vX.Y.Z` comment;
 #   - every binary is downloaded by exact version and verified against the
 #     sha256 below (scripts/ci/install-tool.sh), never `latest`;
 #   - Python tools come from ci/requirements-ci.txt with `--require-hashes`;
 #   - core Kubernetes schemas come from one pinned commit, CRD schemas from the
 #     vendored ci/schemas/ (no -ignore-missing-schemas).
-# Never `pull_request_target`; `permissions: {}` at the top, each job asks for
-# the minimum; checkouts never persist the token. Rendered manifests are never
-# uploaded or printed: legacy inline Helm values contain credentials.
+# Never `pull_request_target`; `permissions: {}` at the top, the job asks for
+# the minimum; the checkout never persists the token. Rendered manifests are
+# never uploaded or printed: legacy inline Helm values contain credentials.
 name: ci
 
 on:
@@ -41,9 +48,9 @@ env:
   SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
   GITLEAKS_VERSION: 8.30.0
   GITLEAKS_SHA256: 79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
-  # trivy is installed here and the action is told to skip its own installer,
-  # so the binary is covered by the checksum rule. v0.70.0 is after the
-  # 2026-03 compromised releases (0.69.4-0.69.6).
+  # trivy is installed by install-tool.sh, so the binary is covered by the
+  # checksum rule. v0.70.0 is after the 2026-03 compromised releases
+  # (0.69.4-0.69.6).
   TRIVY_VERSION: 0.70.0
   TRIVY_SHA256: 8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9
   KUBE_LINTER_VERSION: v0.8.3
@@ -56,116 +63,54 @@ env:
   KUBECTL_SHA256: ebbd080e7c2e275093b55915722043257eb24004363e20acb3c4d71919f88336
   TOFU_VERSION: 1.12.6
   TOFU_SHA256: 50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec
+  # One checkout serves every step: keep it free of bytecode and pytest caches
+  # so no check sees another check's leftovers.
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
-  yamllint:
+  ci:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: read
+      # check-commits.sh reads the PR's commits through the REST API.
+      pull-requests: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Install pinned Python tools
-        run: scripts/ci/setup-python-deps.sh
-      - name: yamllint (strict)
-        run: yamllint -c .yamllint.yaml .
+          # gitleaks scans the new commits; the trivy delta gate scans the
+          # merge-base in a worktree.
+          fetch-depth: 0
 
-  actionlint:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install pinned actionlint and shellcheck
-        run: scripts/ci/install-tool.sh actionlint shellcheck
-      - name: actionlint
-        run: actionlint -color
-
-  shellcheck:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install pinned shellcheck
-        run: scripts/ci/install-tool.sh shellcheck
-      - name: shellcheck every shell script
-        run: scripts/ci/shellcheck-all.sh
-
-  render:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
       - name: Install pinned tools
-        run: |
-          scripts/ci/install-tool.sh helm kubectl
-          scripts/ci/setup-python-deps.sh
-      - name: Unit tests (pytest)
-        run: python -m pytest -q tests
-      - name: Unit tests (bash)
-        run: bash tests/run-bash-tests.sh
-      - name: Render every Application in scope
+        id: setup
         run: |
           set -euo pipefail
-          python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render" | tee "$RUNNER_TEMP/render.log"
-          { echo "### render"; echo '```'; cat "$RUNNER_TEMP/render.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          scripts/ci/install-tool.sh actionlint shellcheck helm kubectl kubeconform kube-linter gitleaks trivy tofu
+          scripts/ci/setup-python-deps.sh
 
-  repo-policy:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install pinned tools
-        run: scripts/ci/install-tool.sh helm kubectl kube-linter
-      - name: Repository policy
-        run: scripts/ci/repo-policy.sh
+      # --- pull request only ---------------------------------------------------
+      - name: pr-title (Conventional Commits subject under 70 characters)
+        id: pr-title
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/ci/check-title.sh "$TITLE"
 
-  kubeconform:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install pinned tools
-        run: scripts/ci/install-tool.sh helm kubectl kubeconform
-      - name: Render every Application in scope
-        run: python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render"
-      - name: kubeconform (strict, pinned core schemas, vendored CRD schemas)
-        run: scripts/ci/kubeconform.sh "$RUNNER_TEMP/render"
+      - name: commits (every subject passes, every commit verified)
+        id: commits
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: scripts/ci/check-commits.sh "$REPO" "$PR"
 
-  gitleaks:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - name: Install pinned gitleaks
-        run: scripts/ci/install-tool.sh gitleaks
+      # --- every event -----------------------------------------------------------
       - name: gitleaks on the new commits only
+        id: gitleaks
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
           EVENT: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
@@ -184,68 +129,90 @@ jobs:
           echo "scanning ${base}..${head}: $(git rev-list --count "${base}..${head}") commit(s)"
           gitleaks git --no-banner --redact --exit-code 1 --log-opts="${base}..${head}" .
 
-  trivy:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          # The delta gate scans the merge-base in a worktree.
-          fetch-depth: 0
-      - name: Install pinned trivy
-        run: scripts/ci/install-tool.sh trivy
+      - name: yamllint (strict)
+        id: yamllint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: yamllint -c .yamllint.yaml .
+
+      - name: actionlint
+        id: actionlint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: actionlint -color
+
+      - name: shellcheck every shell script
+        id: shellcheck
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/shellcheck-all.sh
+
       - name: Trivy waiver hygiene
+        id: trivy-waivers
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: scripts/trivy-waivers.sh
-      - name: Trivy config scan (SARIF)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          skip-setup-trivy: true
-          scan-type: config
-          scan-ref: .
-          format: sarif
-          output: trivy.sarif
-          severity: HIGH,CRITICAL
-          trivyignores: .trivyignore.yaml
-          limit-severities-for-sarif: "true"
-          exit-code: "0"
+
+      # The gate prints its findings to the log and the step summary. There is
+      # no SARIF upload: Code Scanning needs a public repository or GHAS, so on
+      # this private repository the upload failed on every run (45 s each).
+      # Re-add trivy-action + upload-sarif if the repository becomes public.
       - name: Trivy gate (CRITICAL on presence, HIGH on delta vs merge-base)
+        id: trivy
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
           TRIVY_GATE_SUMMARY: ${{ runner.temp }}/trivy-summary.md
         run: scripts/trivy-gate.sh
+
       - name: Trivy summary
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           SUMMARY: ${{ runner.temp }}/trivy-summary.md
         run: if [ -f "$SUMMARY" ]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi
-      # Reporting only: Code Scanning is unavailable on a private repository
-      # without GHAS, so the upload fails there. The gate is the step above.
-      - name: Upload Trivy SARIF
-        if: always()
-        continue-on-error: true
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        with:
-          sarif_file: trivy.sarif
-          category: trivy-config
 
-  tofu:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install pinned OpenTofu
-        run: scripts/ci/install-tool.sh tofu
+      - name: Unit tests (pytest)
+        id: pytest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python -m pytest -q -p no:cacheprovider tests
+
+      - name: Unit tests (bash)
+        id: bash-tests
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bash tests/run-bash-tests.sh
+
+      # Rendered once; kubeconform and repo-policy read the same directory.
+      - name: Render every Application in scope
+        id: render
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render" | tee "$RUNNER_TEMP/render.log"
+          { echo "### render"; echo '```'; cat "$RUNNER_TEMP/render.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: kubeconform (strict, pinned core schemas, vendored CRD schemas)
+        id: kubeconform
+        if: ${{ !cancelled() && steps.render.outcome == 'success' }}
+        run: scripts/ci/kubeconform.sh "$RUNNER_TEMP/render"
+
+      # With no render (the render step failed) repo-policy renders by itself,
+      # so its other invariants still run and report.
+      - name: Repository policy
+        id: repo-policy
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          RENDERED: ${{ steps.render.outcome }}
+        run: |
+          if [ "$RENDERED" = "success" ]; then
+            scripts/ci/repo-policy.sh "$RUNNER_TEMP/render"
+          else
+            scripts/ci/repo-policy.sh
+          fi
+
+      # Last: `tofu init` writes .terraform/ into the checkout.
       - name: tofu fmt
+        id: tofu-fmt
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: tofu fmt -check -recursive -diff
+
       - name: tofu init + validate
+        id: tofu-validate
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           set -euo pipefail
           for d in bootstrap bootstrap/aws-backup; do
@@ -256,63 +223,28 @@ jobs:
             fi
           done
 
-  pr-title:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    # contents: read only to check out scripts/ci/check-title.sh (private repository).
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: PR title is a Conventional Commits subject under 70 characters
+      # Every step id above must be listed in CHECKS. A check that was skipped
+      # (setup failed, render failed) fails the job; only the pull-request-only
+      # checks may be skipped, and only outside a pull request.
+      - name: Every check passed
+        if: ${{ !cancelled() }}
         env:
-          TITLE: ${{ github.event.pull_request.title }}
-        run: scripts/ci/check-title.sh "$TITLE"
-
-  commits:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Every commit subject passes and every commit is verified
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-        run: scripts/ci/check-commits.sh "$REPO" "$PR"
-
-  # The single aggregate check. Every job above must be listed in `needs`.
-  ci:
-    if: always()
-    needs: [yamllint, actionlint, shellcheck, render, repo-policy, kubeconform, gitleaks, trivy, tofu, pr-title, commits]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions: {}
-    steps:
-      - name: Every needed job succeeded
-        env:
-          NEEDS: ${{ toJSON(needs) }}
+          STEPS: ${{ toJSON(steps) }}
           EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
+          CHECKS="setup pr-title commits gitleaks yamllint actionlint shellcheck trivy-waivers trivy"
+          CHECKS="$CHECKS pytest bash-tests render kubeconform repo-policy tofu-fmt tofu-validate"
           rc=0
-          while IFS=$'\t' read -r job result; do
+          for c in $CHECKS; do
+            result=$(jq -r --arg c "$c" '.[$c].outcome // "missing"' <<<"$STEPS")
             if [ "$result" = "success" ]; then
-              echo "ok      $job"
-            elif [ "$result" = "skipped" ] && [ "$EVENT" != "pull_request" ] && { [ "$job" = "pr-title" ] || [ "$job" = "commits" ]; }; then
-              echo "skipped $job (not a pull request)"
+              echo "ok      $c"
+            elif [ "$result" = "skipped" ] && [ "$EVENT" != "pull_request" ] && { [ "$c" = "pr-title" ] || [ "$c" = "commits" ]; }; then
+              echo "skipped $c (not a pull request)"
             else
-              echo "::error::$job: $result"
+              echo "::error::$c: $result"
               rc=1
             fi
-          done < <(jq -r 'to_entries[] | [.key, .value.result] | @tsv' <<<"$NEEDS")
+          done
           exit "$rc"
