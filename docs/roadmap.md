@@ -8,10 +8,8 @@ cluster came first (ADR 0002).
 
 - Adopt the layered tree app by app: [runbooks/adopt-layered-tree.md](runbooks/adopt-layered-tree.md).
 - KSOPS on the Argo CD repo-server (`bootstrap/argocd-values.yaml`).
-- Argo CD behind the Gateway: `configs.params.server.insecure: true`, then the
-  legacy Argo Ingress to backend port 80 / HTTP, in the same window.
-- Remove ingress-nginx and the ten Ingresses after the Gateway has served
-  `.254` cleanly, then drop the `ingress` source from external-dns.
+- external-dns: `gateway-httproute` as the only source (ingress-nginx is
+  removed).
 - Decide between kube-vip `svc_enable` and Cilium L2 announcements for
   LoadBalancer IPs (both announce today).
 

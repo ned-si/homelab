@@ -51,23 +51,11 @@ server:
       name: immich-config
       mountPath: /config
       readOnly: true
+  # No Ingress: media.lilalala.com is served by the shared Gateway
+  # (resources/httproute.yaml). ingress-nginx is removed (ADR 0011).
   ingress:
-    # The live Ingress, kept until ingress-nginx is removed (ADR 0011). Body
-    # size 0 = no upload limit (videos).
     main:
-      ingressClassName: nginx
-      enabled: true
-      annotations:
-        nginx.ingress.kubernetes.io/proxy-body-size: "0"
-        cert-manager.io/cluster-issuer: letsencrypt
-      hosts:
-        - host: media.lilalala.com
-          paths:
-            - path: "/"
-      tls:
-        - secretName: immich-tls
-          hosts:
-            - media.lilalala.com
+      enabled: false
 
 machine-learning:
   enabled: true

@@ -43,7 +43,6 @@ their TV apps can sign in.
 | Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools | Helm release `cilium`, values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml) |
 | kube-vip | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
-| ingress-nginx | Retired: on `192.168.1.203` with no public role, until removed | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
 | CloudNativePG | PostgreSQL for Immich, Keycloak, Mealie, Sonarr, Radarr, Lidarr and Prowlarr | Argo CD |
@@ -84,7 +83,6 @@ flowchart LR
 | `192.168.1.200`-`.227` | Cilium pool `pool-2` (LoadBalancer Services) |
 | `192.168.1.200` | `theater/qbittorrent-seed`, pinned |
 | `192.168.1.201` | `syncthing/syncthing-protocol`, pinned |
-| `192.168.1.203` | `ingress/ingress-nginx-controller`, pinned (no public role, until removed) |
 | `192.168.1.254` | Cilium pool `pool-1`: `gateway/cilium-gateway-shared`, pinned |
 
 Nodes use static addresses outside the DHCP pool. Pinned LoadBalancer IPs use
@@ -95,7 +93,7 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | Path | Contents |
 | --- | --- |
 | [`clusters/homelab/`](clusters/homelab) | Argo CD objects only: `root.yaml` -> three layers (`infrastructure`, `platform`, `apps`) -> one Application per app |
-| [`infrastructure/`](infrastructure) | Namespaces, Cilium pools, cert-manager, external-dns, ingress-nginx and its Ingresses, the shared Gateway, democratic-csi |
+| [`infrastructure/`](infrastructure) | Namespaces, Cilium pools, cert-manager, external-dns, the shared Gateway, democratic-csi |
 | [`platform/`](platform) | CloudNativePG, kube-prometheus-stack, Keycloak |
 | [`apps/`](apps) | Immich, Mealie, Paperless, Seafile, Syncthing, the theater stack |
 | `*/secrets/` | SOPS-encrypted Secrets (age), decrypted by KSOPS in Argo CD |
@@ -170,8 +168,7 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
 ## Status and roadmap
 
 - Gateway API: the shared Cilium Gateway serves every public hostname on
-  `192.168.1.254`. ingress-nginx and its Ingresses are removed next, in their
-  own change.
+  `192.168.1.254`. ingress-nginx and its Ingresses are removed.
 - Platform upgrades: Argo CD and Cilium to the versions in
   `ci/helm-releases.yaml`, then Kubernetes and the node OS.
 - Off-site backups: not active yet. Backups today are local database dumps

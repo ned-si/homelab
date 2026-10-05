@@ -3,8 +3,8 @@
 # Chart 56.2.0, at parity with the running release (values in
 # platform/kube-prometheus-stack/values.yaml). Multi-source: the chart, plus a
 # git path holding the Grafana HTTPRoute for the shared Gateway (the Grafana
-# subchart has no Gateway API template). The chart's own Ingress stays enabled
-# until ingress-nginx is removed (ADR 0011).
+# subchart has no Gateway API template). The chart's own Ingress is disabled
+# (ingress-nginx is removed, ADR 0011).
 #
 # Alert rules, dashboards and the chart upgrade are later, separate changes.
 ---
