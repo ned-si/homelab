@@ -43,6 +43,9 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      # A sync keeps the live value of every field ignored below instead of
+      # writing the rendered one.
+      - RespectIgnoreDifferences=true
   ignoreDifferences:
     # The operator writes status into these; they are not desired state.
     - group: ""
@@ -50,3 +53,18 @@ spec:
       name: cilium-config
       jsonPointers:
         - /data/cluster-id
+    # The chart generates this CA and the Hubble server certificate with
+    # helm's genCA/genSignedCert, so every render produces new key material.
+    # Keep the live certificates: without this, every sync would rotate them.
+    - group: ""
+      kind: Secret
+      name: cilium-ca
+      namespace: kube-system
+      jsonPointers:
+        - /data
+    - group: ""
+      kind: Secret
+      name: hubble-server-certs
+      namespace: kube-system
+      jsonPointers:
+        - /data
