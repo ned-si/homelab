@@ -6,7 +6,7 @@ terraform {
     aws = {
       source = "hashicorp/aws"
       # renovate: datasource=terraform-provider depName=hashicorp/aws
-      version = "6.19.0"
+      version = "6.67.0"
     }
   }
 
