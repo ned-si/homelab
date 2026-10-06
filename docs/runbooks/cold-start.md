@@ -138,7 +138,9 @@ printf 'VIP %s:6443 ' "$VIP"; nc -z -G 3 -w 3 "$VIP" 6443 && echo listening || e
 - A node `DOWN`: in the BMC (web UI or `tpi`), check the slot is powered,
   power it on if not, and read its serial console. A node that boots but is
   unreachable usually has a broken `/etc/netplan/01-homelab-static.yaml`; fix it
-  from the serial console and run `sudo netplan apply`.
+  from the serial console and run `sudo netplan apply`. A node that no longer
+  boots: carry on with the other three and rebuild it afterwards
+  ([node-replacement.md](node-replacement.md)).
 - The VIP `DOWN` while the control planes are up: read kube-vip's log on a
   control plane:
 
