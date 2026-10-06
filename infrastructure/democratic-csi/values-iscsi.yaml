@@ -1,4 +1,4 @@
-# democratic-csi chart 0.14.7 values for the `democratic-csi` Application
+# democratic-csi chart 0.15.1 values for the `democratic-csi` Application
 # (release name `iscsi`, namespace democratic-csi), at parity with the
 # running release.
 #
@@ -15,14 +15,20 @@ csiDriver:
 # bring up a different driver. The digest is the one the running pods use
 # (`latest` on 2026-10-05; no version tag carries it). Changing it restarts
 # the controller and every node pod.
+# Since chart 0.15 an image is `{registry, tag}`, rendered as
+# "<registry>:<tag>", so the digest rides in `tag`. The chart default moved to
+# ghcr.io; this stays on the docker.io image the pods run, so the chart bump
+# does not change the driver.
 controller:
   driver:
-    # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
-    image: docker.io/democraticcsi/democratic-csi:latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+    image:
+      registry: docker.io/democraticcsi/democratic-csi
+      tag: latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
 node:
   driver:
-    # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
-    image: docker.io/democraticcsi/democratic-csi:latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+    image:
+      registry: docker.io/democraticcsi/democratic-csi
+      tag: latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
 
 driver:
   # Same name as the Secret the chart used to render, so the pods' volume
