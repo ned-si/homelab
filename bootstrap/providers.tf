@@ -11,7 +11,7 @@ terraform {
     helm = {
       source = "hashicorp/helm"
       # renovate: datasource=terraform-provider depName=hashicorp/helm
-      version = "3.0.2"
+      version = "3.3.0"
     }
   }
 
