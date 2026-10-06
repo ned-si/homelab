@@ -157,6 +157,15 @@
       platformAutomerge: true,
     },
     {
+      // The `pr-metadata` CI job requires PR titles and commit subjects under
+      // 70 characters. The default topics ("dependency X", "X docker tag",
+      // "pre-commit hook X") push long names past that, so every topic is just
+      // the dependency name. The Helm rule below adds its prefix back.
+      description: 'Keep PR titles and commit subjects under 70 characters',
+      matchPackageNames: ['*'],
+      commitMessageTopic: '{{depName}}',
+    },
+    {
       description: 'Make Helm chart PR titles obvious',
       matchDatasources: ['helm'],
       commitMessageTopic: 'chart {{depName}}',
