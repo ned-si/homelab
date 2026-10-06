@@ -133,7 +133,7 @@ spec:
             command:
             - /bin/bash
             - -c
-            image: ghcr.io/cloudnative-pg/postgresql:17.6
+            image: ghcr.io/cloudnative-pg/postgresql:17.11
             imagePullPolicy: IfNotPresent
             name: dump
             resources:
