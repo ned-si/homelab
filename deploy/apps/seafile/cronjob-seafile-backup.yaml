@@ -159,7 +159,7 @@ spec:
                 secretKeyRef:
                   key: root-password
                   name: seafile-db
-            image: mariadb:10.11
+            image: mariadb:10.11.19
             imagePullPolicy: IfNotPresent
             name: mariadb-dump
             resources:
