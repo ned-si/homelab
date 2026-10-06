@@ -1,0 +1,136 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: theater-config-backup-jellyfin
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 10800
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-jellyfin
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: jellyfin
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+
+              # 1. CONSISTENT: the XML configuration and plugin settings.
+              restic backup /config \
+                --tag theater-configs \
+                --tag jellyfin-config \
+                --host theater \
+                --exclude '/config/data/*.db' \
+                --exclude '/config/data/*.db-wal' \
+                --exclude '/config/data/*.db-shm' \
+                --exclude '/config/data/subtitles' \
+                --exclude '/config/data/transcodes' \
+                --exclude '/config/metadata' \
+                --exclude '/config/log' \
+                --exclude '/config/cache' \
+                --verbose
+
+              # 2. BEST EFFORT: the live databases, in their own snapshot
+              #    with a tag that says so. The -wal/-shm files are included
+              #    because SQLite needs them to recover the database on
+              #    open; taking the .db alone would silently discard
+              #    committed transactions. It still is not atomic across the
+              #    three files, which is precisely what the tag admits.
+              #
+              #    `|| true`: a missing -wal is normal in rollback-journal
+              #    mode, and a glob that matches nothing must not fail the
+              #    whole job and skip the check below.
+              restic backup /config/data \
+                --tag theater-configs \
+                --tag jellyfin-db-besteffort \
+                --host theater \
+                --exclude '/config/data/subtitles' \
+                --exclude '/config/data/transcodes' \
+                --verbose || true
+
+              # 3. Structural check of the WHOLE repository, once per
+              #    night, from the last job. Retention is monthly, in
+              #    theater-configs-prune.
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1536Mi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: jellyfin-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 3Gi
+            name: cache
+  schedule: 0 5 * * *
+  successfulJobsHistoryLimit: 3
+  suspend: false

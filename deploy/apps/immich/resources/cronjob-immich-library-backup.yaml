@@ -1,0 +1,114 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/immich/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/immich/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-library-backup
+  namespace: immich
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 72000
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: immich-library-backup
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/instance: immich
+                    app.kubernetes.io/name: server
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              # `init` is idempotent-by-failure: it errors if the repo already
+              # exists, which is the normal case after the first run.
+              restic init 2>/dev/null || true
+
+              # Thumbnails and transcodes are excluded because Immich
+              # regenerates them from originals -- backing them up would
+              # roughly double the bill for data that is derived.
+              restic backup /data \
+                --tag immich-library \
+                --host immich \
+                --exclude '**/.tmp/**' \
+                --exclude '**/encoded-video/**' \
+                --exclude '**/thumbs/**' \
+                --verbose
+
+              # Cheap structural check on every run. The real verification
+              # (actually restoring data) is a separate CronJob:
+              # platform/backup-verify/.
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/immich/library
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            - name: RESTIC_PACK_SIZE
+              value: "64"
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 2Gi
+              requests:
+                cpu: 200m
+                memory: 512Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /data
+              name: data
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: immich-data
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: cache
+  schedule: 30 3 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  suspend: false

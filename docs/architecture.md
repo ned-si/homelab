@@ -261,6 +261,7 @@ this table is the map.
 | `infrastructure/cilium/values.yaml` | `k8sServiceHost` (API VIP) | 1 |
 | `infrastructure/nfs-storage/nfs-volumes.yaml` | TrueNAS address | 1 |
 | `infrastructure/nfs-storage/backup-volume.yaml` | TrueNAS address — **twice**, one PV per namespace | 2 |
+| `apps/immich/resources/backup-files.yaml` | TrueNAS address, inline NFS volume of the local Immich backup | 1 |
 
 `infrastructure/cilium/l2-announcement-policy.yaml` carries no `SITE-SPECIFIC`
 marker and still needs checking: its `interfaces` regex must match the node NIC

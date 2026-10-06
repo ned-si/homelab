@@ -1,8 +1,9 @@
 # Bulk storage on NFS for the theater namespace.
 #
 # ###########################################################################
-# # SITE-SPECIFIC -- the TrueNAS address appears ONCE here and TWICE in
-# # ./backup-volume.yaml (one PV per namespace). Update all three after the
+# # SITE-SPECIFIC -- the TrueNAS address appears ONCE here, TWICE in
+# # ./backup-volume.yaml (one PV per namespace) and once in
+# # apps/immich/resources/backup-files.yaml. Update all four after the
 # # house move / NAS change, then re-render: Argo CD reads deploy/, so editing
 # # this file alone changes nothing in the cluster and fails CI.
 # #

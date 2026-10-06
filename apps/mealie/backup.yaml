@@ -43,10 +43,11 @@
 #               flight, which restic picks up correctly next run -- the same
 #               property that made restic the right answer for Immich's library.
 #
-# ---------------------------------------------------------------------------
-# ADD `mealie/data` TO `local.restic_repos` IN bootstrap/aws-backup/main.tf, or
-# its pack files stay in S3 Standard at roughly 6x the price and nothing warns
-# you. bootstrap/ is not edited by this change; it is a manual step.
+# `mealie/data` must stay in `local.restic_repos` in bootstrap/aws-backup/main.tf
+# (scripts/check-restic-repos.sh), or its packs never move to Glacier IR.
+#
+# RETENTION is monthly, in `mealie-prune` below: Glacier IR bills every pack for
+# at least 90 days, so the nightly job only adds snapshots.
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -54,9 +55,10 @@ metadata:
   name: mealie-backup
   namespace: mealie
 spec:
-  # 03:20. In the gap between Seafile (03:00) and theater's Postgres dumps
-  # (03:40), so the uplink is not shared.
+  # 03:20. In the gap between Seafile (03:00) and Immich (03:30), so the uplink
+  # is not shared.
   schedule: "20 3 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -81,11 +83,12 @@ spec:
                     matchLabels:
                       app.kubernetes.io/name: mealie
                   topologyKey: kubernetes.io/hostname
+          # No fsGroup: every volume the job writes is an emptyDir, and an
+          # fsGroup would let the kubelet change ownership on the app's volume.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           initContainers:
@@ -184,11 +187,6 @@ spec:
                     --exclude '**/.temp/**' \
                     --verbose
 
-                  restic forget \
-                    --host mealie \
-                    --keep-daily 14 --keep-weekly 8 --keep-monthly 12 \
-                    --prune
-
                   restic check --with-cache
               env:
                 - name: RESTIC_REPOSITORY
@@ -227,7 +225,7 @@ spec:
           volumes:
             - name: data
               persistentVolumeClaim:
-                claimName: mealie-data
+                claimName: mealie-pvc
                 readOnly: true
             - name: dumps
               emptyDir:
@@ -240,3 +238,80 @@ spec:
                 # CloudNativePG generates this, so the database password never
                 # enters git in any form -- not even encrypted.
                 secretName: mealie-postgresql-app
+---
+# Retention, once a month. `--keep-within 3m` keeps every snapshot for three
+# months, so no pack becomes unused before Glacier IR's 90-day minimum; after
+# that one snapshot per month is kept for a year. Talks to S3 only, so it needs
+# no app volume and no affinity.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mealie-prune
+  namespace: mealie
+spec:
+  # The 1st of the month; the monthly prunes run 15 minutes apart from 12:00.
+  schedule: "15 12 1 * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: mealie-prune
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic forget \
+                    --host mealie \
+                    --keep-within 3m \
+                    --keep-monthly 12 \
+                    --prune
+
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/mealie/data
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi

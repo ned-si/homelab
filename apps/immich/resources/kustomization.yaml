@@ -10,8 +10,11 @@ namespace: immich
 #                      by nothing in this tree until the operator signs off its
 #                      adoption; CI (repo-policy pvc-sync-options) fails any
 #                      render that contains it.
-#   backup.yaml, backup-files.yaml   restic CronJobs (ADR 0008).
+#   backup.yaml        the barman ScheduledBackup; immich-db has no object
+#                      store yet (repo-policy no-cnpg-backup).
 resources:
   - database.yaml
   - valkey.yaml
   - httproute.yaml
+  # restic CronJobs for the photo library: S3, local NFS, monthly prune.
+  - backup-files.yaml

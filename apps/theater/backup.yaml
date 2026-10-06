@@ -48,7 +48,7 @@
 # THAT TERRAFORM ENTRY IS NOT OPTIONAL. Without `theater/configs` in
 # local.restic_repos there is no lifecycle rule for `theater/configs/data/`, so
 # the pack files stay in S3 Standard at roughly 6x the price and nothing warns
-# you. bootstrap/ is not edited by this change; it is a manual step.
+# you. scripts/check-restic-repos.sh keeps the two lists equal.
 #
 # Six jobs rather than one because every /config volume is ReadWriteOnce and
 # attached to a different pod, which may be on a different node. A single pod
@@ -61,9 +61,14 @@
 # exclusive lock for `backup`. Concurrent jobs would serialise on the lock and
 # the last one would sometimes time out.
 #
-# `forget --prune` runs ONCE, in the last job of the night (jellyfin, 04:35).
-# Pruning holds an exclusive lock for much longer than a backup does, so running
-# it six times would guarantee contention.
+# `forget --prune` runs ONCE A MONTH, in its own CronJob (theater-configs-prune,
+# at the end of this file), not in any nightly job. Two reasons: pruning holds
+# an exclusive lock for much longer than a backup does, so it must not share a
+# night with six backups; and the packs move to Glacier IR after a day, which
+# bills each one for at least 90 days, so deleting packs nightly saves nothing.
+#
+# bazarr's config job lives in backup-bazarr.yaml and is rendered together with
+# bazarr.yaml. Until then bazarr is also absent from the dump loop below.
 #
 # ---------------------------------------------------------------------------
 # CONSISTENCY: WHAT IS GUARANTEED, PER TAG
@@ -166,7 +171,7 @@ data:
     #                    repository with a single entry.
     #   $TAG             the per-app identity (sonarr-config, radarr-config, ...).
     #                    This is what `--group-by host,paths,tags` in
-    #                    forget-and-check.sh keys on to give each app its own
+    #                    forget-and-prune.sh keys on to give each app its own
     #                    retention budget. Without the per-app tag in the
     #                    grouping, all six would share one.
     restic backup "$SRC" \
@@ -178,13 +183,13 @@ data:
 
     echo "=== ${TAG}: done ==="
 
-  # Retention and integrity, run once per night by the LAST job.
+  # Retention and integrity, run once a month by theater-configs-prune.
   #
   # Separated from backup-config.sh so it cannot accidentally be called six
   # times: `forget --prune` holds an exclusive repository lock for far longer
   # than a backup does, and six of them contending is how a nightly job starts
   # timing out a month later for no obvious reason.
-  forget-and-check.sh: |
+  forget-and-prune.sh: |
     #!/bin/sh
     set -eu
 
@@ -195,34 +200,33 @@ data:
     #
     # Every one of the six config jobs backs up the path `/config` with
     # `--host theater`. So under the default grouping they all land in ONE group,
-    # and `--keep-daily 14` keeps ONE snapshot per day for the whole group: the
-    # most recent, which is jellyfin's 04:50 run. sonarr's, radarr's, lidarr's,
-    # prowlarr's and plex's snapshots from 10-50 minutes earlier the same night
-    # are forgotten and pruned.
+    # and `--keep-monthly 12` keeps ONE snapshot per month for the whole group:
+    # the most recent, which is jellyfin's. sonarr's, radarr's, lidarr's,
+    # prowlarr's and plex's snapshots from the same night are forgotten and
+    # pruned.
     #
     # It fails SILENTLY, which is what makes it dangerous: the weekly restore
     # drill in platform/backup-verify/restore-files.yaml verifies this repository
     # by the tag `theater-configs`, and jellyfin's surviving snapshot carries that
-    # tag -- so the drill stays green while five apps have no config backup older
-    # than a few hours.
+    # tag -- so the drill stays green while five apps have no old config backup.
     #
-    # Adding `tags` to the grouping gives each app its own retention budget, which
-    # is what the 14/8/12 numbers below were always meant to express.
+    # Adding `tags` to the grouping gives each app its own retention budget.
     # ###########################################################################
     #
-    # 14/8/12 is shallower than Immich's local copy and deeper than its remote
-    # one. These volumes are a few hundred megabytes in total, so depth is
-    # nearly free, and a bad *arr configuration change (a mangled quality
-    # profile, a deleted indexer) is the kind of thing noticed weeks later.
+    # `--keep-within 3m` keeps every snapshot for three months, so no pack
+    # becomes unused before Glacier IR's 90-day minimum. After that one snapshot
+    # per month is kept for a year: these volumes are a few hundred megabytes in
+    # total, so depth is nearly free, and a bad *arr configuration change (a
+    # mangled quality profile, a deleted indexer) is the kind of thing noticed
+    # weeks later.
     restic forget \
       --host theater \
       --group-by host,paths,tags \
-      --keep-daily 14 \
-      --keep-weekly 8 \
+      --keep-within 3m \
       --keep-monthly 12 \
       --prune
 
-    # Cheap structural check on every run. Actually restoring data is a separate
+    # Structural check after the prune. Actually restoring data is a separate
     # CronJob: platform/backup-verify/.
     restic check --with-cache
 
@@ -245,10 +249,11 @@ data:
     # mounted as directories of files rather than as twenty environment
     # variables. CNPG rotates these itself, so there is no password in git in
     # any form -- not even encrypted.
-    # bazarr is in this list for the same reason as the other four: apps/theater/
-    # bazarr.yaml runs it on CloudNativePG rather than its default SQLite, so it
-    # gets a transactional dump here instead of a best-effort file snapshot.
-    for app in sonarr radarr lidarr prowlarr bazarr; do
+    # bazarr joins this list (and gets a creds-bazarr volume below) when
+    # bazarr.yaml is rendered: it runs on CloudNativePG rather than its default
+    # SQLite, so it gets a transactional dump here instead of a best-effort file
+    # snapshot. Listing it before its Secret exists would fail every night.
+    for app in sonarr radarr lidarr prowlarr; do
       d="/creds/${app}"
       if [ ! -f "$d/password" ]; then
         echo "FAIL ${app}: no credentials mounted at ${d}"
@@ -308,9 +313,10 @@ metadata:
   name: theater-postgres-backup
   namespace: theater
 spec:
-  # 03:40 -- after Immich's 02:30 base backup and before the config jobs start
-  # at 04:00, so nothing competes for the uplink.
+  # 03:40 -- after Immich's library job starts at 03:30 and before the config
+  # jobs start at 04:00.
   schedule: "40 3 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -331,7 +337,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           initContainers:
@@ -383,9 +388,6 @@ spec:
                   readOnly: true
                 - name: creds-prowlarr
                   mountPath: /creds/prowlarr
-                  readOnly: true
-                - name: creds-bazarr
-                  mountPath: /creds/bazarr
                   readOnly: true
               resources:
                 requests:
@@ -466,9 +468,6 @@ spec:
             - name: creds-prowlarr
               secret:
                 secretName: prowlarr-postgresql-app
-            - name: creds-bazarr
-              secret:
-                secretName: bazarr-postgresql-app
 ---
 # =========================================================================
 # THE SIX /config VOLUMES.
@@ -484,6 +483,7 @@ metadata:
   namespace: theater
 spec:
   schedule: "0 4 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -517,7 +517,6 @@ spec:
             # to hold here or the backup reads nothing.
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -608,6 +607,7 @@ spec:
   # Ten minutes after sonarr. The stagger is about the shared restic
   # repository lock, not about load -- see the header.
   schedule: "10 4 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -632,7 +632,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -705,6 +704,7 @@ metadata:
   namespace: theater
 spec:
   schedule: "20 4 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -729,7 +729,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -802,6 +801,7 @@ metadata:
   namespace: theater
 spec:
   schedule: "30 4 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -826,7 +826,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -932,6 +931,7 @@ metadata:
   namespace: theater
 spec:
   schedule: "40 4 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -956,7 +956,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -1036,7 +1035,7 @@ spec:
                 sizeLimit: 1Gi
 ---
 # =========================================================================
-# JELLYFIN, and the LAST job of the night -- so it also runs forget + prune.
+# JELLYFIN, the last job of the night.
 #
 # ###########################################################################
 # # JELLYFIN IS THE ONE CASE IN THIS FILE THAT CANNOT BE MADE CONSISTENT, AND
@@ -1064,138 +1063,23 @@ spec:
 # # platform/kube-prometheus-stack/routes/grafana-backup.yaml for why that is
 # # not hand-rolled here.
 # ###########################################################################
----
-# bazarr. Same shape as sonarr; different PVC, label, tag and slot.
-#
-# /config here holds the provider credentials, the per-series subtitle language
-# profiles and the scoring rules. The subtitle FILES themselves are not in it --
-# they are written next to the media on `theater-data`, which is a separate
-# concern and is not backed up by this repository at all (see the header: 26TB of
-# re-acquirable media is deliberately out of scope).
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: theater-config-backup-bazarr
-  namespace: theater
-spec:
-  schedule: "50 4 * * *"
-  concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 5
-  jobTemplate:
-    spec:
-      backoffLimit: 2
-      activeDeadlineSeconds: 3600
-      template:
-        metadata:
-          labels:
-            app.kubernetes.io/name: theater-config-backup-bazarr
-        spec:
-          restartPolicy: OnFailure
-          affinity:
-            podAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                - labelSelector:
-                    matchLabels:
-                      app.kubernetes.io/name: bazarr
-                  topologyKey: kubernetes.io/hostname
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
-            fsGroup: 1000
-            seccompProfile:
-              type: RuntimeDefault
-          containers:
-            - name: restic
-              # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.0
-              imagePullPolicy: IfNotPresent
-              command:
-                - /bin/sh
-                - /scripts/backup-config.sh
-                - bazarr
-                - /config
-                # Bazarr's own rotating logs.
-                - --exclude=/config/log
-                # Provider response cache and the extracted-subtitle scratch
-                # area. Both derived, both re-fetched on demand.
-                - --exclude=/config/cache
-                # Bazarr writes its own periodic config backups into /config.
-                # Backing up backups doubles the snapshot for nothing.
-                - --exclude=/config/backup
-                # Only present if POSTGRES_ENABLED is ever turned off. Harmless
-                # while it is on, and the reason it is listed is that flipping
-                # that switch must not silently start capturing a live SQLite
-                # file -- the failure the jellyfin job below has to hedge about.
-                - --exclude=/config/db
-              env:
-                - name: RESTIC_REPOSITORY
-                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
-                - name: RESTIC_CACHE_DIR
-                  value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
-                - name: TMPDIR
-                  value: /cache
-              envFrom:
-                - secretRef:
-                    name: s3-backup
-              volumeMounts:
-                - name: scripts
-                  mountPath: /scripts
-                - name: config
-                  mountPath: /config
-                  readOnly: true
-                - name: cache
-                  mountPath: /cache
-              resources:
-                requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  memory: 512Mi
-              securityContext:
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
-                capabilities:
-                  drop: ["ALL"]
-          volumes:
-            - name: scripts
-              configMap:
-                name: theater-backup-scripts
-                defaultMode: 0755
-            - name: config
-              persistentVolumeClaim:
-                claimName: bazarr-config
-                readOnly: true
-            - name: cache
-              emptyDir:
-                sizeLimit: 1Gi
----
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: theater-config-backup-jellyfin
   namespace: theater
 spec:
-  # 05:00, moved from 04:50 when bazarr took that slot.
-  #
-  # This job MUST stay last: it is the one that runs forget-and-check.sh, and the
-  # whole reason that pass lives in exactly one job is the exclusive repository
-  # lock `forget --prune` holds. A new app is added by taking the next free slot
-  # BEFORE this one and pushing this one later, never by inserting after it.
+  # 05:00, the last slot of the night; 04:50 is kept for bazarr
+  # (backup-bazarr.yaml).
   schedule: "0 5 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
       backoffLimit: 2
-      # Longer than the others: this job also prunes, which for a repository
-      # with six apps' worth of snapshots is the slow part.
+      # Longer than the others: two snapshots, and the database one can be large.
       activeDeadlineSeconds: 10800
       template:
         metadata:
@@ -1214,7 +1098,6 @@ spec:
             runAsNonRoot: true
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -1223,8 +1106,7 @@ spec:
               image: restic/restic:0.19.0
               imagePullPolicy: IfNotPresent
               # Inline rather than via backup-config.sh, because this is the
-              # only job that takes two snapshots with different guarantees and
-              # then runs the nightly retention pass.
+              # only job that takes two snapshots with different guarantees.
               command: ["/bin/sh", "-euo", "pipefail", "-c"]
               args:
                 - |
@@ -1254,7 +1136,7 @@ spec:
                   #
                   #    `|| true`: a missing -wal is normal in rollback-journal
                   #    mode, and a glob that matches nothing must not fail the
-                  #    whole job and lose snapshot 1's retention pass below.
+                  #    whole job and skip the check below.
                   restic backup /config/data \
                     --tag theater-configs \
                     --tag jellyfin-db-besteffort \
@@ -1263,10 +1145,10 @@ spec:
                     --exclude '/config/data/transcodes' \
                     --verbose || true
 
-                  # 3. Retention and integrity for the WHOLE repository, once
-                  #    per night, from the last job. See forget-and-check.sh
-                  #    for why this is not in every job.
-                  /bin/sh /scripts/forget-and-check.sh
+                  # 3. Structural check of the WHOLE repository, once per
+                  #    night, from the last job. Retention is monthly, in
+                  #    theater-configs-prune.
+                  restic check --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
@@ -1294,8 +1176,8 @@ spec:
                   cpu: 100m
                   memory: 256Mi
                 limits:
-                  # The prune pass builds an in-memory index of the whole
-                  # repository, so this one needs more headroom than the others.
+                  # The check loads the index of the whole repository, so this
+                  # one needs more headroom than the others.
                   memory: 1536Mi
               securityContext:
                 allowPrivilegeEscalation: false
@@ -1313,6 +1195,81 @@ spec:
                 readOnly: true
             - name: cache
               emptyDir:
-                # Larger than the others: prune needs the repository index
+                # Larger than the others: the check needs the repository index
                 # locally, and this repository holds six apps' snapshots.
+                sizeLimit: 3Gi
+---
+# Retention for the whole theater/configs repository, once a month, via
+# forget-and-prune.sh. The 1st of the month at 13:00, after the other monthly
+# prunes and far from the nightly jobs that share this repository's lock. Talks
+# to S3 only, so it needs no app volume and no affinity.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: theater-configs-prune
+  namespace: theater
+spec:
+  schedule: "0 13 1 * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 10800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-configs-prune
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "/scripts/forget-and-prune.sh"]
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  # The prune pass builds an in-memory index of the whole
+                  # repository.
+                  memory: 1536Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: theater-backup-scripts
+                defaultMode: 0755
+            - name: cache
+              emptyDir:
                 sizeLimit: 3Gi
