@@ -23,7 +23,10 @@ Gateway, is created by Argo CD from git.
   pods with the `/etc/nsswitch.conf` mount, see
   [networking.md](networking.md#kubernetes-api-vip)), no kube-proxy (Cilium
   replaces it: `kubeadm init --skip-phases=addon/kube-proxy`), swap off, and
-  each kubelet on its own node IP (`--node-ip`), never the VIP.
+  every node's `INTERNAL-IP` its own address, never the VIP. Steps 3 to 8 of
+  [runbooks/node-replacement.md](runbooks/node-replacement.md) prepare a node,
+  join it and add kube-vip; the OS settings, package versions and the kube-vip
+  manifest are there.
 - `~/repos/homelab/kubeconfig-homelab` (git-ignored) and
   `export KUBECONFIG=~/repos/homelab/kubeconfig-homelab`.
 - Tools: `task tools` (sops, age, kustomize, kubeconform, helm, yq), plus

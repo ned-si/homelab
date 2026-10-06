@@ -21,7 +21,12 @@ the shape of that tree and why it has that shape; addresses are in
 Everything runs single-replica. Most workloads hold a `ReadWriteOnce` volume,
 so a second replica could not mount it, and there is one storage backend
 anyway. Node upgrades are `ansible/kube-upgrade.yml` (one minor at a time) and
-`ansible/os-upgrade.yml`, one node at a time.
+`ansible/os-upgrade.yml`, one node at a time. The etcd snapshot task in
+`kube-upgrade.yml` calls `etcdctl` on the host, which the nodes do not have, so
+the playbook stops at that task until it is fixed ([roadmap](roadmap.md)). Take
+the snapshot by hand
+([cold-start.md](runbooks/cold-start.md#snapshot)) before any upgrade. Replacing a failed node is
+[runbooks/node-replacement.md](runbooks/node-replacement.md).
 
 ## The tree
 

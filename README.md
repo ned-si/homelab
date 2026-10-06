@@ -23,6 +23,7 @@ one root Application, three layers, one Application per app.
 
 - First install of a cluster: [docs/bootstrap.md](docs/bootstrap.md).
 - Power loss or move: [docs/runbooks/cold-start.md](docs/runbooks/cold-start.md).
+- A failed or reinstalled node: [docs/runbooks/node-replacement.md](docs/runbooks/node-replacement.md).
 - How it fits together: [docs/architecture.md](docs/architecture.md),
   [docs/networking.md](docs/networking.md), [docs/decisions.md](docs/decisions.md).
 - Data: [docs/backups.md](docs/backups.md), [docs/secrets.md](docs/secrets.md).
@@ -55,7 +56,7 @@ their TV apps can sign in.
 | --- | --- | --- |
 | Argo CD v2.14.11 | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm CLI release `argocd` (chart argo-cd 7.9.1) in namespace `argo`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
 | Cilium 1.17.18 | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools, Gateway API | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by hand once on a fresh cluster |
-| kube-vip v1.2.4 | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes (not in git) |
+| kube-vip v1.2.4 | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes, written by hand ([manifest](docs/runbooks/node-replacement.md#kube-vip-manifest)) |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |

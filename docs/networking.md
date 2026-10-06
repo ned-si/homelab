@@ -43,7 +43,8 @@ two other forwarded ports. The address table is in the README's
 ## Kubernetes API VIP
 
 kube-vip v1.2.4 runs as a static pod on each control plane
-(`/etc/kubernetes/manifests/kube-vip.yaml`, not in git) and holds
+(`/etc/kubernetes/manifests/kube-vip.yaml`, written by hand; the full manifest
+is in [runbooks/node-replacement.md](runbooks/node-replacement.md#kube-vip-manifest)) and holds
 `192.168.1.11:6443` with ARP and leader election (lease `plndr-cp-lock`).
 
 The kube-vip image has no `/etc/nsswitch.conf`, so Go asks DNS before
