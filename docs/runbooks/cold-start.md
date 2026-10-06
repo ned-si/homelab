@@ -346,8 +346,10 @@ ls -1d ~/homelab-backups/2* | tail -1
 
 Expected: nine `ok` rows (seven Postgres clusters, the Seafile MariaDB,
 Paperless' SQLite), `verified=9  failed=0`, and a new directory under
-`~/homelab-backups/` (about 10 minutes). Then take an etcd snapshot (next section). Copy both off
-the Mac: there is no off-site backup yet ([backups.md](../backups.md)).
+`~/homelab-backups/` (about 10 minutes). Then take an etcd snapshot (next
+section). The nightly restic jobs copy files and most databases to S3, but
+`immich-db`, `keycloak-db` and etcd have no off-site copy except these
+([backups.md](../backups.md)): copy them off the Mac.
 
 ## etcd snapshot and restore
 
