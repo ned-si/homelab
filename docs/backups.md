@@ -114,7 +114,7 @@ The reason these are spelled out per tag rather than asserted in general is that
 the difference between a backup and a wishful file copy lives here.
 
 **Consistent.** `pg_dump` in a single transaction. `mariadb-dump
---single-transaction`. Paperless' SQLite via `.backup`. Content-addressed
+--single-transaction`. Content-addressed
 write-once blobs (Seafile storage, Immich library, Mealie uploads) — a file is
 written once under the hash of its contents and never modified, so a live copy
 cannot be torn; worst case is catching an upload in flight, which restic picks up
@@ -141,9 +141,11 @@ correctly on the next run. XML configuration written to a temp file and renamed
   `/config` holds `config.xml`, the app's own `Backups/` zips and the ASP.NET
   data-protection keys. `logs.db` and `MediaCover/` are excluded.
 
-**Not consistent, and tagged so.** Two, both deliberate, both split into their own
-snapshot with a distinct tag so a restore cannot mistake one guarantee for the
-other.
+**Not consistent.** Paperless' SQLite is copied as a file while Paperless runs
+(the restic image has no `sqlite3` for `.backup`), so a copy taken mid-write can
+be torn; the job logs a warning every run, and the on-demand local dump uses
+SQLite's backup API. Two more are deliberate, each split into its own snapshot
+with a distinct tag so a restore cannot mistake one guarantee for the other.
 
 - **`jellyfin-db-besteffort`** — `/config/data/jellyfin.db` and `library.db`, live
   SQLite, possibly torn. The `-wal`/`-shm` files are included because SQLite needs
@@ -159,7 +161,7 @@ other.
   evening, not data.
 
 **Why nothing quiesces first.** The obvious answer — scale the Deployment to 0,
-back up, scale back — cannot work here. Every Application in `clusters/` runs
+back up, scale back — cannot work here. Every Application except `immich` runs
 `selfHeal: true`, so Argo CD reverts `replicas: 0` within seconds, restarting the
 app mid-backup and contending for the `ReadWriteOnce` volume the backup pod now
 holds. Quiescing anything Argo manages means suspending the Application first,
@@ -180,26 +182,30 @@ appears as an orphan blob, which wastes space and nothing else, whereas the reve
 order gives a database row pointing at a blob that was never captured. That
 ordering is why the dump is an `initContainer` and not a sidecar.
 
-## Reclaim policy: current state
+## Reclaim policy
 
-Recorded 2026-10-04. A PersistentVolume's reclaim policy decides what happens on
-the NAS when its claim is deleted: `Delete` destroys the iSCSI volume, `Retain`
-keeps it (the PV goes to `Released` and can be re-bound by hand).
+A PersistentVolume's reclaim policy decides what happens on the NAS when its
+claim is deleted: `Delete` destroys the iSCSI volume, `Retain` keeps it (the PV
+goes to `Released` and can be re-bound by hand).
 
-| What | Policy | How it got there |
+| What | Policy | Where it is set |
 |---|---|---|
 | StorageClass `iscsi` (default) | `Delete` for new volumes | democratic-csi (`infrastructure/democratic-csi/values-iscsi.yaml`). A StorageClass's `reclaimPolicy` is immutable, so it stays. |
 | StorageClass `iscsi-retain` | `Retain` for new volumes | `infrastructure/democratic-csi/values-iscsi.yaml`. Use it for every new data volume. |
-| 18 existing data PVs on `iscsi` (incl. `immich-data` and every CNPG volume) | `Retain` | Patched in place on 2026-10-04 (`spec.persistentVolumeReclaimPolicy`). |
-| `immich-machine-learning-cache`, `jellyfin-cache`, `plex-transcode` | `Delete` | Regenerable caches, left on purpose. |
+| Every existing data PV on `iscsi` (including `immich-data` and every CNPG volume) | `Retain` | On each PV (`spec.persistentVolumeReclaimPolicy`), not in git |
+| `immich-machine-learning-cache`, `jellyfin-cache`, `plex-transcode` | `Delete` | Regenerable caches, on purpose |
 
 Existing claims keep `storageClassName: iscsi`: a PVC's class is immutable, and
-changing it would mean a new volume and a data copy. The PV patch is not stored
-in git (PVs are provisioned objects); re-check it after any restore or rebuild:
+changing it would mean a new volume and a data copy. PVs are provisioned objects,
+so their policy is not in git; check it after any restore or rebuild:
 
 ```sh
-kubectl get pv -o custom-columns=NAME:.spec.claimRef.name,POLICY:.spec.persistentVolumeReclaimPolicy
+kubectl get pv -o custom-columns=CLAIM:.spec.claimRef.name,POLICY:.spec.persistentVolumeReclaimPolicy,SC:.spec.storageClassName
 ```
+
+Expected: `Retain` on every line except the three caches. Fix a data volume on
+`Delete` with
+`kubectl patch pv <pv> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'`.
 
 In the layered tree every PVC, CNPG Cluster, StatefulSet and Namespace also
 carries `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, so Argo CD
@@ -238,9 +244,13 @@ protect against is a deletion propagating to every peer, which is what Syncthing
 own File Versioning is for — configured per folder in the GUI, stored in
 `config.xml`, i.e. inside the backup.
 
-**etcd** is not covered by any of the above. `ansible/kube-upgrade.yml` snapshots
-it before an upgrade, onto the node. Copy it off if you want it to survive losing
-that node.
+**etcd** is not covered by any of the above. Take a snapshot by hand before
+every Kubernetes upgrade or risky change, with the procedure in
+[runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore): it
+keeps one copy in `/root/etcd-snapshots/` on `homelab-cp-1` and one in
+`~/homelab-backups/etcd/` on the Mac. The snapshot task in
+`ansible/kube-upgrade.yml` calls `etcdctl` on the host, and the hosts have none
+(it lives in the etcd container), so do not rely on it.
 
 ## Setting it up from scratch
 
@@ -303,9 +313,8 @@ all of it is done, and two of the steps are silently expensive if skipped.
 
    It re-renders `deploy/` as part of the same command.
 
-6. **Existing PVs are already `Retain` (done 2026-10-04).** See
-   [Reclaim policy: current state](#reclaim-policy-current-state). Check it is
-   still true before relying on it.
+6. **Check every data PV is `Retain`** ([Reclaim policy](#reclaim-policy)). On
+   a rebuilt cluster, new volumes on `iscsi` start as `Delete`.
 
 7. **Seed each new restic repository once, by hand, before the first verification
    run.** Step 2 of `verify-files.sh` fails with `no snapshot found for tag` against
@@ -341,8 +350,8 @@ Also on the list, and separate from the above: the **Barman Cloud plugin** is
 written and ready in `platform/barman-cloud-plugin/` but deliberately **not
 referenced** by the platform kustomization, because CNPG 1.24.1 does not have the
 plugin CRD and its `Cluster` schema rejects `spec.plugins[0].isWALArchiver`. That is
-verified with a server-side dry-run, not assumed. Enabling it is a step immediately
-after the CNPG upgrade — see [migration-plan.md](./migration-plan.md).
+verified with a server-side dry-run, not assumed. Enabling it comes right after
+the CNPG upgrade on the [roadmap](roadmap.md).
 
 ## The bucket
 
@@ -394,7 +403,9 @@ but treat it as a secret and move it off this machine.
 
 ## Verification
 
-`platform/backup-verify/` runs weekly and never touches anything live.
+Not running yet: `clusters/homelab/staged/backup-verify.yaml` is in no layer.
+Once enabled, `platform/backup-verify/` runs weekly and never touches anything
+live.
 
 **Postgres, Sunday 05:00.** Builds a throwaway CNPG cluster in the `backup-verify`
 namespace by recovery from S3, asserts the server answers queries, that the schema
@@ -488,11 +499,16 @@ upgrade would take hours and you would stop doing it.
 Rollback is deliberately **not** automated: it destroys the current state, so the
 script prints the exact commands instead of offering a flag.
 
-This depends on `infrastructure/snapshot-controller/`, which ships the
-`VolumeSnapshot` CRDs. Without them the `VolumeSnapshotClass` democratic-csi's chart
-declares is never created — `kubectl get volumesnapshotclass` reports no such
-resource type — so snapshots look configured and do not exist. Check for the class
-before relying on a snapshot.
+This needs the `VolumeSnapshot` CRDs, a snapshot controller and the `iscsi`
+VolumeSnapshotClass from democratic-csi. Today the controller is an unmanaged
+`kube-system/snapshot-controller` v6.3.1; `infrastructure/snapshot-controller/`
+is written to replace it and not enabled. Check before relying on a snapshot:
+
+```sh
+kubectl get volumesnapshotclass
+```
+
+Expected: `iscsi`, driver `org.democratic-csi.iscsi`.
 
 ## Local dumps, on demand
 
@@ -523,17 +539,17 @@ off-site until you copy them somewhere else.
 
 ### Postgres, to a point in time
 
-Create a **new** cluster that recovers from the object store. Never restore over a
-live one.
+Once barman archives a cluster (none does yet), create a **new** cluster that
+recovers from the object store. Never restore over a live one. Until then,
+restore from a dump: `task backup:verify-restore` above is the tested path into
+a throwaway cluster, and the nightly dumps are in the restic repositories listed
+at the end of this section.
 
-**Get the image from the source cluster, do not copy it from here.** This is the one
-place where the live cluster and this branch disagree, and it matters: the live
-`immich-db` runs `cloudnative-pgvecto.rs:16.5-v0.3.0` on **PostgreSQL 16**, while
-this branch declares `cloudnative-vectorchord:17-1.1.0` on **PostgreSQL 17**. A dump
-or a barman backup taken from the live cluster will not restore against the branch's
-image — different major version and a different vector extension. Which one you need
-depends entirely on when the backup was taken, relative to
-[runbooks/immich-upgrade.md](runbooks/immich-upgrade.md).
+**Get the image from the source cluster, do not copy it from here.** `immich-db`
+runs `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16 with pgvecto.rs) until
+[runbooks/immich-upgrade.md](runbooks/immich-upgrade.md) moves it to VectorChord
+on PostgreSQL 17. A backup restores only into the image it was taken from: same
+major version, same vector extension.
 
 ```sh
 kubectl -n immich get cluster immich-db -o jsonpath='{.spec.imageName}'
@@ -549,12 +565,12 @@ spec:
   instances: 1
   # From the command above. NOT from this document.
   imageName: <the source cluster's image>
-  storage: { size: 20Gi, storageClass: iscsi }
+  storage: { size: 20Gi, storageClass: iscsi-retain }
   bootstrap:
     recovery:
       source: src
       recoveryTarget:
-        targetTime: "2026-07-30 14:32:00+02"   # omit for latest
+        targetTime: "<YYYY-MM-DD HH:MM:SS+02>"   # omit for latest
   externalClusters:
     - name: src
       barmanObjectStore:
@@ -609,4 +625,25 @@ over a live library is how a bad restore becomes a real outage.
 - **No off-site copy of the media library.** Deliberate, argued above.
 - **Restore *time* is not tested.** Verification proves data is retrievable, not
   that a full multi-TB restore completes in a useful window. It would not.
-- **No full-restore drill has ever been run.** The weekly sample is a good proxy.
+- **No full-restore drill has ever been run.** The weekly sample, once enabled, is
+  a good proxy.
+- **`immich-db` and `keycloak-db` have no off-site copy.** Only the on-demand local
+  dumps cover them until barman runs.
+
+## Why it is like this
+
+- Restic CronJobs are suspended unless listed in `ci/active-cronjobs.txt`
+  (cited as ADR 0008 in code comments): a backup job is only switched on once
+  its credentials are real and its first run has been seen to work. Every other
+  CronJob ships suspended behind a `pending-guard` init container, so a
+  placeholder bucket can never look like a working backup.
+- `Retain` on data PVs plus `iscsi-retain` for new ones, rather than changing
+  `iscsi`: a StorageClass's reclaim policy is immutable, and changing an
+  existing claim's class means copying its data.
+- Retention in months and Glacier Instant Retrieval, not Deep Archive: Glacier IR
+  bills 90 days per object anyway, and restic cannot thaw Deep Archive, so
+  `restic check --read-data` and every restore would become a manual workflow.
+- Versioning plus an IAM `Deny`, not S3 Object Lock: Object Lock cannot be
+  turned off, and the owner may need to fix their own mistakes.
+- In-tree `barmanObjectStore` first, the Barman Cloud plugin later: the running
+  CloudNativePG 1.24.1 rejects the plugin fields.

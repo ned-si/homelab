@@ -1,299 +1,201 @@
 # Bootstrap
 
-Bringing the cluster from "nodes with a kubeconfig" to "Argo CD manages
-everything".
+From "kubeadm cluster with a kubeconfig" to "Argo CD manages everything". This
+runs once per cluster. Day-to-day changes go through pull requests
+([README](../README.md#how-changes-reach-the-cluster)); recovering an existing
+cluster after a power loss is [runbooks/cold-start.md](runbooks/cold-start.md).
 
-`bootstrap/` runs **once**. If you find yourself adding a workload there, it
-belongs in `clusters/homelab/` instead.
+## What is bootstrapped, and why it cannot be GitOps
 
-## What it does, and why each step cannot be GitOps
+| Step | Why by hand |
+| --- | --- |
+| Cilium | No pod schedules without a CNI, including Argo CD. Argo CD adopts the release afterwards. |
+| Namespace `argo` and Secret `argo/sops-age` | Argo CD cannot decrypt the repo's secrets without the age key, and the key cannot live in the repo. |
+| Argo CD (Helm release `argocd`) | Something has to install the thing that installs everything. It stays a Helm CLI release. |
+| Root Application | One object that points Argo CD at `deploy/clusters/homelab/bootstrap` on `main`. |
 
-| Step | Why it is here |
-|---|---|
-| Cilium | No pod can be scheduled without a CNI — including Argo CD. Installed once, then adopted by Argo CD (step 4). |
-| `sops-age` Secret | Argo CD cannot read encrypted secrets until it holds the key, and the key cannot live in the repo it protects. |
-| `homelab-repo` Secret | Argo CD needs credentials before it can clone. |
-| Argo CD | Something has to install the thing that installs everything. |
-| root Application | One object that points Argo CD at the repo. |
-
-Nothing else. Notably **not** here: Argo CD's own HTTPRoute, which is managed by
-Argo CD from `infrastructure/gateway/argocd-route.yaml` like any other service.
+Everything else, including Argo CD's own HTTPRoute, democratic-csi and the
+Gateway, is created by Argo CD from git.
 
 ## Prerequisites
 
-- A working kubeadm cluster and a kubeconfig at `./kubeconfig-homelab`
-  (git-ignored).
-- Swap disabled on every node — Cilium's kube-proxy replacement and the kubelet
-  both require it:
-  ```sh
-  sudo swapoff -a
-  sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
-  sudo systemctl mask swapfile.swap
-  ```
-- Each kubelet started with `--node-ip=<the node's own IP>`, **not** the API VIP.
-  Getting this wrong produces ARP confusion that looks like random pod networking
-  failures:
-  ```sh
-  sudo -e /usr/lib/systemd/system/kubelet.service.d/10-kubeadm.conf
-  ```
-- Local tooling: `task tools`.
-- **The `deployed` tag exists and is pushed.** See step 0 — this one is not
-  optional and nothing in the repo creates it for you.
+- A kubeadm cluster with the API on the VIP `192.168.1.11:6443` (kube-vip static
+  pods with the `/etc/nsswitch.conf` mount, see
+  [networking.md](networking.md#kubernetes-api-vip)), no kube-proxy (Cilium
+  replaces it: `kubeadm init --skip-phases=addon/kube-proxy`), swap off, and
+  each kubelet on its own node IP (`--node-ip`), never the VIP.
+- `~/repos/homelab/kubeconfig-homelab` (git-ignored) and
+  `export KUBECONFIG=~/repos/homelab/kubeconfig-homelab`.
+- Tools: `task tools` (sops, age, kustomize, kubeconform, helm, yq), plus
+  `kubectl`.
+- The age identity in `~/.config/sops/age/keys.txt`, mode 600: restore it from
+  the password manager, or generate a new one (step 1).
+- Run every command from the repository root on a checkout of `origin/main`.
+
+Check:
+
+```sh
+kubectl get nodes
+age-keygen -y ~/.config/sops/age/keys.txt
+grep -o 'age1[0-9a-z]*' .sops.yaml | sort -u
+```
+
+Expected: every node listed (`NotReady` is normal before a CNI), and the
+public key printed by `age-keygen -y` equal to the recipient in `.sops.yaml`.
 
 ## Steps
 
-### 0. Create the `deployed` tag
+### 1. Age key (new cluster with new secrets only)
 
-Every `Application` in `clusters/homelab/` tracks a git tag named `deployed`, and
-`target_revision` defaults to it. Argo CD resolves that revision on the very first
-reconcile, so **without the tag a fresh bootstrap fails immediately** with:
-
-```
-rpc error: ... revision "deployed" not found
-```
-
-Nothing creates it: `cd.yaml` only *moves* an existing tag. Do it once, by hand:
-
-```sh
-git tag deployed <commit-that-is-known-good>
-git push origin refs/tags/deployed
-```
-
-Then check GitHub's tag protection rules. A rule matching `deployed` that forbids
-force-pushes breaks both deploy and rollback, because both are a force-push of that
-tag.
-
-Why a tag rather than a branch: [ADR 0001](adr/0001-deploy-by-moving-a-git-tag.md).
-
-### 1. Generate the age key
+Skip this when restoring the existing key. For a new identity:
 
 ```sh
 task secrets:keygen
 ```
 
-Back the private key up to your password manager before continuing. See
-[secrets.md](secrets.md).
+It writes `~/.config/sops/age/keys.txt` and prints the public key. Save the
+private key in the password manager now, put the public key in `.sops.yaml`,
+and re-seal every secret ([secrets.md](secrets.md)) before
+continuing: the sealed files in git are encrypted to the current key.
 
-### 2. Create the secrets you need for a first boot
+### 2. Cilium
 
-At minimum, infrastructure cannot converge without the Cloudflare tokens:
-
-```sh
-cd infrastructure/secrets
-cp cloudflare-cert-manager.sops.yaml.example  cloudflare-cert-manager.sops.yaml
-cp cloudflare-external-dns.sops.yaml.example  cloudflare-external-dns.sops.yaml
-cp democratic-csi-iscsi.sops.yaml.example     democratic-csi-iscsi.sops.yaml
-$EDITOR ./*.sops.yaml    # see below on which values must be new
-cd -
-
-for f in infrastructure/secrets/*.sops.yaml; do task secrets:seal -- "$f"; done
-task secrets:leak-check
-bash scripts/secrets-check.sh    # every file a KSOPS generator names exists and is sealed
-```
-
-All three of these need **new** values, and none of them is covered by the
-deferred-rotation decision: the democratic-csi template requires a fresh keypair
-and a non-root TrueNAS account, and the Cloudflare token is not LAN-scoped. See
-[security-incident.md](security-incident.md).
-
-Platform and app secrets can wait; those Applications will sit `Degraded` until
-they exist, which is the correct signal. `secrets-check.sh` is what tells you
-*which* file is missing without needing the age key — the `secrets-*` Applications
-sync at the earliest wave in each layer, so one missing file stalls the whole
-layer.
-
-### 3. Configure the bootstrap
+From the values and chart version in git:
 
 ```sh
-cd bootstrap
-cp terraform.tfvars.example terraform.tfvars
-$EDITOR terraform.tfvars       # git_username, target_revision, api_server_ip
-```
-
-Pass the two sensitive values through the environment so they never land on disk:
-
-```sh
-export TF_VAR_sops_age_key="$(cat ~/.config/sops/age/keys.txt)"
-export TF_VAR_git_token='<a PAT with contents:read on THIS REPO ONLY>'
-```
-
-Scope the PAT narrowly. Argo CD stores it in a Secret readable by anything that
-can read Secrets in the `argocd` namespace.
-
-`target_revision` defaults to `deployed`, which is what you want for any cluster
-that owns real objects.
-
-Override it with a branch **only** while rebuilding a cluster that owns nothing
-yet, and understand the trade: a branch means the cluster follows every push with
-no health gate in front of it.
-
-```hcl
-target_revision = "chore/gitops-restructure"
-```
-
-### 4. Apply
-
-```sh
-task bootstrap:plan     # read it
-task bootstrap:apply
-```
-
-This installs Cilium (waits for it), then Argo CD (waits), then the root
-Application. Expect 5–10 minutes on RK1 hardware.
-
-#### Cilium is a one-off here
-
-The bootstrap install is the only time Cilium is installed outside Argo CD.
-Argo CD's `cilium` Application then adopts that release and owns its lifecycle
-(automated sync with self-heal, no prune). Both read the same inputs from git,
-so the adoption changes nothing but Argo CD's tracking label:
-
-| Input | Where |
-|---|---|
-| Chart version | `ci/helm-releases.yaml` (`cilium` entry), kept equal to `clusters/homelab/infrastructure/cilium.yaml` by CI |
-| Values | `infrastructure/cilium/values.yaml` |
-| Release name, namespace | `cilium`, `kube-system` |
-
-Without OpenTofu, the same install by hand, from a CI-green commit on `main`:
-
-```sh
-sha=$(git rev-parse origin/main)
-git show "$sha:infrastructure/cilium/values.yaml" > /tmp/cilium-values.yaml
 version=$(yq '.releases[] | select(.name == "cilium") | .version' ci/helm-releases.yaml)
 helm install cilium cilium --repo https://helm.cilium.io --version "$version" \
-  -n kube-system -f /tmp/cilium-values.yaml --wait --timeout 15m
-rm /tmp/cilium-values.yaml
+  -n kube-system -f infrastructure/cilium/values.yaml --wait --timeout 15m
+kubectl -n kube-system rollout status ds/cilium --timeout=5m
 ```
 
-After Argo CD is up, `argocd app diff cilium` should show only the
-`argocd.argoproj.io/instance: cilium` label on each object. The chart generates
-`cilium-ca` and `hubble-server-certs` itself; the Application ignores their
-data and keeps the live certificates (`RespectIgnoreDifferences=true`).
+Expected: `STATUS: deployed`, then `daemon set "cilium" successfully rolled
+out`, and every node `Ready` within a minute.
 
-Never `helm upgrade` or `helm uninstall` the release once Argo CD owns it:
-upgrades are a merged change to the chart version or the values file, and
-`helm uninstall` deletes the CNI. Rollback is a revert pull request. The
-`sh.helm.release.v1.cilium.*` Secrets stay as stale metadata for break-glass
-only: `helm rollback cilium <revision>` holds only while self-heal is off, so
-revert in git as well.
-democratic-csi is not a bootstrap step: its Application installs it like any
-other leaf.
-
-### 5. Get in
+### 3. Argo CD and its key
 
 ```sh
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath='{.data.password}' | base64 -d; echo
-
-kubectl -n argocd port-forward svc/argocd-server 8080:80
+kubectl create namespace argo
+kubectl -n argo create secret generic sops-age \
+  --from-file=keys.txt="$HOME/.config/sops/age/keys.txt"
+version=$(yq '.releases[] | select(.name == "argocd") | .version' ci/helm-releases.yaml)
+helm install argocd argo-cd --repo https://argoproj.github.io/argo-helm \
+  --version "$version" -n argo -f bootstrap/argocd-values.yaml --wait --timeout 15m
+kubectl -n argo get pods
 ```
 
-Then `http://localhost:8080` as `admin`. Port-forward rather than the Gateway,
-because on a cold start the Gateway does not exist yet — it is created by the
-infrastructure layer that Argo is about to sync.
+Expected: `STATUS: deployed` and every pod in `argo` `Running`. The repository
+is public, so Argo CD needs no credential to clone it.
 
-Once `infrastructure` is healthy, `https://argo.lilalala.com` works. The CLI needs
-`--grpc-web` because TLS terminates at the Gateway:
+### 4. Root Application
+
+```sh
+kubectl apply -f bootstrap/root-app.yaml
+kubectl -n argo get applications -w
+```
+
+Expected: `root`, then the three `layer-*` Applications, then every leaf
+appear. Expect 10 to 20 minutes on RK1 hardware. Argo CD adopts the Cilium
+release from step 2 in the `cilium` Application; its diff is only the
+`argocd.argoproj.io/instance` label.
+
+Expected transient failures:
+
+| Application | Error | Clears when |
+| --- | --- | --- |
+| `cnpg` | `no matches for kind "PodMonitor"` | `kube-prometheus-stack` syncs (wave 10) and the retry runs |
+| `keycloak` | CrashLoopBackOff | its database is ready |
+| everything in `platform` and `apps` | Progressing | `democratic-csi` (infrastructure wave 20) provides the StorageClasses |
+
+Anything not `Synced` and `Healthy` 30 minutes after the last layer appeared is
+a real problem: `kubectl -n argo get application <name> -o yaml` and read
+`status.conditions` and `status.operationState`. `immich` is the exception: it
+has no automated sync and stays `OutOfSync` until step 5.
+
+### 5. Log in to Argo CD, sync Immich
+
+```sh
+kubectl -n argo get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d; echo
+kubectl -n argo port-forward svc/argocd-server 8080:80
+```
+
+Open `http://localhost:8080` as `admin`. Once the `gateway` Application is
+healthy, `https://argo.lilalala.com` works too. Then sync Immich by hand:
 
 ```sh
 argocd login argo.lilalala.com --grpc-web
+argocd app sync immich --grpc-web
+argocd app wait immich --health --timeout 900 --grpc-web
 ```
 
-### 6. Watch it converge
+Expected: the sync succeeds and the wait ends with `Health Status: Healthy`.
+Read [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md) before ever
+syncing a changed Immich chart or image.
+
+Keycloak login (group `ArgoCDAdmins` is admin) needs the client secret of the
+Keycloak client `argocd` in `argocd-secret`. It is not in git; set it once
+Keycloak runs:
 
 ```sh
-kubectl -n argocd get applications -w
+kubectl -n argo patch secret argocd-secret --type merge \
+  -p '{"stringData":{"oidc.keycloak.clientSecret":"<client-secret-from-keycloak>"}}'
 ```
 
-Expected order: `root` → the three `layer-*` apps → leaves.
-
-**Expected transient failures, not bugs:**
-
-| Application | Error | Resolves when |
-|---|---|---|
-| `cloudnative-pg` | `no matches for kind "PodMonitor"` | kube-prometheus-stack syncs at wave 10 |
-| `secrets-platform`, `secrets-apps` | missing files | you create those secrets (step 7) |
-| `keycloak` | CrashLoopBackOff | its Secret and database exist |
-| `kube-prometheus-stack` | Alertmanager pod never starts | `alertmanager-notify` exists — see [observability.md](observability.md) |
-
-Anything still failing after all three layers report Synced is a real problem.
-
-### 7. Finish the secrets
-
-Work through the remaining templates:
+### 6. Check
 
 ```sh
-ls platform/secrets/*.example apps/secrets/*.example
+kubectl -n argo get applications \
+  -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+kubectl -n gateway get certificate wildcard-lilalala
 ```
 
-Each documents what the value is, how to generate it, and whether the old one is
-compromised. Keycloak first — the OIDC client secrets are generated *in* Keycloak,
-so it has to exist before the apps that federate to it.
+Expected: 25 Applications, all `Synced` and `Healthy`; the certificate
+`READY True`. Production Let's Encrypt allows 50 certificates per domain per
+week; on a new domain or DNS token, try the staging issuer first
+(`infrastructure/cert-manager-issuers/cluster-issuer-staging.yaml`, kept out of
+the kustomization on purpose).
 
-### 8. Certificates: staging first
+## OpenTofu alternative
 
-`infrastructure/gateway/certificate.yaml` points at `letsencrypt`. On a first
-bring-up, switch it to `letsencrypt-staging`, confirm the Certificate reaches
-`Ready`, then switch back:
+`bootstrap/main.tf` performs steps 2 to 4 in one run (Cilium, the `argo`
+namespace, `sops-age`, a repository credential, Argo CD, and the root
+Application through the local chart `bootstrap/charts/root-application`). The
+current cluster was bootstrapped by hand, not with it.
 
 ```sh
-kubectl -n gateway get certificate wildcard-lilalala -w
-kubectl -n gateway describe certificate wildcard-lilalala
+cp bootstrap/terraform.tfvars.example bootstrap/terraform.tfvars
+export TF_VAR_sops_age_key="$(cat ~/.config/sops/age/keys.txt)"
+export TF_VAR_git_token='<github-token-with-contents-read-on-this-repo>'
+task bootstrap:plan
+task bootstrap:apply
 ```
 
-Production Let's Encrypt allows 50 certificates per registered domain per week, and
-a misconfigured DNS-01 solver burns through that quickly.
+State is local (`bootstrap/terraform.tfstate`, git-ignored) and contains the
+age key and the token in clear text: keep it encrypted or delete it after the
+run. `helm_release.root_application` has `prevent_destroy`, so `tofu destroy`
+refuses at plan time.
 
-### 9. Point at the `deployed` tag
+## Removing Argo CD without deleting workloads
 
-Once you are done rebuilding, remove the branch override so `target_revision`
-falls back to its default:
-
-```hcl
-# target_revision = "chore/gitops-restructure"
-```
-
-then `task bootstrap:apply` again. That is the only reason to re-run it. Changing
-`targetRevision` is an in-place update to the Helm release, so `prevent_destroy`
-does not block it.
-
-From then on, deploying is moving the tag, not re-running OpenTofu.
-
-## Teardown
-
-`tofu destroy` **does not work here, and that is deliberate.**
-`helm_release.root_application` carries `lifecycle { prevent_destroy = true }`, so
-OpenTofu refuses at plan time rather than partially executing. The root Application
-carries `finalizers: [resources-finalizer.argocd.argoproj.io]`, which Argo CD
-honours by cascade-deleting every descendant Application and therefore every
-Deployment, StatefulSet, PVC and Secret in the cluster — in about a minute, printing
-a green `Destroy complete!`.
-
-Two supported teardowns. Pick by whether the workloads should survive.
+No Application carries the `resources-finalizer`, so deleting one orphans what
+it manages instead of deleting it:
 
 ```sh
-# A. Remove Argo CD, KEEP the workloads. Strip the finalizer first, so deleting
-#    the Application orphans its children instead of collecting them.
-kubectl -n argocd patch application root --type merge \
-  -p '{"metadata":{"finalizers":null}}'
-kubectl -n argocd delete application root
-
-# B. Delete EVERYTHING Argo manages, including PVCs. Finalizer left in place.
-kubectl -n argocd delete application root
+kubectl -n argo delete application root
 ```
 
-Either way, PVs backing the media library and the local backup share use
-`persistentVolumeReclaimPolicy: Retain`, so the NFS data survives. iSCSI volumes on
-the `iscsi` class use `Delete` and will not; `iscsi-retain` exists for the ones that
-must.
+Expected: the root goes away; layers, leaves and workloads keep running. Delete
+the layers the same way before uninstalling Argo CD. Re-applying
+`bootstrap/root-app.yaml` adopts everything again.
 
-Rebuilding the root Application is cheap — `tofu apply` recreates it and Argo CD
-re-adopts the existing objects. It is the destroy that is not. The full reasoning is
-in the comment block above the `lifecycle` stanza in `bootstrap/main.tf`.
+## Why it is like this
 
-## A note on state
-
-OpenTofu state is **local** (`bootstrap/terraform.tfstate`, git-ignored) and
-contains the age key and the git PAT in cleartext. For a single-operator homelab
-that is a defensible trade-off, but back it up somewhere encrypted, or move to a
-remote backend.
+- Argo CD is a Helm CLI release, not an Application: an Argo CD that manages its
+  own release can break the thing that would repair it. Upgrades are
+  `helm upgrade` from a merged commit, with the version from
+  `ci/helm-releases.yaml` and the values from `bootstrap/argocd-values.yaml`.
+- Cilium is installed once by hand and then adopted, rather than kept as a Helm
+  CLI release: the lifecycle (upgrades, values changes, drift) is then a pull
+  request like everything else. The cost is this one bootstrap step.
+- The repository credential is optional: the repository is public.
