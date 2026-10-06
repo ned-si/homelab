@@ -36,8 +36,8 @@ CHECK_TITLE="$HERE/ci/check-title.sh"
 REPO=${PR_MERGE_REPO:-${GH_VAR_REPO:-ned-si/homelab}}
 export GH_VAR_REPO=$REPO
 REMOTE=${PR_MERGE_REMOTE:-origin}
-# ci.yaml runs every check as a step of its single `ci` job, which fails if
-# any check failed or did not run.
+# ci.yaml's aggregate `ci` job needs every other job and fails if any of them
+# failed or did not run.
 REQUIRED_CHECKS="ci"
 
 dry_run=0
