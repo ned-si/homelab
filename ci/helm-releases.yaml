@@ -4,11 +4,11 @@
 # version from this file and the values from the listed file, both read with
 # `git show <sha>:<path>` at a CI-green commit on main.
 releases:
-  # Live: chart argo-cd 10.2.2 (Argo CD v3.4.6).
+  # Live: chart argo-cd 5.53.0 (Argo CD v2.9.3), helm revision 1.
   - name: argocd
     repo: https://argoproj.github.io/argo-helm
     chart: argo-cd
-    version: 10.2.2
+    version: 7.9.1
     release: argocd
     namespace: argo
     values: bootstrap/argocd-values.yaml
