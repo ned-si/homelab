@@ -173,5 +173,5 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
   `ci/helm-releases.yaml`, then Kubernetes and the node OS.
 - Off-site backups: not active yet. Backups today are local database dumps
   and etcd snapshots. Data PVs are on reclaim policy `Retain`
-  ([details](docs/backups.md#reclaim-policy-current-state)).
+  ([details](docs/backups.md#reclaim-policy)).
 - Everything else that is deliberately deferred: [docs/roadmap.md](docs/roadmap.md).
