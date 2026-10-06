@@ -31,7 +31,7 @@ spec:
     - repoURL: https://democratic-csi.github.io/charts/
       chart: democratic-csi
       # renovate: datasource=helm depName=democratic-csi registryUrl=https://democratic-csi.github.io/charts/
-      targetRevision: 0.14.7
+      targetRevision: 0.15.1
       helm:
         releaseName: iscsi
         valueFiles:
