@@ -30,7 +30,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  render:
+  # Not `render`: that is a job of ci.yaml, and check names should not collide.
+  renovate-render:
     if: >-
       github.event.pull_request.user.login == 'renovate[bot]'
       && github.event.pull_request.head.repo.full_name == github.repository
