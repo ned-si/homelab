@@ -28,7 +28,7 @@ same thing. CI on every pull request and `scripts/pr-merge.sh` are the gate.
 
 Rejected: a `deployed` tag that a CD workflow moved forward after a health
 check. It needed a runner with access to the cluster and a second notion of
-"current", for a single-operator cluster where review and deploy happen
+"current", for a cluster run by one person, where review and deploy happen
 together.
 
 ## Adopt at parity, change afterwards
