@@ -144,7 +144,7 @@ repos:
   # ci.yaml therefore installs OpenTofu (opentofu/setup-opentofu) in the lint job
   # and sets PCT_TFPATH=tofu. Locally, `task tools` gets tofu via Homebrew.
   - repo: https://github.com/antonbabenko/pre-commit-terraform
-    rev: v1.100.0
+    rev: v1.100.1
     hooks:
       - id: terraform_fmt
         files: ^bootstrap/
