@@ -55,7 +55,7 @@ concurrency:
 jobs:
   dast:
     name: ZAP + TLS
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # One host after the other: concurrent scans against one Gateway on four
     # SBCs would be a self-inflicted denial of service.
     timeout-minutes: 180
