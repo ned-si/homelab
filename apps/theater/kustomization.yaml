@@ -4,9 +4,9 @@ namespace: theater
 
 # Parity with the running cluster (ADR 0002). Kept in git, not rendered:
 #   bazarr.yaml  (new app, its own adoption change)
+#   backup-bazarr.yaml  (bazarr's config backup; rendered with bazarr.yaml)
 #   sso.yaml, sso-routes.yaml  (oauth2-proxy SSO for the *arr UIs: new
 #                public hostnames, its own change)
-#   backup.yaml  (restic CronJobs, with off-site backups, ADR 0008)
 # recyclarr.yaml is rendered but ships suspended (spec.suspend: true) and
 # its API-key Secret holds PENDING sentinels.
 resources:
@@ -19,3 +19,6 @@ resources:
   - plex.yaml
   - jellyfin.yaml
   - httproute.yaml
+  # restic CronJobs for the /config volumes and the *arr databases, plus the
+  # monthly prune of their shared repository.
+  - backup.yaml

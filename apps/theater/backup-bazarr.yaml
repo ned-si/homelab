@@ -1,0 +1,122 @@
+# bazarr's config backup. NOT RENDERED until bazarr.yaml is: the job mounts
+# `bazarr-config`, and a CronJob whose PVC does not exist leaves a Pending pod
+# every night.
+#
+# Enabling it, in the same change that renders bazarr.yaml:
+#   - add this file to kustomization.yaml and theater/theater-config-backup-bazarr
+#     to ci/active-cronjobs.txt;
+#   - add bazarr to the dump loop in backup.yaml (dump-postgres.sh) and give the
+#     dump initContainer a `creds-bazarr` volume from `bazarr-postgresql-app`.
+#
+# Same shape as the sonarr job in backup.yaml; different PVC, label, tag and
+# slot. The 04:50 slot sits before jellyfin's 05:00, in the same shared
+# repository, ten minutes apart for the restic lock.
+#
+# /config here holds the provider credentials, the per-series subtitle language
+# profiles and the scoring rules. The subtitle FILES themselves are not in it --
+# they are written next to the media on `theater-data`, which is a separate
+# concern and is not backed up by this repository at all (26TB of re-acquirable
+# media is deliberately out of scope; see backup.yaml).
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: theater-config-backup-bazarr
+  namespace: theater
+spec:
+  schedule: "50 4 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-bazarr
+        spec:
+          restartPolicy: OnFailure
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: bazarr
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - /scripts/backup-config.sh
+                - bazarr
+                - /config
+                # Bazarr's own rotating logs.
+                - --exclude=/config/log
+                # Provider response cache and the extracted-subtitle scratch
+                # area. Both derived, both re-fetched on demand.
+                - --exclude=/config/cache
+                # Bazarr writes its own periodic config backups into /config.
+                # Backing up backups doubles the snapshot for nothing.
+                - --exclude=/config/backup
+                # Only present if POSTGRES_ENABLED is ever turned off. Harmless
+                # while it is on, and the reason it is listed is that flipping
+                # that switch must not silently start capturing a live SQLite
+                # file -- the failure the jellyfin job has to hedge about.
+                - --exclude=/config/db
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic writes temp pack files here while uploading. Without this it uses
+                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
+                # `restic backup` fails the moment it has a pack to flush. /cache is
+                # already mounted and writable.
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: theater-backup-scripts
+                defaultMode: 0755
+            - name: config
+              persistentVolumeClaim:
+                claimName: bazarr-config
+                readOnly: true
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi

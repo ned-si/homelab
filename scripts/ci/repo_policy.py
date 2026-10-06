@@ -24,10 +24,13 @@ objects and rule ids only; values are never printed.
                         annotation in v0.15.0) appears in no non-doc file or render
   wildcard-route-dns    every HTTPRoute with a `*` hostname carries
                         external-dns.alpha.kubernetes.io/controller: none
-  cronjob-suspended / cronjob-guard / guard-modes
+  cronjob-suspended / cronjob-guard / guard-modes / cronjob-active
                         new-layout CronJobs rendered from the apps and platform
-                        layers are suspended; all but ci/non-backup-cronjobs.txt
-                        are guarded (initContainers[0] pending-guard, see
+                        layers are suspended, unless listed in
+                        ci/active-cronjobs.txt, which must set `suspend: false`
+                        and skip the guard; every list entry must be rendered.
+                        All other CronJobs but ci/non-backup-cronjobs.txt are
+                        guarded (initContainers[0] pending-guard, see
                         check_guard); ci/guard-modes.txt entries exist and use a
                         known mode
   root-profiles         clusters/homelab/root.yaml and bootstrap/root-app.yaml pass
@@ -249,7 +252,10 @@ class Policy:
     def rule_cronjobs(self) -> None:
         non_backup = self.read_list("ci/non-backup-cronjobs.txt")
         modes_lines = self.read_list("ci/guard-modes.txt")
+        active_lines = self.read_list("ci/active-cronjobs.txt")
         non_backup_set = set(non_backup or [])
+        active_set = set(active_lines or [])
+        seen_active: set[str] = set()
         modes: dict[str, str] = {}
         for ln in modes_lines or []:
             parts = ln.split()
@@ -266,8 +272,18 @@ class Policy:
                 if d.get("kind") != "CronJob":
                     continue
                 key = f"{self.ns_of(d, e)}/{self.name_of(d)}"
+                suspend = (d.get("spec") or {}).get("suspend")
+                if key in active_set:
+                    # Reviewed and running: it must say so explicitly, and the
+                    # pending-guard does not apply (its credentials are real).
+                    self.on("cronjob-active")
+                    seen_active.add(key)
+                    if suspend is not False:
+                        self.fail("cronjob-active", f"{e['app']}: CronJob {key} is in ci/active-cronjobs.txt "
+                                                    "but does not set suspend: false")
+                    continue
                 self.on("cronjob-suspended")
-                if (d.get("spec") or {}).get("suspend") is not True:
+                if suspend is not True:
                     self.fail("cronjob-suspended", f"{e['app']}: CronJob {key} is not suspended")
                 if key in non_backup_set:
                     continue
@@ -275,6 +291,10 @@ class Policy:
                 seen_guarded.add(key)
                 for problem in check_guard(d, modes.get(key)):
                     self.fail("cronjob-guard", f"{e['app']}: CronJob {key}: {problem}")
+        if active_lines is not None:
+            self.on("cronjob-active")
+        for key in sorted(active_set - seen_active):
+            self.fail("cronjob-active", f"ci/active-cronjobs.txt: {key} is not a rendered CronJob (stale entry)")
         if modes_lines is not None or modes:
             self.on("guard-modes")
         for key, mode in modes.items():

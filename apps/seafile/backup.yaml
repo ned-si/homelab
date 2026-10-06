@@ -48,15 +48,12 @@
 # three databases (DB_HOST=mariadb in deployment.yaml), so seahub.db is not in
 # use.
 #
-# ---------------------------------------------------------------------------
-# ADD `seafile/shared` TO `local.restic_repos` IN bootstrap/aws-backup/main.tf.
-# Without it there is no Glacier IR lifecycle rule for
-# `seafile/shared/data/`, so the pack files sit in S3 Standard at roughly 6x
-# the price and nothing warns you. bootstrap/ is not edited by this change; it
-# is a manual step.
+# `seafile/shared` must stay in `local.restic_repos` in
+# bootstrap/aws-backup/main.tf (scripts/check-restic-repos.sh), or its packs
+# never move to Glacier IR.
 #
-# Then uncomment the `seafile/shared  seafile-shared` line in
-# platform/backup-verify/restore-files.yaml -- done in this change.
+# RETENTION is monthly, in `seafile-prune` below: Glacier IR bills every pack for
+# at least 90 days, so the nightly job only adds snapshots.
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -64,9 +61,10 @@ metadata:
   name: seafile-backup
   namespace: seafile
 spec:
-  # 03:00. Between Immich's Postgres base backup (02:30) and the theater config
-  # jobs (04:00+), so the domestic uplink is not shared.
+  # 03:00. Between Paperless (02:30) and Mealie (03:20), so the domestic uplink
+  # is not shared.
   schedule: "0 3 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -112,9 +110,10 @@ spec:
             # cache. pvc.yaml already notes this image's config-in-volume habit
             # as a reason to prefer Syncthing where it fits; add this to the
             # list.
+            #
+            # No fsGroup: the job writes only emptyDirs.
             runAsUser: 0
             runAsGroup: 0
-            fsGroup: 0
             seccompProfile:
               type: RuntimeDefault
           initContainers:
@@ -126,10 +125,13 @@ spec:
               # This is the one database in the cluster NOT managed by
               # CloudNativePG, because Seafile requires MySQL/MariaDB. It
               # therefore has no PITR and no generated credentials -- see
-              # mariadb.yaml. Image tag tracks the server's 12.3; a dump client
-              # older than the server can silently omit newer syntax.
+              # mariadb.yaml. The tag MUST equal the server's (mariadb.yaml):
+              # a client older than the server can silently omit newer syntax,
+              # and an 11.4+ client against a 10.11 server fails outright,
+              # because the newer client requires TLS by default and this server
+              # does not offer it.
               # renovate: datasource=docker depName=mariadb
-              image: mariadb:12.3
+              image: mariadb:10.11
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-c"]
               args:
@@ -237,17 +239,6 @@ spec:
                     --exclude '**/pro-data/**' \
                     --verbose
 
-                  # Retention. Deeper on monthly than Immich's remote copy
-                  # because this is a document store: someone noticing in March
-                  # that a library was mangled in January is a realistic way to
-                  # need this.
-                  restic forget \
-                    --host seafile \
-                    --keep-daily 14 \
-                    --keep-weekly 8 \
-                    --keep-monthly 24 \
-                    --prune
-
                   restic check --with-cache
               env:
                 - name: RESTIC_REPOSITORY
@@ -277,8 +268,7 @@ spec:
                   cpu: 200m
                   memory: 512Mi
                 limits:
-                  # A 100Gi repository's deduplication index is memory-hungry
-                  # during prune.
+                  # A 100Gi repository's deduplication index is memory-hungry.
                   memory: 2Gi
               securityContext:
                 allowPrivilegeEscalation: false
@@ -288,7 +278,7 @@ spec:
           volumes:
             - name: data
               persistentVolumeClaim:
-                claimName: seafile-data
+                claimName: seafile-pvc
                 readOnly: true
             # The dump is a few tens of megabytes for a homelab Seafile.
             # sizeLimit guards the node's 29GB eMMC, which is also where kubelet
@@ -296,24 +286,85 @@ spec:
             - name: dumps
               emptyDir:
                 sizeLimit: 4Gi
-            # A PERSISTENT cache, unlike the theater jobs. This repository holds
-            # up to 100Gi, and restic re-downloads the repository index on every
-            # run without one -- which for a repository this size is slow enough
-            # to matter over a domestic uplink. Same trade-off Immich makes, at a
-            # smaller scale.
+            # emptyDir: a cold cache costs one download of the repository index,
+            # which stays in S3 Standard. Seconds at this size.
             - name: cache
-              persistentVolumeClaim:
-                claimName: seafile-restic-cache
+              emptyDir:
+                sizeLimit: 2Gi
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
+# Retention, once a month. `--keep-within 3m` keeps every snapshot for three
+# months, so no pack becomes unused before Glacier IR's 90-day minimum; after
+# that one snapshot per month is kept for two years, because this is a document
+# store and a library mangled in January may only be noticed in March. Talks to
+# S3 only, so it needs no app volume, no affinity and no root.
+apiVersion: batch/v1
+kind: CronJob
 metadata:
-  name: seafile-restic-cache
+  name: seafile-prune
   namespace: seafile
 spec:
-  storageClassName: iscsi
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
+  schedule: "45 12 1 * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: seafile-prune
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic forget \
+                    --host seafile \
+                    --keep-within 3m \
+                    --keep-monthly 24 \
+                    --prune
+
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/seafile/shared
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: cache
+              emptyDir:
+                sizeLimit: 2Gi

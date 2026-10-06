@@ -1,0 +1,23 @@
+# CronJobs that run on their schedule (repo-policy cronjob-active). Every other
+# rendered CronJob must ship suspended. An entry here is a reviewed decision:
+# the job's credentials are real and its first run has been seen to work.
+# Format: <namespace>/<name>. The backup schedule is in docs/backups.md.
+immich/immich-library-backup
+immich/immich-library-backup-local
+immich/immich-library-prune
+mealie/mealie-backup
+mealie/mealie-prune
+paperless/paperless-backup
+paperless/paperless-prune
+seafile/seafile-backup
+seafile/seafile-prune
+syncthing/syncthing-backup
+syncthing/syncthing-prune
+theater/theater-postgres-backup
+theater/theater-config-backup-sonarr
+theater/theater-config-backup-radarr
+theater/theater-config-backup-lidarr
+theater/theater-config-backup-prowlarr
+theater/theater-config-backup-plex
+theater/theater-config-backup-jellyfin
+theater/theater-configs-prune

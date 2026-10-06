@@ -53,12 +53,12 @@
 #
 #     kubectl -n syncthing create job --from=cronjob/syncthing-backup pre-2x
 #
-# ---------------------------------------------------------------------------
-# ADD `syncthing/data` TO `local.restic_repos` IN bootstrap/aws-backup/main.tf.
-# For a repository this small the Glacier IR saving is pennies, so it is the one
-# case where forgetting it costs almost nothing -- but the entry also documents
-# that the repository exists, and the list is what a future reader trusts.
-# bootstrap/ is not edited by this change; it is a manual step.
+# `syncthing/data` stays in `local.restic_repos` in bootstrap/aws-backup/main.tf
+# (scripts/check-restic-repos.sh). The Glacier IR saving is pennies at this
+# size, but the list is what a future reader trusts.
+#
+# RETENTION is monthly, in `syncthing-prune` below: Glacier IR bills every pack
+# for at least 90 days, so the nightly job only adds snapshots.
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -66,10 +66,11 @@ metadata:
   name: syncthing-backup
   namespace: syncthing
 spec:
-  # 02:00. Earliest of the nightly jobs, because it is by far the smallest and
+  # 02:00. The first S3 job of the night, because it is by far the smallest and
   # because Syncthing's identity is the cheapest thing to protect and the most
   # annoying to lose.
   schedule: "0 2 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -111,9 +112,9 @@ spec:
             runAsNonRoot: true
             # statefulset.yaml runs PUID/PGID 1000 with fsGroup 1000, so the
             # volume's files are owned by 1000. Any other uid reads nothing.
+            # No fsGroup here: the job writes only an emptyDir.
             runAsUser: 1000
             runAsGroup: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -149,17 +150,6 @@ spec:
                     --exclude '/data/*.log' \
                     --exclude '/data/panic-*.log' \
                     --verbose
-
-                  # Deep retention, because it is free at this size and because
-                  # a mistaken folder-configuration change (a share removed, an
-                  # ignore pattern that stopped syncing something) is exactly
-                  # the kind of thing noticed months later.
-                  restic forget \
-                    --host syncthing \
-                    --keep-daily 30 \
-                    --keep-weekly 12 \
-                    --keep-monthly 24 \
-                    --prune
 
                   restic check --with-cache
 
@@ -242,6 +232,84 @@ spec:
             # emptyDir: this repository is kilobytes, so a cold cache costs
             # nothing and a PVC would be a zvol for no reason. sizeLimit guards
             # the node's 29GB eMMC (docs/migration-plan.md).
+            - name: cache
+              emptyDir:
+                sizeLimit: 512Mi
+---
+# Retention, once a month. `--keep-within 3m` keeps every snapshot for three
+# months, so no pack becomes unused before Glacier IR's 90-day minimum; after
+# that one snapshot per month is kept for two years -- free at this size, and a
+# mistaken folder-configuration change is the kind of thing noticed months
+# later. Talks to S3 only, so it needs no app volume and no affinity.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: syncthing-prune
+  namespace: syncthing
+spec:
+  # The 1st of the month at 12:00, the first of the monthly prunes.
+  schedule: "0 12 1 * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: syncthing-prune
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic forget \
+                    --host syncthing \
+                    --keep-within 3m \
+                    --keep-monthly 24 \
+                    --prune
+
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/syncthing/data
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
             - name: cache
               emptyDir:
                 sizeLimit: 512Mi

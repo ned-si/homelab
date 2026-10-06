@@ -2,8 +2,10 @@
 # make up the LOCAL tier described in docs/backups.md.
 #
 # ###########################################################################
-# # SITE-SPECIFIC -- the TrueNAS address appears here and in nfs-volumes.yaml,
-# # and nowhere else in the manifests. Update both after the house move.
+# # SITE-SPECIFIC -- the TrueNAS address appears here, in nfs-volumes.yaml and
+# # in the inline NFS volume of apps/immich/resources/backup-files.yaml (the
+# # local Immich backup, which runs before this leaf is deployed). Update all
+# # three after the house move.
 # ###########################################################################
 #
 # WHAT THIS IS FOR, AND WHAT IT IS NOT

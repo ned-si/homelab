@@ -19,6 +19,9 @@
 # a torn write, and restic has no way to know. The mitigation is the `.backup`
 # command below, which produces a consistent copy through SQLite's own API rather
 # than copying bytes from under a running process.
+#
+# RETENTION is monthly, in `paperless-prune` below: Glacier IR bills every pack
+# for at least 90 days, so the nightly job only adds snapshots.
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -26,7 +29,9 @@ metadata:
   name: paperless-backup
   namespace: paperless
 spec:
-  schedule: "0 4 * * *"
+  # 02:30, between Syncthing (02:00) and Seafile (03:00).
+  schedule: "30 2 * * *"
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
@@ -46,10 +51,11 @@ spec:
                     matchLabels:
                       app.kubernetes.io/name: paperless
                   topologyKey: kubernetes.io/hostname
+          # No fsGroup: every volume the job writes is an emptyDir, and an
+          # fsGroup would let the kubelet change ownership on the app's volumes.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
-            fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
           containers:
@@ -91,10 +97,6 @@ spec:
                     --exclude '**/thumbnails/**' \
                     --verbose
 
-                  restic forget \
-                    --host paperless \
-                    --keep-daily 14 --keep-weekly 8 --keep-monthly 24 \
-                    --prune
                   restic check --with-cache
               env:
                 - name: RESTIC_REPOSITORY
@@ -134,22 +136,87 @@ spec:
               persistentVolumeClaim:
                 claimName: paperless-data
                 readOnly: true
+            # emptyDir: the repository is tens of MiB, so a cold cache costs
+            # seconds. sizeLimit guards the node's eMMC.
             - name: cache
-              persistentVolumeClaim:
-                claimName: paperless-restic-cache
+              emptyDir:
+                sizeLimit: 2Gi
             - name: tmp
               emptyDir:
                 sizeLimit: 2Gi
 ---
-apiVersion: v1
-kind: PersistentVolumeClaim
+# Retention, once a month. `--keep-within 3m` keeps every snapshot for three
+# months, so no pack becomes unused before Glacier IR's 90-day minimum; after
+# that one snapshot per month is kept for two years. Talks to S3 only, so it
+# needs no app volume and no affinity.
+apiVersion: batch/v1
+kind: CronJob
 metadata:
-  name: paperless-restic-cache
+  name: paperless-prune
   namespace: paperless
 spec:
-  storageClassName: iscsi
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi
+  schedule: "30 12 1 * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paperless-prune
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.0
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic forget \
+                    --host paperless \
+                    --keep-within 3m \
+                    --keep-monthly 24 \
+                    --prune
+
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/paperless/media
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi

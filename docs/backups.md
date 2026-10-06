@@ -1,9 +1,12 @@
 # Backups
 
-Two tiers with different threat models, and one thing to understand before reading
-the table: **none of this is running yet.** The manifests are written; the S3
-bucket, the `s3-backup` Secret and several OpenTofu entries do not exist. Until the
-[prerequisites](#before-any-of-this-works) are done there is no backup at all.
+Two tiers with different threat models. What runs today: the restic file and
+dump backups of every row in [Files](#files) except `grafana/data`, on the
+[schedule](#schedule) below, against the S3 bucket and, for Immich, the NAS. What
+does not run yet: barman for `immich-db` and `keycloak-db` (no object store on
+either Cluster; the Barman Cloud plugin needs a CNPG upgrade first), and the
+weekly verification in `platform/backup-verify/` (staged). Until then those two
+databases are covered only by the on-demand [local dumps](#local-dumps-on-demand).
 
 | Tier | Where | Protects against | Verification |
 |---|---|---|---|
@@ -27,29 +30,28 @@ do not read this table as "everything is backed up".
 
 | Cluster | Method | Retention | Consistency |
 |---|---|---|---|
-| `immich-db` | barman in-tree → S3: continuous WAL + nightly base (02:30) | 30d PITR | full PITR |
-| `keycloak-db` | barman in-tree → S3: continuous WAL + nightly base (02:00) | 90d PITR | full PITR |
-| `mealie-postgresql` | **nightly `pg_dump`** into the `mealie/data` restic repo (03:20) | 14d/8w/12m | consistent snapshot, **not** PITR |
-| `sonarr-postgresql` | nightly `pg_dump` into `theater/configs` (03:40) | 14d/8w/12m | consistent snapshot, **not** PITR |
-| `radarr-postgresql` | same job | 14d/8w/12m | same |
-| `lidarr-postgresql` | same job | 14d/8w/12m | same |
-| `prowlarr-postgresql` | same job | 14d/8w/12m | same |
-| Paperless SQLite | `sqlite3 .backup` via Python → `paperless/media` (04:00) | 14d/8w/24m | consistent — uses SQLite's online backup API |
-| Seafile MariaDB | `mariadb-dump --single-transaction` → `seafile/shared` (03:00) | 14d/8w/24m | transactionally consistent, no table locks |
+| `immich-db` | **not running**: barman → S3 is written (`apps/immich/resources/backup.yaml`) but not rendered | — | on-demand local dumps only |
+| `keycloak-db` | **not running**: same (`platform/keycloak/backup.yaml`) | — | on-demand local dumps only |
+| `mealie-postgresql` | **nightly `pg_dump`** into the `mealie/data` restic repo (03:20) | 3m + 12 monthly | consistent snapshot, **not** PITR |
+| `sonarr-postgresql` | nightly `pg_dump` into `theater/configs` (03:40) | 3m + 12 monthly | consistent snapshot, **not** PITR |
+| `radarr-postgresql` | same job | 3m + 12 monthly | same |
+| `lidarr-postgresql` | same job | 3m + 12 monthly | same |
+| `prowlarr-postgresql` | same job | 3m + 12 monthly | same |
+| Paperless SQLite | file copy of `db.sqlite3` → `paperless/media` (02:30). The job would use `sqlite3 .backup`, but the restic image has no `sqlite3` | 3m + 24 monthly | **may be torn**; the job logs a warning every run |
+| Seafile MariaDB | `mariadb-dump --single-transaction` → `seafile/shared` (03:00) | 3m + 24 monthly | transactionally consistent, no table locks |
 
-**Only two of the seven CloudNativePG clusters have `spec.backup.barmanObjectStore`
-at all.** `mealie`, `sonarr`, `radarr`, `lidarr` and `prowlarr` have no object
-store, so barman archives nothing for them. `mealie-postgresql` is the one that
-reads as covered and is not: it declares `backup.retentionPolicy: 14d` with no
-destination underneath it, which is not a configuration error — CNPG accepts it, it
-renders cleanly, it validates against the CRD schema, and it archives nothing. That
-is why the logical dumps exist.
+**No CloudNativePG cluster has an object store.** barman archives nothing for any
+of them. `mealie-postgresql` is the one that reads as covered and is not: it
+declares `backup.retentionPolicy: 14d` with no destination underneath it, which is
+not a configuration error — CNPG accepts it, it renders cleanly, it validates
+against the CRD schema, and it archives nothing. That is why the logical dumps
+exist.
 
-The consequence is stated rather than implied: those five get point-in-time
-**snapshots**, not point-in-time **recovery**. Worst case is a day of recipes or a
-day of quality-profile edits. Adding `barmanObjectStore` to a `Cluster` is a
-separate edit in that app's manifest, and doing it makes the corresponding dump
-redundant rather than wrong.
+The consequence is stated rather than implied: the five dumped clusters get
+point-in-time **snapshots**, not point-in-time **recovery**. Worst case is a day of
+recipes or a day of quality-profile edits. Adding `barmanObjectStore` to a
+`Cluster` is a separate edit in that app's manifest, and doing it makes the
+corresponding dump redundant rather than wrong.
 
 ### Files
 
@@ -57,18 +59,54 @@ One restic repository per row, all with `--tag` names the verifier consumes.
 
 | Repository | Contents | Retention | Caveats |
 |---|---|---|---|
-| `immich/library` | the photos. **Irreplaceable** | 7d/5w/12m | excludes `.tmp`, `encoded-video`, `thumbs` — all regenerated |
-| `immich/library` *(local, on NFS)* | second, independent repository of the same source | 14d/8w/6m | this is the copy that gets the full `--read-data` check |
-| `paperless/media` | scanned originals + the SQLite database | 14d/8w/24m | excludes the search index and thumbnails (derived); `paperless-consume` is a drop-box and is not backed up |
-| `seafile/shared` | content-addressed blobs **and** the MariaDB dump **and** Seafile's in-volume configuration | 14d/8w/24m | see below — this is the only copy of `seahub_settings.py` anywhere |
-| `syncthing/data` | `cert.pem`, `key.pem`, `config.xml` | 30d/12w/24m | the file index is **deliberately excluded**; see below |
-| `theater/configs` | six `/config` volumes + four Postgres dumps, one repo, tagged per app | 14d/8w/12m | Plex and Jellyfin have caveats; see below |
-| `mealie/data` | uploaded recipe images + the Postgres dump | 14d/8w/12m | write-once files; consistent |
-| `grafana/data` | Grafana's config and, separately, its live SQLite | 7d/4w/6m | **best-effort on the database**; see below |
+| `immich/library` | the photos. **Irreplaceable** | 3m + 12 monthly | excludes `.tmp`, `encoded-video`, `thumbs` — all regenerated |
+| `immich/library` *(local, on NFS)* | second, independent repository of the same source | 14d/8w/6m, pruned nightly | this is the copy that gets the full `--read-data` check |
+| `paperless/media` | scanned originals + the SQLite database | 3m + 24 monthly | excludes the search index and thumbnails (derived); `paperless-consume` is a drop-box and is not backed up |
+| `seafile/shared` | content-addressed blobs **and** the MariaDB dump **and** Seafile's in-volume configuration | 3m + 24 monthly | see below — this is the only copy of `seahub_settings.py` anywhere |
+| `syncthing/data` | `cert.pem`, `key.pem`, `config.xml` | 3m + 24 monthly | the file index is **deliberately excluded**; see below |
+| `theater/configs` | six `/config` volumes + four Postgres dumps, one repo, tagged per app | 3m + 12 monthly | Plex and Jellyfin have caveats; see below. bazarr's job is added with bazarr |
+| `mealie/data` | uploaded recipe images + the Postgres dump | 3m + 12 monthly | write-once files; consistent |
+| `grafana/data` | Grafana's config and, separately, its live SQLite | 7d/4w/6m | **not running**: Grafana has no persistent volume today, so there is nothing to back up; see below |
 
-Schedules are staggered. Within `theater/configs`, six jobs share one repository
-and restic takes an exclusive lock for `backup`, so they run ten minutes apart and
-`forget --prune` runs **once**, from the last job of the night.
+### Retention
+
+"3m + 12 monthly" means every snapshot is kept for three months, then one per
+month until it is twelve months old (`restic forget --keep-within 3m
+--keep-monthly 12`). Retention is in months because of the storage class: pack
+files move to Glacier Instant Retrieval after a day, and Glacier IR bills every
+object for at least 90 days. Deleting a pack sooner saves nothing and is billed
+anyway. Keeping everything for three months means no pack becomes unused before
+it is 90 days old.
+
+So the nightly jobs only add snapshots and run `restic check`. Each S3 repository
+has its own `*-prune` CronJob that runs `forget --prune` and a check **once a
+month**, on the 1st, away from the nightly window. The local Immich repository is
+on the NAS, has no minimum storage duration, and keeps its nightly forget + prune.
+
+### Schedule
+
+Every job has `concurrencyPolicy: Forbid`: a run that is still going when the next
+one is due causes that next one to be skipped, never run beside it. The cluster's
+CronJobs use the controller's time zone, UTC. One start per slot, so jobs never
+pile up on the uplink or the NAS:
+
+| UTC | Job |
+|---|---|
+| 01:30 | `immich/immich-library-backup-local` (NFS) |
+| 02:00 | `syncthing/syncthing-backup` |
+| 02:30 | `paperless/paperless-backup` |
+| 03:00 | `seafile/seafile-backup` |
+| 03:20 | `mealie/mealie-backup` |
+| 03:30 | `immich/immich-library-backup` (S3) |
+| 03:40 | `theater/theater-postgres-backup` |
+| 04:00–04:40 | `theater/theater-config-backup-{sonarr,radarr,lidarr,prowlarr,plex}`, ten minutes apart |
+| 05:00 | `theater/theater-config-backup-jellyfin` |
+| 1st, 12:00–13:30 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, immich 13:30 |
+
+Within `theater/configs`, six jobs share one repository and restic takes an
+exclusive lock for `backup`, so they run ten minutes apart; 04:50 is kept for
+bazarr. The running set is listed in `ci/active-cronjobs.txt`; CI fails any other
+rendered CronJob that is not suspended.
 
 ### The consistency caveats, per tag
 
@@ -204,10 +242,10 @@ own File Versioning is for — configured per folder in the GUI, stored in
 it before an upgrade, onto the node. Copy it off if you want it to survive losing
 that node.
 
-## Before any of this works
+## Setting it up from scratch
 
-An ordered checklist. Nothing runs until all of it is done, and two of the steps
-are silently expensive if skipped.
+An ordered checklist for a new bucket or a rebuilt cluster. Nothing works until
+all of it is done, and two of the steps are silently expensive if skipped.
 
 1. **`task secrets:keygen`**, and back the private key up. Nothing in the repo can
    be encrypted before this.
@@ -228,10 +266,9 @@ are silently expensive if skipped.
    backup key could delete the backups *and* everything else in the account. Delete
    the admin key once this succeeds.
 
-3. **Extend `local.restic_repos` in `bootstrap/aws-backup/main.tf` from 2 to 7,
-   BEFORE applying.** It currently lists only `immich/library` and
-   `paperless/media`. The five missing entries are `seafile/shared`,
-   `syncthing/data`, `theater/configs`, `mealie/data` and `grafana/data`.
+3. **Keep `local.restic_repos` in `bootstrap/aws-backup/main.tf` equal to the
+   repositories in the manifests, BEFORE applying.** It lists all seven today;
+   `scripts/check-restic-repos.sh` fails when the two drift.
 
    S3 prefix filters are literal, with no wildcards, so `main.tf` generates one
    Glacier IR lifecycle rule per repository from that list. A repository not on the
@@ -280,10 +317,12 @@ are silently expensive if skipped.
    kubectl -n syncthing create job --from=cronjob/syncthing-backup seed
    kubectl -n mealie    create job --from=cronjob/mealie-backup    seed
    kubectl -n seafile   create job --from=cronjob/seafile-backup   seed
-   kubectl -n monitoring create job --from=cronjob/grafana-backup  seed
    kubectl -n theater   create job --from=cronjob/theater-postgres-backup seed
    # ...and each of the six theater config jobs
    ```
+
+   On a running cluster the CronJobs are active (`ci/active-cronjobs.txt`), so
+   anything not seeded by hand is seeded by its first scheduled run.
 
    Immich is the exception worth planning: the first upload is hundreds of GB over
    a domestic uplink. Start the **local** repository first — it is fast and it is

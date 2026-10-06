@@ -1,0 +1,109 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: theater-config-backup-plex
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 7200
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-plex
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: plex
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - plex
+            - /config
+            - --exclude=**/Databases/com.plexapp.plugins.library.db
+            - --exclude=**/Databases/com.plexapp.plugins.library.db-wal
+            - --exclude=**/Databases/com.plexapp.plugins.library.db-shm
+            - --exclude=**/Databases/com.plexapp.plugins.blobs.db
+            - --exclude=**/Databases/com.plexapp.plugins.blobs.db-wal
+            - --exclude=**/Databases/com.plexapp.plugins.blobs.db-shm
+            - --exclude=**/Metadata
+            - --exclude=**/Media
+            - --exclude=**/Cache
+            - --exclude=**/Codecs
+            - --exclude=**/Crash?Reports
+            - --exclude=**/Logs
+            - --exclude=**/Diagnostics
+            - --exclude=**/Updates
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: plex-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 40 4 * * *
+  successfulJobsHistoryLimit: 3
+  suspend: false

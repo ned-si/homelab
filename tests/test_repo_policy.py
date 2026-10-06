@@ -183,6 +183,36 @@ def test_stale_and_unknown_guard_modes(tmp_path):
     assert any("unknown mode 'bogus'" in x for x in f)
 
 
+def test_active_cronjob_runs_without_guard(tmp_path):
+    files = dict(GUARD_FILES, **{"ci/active-cronjobs.txt": "# reviewed\nmealie/live\n"})
+    r = guarded_tree(tmp_path, [cronjob(), cronjob("live", suspend=False, guard=False)], files=files)
+    assert r.returncode == 0, r.stdout
+    assert "cronjob-active" in r.stdout
+
+
+@pytest.mark.parametrize("suspend", [True, None])
+def test_active_cronjob_must_say_suspend_false(tmp_path, suspend):
+    files = dict(GUARD_FILES, **{"ci/active-cronjobs.txt": "mealie/live\n"})
+    job = cronjob("live", suspend=suspend, guard=False)
+    if suspend is None:
+        del job["spec"]["suspend"]
+    r = guarded_tree(tmp_path, [job], files=files)
+    assert any("cronjob-active" in f and "mealie/live" in f and "suspend: false" in f for f in fails(r)), r.stdout
+
+
+def test_stale_active_cronjob_entry(tmp_path):
+    files = dict(GUARD_FILES, **{"ci/active-cronjobs.txt": "mealie/gone\n"})
+    r = guarded_tree(tmp_path, [cronjob()], files=files)
+    assert fails(r) == ["FAIL cronjob-active: ci/active-cronjobs.txt: mealie/gone is not a rendered CronJob (stale entry)"]
+
+
+def test_unlisted_unsuspended_cronjob_still_fails(tmp_path):
+    files = dict(GUARD_FILES, **{"ci/active-cronjobs.txt": "mealie/live\n"})
+    r = guarded_tree(tmp_path, [cronjob("live", suspend=False, guard=False), cronjob("other", suspend=False)],
+                     files=files)
+    assert any("CronJob mealie/other is not suspended" in f for f in fails(r)), r.stdout
+
+
 def test_cronjobs_outside_apps_platform_and_legacy_are_ignored(tmp_path):
     job = cronjob(suspend=False, guard=False)
     r = policy(tmp_path, renders=[("legacy/all-apps", "1", None, "argo", [job]),

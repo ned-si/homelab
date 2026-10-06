@@ -1,0 +1,128 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/paperless
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/paperless and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paperless-backup
+  namespace: paperless
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 21600
+      backoffLimit: 2
+      template:
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: paperless
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+
+              # Consistent SQLite snapshot. `sqlite3 .backup` uses SQLite's
+              # backup API, which cooperates with the running writer -- unlike
+              # copying db.sqlite3 directly, which can produce a torn file
+              # that only fails when you try to restore it.
+              #
+              # If sqlite3 is unavailable in this image the copy is skipped
+              # rather than silently producing a corrupt one.
+              if command -v sqlite3 >/dev/null 2>&1; then
+                sqlite3 /data/db.sqlite3 ".backup '/tmp/db-consistent.sqlite3'"
+                restic backup /tmp/db-consistent.sqlite3 \
+                  --tag paperless-db --host paperless
+                rm -f /tmp/db-consistent.sqlite3
+              else
+                echo "WARNING: sqlite3 not present; database captured as part"
+                echo "         of the file backup below and MAY BE INCONSISTENT."
+                echo "         See docs/backups.md#paperless."
+              fi
+
+              # The documents. These are the irreplaceable part.
+              restic backup /media \
+                --tag paperless-media --host paperless --verbose
+
+              # The database + index, excluding regenerable derivatives.
+              restic backup /data \
+                --tag paperless-data --host paperless \
+                --exclude '**/index/**' \
+                --exclude '**/thumbnails/**' \
+                --verbose
+
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/paperless/media
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.0
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+            volumeMounts:
+            - mountPath: /media
+              name: media
+              readOnly: true
+            - mountPath: /data
+              name: data
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+            - mountPath: /tmp
+              name: tmp
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: media
+            persistentVolumeClaim:
+              claimName: paperless-media
+              readOnly: true
+          - name: data
+            persistentVolumeClaim:
+              claimName: paperless-data
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: cache
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: tmp
+  schedule: 30 2 * * *
+  successfulJobsHistoryLimit: 3
+  suspend: false
