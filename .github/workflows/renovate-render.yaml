@@ -1,0 +1,72 @@
+---
+# Re-render deploy/ on Renovate pull requests.
+#
+# A Renovate bump edits a source under apps/, platform/, infrastructure/ or
+# clusters/, and ci.yaml's `render` job fails unless deploy/ matches those
+# sources in the same commit. The hosted Renovate app cannot run
+# scripts/render-deploy.sh, so this job renders the branch and, when deploy/
+# changed, commits it back with scripts/ci/commit-render.sh (a verified API
+# commit as github-actions[bot]) and dispatches ci.yaml on the new head.
+#
+# - `pull_request`, never `pull_request_target`; only PRs opened by
+#   renovate[bot] from a `renovate/` branch of this repository. Fork PRs never
+#   reach the job, so fork code never runs with a write token.
+# - The render step gets no token; only the commit step does.
+# - The dispatched ci run has no pull request context, so its pr-metadata job
+#   is skipped. scripts/pr-merge.sh still checks every commit subject and
+#   signature before merging.
+# - renovate.json5 lists github-actions[bot] in gitIgnoredAuthors, so Renovate
+#   keeps rebasing the branch; each rebase runs this again.
+name: renovate-render
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: renovate-render-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Not `render`: that is a job of ci.yaml, and check names should not collide.
+  renovate-render:
+    if: >-
+      github.event.pull_request.user.login == 'renovate[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.event.pull_request.head.ref, 'renovate/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      # Commit deploy/ to the Renovate branch.
+      contents: write
+      # Dispatch ci.yaml: pushes made with GITHUB_TOKEN start no workflows.
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      # The renderer pin lives in ci.yaml's env (KUBECTL_VERSION carries the
+      # kustomize that render-deploy.sh expects); read it from there so the two
+      # workflows cannot drift.
+      - name: Install the pinned kubectl
+        run: |
+          set -euo pipefail
+          KUBECTL_VERSION=$(sed -n 's/^  KUBECTL_VERSION: *//p' .github/workflows/ci.yaml)
+          KUBECTL_SHA256=$(sed -n 's/^  KUBECTL_SHA256: *//p' .github/workflows/ci.yaml)
+          export KUBECTL_VERSION KUBECTL_SHA256
+          scripts/ci/install-tool.sh kubectl
+
+      - name: Render deploy/
+        run: scripts/render-deploy.sh
+
+      - name: Commit deploy/ and dispatch ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: scripts/ci/commit-render.sh

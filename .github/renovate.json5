@@ -67,6 +67,12 @@
   labels: ['dependencies', 'renovate'],
   separateMinorPatch: true,
 
+  // .github/workflows/renovate-render.yaml commits the re-rendered deploy/ to
+  // Renovate branches as github-actions[bot]. Ignoring that author keeps the
+  // branch Renovate's: it still rebases and updates it instead of treating it
+  // as edited by hand.
+  gitIgnoredAuthors: ['41898282+github-actions[bot]@users.noreply.github.com'],
+
   enabledManagers: [
     'custom.regex',
     'terraform',
@@ -135,10 +141,10 @@
     {
       // THE AUTOMERGE SWITCH. One rule, first in the list so the grouping and
       // manual-review rules below still override it (later rules win). Flip
-      // `automerge` to true when both exist: (1) automatic rollback (Argo CD
-      // Notifications -> repository_dispatch -> auto-merged revert PR), and
-      // (2) deploy/ re-rendered on Renovate PRs, without which every image or
-      // chart bump fails `render-deploy --check` (see the note further down).
+      // `automerge` to true once automatic rollback exists (Argo CD
+      // Notifications -> repository_dispatch -> auto-merged revert PR).
+      // deploy/ is already re-rendered on Renovate PRs (see the note further
+      // down), so a bump can pass `render-deploy --check`.
       description: 'Automerge switch for patch, minor and digest updates (off)',
       matchUpdateTypes: ['patch', 'minor', 'digest', 'pin', 'pinDigest'],
       automerge: false,
@@ -200,36 +206,27 @@
     // ---------------------------------------------------------------------
     // THE ONLY AUTO-MERGE RULE IS THE SWITCH AT THE TOP, and it is off.
     //
-    // A rule like `{matchDatasources: ['docker'], matchUpdateTypes: ['patch'],
-    // automerge: true}` used to sit here. It was removed because it could never
-    // have merged anything, and because it was quietly breaking a rule above it.
-    //
-    // WHY IT COULD NEVER PASS. Bumping an image tag edits a source manifest
-    // under apps/, platform/ or infrastructure/. `deploy/` is the rendered tree
-    // Argo CD actually applies, and the `rendered-manifests` job in
+    // DEPLOY/ ON RENOVATE PRS. Bumping an image tag or chart version edits a
+    // source under apps/, platform/, infrastructure/ or clusters/. `deploy/` is
+    // the rendered tree Argo CD actually applies, and the `render` job in
     // .github/workflows/ci.yaml runs `scripts/render-deploy.sh --check`, which
-    // fails if `deploy/` does not match the sources IN THE SAME COMMIT. Renovate
-    // does not re-render, so every such PR sat with a red required check
-    // forever: an auto-merge that never fires, plus a permanent queue of PRs
-    // that look like they are being handled.
+    // fails if `deploy/` does not match the sources IN THE SAME COMMIT.
+    // Renovate itself cannot re-render: `postUpgradeTasks` needs SELF-HOSTED
+    // Renovate (`allowedCommands` is global config), and this repo uses the
+    // hosted GitHub App -- the `managerFilePatterns` note at the top assumes
+    // it. .github/workflows/renovate-render.yaml does it instead: it renders
+    // the Renovate branch, commits deploy/ through the API (a verified commit)
+    // and re-runs ci on it. `gitIgnoredAuthors` above keeps that commit from
+    // marking the branch as edited.
     //
-    // WHY IT CANNOT BE MADE TO WORK HERE EITHER. The fix would be
-    // `postUpgradeTasks` running `task render`. That requires SELF-HOSTED
-    // Renovate: the commands have to be allow-listed in `allowedCommands` in the
-    // administrator's global config, which a repository-level config cannot set.
-    // This repo has no Renovate runner workflow in .github/workflows/, so it is
-    // on the hosted GitHub App -- see also the `managerFilePatterns` note at the
-    // top of this file, which assumes it. Standing up a self-hosted Renovate,
-    // with a credentialed runner allowed to execute a render task and push the
-    // result, to save reviewing a one-line tag bump in a single-operator
-    // homelab, is a worse trade than clicking merge.
-    //
-    // WHY IT WAS ALSO A BUG. packageRules are applied in array order and later
-    // entries win, so `matchDatasources: ['docker']` matched every hotio image
-    // and overrode the `automerge: false` on the "theater stack moves as one
-    // unit" rule above -- the one rule written because bumping qBittorrent alone
-    // broke this cluster once. Any auto-merge rule added here in future must go
-    // BEFORE those grouping rules, or explicitly exclude their packages.
+    // NO AUTO-MERGE RULE BELOW THE GROUPS. packageRules are applied in array
+    // order and later entries win, so a rule like `{matchDatasources:
+    // ['docker'], matchUpdateTypes: ['patch'], automerge: true}` placed here
+    // matches every hotio image and overrides the `automerge: false` on the
+    // "theater stack moves as one unit" rule above -- the one rule written
+    // because bumping qBittorrent alone broke this cluster once. Any auto-merge
+    // rule added in future must go BEFORE those grouping rules, or explicitly
+    // exclude their packages.
     // ---------------------------------------------------------------------
     {
       description: 'Pin OpenTofu providers exactly',
