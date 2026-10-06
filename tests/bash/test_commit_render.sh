@@ -23,12 +23,23 @@ case "$*" in
   "api repos/o/r/git/trees "*)      echo tree1 ;;
   "api repos/o/r/git/commits "*)    echo commit1 ;;
   "api -X PATCH repos/o/r/git/refs/heads/renovate/x "*) echo '{}' ;;
-  "workflow run ci.yaml --repo o/r --ref renovate/x") ;;
+  "api repos/o/r/actions/runs?head_sha=commit1&event=pull_request&per_page=100 "*)
+    # RUNS_MODE=never: no run ever appears. Otherwise the first poll sees ci
+    # held for approval, the second also the render run.
+    polls=$(( $(cat "$GH_LOG.polls" 2>/dev/null || echo 0) + 1 ))
+    echo "$polls" > "$GH_LOG.polls"
+    if [ "${RUNS_MODE:-}" = never ]; then :
+    elif [ "$polls" -eq 1 ]; then
+      printf '11\t.github/workflows/ci.yaml\taction_required\n'
+    else
+      printf '11\t.github/workflows/ci.yaml\t\n12\t.github/workflows/renovate-render.yaml\taction_required\n'
+    fi ;;
+  "api -X POST repos/o/r/actions/runs/1"[12]"/approve") echo '{}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 EOF
 chmod +x "$tmp/bin/gh"
-export PATH="$tmp/bin:$PATH" GH_LOG="$tmp/log" REPO=o/r BRANCH=renovate/x
+export PATH="$tmp/bin:$PATH" GH_LOG="$tmp/log" REPO=o/r BRANCH=renovate/x APPROVE_DELAY=0
 
 repo="$tmp/repo"
 mkdir -p "$repo/deploy" "$GH_LOG"
@@ -82,7 +93,20 @@ commit_in=$(cat "$(grep -lx 'api repos/o/r/git/commits --input - --jq .sha' "$GH
 ref_in=$(cat "$(grep -l '^api -X PATCH ' "$GH_LOG"/*.args | sed 's/args$/stdin/')")
 [ "$(jq -c . <<<"$ref_in")" = '{"sha":"commit1","force":false}' ] || fail "ref update is wrong: $ref_in"
 
-grep -qx 'workflow run ci.yaml --repo o/r --ref renovate/x' "$GH_LOG"/*.args || fail "ci.yaml was not dispatched"
+approved=$(grep -h '/approve$' "$GH_LOG"/*.args | sort | tr '\n' ' ')
+[ "$approved" = "api -X POST repos/o/r/actions/runs/11/approve api -X POST repos/o/r/actions/runs/12/approve " ] \
+  || fail "expected runs 11 and 12 approved once each, got: $approved"
+[ "$(cat "$GH_LOG.polls")" = 2 ] || fail "expected 2 polls, got $(cat "$GH_LOG.polls")"
+
+# 4. The runs never appear: bounded wait, then a failure.
+git reset -q --hard && git clean -qfd
+echo a3 > deploy/a.yaml
+rm -rf "$GH_LOG" "$GH_LOG.polls"
+mkdir -p "$GH_LOG"
+if RUNS_MODE=never APPROVE_TRIES=3 "$SCRIPT" >/dev/null 2>&1; then
+  fail "missing runs were not reported as a failure"
+fi
+[ "$(cat "$GH_LOG.polls")" = 3 ] || fail "expected 3 polls before giving up, got $(cat "$GH_LOG.polls")"
 
 if [ "$fails" -gt 0 ]; then
   echo "test_commit_render: $fails failure(s)"
