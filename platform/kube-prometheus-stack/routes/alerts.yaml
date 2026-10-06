@@ -12,13 +12,13 @@
 # #   listening -- for THREE MONTHS.        docs/runbooks/arr-qbittorrent.md
 # #
 # #   cilium-mgr9z in CreateContainerError for 137 days, 790,890 kubelet
-# #   retries.                              docs/migration-plan.md
+# #   retries.                              docs/observability.md
 # #
 # #   ten TLS certificates within days of expiry during the move.
-# #                                         docs/migration-plan.md
+# #                                         (git history)
 # #
 # #   /controller at 83% of a 29GB eMMC -- the volume kubelet and containerd
-# #   live on.                              docs/migration-plan.md
+# #   live on.                              docs/runbooks/cold-start.md
 # # ###########################################################################
 #
 # ---------------------------------------------------------------------------
@@ -186,9 +186,8 @@ spec:
             description: >-
               Container {{ $labels.container }} has been unable to start for 15
               minutes on node {{ $labels.node }}. Read `state`, not `lastState`
-              -- see docs/migration-plan.md, the cilium-mgr9z diagnosis, where
-              the log pointed at the network and the cause was a stale
-              containerd name reservation.
+              -- see docs/observability.md: once the log pointed at the network
+              and the cause was a stale containerd name reservation.
 
         - alert: PodStuckNotRunningLongTerm
           # The same condition, escalated. 137 days of CreateContainerError is
@@ -212,7 +211,7 @@ spec:
           # cluster the usual cause is a ReadWriteOnce iSCSI volume still
           # attached on another node, which is exactly what happens when a
           # single-replica Deployment is left on RollingUpdate -- see
-          # docs/migration-plan.md, 'One-time normalisations'.
+          # scripts/normalize-deployment-strategy.sh.
           #
           # 30m rather than 15: an iSCSI detach/attach cycle after a node
           # reboot legitimately takes minutes.
@@ -455,9 +454,8 @@ spec:
           # ###############################################################
           # # THE /controller RULE.
           # #
-          # # docs/migration-plan.md: '/controller on the nodes is at 83% disk
-          # # use (29GB eMMC) ... it is the volume kubelet and containerd live
-          # # on.' A full one means images cannot be pulled, containers cannot
+          # # The nodes boot from a 29GB eMMC that has run at over 80% use, and
+          # # it is the volume kubelet and containerd live on. A full one means images cannot be pulled, containers cannot
           # # be created, and logs stop -- on a node that still reports Ready
           # # for a while.
           # ###############################################################
@@ -549,9 +547,8 @@ spec:
           # ###############################################################
           # # TEN CERTIFICATES CAME WITHIN DAYS OF EXPIRY DURING THE MOVE.
           # #
-          # # docs/migration-plan.md records renewals due 2026-08-11 and
-          # # expiry 2026-09-10, plus two repo bugs that would have made
-          # # renewal fail QUIETLY: a ClusterIssuer pointing at a Secret name
+          # # Renewals came due while the cluster was off, and two repo bugs
+          # # would have made renewal fail QUIETLY: a ClusterIssuer pointing at a Secret name
           # # that does not exist, and a privateKeySecretRef that would have
           # # registered a brand-new ACME account.
           # #
@@ -599,8 +596,8 @@ spec:
 
         - alert: CertificateNotReady
           # The leading indicator: cert-manager knows the certificate is not in
-          # a good state well before it expires. The wedged `test-cert-4` in
-          # docs/migration-plan.md sat Pending for 474 DAYS -- long past Let's
+          # a good state well before it expires. A wedged test certificate once
+          # sat Pending for 474 DAYS -- long past Let's
           # Encrypt's 7-day order expiry, so permanently dead rather than slow.
           # This rule is what would have said so on day one.
           #

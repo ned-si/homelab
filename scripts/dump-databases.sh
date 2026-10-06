@@ -12,7 +12,7 @@
 #
 #   - right now, before touching anything, because a migration without a backup
 #     is a gamble
-#   - before any upgrade named in docs/migration-plan.md
+#   - before any upgrade on docs/roadmap.md
 #   - before the house move
 #
 # It is a POINT-IN-TIME LOGICAL DUMP, not point-in-time recovery. It cannot

@@ -30,7 +30,7 @@
 # `metadata.generation` moves. The change takes effect on the *next* rollout.
 #
 # Run this BEFORE the first Argo CD sync of the affected layers, or those syncs
-# will fail. See docs/migration-plan.md.
+# will fail.
 #
 # USAGE
 #   scripts/normalize-deployment-strategy.sh            # report only (default)

@@ -13,13 +13,8 @@
 git_username = "ned-si"
 
 # LEFT COMMENTED OUT ON PURPOSE, so that a copy of this file inherits the
-# variable's default of `deployed` -- the tag CD moves only after a health-gated
-# rollout.
-#
-# The root Application is created with `automated: {prune: true, selfHeal: true}`,
-# so setting this to a branch makes the cluster follow every push to that branch
-# within one reconcile, pruning as it goes, with no health gate and no rollback
-# path in front of it -- which is the entire mechanism ADR 0001 exists to avoid.
+# variable's default of `main`, which every Application in clusters/homelab/
+# tracks.
 #
 # Uncomment ONLY while rebuilding a cluster that owns nothing yet, and delete the
 # line again the moment the branch is merged.
