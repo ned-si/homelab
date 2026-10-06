@@ -131,7 +131,7 @@ spec:
               # because the newer client requires TLS by default and this server
               # does not offer it.
               # renovate: datasource=docker depName=mariadb
-              image: mariadb:10.11
+              image: mariadb:10.11.19
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-c"]
               args:
