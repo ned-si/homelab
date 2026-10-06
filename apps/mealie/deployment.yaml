@@ -28,7 +28,8 @@ spec:
     spec:
       containers:
         - name: mealie
-          image: ghcr.io/mealie-recipes/mealie:v2.4.0
+          # renovate: datasource=docker depName=ghcr.io/mealie-recipes/mealie
+          image: ghcr.io/mealie-recipes/mealie:v3.28.0
           imagePullPolicy: Always
           env:
             - name: ALLOW_SIGNUP
@@ -87,6 +88,11 @@ spec:
               value: "Keycloak"
             - name: OIDC_REMEMBER_ME
               value: "true"
+            # Keycloak has self-registration and email verification off, so
+            # every address is set by the admin and email_verified is never
+            # true for some users; without this they cannot log in (v3.21+).
+            - name: OIDC_REQUIRES_EMAIL_VERIFICATION
+              value: "false"
           ports:
             - name: http
               containerPort: 9000
