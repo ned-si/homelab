@@ -391,7 +391,7 @@ spec:
           containers:
             - name: verify
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.0
+              image: restic/restic:0.19.1
               command: ["/bin/sh", "/scripts/run-all-files.sh"]
               env:
                 - name: RESTIC_CACHE_DIR
