@@ -180,6 +180,32 @@
       labels: ['dependencies', 'renovate', 'needs-manual-review'],
     },
     {
+      // Cilium upgrades one minor version at a time, and a failed CNI takes
+      // Argo CD down with it, so a revert cannot deploy itself. Minor and major
+      // updates wait for approval on the Dependency Dashboard; patches flow.
+      description: 'Cluster networking minors and majors need approval',
+      matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
+      matchUpdateTypes: ['minor', 'major'],
+      dependencyDashboardApproval: true,
+    },
+    {
+      // The OpenTofu `required_version` is not a Terraform version. The
+      // terraform manager reads it as hashicorp/terraform and proposes pinning
+      // it to a Terraform release, which means nothing to OpenTofu.
+      description: 'Do not track required_version as Terraform core',
+      matchDepNames: ['hashicorp/terraform'],
+      enabled: false,
+    },
+    {
+      // ubuntu-26.04 is not a runner label actionlint knows yet, so CI fails on
+      // it. Hold until actionlint accepts it.
+      description: 'GitHub runner image majors need approval',
+      matchManagers: ['github-actions'],
+      matchDepNames: ['ubuntu'],
+      matchUpdateTypes: ['major'],
+      dependencyDashboardApproval: true,
+    },
+    {
       // The *arr apps and qBittorrent share a download-client credential
       // contract. Bumping qBittorrent alone is what broke this cluster once.
       description: 'theater stack moves as one unit',
