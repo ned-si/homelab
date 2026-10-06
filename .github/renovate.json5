@@ -216,7 +216,7 @@
     // hosted GitHub App -- the `managerFilePatterns` note at the top assumes
     // it. .github/workflows/renovate-render.yaml does it instead: it renders
     // the Renovate branch, commits deploy/ through the API (a verified commit)
-    // and re-runs ci on it. `gitIgnoredAuthors` above keeps that commit from
+    // and approves the ci run that commit triggers. `gitIgnoredAuthors` above keeps that commit from
     // marking the branch as edited.
     //
     // NO AUTO-MERGE RULE BELOW THE GROUPS. packageRules are applied in array

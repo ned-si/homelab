@@ -6,15 +6,16 @@
 # sources in the same commit. The hosted Renovate app cannot run
 # scripts/render-deploy.sh, so this job renders the branch and, when deploy/
 # changed, commits it back with scripts/ci/commit-render.sh (a verified API
-# commit as github-actions[bot]) and dispatches ci.yaml on the new head.
+# commit as github-actions[bot]). That commit triggers the normal
+# pull_request runs, held as `action_required` because github-actions[bot]
+# counts as a first-time contributor; the script approves them, so ci runs
+# with full pull request context (pr-metadata included) on the new head.
 #
 # - `pull_request`, never `pull_request_target`; only PRs opened by
 #   renovate[bot] from a `renovate/` branch of this repository. Fork PRs never
-#   reach the job, so fork code never runs with a write token.
+#   reach the job, so fork code never runs with a write token, and the only
+#   runs it approves are on the commit it just created.
 # - The render step gets no token; only the commit step does.
-# - The dispatched ci run has no pull request context, so its pr-metadata job
-#   is skipped. scripts/pr-merge.sh still checks every commit subject and
-#   signature before merging.
 # - renovate.json5 lists github-actions[bot] in gitIgnoredAuthors, so Renovate
 #   keeps rebasing the branch; each rebase runs this again.
 name: renovate-render
@@ -25,9 +26,11 @@ on:
 
 permissions: {}
 
+# Not cancel-in-progress: the run approved for the render commit must queue
+# behind this one, not cancel it while it is still approving ci.
 concurrency:
   group: renovate-render-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # Not `render`: that is a job of ci.yaml, and check names should not collide.
@@ -41,7 +44,7 @@ jobs:
     permissions:
       # Commit deploy/ to the Renovate branch.
       contents: write
-      # Dispatch ci.yaml: pushes made with GITHUB_TOKEN start no workflows.
+      # Approve the runs the render commit triggers.
       actions: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -63,7 +66,7 @@ jobs:
       - name: Render deploy/
         run: scripts/render-deploy.sh
 
-      - name: Commit deploy/ and dispatch ci
+      - name: Commit deploy/ and approve its runs
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
