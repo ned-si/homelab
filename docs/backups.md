@@ -121,9 +121,10 @@ The six theater jobs share one repository and restic takes an exclusive lock for
 `restic check`. The running set is listed in `ci/active-cronjobs.txt`; CI fails any
 other rendered CronJob that is not suspended.
 
-A failed backup Job fires the stock `KubeJobFailed` alert from kube-prometheus-stack.
-The backup-specific alerts in `platform/backup-verify/alerts.yaml` are not deployed.
-Delivery: [observability.md](observability.md).
+A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack,
+but Alertmanager has only the `null` receiver, so nobody is notified: check the Jobs
+by hand ([observability.md](observability.md)). The backup-specific alerts in
+`platform/backup-verify/alerts.yaml` are not deployed.
 
 ```sh
 kubectl get cronjobs -A | grep -E 'backup|prune'   # 19 lines, SUSPEND False
@@ -158,8 +159,8 @@ You need:
 - the read-only verifier key: `tofu output -raw verify_access_key_id` and
   `tofu output -raw verify_secret_access_key` in `bootstrap/aws-backup/`, or the
   password manager copy ([secrets.md](secrets.md));
-- `RESTIC_PASSWORD`, kept beside the age key. Without it no file backup can be
-  read;
+- `RESTIC_PASSWORD`, from the password manager (also sealed in
+  `platform/secrets/s3-backup.sops.yaml`). Without it no file backup can be read;
 - the repository and tag from [S3 repositories](#s3-repositories).
 
 Use the verifier key, not the writer key in `s3-backup`: it can read the bucket and
@@ -708,7 +709,8 @@ For a new bucket or a rebuilt cluster, in order.
 ## Verification
 
 What runs: every nightly job ends with `restic check` (structure: snapshots, trees
-and blob index, not the pack contents), and a failed Job fires `KubeJobFailed`.
+and blob index, not the pack contents), and a failed Job fires `KubeJobFailed` in
+Prometheus, which reaches no one until Alertmanager has a receiver.
 
 What is written but not running: `platform/backup-verify/` (staged in
 `clusters/homelab/staged/`, namespace absent). Weekly, it would restore a sample of
@@ -740,6 +742,8 @@ repository can be read in full for free from inside the cluster.
 - No point-in-time recovery for any database.
 - `platform/backup-verify/` is not running: no weekly sample restore, no
   `--read-data`, no staleness alert.
+- No alert reaches anyone: a failed backup Job is visible only in `kubectl get jobs`
+  and the Prometheus alerts page.
 - Restores are rehearsed only for `mealie/data` and an Immich sample. Paperless,
   Seafile, Syncthing, theater and the NAS repository are backed up and checked, not
   restored.
