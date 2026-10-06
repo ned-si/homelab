@@ -21,8 +21,10 @@ own pull request with its own diff, test and rollback
 
 ## Backups
 
-- CloudNativePG archiving (`barmanObjectStore`) for `immich-db` and
-  `keycloak-db`, then the Barman Cloud plugin after the CNPG upgrade below.
+- WAL archiving and base backups for `immich-db` and `keycloak-db` with the
+  Barman Cloud plugin (`platform/barman-cloud-plugin/`, written), once the CNPG
+  upgrade below reaches 1.26 or later. Not the in-tree `barmanObjectStore`,
+  which CNPG deprecates from 1.26 ([backups.md](backups.md#why-it-is-like-this)).
 - Enable the weekly restore tests (`clusters/homelab/staged/backup-verify.yaml`).
 - Snapshot-then-backup for the two best-effort SQLite databases (Jellyfin,
   Grafana) and a consistent Paperless SQLite copy.

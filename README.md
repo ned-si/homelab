@@ -186,7 +186,8 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
   `192.168.1.254`; there is no ingress controller.
 - Backups: nightly restic jobs copy files and most databases to S3 (and the
   photo library to the NAS). `immich-db`, `keycloak-db` and etcd rely on
-  on-demand local dumps and snapshots until CloudNativePG archiving is enabled.
+  on-demand local dumps and snapshots until the Barman Cloud plugin runs,
+  which needs the CloudNativePG upgrade to 1.26 or later.
   Data PVs are on reclaim policy `Retain`
   ([details](docs/backups.md#reclaim-policy)).
 - Alerting: Prometheus and Grafana run; Alertmanager delivers to nobody yet

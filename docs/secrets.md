@@ -1,8 +1,9 @@
 # Secrets
 
 Every credential the cluster needs is a SOPS-encrypted file in git, encrypted to
-one age key. Argo CD decrypts them at sync time with KSOPS. The private key is
-in the password manager and in the Secret `argo/sops-age`, nowhere else.
+one age key. Argo CD decrypts them at sync time with KSOPS. The private key has
+exactly three copies, listed below: the Mac that runs this repository, the
+password manager and the Secret `argo/sops-age`.
 
 ## The key
 

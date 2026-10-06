@@ -17,6 +17,8 @@ in the current tree. Values are referenced by file and key only.
 | 7 | Paperless admin password | `kubernetes/applications/paperless/paperless-deploy.yaml`, `PAPERLESS_ADMIN_PASSWORD` | every document | `apps/secrets/paperless-secrets.sops.yaml` |
 | 8 | OIDC client secrets (Grafana, Immich, Mealie, Paperless) | inline in their manifests and Helm values | acting as that client towards Keycloak | `grafana-oidc`, `immich-config`, `mealie-oidc`, `paperless-secrets` sealed files |
 | 9 | Plex claim tokens | `kubernetes/applications/plex/plex-deploy.yaml`, `PLEX_CLAIM` | nothing: claim tokens expire minutes after issue | `apps/secrets/plex-claim.sops.yaml` |
+| 10 | TrueNAS `root` password | `truenas-iscsi.yaml` (repository root), `driver.config.httpConnection.password` and `driver.config.sshConnection.password` | the TrueNAS web UI, API and SSH as `root`, wherever password login is enabled | no consumer in the tree: democratic-csi uses the API key and SSH key of rows 1 and 2 |
+| 11 | Dynadot API token | `kubernetes/applications/cert-manager/cluster-issuer.yaml`, `DYNADOTAPI_Token` | the registrar's API for the domain | no consumer in the tree: DNS-01 uses Cloudflare (row 3) |
 
 Also by omission: `PAPERLESS_SECRET_KEY` was never set, so Paperless signed
 sessions with Django's public default key. It is set from
@@ -31,9 +33,11 @@ credentials as literal values anywhere Argo CD syncs, not only in Secrets.
 Rotate it at its source with the procedure in
 [secrets.md](secrets.md#rotating-a-credential), check the source's access log
 for the period since publication, and record the new value in the password
-manager. For the NAS (rows 1 and 2) also check `root`'s `authorized_keys` and
-the API key list on TrueNAS for entries you did not create. For Cloudflare (row
-3) list the zone's API tokens and recent DNS changes.
+manager. For the NAS (rows 1, 2 and 10) also check `root`'s `authorized_keys`
+and the API key list on TrueNAS for entries you did not create. For Cloudflare
+(row 3) list the zone's API tokens and recent DNS changes. For Dynadot (row 11)
+regenerate the API key in the account and check the domain's DNS and transfer
+settings.
 
 ## Prevention
 
