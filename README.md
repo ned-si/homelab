@@ -132,24 +132,26 @@ is in no Application at all.
 ## CI
 
 Every pull request and every push to `main` runs
-[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml): one job, `ci`, with
-one step per check. Every check runs even when an earlier one fails, and the
-job fails if any check failed. One job instead of twelve because GitHub bills
-each job rounded up to a whole minute.
+[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml): four parallel jobs,
+one step per check. Inside a job every check runs even when an earlier one
+fails, and the job fails if any check failed.
 
-- `pr-title`, `commits` (pull requests only): Conventional Commits, titles
-  under 70 characters, every commit signed and verified.
-- `gitleaks`: secret scan of the new commits.
-- `yamllint`, `actionlint`, `shellcheck`.
-- `trivy`: config scan. CRITICAL fails; HIGH fails only when it increases
-  against the merge base. Waivers in [`.trivyignore.yaml`](.trivyignore.yaml)
-  are scoped and expire.
-- Unit tests (pytest and bash), then a render of every Application and Helm
-  release.
-- `kubeconform`: strict schema validation of the render against Kubernetes
-  1.32.13 and the vendored CRD schemas.
-- `repo-policy`: pinned actions and repository invariants.
-- `tofu`: `fmt` and `validate`.
+- `lint`: `yamllint`, `actionlint`, `shellcheck`, `tofu fmt` and
+  `tofu validate`.
+- `render`: unit tests (pytest and bash), a render of every Application and
+  Helm release, `kubeconform` (strict schema validation against Kubernetes
+  1.32.13 and the vendored CRD schemas) and `repo-policy` (pinned actions,
+  repository invariants, secrets, leak and placeholder checks, `deploy/`
+  matches its sources, kube-linter).
+- `security`: `gitleaks` on the new commits, and the Trivy config scan.
+  CRITICAL fails; HIGH fails only when it increases against the merge base.
+  Waivers in [`.trivyignore.yaml`](.trivyignore.yaml) are scoped and expire.
+- `pr-metadata` (pull requests only): Conventional Commits, titles under 70
+  characters, every commit signed and verified.
+
+A last job, `ci`, needs all four and fails unless each one passed
+(`pr-metadata` may be skipped on a push). `ci` is the only required check,
+for branch protection and for `scripts/pr-merge.sh`.
 
 Every action is pinned to a commit SHA and every tool to a version and checksum.
 

@@ -2,12 +2,18 @@
 # CI: every check that can run without a cluster, for the layered
 # clusters/ apps/ platform/ infrastructure/ deploy/ tree Argo CD syncs.
 #
-# ONE JOB, ON PURPOSE. GitHub bills every job rounded up to a whole minute, so
-# twelve 5-90 s jobs cost ~13 billable minutes for ~2 minutes of compute. Every
-# check is a separate step of the single `ci` job instead: each one runs even
-# when an earlier one failed (`!cancelled()`), and the last step lists every
-# outcome and fails the job if any check failed or did not run. `ci` is the
-# check name scripts/pr-merge.sh requires.
+# Four parallel jobs, then one aggregate:
+#   lint         yamllint, actionlint, shellcheck, tofu fmt + validate
+#   render       unit tests, render, kubeconform, repo-policy (pins, invariants,
+#                secrets/leak/placeholder checks, deploy/ matches sources,
+#                kube-linter)
+#   security     gitleaks, Trivy waiver hygiene, Trivy gate
+#   pr-metadata  PR title and commits (pull requests only, skipped on push)
+#   ci           needs all four, runs always, and fails unless every one
+#                succeeded (pr-metadata may be skipped outside a pull request).
+# Inside a job every check runs even when an earlier one failed
+# (`!cancelled()`), and any failed step fails the job. `ci` is the only check
+# name scripts/pr-merge.sh and branch protection require.
 #
 # Pinning rules (enforced by scripts/ci/check-pins.sh in the repo-policy step):
 #   - every remote `uses:` is a 40-hex commit SHA with a `# vX.Y.Z` comment;
@@ -16,8 +22,8 @@
 #   - Python tools come from ci/requirements-ci.txt with `--require-hashes`;
 #   - core Kubernetes schemas come from one pinned commit, CRD schemas from the
 #     vendored ci/schemas/ (no -ignore-missing-schemas).
-# Never `pull_request_target`; `permissions: {}` at the top, the job asks for
-# the minimum; the checkout never persists the token. Rendered manifests are
+# Never `pull_request_target`; `permissions: {}` at the top, each job asks for
+# the minimum; no checkout persists the token. Rendered manifests are
 # never uploaded or printed: legacy inline Helm values contain credentials.
 name: ci
 
@@ -63,18 +69,115 @@ env:
   KUBECTL_SHA256: ebbd080e7c2e275093b55915722043257eb24004363e20acb3c4d71919f88336
   TOFU_VERSION: 1.12.6
   TOFU_SHA256: 50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec
-  # One checkout serves every step: keep it free of bytecode and pytest caches
-  # so no check sees another check's leftovers.
+  # One checkout serves every step of a job: keep it free of bytecode and
+  # pytest caches so no check sees another check's leftovers.
   PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
-  ci:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools
+        id: setup
+        run: |
+          set -euo pipefail
+          scripts/ci/install-tool.sh actionlint shellcheck tofu
+          scripts/ci/setup-python-deps.sh
+
+      - name: yamllint (strict)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: yamllint -c .yamllint.yaml .
+
+      - name: actionlint
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: actionlint -color
+
+      - name: shellcheck every shell script
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/shellcheck-all.sh
+
+      # Last: `tofu init` writes .terraform/ into the checkout.
+      - name: tofu fmt
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: tofu fmt -check -recursive -diff
+
+      - name: tofu init + validate
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          for d in bootstrap bootstrap/aws-backup; do
+            if [ -d "$d" ] && ls "$d"/*.tf >/dev/null 2>&1; then
+              echo "::group::$d"
+              (cd "$d" && tofu init -backend=false -input=false -no-color && tofu validate -no-color)
+              echo "::endgroup::"
+            fi
+          done
+
+  render:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read
-      # check-commits.sh reads the PR's commits through the REST API.
-      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools
+        id: setup
+        run: |
+          set -euo pipefail
+          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter
+          scripts/ci/setup-python-deps.sh
+
+      - name: Unit tests (pytest)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python -m pytest -q -p no:cacheprovider tests
+
+      - name: Unit tests (bash)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bash tests/run-bash-tests.sh
+
+      # Rendered once; kubeconform and repo-policy read the same directory.
+      - name: Render every Application in scope
+        id: render
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render" | tee "$RUNNER_TEMP/render.log"
+          { echo "### render"; echo '```'; cat "$RUNNER_TEMP/render.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: kubeconform (strict, pinned core schemas, vendored CRD schemas)
+        if: ${{ !cancelled() && steps.render.outcome == 'success' }}
+        run: scripts/ci/kubeconform.sh "$RUNNER_TEMP/render"
+
+      # Pins, repository invariants, secrets/leak/placeholder checks, deploy/
+      # matches its sources, kube-linter. With no render (the render step
+      # failed) repo-policy renders by itself, so its other invariants still
+      # run and report.
+      - name: Repository policy
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          RENDERED: ${{ steps.render.outcome }}
+        run: |
+          if [ "$RENDERED" = "success" ]; then
+            scripts/ci/repo-policy.sh "$RUNNER_TEMP/render"
+          else
+            scripts/ci/repo-policy.sh
+          fi
+
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -85,31 +188,9 @@ jobs:
 
       - name: Install pinned tools
         id: setup
-        run: |
-          set -euo pipefail
-          scripts/ci/install-tool.sh actionlint shellcheck helm kubectl kubeconform kube-linter gitleaks trivy tofu
-          scripts/ci/setup-python-deps.sh
+        run: scripts/ci/install-tool.sh gitleaks trivy
 
-      # --- pull request only ---------------------------------------------------
-      - name: pr-title (Conventional Commits subject under 70 characters)
-        id: pr-title
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          TITLE: ${{ github.event.pull_request.title }}
-        run: scripts/ci/check-title.sh "$TITLE"
-
-      - name: commits (every subject passes, every commit verified)
-        id: commits
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
-        run: scripts/ci/check-commits.sh "$REPO" "$PR"
-
-      # --- every event -----------------------------------------------------------
       - name: gitleaks on the new commits only
-        id: gitleaks
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
           EVENT: ${{ github.event_name }}
@@ -129,23 +210,7 @@ jobs:
           echo "scanning ${base}..${head}: $(git rev-list --count "${base}..${head}") commit(s)"
           gitleaks git --no-banner --redact --exit-code 1 --log-opts="${base}..${head}" .
 
-      - name: yamllint (strict)
-        id: yamllint
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: yamllint -c .yamllint.yaml .
-
-      - name: actionlint
-        id: actionlint
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: actionlint -color
-
-      - name: shellcheck every shell script
-        id: shellcheck
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: scripts/ci/shellcheck-all.sh
-
       - name: Trivy waiver hygiene
-        id: trivy-waivers
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: scripts/trivy-waivers.sh
 
@@ -154,7 +219,6 @@ jobs:
       # this private repository the upload failed on every run (45 s each).
       # Re-add trivy-action + upload-sarif if the repository becomes public.
       - name: Trivy gate (CRITICAL on presence, HIGH on delta vs merge-base)
-        id: trivy
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
           TRIVY_GATE_SUMMARY: ${{ runner.temp }}/trivy-summary.md
@@ -166,84 +230,57 @@ jobs:
           SUMMARY: ${{ runner.temp }}/trivy-summary.md
         run: if [ -f "$SUMMARY" ]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi
 
-      - name: Unit tests (pytest)
-        id: pytest
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: python -m pytest -q -p no:cacheprovider tests
+  pr-metadata:
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # check-commits.sh reads the PR's commits through the REST API.
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - name: Unit tests (bash)
-        id: bash-tests
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bash tests/run-bash-tests.sh
-
-      # Rendered once; kubeconform and repo-policy read the same directory.
-      - name: Render every Application in scope
-        id: render
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: |
-          set -euo pipefail
-          python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render" | tee "$RUNNER_TEMP/render.log"
-          { echo "### render"; echo '```'; cat "$RUNNER_TEMP/render.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: kubeconform (strict, pinned core schemas, vendored CRD schemas)
-        id: kubeconform
-        if: ${{ !cancelled() && steps.render.outcome == 'success' }}
-        run: scripts/ci/kubeconform.sh "$RUNNER_TEMP/render"
-
-      # With no render (the render step failed) repo-policy renders by itself,
-      # so its other invariants still run and report.
-      - name: Repository policy
-        id: repo-policy
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+      - name: pr-title (Conventional Commits subject under 70 characters)
         env:
-          RENDERED: ${{ steps.render.outcome }}
-        run: |
-          if [ "$RENDERED" = "success" ]; then
-            scripts/ci/repo-policy.sh "$RUNNER_TEMP/render"
-          else
-            scripts/ci/repo-policy.sh
-          fi
+          TITLE: ${{ github.event.pull_request.title }}
+        run: scripts/ci/check-title.sh "$TITLE"
 
-      # Last: `tofu init` writes .terraform/ into the checkout.
-      - name: tofu fmt
-        id: tofu-fmt
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: tofu fmt -check -recursive -diff
-
-      - name: tofu init + validate
-        id: tofu-validate
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: |
-          set -euo pipefail
-          for d in bootstrap bootstrap/aws-backup; do
-            if [ -d "$d" ] && ls "$d"/*.tf >/dev/null 2>&1; then
-              echo "::group::$d"
-              (cd "$d" && tofu init -backend=false -input=false -no-color && tofu validate -no-color)
-              echo "::endgroup::"
-            fi
-          done
-
-      # Every step id above must be listed in CHECKS. A check that was skipped
-      # (setup failed, render failed) fails the job; only the pull-request-only
-      # checks may be skipped, and only outside a pull request.
-      - name: Every check passed
+      - name: commits (every subject passes, every commit verified)
         if: ${{ !cancelled() }}
         env:
-          STEPS: ${{ toJSON(steps) }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: scripts/ci/check-commits.sh "$REPO" "$PR"
+
+  # The one required check. `always()` so it reports even when a job above
+  # failed; it fails unless every job succeeded, except pr-metadata, which may
+  # be skipped outside a pull request.
+  ci:
+    if: ${{ always() }}
+    needs: [lint, render, security, pr-metadata]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every job passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
           EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          CHECKS="setup pr-title commits gitleaks yamllint actionlint shellcheck trivy-waivers trivy"
-          CHECKS="$CHECKS pytest bash-tests render kubeconform repo-policy tofu-fmt tofu-validate"
           rc=0
-          for c in $CHECKS; do
-            result=$(jq -r --arg c "$c" '.[$c].outcome // "missing"' <<<"$STEPS")
+          for j in lint render security pr-metadata; do
+            result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
-              echo "ok      $c"
-            elif [ "$result" = "skipped" ] && [ "$EVENT" != "pull_request" ] && { [ "$c" = "pr-title" ] || [ "$c" = "commits" ]; }; then
-              echo "skipped $c (not a pull request)"
+              echo "ok      $j"
+            elif [ "$result" = "skipped" ] && [ "$j" = "pr-metadata" ] && [ "$EVENT" != "pull_request" ]; then
+              echo "skipped $j (not a pull request)"
             else
-              echo "::error::$c: $result"
+              echo "::error::$j: $result"
               rc=1
             fi
           done
