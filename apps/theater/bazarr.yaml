@@ -112,7 +112,7 @@ spec:
       containers:
         - name: bazarr
           # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-          image: ghcr.io/hotio/bazarr:release-1.6.0
+          image: ghcr.io/hotio/bazarr:release-1.6.2
           imagePullPolicy: IfNotPresent
           env:
             - name: TZ
