@@ -1,38 +1,60 @@
 # Roadmap
 
-What the layered tree deliberately does not do yet, in rough order. Each line is
-its own change with its own diff, test and rollback; parity with the running
-cluster came first (ADR 0002).
+What the cluster deliberately does not do yet, in rough order. Each line is its
+own pull request with its own diff, test and rollback
+([decisions.md](decisions.md#adopt-at-parity-change-afterwards)).
 
-## Cutover and ingress
+## Networking
 
-- KSOPS on the Argo CD repo-server (`bootstrap/argocd-values.yaml`).
-- Decide between kube-vip `svc_enable` and Cilium L2 announcements for
-  LoadBalancer IPs (both announce today).
+- Choose between kube-vip `svc_enable` and Cilium L2 announcements for
+  LoadBalancer IPs (both announce today, [networking.md](networking.md#loadbalancer-ips)).
+- Enforce the CiliumNetworkPolicies (`infrastructure/network-policies/`,
+  written, not in a layer), one namespace at a time.
+- Cilium WireGuard transparent encryption, then Hubble relay, UI and metrics
+  ([decisions.md](decisions.md#no-service-mesh)).
+
+## Monitoring
+
+- Turn alerting on: real Pushover values, Alertmanager receivers, the custom
+  rules ([observability.md](observability.md#turning-alerting-on)).
+- blackbox-exporter probes for every public hostname.
+
+## Backups
+
+- CloudNativePG archiving (`barmanObjectStore`) for `immich-db` and
+  `keycloak-db`, then the Barman Cloud plugin after the CNPG upgrade below.
+- Enable the weekly restore tests (`clusters/homelab/staged/backup-verify.yaml`).
+- Snapshot-then-backup for the two best-effort SQLite databases (Jellyfin,
+  Grafana) and a consistent Paperless SQLite copy.
+- Fix the etcd snapshot task in `ansible/kube-upgrade.yml` (it calls a host
+  `etcdctl` that does not exist), or replace it with the runbook procedure.
 
 ## Delivery
 
 - Renovate: automerge on green CI for patch, minor and digest updates, behind
   one top-level switch that stays off until automatic rollback exists.
-- Automatic rollback: Argo CD Notifications on sync-failed/degraded and probe
-  alerts -> GitHub `repository_dispatch` -> auto-merged revert PR. One
-  Application per app keeps every app revertable on its own.
+- Automatic rollback: Argo CD Notifications on sync failure or degraded health
+  -> GitHub `repository_dispatch` -> an auto-merged revert pull request.
+- Scripts and tasks that still use namespace `argocd` (`task apps:status`,
+  `ansible/os-upgrade.yml`, `scripts/graceful-*.sh`) move to `argo`.
 
 ## Versions (each a separate upgrade)
 
-- cert-manager v1.15.0 -> current; external-dns 0.15 -> current (add
+- cert-manager v1.15.0 -> current; external-dns v0.15.0 -> current (add
   `--force-default-targets` first); kube-prometheus-stack 56.2.0 -> current
-  (CRDs first); CloudNativePG 0.22.1 -> current and move it to `cnpg-system`
-  (never two operators at once).
-- Immich chart 0.9.0 / v2.3.1 -> current, and the irreversible
-  pgvecto.rs -> VectorChord migration: [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md)
-  only, after a verified off-site backup.
-- Argo CD 3.x.
+  (CRDs first); CloudNativePG chart 0.22.1 (operator 1.24.1) -> current, moved to
+  `cnpg-system` (never two operators at once).
+- Immich chart 0.9.0 / v2.3.1 -> current, with the irreversible pgvecto.rs ->
+  VectorChord migration: [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md)
+  only, after an off-site backup of `immich-db` exists.
+- MariaDB 10.11 -> 12.3 for Seafile ([runbook](runbooks/seafile-mariadb-upgrade.md)).
+- Cilium 1.18, then Argo CD 3.x.
+- Talos, as a new cluster ([decisions.md](decisions.md#kubeadm-today-talos-later)).
 
 ## Images: next pins
 
-Running image digests on 2026-10-04 for every `latest` or untagged image. Pinning
-changes the pod template, so each is a restart and its own change.
+Digests running on 2026-10-04 for every `latest`, floating or untagged image.
+Pinning changes the pod template, so each is a restart and its own change.
 
 | Workload | Image | Running digest |
 |---|---|---|
@@ -49,26 +71,22 @@ changes the pod template, so each is a restart and its own change.
 
 ## Hardening
 
-- The restructure's hardened workload manifests (probes, security contexts,
-  resources, renamed volumes) are in git history (`feat(apps): migrate mealie,
-  paperless, seafile and syncthing`, `feat(apps): pin the theater stack ...`);
-  bring them back one app at a time, keeping every PVC name.
+- Probes, security contexts and resources for the workloads adopted at parity
+  (the hardened manifests are in git history: `feat(apps): migrate mealie,
+  paperless, seafile and syncthing`, `feat(apps): pin the theater stack ...`),
+  one app at a time, keeping every PVC name. qBittorrent first: a readiness
+  probe turns its stale-socket fault into a visible failure
+  ([runbook](runbooks/arr-qbittorrent.md)).
 - PSA `enforce` per namespace once its `audit` events are clean.
-- CiliumNetworkPolicies (`infrastructure/network-policies/`, written, not enabled).
 - Plex and Jellyfin mount the media share `readOnly`; move the NFS mounts to the
-  `nfs-storage` leaf (`Retain` PVs).
-- Leaves on client-side apply (cert-manager, external-dns, ingress-nginx, Immich)
-  move to server-side apply after adoption.
-- The unmanaged `kube-system/snapshot-controller` v6.3.1: enabling the
-  `snapshot-controller` leaf (v6.3.2) must replace it in the same change, never
-  run beside it.
+  `nfs-storage` leaf (`Retain` PVs); scope the NAS exports to the node addresses
+  ([runbook](runbooks/nfs-hardening.md)).
+- Replace the unmanaged `kube-system/snapshot-controller` v6.3.1 with the
+  `snapshot-controller` leaf (v6.3.2) in one change, never beside it.
 
-## Backups and features
+## Features
 
-- Off-site backups: the restic CronJobs run (docs/backups.md). Still to do:
-  barman for `immich-db` and `keycloak-db` (needs the CNPG upgrade for the Barman
-  Cloud plugin), and the weekly `backup-verify` drills.
-- Jellyfin on Keycloak SSO (the TV app keeps Quick Connect / local login).
-- Keycloak long sessions: SSO Session Idle 30 days, Max 365 days, Remember Me.
 - Bazarr (`apps/theater/bazarr.yaml`) and SSO in front of the *arr UIs
   (`apps/theater/sso.yaml`, new public hostnames).
+- Jellyfin on Keycloak SSO (the TV app keeps Quick Connect or local login).
+- Keycloak long sessions: SSO Session Idle 30 days, Max 365 days, Remember Me.
