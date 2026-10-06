@@ -118,8 +118,8 @@ across many services become a real need.
 ## kubeadm today, Talos later
 
 The nodes run Ubuntu 22.04 with kubeadm. Talos is the planned replacement, built
-as a new cluster (kubeadm and Talos cannot be mixed in one cluster) once every
-database has an off-site backup.
+as a new cluster (kubeadm and Talos cannot be mixed in one cluster) once the
+current platform work is finished and every database has an off-site backup.
 
 Why: Talos removes the hand-maintained node state (netplan, kube-vip manifest,
 packages), but the move recreates every node, so it waits for backups that do
