@@ -61,9 +61,14 @@
   ],
 
   timezone: 'Europe/Zurich',
-  schedule: ['* 0-6 * * 1'],
-  prConcurrentLimit: 5,
+  // No schedule and no PR limits: Renovate opens every update as soon as it
+  // is released. Merges are serialised by branch protection (the required
+  // `ci` check is strict, so a PR must be up to date with main), and
+  // `rebaseWhen` keeps every open PR rebased after each merge.
+  prConcurrentLimit: 0,
   prHourlyLimit: 0,
+  branchConcurrentLimit: 0,
+  rebaseWhen: 'behind-base-branch',
   labels: ['dependencies', 'renovate'],
   separateMinorPatch: true,
 
@@ -237,7 +242,6 @@
 
   vulnerabilityAlerts: {
     labels: ['security'],
-    schedule: ['at any time'],
     prCreation: 'immediate',
   },
 
