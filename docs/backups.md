@@ -1,98 +1,111 @@
 # Backups
 
-Two tiers with different threat models. What runs today: the restic file and
-dump backups of every row in [Files](#files) except `grafana/data`, on the
-[schedule](#schedule) below, against the S3 bucket and, for Immich, the NAS. What
-does not run yet: barman for `immich-db` and `keycloak-db` (no object store on
-either Cluster; the Barman Cloud plugin needs a CNPG upgrade first), and the
-weekly verification in `platform/backup-verify/` (staged). Until then those two
-databases are covered only by the on-demand [local dumps](#local-dumps-on-demand).
+The data of Immich, Mealie, Paperless, Seafile, Syncthing and the theater apps is
+backed up nightly with restic to one S3 bucket (`ned-si-homelab-backups`,
+`eu-central-1`). The
+Immich photo library also has a second, independent restic repository on the NAS.
+Postgres and MariaDB are captured as logical dumps inside those repositories.
+`immich-db` and `keycloak-db` have no scheduled backup: barman is not running on
+any CloudNativePG cluster yet, so those two are covered only by
+[on-demand local dumps](#local-dumps-and-pre-upgrade-snapshots).
 
-| Tier | Where | Protects against | Verification |
+Restores have been rehearsed from S3 with the read-only key for `mealie/data` (files
+and Postgres dump) and for a sample of 50 Immich originals. Every restored file
+matched its live copy, except one log file written after the snapshot. The steps
+are in [How to restore](#how-to-restore).
+
+## What is backed up where
+
+### S3 repositories
+
+Bucket `ned-si-homelab-backups`, endpoint `https://s3.eu-central-1.amazonaws.com`.
+One restic repository per prefix. The restic URL is
+`s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/<repository>`.
+
+| Repository | restic host | Snapshot path → tag | Source | Size at first backup |
+|---|---|---|---|---|
+| `immich/library` | `immich` | `/data` → `immich-library` | PVC `immich-data` (read-only), minus `thumbs/`, `encoded-video/`, `.tmp` | 256 GiB, 50,822 files |
+| `mealie/data` | `mealie` | `/data` → `mealie-files`; `/dumps` → `mealie-postgres` | PVC `mealie-pvc`; `pg_dump` of `mealie-postgresql` | 1.5 MiB |
+| `paperless/media` | `paperless` | `/media` → `paperless-media`; `/data` → `paperless-data` | PVCs `paperless-media`, `paperless-data` (includes `db.sqlite3`) | 2.4 MiB |
+| `seafile/shared` | `seafile` | `/shared` → `seafile-data`; `/dumps` → `seafile-mariadb` | PVC `seafile-pvc`; `mariadb-dump` of Seafile's MariaDB | 0.7 MiB |
+| `syncthing/data` | `syncthing` | `/data` → `syncthing-identity` | PVC `syncthing-pvc` | 8.2 MiB |
+| `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
+| `grafana/data` | — | — | none: Grafana has no persistent volume, so the job is not rendered. The repository exists and is empty | 0 |
+
+Every snapshot in `theater/configs` also carries the tag `theater-configs`. The
+dumps are files named `pg-<app>.dump` (theater), `pg-mealie-mealie-postgresql.dump`
+and `seafile-mariadb.sql.gz` under `/dumps` in the snapshot.
+
+The jobs run as uid 1000 with the source volumes mounted read-only. Credentials
+come from the Secret `s3-backup` (the writer key and `RESTIC_PASSWORD`), present in
+every namespace that runs a backup job.
+
+### Local repository on the NAS
+
+| Repository | Where | Source | Retention |
 |---|---|---|---|
-| **Local** | TrueNAS, `homelab/k8s/backups` dataset | a bad upgrade, a bad migration, an app rewriting its own data, a mistaken delete | expensive — reads are free on the LAN |
-| **Remote** | one S3 bucket, `eu-central-1` | fire, theft, the NAS dying, ransomware | cheap checks, often |
+| `/backups/immich/library` | NFS `192.168.1.228:/mnt/homelab/k8s/backups`, subdirectory `immich/library` (dataset `homelab/k8s/backups`) | PVC `immich-data`, same excludes as S3 | `--keep-daily 14 --keep-weekly 8 --keep-monthly 6`, pruned nightly |
 
-The local tier sits on the same ZFS pool as the data it backs up, so losing the
-pool loses both. It is not disaster protection; that is what S3 is for. Only the
-Immich library currently has a local copy.
-
-**Local verification does not verify the remote copy.** They are different artifacts
-from different code paths, and the classic failure is a remote backup silently
-broken for months while the local one looks perfect.
-
-## Coverage
-
-Derived from the manifests. Where a row says a caveat, the caveat is the point —
-do not read this table as "everything is backed up".
+It is a separate repository, not a copy of the S3 one, so corruption or a bad
+`forget` in one cannot reach the other. It uses the same `RESTIC_PASSWORD`. It sits
+on the same ZFS pool as the live library, so it protects against mistakes and bad
+upgrades, not against losing the NAS.
 
 ### Databases
 
-| Cluster | Method | Retention | Consistency |
+| Database | Captured by | Into | Consistency |
 |---|---|---|---|
-| `immich-db` | **not running**: barman → S3 is written (`apps/immich/resources/backup.yaml`) but not rendered | — | on-demand local dumps only |
-| `keycloak-db` | **not running**: same (`platform/keycloak/backup.yaml`) | — | on-demand local dumps only |
-| `mealie-postgresql` | **nightly `pg_dump`** into the `mealie/data` restic repo (03:20) | 3m + 12 monthly | consistent snapshot, **not** PITR |
-| `sonarr-postgresql` | nightly `pg_dump` into `theater/configs` (03:40) | 3m + 12 monthly | consistent snapshot, **not** PITR |
-| `radarr-postgresql` | same job | 3m + 12 monthly | same |
-| `lidarr-postgresql` | same job | 3m + 12 monthly | same |
-| `prowlarr-postgresql` | same job | 3m + 12 monthly | same |
-| Paperless SQLite | file copy of `db.sqlite3` → `paperless/media` (02:30). The job would use `sqlite3 .backup`, but the restic image has no `sqlite3` | 3m + 24 monthly | **may be torn**; the job logs a warning every run |
-| Seafile MariaDB | `mariadb-dump --single-transaction` → `seafile/shared` (03:00) | 3m + 24 monthly | transactionally consistent, no table locks |
+| `immich/immich-db` | nothing scheduled | — | on-demand local dump only |
+| `keycloak/keycloak-db` | nothing scheduled | — | on-demand local dump only |
+| `mealie/mealie-postgresql` | `pg_dump` in `mealie-backup` | `mealie/data` | consistent, one transaction |
+| `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | `pg_dump` in `theater-postgres-backup` | `theater/configs` | consistent, one transaction |
+| Seafile MariaDB | `mariadb-dump --single-transaction` (client `mariadb:10.11`, same as the server) in `seafile-backup` | `seafile/shared` | consistent, no table locks |
+| Paperless SQLite | file copy of `db.sqlite3` inside `/data` | `paperless/media` | may be torn: the restic image has no `sqlite3`, so `.backup` is skipped and the job logs a warning |
 
-**No CloudNativePG cluster has an object store.** barman archives nothing for any
-of them. `mealie-postgresql` is the one that reads as covered and is not: it
-declares `backup.retentionPolicy: 14d` with no destination underneath it, which is
-not a configuration error — CNPG accepts it, it renders cleanly, it validates
-against the CRD schema, and it archives nothing. That is why the logical dumps
-exist.
+No CloudNativePG cluster has `spec.backup` or a barman plugin, so no WAL is
+archived and there is no point-in-time recovery for any database. The
+`ContinuousArchiving=True` condition CNPG reports on every cluster is meaningless
+without a target: the archive command succeeds without sending anything. The
+Barman Cloud plugin (`platform/barman-cloud-plugin/`) needs CNPG 1.26 or later; the
+cluster runs CNPG 1.24.1.
 
-The consequence is stated rather than implied: the five dumped clusters get
-point-in-time **snapshots**, not point-in-time **recovery**. Worst case is a day of
-recipes or a day of quality-profile edits. Adding `barmanObjectStore` to a
-`Cluster` is a separate edit in that app's manifest, and doing it makes the
-corresponding dump redundant rather than wrong.
+### Outside the cluster
 
-### Files
+| What | Where | How |
+|---|---|---|
+| All nine databases (seven Postgres, Seafile MariaDB, Paperless SQLite) | `~/homelab-backups/<utc>/` on the machine that runs it | `task backup:dump`, by hand |
+| etcd | `/root/etcd-snapshots/` on `homelab-cp-1` and `~/homelab-backups/etcd/` | by hand before every upgrade or risky change, [runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore) |
+| Cluster configuration | this repository | every manifest is in git; see [bootstrap.md](bootstrap.md) |
 
-One restic repository per row, all with `--tag` names the verifier consumes.
+## RPO and RTO
 
-| Repository | Contents | Retention | Caveats |
-|---|---|---|---|
-| `immich/library` | the photos. **Irreplaceable** | 3m + 12 monthly | excludes `.tmp`, `encoded-video`, `thumbs` — all regenerated |
-| `immich/library` *(local, on NFS)* | second, independent repository of the same source | 14d/8w/6m, pruned nightly | this is the copy that gets the full `--read-data` check |
-| `paperless/media` | scanned originals + the SQLite database | 3m + 24 monthly | excludes the search index and thumbnails (derived); `paperless-consume` is a drop-box and is not backed up |
-| `seafile/shared` | content-addressed blobs **and** the MariaDB dump **and** Seafile's in-volume configuration | 3m + 24 monthly | see below — this is the only copy of `seahub_settings.py` anywhere |
-| `syncthing/data` | `cert.pem`, `key.pem`, `config.xml` | 3m + 24 monthly | the file index is **deliberately excluded**; see below |
-| `theater/configs` | six `/config` volumes + four Postgres dumps, one repo, tagged per app | 3m + 12 monthly | Plex and Jellyfin have caveats; see below. bazarr's job is added with bazarr |
-| `mealie/data` | uploaded recipe images + the Postgres dump | 3m + 12 monthly | write-once files; consistent |
-| `grafana/data` | Grafana's config and, separately, its live SQLite | 7d/4w/6m | **not running**: Grafana has no persistent volume today, so there is nothing to back up; see below |
+RPO is the most data you can lose. RTO here is what a rehearsed restore took; where
+nothing was rehearsed, the column says so.
 
-### Retention
+| Data | Copies | RPO | Restore rehearsed | RTO |
+|---|---|---|---|---|
+| Immich originals | S3 + NAS | 24 h | from S3, 50-file sample, 2026-10-06 | 410 MiB in 8 s. Full library (256 GiB) not rehearsed; at the sample's rate about 1.5 h, plus about $30 of retrieval and egress |
+| Immich originals, NAS copy | NAS | 24 h | no | — |
+| Immich database (`immich-db`) | local dump only | since the last `task backup:dump` | no (`task backup:verify-restore` exists) | — |
+| Keycloak database (`keycloak-db`) | local dump only | since the last `task backup:dump` | no | — |
+| Mealie files + database | S3 | 24 h | from S3, full, 2026-10-06 | restore 24 s; dump restored into a throwaway Postgres, row counts equal to live |
+| Paperless documents + SQLite | S3 | 24 h | no | — |
+| Seafile blobs + MariaDB | S3 | 24 h | no | — |
+| Syncthing identity + config | S3 | 24 h | no | — |
+| *arr, Plex, Jellyfin config and *arr databases | S3 | 24 h | no | — |
+| Media library | none | everything | — | — |
+| Cluster state | git, plus etcd snapshots by hand | last merged commit | no | rebuild, see [bootstrap.md](bootstrap.md) and [runbooks/cold-start.md](runbooks/cold-start.md) |
 
-"3m + 12 monthly" means every snapshot is kept for three months, then one per
-month until it is twelve months old (`restic forget --keep-within 3m
---keep-monthly 12`). Retention is in months because of the storage class: pack
-files move to Glacier Instant Retrieval after a day, and Glacier IR bills every
-object for at least 90 days. Deleting a pack sooner saves nothing and is billed
-anyway. Keeping everything for three months means no pack becomes unused before
-it is 90 days old.
+## Schedule
 
-So the nightly jobs only add snapshots and run `restic check`. Each S3 repository
-has its own `*-prune` CronJob that runs `forget --prune` and a check **once a
-month**, on the 1st, away from the nightly window. The local Immich repository is
-on the NAS, has no minimum storage duration, and keeps its nightly forget + prune.
-
-### Schedule
-
-Every job has `concurrencyPolicy: Forbid`: a run that is still going when the next
-one is due causes that next one to be skipped, never run beside it. The cluster's
-CronJobs use the controller's time zone, UTC. One start per slot, so jobs never
-pile up on the uplink or the NAS:
+All times UTC (the controller's time zone; no CronJob sets `timeZone`). Every job
+has `concurrencyPolicy: Forbid`, so a run still going when the next is due causes
+that next run to be skipped. One start per slot, so jobs never share the uplink or
+the NAS:
 
 | UTC | Job |
 |---|---|
-| 01:30 | `immich/immich-library-backup-local` (NFS) |
+| 01:30 | `immich/immich-library-backup-local` (NAS) |
 | 02:00 | `syncthing/syncthing-backup` |
 | 02:30 | `paperless/paperless-backup` |
 | 03:00 | `seafile/seafile-backup` |
@@ -101,103 +114,469 @@ pile up on the uplink or the NAS:
 | 03:40 | `theater/theater-postgres-backup` |
 | 04:00–04:40 | `theater/theater-config-backup-{sonarr,radarr,lidarr,prowlarr,plex}`, ten minutes apart |
 | 05:00 | `theater/theater-config-backup-jellyfin` |
-| 1st, 12:00–13:30 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, immich 13:30 |
+| 1st of the month, 12:00–13:30 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, immich 13:30 |
 
-Within `theater/configs`, six jobs share one repository and restic takes an
-exclusive lock for `backup`, so they run ten minutes apart; 04:50 is kept for
-bazarr. The running set is listed in `ci/active-cronjobs.txt`; CI fails any other
-rendered CronJob that is not suspended.
+The six theater jobs share one repository and restic takes an exclusive lock for
+`backup`, hence the spacing; 04:50 is kept for bazarr. Each nightly job ends with
+`restic check`. The running set is listed in `ci/active-cronjobs.txt`; CI fails any
+other rendered CronJob that is not suspended.
 
-### The consistency caveats, per tag
+A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack,
+but Alertmanager has only the `null` receiver, so nobody is notified: check the Jobs
+by hand ([observability.md](observability.md)). The backup-specific alerts in
+`platform/backup-verify/alerts.yaml` are not deployed.
 
-The reason these are spelled out per tag rather than asserted in general is that
-the difference between a backup and a wishful file copy lives here.
+```sh
+kubectl get cronjobs -A | grep -E 'backup|prune'   # 19 lines, SUSPEND False
+kubectl get jobs -A | grep -E 'backup|prune'       # after 05:30 UTC: every job Complete
+```
 
-**Consistent.** `pg_dump` in a single transaction. `mariadb-dump
---single-transaction`. Content-addressed
-write-once blobs (Seafile storage, Immich library, Mealie uploads) — a file is
-written once under the hash of its contents and never modified, so a live copy
-cannot be torn; worst case is catching an upload in flight, which restic picks up
-correctly on the next run. XML configuration written to a temp file and renamed
-(the *arr `config.xml`, Jellyfin's `config/`).
+## Retention
 
-**Consistent because the inconsistent part is excluded.**
+| Repository | Nightly job | Monthly `*-prune` job |
+|---|---|---|
+| `immich/library`, `mealie/data`, `theater/configs` | backup + check | `forget --keep-within 3m --keep-monthly 12 --prune`, then check |
+| `paperless/media`, `seafile/shared`, `syncthing/data` | backup + check | `forget --keep-within 3m --keep-monthly 24 --prune`, then check |
+| NAS `immich/library` | backup + `forget --keep-daily 14 --keep-weekly 8 --keep-monthly 6 --prune` + check | — |
 
-- **Syncthing.** The volume holds two categories with completely different value.
-  Irreplaceable and tiny: `cert.pem` and `key.pem` — the device identity, whose
-  fingerprint *is* the device ID, so losing it makes this a new device that every
-  peer must re-accept by hand — plus `config.xml`, which holds folder definitions,
-  peer device IDs, share permissions and the File Versioning settings. Rebuildable
-  and large: the file index, which Syncthing regenerates by rescanning. Excluding
-  the index is not a compromise, it is the better backup: the index is the only
-  live database in the volume, so excluding it removes the entire consistency
-  problem and leaves a fully consistent backup of a few kilobytes.
-- **Plex.** The live SQLite databases are excluded and Plex's own scheduled
-  database backups are included instead. `Metadata/`, `Media/` and `Cache/` are
-  excluded too — posters, fanart and analysis, nearly all of the ~20GB, all
-  regenerated. `Preferences.xml` is included and is easy to overlook: it holds the
-  server's machine identity and its Plex account token.
-- **The *arr apps.** With `*__POSTGRES__*` set, the real database is in Postgres.
+`theater-configs-prune` uses `--group-by host,paths,tags`, so each app keeps its own
+monthly snapshots. Retention is in months because restic pack files move to Glacier
+Instant Retrieval after one day, and Glacier IR bills every object for at least 90
+days: keeping every snapshot for three months means no pack is deleted before then.
+
+## How to restore
+
+Restore into a throwaway namespace and a scratch volume, check the result, then
+copy across deliberately. Never restore over a live volume or a live database.
+
+These steps reproduce the rehearsed restores. They run on macOS with `kubectl`
+pointed at the cluster and need nothing else installed; restic runs in the Jobs.
+
+### Before you start
+
+You need:
+
+- the read-only verifier key: `tofu output -raw verify_access_key_id` and
+  `tofu output -raw verify_secret_access_key` in `bootstrap/aws-backup/`, or the
+  password manager copy ([secrets.md](secrets.md));
+- `RESTIC_PASSWORD`, from the password manager (also sealed in
+  `platform/secrets/s3-backup.sops.yaml`). Without it no file backup can be read;
+- the repository and tag from [S3 repositories](#s3-repositories).
+
+Use the verifier key, not the writer key in `s3-backup`: it can read the bucket and
+cannot change data, so a mistake during a restore cannot damage the backup. Every
+restic call below passes `--no-lock`; a restore does not need a lock.
+
+### 1. Namespace, credentials, scratch volume
+
+```sh
+NS=restore-test
+kubectl create namespace "$NS"
+kubectl label namespace "$NS" pod-security.kubernetes.io/enforce=restricted
+```
+
+Expected: `namespace/restore-test created`, `namespace/restore-test labeled`.
+
+Type the three values at the prompts; they are not echoed and not written to disk:
+
+```sh
+printf 'verifier key id: ';  read -rs KEY_ID;     echo
+printf 'verifier secret: ';  read -rs KEY_SECRET; echo
+printf 'restic password: ';  read -rs RESTIC_PW;  echo
+kubectl -n "$NS" create secret generic restic-verifier \
+  --from-literal=AWS_ACCESS_KEY_ID="$KEY_ID" \
+  --from-literal=AWS_SECRET_ACCESS_KEY="$KEY_SECRET" \
+  --from-literal=AWS_DEFAULT_REGION=eu-central-1 \
+  --from-literal=RESTIC_PASSWORD="$RESTIC_PW"
+unset KEY_ID KEY_SECRET RESTIC_PW
+```
+
+Expected: `secret/restic-verifier created`.
+
+Size the scratch volume to what you restore (the rehearsals used 2Gi):
+
+```sh
+kubectl -n "$NS" apply -f - <<'EOF'
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: restore-scratch
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: iscsi-retain
+  resources:
+    requests:
+      storage: 2Gi
+EOF
+```
+
+Expected: `persistentvolumeclaim/restore-scratch created`. It binds when the first
+pod uses it.
+
+### 2. Restore a snapshot
+
+Set the repository and tag, and the snapshot: `latest` (the newest one with that
+tag) or an id from the listing.
+
+```sh
+REPO=mealie/data
+TAG=mealie-files
+SNAP=latest
+kubectl -n "$NS" apply -f - <<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restic-restore
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 7200
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        - name: snapshots
+          image: restic/restic:0.19.0
+          args: [--no-lock, snapshots, --tag, "$TAG"]
+          envFrom: [{secretRef: {name: restic-verifier}}]
+          env: &env
+            - {name: RESTIC_REPOSITORY, value: "s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/$REPO"}
+            - {name: RESTIC_CACHE_DIR, value: /cache}
+            - {name: TMPDIR, value: /cache}
+          volumeMounts: &mounts
+            - {name: scratch, mountPath: /restore}
+            - {name: cache, mountPath: /cache}
+          securityContext: &csec
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      containers:
+        - name: restore
+          image: restic/restic:0.19.0
+          args: [--no-lock, restore, "$SNAP", --tag, "$TAG", --target, /restore, --verify]
+          envFrom: [{secretRef: {name: restic-verifier}}]
+          env: *env
+          volumeMounts: *mounts
+          securityContext: *csec
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 1Gi}
+      volumes:
+        - {name: scratch, persistentVolumeClaim: {claimName: restore-scratch}}
+        - {name: cache, emptyDir: {sizeLimit: 2Gi}}
+EOF
+kubectl -n "$NS" wait --for=condition=complete job/restic-restore --timeout=2h
+kubectl -n "$NS" logs job/restic-restore -c snapshots
+kubectl -n "$NS" logs job/restic-restore -c restore
+```
+
+Expected: `job.batch/restic-restore condition met`. The `snapshots` log lists the
+snapshots with that tag. The `restore` log ends with
+`Summary: Restored <n> files/dirs (<size>) in <time>`, then
+`finished verifying <n> files in /restore`. The files land under
+`/restore/<snapshot path>`, for example `/restore/data/…`.
+
+If the Job fails, read the same logs. `wrong password or no key found` means the
+wrong `RESTIC_PASSWORD`; `Access Denied` means the wrong key or repository.
+
+To restore only part of a snapshot, add `--include, <path>` to the `restore` args,
+once per path (paths as in the snapshot, e.g. `/data/library/<user>/2024`). For the
+Immich sample, 50 `--include` paths were passed this way.
+
+### 3. Check it against live
+
+Checksums of the restored files, then of the live ones; for Mealie:
+
+```sh
+kubectl -n "$NS" delete job restic-restore
+kubectl -n "$NS" apply -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restore-sums
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: sums
+          image: restic/restic:0.19.0
+          command: [/bin/sh, -c, "cd /restore/data && find . -type f -exec sha256sum {} + | LC_ALL=C sort -k2"]
+          volumeMounts: [{name: scratch, mountPath: /restore, readOnly: true}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      volumes:
+        - {name: scratch, persistentVolumeClaim: {claimName: restore-scratch, readOnly: true}}
+EOF
+kubectl -n "$NS" wait --for=condition=complete job/restore-sums --timeout=10m
+kubectl -n "$NS" logs job/restore-sums > restored.sha256
+kubectl -n mealie exec deploy/mealie -- sh -c \
+  'cd /app/data && find . -type f ! -path "*/.temp/*" -exec sha256sum {} + | LC_ALL=C sort -k2' > live.sha256
+diff restored.sha256 live.sha256
+```
+
+Expected: no output, except files the app wrote after the snapshot (`.temp/` is
+excluded from the backup). In the rehearsal 44 of 45 files matched; the 45th was
+`mealie.log`, appended to after the snapshot, and its restored bytes equalled the
+start of the live file.
+
+For Immich, compare with the database instead: an asset's `checksum` is the SHA-1
+of the original. Pick assets created before the snapshot (its time is in the
+`snapshots` log). Live paths start with `/usr/src/app/upload/`, which is `/data/`
+in the snapshot.
+
+```sh
+kubectl -n immich exec immich-db-1 -c postgres -- psql -X -At -d app -c \
+  "select \"originalPath\", encode(checksum, 'hex') from asset where \"deletedAt\" is null and \"createdAt\" < '<snapshot time>+00' order by random() limit 50"
+```
+
+Restore those paths with `--include` (`TAG=immich-library`, `REPO=immich/library`),
+run `sha1sum` instead of `sha256sum` in the `restore-sums` Job, and compare. In the
+rehearsal all 50 matched the database and the live files.
+
+### 4. Check a Postgres dump
+
+Restore the dump snapshot: `kubectl -n "$NS" delete job restic-restore
+--ignore-not-found`, then [step 2](#2-restore-a-snapshot) with, for Mealie, `TAG=mealie-postgres` (for the
+*arr databases, `REPO=theater/configs TAG=theater-postgres`). Then load the dump
+into a throwaway Postgres in an `emptyDir` and count rows. Use a Postgres image of
+the same major version as the source or newer (the source clusters run 17.0).
+
+```sh
+kubectl -n "$NS" apply -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pg-restore-check
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 26
+        runAsGroup: 26
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: pg
+          image: ghcr.io/cloudnative-pg/postgresql:17.6
+          env:
+            - {name: DUMP, value: /restore/dumps/pg-mealie-mealie-postgresql.dump}
+          command: [/bin/sh, -eu, -c]
+          args:
+            - |
+              export PGDATA=/work/pg HOME=/work TMPDIR=/work
+              initdb -U postgres -A trust > /work/initdb.log
+              pg_ctl -o "-k /work -c listen_addresses=''" -l /work/pg.log -w start > /dev/null
+              createdb -h /work -U postgres app
+              pg_restore -h /work -U postgres -d app --no-owner --no-privileges --exit-on-error "$DUMP"
+              Q="select format('select %L, count(*) from %I.%I;', table_schema||'.'||table_name, table_schema, table_name) from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by 1"
+              psql -X -h /work -U postgres -At -d app -c "$Q" | psql -X -h /work -U postgres -At -F' ' -d app
+              pg_ctl -m fast -w stop > /dev/null
+          volumeMounts:
+            - {name: scratch, mountPath: /restore, readOnly: true}
+            - {name: work, mountPath: /work}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+      volumes:
+        - {name: scratch, persistentVolumeClaim: {claimName: restore-scratch, readOnly: true}}
+        - {name: work, emptyDir: {sizeLimit: 2Gi}}
+EOF
+kubectl -n "$NS" wait --for=condition=complete job/pg-restore-check --timeout=30m
+kubectl -n "$NS" logs job/pg-restore-check > restored-rows.txt
+
+DBN=$(kubectl -n mealie get secret mealie-postgresql-app -o jsonpath='{.data.dbname}' | base64 -d)
+Q="select format('select %L, count(*) from %I.%I;', table_schema||'.'||table_name, table_schema, table_name) from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by 1"
+kubectl -n mealie exec mealie-postgresql-1 -c postgres -- \
+  sh -c "psql -X -At -d '$DBN' -c \"$Q\" | psql -X -At -F' ' -d '$DBN'" > live-rows.txt
+diff restored-rows.txt live-rows.txt
+```
+
+Expected: the Job completes (`pg_restore` exits 0 with `--exit-on-error`) and
+`diff` prints nothing, or only tables written to since the dump. In the rehearsal
+all 59 tables (606 rows) matched.
+
+### 5. Clean up
+
+The scratch volume is on `iscsi-retain`, so deleting the claim keeps the volume on
+the NAS. Switch only that PV to `Delete` first. Check the name before patching: it
+must be the scratch claim's volume and nothing else.
+
+```sh
+PV=$(kubectl -n "$NS" get pvc restore-scratch -o jsonpath='{.spec.volumeName}')
+kubectl get pv "$PV" -o jsonpath='{.spec.claimRef.namespace}/{.spec.claimRef.name}{"\n"}'
+```
+
+Expected: `restore-test/restore-scratch`. Stop if it prints anything else.
+
+```sh
+kubectl -n "$NS" delete jobs --all
+kubectl patch pv "$PV" -p '{"spec":{"persistentVolumeReclaimPolicy":"Delete"}}'
+kubectl delete namespace "$NS"
+kubectl get pv "$PV"
+rm -f restored.sha256 live.sha256 restored-rows.txt live-rows.txt
+```
+
+Expected: the last `kubectl` prints `NotFound` within a minute, once
+democratic-csi has deleted the volume.
+
+### Not rehearsed
+
+- **Writing restored data back into a live volume.** Every Application except
+  `immich` runs `selfHeal`, so scaling an app to zero is reverted within seconds.
+  Disable automated sync on its Argo CD Application first, scale it down, copy the
+  data from the scratch volume, scale up, re-enable sync.
+- **The NAS repository.** Same Job with `RESTIC_REPOSITORY=/backups/immich/library`,
+  only `RESTIC_PASSWORD` in the Secret, and the NFS share
+  `192.168.1.228:/mnt/homelab/k8s/backups` mounted read-only at `/backups`. The
+  `restricted` Pod Security level rejects NFS volumes, so label the namespace
+  `baseline` instead.
+- **A full Immich library restore**, and a restore after the packs moved to
+  Glacier IR. Glacier IR reads are immediate; only the cost differs.
+- **Point-in-time recovery.** There is no barman backup to recover from. Once
+  barman archives a cluster, recover into a **new** cluster, never over the live
+  one, with the source cluster's image
+  (`kubectl -n immich get cluster immich-db -o jsonpath='{.spec.imageName}'`):
+
+  ```yaml
+  apiVersion: postgresql.cnpg.io/v1
+  kind: Cluster
+  metadata:
+    name: immich-db-restored
+    namespace: immich
+  spec:
+    instances: 1
+    imageName: <the source cluster's image>
+    storage: { size: 20Gi, storageClass: iscsi-retain }
+    bootstrap:
+      recovery:
+        source: src
+        recoveryTarget:
+          targetTime: "<YYYY-MM-DD HH:MM:SS+02>"   # omit for latest
+    externalClusters:
+      - name: src
+        barmanObjectStore:
+          # serverName is the SOURCE cluster's name, not this one's.
+          destinationPath: s3://ned-si-homelab-backups/immich/postgres
+          endpointURL: https://s3.eu-central-1.amazonaws.com
+          serverName: immich-db
+          s3Credentials:
+            accessKeyId: { name: s3-backup, key: ACCESS_KEY_ID }
+            secretAccessKey: { name: s3-backup, key: ACCESS_SECRET_KEY }
+  ```
+
+  The restored cluster has no `spec.backup`, so it archives nothing until you add
+  it.
+- **`immich-db` from a local dump.** Its image is
+  `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16 with pgvecto.rs); restore
+  into a cluster with exactly that image. `task backup:verify-restore -- immich
+  immich-db <dump>` derives the image from the source cluster.
+
+## Consistency, per tag
+
+Nothing quiesces before a backup. Every Application except `immich` runs
+`selfHeal: true`, so Argo CD would revert `replicas: 0` within seconds and restart
+the app mid-backup.
+
+**Consistent.** The `pg_dump` and `mariadb-dump --single-transaction` snapshots.
+Content-addressed, write-once files: the Immich library, Seafile blobs, Mealie
+uploads; a live copy cannot be torn, and an upload caught in flight is picked up on
+the next run. XML configuration written by rename (the *arr `config.xml`,
+Jellyfin's `config/`).
+
+**Consistent because the live database is excluded.**
+
+- **Plex.** The live SQLite databases, `Metadata/`, `Media/` and `Cache/` are
+  excluded; Plex's own scheduled database backups are included. `Preferences.xml`
+  is included: it holds the server identity and its Plex account token.
+- **The *arr apps.** The real database is in Postgres (the `theater-postgres` dump).
   `/config` holds `config.xml`, the app's own `Backups/` zips and the ASP.NET
   data-protection keys. `logs.db` and `MediaCover/` are excluded.
 
-**Not consistent.** Paperless' SQLite is copied as a file while Paperless runs
-(the restic image has no `sqlite3` for `.backup`), so a copy taken mid-write can
-be torn; the job logs a warning every run, and the on-demand local dump uses
-SQLite's backup API. Two more are deliberate, each split into its own snapshot
-with a distinct tag so a restore cannot mistake one guarantee for the other.
+**Not consistent, and tagged so.**
 
-- **`jellyfin-db-besteffort`** — `/config/data/jellyfin.db` and `library.db`, live
-  SQLite, possibly torn. The `-wal`/`-shm` files are included because SQLite needs
-  them to recover the database on open; taking the `.db` alone would silently
-  discard committed transactions. It still is not atomic across the three files,
-  which is what the tag admits. What is at risk: user accounts, watch state and
-  playback positions. Not the media, not the server settings. `jellyfin-config`
-  is a separate, consistent snapshot.
-- **`grafana-db-besteffort`** — `grafana.db`, same problem. The exposure is small
-  because almost nothing important lives there: dashboards and datasources are
-  provisioned from ConfigMaps, and users come from Keycloak. What is at risk is
-  hand-made dashboards, stars, preferences and Grafana-defined alert rules — an
-  evening, not data.
+- **`jellyfin-db-besteffort`.** `jellyfin.db` and `library.db` with their `-wal` and
+  `-shm` files, copied live and possibly torn. At risk: user accounts, watch state,
+  playback positions. `jellyfin-config` is a separate, consistent snapshot.
+- **Paperless `db.sqlite3`**, copied live inside the `paperless-data` snapshot. At
+  risk: document metadata; the originals in `paperless-media` are write-once.
+- **Syncthing.** The job keeps only `cert.pem`, `key.pem` and `config.xml` by
+  excluding the index database at the volume root, but this volume keeps its files
+  under `config/`, so the excludes match nothing. The snapshot holds the whole
+  volume: identity, config, the live index database and the synced folder. The
+  identity check (`restic ls` must find all three files) passes. Restore only the
+  three identity files; Syncthing rebuilds its index by rescanning.
 
-**Why nothing quiesces first.** The obvious answer — scale the Deployment to 0,
-back up, scale back — cannot work here. Every Application except `immich` runs
-`selfHeal: true`, so Argo CD reverts `replicas: 0` within seconds, restarting the
-app mid-backup and contending for the `ReadWriteOnce` volume the backup pod now
-holds. Quiescing anything Argo manages means suspending the Application first,
-which a CronJob has no business doing. That applies equally to Plex, Jellyfin,
-Seafile, Syncthing and Grafana, which is why none of their jobs try.
+**Seafile needs both halves.** The blobs are hash-named files; the MariaDB dump is
+the index that maps them to files, libraries and owners. The job dumps the database
+first and the blobs second, so a file uploaded in between leaves an orphan blob
+rather than a database row with no blob. Restore both from the same night.
 
-The correct fix for the two best-effort tags is snapshot-then-backup, via VolSync or
-the CSI `VolumeSnapshot` machinery. It is not hand-rolled here, and the reasons —
-including why a single Job structurally cannot do it — are argued in the header of
-`platform/kube-prometheus-stack/routes/grafana-backup.yaml`. Build it the day Plex's
-watch history matters.
+## The bucket
 
-**Seafile needs both halves or neither is worth anything.** The blobs are
-SHA-named files with no index; the MariaDB dump is the index — which blob is which
-file, which library, which version, who owns it, who it is shared with. One CronJob
-takes both, database **first** and blobs second: a file uploaded between the two
-appears as an orphan blob, which wastes space and nothing else, whereas the reverse
-order gives a database row pointing at a blob that was never captured. That
-ordering is why the dump is an `initContainer` and not a sidecar.
+Created by [`bootstrap/aws-backup/`](../bootstrap/aws-backup/main.tf) (OpenTofu).
+Versioning on, public access blocked, SSE-S3.
+
+| Prefix | Contents | Storage class |
+|---|---|---|
+| `<repository>/data/` | restic pack files | Glacier Instant Retrieval after 1 day |
+| `<repository>/` everything else | restic `config`, `keys/`, `index/`, `snapshots/`, `locks/` | Standard: read on every restic operation |
+| `<namespace>/postgres/` | reserved for barman WAL and base backups; empty | Standard |
+
+The lifecycle rule is generated per repository from `local.restic_repos` in
+`bootstrap/aws-backup/main.tf`, because S3 prefix filters have no wildcards. A
+repository missing from that list stays in Standard at about six times the price.
+`scripts/check-restic-repos.sh` (CI) fails when the list and the manifests differ.
+Noncurrent versions expire after 30 days; incomplete multipart uploads after 7.
+
+Only `data/` moves to Glacier: restic cannot thaw objects, so an archived index
+would make the repository unreadable. Instant Retrieval, not Deep Archive, so
+`restic check --read-data` and restores work without a thaw step.
+
+### Credentials
+
+| IAM user | Used by | Can |
+|---|---|---|
+| `ned-si-homelab-backups-writer` | the backup jobs, via `s3-backup` | get, put and delete objects; list the bucket |
+| `ned-si-homelab-backups-verifier` | restores and drills | get objects and versions, list the bucket, write only under `*/locks/` |
+
+The writer has an explicit `Deny` on `s3:DeleteObjectVersion`, versioning,
+lifecycle, bucket policy, ACL, encryption and bucket deletion. With versioning on, a
+delete by the writer only adds a delete marker, and the previous version stays for
+30 days. A test delete of a specific version with the writer key returns
+`AccessDenied`.
 
 ## Reclaim policy
 
-A PersistentVolume's reclaim policy decides what happens on the NAS when its
-claim is deleted: `Delete` destroys the iSCSI volume, `Retain` keeps it (the PV
-goes to `Released` and can be re-bound by hand).
+A PersistentVolume's reclaim policy decides what happens on the NAS when its claim
+is deleted: `Delete` destroys the iSCSI volume, `Retain` keeps it (the PV goes to
+`Released` and can be re-bound by hand).
 
-| What | Policy | Where it is set |
-|---|---|---|
-| StorageClass `iscsi` (default) | `Delete` for new volumes | democratic-csi (`infrastructure/democratic-csi/values-iscsi.yaml`). A StorageClass's `reclaimPolicy` is immutable, so it stays. |
-| StorageClass `iscsi-retain` | `Retain` for new volumes | `infrastructure/democratic-csi/values-iscsi.yaml`. Use it for every new data volume. |
-| Every existing data PV on `iscsi` (including `immich-data` and every CNPG volume) | `Retain` | On each PV (`spec.persistentVolumeReclaimPolicy`), not in git |
-| `immich-machine-learning-cache`, `jellyfin-cache`, `plex-transcode` | `Delete` | Regenerable caches, on purpose |
+| What | Policy |
+|---|---|
+| StorageClass `iscsi` (default, `infrastructure/democratic-csi/values-iscsi.yaml`) | `Delete` for new volumes. A StorageClass's `reclaimPolicy` is immutable |
+| StorageClass `iscsi-retain` | `Retain` for new volumes. Use it for every new data volume |
+| Every existing data PV, including `immich-data` and every CNPG volume | `Retain`, patched in place (PVs are provisioned objects, not in git) |
+| `immich-machine-learning-cache`, `jellyfin-cache`, `plex-transcode` | `Delete`: regenerable caches |
 
-Existing claims keep `storageClassName: iscsi`: a PVC's class is immutable, and
-changing it would mean a new volume and a data copy. PVs are provisioned objects,
-so their policy is not in git; check it after any restore or rebuild:
+Existing claims keep `storageClassName: iscsi`; a PVC's class is immutable. Re-check
+after any restore or rebuild:
 
 ```sh
 kubectl get pv -o custom-columns=CLAIM:.spec.claimRef.name,POLICY:.spec.persistentVolumeReclaimPolicy,SC:.spec.storageClassName
@@ -207,91 +586,98 @@ Expected: `Retain` on every line except the three caches. Fix a data volume on
 `Delete` with
 `kubectl patch pv <pv> -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'`.
 
-In the layered tree every PVC, CNPG Cluster, StatefulSet and Namespace also
-carries `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, so Argo CD
-never deletes one, even when its manifest disappears from git.
+Every PVC, CNPG Cluster, StatefulSet and Namespace also carries
+`argocd.argoproj.io/sync-options: Delete=false,Prune=false`, so Argo CD never
+deletes one when its manifest leaves git.
 
-## What is deliberately not backed up
+## What is not backed up
 
-**The media library** — 26TB NFS, 9.5TB used. Roughly €50–120/month growing, and a
-restore would mean egressing all of it, for content that is by its nature
-re-acquirable.
+- **The media library** (NFS `192.168.1.228:/mnt/homelab/k8s/nfs/media`, about
+  9.5 TB). Re-acquirable, and off-site storage plus a restore's egress would cost
+  more than the content is worth. No periodic ZFS snapshot task is configured on the
+  NAS, so nothing protects it against a deletion either. The options are a ZFS
+  snapshot task, a second NAS receiving `zfs send`, or accepting the loss.
+- **`qbittorrent-config`.** Torrent state, reconstructible, and it references media
+  that is not backed up. A stale `ipc-socket` in this volume once caused a
+  long outage ([runbook](runbooks/arr-qbittorrent.md)), so a restored copy could
+  restore the fault.
+- **`paperless-consume`, `plex-transcode`, `jellyfin-cache`, Immich `thumbs/` and
+  `encoded-video/`.** Drop-boxes, scratch and derived files.
+- **Data synced by Syncthing.** Every peer holds a full copy. Deletions propagate to
+  every peer; Syncthing's per-folder File Versioning (in `config.xml`) covers that.
+- **Grafana.** No persistent volume: dashboards and data sources are provisioned
+  from git, users come from Keycloak.
+- **etcd on a schedule.** Take a snapshot by hand before every Kubernetes upgrade
+  or risky change ([runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore)).
+  The snapshot task in `ansible/kube-upgrade.yml` calls `etcdctl` on the host, and
+  the hosts have none (it lives in the etcd container), so do not rely on it.
 
-What protects it instead: ZFS snapshots on the NAS, and an NFS share that no
-Kubernetes object can delete (the theater workloads mount it inline). Today
-Plex and Jellyfin mount it read-write, as they always have; mounting it
-`readOnly: true` for the two media servers, and moving the mounts to the
-`nfs-storage` leaf (`Retain` PVs, written but not enabled), are listed in
-[docs/roadmap.md](roadmap.md).
+## Local dumps and pre-upgrade snapshots
 
-If you disagree, the change is a copy of
-`apps/immich/resources/backup-files.yaml` pointed at the `theater-data` PVC. The
-honest off-site alternatives are a second NAS elsewhere doing `zfs send`, or
-accepting the loss.
+```sh
+task backup:dump      # -> ~/homelab-backups/<utc>/, all nine databases, verified
 
-**`qbittorrent-config`** — torrent state and resume data. Reconstructible, and it
-references media that is itself not backed up. Note it is also the volume whose
-stale `ipc-socket` caused a three-month outage
-([runbook](runbooks/arr-qbittorrent.md)), so a restored copy could restore the
-fault.
+task backup:verify-restore -- immich immich-db \
+  ~/homelab-backups/<utc>/pg-immich-immich-db.dump
+```
 
-**`paperless-consume`, `plex-transcode`, `jellyfin-cache`** — drop-boxes and
-scratch, transient by definition.
+`backup:dump` dumps the seven Postgres clusters, Seafile's MariaDB and Paperless'
+SQLite to local disk and verifies each, including a sha256 taken at the source. It
+exits non-zero on any failure and never writes to the cluster. The checks are listed
+in the header of `scripts/dump-databases.sh`.
 
-**Synced data in Syncthing.** Syncthing is a replication tool: every peer holds a
-full copy, so the data has as many copies as there are devices. What it does not
-protect against is a deletion propagating to every peer, which is what Syncthing's
-own File Versioning is for — configured per folder in the GUI, stored in
-`config.xml`, i.e. inside the backup.
+`backup:verify-restore` builds a throwaway CNPG cluster in its own namespace with
+the source cluster's image and `shared_preload_libraries`, restores the dump,
+compares table count, row counts of the eight largest tables, readability of every
+relation and the extension set against live, then deletes it.
 
-**etcd** is not covered by any of the above. Take a snapshot by hand before
-every Kubernetes upgrade or risky change, with the procedure in
-[runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore): it
-keeps one copy in `/root/etcd-snapshots/` on `homelab-cp-1` and one in
-`~/homelab-backups/etcd/` on the Mac. The snapshot task in
-`ansible/kube-upgrade.yml` calls `etcdctl` on the host, and the hosts have none
-(it lives in the etcd container), so do not rely on it.
+These dumps live on one machine. Copy them elsewhere to make them a backup.
+
+Before a risky change:
+
+```sh
+task backup:pre-upgrade -- immich-v3      # dumps + VolumeSnapshots, tagged
+task backup:snapshots                     # list rollback points
+task backup:drop-snapshots -- immich-v3   # once the change is confirmed good
+```
+
+A `VolumeSnapshot` on ZFS is copy-on-write: instant and initially free. Rollback is
+not automated; the script prints the commands. It needs the `VolumeSnapshot` CRDs,
+a snapshot controller and the `iscsi` VolumeSnapshotClass from democratic-csi.
+Today the controller is an unmanaged `kube-system/snapshot-controller` v6.3.1;
+`infrastructure/snapshot-controller/` is written to replace it and not enabled.
+Check before relying on a snapshot:
+
+```sh
+kubectl get volumesnapshotclass
+```
+
+Expected: one row, `iscsi`, driver `org.democratic-csi.iscsi`.
 
 ## Setting it up from scratch
 
-An ordered checklist for a new bucket or a rebuilt cluster. Nothing works until
-all of it is done, and two of the steps are silently expensive if skipped.
+For a new bucket or a rebuilt cluster, in order.
 
-1. **`task secrets:keygen`**, and back the private key up. Nothing in the repo can
-   be encrypted before this.
-
-2. **Create the bucket and the scoped credentials.** OpenTofu does all the AWS
-   work except one temporary admin key.
+1. **`task secrets:keygen`**, and back up the private key.
+2. **Create the bucket and the two IAM users** with an admin IAM user (not root),
+   then delete the admin key:
 
    ```sh
    cd bootstrap/aws-backup
    cp terraform.tfvars.example terraform.tfvars
    $EDITOR terraform.tfvars          # bucket_name must be globally unique
-   tofu init && tofu plan            # read it
+   tofu init && tofu plan
    tofu apply
    tofu output next_steps
    ```
 
-   Use an admin IAM user, not root credentials: root cannot be scoped, so a leaked
-   backup key could delete the backups *and* everything else in the account. Delete
-   the admin key once this succeeds.
-
-3. **Keep `local.restic_repos` in `bootstrap/aws-backup/main.tf` equal to the
-   repositories in the manifests, BEFORE applying.** It lists all seven today;
-   `scripts/check-restic-repos.sh` fails when the two drift.
-
-   S3 prefix filters are literal, with no wildcards, so `main.tf` generates one
-   Glacier IR lifecycle rule per repository from that list. A repository not on the
-   list has no rule, so its pack files sit in S3 Standard at roughly **6× the
-   price**, and nothing warns you. `theater/configs` is deliberately one repository
-   for six apps, so it needs one entry, not six.
-
-4. **Seal the `s3-backup` Secret**, with a **byte-identical `RESTIC_PASSWORD` in
-   every namespace it appears in.** It defines the same Secret in seven namespaces,
-   because Kubernetes Secrets are namespaced and there is no built-in replication —
-   and a repository written with one password cannot be read with another. Both key
-   spellings are present (`ACCESS_KEY_ID` for barman, `AWS_ACCESS_KEY_ID` for
-   restic) because the two tools disagree and neither is configurable.
+   `terraform.tfstate` then holds the secret keys. Treat it as a secret.
+3. **Keep `local.restic_repos` in `main.tf` equal to the repositories in the
+   manifests** before applying (see [The bucket](#the-bucket)).
+4. **Seal the `s3-backup` Secret.** One `RESTIC_PASSWORD`, byte-identical in every
+   namespace: a repository written with one password cannot be read with another.
+   Both key spellings are set (`ACCESS_KEY_ID` for barman, `AWS_ACCESS_KEY_ID` for
+   restic).
 
    ```sh
    cp platform/secrets/s3-backup.sops.yaml.example platform/secrets/s3-backup.sops.yaml
@@ -300,350 +686,106 @@ all of it is done, and two of the steps are silently expensive if skipped.
    task secrets:leak-check
    ```
 
-   `RESTIC_PASSWORD` is not recoverable. Lose it and every file backup is
-   permanently unreadable, including by you. Store it beside the age key.
-
-5. **Point the manifests at the real bucket.** This is what clears the
-   `homelab-backups-REPLACE-ME` placeholders that `scripts/placeholder-check.sh`
-   allowlists with a reason:
-
-   ```sh
-   task backup:set-target -- <bucket-name> eu-central-1
-   ```
-
-   It re-renders `deploy/` as part of the same command.
-
-6. **Check every data PV is `Retain`** ([Reclaim policy](#reclaim-policy)). On
-   a rebuilt cluster, new volumes on `iscsi` start as `Delete`.
-
-7. **Seed each new restic repository once, by hand, before the first verification
-   run.** Step 2 of `verify-files.sh` fails with `no snapshot found for tag` against
-   a repository that has never been written, so the first Sunday after this lands
-   is *expected* to report failures — and it is important not to read that as "the
-   new jobs are broken".
-
-   ```sh
-   kubectl -n syncthing create job --from=cronjob/syncthing-backup seed
-   kubectl -n mealie    create job --from=cronjob/mealie-backup    seed
-   kubectl -n seafile   create job --from=cronjob/seafile-backup   seed
-   kubectl -n theater   create job --from=cronjob/theater-postgres-backup seed
-   # ...and each of the six theater config jobs
-   ```
-
-   On a running cluster the CronJobs are active (`ci/active-cronjobs.txt`), so
-   anything not seeded by hand is seeded by its first scheduled run.
-
-   Immich is the exception worth planning: the first upload is hundreds of GB over
-   a domestic uplink. Start the **local** repository first — it is fast and it is
-   the copy that gets fully verified — then the remote one, both by hand rather
-   than letting a CronJob begin it at 03:30 and hit its deadline.
+   `RESTIC_PASSWORD` is not recoverable. Store it beside the age key.
+5. **Point the manifests at the bucket:** `task backup:set-target -- <bucket>
+   eu-central-1` (re-renders `deploy/`).
+6. **Check every data PV is `Retain`** ([Reclaim policy](#reclaim-policy)). On a
+   rebuilt cluster, new volumes on `iscsi` start as `Delete`.
+7. **Seed the Immich repositories by hand** rather than at 03:30. The first upload
+   of 270 GiB took 2 h 14 min (about 32 MiB/s, limited by reading the NAS, not the
+   uplink), well inside the job's 20 h deadline:
 
    ```sh
    kubectl -n immich create job --from=cronjob/immich-library-backup-local seed-local
    kubectl -n immich create job --from=cronjob/immich-library-backup       seed-remote
    ```
 
-8. **Prove it.** `kubectl -n backup-verify create job
-   --from=cronjob/backup-verify-files now`, and read the log.
-
-Also on the list, and separate from the above: the **Barman Cloud plugin** is
-written and ready in `platform/barman-cloud-plugin/` but deliberately **not
-referenced** by the platform kustomization, because CNPG 1.24.1 does not have the
-plugin CRD and its `Cluster` schema rejects `spec.plugins[0].isWALArchiver`. That is
-verified with a server-side dry-run, not assumed. Enabling it comes right after
-the CNPG upgrade on the [roadmap](roadmap.md).
-
-## The bucket
-
-One bucket, `eu-central-1`, from
-[`bootstrap/aws-backup/`](../bootstrap/aws-backup/main.tf). One bucket rather than
-several, because the two kinds of backup want opposite things from S3 and the
-difference is per-**prefix**:
-
-| Prefix | Contents | Storage class | Why |
-|---|---|---|---|
-| `*/postgres/` | barman: WAL + base backups | Standard | churn of small objects, 30–90d retention. Any archive class bills a 90-day minimum anyway |
-| `*/data/` | restic pack files | Glacier IR after 1 day | the bulk. Write-once, read-almost-never |
-| everything else | restic `config`, `keys/`, `index/`, `snapshots/` | **Standard** | read on *every* restic operation |
-
-That last row is the most common way people break restic on Glacier. restic has no
-concept of thawing — it expects every `GET` to succeed, so an archived index makes
-the repository unusable. Upstream is explicit that a lifecycle policy must apply
-[only to the `data/` prefix](https://forum.restic.net/t/unavailable-index-files/1326/7).
-
-Glacier **Instant** Retrieval, not Deep Archive: Deep Archive is ~4× cheaper again
-but reads need an asynchronous thaw taking hours, which restic cannot do, so
-`restic check --read-data` and any real restore would need a workflow you have to
-build and then remember exists. The premium buys the ability to *test the backup*.
-Per TB per month, order of magnitude: Standard ~$23 storage / free retrieval,
-Glacier IR ~$4 / ~$30, and internet egress ~$90 either way. **Storage is cheap,
-egress is not, and S3 → EC2 in the same region is free** — which is the whole shape
-of the verification design below.
-
-### What the credentials can and cannot do
-
-Two IAM users, both scoped to this bucket only. `…-writer` can put, get and delete,
-because restic prunes and barman enforces retention. `…-verifier` is read-only plus
-restic's lock prefix, so a drill gone wrong cannot damage the backup it is testing.
-
-The writer carries an explicit `Deny` on `s3:DeleteObjectVersion`,
-`s3:PutBucketVersioning`, `s3:PutLifecycleConfiguration` and `s3:DeleteBucket`.
-Combined with versioning, **the backup credential cannot make a deletion
-permanent**: `DeleteObject` only writes a delete marker and the previous version
-survives 30 days. Deny beats Allow in IAM unconditionally, so this holds even if a
-broader policy is attached later.
-
-Deliberately not S3 Object Lock, which is stronger but must be enabled at bucket
-creation and cannot be turned off. For a homelab where you may want to fix your own
-mistakes, versioning plus a deny is the better trade.
-
-All four access keys go to Bitwarden, and note that
-`bootstrap/aws-backup/terraform.tfstate` now contains the secret keys — git-ignored,
-but treat it as a secret and move it off this machine.
+   Every other repository is initialised by its job's first run: each job runs
+   `restic init` before `restic backup`.
+8. **List the jobs in `ci/active-cronjobs.txt`** once their first run has worked
+   (see [Why it is like this](#why-it-is-like-this)).
+9. **Rehearse a restore** with [How to restore](#how-to-restore).
 
 ## Verification
 
-Not running yet: `clusters/homelab/staged/backup-verify.yaml` is in no layer.
-Once enabled, `platform/backup-verify/` runs weekly and never touches anything
-live.
+What runs: every nightly job ends with `restic check` (structure: snapshots, trees
+and blob index, not the pack contents), and a failed Job fires `KubeJobFailed` in
+Prometheus, which reaches no one until Alertmanager has a receiver.
 
-**Postgres, Sunday 05:00.** Builds a throwaway CNPG cluster in the `backup-verify`
-namespace by recovery from S3, asserts the server answers queries, that the schema
-has at least *N* tables (an **empty** restore is the classic silent failure, where
-the restore "succeeds" with no data), that every relation is readable, and prints
-the extension list — Immich will not boot without its vector extension. Then deletes
-the cluster.
+What is written but not running: `platform/backup-verify/` (staged in
+`clusters/homelab/staged/`, namespace absent). Weekly, it would restore a sample of
+files from each repository, read a rotating 1/52 of the packs
+(`--read-data-subset=n/52`), alert when the newest snapshot is older than three
+days, and recover each barman-backed cluster into a throwaway cluster. Its
+`alerts.yaml` holds the backup-specific alerts. It needs its namespace and
+`s3-backup` copy, and its Postgres half needs barman.
 
-It cannot damage anything, for two independent reasons: its RBAC is a `Role` in its
-own namespace, so it cannot reach `immich` or `keycloak` at all; and the restored
-cluster declares no `spec.backup`, so it physically cannot write into the object
-store it read from.
-
-**Files, Sunday 07:00.** Per repository: `restic check`; the newest snapshot is less
-than 3 days old, which catches a CronJob failing silently; **a sample of real files
-is restored** and asserted non-empty; and `--read-data-subset=n/52` reads a
-different fifty-second of the packs each week.
-
-The sample restore is the one that matters — `restic check` validates metadata, it
-does not prove the blobs are retrievable. The rotating subset is what makes this
-more than a spot check: over a year every byte has been read back at least once,
-while any single run pays retrieval on ~2% of the repository.
-
-### The annual drill
-
-Everything above is weekly and costs a few dollars a month, because it is metadata
-plus ~2% of the packs. Reading *everything* is the check that actually proves the
-backup, and it is affordable exactly once a year, in the right place: the expensive
-thing is egress, not reading, and S3 → EC2 in the same region has no egress.
-
-Use the **read-only verifier** credential:
+**Annual full read.** Reading every pack is the only check that proves the whole
+backup, and S3 to EC2 in the same region has no egress charge. On a small instance
+in `eu-central-1`, with the verifier key:
 
 ```sh
-# a small spot instance in the bucket's own region
-export AWS_ACCESS_KEY_ID=...        # tofu output -raw verify_access_key_id
-export AWS_SECRET_ACCESS_KEY=...    # tofu output -raw verify_secret_access_key
-export RESTIC_REPOSITORY="s3:s3.eu-central-1.amazonaws.com/<bucket>/immich/library"
-export RESTIC_PASSWORD=...
-
-restic check --read-data          # reads every pack. This is the real check.
-restic restore latest --target /mnt/scratch
+export AWS_ACCESS_KEY_ID=<verifier key id>
+export AWS_SECRET_ACCESS_KEY=<verifier secret>
+export RESTIC_PASSWORD=<restic password>
+export RESTIC_REPOSITORY=s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/immich/library
+restic --no-lock check --read-data
 ```
 
-**Terminate the instance** — an idle one costs more over a year than the drill did.
-And do not restore the whole library to the house "just to check": that is the
-expensive mistake, and it teaches you nothing the tiers above do not.
-
-The full read of the **local** Immich repository is free, so it runs weekly against
-that copy. It is a genuinely independent repository, not a copy of the S3 one, so
-corruption or a bad `forget` in one cannot propagate to the other.
-
-### Alerting
-
-`platform/backup-verify/alerts.yaml` fires on: `BackupVerificationFailed`,
-`BackupVerificationStale` (no success in 14 days), `PostgresBackupFailed`,
-`PostgresBackupStale` (no base backup in 36h, i.e. two consecutive failures),
-`PostgresWALArchiveFailing`, `FileBackupJobFailed`.
-
-`PostgresWALArchiveFailing` is the urgent one: unarchivable WAL accumulates locally
-and can take the database down on its own. `PersistentVolumeFillingUp` on a
-Postgres data volume is usually this, not a capacity problem.
-
-Note that a cluster with no `barmanObjectStore` publishes no backup timestamp at
-all, so it cannot go stale — it is simply absent. `PostgresBackupMetricsAbsent`
-covers the exporter disappearing; the five clusters with no object store are a known
-gap, not an alert. How notifications reach you: [observability.md](observability.md).
-
-### When verification fails
-
-1. **Do not ignore it.** This alert exists because the alternative is discovering
-   the problem when you need the backup.
-2. `kubectl -n backup-verify logs job/<name>`.
-3. Causes, in order of likelihood: S3 credentials rotated; a repository seeded but
-   never written since; lifecycle rules deleting objects the retention policy still
-   expects; the backup CronJob failing (check `PostgresBackupStale` too); genuine
-   corruption — restore the previous snapshot and investigate.
-4. Fix, then re-run the verification by hand before considering it closed.
-
-## Before a risky change
-
-```sh
-scripts/pre-upgrade-snapshot.sh immich-v3       # dumps + snapshots, tagged
-# ... do the upgrade, live with it for a bit ...
-scripts/pre-upgrade-snapshot.sh --delete immich-v3
-```
-
-A `VolumeSnapshot` on ZFS is copy-on-write, so snapshotting the library is instant
-and initially free — only diverging blocks cost anything. Copying it before every
-upgrade would take hours and you would stop doing it.
-
-Rollback is deliberately **not** automated: it destroys the current state, so the
-script prints the exact commands instead of offering a flag.
-
-This needs the `VolumeSnapshot` CRDs, a snapshot controller and the `iscsi`
-VolumeSnapshotClass from democratic-csi. Today the controller is an unmanaged
-`kube-system/snapshot-controller` v6.3.1; `infrastructure/snapshot-controller/`
-is written to replace it and not enabled. Check before relying on a snapshot:
-
-```sh
-kubectl get volumesnapshotclass
-```
-
-Expected: `iscsi`, driver `org.democratic-csi.iscsi`.
-
-## Local dumps, on demand
-
-```sh
-task backup:dump      # -> ~/homelab-backups/<utc>/  (all 9 databases, verified)
-
-task backup:verify-restore -- immich immich-db \
-  ~/homelab-backups/<utc>/pg-immich-immich-db.dump
-```
-
-`backup:dump` dumps every database — seven Postgres clusters, Seafile's MariaDB,
-Paperless' SQLite — to local disk and verifies each one, including a **sha256 taken
-at the source** and compared locally: `pg_dump`'s custom format has no internal
-checksums, so nothing else finds a flipped byte. It exits non-zero on any failure
-and never writes to the cluster. The full list of checks and what each catches is in
-the header of `scripts/dump-databases.sh`.
-
-`backup:verify-restore` builds a throwaway CNPG cluster in its own namespace,
-restores into it, and compares against the live database: table count, row counts on
-the eight largest tables, every relation readable, and the extension set. Then
-deletes it. It derives the target image and `shared_preload_libraries` from the
-**source** cluster rather than guessing, which is what makes it work for Immich.
-
-**These dumps are on one machine.** Point-in-time snapshots, not PITR, and not
-off-site until you copy them somewhere else.
-
-## Restoring
-
-### Postgres, to a point in time
-
-Once barman archives a cluster (none does yet), create a **new** cluster that
-recovers from the object store. Never restore over a live one. Until then,
-restore from a dump: `task backup:verify-restore` above is the tested path into
-a throwaway cluster, and the nightly dumps are in the restic repositories listed
-at the end of this section.
-
-**Get the image from the source cluster, do not copy it from here.** `immich-db`
-runs `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16 with pgvecto.rs) until
-[runbooks/immich-upgrade.md](runbooks/immich-upgrade.md) moves it to VectorChord
-on PostgreSQL 17. A backup restores only into the image it was taken from: same
-major version, same vector extension.
-
-```sh
-kubectl -n immich get cluster immich-db -o jsonpath='{.spec.imageName}'
-```
-
-```yaml
-apiVersion: postgresql.cnpg.io/v1
-kind: Cluster
-metadata:
-  name: immich-db-restored
-  namespace: immich
-spec:
-  instances: 1
-  # From the command above. NOT from this document.
-  imageName: <the source cluster's image>
-  storage: { size: 20Gi, storageClass: iscsi-retain }
-  bootstrap:
-    recovery:
-      source: src
-      recoveryTarget:
-        targetTime: "<YYYY-MM-DD HH:MM:SS+02>"   # omit for latest
-  externalClusters:
-    - name: src
-      barmanObjectStore:
-        # `serverName` selects which backup inside destinationPath to read.
-        # It is the SOURCE cluster's name, not this one's.
-        destinationPath: s3://<bucket>/immich/postgres
-        endpointURL: https://s3.eu-central-1.amazonaws.com
-        serverName: immich-db
-        s3Credentials:
-          accessKeyId: { name: s3-backup, key: ACCESS_KEY_ID }
-          secretAccessKey: { name: s3-backup, key: ACCESS_SECRET_KEY }
-```
-
-Verify it, then repoint the app at `immich-db-restored-rw`. The restored cluster has
-no `spec.backup`, so it does **not** archive WAL — add that block once you promote
-it, or the new primary has no backups at all.
-
-For the five clusters with no object store there is no PITR path. Restore their
-nightly dump from the corresponding restic repository instead: `pg-mealie` in
-`mealie/data`, `theater-postgres` in `theater/configs`.
-
-### Files
-
-```sh
-kubectl -n immich run restic-restore --rm -it --restart=Never \
-  --image=restic/restic:0.19.0 \
-  --overrides='{"spec":{"containers":[{"name":"r","image":"restic/restic:0.19.0",
-    "command":["sh"],"stdin":true,"tty":true,
-    "envFrom":[{"secretRef":{"name":"s3-backup"}}],
-    "env":[{"name":"RESTIC_REPOSITORY","value":"s3:https://s3.eu-central-1.amazonaws.com/<bucket>/immich/library"}]}]}}'
-
-# then inside:
-restic snapshots                       # --tag to narrow, e.g. --tag jellyfin-config
-restic restore latest --target /restore --include /data/library/user/2024
-```
-
-**Check the tag before you trust a snapshot.** `theater/configs` holds six apps'
-snapshots in one repository, and `jellyfin-db-besteffort` and `grafana-db-besteffort`
-carry a weaker guarantee than everything beside them — that is what the tag is for.
-
-Restore into a **scratch** location and copy across deliberately. Restoring straight
-over a live library is how a bad restore becomes a real outage.
+Expected: `no errors were found`. Terminate the instance afterwards. The NAS
+repository can be read in full for free from inside the cluster.
 
 ## Known gaps
 
-- **The Postgres verifier's list includes three clusters with no object store**
-  (`mealie-postgresql`, `sonarr-postgresql`, `radarr-postgresql`), so the weekly
-  drill fails on them until either the `barmanObjectStore` blocks are added or those
-  lines are removed. A check that always fails is a check you learn to ignore.
-- **`grafana/data` is not in the file verifier's list.** It is a real repository
-  and nothing checks it.
-- **No off-site copy of the media library.** Deliberate, argued above.
-- **Restore *time* is not tested.** Verification proves data is retrievable, not
-  that a full multi-TB restore completes in a useful window. It would not.
-- **No full-restore drill has ever been run.** The weekly sample, once enabled, is
-  a good proxy.
-- **`immich-db` and `keycloak-db` have no off-site copy.** Only the on-demand local
-  dumps cover them until barman runs.
+- `immich-db` and `keycloak-db` have no scheduled or off-site backup. Needs barman,
+  which needs CNPG 1.26 or later.
+- No point-in-time recovery for any database.
+- `platform/backup-verify/` is not running: no weekly sample restore, no
+  `--read-data`, no staleness alert.
+- No alert reaches anyone: a failed backup Job is visible only in `kubectl get jobs`
+  and the Prometheus alerts page.
+- Restores are rehearsed only for `mealie/data` and an Immich sample. Paperless,
+  Seafile, Syncthing, theater and the NAS repository are backed up and checked, not
+  restored.
+- Paperless' SQLite copy may be torn.
+- The Syncthing excludes do not match the volume layout (see
+  [Consistency, per tag](#consistency-per-tag)).
+- No ZFS snapshot task on the NAS; the media library has no protection.
+- The time for a full restore is not measured.
 
 ## Why it is like this
 
-- Restic CronJobs are suspended unless listed in `ci/active-cronjobs.txt`
-  (cited as ADR 0008 in code comments): a backup job is only switched on once
-  its credentials are real and its first run has been seen to work. Every other
-  CronJob ships suspended behind a `pending-guard` init container, so a
-  placeholder bucket can never look like a working backup.
-- `Retain` on data PVs plus `iscsi-retain` for new ones, rather than changing
-  `iscsi`: a StorageClass's reclaim policy is immutable, and changing an
-  existing claim's class means copying its data.
-- Retention in months and Glacier Instant Retrieval, not Deep Archive: Glacier IR
-  bills 90 days per object anyway, and restic cannot thaw Deep Archive, so
-  `restic check --read-data` and every restore would become a manual workflow.
-- Versioning plus an IAM `Deny`, not S3 Object Lock: Object Lock cannot be
-  turned off, and the owner may need to fix their own mistakes.
-- In-tree `barmanObjectStore` first, the Barman Cloud plugin later: the running
-  CloudNativePG 1.24.1 rejects the plugin fields.
+- **restic to S3, plus a NAS copy for Immich.** One tool for every app, client-side
+  encryption, deduplication, and restores that need only the bucket and a password.
+  The NAS copy makes the most valuable data restorable without egress and checkable
+  in full for free. Rejected: VolSync, which does snapshot-then-backup but is
+  another controller to run, and buys little for write-once files. It is the upgrade
+  path for data that is changed in place.
+- **Backup CronJobs run only once reviewed.** A job runs unsuspended only when it
+  is listed in `ci/active-cronjobs.txt`, which happens once its credentials are
+  real and its first run has been seen to work. Every other CronJob ships suspended
+  behind a `pending-guard` init container, so a placeholder bucket can never look
+  like a working backup.
+- **Logical dumps until barman runs.** The Barman Cloud plugin needs CNPG 1.26+,
+  so barman for `immich-db` and `keycloak-db` follows the CNPG upgrade
+  ([roadmap](roadmap.md)). The in-tree `barmanObjectStore` was not used: it is
+  deprecated from CNPG 1.26. A nightly `pg_dump` gives a 24 h RPO, enough for
+  recipes and *arr settings; once barman runs, the dump becomes redundant, not
+  wrong.
+- **`Retain` on data PVs plus `iscsi-retain` for new ones**, rather than changing
+  `iscsi`: a StorageClass's reclaim policy is immutable, and changing an existing
+  claim's class means copying its data.
+- **One bucket, Glacier IR on `data/` only.** Cheap storage for packs while every
+  restic read keeps working. Rejected: Deep Archive, about four times cheaper, but
+  every read needs an hours-long thaw that restic cannot do.
+- **Versioning plus an explicit deny, not Object Lock.** The backup key cannot make
+  a deletion permanent, and the owner can still fix mistakes. Object Lock is
+  stronger but must be set at bucket creation and cannot be turned off.
+- **Retention in months.** Glacier IR bills 90 days per object, so pruning sooner
+  saves nothing.
+- **No quiescing.** Argo CD `selfHeal` reverts any scale-down. Live SQLite copies
+  are documented as possibly torn instead, and Jellyfin's gets its own
+  `jellyfin-db-besteffort` tag. The proper fix is snapshot-then-backup (CSI
+  `VolumeSnapshot` or VolSync), not built yet.
+- **The media library is not backed up.** About 9.5 TB of re-acquirable content;
+  off-site storage and egress cost more than it is worth.
