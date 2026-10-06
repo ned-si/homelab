@@ -86,7 +86,9 @@ spec:
           value: Keycloak
         - name: OIDC_REMEMBER_ME
           value: "true"
-        image: ghcr.io/mealie-recipes/mealie:v2.4.0
+        - name: OIDC_REQUIRES_EMAIL_VERIFICATION
+          value: "false"
+        image: ghcr.io/mealie-recipes/mealie:v3.28.0
         imagePullPolicy: Always
         name: mealie
         ports:
