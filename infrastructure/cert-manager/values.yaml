@@ -1,7 +1,6 @@
-# cert-manager v1.15.0 values, at parity with the running release (ADR 0002):
-# exactly the values the legacy child Application carries. Anything beyond
-# parity (resource requests, public DNS-01 resolvers, a newer chart) is its own
-# later change; see docs/roadmap.md.
+# cert-manager chart values. The chart validates them against its JSON schema
+# (since v1.16), so every top-level key must be a real chart value. Metrics and
+# the ServiceMonitor are `prometheus.*`.
 prometheus:
   enabled: true
   servicemonitor:
@@ -24,8 +23,3 @@ config:
   apiVersion: controller.config.cert-manager.io/v1alpha1
   kind: ControllerConfiguration
   enableGatewayAPI: true
-
-metrics:
-  enabled: true
-  serviceMonitor:
-    enabled: true
