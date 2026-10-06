@@ -1,6 +1,6 @@
 terraform {
   # 1.10: S3-native state locking (`use_lockfile`).
-  required_version = ">= 1.10"
+  required_version = "1.16.5"
 
   required_providers {
     kubernetes = {
