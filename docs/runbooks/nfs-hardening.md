@@ -25,15 +25,16 @@ There are two NFS exports and only one of them is scoped.
 | Dataset | Export | Consumers |
 |---|---|---|
 | `homelab/k8s/nfs` → `/mnt/homelab/k8s/nfs` | **open to the whole LAN.** This is the open item | the media library, `theater` |
-| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the local backup tier (`infrastructure/nfs-storage/backup-volume.yaml`, not enabled yet) |
+| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the CronJob `immich/immich-library-backup-local`, which mounts it inline (`apps/immich/resources/backup-files.yaml`) and writes the NAS restic repository of the photo library; later also the `nfs-storage` backup tier (`infrastructure/nfs-storage/backup-volume.yaml`, not enabled) |
 
 `infrastructure/nfs-storage/backup-volume.yaml` explains why they are separate
 datasets: separate snapshot schedules and compression, separate fill-up risk,
 and a scoped export for the copy you fall back to when the library is gone.
 
-The work below is about the media dataset. `192.168.1.0/24` is also only a
-subnet, not the four node addresses; tightening exports to the node list is
-step 1.
+The work below is mostly about the media dataset. `192.168.1.0/24` is also only
+a subnet, not the four node addresses, and the backups export now holds the
+NAS copy of the photo library: any device in the house can mount it and, as
+uid 1000, delete it. Tightening both exports to the node list is step 1.
 
 ### What network policy does not cover
 
@@ -62,6 +63,7 @@ Ordered by effort-to-benefit.
 ### 1. Scope the export to the node IPs (do this first)
 
 In TrueNAS: **Shares → Unix (NFS) Shares →** the `k8s/nfs` share → **Advanced**.
+Then the same for the `k8s/backups` share.
 
 List the four node addresses (`192.168.1.247`, `.238`, `.239`, `.240`)
 explicitly under **Hosts** rather than putting the subnet in **Networks**: the
