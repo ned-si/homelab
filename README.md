@@ -9,9 +9,9 @@ one root Application, three layers, one Application per app.
 
 - Hardware: 4x Turing RK1 (Rockchip RK3588, arm64, 32 GB) on a Turing Pi 2
   board. 3 control planes and 1 worker.
-- OS and Kubernetes: Ubuntu 22.04, kubeadm, Kubernetes v1.32.13, containerd.
-  API on the VIP `192.168.1.11` (kube-vip v1.2.4).
-- GitOps: Argo CD v2.14.11. CNI: Cilium 1.17.18, which also serves the shared
+- OS and Kubernetes: Ubuntu, Kubernetes (kubeadm), containerd.
+  API on the VIP `192.168.1.11` (kube-vip).
+- GitOps: Argo CD. CNI: Cilium, which also serves the shared
   Gateway on `192.168.1.254`.
 - Storage: TrueNAS CORE NAS at `192.168.1.228`. iSCSI block volumes through
   democratic-csi (StorageClasses `iscsi`, default, and `iscsi-retain`) and an
@@ -54,9 +54,9 @@ their TV apps can sign in.
 
 | Component | Role | Managed by |
 | --- | --- | --- |
-| Argo CD v2.14.11 | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm CLI release `argocd` (chart argo-cd 7.9.1) in namespace `argo`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
-| Cilium 1.17.18 | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools, Gateway API | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by hand once on a fresh cluster |
-| kube-vip v1.2.4 | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes, written by hand ([manifest](docs/runbooks/node-replacement.md#kube-vip-manifest)) |
+| Argo CD | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm CLI release `argocd` (chart argo-cd) in namespace `argo`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
+| Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools, Gateway API | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by hand once on a fresh cluster |
+| kube-vip | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes, written by hand ([manifest](docs/runbooks/node-replacement.md#kube-vip-manifest)) |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
@@ -139,8 +139,8 @@ fails, and the job fails if any check failed.
 - `lint`: `yamllint`, `actionlint`, `shellcheck`, `tofu fmt` and
   `tofu validate`.
 - `render`: unit tests (pytest and bash), a render of every Application and
-  Helm release, `kubeconform` (strict schema validation against Kubernetes
-  1.32.13 and the vendored CRD schemas) and `repo-policy` (pinned actions,
+  Helm release, `kubeconform` (strict schema validation against the cluster's
+  Kubernetes version and the vendored CRD schemas) and `repo-policy` (pinned actions,
   repository invariants, secrets, leak and placeholder checks, `deploy/`
   matches its sources, kube-linter).
 - `security`: `gitleaks` on the new commits, and the Trivy config scan.
@@ -189,7 +189,7 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
 - Backups: nightly restic jobs copy files and most databases to S3 (and the
   photo library to the NAS). `immich-db`, `keycloak-db` and etcd rely on
   on-demand local dumps and snapshots until the Barman Cloud plugin runs,
-  which needs the CloudNativePG upgrade to 1.26 or later.
+  which needs a CloudNativePG upgrade.
   Data PVs are on reclaim policy `Retain`
   ([details](docs/backups.md#reclaim-policy)).
 - Alerting: Prometheus and Grafana run; Alertmanager delivers to nobody yet
