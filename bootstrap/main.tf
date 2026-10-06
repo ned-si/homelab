@@ -41,7 +41,7 @@ resource "helm_release" "cilium" {
   # Must match ci/helm-releases.yaml (the bootstrap version) and
   # clusters/homelab/infrastructure/cilium.yaml; CI checks the latter.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-  version   = "1.17.18"
+  version   = "1.20.2"
   namespace = "kube-system"
 
   values = [file("${path.module}/../infrastructure/cilium/values.yaml")]
