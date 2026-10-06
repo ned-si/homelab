@@ -1,181 +1,89 @@
 # The *arr apps cannot reach qBittorrent
 
-**Status: root-caused and FIXED on 2026-07-31 against the live cluster.**
+Symptom: Sonarr, Radarr, Lidarr or Prowlarr report "download client
+unavailable", while the `theater/qbittorrent` pod is `Running 1/1` with no
+restarts.
 
-An earlier revision of this document blamed the qBittorrent 4.6.1 credential
-change. **That was wrong.** The password was never the problem. The real cause is
-below, and it is more interesting.
+Cause, every time so far: a stale `/config/config/ipc-socket` (and sometimes
+`lockfile`) left by an unclean shutdown. qBittorrent uses the socket for
+single-instance detection, so every start exits after about two seconds; s6
+restarts it inside the container forever. The Deployment has no readiness or
+liveness probe, so Kubernetes keeps reporting the pod healthy and routing to a
+process that is not listening.
 
-## What actually happened
+## Diagnose
 
-A **stale `ipc-socket`** in qBittorrent's config directory made every start abort
-silently after about two seconds. s6 restarted it forever inside the container.
-Because the Deployment had **no readiness or liveness probe**, Kubernetes reported
-the pod `Running 1/1` with `0` restarts, kept an endpoint in the Service, and
-routed traffic to a process that was not listening.
+1. Is anything listening?
 
-The *arr apps got TCP connection-refused, which they surface as "download client
-unavailable" — a message that reads like an auth or network fault.
+   ```sh
+   kubectl -n theater exec deploy/qbittorrent -- sh -c \
+     'ss -lntp 2>/dev/null || netstat -lnt 2>/dev/null || cat /proc/net/tcp'
+   ```
 
-```
-/config/config/ipc-socket    srwx------  0  Apr 19 09:45
-```
+   Healthy: a listener on `:8080` (WebUI) and `:50000` (torrents); in the
+   `/proc/net/tcp` fallback, local addresses ending `:1F90` and `:C350`. An
+   empty table is this fault.
 
-Dated **19 April**. qBittorrent uses that socket for single-instance detection.
-It was left behind by an unclean shutdown — almost certainly the node reboot or
-power event that day — and its presence made every subsequent start bail out.
+2. Can Sonarr connect?
 
-## The evidence, in order
+   ```sh
+   kubectl -n theater exec deploy/sonarr -- \
+     curl -s -o /dev/null -m 10 -w '%{http_code}\n' http://qbittorrent:8080/api/v2/app/version
+   ```
 
-Worth recording because each step eliminated a plausible wrong answer.
+   `200` is healthy. `000` is connection refused, which is this fault. `401` or
+   `403` would be a credential problem, a different fault.
 
-```sh
-# 1. The pod looks perfectly healthy. This is the trap.
-kubectl -n theater get pods
-#   qbittorrent-cfdbd5f4d-6fzrx   1/1   Running   0   79d
+3. Is the socket there?
 
-# 2. But nothing is listening.
-kubectl -n theater exec deploy/qbittorrent -- ss -lntp
-#   (empty table)
+   ```sh
+   kubectl -n theater exec deploy/qbittorrent -- ls -la /config/config
+   ```
 
-# 3. And Sonarr cannot connect at all -- 000, not 401.
-kubectl -n theater exec deploy/sonarr -- \
-  curl -s -o /dev/null -w '%{http_code}\n' http://qbittorrent:8080/api/v2/app/version
-#   000        <- connection refused, NOT an auth failure
-```
+   An `ipc-socket` dated before the last restart confirms it.
 
-`000` is what killed the password theory. A credential problem returns `401` or
-`403`; you have to be talking to something first.
+`pgrep -f qbittorrent-nox` is misleading here: `-f` also matches the `sh -c`
+wrapper, so it shows a new PID on every call. Use
+`ps -eo pid,etime,comm | grep qbittorrent-nox` to see that the process is only
+ever a few seconds old.
 
-```sh
-# 4. The process exists, but is only ever a couple of seconds old.
-kubectl -n theater exec deploy/qbittorrent -- ps -eo pid,etime,comm | grep qbittorrent-nox
-#   4005671  0:02  qbittorrent-nox      <- sample 1
-#   (absent)                            <- sample 2, four seconds later
-
-# 5. The container log had 61 lines and had not grown in 79 days: s6's own
-#    startup chatter, and no qBittorrent banner. It never got far enough to log.
-
-# 6. Decisive test: run the SAME binary against a COPY of the config.
-#    It started perfectly. So neither the binary nor the config was at fault --
-#    it was something else in the profile directory.
-```
-
-That left the runtime artefacts, and `ipc-socket` was three months stale.
-
-### A false lead worth flagging
-
-`pgrep -f qbittorrent-nox` appears to show a rapidly changing PID. It does not —
-`-f` matches the full command line, which includes the `sh -c 'pgrep -f
-qbittorrent-nox'` wrapper itself, so it reports a new PID every time regardless.
-Use `ps -eo pid,etime,comm | grep` instead.
-
-## The fix
+## Fix
 
 ```sh
-# Move the stale runtime artefacts aside rather than deleting them.
-kubectl -n theater exec deploy/qbittorrent -- sh -c '
-  cd /config/config
-  mkdir -p /config/kiro-quarantine
-  mv ipc-socket lockfile /config/kiro-quarantine/ 2>/dev/null
-'
-
+kubectl -n theater exec deploy/qbittorrent -- sh -c \
+  'mkdir -p /config/quarantine; mv -f /config/config/ipc-socket /config/config/lockfile /config/quarantine/ 2>/dev/null; ls /config/quarantine'
 kubectl -n theater rollout restart deploy/qbittorrent
+kubectl -n theater rollout status deploy/qbittorrent --timeout=5m
 ```
 
-Both are runtime artefacts, recreated on every start. Nothing is lost.
+Both files are runtime artefacts that qBittorrent recreates on start; nothing is
+lost. The Deployment uses `strategy: Recreate` on a `ReadWriteOnce` volume, so a
+minute or two of silence from `rollout status` is normal.
 
-### Result
+Then re-run diagnose steps 1 and 2 (expected: listeners on `:8080` and
+`:50000`, and `200`), and in each *arr app run Settings, Download Clients, Test
+All. The apps run with a URL base (`/arr/<app>`), so their API is under
+`/arr/<app>/api/...`; a call to `/api/...` returns `307`.
 
-```
-WebUI will be started shortly after internal preparations. Please wait...
-******** Information ********
-To control qBittorrent, access the WebUI at: http://localhost:8080
-```
+## Seeding
+
+The torrent port is published by `theater/qbittorrent-seed` on
+`192.168.1.200:50000/TCP`, and the router forwards 50000 TCP there. If
+qBittorrent reports `firewalled`:
 
 ```sh
-kubectl -n theater exec deploy/qbittorrent -- ss -lntp
-#   LISTEN 0 50   *:8080          <- serving
-#   LISTEN 0 30   *:50000         <- torrent port
-
-# Sonarr, authenticated:
-#   login              -> 204
-#   /api/v2/app/version -> 200   v5.2.3
-#   transfer/info       -> downloading at ~57 MB/s
+kubectl -n theater get svc qbittorrent-seed
 ```
 
-And the check that actually matters — asking each *arr to test its own client:
+Expected: `EXTERNAL-IP 192.168.1.200`. If it is, check the router's forward.
 
-```sh
-curl -X POST -H "X-Api-Key: $KEY" \
-  http://localhost:8989/arr/sonarr/api/v3/downloadclient/testall
-#   [{"id":1,"isValid":true,"validationFailures":[]}]
-```
+## Prevention
 
-Sonarr and Radarr both valid, no health warnings anywhere. The saved credentials
-were correct the whole time.
+Not in place yet: qBittorrent runs `ghcr.io/hotio/qbittorrent:latest` with
+`imagePullPolicy: Always` and no probes, at parity with what ran before the
+layered tree. A readiness probe on `:8080` would turn this from a silent outage
+into a visible `NotReady` pod, and a pinned tag would stop a restart from
+being an unreviewed upgrade. Both are on the [roadmap](../roadmap.md).
 
-Note the API path includes `/arr/sonarr` — the apps run with `URLBASE` set. A
-call to `/api/v3/...` returns `307`, which is easy to mistake for a broken API.
-
-## Why it went unnoticed for three months
-
-This is the part worth fixing permanently.
-
-| Gap | Consequence |
-|---|---|
-| **No readiness probe** | A pod with no listener stayed `Ready`, so the Service kept routing to it. |
-| **No liveness probe** | Kubernetes never restarted the container, so the container-level restart count stayed at `0` and looked healthy. |
-| **`:latest` + `imagePullPolicy: Always`** | The running version drifted silently. During this very incident the restart pulled 5.2.0 → 5.2.3 — an unreviewed upgrade in the middle of debugging. |
-| **No alerting on *arr health** | The apps knew their download client was unavailable and nobody was told. |
-
-The manifests in this repo close the first three:
-
-- `readinessProbe` on `/` and a `livenessProbe` on the port, so a non-listening
-  process is reported unhealthy and then restarted
-- `image: ghcr.io/hotio/qbittorrent:release-5.2.3` pinned, tracked by Renovate
-- `imagePullPolicy: IfNotPresent`, so a restart is no longer an upgrade
-
-The probe is the important one. It converts this failure from "silent for three
-months" into "CrashLoopBackOff within two minutes".
-
-## Still outstanding
-
-`transfer/info` reports `"connection_status":"firewalled"`. The WebUI works and
-downloads run, but the listen port is not reachable from the internet, so
-seeding is crippled.
-
-Check that the router forwards **TCP+UDP 50000** to the `qbittorrent-peer`
-LoadBalancer address:
-
-```sh
-kubectl -n theater get svc qbittorrent-peer
-#   EXTERNAL-IP 192.168.2.1
-```
-
-The Service is named `qbittorrent-peer`; `qbittorrent` is the ClusterIP for the
-WebUI and has no external address.
-
-Note that address is on `192.168.2.0/24` while the LAN is `192.168.1.0/24` — the
-`services` LB pool is deliberately a separate range so it cannot collide with the
-node addresses, which means **the router needs a static route for it** as well as
-the port forward. That is the most likely cause of `firewalled`. See
-[networking.md](../networking.md#loadbalancer-ips).
-
-This needs re-doing after any move: see
-[restart-after-move.md](restart-after-move.md).
-
-## If it happens again
-
-Symptom to look for: pod `Ready` but `ss -lntp` empty. With the probes now in
-place you should instead see `CrashLoopBackOff`, and:
-
-```sh
-kubectl -n theater logs deploy/qbittorrent --previous
-ls -la /config/config/          # look for a stale ipc-socket / lockfile
-```
-
-The general lesson: **an unclean shutdown can leave a lock artefact that makes a
-process refuse to start, and without a probe Kubernetes will report that as
-healthy indefinitely.** The same pattern applies to any single-instance app with
-a lockfile on a persistent volume.
+The same failure applies to any single-instance app with a lock file on a
+persistent volume: after a power loss, check the listener, not the pod status.
