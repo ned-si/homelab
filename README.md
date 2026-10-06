@@ -10,10 +10,24 @@ one root Application, three layers, one Application per app.
 - Hardware: 4x Turing RK1 (Rockchip RK3588, arm64, 32 GB) on a Turing Pi 2
   board. 3 control planes and 1 worker.
 - OS and Kubernetes: Ubuntu 22.04, kubeadm, Kubernetes v1.32.13, containerd.
+  API on the VIP `192.168.1.11` (kube-vip v1.2.4).
+- GitOps: Argo CD v2.14.11. CNI: Cilium 1.17.18, which also serves the shared
+  Gateway on `192.168.1.254`.
 - Storage: TrueNAS CORE NAS at `192.168.1.228`. iSCSI block volumes through
-  democratic-csi (StorageClass `iscsi`, default) and an NFS share for media.
+  democratic-csi (StorageClasses `iscsi`, default, and `iscsi-retain`) and an
+  NFS share for media. Data volumes use reclaim policy `Retain`.
 - Public names: `<name>.lilalala.com`, TLS from Let's Encrypt, DNS records
   managed by external-dns in Cloudflare.
+
+## Start here
+
+- First install of a cluster: [docs/bootstrap.md](docs/bootstrap.md).
+- Power loss or move: [docs/runbooks/cold-start.md](docs/runbooks/cold-start.md).
+- How it fits together: [docs/architecture.md](docs/architecture.md),
+  [docs/networking.md](docs/networking.md), [docs/decisions.md](docs/decisions.md).
+- Data: [docs/backups.md](docs/backups.md), [docs/secrets.md](docs/secrets.md).
+- Monitoring: [docs/observability.md](docs/observability.md).
+- App runbooks: [docs/runbooks/](docs/runbooks).
 
 ## Services
 
@@ -39,9 +53,9 @@ their TV apps can sign in.
 
 | Component | Role | Managed by |
 | --- | --- | --- |
-| Argo CD | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm release `argocd`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
-| Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by the bootstrap on a fresh cluster |
-| kube-vip | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes |
+| Argo CD v2.14.11 | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm CLI release `argocd` (chart argo-cd 7.9.1) in namespace `argo`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
+| Cilium 1.17.18 | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools, Gateway API | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by hand once on a fresh cluster |
+| kube-vip v1.2.4 | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes (not in git) |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
@@ -103,7 +117,7 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | [`ci/`](ci) | Helm CLI release list, vendored CRD schemas, pinned CI Python requirements |
 | [`scripts/`](scripts) | CI entry points (`scripts/ci/`), read-only cluster smoke suite (`smoke.sh`), guarded merge (`pr-merge.sh`), Trivy gate |
 | [`tests/`](tests) | pytest and bash tests for the scripts |
-| [`docs/`](docs) | Architecture, networking, backups, secrets, ADRs, runbooks, [roadmap](docs/roadmap.md) |
+| [`docs/`](docs) | Architecture, networking, bootstrap, backups, secrets, observability, decisions, runbooks, [roadmap](docs/roadmap.md) |
 | [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) | CI |
 
 Every Application tracks `main` and syncs automatically with self-heal, except
@@ -167,11 +181,13 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
 
 ## Status and roadmap
 
-- Gateway API: the shared Cilium Gateway serves every public hostname on
-  `192.168.1.254`. ingress-nginx and its Ingresses are removed.
-- Platform upgrades: Argo CD and Cilium to the versions in
-  `ci/helm-releases.yaml`, then Kubernetes and the node OS.
-- Off-site backups: not active yet. Backups today are local database dumps
-  and etcd snapshots. Data PVs are on reclaim policy `Retain`
+- Ingress: the shared Cilium Gateway serves every public hostname on
+  `192.168.1.254`; there is no ingress controller.
+- Backups: nightly restic jobs copy files and most databases to S3 (and the
+  photo library to the NAS). `immich-db`, `keycloak-db` and etcd rely on
+  on-demand local dumps and snapshots until CloudNativePG archiving is enabled.
+  Data PVs are on reclaim policy `Retain`
   ([details](docs/backups.md#reclaim-policy)).
+- Alerting: Prometheus and Grafana run; Alertmanager delivers to nobody yet
+  ([docs/observability.md](docs/observability.md)).
 - Everything else that is deliberately deferred: [docs/roadmap.md](docs/roadmap.md).
