@@ -1,4 +1,4 @@
-# kube-prometheus-stack chart 56.2.0 values, at parity with the running release
+# kube-prometheus-stack chart 92.0.0 values, at parity with the running release
 # (ADR 0002): the legacy child Application's values, with one intended change.
 #
 # The Grafana OIDC client secret is no longer inline in grafana.ini (which the

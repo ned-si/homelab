@@ -51,7 +51,7 @@ e588fd77c482060491b67c82f59a229d13a2ea4c6d303e33b18e9e6ce4ee5d73  https://raw.gi
 a0fe234c44bc338d383ca4f2c2decca1c4c2773e3da435931a74a126f31fcc4f  https://raw.githubusercontent.com/cilium/cilium/v1.17.18/pkg/k8s/apis/cilium.io/client/crds/v2alpha1/ciliumloadbalancerippools.yaml
 5403f35ff7bf081f3fa5d005525e0e842c2877427a4f6ad5aa49c95b6cc873f3  https://raw.githubusercontent.com/cilium/cilium/v1.17.18/pkg/k8s/apis/cilium.io/client/crds/v2alpha1/ciliumpodippools.yaml
 4369188e63b9ab5a35b5a83032c94d871159dece086b908b6ea18ea321ca06a9  https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.2.0/experimental-install.yaml
-325e8ca9035383ba809a6e263888ffc4668c3512e7b4f99c95cd9b4429594644  https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.71.2/stripped-down-crds.yaml
+e35c128e5ae8607e04fe92e7d6aae28c7fc9cf24262549a84904fa0042ac21ae  https://github.com/prometheus-operator/prometheus-operator/releases/download/v0.94.1/stripped-down-crds.yaml
 e0397fd4e3f81db22d7de4baeb333d333e802f05b7902d0a32f23cc70e693c47  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
 974db7292f4ee4bf335483536b44e8b339e32ae4ca3423e4fbeb2299f3d96660  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
 d7939ea45a8798e11c0063dfdfe93e4d9e4b09a1160881f2cc403a6e8f0fa4d5  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml

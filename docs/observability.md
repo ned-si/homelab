@@ -1,7 +1,7 @@
 # Observability
 
 Metrics and dashboards run; alerting does not reach anyone yet. Prometheus,
-Alertmanager and Grafana come from `kube-prometheus-stack` (chart 56.2.0,
+Alertmanager and Grafana come from `kube-prometheus-stack` (chart 92.0.0,
 Prometheus v2.49.1, Alertmanager v0.26.0) in namespace `monitoring`, at the
 chart's defaults apart from Prometheus storage and the Grafana login.
 

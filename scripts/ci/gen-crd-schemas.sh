@@ -32,7 +32,7 @@ CNPG=1.24.1
 CILIUM_OLD=v1.16.3
 CILIUM_NEW=v1.17.18
 GATEWAY_API=v1.2.0
-PROM_OPERATOR=v0.71.2
+PROM_OPERATOR=v0.94.1
 SNAPSHOTTER=v6.3.2
 BARMAN=v0.12.0
 # CustomResourceDefinition itself: yannh/kubernetes-json-schema has no schema for
