@@ -7,26 +7,24 @@
 # being rebuilt from scratch, so nothing that manages the cluster should be able
 # to destroy it by accident.
 #
-# Apply it with YOUR OWN credentials:
+# Apply it with YOUR OWN short-lived credentials, through the wrapper:
 #
-#     export AWS_PROFILE=homelab          # or AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
-#     cd bootstrap/aws-backup
-#     tofu init && tofu plan
-#     tofu apply
-#     tofu output -raw backup_access_key_id
-#     tofu output -raw backup_secret_access_key
+#     aws login --profile homelab --region eu-central-1
+#     scripts/tofu.sh bootstrap/aws-backup init
+#     scripts/tofu.sh bootstrap/aws-backup plan
+#     scripts/tofu.sh bootstrap/aws-backup apply
+#     scripts/tofu.sh bootstrap/aws-backup output -raw backup_access_key_id
+#     scripts/tofu.sh bootstrap/aws-backup output -raw backup_secret_access_key
 #
-# ###########################################################################
-# # DO NOT APPLY THIS WITH ROOT CREDENTIALS, and do not create root access
-# # keys. AWS advises against it and root cannot be scoped, so a leaked key
-# # would be able to delete the backups and everything else in the account.
-# # Create an admin IAM user for yourself, or use IAM Identity Center.
-# ###########################################################################
+# scripts/tofu.sh exports the `aws login` session as environment credentials
+# (the AWS provider cannot read login sessions itself) and supplies the state
+# passphrase. Never create long-lived access keys for yourself, and never root
+# access keys: a leaked key could delete the backups and everything else.
 #
-# NOTE ON STATE: `tofu apply` puts the generated secret access key in
-# terraform.tfstate. That file is git-ignored, but it is now a secret. Transcribe
-# the key into Bitwarden, then treat the state file accordingly (mode 600, and
-# ideally moved off this machine or into an encrypted backend).
+# NOTE ON STATE: the state contains both generated secret access keys. It lives
+# in s3://ned-si-homelab-tofu-state (bootstrap/tofu-state), encrypted by
+# OpenTofu before upload, so there is no local state file to protect. It is
+# only as safe as TOFU_STATE_PASSPHRASE. See docs/bootstrap.md.
 #
 # Full reasoning for the storage classes and the verification strategy:
 # docs/backups.md.

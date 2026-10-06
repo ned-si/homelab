@@ -357,10 +357,11 @@ PLEX
   echo '- **GitHub PAT** for Argo CD — `contents: read` on this repo only.'
   echo '  Export as `TF_VAR_git_token`.'
   echo
-  echo '### S3 backup credentials — SAVE ALL FIVE TO BITWARDEN'
+  echo '### S3 backup credentials — SAVE ALL SIX TO BITWARDEN'
   echo
-  echo 'Created by `cd bootstrap/aws-backup && tofu apply`. Read each with'
-  echo '`tofu output -raw <name>`.'
+  echo 'Created by `scripts/tofu.sh bootstrap/aws-backup apply`. Read each with'
+  echo '`scripts/tofu.sh bootstrap/aws-backup output -raw <name>` (the `tofu output`'
+  echo 'below is shorthand for that).'
   echo
   echo '| Bitwarden entry | Where it comes from | Used by |'
   echo '|---|---|---|'
@@ -369,6 +370,7 @@ PLEX
   echo '| `homelab / AWS backup verifier — key id` | `tofu output -raw verify_access_key_id` | read-only restore drills |'
   echo '| `homelab / AWS backup verifier — secret` | `tofu output -raw verify_secret_access_key` | same |'
   echo '| `homelab / RESTIC_PASSWORD` | `openssl rand -base64 48` | encrypts the restic repositories |'
+  echo '| `homelab / TOFU_STATE_PASSPHRASE` | `secrets.local.env` | encrypts every OpenTofu state in S3 |'
   echo
   echo 'The first four go into `platform/secrets/s3-backup.sops.yaml`, which needs'
   echo 'BOTH key spellings: `ACCESS_KEY_ID`/`ACCESS_SECRET_KEY` for barman and'
@@ -379,10 +381,9 @@ PLEX
   echo 'permanently unreadable, including by you. Store it beside the age key, and'
   echo 'not only in this cluster.'
   echo
-  echo 'Also note: `bootstrap/aws-backup/terraform.tfstate` contains both secret'
-  echo 'keys in plaintext after apply. It is git-ignored, but once the keys are in'
-  echo 'Bitwarden treat that file as a secret — chmod 600, and move it off the'
-  echo 'machine or into an encrypted backend.'
+  echo '**`TOFU_STATE_PASSPHRASE` is not recoverable either.** The module state'
+  echo '(both secret keys) lives in s3://ned-si-homelab-tofu-state, encrypted by'
+  echo 'OpenTofu with it; without it that state is unreadable. See docs/bootstrap.md.'
   echo
   echo '### AWS account itself'
   echo

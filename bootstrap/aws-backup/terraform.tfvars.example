@@ -1,10 +1,16 @@
 # Copy to terraform.tfvars (git-ignored) and fill in.
 #
-# Then, with an ADMIN IAM USER -- not root:
+# Then, with a short-lived login session (no access keys):
 #
-#     export AWS_PROFILE=homelab
-#     tofu init && tofu plan && tofu apply
-#     tofu output next_steps
+#     aws login --profile homelab --region eu-central-1
+#     scripts/tofu.sh bootstrap/aws-backup init
+#     scripts/tofu.sh bootstrap/aws-backup plan
+#     scripts/tofu.sh bootstrap/aws-backup apply
+#     scripts/tofu.sh bootstrap/aws-backup output next_steps
+#
+# State is remote and encrypted (bootstrap/tofu-state must exist first);
+# scripts/tofu.sh reads the passphrase from secrets.local.env. Do not put
+# `state_passphrase` in this file.
 
 # Must be globally unique across all of AWS, so `homelab-backups` alone will be
 # taken. Changing it later means copying every object, so choose once.

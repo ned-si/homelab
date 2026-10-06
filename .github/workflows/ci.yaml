@@ -112,7 +112,8 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: |
           set -euo pipefail
-          for d in bootstrap bootstrap/aws-backup; do
+          # -backend=false: no AWS credentials or state passphrase in CI.
+          for d in bootstrap bootstrap/aws-backup bootstrap/tofu-state; do
             if [ -d "$d" ] && ls "$d"/*.tf >/dev/null 2>&1; then
               echo "::group::$d"
               (cd "$d" && tofu init -backend=false -input=false -no-color && tofu validate -no-color)

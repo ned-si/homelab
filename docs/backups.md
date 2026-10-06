@@ -156,9 +156,11 @@ pointed at the cluster and need nothing else installed; restic runs in the Jobs.
 
 You need:
 
-- the read-only verifier key: `tofu output -raw verify_access_key_id` and
-  `tofu output -raw verify_secret_access_key` in `bootstrap/aws-backup/`, or the
-  password manager copy ([secrets.md](secrets.md));
+- the read-only verifier key:
+  `scripts/tofu.sh bootstrap/aws-backup output -raw verify_access_key_id` and
+  `... output -raw verify_secret_access_key`
+  ([OpenTofu state](bootstrap.md#opentofu-state)), or the password manager copy
+  ([secrets.md](secrets.md));
 - `RESTIC_PASSWORD`, from the password manager (also sealed in
   `platform/secrets/s3-backup.sops.yaml`). Without it no file backup can be read;
 - the repository and tag from [S3 repositories](#s3-repositories).
@@ -659,19 +661,21 @@ Expected: one row, `iscsi`, driver `org.democratic-csi.iscsi`.
 For a new bucket or a rebuilt cluster, in order.
 
 1. **`task secrets:keygen`**, and back up the private key.
-2. **Create the bucket and the two IAM users** with an admin IAM user (not root),
-   then delete the admin key:
+2. **Create the bucket and the two IAM users** from a short-lived `aws login`
+   session, never long-lived or root access keys. The state bucket comes first
+   ([OpenTofu state](bootstrap.md#opentofu-state)):
 
    ```sh
-   cd bootstrap/aws-backup
-   cp terraform.tfvars.example terraform.tfvars
-   $EDITOR terraform.tfvars          # bucket_name must be globally unique
-   tofu init && tofu plan
-   tofu apply
-   tofu output next_steps
+   cp bootstrap/aws-backup/terraform.tfvars.example bootstrap/aws-backup/terraform.tfvars
+   $EDITOR bootstrap/aws-backup/terraform.tfvars    # bucket_name must be globally unique
+   aws login --profile homelab --region eu-central-1
+   scripts/tofu.sh bootstrap/aws-backup init
+   scripts/tofu.sh bootstrap/aws-backup plan
+   scripts/tofu.sh bootstrap/aws-backup apply
+   scripts/tofu.sh bootstrap/aws-backup output next_steps
    ```
 
-   `terraform.tfstate` then holds the secret keys. Treat it as a secret.
+   The module's state holds the secret keys, encrypted in the state bucket.
 3. **Keep `local.restic_repos` in `main.tf` equal to the repositories in the
    manifests** before applying (see [The bucket](#the-bucket)).
 4. **Seal the `s3-backup` Secret.** One `RESTIC_PASSWORD`, byte-identical in every

@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.8"
+  # 1.10: S3-native state locking (`use_lockfile`).
+  required_version = ">= 1.10"
 
   required_providers {
     kubernetes = {
@@ -13,12 +14,40 @@ terraform {
       version = "3.0.2"
     }
   }
-}
 
-# NOTE: state is local. For a single-operator homelab that is a reasonable
-# choice, but it means `bootstrap/terraform.tfstate` is the only record of what
-# was applied -- and it contains the age key and the Git PAT in cleartext.
-# It is git-ignored. Back it up somewhere encrypted, or move to a remote backend.
+  # Remote state in the state bucket (bootstrap/tofu-state). The state holds
+  # the age key and the Git PAT. Run through scripts/tofu.sh, which supplies the
+  # AWS session and the passphrase.
+  backend "s3" {
+    bucket       = "ned-si-homelab-tofu-state"
+    key          = "bootstrap/terraform.tfstate"
+    region       = "eu-central-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+
+  # Client-side encryption of state and plans, so the age key and the PAT never
+  # reach S3 in cleartext. LOSE THE PASSPHRASE AND THE STATE IS UNREADABLE.
+  encryption {
+    key_provider "pbkdf2" "state" {
+      passphrase = var.state_passphrase
+    }
+
+    method "aes_gcm" "state" {
+      keys = key_provider.pbkdf2.state
+    }
+
+    state {
+      method   = method.aes_gcm.state
+      enforced = true
+    }
+
+    plan {
+      method   = method.aes_gcm.state
+      enforced = true
+    }
+  }
+}
 
 provider "kubernetes" {
   config_path = var.kubeconfig_path

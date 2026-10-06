@@ -177,6 +177,22 @@ misconfigurations:
       encryption setting rather than a CMK. Blocked on the bucket existing.
     expired_at: 2026-12-01
 
+  # Same rule, different bucket and a different answer. The state bucket only
+  # ever stores OpenTofu ciphertext: state and plans are encrypted client-side
+  # (aes_gcm, pbkdf2 key from TOFU_STATE_PASSPHRASE, enforced) before upload, so
+  # AWS never holds a key that opens them. A CMK would add cost and a second key
+  # whose loss also makes the state unreadable, for no gain in confidentiality.
+  - id: AVD-AWS-0132
+    paths:
+      - "bootstrap/tofu-state/main.tf"
+    statement: >-
+      State bucket objects are already encrypted client-side by OpenTofu
+      (aes_gcm, enforced) before upload; AWS holds no key that decrypts them.
+      SSE-S3 is defence in depth only. A CMK adds per-request cost and a second
+      key whose loss makes the state unreadable. Revisit if anything but
+      OpenTofu state is ever stored in this bucket.
+    expired_at: 2027-04-01
+
   # =========================================================================
   # DEFERRED -- upstream images that need root, SCOPED to exactly those
   # =========================================================================
