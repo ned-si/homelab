@@ -3,7 +3,7 @@
 # clusters/homelab/root.yaml so a standalone render is the object the cluster
 # should already have.
 repoURL: https://github.com/ned-si/homelab.git
-# The tag CD moves. See clusters/homelab/root.yaml and bootstrap/variables.tf.
+# What every Application tracks. See clusters/homelab/root.yaml and bootstrap/variables.tf.
 targetRevision: main
 namespace: argo
 path: deploy/clusters/homelab/bootstrap

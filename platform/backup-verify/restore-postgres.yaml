@@ -18,8 +18,8 @@
 # # NOTE ON THE CNPG API: this uses the IN-TREE `barmanObjectStore` field on
 # # `externalClusters`, not the newer `barmancloud.cnpg.io/v1` `ObjectStore`
 # # CRD + `plugin:` reference. The cluster runs CNPG 1.24.1, which does not
-# # ship the Barman Cloud plugin at all. See docs/migration-plan.md for the
-# # upgrade path that unlocks the plugin form.
+# # ship the Barman Cloud plugin at all. See docs/roadmap.md for the
+# # upgrade that unlocks the plugin form.
 # ###########################################################################
 ---
 apiVersion: v1

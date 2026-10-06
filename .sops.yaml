@@ -6,7 +6,7 @@
 #
 # The matching private key lives in TWO places and nowhere else:
 #   1. your password manager (backup)
-#   2. the `sops-age` Secret in the `argocd` namespace (seeded by OpenTofu)
+#   2. the `sops-age` Secret in the `argo` namespace (created at bootstrap)
 #
 # See docs/secrets.md before touching this file.
 #

@@ -242,7 +242,7 @@ spec:
             #
             # sizeLimit is not decoration: emptyDir lives on the node's
             # ephemeral storage, and these nodes boot from a 29GB eMMC that was
-            # already at 83% (docs/migration-plan.md). An unbounded cache on a
+            # already at 83%. An unbounded cache on a
             # node that also runs kubelet and containerd is a way to break the
             # node rather than the backup.
             - name: cache

@@ -1,25 +1,16 @@
 # Layer 3 - applications. Everything the cluster exists to serve.
 # Waits on platform so that CloudNativePG and Keycloak are ready first.
 #
-# Tracks the `deployed` git tag, like everything else in this repo. CI moves that
-# tag, syncs THIS Application and waits for it to report Synced+Healthy. This is
-# the LAST layer, so that wait is the last thing standing between a bad commit
-# and a green deploy -- if it passes, the `deployed` tag stays where CI put it.
+# Tracks `main`, like every Application in this repo: a merge is a deployment
+# and a rollback is a revert pull request (clusters/homelab/root.yaml,
+# docs/decisions.md).
 #
-# WHICH IS WHY IT HAS TO BE REAL. This Application owns nothing but other
-# Application objects, so its health is purely the roll-up of theirs -- and Argo
-# CD ships no built-in health check for `argoproj.io/Application`, having removed
-# it in 1.8. The roll-up works only because
-# `resource.customizations.health.argoproj.io_Application` is set in
-# bootstrap/argocd-values.yaml. Take that away and this wait reports Healthy
-# within seconds even if every application in the cluster is Degraded.
+# This Application owns nothing but other Application objects, and Argo CD has
+# no built-in health check for `argoproj.io/Application`, so its own health
+# says nothing about the apps: read the leaves.
 #
-# `clusters/homelab/apps/immich.yaml` is the intended exception: with no
-# `automated` block it sits OutOfSync after a deploy that touches it, but it
-# still reports its own health, so it reads Healthy and does not block this gate.
-#
-# See clusters/homelab/root.yaml for why a tag and not a branch, and
-# docs/adr/0001-deploy-by-moving-a-git-tag.md for the rest.
+# `clusters/homelab/apps/immich.yaml` is the exception among the leaves: it has
+# no `automated` block and is synced by hand.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
