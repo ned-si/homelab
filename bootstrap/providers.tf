@@ -6,7 +6,7 @@ terraform {
     kubernetes = {
       source = "hashicorp/kubernetes"
       # renovate: datasource=terraform-provider depName=hashicorp/kubernetes
-      version = "2.38.0"
+      version = "3.3.0"
     }
     helm = {
       source = "hashicorp/helm"
