@@ -235,4 +235,4 @@ else
 fi
 
 step "Done"
-echo "  Full post-move checklist: docs/runbooks/restart-after-move.md"
+echo "  Full post-move checklist: docs/runbooks/cold-start.md"

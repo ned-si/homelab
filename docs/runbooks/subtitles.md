@@ -65,9 +65,11 @@ This is why the same file behaves differently in the two servers.
 
 ### 1. Bazarr — the actual fix
 
-`apps/theater/bazarr.yaml`. It fetches **text** subtitles for everything Sonarr
-and Radarr manage, and names them the way both servers expect. No bitmap, no
-burn-in, no transcode, and the naming concern disappears as a side effect.
+Bazarr fetches **text** subtitles for everything Sonarr and Radarr manage, and
+names them the way both servers expect. No bitmap, no burn-in, no transcode,
+and the naming concern disappears as a side effect. Its manifest is written
+(`apps/theater/bazarr.yaml`) but not deployed: adding it to
+`apps/theater/kustomization.yaml` is its own pull request.
 
 After it is running:
 
@@ -82,9 +84,9 @@ After it is running:
    Settings → General.
 4. Trigger a sync and check one known-bad file gained an `.srt`.
 
-**No path mapping should be needed.** Bazarr mounts `theater-data` at `/data`
-exactly like Sonarr and Radarr, so the paths they report already resolve. If the
-UI shows path-mapping errors, the mount is wrong — fix the mount, not the mapping.
+**No path mapping should be needed** as long as Bazarr mounts the media share at
+the same path as Sonarr and Radarr, so the paths they report resolve. If the UI
+shows path-mapping errors, the mount is wrong — fix the mount, not the mapping.
 
 ### 2. Force text where a file only has bitmap
 

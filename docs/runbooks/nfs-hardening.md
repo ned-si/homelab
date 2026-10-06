@@ -1,12 +1,12 @@
 # NFS hardening (outstanding)
 
-Carried over from the old README's terse `nfs: harden (!)`. Still true, still not
-done — this is a tracked gap, not a completed task.
+An open gap, not a completed task: the media share is exported without
+authentication. The steps below are the plan, in order.
 
 ## The problem
 
-`infrastructure/nfs-storage/nfs-volumes.yaml` mounts
-`192.168.1.228:/mnt/homelab/k8s/nfs` with `nfsvers=4.1` and no authentication.
+The theater workloads mount `192.168.1.228:/mnt/homelab/k8s/nfs` as inline NFS
+volumes (`apps/theater/*.yaml`), without authentication.
 
 NFS without Kerberos authenticates by **IP address and UID**, nothing else. So:
 
@@ -25,16 +25,14 @@ There are two NFS exports and only one of them is scoped.
 | Dataset | Export | Consumers |
 |---|---|---|
 | `homelab/k8s/nfs` → `/mnt/homelab/k8s/nfs` | **open to the whole LAN.** This is the open item | the media library, `theater` |
-| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the local backup tier, `immich` and `backup-verify` |
+| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the local backup tier (`infrastructure/nfs-storage/backup-volume.yaml`, not enabled yet) |
 
-`infrastructure/nfs-storage/backup-volume.yaml` records the second one, and states
-the reason they are separate datasets rather than one: separate snapshot schedules
-and compression, separate fill-up risk, and the fact that the media export is open
-while the backup export is not. Restricting the backup export mattered more,
-because the backups are what you fall back to when the library is gone.
+`infrastructure/nfs-storage/backup-volume.yaml` explains why they are separate
+datasets: separate snapshot schedules and compression, separate fill-up risk,
+and a scoped export for the copy you fall back to when the library is gone.
 
-So the outstanding work below is about the **media** dataset. `192.168.1.0/24` is
-also only a subnet, not the four node addresses — tightening it to the node list is
+The work below is about the media dataset. `192.168.1.0/24` is also only a
+subnet, not the four node addresses; tightening exports to the node list is
 step 1.
 
 ### What network policy does not cover
@@ -46,19 +44,16 @@ namespace, before the container starts. `CiliumNetworkPolicy` selects pods, so i
 never sees those packets. Policy stops a *pod* reaching the NAS; only the export
 allow-list stops a *node* or any other host on the LAN.
 
-## What has been done in this repo
+## Consumers today
 
-Partial mitigation only, at the consumer end:
+| Workload | Export path | Mode |
+| --- | --- | --- |
+| Plex, Jellyfin | `/mnt/homelab/k8s/nfs/media` | read-write (read-only is on the [roadmap](../roadmap.md)) |
+| qBittorrent | `/mnt/homelab/k8s/nfs/torrents` | read-write |
+| Sonarr, Radarr, Lidarr | `/mnt/homelab/k8s/nfs` | read-write: hardlinking a download into the library needs both trees on one mount |
 
-- Plex and Jellyfin mount the share **read-only** (`readOnly: true` with
-  `subPath: media`). They have no reason to write and now cannot.
-- qBittorrent is restricted to `subPath: torrents`, so it cannot touch the
-  library directly.
-- The *arr apps still mount the whole share read-write, because hardlinking a
-  download into the library requires exactly that. See the long comment in
-  `nfs-volumes.yaml` about why the mount cannot be narrowed further.
-
-None of that constrains a host outside the cluster.
+Narrowing these mounts limits what a compromised container can reach. It does
+not constrain any host outside the cluster.
 
 ## What still needs doing, on the TrueNAS side
 
@@ -68,15 +63,14 @@ Ordered by effort-to-benefit.
 
 In TrueNAS: **Shares → Unix (NFS) Shares →** the `k8s/nfs` share → **Advanced**.
 
-List the four node addresses explicitly under **Hosts** rather than putting the
-subnet in **Networks** — the subnet is what `k8s/backups` already has, and it still
-includes every laptop and phone in the house. The current addresses are recorded in
-`infrastructure/cilium/ip-pools.yaml` and `ansible/inventory.yml`.
+List the four node addresses (`192.168.1.247`, `.238`, `.239`, `.240`)
+explicitly under **Hosts** rather than putting the subnet in **Networks**: the
+subnet still includes every laptop and phone in the house.
 
-This alone removes "any device on the LAN" from the threat model.
-
-The node addresses are site-specific, so this needs redoing after a move — it is
-step 7 of the checklist in [networking.md](../networking.md#moving-house-checklist).
+This alone removes "any device on the LAN" from the threat model. The node
+addresses are site-specific
+([architecture.md](../architecture.md#site-specific-values)), so redo it if they
+change.
 
 ### 2. Turn off `maproot`
 
@@ -108,8 +102,8 @@ pod owning the filesystem and re-exporting it, which just moves the problem.
 
 ## Related
 
-`mountOptions` currently include `hard`, which means I/O retries indefinitely if
-the NAS disappears. That is the correct trade-off for a media library (stall
+The NFS mounts are `hard`, which means I/O retries indefinitely if the NAS
+disappears. That is the correct trade-off for a media library (stall
 rather than corrupt), but it does mean a NAS outage wedges these pods until it
 returns, and they cannot be killed cleanly. `soft` would trade corruption risk
 for recoverability. Left on `hard` deliberately.

@@ -1,8 +1,10 @@
 # Immich: migrating from pgvecto.rs to VectorChord
 
-**This is the one irreversible change in the restructure. Do not let Argo sync it
-unattended.** The `immich` Application is deliberately configured with
-`prune: false` and `selfHeal: false` for exactly this reason.
+**The one irreversible upgrade in this cluster. Not done yet.** Immich runs
+v2.3.1 (chart 0.9.0) on `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16).
+The `immich` Application has no automated sync, so a merged change does nothing
+until someone runs `argocd app sync immich`. Do it only after a verified
+off-site backup exists.
 
 ## What changed and why it is forced
 
@@ -12,8 +14,8 @@ the extension at startup, refusing to boot outside `vchord >= 0.3, < 2.0`.
 
 | | Before | After |
 |---|---|---|
-| Immich | v2.3.1 | v3.1.0 |
-| Chart | 0.10.3 | 0.13.1 |
+| Immich | v2.3.1 | v3.1.0 or later |
+| Chart | 0.9.0 | 0.13.1 or later |
 | DB image | `cloudnative-pgvecto.rs:16.5-v0.3.0` | `cloudnative-vectorchord:17-1.1.0` |
 | `shared_preload_libraries` | `vectors.so` | `vchord.so` |
 | Extension | `vectors` | `vchord` (+ `vector` via CASCADE) |
@@ -37,15 +39,15 @@ have silently applied almost nothing.
 
 A CloudNativePG PVC snapshot is not enough on its own, because you are changing
 the Postgres major version — a restored PG16 volume will not start under a PG17
-image. Take a logical dump:
+image. Take a verified logical dump of every database:
 
 ```sh
-kubectl -n immich exec immich-db-1 -- \
-  pg_dump -U app -Fc app > immich-$(date +%F).dump
-
-# Get it off the cluster.
-ls -lh immich-*.dump
+task backup:dump
+ls -lh "$(ls -1d ~/homelab-backups/2* | tail -1)"/pg-immich-immich-db.dump
 ```
+
+Expected: `verified=9  failed=0` and the Immich dump listed. Copy the directory
+off the Mac.
 
 Also snapshot the library volume. It holds the actual photos and is the only
 truly irreplaceable thing here:
@@ -71,19 +73,23 @@ re-derive thumbnails, faces and embeddings from the files.
 ### Option A — rebuild (simpler, loses albums and person names)
 
 ```sh
-# Scale Immich down so nothing writes during the swap.
+# Scale Immich down so nothing writes during the swap. This sticks: the
+# immich Application does not self-heal.
 kubectl -n immich scale deploy immich-server --replicas=0
 
-# Delete the old cluster. THE PVC GOES WITH IT.
+# Delete the old cluster. CloudNativePG deletes its PVC; the PV is Retain, so
+# the volume stays on the NAS as Released until you delete it by hand.
 kubectl -n immich delete cluster immich-db
-
-# Let Argo create the new VectorChord-based cluster.
-argocd app sync immich
 ```
 
-The new cluster's `postInitApplicationSQL` (see
-`apps/immich/resources/database.yaml`) creates `vchord`, `cube` and
-`earthdistance` on an empty database, which is the case this path is written for.
+Then merge the pull request that switches `apps/immich/resources/database.yaml`
+to the VectorChord image (with `postInitApplicationSQL` creating `vchord`,
+`cube` and `earthdistance` on the empty database) and moves the chart and
+`apps/immich/values.yaml` to the new version, and sync:
+
+```sh
+argocd app sync immich --grpc-web
+```
 
 Then bring Immich up, log in, and run **Administration → Jobs → Smart Search →
 "All"** plus **Face Detection → "All"** to rebuild the embeddings.
@@ -130,14 +136,11 @@ kubectl -n immich logs deploy/immich-server | tail -30
 Then in the UI: search for something by text (exercises CLIP + vchord), and open
 the map view (exercises `earthdistance`).
 
-## 4. Re-enable automation
+## 4. Afterwards
 
-Once you are satisfied, you may set `selfHeal: true` back on the `immich`
-Application in `clusters/homelab/apps/immich.yaml`. Leave `prune: false` — the
-library PVC is not something you want pruned by accident.
-
-Renovate is configured to hold Immich majors behind
-`dependencyDashboardApproval`, so this situation will not recur silently.
+Keep the `immich` Application manual: every Immich release can migrate its
+schema, so every upgrade deserves a person at the sync. Renovate holds Immich
+majors behind `dependencyDashboardApproval`.
 
 ## If it goes wrong
 
