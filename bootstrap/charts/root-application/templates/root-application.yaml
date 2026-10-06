@@ -1,6 +1,6 @@
 # The root Application. Mirrors clusters/homelab/root.yaml, with repoURL and
 # targetRevision injected by OpenTofu so the bootstrap can follow a working
-# branch while the committed manifest tracks the `deployed` tag.
+# branch while the committed manifest tracks `main`.
 #
 # KEEP THIS IN STEP WITH clusters/homelab/root.yaml. Once root syncs, Argo CD
 # reconciles itself against that file, so any field that differs here is

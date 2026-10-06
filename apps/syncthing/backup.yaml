@@ -221,7 +221,7 @@ spec:
             # # and pruned tomorrow when someone renames a file.
             # #
             # # The safe sequence for fixing it properly is in the report and
-            # # in docs/migration-plan.md ('Immutable fields left deliberately
+            # # in docs/migration-plan.md, in git history ('Immutable fields left deliberately
             # # alone'). MOUNTING it, as here, adopts nothing: a CronJob that
             # # references a PVC by name creates no ownership relationship.
             # ###############################################################
@@ -231,7 +231,7 @@ spec:
                 readOnly: true
             # emptyDir: this repository is kilobytes, so a cold cache costs
             # nothing and a PVC would be a zvol for no reason. sizeLimit guards
-            # the node's 29GB eMMC (docs/migration-plan.md).
+            # the node's 29GB eMMC.
             - name: cache
               emptyDir:
                 sizeLimit: 512Mi

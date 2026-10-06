@@ -18,8 +18,7 @@
 # CI (repo-policy `cilium-version`) keeps the chart version equal to
 # ci/helm-releases.yaml, which the bootstrap install reads.
 #
-# Upgrade one minor at a time (1.16 -> 1.17 -> 1.18 ...); see
-# docs/migration-plan.md.
+# Upgrade one minor at a time (1.17 -> 1.18 ...), each its own pull request.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

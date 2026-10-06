@@ -87,10 +87,10 @@ spec:
       # stops Argo re-syncing in response to CLUSTER drift. A NEW GIT REVISION
       # still auto-syncs this Application, and syncing it re-creates every
       # object in `deploy/infrastructure/network-policies` -- including the one
-      # you deleted. Because `targetRevision` is the `deployed` tag, the
-      # revision changes on ANY deploy, not only on a commit that touches this
-      # path. So mid-incident, the next `deployed` move puts the policy back
-      # without anyone asking.
+      # you deleted. Because `targetRevision` is `main`, the revision changes
+      # on ANY merge, not only on a commit that touches this path. So
+      # mid-incident, the next merge puts the policy back without anyone
+      # asking.
       #
       # If you need enforcement off for longer than the next deploy, take it
       # out of git -- `prune: true` above is what makes that work in one commit.

@@ -11,9 +11,9 @@
 #             the name alone proves nothing), another status, a network error,
 #             or no HTTP status line at all
 #
-# It is the only way the programme reads a variable's existence (pr-merge.sh's
-# merge-freeze guard and the check before every `deployed` move), so both fail
-# closed in the same way. A variables *list* is never used as the answer: it is
+# It is the only way the repository's scripts read a variable's existence
+# (pr-merge.sh's merge-freeze guard), so every caller fails closed in the same
+# way. A variables *list* is never used as the answer: it is
 # paginated, and a failed call lists nothing, which would read as "absent".
 #
 # Only the HTTP status line is read, whatever gh's exit code: gh exits 1 on any

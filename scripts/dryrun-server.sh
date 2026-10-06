@@ -64,8 +64,7 @@ export KUBECONFIG
 # predict what a real sync does. See the note above.
 : "${FIELD_MANAGER:=argocd-controller}"
 
-# These are the failures that are understood, documented and accounted for in
-# docs/migration-plan.md.
+# These are the failures that are understood and accounted for.
 XFAIL=(
   # Namespaces this change itself creates: `argocd` by OpenTofu in Phase 1, the
   # rest by infrastructure/namespaces in Phase 2.
@@ -215,7 +214,7 @@ if [ "$conflict" -ne 0 ]; then
 fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "no unexpected failures -- tree matches docs/migration-plan.md"
+  echo "no unexpected failures"
 else
   echo "^^ $fail directory/ies failed for reasons that are NOT in the xfail table."
   echo "   An xfail entry matches on the failure MESSAGE, not the directory, so a"

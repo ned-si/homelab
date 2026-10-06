@@ -12,23 +12,16 @@ variable "repo_url" {
 
 variable "target_revision" {
   description = <<-EOT
-    Git revision the root Application tracks. Defaults to the `deployed` tag,
-    which is what every committed Application in clusters/homelab/ tracks.
+    Git revision the root Application tracks. Defaults to `main`, which is what
+    every committed Application in clusters/homelab/ tracks: a merge is a
+    deployment and a rollback is a revert pull request (docs/decisions.md).
 
-    `deployed` is a moving tag that .github/workflows/cd.yaml advances after a
-    health-gated rollout and moves back on failure. A deploy is "move the tag";
-    a rollback is "move it back". Because every Application here runs
-    `automated.selfHeal: true`, a rollback expressed any other way (syncing or
-    pinning to a SHA) is undone by the next reconcile -- see the long comment in
-    clusters/homelab/root.yaml.
-
-    Override it with a BRANCH only while rebuilding from a working branch, e.g.
-    "chore/gitops-restructure". A branch here means the cluster follows every
-    push with no health gate in front of it, which is fine for a cluster that
-    owns nothing yet and not fine afterwards.
+    Override it with another branch only while rebuilding a cluster that owns
+    nothing yet. Once root syncs, Argo CD reconciles it against
+    clusters/homelab/root.yaml, which tracks `main`.
   EOT
   type        = string
-  default     = "deployed"
+  default     = "main"
 }
 
 variable "git_username" {
@@ -42,7 +35,7 @@ variable "git_token" {
 
     Needs only `contents: read` on this single repo. Do NOT reuse a
     broadly-scoped token: Argo CD stores it in a Secret readable by anything
-    that can read Secrets in the argocd namespace.
+    that can read Secrets in the Argo CD namespace.
   EOT
   type        = string
   sensitive   = true

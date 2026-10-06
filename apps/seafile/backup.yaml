@@ -282,7 +282,7 @@ spec:
                 readOnly: true
             # The dump is a few tens of megabytes for a homelab Seafile.
             # sizeLimit guards the node's 29GB eMMC, which is also where kubelet
-            # and containerd live (docs/migration-plan.md).
+            # and containerd live.
             - name: dumps
               emptyDir:
                 sizeLimit: 4Gi

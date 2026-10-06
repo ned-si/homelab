@@ -447,7 +447,7 @@ spec:
             # The four dumps together are a few tens of megabytes. sizeLimit is
             # a guard, not a budget: emptyDir lives on the node's ephemeral
             # storage, which on these nodes is a 29GB eMMC that was already at
-            # 83% (docs/migration-plan.md) and also holds kubelet and
+            # 83% and also holds kubelet and
             # containerd. An unbounded emptyDir there breaks the node, not the
             # backup.
             - name: dumps

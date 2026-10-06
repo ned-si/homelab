@@ -11,7 +11,7 @@
 #
 # The channel is not a free choice: the experimental bundle installs TCPRoute,
 # UDPRoute, TLSRoute and BackendLBPolicy, and applying the standard bundle over
-# it would delete those CRDs. See docs/migration-plan.md.
+# it would delete those CRDs.
 #
 # Replaces: the manual `kubectl apply -f .../experimental-install.yaml` step that
 # used to live in the README.

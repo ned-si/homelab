@@ -22,7 +22,6 @@ kind: Kustomization
 # #
 # # Gateway API and Cilium must move together, and only after Kubernetes does.
 # # Renovate groups them for exactly this reason ("cluster networking" rule).
-# # See docs/migration-plan.md.
 # ###########################################################################
 #
 # renovate: datasource=github-releases depName=kubernetes-sigs/gateway-api
