@@ -217,11 +217,9 @@ kubectl -n kube-system exec <cilium-pod-on-that-node> -c cilium-agent -- \
 - One shared Gateway on Cilium, replacing ingress-nginx (cited as ADR 0007 and
   ADR 0011 in code comments). ingress-nginx is retired upstream, Cilium was
   already the CNI and ships a Gateway API controller, and Gateway API routes
-  live next to each app. The Gateway first ran in parallel on `.202`, every
-  hostname was checked with `curl --resolve <host>:443:192.168.1.202`, then one
-  change swapped the pins so the Gateway took `.254` and the router's forwards
-  never changed. Rejected: another ingress controller, which keeps a second
-  data plane beside Cilium.
+  live next to each app. The Gateway holds `.254`, the single address the
+  router forwards 80 and 443 to. Rejected: another ingress controller, which
+  keeps a second data plane beside Cilium.
 - The WAN IP in exactly one place: CI rule `wan-ip-single-source`. Two copies
   drift after the next ISP address change.
 - Static addresses on the devices, not DHCP reservations: the router cannot

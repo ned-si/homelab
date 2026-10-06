@@ -100,10 +100,11 @@ Only worth it if you have curated a lot of albums and named a lot of faces.
 
 1. Stand up the new VectorChord cluster under a **different name**
    (`immich-db-v2`) so the old one stays intact.
-2. Restore the logical dump into it:
+2. Restore the logical dump from step 1 into it:
    ```sh
+   dump="$(ls -1d ~/homelab-backups/2* | tail -1)/pg-immich-immich-db.dump"
    kubectl -n immich exec -i immich-db-v2-1 -- \
-     pg_restore -U app -d app --no-owner < immich-$(date +%F).dump
+     pg_restore -U app -d app --no-owner < "$dump"
    ```
    Expect errors on the `vectors` extension objects. They are expected — those
    are the pgvecto.rs types that no longer exist.
