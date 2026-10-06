@@ -21,9 +21,10 @@ SQLite file. Paperless has no in-place converter.
 Doing that silently as part of a refactor looks exactly like data loss. So the
 manifest keeps SQLite and this document exists instead.
 
-The backup consequence is handled: `apps/paperless/backup.yaml` copies the SQLite
-database through SQLite's own `.backup` API rather than copying bytes from under a
-running writer. See [backups.md](../backups.md).
+The backup consequence is only partly handled: the nightly job in
+`apps/paperless/backup.yaml` copies the SQLite file while Paperless runs (its
+image has no `sqlite3`), so that copy can be torn; `task backup:dump` uses
+SQLite's online backup API and is consistent. See [backups.md](../backups.md).
 
 ## Is it worth migrating?
 
