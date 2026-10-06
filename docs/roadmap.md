@@ -66,9 +66,9 @@ changes the pod template, so each is a restart and its own change.
 
 ## Backups and features
 
-- Off-site backups (ADR 0008): restic CronJobs, CNPG barman, backup-verify, once
-  real storage credentials exist. Every CronJob ships suspended with the
-  pending-guard.
+- Off-site backups: the restic CronJobs run (docs/backups.md). Still to do:
+  barman for `immich-db` and `keycloak-db` (needs the CNPG upgrade for the Barman
+  Cloud plugin), and the weekly `backup-verify` drills.
 - Jellyfin on Keycloak SSO (the TV app keeps Quick Connect / local login).
 - Keycloak long sessions: SSO Session Idle 30 days, Max 365 days, Remember Me.
 - Bazarr (`apps/theater/bazarr.yaml`) and SSO in front of the *arr UIs
