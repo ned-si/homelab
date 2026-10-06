@@ -1,6 +1,6 @@
 # kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter.
 #
-# Chart 56.2.0, at parity with the running release (values in
+# Chart 92.0.0, at parity with the running release (values in
 # platform/kube-prometheus-stack/values.yaml). Multi-source: the chart, plus a
 # git path holding the Grafana HTTPRoute for the shared Gateway (the Grafana
 # subchart has no Gateway API template). The chart's own Ingress is disabled
@@ -21,7 +21,7 @@ spec:
     - repoURL: https://prometheus-community.github.io/helm-charts
       chart: kube-prometheus-stack
       # renovate: datasource=helm depName=kube-prometheus-stack registryUrl=https://prometheus-community.github.io/helm-charts
-      targetRevision: 56.21.4
+      targetRevision: 92.0.0
       helm:
         releaseName: kube-prometheus-stack
         valueFiles:
