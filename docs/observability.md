@@ -1,125 +1,105 @@
 # Observability
 
-Prometheus, Alertmanager and Grafana from `kube-prometheus-stack`, in the
-`monitoring` namespace. Grafana is at `grafana.lilalala.com` behind Keycloak.
+Metrics and dashboards run; alerting does not reach anyone yet. Prometheus,
+Alertmanager and Grafana come from `kube-prometheus-stack` (chart 56.2.0,
+Prometheus v2.49.1, Alertmanager v0.26.0) in namespace `monitoring`, at the
+chart's defaults apart from Prometheus storage and the Grafana login.
 
-This page is about **getting paged**. The alert rules themselves are documented
-where they are defined — `platform/kube-prometheus-stack/routes/alerts.yaml` for
-the cluster and `platform/backup-verify/alerts.yaml` for the backups — each with
-the incident it exists because of.
+| Part | State |
+| --- | --- |
+| Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
+| Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
+| Alertmanager | running with the chart's default configuration: one `null` receiver, so every alert is dropped |
+| Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml` |
+| Notification credentials | Secret `monitoring/alertmanager-notify` exists (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`); nothing reads it yet, and the Pushover values are still `PENDING` sentinels |
+| Hubble | on in the Cilium agents; relay, UI and metrics not enabled ([networking.md](networking.md#debugging)) |
+| blackbox-exporter | not deployed: no rule can probe a service from outside |
 
-## How to get paged: the one-time setup
+Until notifications are wired, the checks are manual: the smoke suite
+([runbooks/cold-start.md](runbooks/cold-start.md#step-8-smoke-suite)) and the
+Argo CD application list.
 
-Alertmanager reads its credentials from files, so nothing site-specific and nothing
-identifying your devices is in git — not even the destination. That is why Pushover
-was chosen over Telegram, ntfy, gotify and email; the rejected alternatives and the
-exact edit to switch to Telegram are in
-`platform/kube-prometheus-stack/values.yaml`.
+## Looking at it
 
-**The Alertmanager pod will not start until the Secret exists**, because the
-operator mounts it as a volume. That is deliberate: the alternative — Alertmanager
-running happily and failing every delivery — is indistinguishable from having no
-alerting at all.
+```sh
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
+# http://localhost:9090/alerts : what would fire
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093
+# http://localhost:9093 : what Alertmanager holds (and drops)
+```
 
-Three values, all documented in
-`platform/secrets/alertmanager-notify.sops.yaml.example`: a Pushover **application**
-token, your Pushover **user key**, and a **dead-man's-switch ping URL** from
-healthchecks.io or Better Stack. For the heartbeat, set the provider's grace period
-to **15–20 minutes** and point its notification at an address that does *not* depend
-on this cluster.
+## Turning alerting on
 
-Fill in the copy, seal it, **then** add the line to
-`platform/secrets/secret-generator.yaml` — in that order, or the whole
-`secrets-platform` Application fails ([secrets.md](secrets.md)). The key names are
-load-bearing: they become filenames and the paths are hard-coded in `values.yaml`,
-so renaming one gives an Alertmanager that starts and then fails every send.
+The design is written; each step is its own pull request:
 
-## The dead-man's switch is the most important route
+1. Put real Pushover values in `platform/secrets/alertmanager-notify.sops.yaml`
+   (`task secrets:edit -- platform/secrets/alertmanager-notify.sops.yaml`): a
+   Pushover application token and user key. `heartbeat-url` is a
+   dead-man's-switch ping URL (healthchecks.io or similar) whose own alert
+   reaches you without this cluster; set its grace period to 15 to 20 minutes.
+2. Configure Alertmanager in `platform/kube-prometheus-stack/values.yaml` to
+   read those files (Pushover receiver, `Watchdog` routed to the heartbeat every
+   5 minutes, severity routing below). Key names become file names: renaming one
+   gives an Alertmanager that starts and then fails every send.
+3. Add `alerts.yaml` (and `dashboard-data-protection.yaml`) to
+   `platform/kube-prometheus-stack/routes/kustomization.yaml`.
+4. Check: `AlertmanagerHasNoReceiverConfigured` clears within 6 hours, and a
+   test alert reaches the phone.
 
-`Watchdog` is an alert the chart ships that is **always firing, by design**. It is
-routed to the heartbeat URL every 5 minutes and never reaches the phone.
-
-Nothing running inside this cluster can report that this cluster is unreachable. The
-heartbeat turns "Prometheus, Alertmanager, the node they run on, or the house's
-internet has died" — the failure that silences every other alert — into an inbound
-notification from a third party. Without it, the monitoring stack's failure mode is
-silence, and silence gets read as health, which is worse than no alerting because it
-is believed.
-
-The route's `repeat_interval` is 5m and must stay comfortably shorter than the
-provider's grace period, or a normal quiet period is reported as an outage and you
-will mute the check within a week.
-
-## Severity conventions
-
-Two levels reach the phone. There is one operator and one phone, so routing warnings
-to a quieter destination was rejected — a warning that goes somewhere you do not look
-is the original problem again. Warnings are batched harder instead.
+### Severity conventions once enabled
 
 | Severity | Meaning | `group_wait` | `repeat_interval` |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `critical` | acting later costs data or availability | 1m | 4h |
-| `warning` | look at this week | 10m | 24h |
-| `none` | `Watchdog` only → heartbeat, never the phone | 0s | 5m |
+| `warning` | look at it this week | 10m | 24h |
+| `none` | `Watchdog` only, to the heartbeat, never the phone | 0s | 5m |
 
-Grouping is by `(alertname, namespace)`, and the base `group_wait` is 5m rather than
-the default 30s: a cold start fires every rule that has no data yet at once, and 30s
-means one notification per straggler.
+Grouping is by `(alertname, namespace)` with a base `group_wait` of 5m, so a
+cold start that fires every rule at once sends one batch. Inhibition rules are
+scoped with `equal: [node]`: a node going down suppresses the pod and volume
+alerts on that node, not cluster-wide. Several pod rules join `kube_pod_info`
+with `group_left(node)` for that reason; do not remove the joins.
 
-**Inhibition** is the other mechanism, and it is not interchangeable with grouping:
-it suppresses by *cause*. A node going down makes every pod on it unready, every PVC
-unreachable and every Service empty — thirty notifications for one event. The
-inhibit rules are scoped with `equal: [node]`; without that key an inhibit rule
-suppresses cluster-wide the moment any node goes down, which is how one turns into a
-silence. That scoping is also why several pod-level rules join `kube_pod_info` with
-`group_left(node)`: without the join the inhibition looks configured and silently
-never applies. Do not remove those joins as tidy-up.
+`Watchdog` always fires, by design: the heartbeat provider alerts when it stops
+arriving, which is the only way to learn that the cluster, Alertmanager or the
+house's internet is down. Never silence it.
 
 ## Silencing
 
-Silences are imperative, expire on their own, and are the right tool for planned
-work. Do not reach for editing a rule.
+Silences are imperative, expire on their own, and are the tool for planned
+work:
 
 ```sh
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093
-# then http://localhost:9093 -> Silences -> New
+# http://localhost:9093 -> Silences -> New
 ```
 
-- Always set a **duration**, never an indefinite silence. An indefinite silence is a
-  deleted alert that nobody remembers deleting.
-- Silence the narrowest matcher that works — `alertname` plus `namespace`, not
-  `severity`.
-- Before an OS or Kubernetes upgrade, silence `PodNotReady`, `PodPendingTooLong` and
-  `KubeNodeNotReady` for the length of the window. `ansible/os-upgrade.yml` drains
-  one node at a time, so these will fire legitimately.
-- Do **not** silence `Watchdog`. It is the one alert whose *absence* is the signal.
+- Always set a duration; an indefinite silence is a deleted alert nobody
+  remembers deleting.
+- Match the narrowest set that works (`alertname` plus `namespace`).
+- Before an OS or Kubernetes upgrade, silence `PodNotReady`,
+  `PodPendingTooLong` and `KubeNodeNotReady` for the window: each node is
+  drained in turn.
 
-## When an alert fires and the pod looks fine
+## When something looks healthy and is not
 
-Two failure modes this cluster has actually had, both of which read as something
-else.
+Two failure modes this cluster has had:
 
-**A container stuck `Waiting`, not crash-looping.** `PodStuckNotRunning` covers the
-`CreateContainerError` / `ImagePullBackOff` family, which the chart's
-`KubePodCrashLooping` cannot see — a container that never *starts* does not
-crash-loop, it waits. When you get one: **read `state`, not `lastState`.** The
-canonical case was a `cilium-agent` whose log pointed at the network
-(`dial tcp …:6443: no route to host`) — a `lastState` line months old. The current
-cause was containerd holding a stale container-name reservation from a dead sandbox,
-which the kubelet could never win. The pod UID is part of the container name, so:
+- A container stuck `Waiting` (`CreateContainerError`, `ImagePullBackOff`) does
+  not crash-loop, so `KubePodCrashLooping` never sees it. Read `state`, not
+  `lastState`, in `kubectl describe pod`. A stale containerd name reservation
+  from a dead sandbox is cleared by deleting the pod (new UID, new name).
+- A pod `Running 1/1` with nothing listening: the qBittorrent case
+  ([runbooks/arr-qbittorrent.md](runbooks/arr-qbittorrent.md)). Only a readiness
+  probe, or a check from outside like blackbox-exporter, catches it.
 
-```sh
-kubectl -n <ns> delete pod <pod>      # new UID, new name, no collision
-```
+## Why it is like this
 
-**A pod `Running 1/1` with `0` restarts and nothing listening.** That is the
-qBittorrent outage, and no metric in this cluster would have caught it: Kubernetes
-believed the pod was healthy, so every derived metric inherited the wrong premise.
-The fix was a readiness probe, which every workload now has; `PodNotReady` and
-`ServiceHasNoReadyBackend` are the delivery mechanism, not the detection.
-[runbooks/arr-qbittorrent.md](runbooks/arr-qbittorrent.md).
-
-The remaining gap is honest: **blackbox-exporter is not deployed**, so `probe_success`
-does not exist and no rule uses it. It is the one thing that would catch the second
-failure mode without a probe, because it tests the thing rather than asking
-Kubernetes about it. Highest-value addition left in this area.
+- Parity first: the chart was adopted with its running values, and alerting is
+  new behaviour that ships in its own changes
+  ([decisions.md](decisions.md#adopt-at-parity-change-afterwards)).
+- Pushover plus an external heartbeat: one person, one phone. Routing warnings
+  to a quieter channel was rejected, because a warning that goes where nobody
+  looks is the original problem again; warnings are batched harder instead.
+- Credentials as mounted files, not values: nothing about the destination
+  devices is in git.
