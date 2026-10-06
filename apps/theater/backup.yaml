@@ -369,7 +369,7 @@ spec:
               # # here rather than being added to the loop above.
               # ###############################################################
               # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-              image: ghcr.io/cloudnative-pg/postgresql:17.6
+              image: ghcr.io/cloudnative-pg/postgresql:17.11
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "/scripts/dump-postgres.sh"]
               volumeMounts:
