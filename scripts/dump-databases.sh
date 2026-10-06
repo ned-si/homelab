@@ -196,8 +196,7 @@ kubectl get clusters.postgresql.cnpg.io -A \
 
 # ---------------------------------------------------------------------------
 # 2. MariaDB (Seafile). Not CloudNativePG, so no PITR and no generated
-#    credentials -- the root password comes from the pod's own environment and
-#    never leaves it.
+#    credentials -- the root password comes from the Secret `seafile-db`.
 # ---------------------------------------------------------------------------
 if kubectl -n seafile get deploy mariadb >/dev/null 2>&1; then
   f="$DEST/mariadb-seafile.sql.gz"
@@ -206,14 +205,17 @@ if kubectl -n seafile get deploy mariadb >/dev/null 2>&1; then
   # Seafile keeps working while this runs. --routines/--events/--triggers because
   # the default omits them and their absence only shows up at restore time.
   #
-  # SC2016: single quotes are load-bearing for SECURITY here, not just for
-  # correctness. `$MARIADB_ROOT_PASSWORD` must be expanded by the shell in the
-  # pod, where it is already in the environment. Expanding it locally would put
-  # the plaintext root password into this process's argv -- visible to `ps` for
-  # every user on this machine, and to anything reading /proc.
+  # The password is read from the Secret, not from the pod's
+  # MARIADB_ROOT_PASSWORD: a pod's environment is fixed when it starts, so after
+  # a rotation the running pod still holds the old value. It travels through a
+  # pipe into `read` in the pod and reaches mariadb-dump as MYSQL_PWD, so it is
+  # never on an argv here or in the pod (visible to `ps` and /proc).
   # shellcheck disable=SC2016
-  sha=$(kubectl -n seafile exec deploy/mariadb -- \
-          sh -c 'mariadb-dump -u root -p"$MARIADB_ROOT_PASSWORD" \
+  sha=$(kubectl -n seafile get secret seafile-db -o jsonpath='{.data.root-password}' 2>/dev/null \
+        | base64 -d \
+        | kubectl -n seafile exec -i deploy/mariadb -- \
+          sh -c 'IFS= read -r MYSQL_PWD; export MYSQL_PWD; \
+                 mariadb-dump -u root \
                    --single-transaction --routines --events --triggers \
                    --databases ccnet_db seafile_db seahub_db \
                  2>/tmp/m.err | gzip -c > /tmp/m.sql.gz \
