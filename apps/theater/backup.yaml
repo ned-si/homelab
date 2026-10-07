@@ -1,38 +1,7 @@
-# Backups for the `theater` namespace.
-#
-# ###########################################################################
-# # THIS NAMESPACE HAD NO BACKUP OF ANY KIND. NOT A PLACEHOLDER -- NOTHING.
-# #
-# # Two separate gaps, and the second is the serious one:
-# #
-# #   1. Six /config volumes with no restic job. docs/backups.md:74-75 claimed
-# #      "Their /config volumes *are* covered by the theater restic job, which
-# #      captures the useful part." There was no theater restic job. The same
-# #      document's own table, twenty lines earlier, correctly said only two
-# #      restic CronJobs existed in the whole repository. That sentence needs
-# #      deleting; docs/ is not edited by this change.
-# #
-# #   2. FOUR POSTGRES CLUSTERS WITH NO `spec.backup` AT ALL.
-# #      sonarr-postgresql, radarr-postgresql, lidarr-postgresql and
-# #      prowlarr-postgresql have no barmanObjectStore, so barman archives
-# #      nothing for them -- there is not even a REPLACE-ME bucket to fix.
-# #      Meanwhile platform/backup-verify/restore-postgres.yaml lists
-# #      sonarr-postgresql and radarr-postgresql in its verification set, so
-# #      once the bucket exists the weekly drill would fail forever on two
-# #      databases that were never backed up. A check that always fails is a
-# #      check you learn to ignore -- the same reasoning that made
-# #      restore-files.yaml comment out the repositories that did not exist.
-# # ###########################################################################
-#
-# WHAT THIS FILE DOES AND DOES NOT FIX
-#
-# It adds file backups and LOGICAL DATABASE DUMPS. It cannot add WAL archiving:
-# `spec.backup.barmanObjectStore` has to go on each Cluster resource, which lives
-# in sonarr.yaml/radarr.yaml/lidarr.yaml/prowlarr.yaml. Adding it there is a
-# separate edit and is listed as a manual step. So these databases get
-# nightly point-in-time snapshots, not point-in-time recovery. For quality
-# profiles and indexer settings that is a fair trade; it is stated rather than
-# implied.
+# Backups for the `theater` namespace: the six /config volumes (restic) and
+# logical dumps of the four *arr Postgres clusters. The clusters have no WAL
+# archiving (`spec.backup`), so these are nightly snapshots, not point-in-time
+# recovery; for quality profiles and indexer settings that is enough.
 #
 # ---------------------------------------------------------------------------
 # ONE RESTIC REPOSITORY, SIX TAGS
@@ -341,33 +310,9 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: dump
-              # ###############################################################
-              # # THIS IMAGE IS PINNED TO MATCH THESE FOUR CLUSTERS, AND ONLY
-              # # THESE FOUR.
-              # #
-              # # All four *arr clusters run
-              # # ghcr.io/cloudnative-pg/postgresql:17.6, so pg_dump 17.6 is an
-              # # exact match.
-              # #
-              # # The repository does NOT have a uniform Postgres image and this
-              # # job must not pretend otherwise:
-              # #
-              # #   keycloak-db   postgresql:17.0     (pinned to the running
-              # #                                      version; see its comment)
-              # #   immich-db     cloudnative-vectorchord:17-1.1.0, with
-              # #                 shared_preload_libraries: [vchord.so]
-              # #   immich-db, AS RUNNING TODAY on the live cluster:
-              # #                 cloudnative-pgvecto.rs:16.5-v0.3.0 on PG 16,
-              # #                 with vectors.so preloaded.
-              # #
-              # # An Immich dump taken from the live cluster will NOT restore
-              # # against a stock postgresql:17 image -- it needs the extension's
-              # # shared library present. That is exactly why
-              # # scripts/verify-dump-restore.sh derives both imageName and
-              # # shared_preload_libraries from the SOURCE cluster instead of
-              # # guessing, and why immich and keycloak are covered by barman
-              # # here rather than being added to the loop above.
-              # ###############################################################
+              # Same image as the four *arr clusters (one Renovate dependency),
+              # so pg_dump always matches the server. immich-db and keycloak-db
+              # run other images and are not dumped here (docs/backups.md).
               # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
               image: ghcr.io/cloudnative-pg/postgresql:18.6
               imagePullPolicy: IfNotPresent
