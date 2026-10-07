@@ -22,6 +22,8 @@ spec:
       app.kubernetes.io/name: keycloak
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-10-07T00:00:00Z"
       labels:
         app.kubernetes.io/name: keycloak
     spec:
