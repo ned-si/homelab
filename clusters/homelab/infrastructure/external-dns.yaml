@@ -19,7 +19,7 @@ spec:
     - repoURL: https://kubernetes-sigs.github.io/external-dns/
       chart: external-dns
       # renovate: datasource=helm depName=external-dns registryUrl=https://kubernetes-sigs.github.io/external-dns/
-      targetRevision: v1.15.0
+      targetRevision: 1.15.2
       helm:
         releaseName: external-dns
         valueFiles:
