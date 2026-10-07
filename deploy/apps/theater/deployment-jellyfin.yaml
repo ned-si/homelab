@@ -35,7 +35,7 @@ spec:
       - env:
         - name: JELLYFIN_PublishedServerUrl
           value: https://cinema.lilalala.com/
-        image: ghcr.io/jellyfin/jellyfin:10.11.11
+        image: ghcr.io/jellyfin/jellyfin:12.1
         imagePullPolicy: Always
         name: jellyfin
         ports:
