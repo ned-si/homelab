@@ -326,7 +326,7 @@
                 "type": "array"
               },
               "toEntities": {
-                "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`,`host`,`remote-node`,`kube-apiserver`, `init`,\n`health`,`unmanaged` and `all`.",
                 "items": {
                   "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                   "enum": [
@@ -375,7 +375,7 @@
                       "type": "string"
                     },
                     "matchPattern": {
-                      "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subdomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
+                      "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
                       "maxLength": 255,
                       "pattern": "^([-a-zA-Z0-9_*]+[.]?)+$",
                       "type": "string"
@@ -679,7 +679,7 @@
                                 "type": "string"
                               },
                               "matchPattern": {
-                                "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subdomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
+                                "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
                                 "maxLength": 255,
                                 "pattern": "^([-a-zA-Z0-9_*]+[.]?)+$",
                                 "type": "string"
@@ -698,7 +698,7 @@
                               "headerMatches": {
                                 "description": "HeaderMatches is a list of HTTP headers which must be\npresent and match against the given values. Mismatch field can be used\nto specify what to do when there is no match.",
                                 "items": {
-                                  "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string or a secret value.\nIf none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
+                                  "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string, a secret value, or\na regex.  If none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
                                   "properties": {
                                     "mismatch": {
                                       "description": "Mismatch identifies what to do in case there is no match. The default is\nto drop the request. Otherwise the overall rule is still considered as\nmatching, but the mismatches are logged in the access log.",
@@ -830,14 +830,9 @@
                     "serverNames": {
                       "description": "ServerNames is a list of allowed TLS SNI values. If not empty, then\nTLS must be present and one of the provided SNIs must be indicated in the\nTLS handshake.",
                       "items": {
-                        "description": "ServerName allows using prefix only wildcards to match DNS names.\n\n- \"*\" matches 0 or more DNS valid characters, and may only occur at the\nbeginning of the pattern. As a special case a \"*\" as the leftmost character,\nwithout a following \".\" matches all subdomains as well as the name to the right.\n\nExamples:\n  - `*.cilium.io` matches exactly one subdomain of cilium at that level www.cilium.io and blog.cilium.io match, cilium.io and google.com do not.\n  - `**.cilium.io` matches more than one subdomain of cilium, e.g. sub1.sub2.cilium.io and sub.cilium.io match, cilium.io do not.",
-                        "maxLength": 255,
-                        "pattern": "^(\\*?\\*\\.)?([-a-zA-Z0-9_]+\\.?)+$",
                         "type": "string"
                       },
-                      "minItems": 1,
-                      "type": "array",
-                      "x-kubernetes-list-type": "set"
+                      "type": "array"
                     },
                     "terminatingTLS": {
                       "description": "TerminatingTLS is the TLS context for the connection terminated by\nthe L7 proxy.  For egress policy this specifies the server-side TLS\nparameters to be applied on the connections originated from the local\nendpoint and terminated by the L7 proxy. For ingress policy this specifies\nthe server-side TLS parameters to be applied on the connections\noriginated from a remote source and terminated by the L7 proxy.",
@@ -1280,7 +1275,7 @@
                 "type": "array"
               },
               "toEntities": {
-                "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`,`host`,`remote-node`,`kube-apiserver`, `init`,\n`health`,`unmanaged` and `all`.",
                 "items": {
                   "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                   "enum": [
@@ -1883,7 +1878,7 @@
                 "type": "array"
               },
               "fromEntities": {
-                "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster` and `host`",
                 "items": {
                   "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                   "enum": [
@@ -2304,7 +2299,7 @@
                                 "type": "string"
                               },
                               "matchPattern": {
-                                "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subdomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
+                                "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
                                 "maxLength": 255,
                                 "pattern": "^([-a-zA-Z0-9_*]+[.]?)+$",
                                 "type": "string"
@@ -2323,7 +2318,7 @@
                               "headerMatches": {
                                 "description": "HeaderMatches is a list of HTTP headers which must be\npresent and match against the given values. Mismatch field can be used\nto specify what to do when there is no match.",
                                 "items": {
-                                  "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string or a secret value.\nIf none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
+                                  "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string, a secret value, or\na regex.  If none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
                                   "properties": {
                                     "mismatch": {
                                       "description": "Mismatch identifies what to do in case there is no match. The default is\nto drop the request. Otherwise the overall rule is still considered as\nmatching, but the mismatches are logged in the access log.",
@@ -2455,14 +2450,9 @@
                     "serverNames": {
                       "description": "ServerNames is a list of allowed TLS SNI values. If not empty, then\nTLS must be present and one of the provided SNIs must be indicated in the\nTLS handshake.",
                       "items": {
-                        "description": "ServerName allows using prefix only wildcards to match DNS names.\n\n- \"*\" matches 0 or more DNS valid characters, and may only occur at the\nbeginning of the pattern. As a special case a \"*\" as the leftmost character,\nwithout a following \".\" matches all subdomains as well as the name to the right.\n\nExamples:\n  - `*.cilium.io` matches exactly one subdomain of cilium at that level www.cilium.io and blog.cilium.io match, cilium.io and google.com do not.\n  - `**.cilium.io` matches more than one subdomain of cilium, e.g. sub1.sub2.cilium.io and sub.cilium.io match, cilium.io do not.",
-                        "maxLength": 255,
-                        "pattern": "^(\\*?\\*\\.)?([-a-zA-Z0-9_]+\\.?)+$",
                         "type": "string"
                       },
-                      "minItems": 1,
-                      "type": "array",
-                      "x-kubernetes-list-type": "set"
+                      "type": "array"
                     },
                     "terminatingTLS": {
                       "description": "TerminatingTLS is the TLS context for the connection terminated by\nthe L7 proxy.  For egress policy this specifies the server-side TLS\nparameters to be applied on the connections originated from the local\nendpoint and terminated by the L7 proxy. For ingress policy this specifies\nthe server-side TLS parameters to be applied on the connections\noriginated from a remote source and terminated by the L7 proxy.",
@@ -2704,7 +2694,7 @@
                 "type": "array"
               },
               "fromEntities": {
-                "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster` and `host`",
                 "items": {
                   "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                   "enum": [
@@ -3007,19 +2997,6 @@
             "additionalProperties": false
           },
           "type": "array"
-        },
-        "log": {
-          "description": "Log specifies custom policy-specific Hubble logging configuration.",
-          "properties": {
-            "value": {
-              "description": "Value is a free-form string that is included in Hubble flows\nthat match this policy. The string is limited to 32 printable characters.",
-              "maxLength": 32,
-              "pattern": "^\\PC*$",
-              "type": "string"
-            }
-          },
-          "type": "object",
-          "additionalProperties": false
         },
         "nodeSelector": {
           "description": "NodeSelector selects all nodes which should be subject to this rule.\nEndpointSelector and NodeSelector cannot be both empty and are mutually\nexclusive. Can only be used in CiliumClusterwideNetworkPolicies.",
@@ -3397,7 +3374,7 @@
                   "type": "array"
                 },
                 "toEntities": {
-                  "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                  "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`,`host`,`remote-node`,`kube-apiserver`, `init`,\n`health`,`unmanaged` and `all`.",
                   "items": {
                     "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                     "enum": [
@@ -3446,7 +3423,7 @@
                         "type": "string"
                       },
                       "matchPattern": {
-                        "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subdomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
+                        "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
                         "maxLength": 255,
                         "pattern": "^([-a-zA-Z0-9_*]+[.]?)+$",
                         "type": "string"
@@ -3750,7 +3727,7 @@
                                   "type": "string"
                                 },
                                 "matchPattern": {
-                                  "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subdomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
+                                  "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
                                   "maxLength": 255,
                                   "pattern": "^([-a-zA-Z0-9_*]+[.]?)+$",
                                   "type": "string"
@@ -3769,7 +3746,7 @@
                                 "headerMatches": {
                                   "description": "HeaderMatches is a list of HTTP headers which must be\npresent and match against the given values. Mismatch field can be used\nto specify what to do when there is no match.",
                                   "items": {
-                                    "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string or a secret value.\nIf none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
+                                    "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string, a secret value, or\na regex.  If none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
                                     "properties": {
                                       "mismatch": {
                                         "description": "Mismatch identifies what to do in case there is no match. The default is\nto drop the request. Otherwise the overall rule is still considered as\nmatching, but the mismatches are logged in the access log.",
@@ -3901,14 +3878,9 @@
                       "serverNames": {
                         "description": "ServerNames is a list of allowed TLS SNI values. If not empty, then\nTLS must be present and one of the provided SNIs must be indicated in the\nTLS handshake.",
                         "items": {
-                          "description": "ServerName allows using prefix only wildcards to match DNS names.\n\n- \"*\" matches 0 or more DNS valid characters, and may only occur at the\nbeginning of the pattern. As a special case a \"*\" as the leftmost character,\nwithout a following \".\" matches all subdomains as well as the name to the right.\n\nExamples:\n  - `*.cilium.io` matches exactly one subdomain of cilium at that level www.cilium.io and blog.cilium.io match, cilium.io and google.com do not.\n  - `**.cilium.io` matches more than one subdomain of cilium, e.g. sub1.sub2.cilium.io and sub.cilium.io match, cilium.io do not.",
-                          "maxLength": 255,
-                          "pattern": "^(\\*?\\*\\.)?([-a-zA-Z0-9_]+\\.?)+$",
                           "type": "string"
                         },
-                        "minItems": 1,
-                        "type": "array",
-                        "x-kubernetes-list-type": "set"
+                        "type": "array"
                       },
                       "terminatingTLS": {
                         "description": "TerminatingTLS is the TLS context for the connection terminated by\nthe L7 proxy.  For egress policy this specifies the server-side TLS\nparameters to be applied on the connections originated from the local\nendpoint and terminated by the L7 proxy. For ingress policy this specifies\nthe server-side TLS parameters to be applied on the connections\noriginated from a remote source and terminated by the L7 proxy.",
@@ -4351,7 +4323,7 @@
                   "type": "array"
                 },
                 "toEntities": {
-                  "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                  "description": "ToEntities is a list of special entities to which the endpoint subject\nto the rule is allowed to initiate connections. Supported entities are\n`world`, `cluster`,`host`,`remote-node`,`kube-apiserver`, `init`,\n`health`,`unmanaged` and `all`.",
                   "items": {
                     "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                     "enum": [
@@ -4954,7 +4926,7 @@
                   "type": "array"
                 },
                 "fromEntities": {
-                  "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                  "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster` and `host`",
                   "items": {
                     "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                     "enum": [
@@ -5375,7 +5347,7 @@
                                   "type": "string"
                                 },
                                 "matchPattern": {
-                                  "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subdomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
+                                  "description": "MatchPattern allows using wildcards to match DNS names. All wildcards are\ncase insensitive. The wildcards are:\n- \"*\" matches 0 or more DNS valid characters, and may occur anywhere in\nthe pattern. As a special case a \"*\" as the leftmost character, without a\nfollowing \".\" matches all subdomains as well as the name to the right.\nA trailing \".\" is automatically added when missing.\n\nExamples:\n`*.cilium.io` matches subomains of cilium at that level\n  www.cilium.io and blog.cilium.io match, cilium.io and google.com do not\n`*cilium.io` matches cilium.io and all subdomains ends with \"cilium.io\"\n  except those containing \".\" separator, subcilium.io and sub-cilium.io match,\n  www.cilium.io and blog.cilium.io does not\nsub*.cilium.io matches subdomains of cilium where the subdomain component\nbegins with \"sub\"\n  sub.cilium.io and subdomain.cilium.io match, www.cilium.io,\n  blog.cilium.io, cilium.io and google.com do not",
                                   "maxLength": 255,
                                   "pattern": "^([-a-zA-Z0-9_*]+[.]?)+$",
                                   "type": "string"
@@ -5394,7 +5366,7 @@
                                 "headerMatches": {
                                   "description": "HeaderMatches is a list of HTTP headers which must be\npresent and match against the given values. Mismatch field can be used\nto specify what to do when there is no match.",
                                   "items": {
-                                    "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string or a secret value.\nIf none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
+                                    "description": "HeaderMatch extends the HeaderValue for matching requirement of a\nnamed header field against an immediate string, a secret value, or\na regex.  If none of the optional fields is present, then the\nheader value is not matched, only presence of the header is enough.",
                                     "properties": {
                                       "mismatch": {
                                         "description": "Mismatch identifies what to do in case there is no match. The default is\nto drop the request. Otherwise the overall rule is still considered as\nmatching, but the mismatches are logged in the access log.",
@@ -5526,14 +5498,9 @@
                       "serverNames": {
                         "description": "ServerNames is a list of allowed TLS SNI values. If not empty, then\nTLS must be present and one of the provided SNIs must be indicated in the\nTLS handshake.",
                         "items": {
-                          "description": "ServerName allows using prefix only wildcards to match DNS names.\n\n- \"*\" matches 0 or more DNS valid characters, and may only occur at the\nbeginning of the pattern. As a special case a \"*\" as the leftmost character,\nwithout a following \".\" matches all subdomains as well as the name to the right.\n\nExamples:\n  - `*.cilium.io` matches exactly one subdomain of cilium at that level www.cilium.io and blog.cilium.io match, cilium.io and google.com do not.\n  - `**.cilium.io` matches more than one subdomain of cilium, e.g. sub1.sub2.cilium.io and sub.cilium.io match, cilium.io do not.",
-                          "maxLength": 255,
-                          "pattern": "^(\\*?\\*\\.)?([-a-zA-Z0-9_]+\\.?)+$",
                           "type": "string"
                         },
-                        "minItems": 1,
-                        "type": "array",
-                        "x-kubernetes-list-type": "set"
+                        "type": "array"
                       },
                       "terminatingTLS": {
                         "description": "TerminatingTLS is the TLS context for the connection terminated by\nthe L7 proxy.  For egress policy this specifies the server-side TLS\nparameters to be applied on the connections originated from the local\nendpoint and terminated by the L7 proxy. For ingress policy this specifies\nthe server-side TLS parameters to be applied on the connections\noriginated from a remote source and terminated by the L7 proxy.",
@@ -5775,7 +5742,7 @@
                   "type": "array"
                 },
                 "fromEntities": {
-                  "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster`, `host`, `remote-node`, `kube-apiserver`, `ingress`, `init`,\n`health`, `unmanaged`, `none` and `all`.",
+                  "description": "FromEntities is a list of special entities which the endpoint subject\nto the rule is allowed to receive connections from. Supported entities are\n`world`, `cluster` and `host`",
                   "items": {
                     "description": "Entity specifies the class of receiver/sender endpoints that do not have\nindividual identities.  Entities are used to describe \"outside of cluster\",\n\"host\", etc.",
                     "enum": [
@@ -6078,19 +6045,6 @@
               "additionalProperties": false
             },
             "type": "array"
-          },
-          "log": {
-            "description": "Log specifies custom policy-specific Hubble logging configuration.",
-            "properties": {
-              "value": {
-                "description": "Value is a free-form string that is included in Hubble flows\nthat match this policy. The string is limited to 32 printable characters.",
-                "maxLength": 32,
-                "pattern": "^\\PC*$",
-                "type": "string"
-              }
-            },
-            "type": "object",
-            "additionalProperties": false
           },
           "nodeSelector": {
             "description": "NodeSelector selects all nodes which should be subject to this rule.\nEndpointSelector and NodeSelector cannot be both empty and are mutually\nexclusive. Can only be used in CiliumClusterwideNetworkPolicies.",
