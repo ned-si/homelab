@@ -63,6 +63,10 @@ spec:
               value: "true"
             - name: PAPERLESS_REDIRECT_LOGIN_TO_SSO
               value: "true"
+            # Session cookie lifetime in seconds: one year (default 21 days).
+            # Log in once per device; see docs/architecture.md "Sessions".
+            - name: PAPERLESS_SESSION_COOKIE_AGE
+              value: "31536000"
           ports:
             - name: http
               containerPort: 8000
