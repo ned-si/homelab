@@ -31,6 +31,11 @@ metadata:
     ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002); the digest pin is its own change, see docs/roadmap.md
 spec:
   replicas: 1
+  # One RWO config volume: the new pod cannot attach it until the old one
+  # is gone, so a rolling update would hang.
+  strategy:
+    rollingUpdate: null
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: sonarr

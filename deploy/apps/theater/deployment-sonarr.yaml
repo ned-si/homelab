@@ -23,6 +23,9 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: sonarr
+  strategy:
+    rollingUpdate: null
+    type: Recreate
   template:
     metadata:
       labels:
