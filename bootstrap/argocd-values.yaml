@@ -1,5 +1,5 @@
-# Helm values for the `argocd` release (namespace `argo`), chart argo-cd 10.2.2
-# (Argo CD v3.4.6). The release is managed with the helm CLI, not by an Argo
+# Helm values for the `argocd` release (namespace `argo`), chart argo-cd 7.9.1
+# (Argo CD v2.14.11). The release is managed with the helm CLI, not by an Argo
 # CD Application, so merging a change here has no live effect on its own.
 #
 # Apply only from a CI-green commit on main, never from a working tree:
@@ -29,6 +29,7 @@ configs:
     application.instanceLabelKey: argocd.argoproj.io/instance
     # Pinned: Argo CD 3.0 changes the default to annotation tracking.
     application.resourceTrackingMethod: label
+    server.rbac.log.enforce.enable: false
     timeout.reconciliation: 180s
     timeout.hard.reconciliation: 0s
     # KSOPS is a kustomize exec plugin. Only the three */secrets directories
