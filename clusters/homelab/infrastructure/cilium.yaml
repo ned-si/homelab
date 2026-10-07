@@ -33,7 +33,7 @@ spec:
     - repoURL: https://helm.cilium.io
       chart: cilium
       # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-      targetRevision: 1.18.14
+      targetRevision: 1.17.18
       helm:
         releaseName: cilium
         valueFiles:
