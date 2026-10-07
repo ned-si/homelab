@@ -233,6 +233,13 @@
       allowedVersions: '<11.0.0',
     },
     {
+      // kubectl supports one minor of skew against the API server. Move with
+      // the cluster (K8S_VERSION in .github/workflows/ci.yaml).
+      description: 'Keep kubectl images on the cluster minor (1.32)',
+      matchPackageNames: ['registry.k8s.io/kubectl', 'bitnami/kubectl'],
+      allowedVersions: '<1.33.0',
+    },
+    {
       // keycloak-db has no backup job, so the PreSync backup that guards every
       // other database major cannot run for it. Minors only restart the pod.
       // Lift once keycloak-db is backed up (docs/backups.md).
