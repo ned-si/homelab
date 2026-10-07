@@ -100,6 +100,52 @@ should be the same.
 Rejected for now: rebase-merge, which keeps atomic commits on `main` but makes
 every commit a deployment and every rollback a multi-commit revert.
 
+## Automatic rollback
+
+Argo CD Notifications sends a GitHub `repository_dispatch` (`argo-degraded`)
+when any Application's sync fails or its health turns Degraded
+(`bootstrap/argocd-values.yaml`), once per Application and revision, with the
+revision of that Application's last sync. `.github/workflows/auto-rollback.yaml`
+then opens a revert pull request titled `revert: <title> (auto)` with
+auto-merge on, plus an issue, but only when every guard rail in
+`scripts/ci/auto-rollback-decide.sh` holds: the commit is the newest on `main`,
+merged under an hour ago, it changed a file of that Application, the
+Application is not `cilium` or `democratic-csi`, and it would not be a second
+automatic revert in a row. Otherwise it opens an issue (one per Application,
+later reports are comments) with the reason. For the apps with a database, the
+issue says a revert does not undo a schema migration: restore from backup.
+
+Test without side effects: `gh workflow run auto-rollback.yaml -f app=<app>
+-f revision=<sha>` (dry run by default) prints the decision and creates
+nothing.
+
+Turning it on is one step: create a fine-grained token (resource owner
+`ned-si`, only `ned-si/homelab`, Contents, Pull requests and Issues read and
+write), then
+
+```sh
+gh secret set AUTO_ROLLBACK_TOKEN --repo ned-si/homelab      # paste the token
+# in secrets.local.env: AUTO_ROLLBACK_GITHUB_TOKEN=<the token>
+rm platform/secrets/argocd-notifications.sops.yaml
+scripts/seal-secrets-from-env.sh                             # re-seals that file only
+```
+
+and merge the re-sealed file. Until then the sealed value is a `PENDING`
+sentinel: GitHub refuses the dispatch and nothing happens.
+
+Why: Renovate automerges every update on green CI, so a bad update must be
+undone without waiting for a person. The pull request goes through the same CI
+and branch protection as any other; it is opened with the owner's token because
+GitHub Actions may not open pull requests here, and one opened by
+`GITHUB_TOKEN` would not start CI. Reverting the CNI or the CSI driver is
+itself a risky deploy, and a broken Argo CD cannot deploy any revert, so those
+stay with a person.
+
+Rejected: Argo CD's own rollback to a previous sync (`selfHeal` from `main`
+undoes it within minutes), and reverting whatever merged last (several merges
+can land close together; the failure is pinned on the Application's own last
+sync).
+
 ## No service mesh
 
 No Istio, no Linkerd. Zero-trust networking and traffic observability are

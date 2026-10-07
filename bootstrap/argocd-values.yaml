@@ -89,8 +89,96 @@ configs:
 dex:
   enabled: true
 
+# Argo CD Notifications reports a failed sync or a Degraded Application to
+# GitHub as a `repository_dispatch` (event type `argo-degraded`), which runs
+# .github/workflows/auto-rollback.yaml. Every Application is subscribed
+# (`subscriptions`), so no Application needs an annotation.
+#
+# The token is the key `github-token` of the Secret
+# argocd-notifications-github, sealed in
+# platform/secrets/argocd-notifications.sops.yaml and synced by the
+# `secrets-platform` Application. The chart therefore creates no Secret of its
+# own (`secret.create: false`) and points the controller at that one
+# (`secret.name`, passed as --secret-name). Until a real token is sealed the
+# key holds a PENDING sentinel: GitHub answers 401 and nothing is dispatched.
+#
+# The payload carries the revision of the Application's last sync operation
+# (`syncResult`, else the requested `operation.sync`), single- or
+# multi-source, so the workflow sees the commit that deployed the failing
+# change rather than the newest commit on main. Chart versions in a
+# multi-source revision list are ignored by the workflow. `oncePer` on the
+# same fields sends one dispatch per Application and revision.
 notifications:
   enabled: true
+  secret:
+    create: false
+    name: argocd-notifications-github
+  notifiers:
+    service.webhook.github-dispatch: |
+      url: https://api.github.com
+      headers:
+        - name: Accept
+          value: application/vnd.github+json
+        - name: Content-Type
+          value: application/json
+        - name: X-GitHub-Api-Version
+          value: "2022-11-28"
+        - name: Authorization
+          value: Bearer $github-token
+  subscriptions:
+    - recipients:
+        - github-dispatch
+      triggers:
+        - on-sync-failed
+        - on-health-degraded
+  triggers:
+    trigger.on-sync-failed: |
+      - description: The sync operation failed or errored.
+        when: app.status?.operationState?.phase in ['Error', 'Failed']
+        oncePer: >-
+          [app.status?.operationState?.syncResult?.revision,
+          app.status?.operationState?.syncResult?.revisions,
+          app.status?.operationState?.operation?.sync?.revision,
+          app.status?.operationState?.operation?.sync?.revisions]
+        send:
+          - argo-degraded-sync-failed
+    trigger.on-health-degraded: |
+      - description: The Application's health is Degraded.
+        when: app.status?.health?.status == 'Degraded'
+        oncePer: >-
+          [app.status?.operationState?.syncResult?.revision,
+          app.status?.operationState?.syncResult?.revisions,
+          app.status?.operationState?.operation?.sync?.revision,
+          app.status?.operationState?.operation?.sync?.revisions]
+        send:
+          - argo-degraded-health
+  # `{{-` trims the line break before it, so "revision" is one line of
+  # space-separated revisions.
+  templates:
+    template.argo-degraded-sync-failed: |
+      webhook:
+        github-dispatch:
+          method: POST
+          path: /repos/ned-si/homelab/dispatches
+          body: |
+            {"event_type": "argo-degraded", "client_payload": {
+            "app": "{{ .app.metadata.name }}", "trigger": "on-sync-failed", "revision": "
+            {{- with .app.status.operationState }}
+            {{- with .syncResult }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}
+            {{- with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}
+            {{- end }}"}}
+    template.argo-degraded-health: |
+      webhook:
+        github-dispatch:
+          method: POST
+          path: /repos/ned-si/homelab/dispatches
+          body: |
+            {"event_type": "argo-degraded", "client_payload": {
+            "app": "{{ .app.metadata.name }}", "trigger": "on-health-degraded", "revision": "
+            {{- with .app.status.operationState }}
+            {{- with .syncResult }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}
+            {{- with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}
+            {{- end }}"}}
 
 # KSOPS on the repo-server: an init container copies the ksops binary into an
 # emptyDir that is mounted on PATH; Argo CD's bundled kustomize (v5.4.3) runs

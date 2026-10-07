@@ -120,6 +120,7 @@ apps/secrets/seafile-db|PUT_A_FRESHLY_GENERATED_PASSWORD_HERE=SEAFILE_DB_ROOT_PA
 apps/secrets/recyclarr-api-keys|PUT_THE_SONARR_API_KEY_HERE=RECYCLARR_SONARR_API_KEY,PUT_THE_RADARR_API_KEY_HERE=RECYCLARR_RADARR_API_KEY
 apps/secrets/theater-sso|PUT_THE_KEYCLOAK_THEATER_SSO_CLIENT_SECRET_HERE=THEATER_SSO_CLIENT_SECRET,PUT_A_FRESHLY_GENERATED_COOKIE_SECRET_HERE=THEATER_SSO_COOKIE_SECRET
 platform/secrets/alertmanager-notify|PUT_THE_PUSHOVER_APPLICATION_TOKEN_HERE=PUSHOVER_TOKEN,PUT_THE_PUSHOVER_USER_KEY_HERE=PUSHOVER_USER_KEY,PUT_THE_HEARTBEAT_PING_URL_HERE=HEARTBEAT_URL
+platform/secrets/argocd-notifications|PUT_THE_AUTO_ROLLBACK_GITHUB_TOKEN_HERE=AUTO_ROLLBACK_GITHUB_TOKEN
 "
 
 # Files allowed to seal with `__PENDING__` values. See the block at the top.
@@ -127,6 +128,7 @@ platform/secrets/alertmanager-notify|PUT_THE_PUSHOVER_APPLICATION_TOKEN_HERE=PUS
 PENDING_OK="
 platform/secrets/s3-backup
 platform/secrets/alertmanager-notify
+platform/secrets/argocd-notifications
 apps/secrets/recyclarr-api-keys
 apps/secrets/theater-sso
 "
