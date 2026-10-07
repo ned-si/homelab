@@ -66,8 +66,13 @@ No CloudNativePG cluster has `spec.backup` or a barman plugin, so no WAL is
 archived and there is no point-in-time recovery for any database. The
 `ContinuousArchiving=True` condition CNPG reports on every cluster is meaningless
 without a target: the archive command succeeds without sending anything. The
-Barman Cloud plugin (`platform/barman-cloud-plugin/`) needs CNPG 1.26 or later; the
-cluster runs CNPG 1.24.1.
+cluster runs CNPG 1.30.1, so the Barman Cloud plugin
+(`platform/barman-cloud-plugin/`) can be wired in; that is not done yet.
+
+Before every sync of `mealie`, `seafile` and `theater`, an Argo CD PreSync hook
+(`presync-backup.yaml` in each app) runs that app's database backup CronJob
+once and waits for it to complete. A failed backup fails the sync, so no image
+change, including a database major, is applied without a fresh, verified dump.
 
 ### Outside the cluster
 
