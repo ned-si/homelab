@@ -135,15 +135,25 @@ notifications:
     trigger.on-sync-failed: |
       - description: The sync operation failed or errored.
         when: app.status?.operationState?.phase in ['Error', 'Failed']
-        oncePer: '[app.status?.operationState?.syncResult?.revision, app.status?.operationState?.syncResult?.revisions, app.status?.operationState?.operation?.sync?.revision, app.status?.operationState?.operation?.sync?.revisions]'
+        oncePer: >-
+          [app.status?.operationState?.syncResult?.revision,
+          app.status?.operationState?.syncResult?.revisions,
+          app.status?.operationState?.operation?.sync?.revision,
+          app.status?.operationState?.operation?.sync?.revisions]
         send:
           - argo-degraded-sync-failed
     trigger.on-health-degraded: |
       - description: The Application's health is Degraded.
         when: app.status?.health?.status == 'Degraded'
-        oncePer: '[app.status?.operationState?.syncResult?.revision, app.status?.operationState?.syncResult?.revisions, app.status?.operationState?.operation?.sync?.revision, app.status?.operationState?.operation?.sync?.revisions]'
+        oncePer: >-
+          [app.status?.operationState?.syncResult?.revision,
+          app.status?.operationState?.syncResult?.revisions,
+          app.status?.operationState?.operation?.sync?.revision,
+          app.status?.operationState?.operation?.sync?.revisions]
         send:
           - argo-degraded-health
+  # `{{-` trims the line break before it, so "revision" is one line of
+  # space-separated revisions.
   templates:
     template.argo-degraded-sync-failed: |
       webhook:
@@ -151,14 +161,24 @@ notifications:
           method: POST
           path: /repos/ned-si/homelab/dispatches
           body: |
-            {"event_type": "argo-degraded", "client_payload": {"app": "{{ .app.metadata.name }}", "trigger": "on-sync-failed", "revision": "{{ with .app.status.operationState }}{{ with .syncResult }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}{{ end }}"}}
+            {"event_type": "argo-degraded", "client_payload": {
+            "app": "{{ .app.metadata.name }}", "trigger": "on-sync-failed", "revision": "
+            {{- with .app.status.operationState }}
+            {{- with .syncResult }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}
+            {{- with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}
+            {{- end }}"}}
     template.argo-degraded-health: |
       webhook:
         github-dispatch:
           method: POST
           path: /repos/ned-si/homelab/dispatches
           body: |
-            {"event_type": "argo-degraded", "client_payload": {"app": "{{ .app.metadata.name }}", "trigger": "on-health-degraded", "revision": "{{ with .app.status.operationState }}{{ with .syncResult }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}{{ end }}"}}
+            {"event_type": "argo-degraded", "client_payload": {
+            "app": "{{ .app.metadata.name }}", "trigger": "on-health-degraded", "revision": "
+            {{- with .app.status.operationState }}
+            {{- with .syncResult }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}
+            {{- with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}
+            {{- end }}"}}
 
 # KSOPS on the repo-server: an init container copies the ksops binary into an
 # emptyDir that is mounted on PATH; Argo CD's bundled kustomize (v5.4.3) runs
