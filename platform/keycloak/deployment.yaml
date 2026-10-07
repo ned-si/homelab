@@ -22,6 +22,10 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: keycloak
+      annotations:
+        # Env from a Secret is read at pod start only. Bump this after
+        # rotating keycloak-admin so the pod env matches the Secret.
+        kubectl.kubernetes.io/restartedAt: "2026-10-07T00:00:00Z"
     spec:
       containers:
         - name: keycloak

@@ -86,7 +86,7 @@ new value in the password manager.
 
 | Credential | Source of truth | Sealed file, key | Notes |
 | --- | --- | --- | --- |
-| Keycloak admin | Keycloak master realm (`kcadm.sh set-password`) | `platform/secrets/keycloak-admin.sops.yaml`, `password` | `KC_BOOTSTRAP_ADMIN_PASSWORD` only applies to an empty database: change the user in Keycloak first |
+| Keycloak admin | Keycloak master realm (`kcadm.sh set-password`) | `platform/secrets/keycloak-admin.sops.yaml`, `password` | `KC_BOOTSTRAP_ADMIN_PASSWORD` only applies to an empty database: change the user in Keycloak first, then bump `kubectl.kubernetes.io/restartedAt` in `platform/keycloak/deployment.yaml` |
 | OIDC client secrets (Grafana, Immich, Mealie, Paperless) | Keycloak, Clients, *client*, Credentials, Regenerate | `grafana-oidc`, `immich-config` (inside `immich-config.yaml`), `mealie-oidc`, `paperless-secrets` (`PAPERLESS_SOCIALACCOUNT_PROVIDERS`) | Immich has no automated sync: `argocd app sync immich` after the merge |
 | Argo CD OIDC client secret | Keycloak client `argocd` | not in git: `argo/argocd-secret`, `oidc.keycloak.clientSecret` | patch the Secret, restart `argocd-server` |
 | Paperless admin | `manage.py changepassword` in the pod | `paperless-secrets`, `PAPERLESS_ADMIN_PASSWORD` | |
