@@ -190,7 +190,7 @@ page again unless they log out or stop using the device for a long time.
 | Argo CD | `oidc.config`: `refreshTokenThreshold`, scope `offline_access` | 2 min |
 | Mealie | `TOKEN_TIME` | 8760 h |
 | Paperless | `PAPERLESS_SESSION_COOKIE_AGE` | 365 d |
-| Seafile (web) | `SESSION_COOKIE_AGE`, `LOGIN_REMEMBER_DAYS` in `seahub_settings.py`, written by the init container `seahub-sessions` | 365 d |
+| Seafile (web) | `SESSION_COOKIE_AGE`, `LOGIN_REMEMBER_DAYS` in `seahub_settings.py`, written by the init container `seahub-settings` | 365 d |
 | Seafile, Jellyfin, Plex clients | app tokens without expiry; Jellyfin Quick Connect is on; Plex sessions belong to the Plex account | none to set |
 
 The realm values live in `platform/keycloak/realm/sessions.conf`. After every
