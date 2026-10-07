@@ -172,6 +172,47 @@ CLI from a merged commit, as described at the top of
 `bootstrap/argocd-values.yaml`, with the chart version from
 `ci/helm-releases.yaml`.
 
+## Sessions
+
+Every app is "log in once per device". Keycloak holds a long SSO session;
+each app either keeps its own long session or renews its Keycloak token in
+the background. After the first login on a device, nobody should see a login
+page again unless they log out or stop using the device for a long time.
+
+| Where | Setting | Value |
+| --- | --- | --- |
+| Keycloak realm `homelab` | SSO session idle / max | 30 d / 365 d |
+| | Remember me idle / max | 180 d / 365 d |
+| | Offline session idle / max | 365 d / none |
+| | Access token | 5 min |
+| Immich | built in: session tokens do not expire, cookies last 400 d; OAuth `autoLaunch` and `autoRegister` on; mobile redirect `app.immich:///oauth-callback` | none to set |
+| Grafana | `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`; `use_refresh_token` with `offline_access` | 30 d / 365 d; on |
+| Argo CD | `oidc.config`: `refreshTokenThreshold`, scope `offline_access` | 2 min |
+| Mealie | `TOKEN_TIME` | 8760 h |
+| Paperless | `PAPERLESS_SESSION_COOKIE_AGE` | 365 d |
+| Seafile (web) | `SESSION_COOKIE_AGE`, `LOGIN_REMEMBER_DAYS` in `seahub_settings.py`, written by the init container `seahub-sessions` | 365 d |
+| Seafile, Jellyfin, Plex clients | app tokens without expiry; Jellyfin Quick Connect is on; Plex sessions belong to the Plex account | none to set |
+
+The realm values live in `platform/keycloak/realm/sessions.conf`. After every
+sync of the `keycloak` Application, the PostSync Job `keycloak-realm-settings`
+writes them with `kcadm.sh` and reads them back; a mismatch fails the Job and
+the sync. Only the fields in that file are managed. Users, credentials,
+clients and groups stay in the Keycloak admin console.
+
+To change a value, edit `sessions.conf`, run `task render` and merge. To check
+the live realm:
+
+```sh
+kubectl -n keycloak logs job/keycloak-realm-settings
+```
+
+Expected: one `ok   <field>=<value>` line per field and no `FAIL` line.
+
+To end a session early (lost phone), sign the user out in the Keycloak admin
+console (Users, the user, Sessions) and in the app itself (Immich: Account
+settings, Authorized devices; Jellyfin: Dashboard, Devices; Plex: Account,
+Authorized Devices).
+
 ## Site-specific values
 
 What changes if the house, the LAN or the NAS changes. Re-render after editing
@@ -201,5 +242,13 @@ any of the manifests (`task render`).
 - Enumerated AppProjects: `clusterResourceWhitelist` is the only thing that
   reports "this chart started creating a new kind of object". Rejected: the
   `default` project, where everything is allowed.
+- Long sessions: one household, a handful of devices, and TV and phone apps
+  that cannot easily sign in again. Repeated login prompts cost more than they
+  protect; a lost device is handled by revoking its sessions. Rejected: short
+  sessions with silent re-login, which most of these apps cannot do.
+- Realm settings applied by a Job with `kcadm.sh`, scoped to a list of
+  fields: it cannot reset users, credentials or clients. Rejected: a full
+  realm import (keycloak-config-cli), which would make every client and
+  mapper code first and is a larger change.
 - Cross-cutting decisions (`main` is production, prune policy, what is
   hand-installed): [decisions.md](decisions.md).
