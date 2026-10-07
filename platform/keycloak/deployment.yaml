@@ -30,7 +30,7 @@ spec:
       containers:
         - name: keycloak
           # renovate: datasource=docker depName=quay.io/keycloak/keycloak
-          image: quay.io/keycloak/keycloak:26.0.5
+          image: quay.io/keycloak/keycloak:26.0.8
           command:
             - /opt/keycloak/bin/kc.sh
           args:
