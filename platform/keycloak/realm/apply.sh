@@ -1,10 +1,10 @@
 #!/bin/bash
-# Write the fields of sessions.conf to the `homelab` realm, then read the realm
-# back and fail unless every field holds the expected value.
+# Apply sessions.conf and platform.conf to the `homelab` realm, then read the
+# realm back and fail unless every managed value is the expected one.
 #
-# Runs in the Keycloak image (kcadm.sh, bash, grep, sed; no jq or curl).
-# `kcadm.sh update -s` fetches the realm, changes only the given fields and
-# writes it back, so nothing outside sessions.conf is touched.
+# Runs in the Keycloak image (kcadm.sh, bash, grep, sed; no awk, jq or curl).
+# `kcadm.sh update -s` fetches an object, changes only the given fields and
+# writes it back, so nothing outside the two files is touched.
 set -euo pipefail
 
 KCADM=/opt/keycloak/bin/kcadm.sh
@@ -12,6 +12,21 @@ CFG=/tmp/kcadm.config
 SERVER=${KEYCLOAK_URL:-http://keycloak.keycloak.svc.cluster.local:8080}
 REALM=${REALM:-homelab}
 CONF=${CONF:-/realm/sessions.conf}
+PLATFORM_CONF=${PLATFORM_CONF:-/realm/platform.conf}
+FLOW=browser-loa
+ACR=platform
+
+kc() { "$KCADM" "$@" --config "$CFG"; }
+
+rc=0
+check() { # name want got
+  if [ "$2" = "$3" ]; then
+    echo "ok   $1=$3"
+  else
+    echo "FAIL $1: want $2, got ${3:-<missing>}" >&2
+    rc=1
+  fi
+}
 
 # Keycloak may still be starting after a sync: retry the login for 5 minutes.
 for i in $(seq 1 30); do
@@ -26,6 +41,7 @@ for i in $(seq 1 30); do
   sleep 10
 done
 
+# --- sessions.conf: realm fields ---------------------------------------------
 args=()
 fields=()
 while IFS= read -r line; do
@@ -36,19 +52,135 @@ while IFS= read -r line; do
   fields+=("$line")
 done < "$CONF"
 
-"$KCADM" update "realms/$REALM" --config "$CFG" "${args[@]}"
+if [ "${#fields[@]}" -gt 0 ]; then
+  kc update "realms/$REALM" "${args[@]}"
+  live=$(kc get "realms/$REALM")
+  for f in "${fields[@]}"; do
+    key=${f%%=*}
+    got=$(printf '%s\n' "$live" | grep -E "^  \"$key\" : " | sed -E 's/^[^:]+: //; s/,$//; s/^"//; s/"$//' || true)
+    check "$key" "${f#*=}" "$got"
+  done
+fi
 
-live=$("$KCADM" get "realms/$REALM" --config "$CFG")
-rc=0
-for f in "${fields[@]}"; do
-  key=${f%%=*}
-  want=${f#*=}
-  got=$(printf '%s\n' "$live" | grep -E "^  \"$key\" : " | sed -E 's/^[^:]+: //; s/,$//; s/^"//; s/"$//' || true)
-  if [ "$got" = "$want" ]; then
-    echo "ok   $key=$got"
+# --- platform.conf: browser flow with a level-of-authentication max age --------
+conf() { sed -n "s/^$1=//p" "$PLATFORM_CONF" | tail -n 1; }
+max_age=$(conf loa_max_age)
+clients=$(conf platform_clients)
+[[ "$max_age" =~ ^[0-9]+$ ]] || { echo "FAIL loa_max_age is not a number" >&2; exit 1; }
+
+# requirement,displayName,level of every execution in the flow, in order.
+execs() {
+  kc get "authentication/flows/$FLOW/executions" -r "$REALM" --format csv --noquotes \
+    --fields "${1:-requirement,displayName,level}"
+}
+exec_row() { # displayName fields -> the matching row; displayName is the 2nd field
+  local row name
+  while IFS= read -r row; do
+    name=${row#*,}
+    name=${name%%,*}
+    if [ "$name" = "$1" ]; then
+      printf '%s\n' "$row"
+      return
+    fi
+  done < <(execs "$2")
+}
+exec_id() { exec_row "$1" id,displayName | cut -d, -f1; }
+exec_cfg() { exec_row "$1" id,displayName,authenticationConfig | cut -d, -f3; }
+set_req() { # displayName requirement
+  # Send the execution's priority back unchanged: Keycloak 25+ applies the
+  # priority of this request, and a missing one would reorder the flow.
+  local row id prio
+  row=$(exec_row "$1" id,displayName,priority)
+  id=${row%%,*}
+  prio=${row##*,}
+  if [[ "$prio" =~ ^[0-9]+$ ]]; then
+    kc update "authentication/flows/$FLOW/executions" -r "$REALM" \
+      -b "{\"id\":\"$id\",\"requirement\":\"$2\",\"priority\":$prio}"
   else
-    echo "FAIL $key: want $want, got ${got:-<missing>}" >&2
-    rc=1
+    kc update "authentication/flows/$FLOW/executions" -r "$REALM" \
+      -b "{\"id\":\"$id\",\"requirement\":\"$2\"}"
   fi
+}
+
+if ! kc get authentication/flows -r "$REALM" --format csv --noquotes --fields alias | grep -qx "$FLOW"; then
+  echo "creating flow $FLOW"
+  kc create authentication/flows -r "$REALM" -s alias="$FLOW" -s providerId=basic-flow \
+    -s topLevel=true -s builtIn=false \
+    -s 'description=Browser login; platform clients re-authenticate after platform.conf loa_max_age' >/dev/null 2>&1
+  sub() { # parent alias
+    kc create "authentication/flows/$1/executions/flow" -r "$REALM" -s alias="$2" \
+      -s type=basic-flow -s provider=registration-page-form >/dev/null 2>&1
+  }
+  step() { # flow provider
+    kc create "authentication/flows/$1/executions/execution" -r "$REALM" -s provider="$2" >/dev/null 2>&1
+  }
+  step "$FLOW" auth-cookie
+  step "$FLOW" identity-provider-redirector
+  sub "$FLOW" "$FLOW-forms"
+  sub "$FLOW-forms" "$FLOW-level-1"
+  step "$FLOW-level-1" conditional-level-of-authentication
+  step "$FLOW-level-1" auth-username-password-form
+  sub "$FLOW-level-1" "$FLOW-otp"
+  step "$FLOW-otp" conditional-user-configured
+  step "$FLOW-otp" auth-otp-form
+  set_req "Cookie" ALTERNATIVE
+  set_req "Identity Provider Redirector" ALTERNATIVE
+  set_req "$FLOW-forms" ALTERNATIVE
+  set_req "$FLOW-level-1" CONDITIONAL
+  set_req "Condition - Level of Authentication" REQUIRED
+  set_req "Username Password Form" REQUIRED
+  set_req "$FLOW-otp" CONDITIONAL
+  set_req "Condition - user configured" REQUIRED
+  set_req "OTP Form" REQUIRED
+fi
+
+loa_cfg=$(exec_cfg "Condition - Level of Authentication")
+if [ -z "$loa_cfg" ]; then
+  kc create "authentication/executions/$(exec_id "Condition - Level of Authentication")/config" \
+    -r "$REALM" -s alias="$FLOW-max-age" \
+    -s 'config."loa-condition-level"=1' -s "config.\"loa-max-age\"=$max_age" >/dev/null 2>&1
+  loa_cfg=$(exec_cfg "Condition - Level of Authentication")
+else
+  kc update "authentication/config/$loa_cfg" -r "$REALM" \
+    -s 'config."loa-condition-level"=1' -s "config.\"loa-max-age\"=$max_age"
+fi
+
+kc update "realms/$REALM" -s browserFlow="$FLOW" -s "attributes.\"acr.loa.map\"=\"{\\\"$ACR\\\":1}\""
+
+for c in $clients; do
+  id=$(kc get clients -r "$REALM" -q clientId="$c" --format csv --noquotes --fields id,clientId |
+    grep -E ",$c\$" | cut -d, -f1 || true)
+  if [ -z "$id" ]; then
+    check "client $c" present ""
+    continue
+  fi
+  kc update "clients/$id" -r "$REALM" -s "attributes.\"default.acr.values\"=$ACR"
+  # `--fields attributes` returns an empty map: read the whole client.
+  got=$(kc get "clients/$id" -r "$REALM" | sed -n 's/^ *"default\.acr\.values" : "\(.*\)",\{0,1\}$/\1/p')
+  check "client $c default.acr.values" "$ACR" "$got"
 done
+
+# Read back the flow, its condition and the realm binding.
+want="ALTERNATIVE,Cookie,0
+ALTERNATIVE,Identity Provider Redirector,0
+ALTERNATIVE,$FLOW-forms,0
+CONDITIONAL,$FLOW-level-1,1
+REQUIRED,Condition - Level of Authentication,2
+REQUIRED,Username Password Form,2
+CONDITIONAL,$FLOW-otp,2
+REQUIRED,Condition - user configured,3
+REQUIRED,OTP Form,3"
+got=$(execs)
+if [ "$got" = "$want" ]; then
+  echo "ok   flow $FLOW: $(printf '%s\n' "$got" | wc -l | tr -d ' ') executions"
+else
+  printf 'FAIL flow %s:\n%s\n' "$FLOW" "$got" >&2
+  rc=1
+fi
+cfg=$(kc get "authentication/config/$loa_cfg" -r "$REALM")
+check loa-condition-level 1 "$(printf '%s\n' "$cfg" | sed -n 's/^ *"loa-condition-level" : "\(.*\)",\{0,1\}$/\1/p')"
+check loa-max-age "$max_age" "$(printf '%s\n' "$cfg" | sed -n 's/^ *"loa-max-age" : "\(.*\)",\{0,1\}$/\1/p')"
+realm=$(kc get "realms/$REALM")
+check browserFlow "$FLOW" "$(printf '%s\n' "$realm" | sed -n 's/^ *"browserFlow" : "\(.*\)",\{0,1\}$/\1/p')"
+check acr.loa.map "{\\\"$ACR\\\":1}" "$(printf '%s\n' "$realm" | sed -n 's/^ *"acr\.loa\.map" : "\(.*\)",\{0,1\}$/\1/p')"
 exit "$rc"

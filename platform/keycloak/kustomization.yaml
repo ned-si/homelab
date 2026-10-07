@@ -17,4 +17,5 @@ configMapGenerator:
   - name: keycloak-realm-settings
     files:
       - realm/sessions.conf
+      - realm/platform.conf
       - realm/apply.sh
