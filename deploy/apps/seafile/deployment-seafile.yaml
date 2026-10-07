@@ -62,6 +62,29 @@ spec:
         volumeMounts:
         - mountPath: /shared
           name: seafile-data
+      initContainers:
+      - command:
+        - /bin/sh
+        - -c
+        - |
+          set -eu
+          f=/shared/seafile/conf/seahub_settings.py
+          [ -f "$f" ] || exit 0
+          [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
+          sed -i '/^# BEGIN sessions (managed by apps\/seafile\/deployment.yaml)$/,/^# END sessions$/d' "$f"
+          cat >> "$f" <<'EOF'
+          # BEGIN sessions (managed by apps/seafile/deployment.yaml)
+          SESSION_COOKIE_AGE = 31536000
+          LOGIN_REMEMBER_DAYS = 365
+          # END sessions
+          EOF
+          grep -n -A3 '^# BEGIN sessions' "$f"
+        image: seafileltd/seafile-mc:11.0-latest
+        imagePullPolicy: IfNotPresent
+        name: seahub-sessions
+        volumeMounts:
+        - mountPath: /shared
+          name: seafile-data
       volumes:
       - name: seafile-data
         persistentVolumeClaim:
