@@ -44,6 +44,8 @@ spec:
           value: postgres
         - name: mealie__LOG__DBENABLED
           value: "false"
+        - name: TOKEN_TIME
+          value: "8760"
         - name: POSTGRES_SERVER
           valueFrom:
             secretKeyRef:
