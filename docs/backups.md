@@ -746,8 +746,8 @@ repository can be read in full for free from inside the cluster.
 
 ## Known gaps
 
-- `immich-db` and `keycloak-db` have no scheduled or off-site backup. Needs barman,
-  which needs CNPG 1.26 or later.
+- `immich-db` and `keycloak-db` have no scheduled or off-site backup. Needs the
+  Barman Cloud plugin, which CNPG 1.30.1 supports; not wired in yet.
 - No point-in-time recovery for any database.
 - `platform/backup-verify/` is not running: no weekly sample restore, no
   `--read-data`, no staleness alert.
@@ -775,9 +775,8 @@ repository can be read in full for free from inside the cluster.
   real and its first run has been seen to work. Every other CronJob ships suspended
   behind a `pending-guard` init container, so a placeholder bucket can never look
   like a working backup.
-- **Logical dumps until barman runs.** The Barman Cloud plugin needs CNPG 1.26+,
-  so barman for `immich-db` and `keycloak-db` follows the CNPG upgrade
-  ([roadmap](roadmap.md)). The in-tree `barmanObjectStore` was not used: it is
+- **Logical dumps until barman runs.** Barman for `immich-db` and `keycloak-db`
+  uses the Barman Cloud plugin ([roadmap](roadmap.md)). The in-tree `barmanObjectStore` was not used: it is
   deprecated from CNPG 1.26. A nightly `pg_dump` gives a 24 h RPO, enough for
   recipes and *arr settings; once barman runs, the dump becomes redundant, not
   wrong.
