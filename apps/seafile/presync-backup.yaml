@@ -84,7 +84,7 @@ spec:
       initContainers:
         - name: clean
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           args: ["delete", "job", "presync-seafile-backup", "--ignore-not-found", "--wait=true", "--request-timeout=60s"]
           env:
             - name: HOME
@@ -105,7 +105,7 @@ spec:
               mountPath: /tmp
         - name: start
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           args: ["create", "job", "presync-seafile-backup", "--from=cronjob/seafile-backup", "--request-timeout=60s"]
           env:
             - name: HOME
@@ -127,7 +127,7 @@ spec:
       containers:
         - name: wait
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           # A failed backup never completes, so this times out and fails the
           # sync. The deadline is the slowest nightly run plus margin.
           args: ["wait", "--for=condition=complete", "job/presync-seafile-backup", "--timeout=45m"]

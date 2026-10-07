@@ -35,7 +35,7 @@ spec:
         env:
         - name: HOME
           value: /tmp
-        image: registry.k8s.io/kubectl:v1.32.13
+        image: registry.k8s.io/kubectl:v1.37.1
         name: wait
         resources:
           limits:
@@ -63,7 +63,7 @@ spec:
         env:
         - name: HOME
           value: /tmp
-        image: registry.k8s.io/kubectl:v1.32.13
+        image: registry.k8s.io/kubectl:v1.37.1
         name: clean
         resources:
           limits:
@@ -89,7 +89,7 @@ spec:
         env:
         - name: HOME
           value: /tmp
-        image: registry.k8s.io/kubectl:v1.32.13
+        image: registry.k8s.io/kubectl:v1.37.1
         name: start
         resources:
           limits:
