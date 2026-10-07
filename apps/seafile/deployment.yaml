@@ -25,14 +25,15 @@ spec:
       labels:
         app.kubernetes.io/name: seafile
     spec:
-      # Log in once per device: Seahub's web session defaults to 1 day and
-      # "remember me" to 7 days. Both live in seahub_settings.py on the data
-      # volume, which the image writes on first start, so this rewrites one
-      # marked block at the end of that file on every start. On the very first
-      # start the file does not exist yet and the block lands on the next one.
-      # See docs/architecture.md "Sessions".
+      # seahub_settings.py lives on the data volume and the image writes it
+      # only on first start, so the settings below are enforced here on every
+      # start. On the very first start the file does not exist yet and they
+      # land on the next one.
+      # - FILE_SERVER_ROOT: the URL upload and download links point at.
+      # - Sessions: log in once per device. Seahub's web session defaults to
+      #   1 day and "remember me" to 7 days. See docs/architecture.md "Sessions".
       initContainers:
-        - name: seahub-sessions
+        - name: seahub-settings
           image: seafileltd/seafile-mc:11.0-latest
           imagePullPolicy: IfNotPresent
           command:
@@ -43,6 +44,13 @@ spec:
               f=/shared/seafile/conf/seahub_settings.py
               [ -f "$f" ] || exit 0
               [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
+              root='FILE_SERVER_ROOT = "https://drive.lilalala.com/seafhttp"'
+              if grep -q '^FILE_SERVER_ROOT *=' "$f"; then
+                sed -i "s|^FILE_SERVER_ROOT *=.*|$root|" "$f"
+              else
+                echo "$root" >> "$f"
+              fi
+              grep -n '^FILE_SERVER_ROOT' "$f"
               sed -i '/^# BEGIN sessions (managed by apps\/seafile\/deployment.yaml)$/,/^# END sessions$/d' "$f"
               cat >> "$f" <<'EOF'
               # BEGIN sessions (managed by apps/seafile/deployment.yaml)
@@ -77,8 +85,13 @@ spec:
                   key: SEAFILE_ADMIN_PASSWORD
             - name: SEAFILE_SERVER_LETSENCRYPT
               value: "false"
+            # Read only on first start, to write SERVICE_URL, FILE_SERVER_ROOT
+            # and the nginx config: a bare host name, with the scheme forced
+            # to https because TLS ends at the Gateway.
             - name: SEAFILE_SERVER_HOSTNAME
-              value: "https://drive.lilalala.com"
+              value: "drive.lilalala.com"
+            - name: FORCE_HTTPS_IN_CONF
+              value: "true"
           ports:
             - name: http
               containerPort: 80

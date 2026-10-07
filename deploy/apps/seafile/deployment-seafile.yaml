@@ -48,7 +48,9 @@ spec:
         - name: SEAFILE_SERVER_LETSENCRYPT
           value: "false"
         - name: SEAFILE_SERVER_HOSTNAME
-          value: https://drive.lilalala.com
+          value: drive.lilalala.com
+        - name: FORCE_HTTPS_IN_CONF
+          value: "true"
         image: seafileltd/seafile-mc:11.0-latest
         imagePullPolicy: Always
         name: seafile
@@ -71,6 +73,13 @@ spec:
           f=/shared/seafile/conf/seahub_settings.py
           [ -f "$f" ] || exit 0
           [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
+          root='FILE_SERVER_ROOT = "https://drive.lilalala.com/seafhttp"'
+          if grep -q '^FILE_SERVER_ROOT *=' "$f"; then
+            sed -i "s|^FILE_SERVER_ROOT *=.*|$root|" "$f"
+          else
+            echo "$root" >> "$f"
+          fi
+          grep -n '^FILE_SERVER_ROOT' "$f"
           sed -i '/^# BEGIN sessions (managed by apps\/seafile\/deployment.yaml)$/,/^# END sessions$/d' "$f"
           cat >> "$f" <<'EOF'
           # BEGIN sessions (managed by apps/seafile/deployment.yaml)
@@ -81,7 +90,7 @@ spec:
           grep -n -A3 '^# BEGIN sessions' "$f"
         image: seafileltd/seafile-mc:11.0-latest
         imagePullPolicy: IfNotPresent
-        name: seahub-sessions
+        name: seahub-settings
         volumeMounts:
         - mountPath: /shared
           name: seafile-data
