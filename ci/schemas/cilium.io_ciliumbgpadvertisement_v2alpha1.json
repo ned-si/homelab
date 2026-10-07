@@ -90,7 +90,7 @@
                 "additionalProperties": false
               },
               "selector": {
-                "description": "Selector is a label selector to select objects of the type specified by AdvertisementType.\nFor the PodCIDR AdvertisementType it is not applicable. For other advertisement types,\nif not specified, no objects of the type specified by AdvertisementType are selected for advertisement.",
+                "description": "Selector is a label selector to select objects of the type specified by AdvertisementType.\nIf not specified, no objects of the type specified by AdvertisementType are selected for advertisement.",
                 "properties": {
                   "matchExpressions": {
                     "description": "matchExpressions is a list of label selector requirements. The requirements are ANDed.",
@@ -161,18 +161,6 @@
                     },
                     "minItems": 1,
                     "type": "array"
-                  },
-                  "aggregationLengthIPv4": {
-                    "description": "IPv4 mask to aggregate BGP route advertisements of service",
-                    "maximum": 31,
-                    "minimum": 0,
-                    "type": "integer"
-                  },
-                  "aggregationLengthIPv6": {
-                    "description": "IPv6 mask to aggregate BGP route advertisements of service",
-                    "maximum": 127,
-                    "minimum": 0,
-                    "type": "integer"
                   }
                 },
                 "required": [
@@ -186,16 +174,6 @@
               "advertisementType"
             ],
             "type": "object",
-            "x-kubernetes-validations": [
-              {
-                "message": "service field is required for the 'Service' advertisementType",
-                "rule": "self.advertisementType != 'Service' || has(self.service)"
-              },
-              {
-                "message": "selector field is not allowed for the 'PodCIDR' advertisementType",
-                "rule": "self.advertisementType != 'PodCIDR' || !has(self.selector)"
-              }
-            ],
             "additionalProperties": false
           },
           "type": "array"
