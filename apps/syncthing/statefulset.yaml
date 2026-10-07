@@ -28,7 +28,7 @@ spec:
       containers:
         - name: syncthing
           # renovate: datasource=docker depName=syncthing/syncthing
-          image: syncthing/syncthing:2.1.5
+          image: syncthing/syncthing:2.1.6
           ports:
             - name: web-ui
               containerPort: 8384
