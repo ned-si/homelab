@@ -20,7 +20,7 @@ releases:
   - name: cilium
     repo: https://helm.cilium.io
     chart: cilium
-    version: 1.17.18
+    version: 1.18.14
     release: cilium
     namespace: kube-system
     values: infrastructure/cilium/values.yaml
