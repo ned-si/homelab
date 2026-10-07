@@ -22,3 +22,5 @@ resources:
   # restic CronJobs for the /config volumes and the *arr databases, plus the
   # monthly prune of their shared repository.
   - backup.yaml
+  # Runs the database backup before every sync (presync-backup.yaml).
+  - presync-backup.yaml
