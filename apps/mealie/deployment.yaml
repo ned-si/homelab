@@ -46,6 +46,10 @@ spec:
               value: "postgres"
             - name: mealie__LOG__DBENABLED
               value: "false"
+            # Login session length in hours: one year (Mealie allows <= 9600).
+            # Log in once per device; see docs/architecture.md "Sessions".
+            - name: TOKEN_TIME
+              value: "8760"
             - name: POSTGRES_SERVER
               valueFrom:
                 secretKeyRef:
