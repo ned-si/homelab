@@ -40,7 +40,7 @@ spec:
           value: "002"
         - name: LIDARR__SERVER__URLBASE
           value: /arr/lidarr
-        image: ghcr.io/hotio/lidarr:latest
+        image: ghcr.io/hotio/lidarr:release-3.1.0.4875
         imagePullPolicy: Always
         name: lidarr
         ports:

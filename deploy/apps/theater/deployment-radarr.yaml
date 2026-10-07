@@ -67,7 +67,7 @@ spec:
               name: radarr-postgresql-app
         - name: RADARR__SERVER__URLBASE
           value: /arr/radarr
-        image: ghcr.io/hotio/radarr:latest
+        image: ghcr.io/hotio/radarr:release-6.4.4.10685
         imagePullPolicy: Always
         name: radarr
         ports:

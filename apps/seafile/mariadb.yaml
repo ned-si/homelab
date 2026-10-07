@@ -32,7 +32,8 @@ spec:
     spec:
       containers:
         - name: mariadb
-          image: mariadb:10.11
+          # renovate: datasource=docker depName=mariadb
+          image: mariadb:10.11.19
           env:
             - name: MARIADB_ROOT_PASSWORD
               valueFrom:

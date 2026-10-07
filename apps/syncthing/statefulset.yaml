@@ -28,7 +28,8 @@ spec:
       terminationGracePeriodSeconds: 60
       containers:
         - name: syncthing
-          image: syncthing/syncthing:latest
+          # renovate: datasource=docker depName=syncthing/syncthing
+          image: syncthing/syncthing:2.1.5
           ports:
             - name: web-ui
               containerPort: 8384

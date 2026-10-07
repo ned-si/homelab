@@ -23,6 +23,7 @@ spec:
     spec:
       containers:
         - name: memcached
+          # renovate: datasource=docker depName=memcached
           image: memcached:1.6.18
           args: ["-m", "256"]
           ports:

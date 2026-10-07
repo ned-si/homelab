@@ -40,7 +40,7 @@ spec:
             secretKeyRef:
               key: PLEX_CLAIM
               name: plex-claim
-        image: plexinc/pms-docker
+        image: plexinc/pms-docker:1.43.4.10903-e5521bd8c
         imagePullPolicy: Always
         name: plex
         ports:

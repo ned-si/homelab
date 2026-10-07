@@ -15,5 +15,7 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   instances: 1
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.0
   storage:
     size: 5Gi
