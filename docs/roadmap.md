@@ -33,10 +33,11 @@ own pull request with its own diff, test and rollback
 
 ## Delivery
 
-- Renovate: automerge on green CI for patch, minor and digest updates, behind
-  one top-level switch that stays off until automatic rollback exists.
 - Automatic rollback: Argo CD Notifications on sync failure or degraded health
   -> GitHub `repository_dispatch` -> an auto-merged revert pull request.
+  Renovate already automerges every update on green CI
+  (`.github/renovate.json5`), so until this exists a bad update is reverted by
+  hand.
 - Scripts and tasks that still use namespace `argocd` (`task apps:status`,
   `ansible/os-upgrade.yml`, `scripts/graceful-*.sh`) move to `argo`.
 

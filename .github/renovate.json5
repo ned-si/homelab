@@ -144,15 +144,16 @@
 
   packageRules: [
     {
-      // THE AUTOMERGE SWITCH. One rule, first in the list so the grouping and
-      // manual-review rules below still override it (later rules win). Flip
-      // `automerge` to true once automatic rollback exists (Argo CD
-      // Notifications -> repository_dispatch -> auto-merged revert PR).
-      // deploy/ is already re-rendered on Renovate PRs (see the note further
-      // down), so a bump can pass `render-deploy --check`.
-      description: 'Automerge switch for patch, minor and digest updates (off)',
-      matchUpdateTypes: ['patch', 'minor', 'digest', 'pin', 'pinDigest'],
-      automerge: false,
+      // AUTOMERGE EVERYTHING, AT ANY TIME. First in the list so the exceptions
+      // below can override it (later rules win). `platformAutomerge` turns on
+      // GitHub auto-merge when the PR is opened, so GitHub, not Renovate,
+      // decides when to merge: branch protection on main requires the strict
+      // `ci` check and signed commits. No `automergeSchedule`: the default is
+      // "at any time". deploy/ is re-rendered on Renovate PRs (see the note
+      // further down), so a bump can pass `render-deploy --check`.
+      description: 'Automerge every update type on green CI',
+      matchPackageNames: ['*'],
+      automerge: true,
       automergeType: 'pr',
       platformAutomerge: true,
     },
@@ -173,11 +174,24 @@
     {
       // Cilium ships against a specific Gateway API version. If these drift the
       // Gateway stops programming and every HTTPRoute goes dark.
-      description: 'Cilium and Gateway API CRDs move together, reviewed by hand',
+      description: 'Cilium and Gateway API CRDs move together',
       groupName: 'cluster networking',
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
-      automerge: false,
-      labels: ['dependencies', 'renovate', 'needs-manual-review'],
+    },
+    {
+      // EXCEPTION: an update that needs a step Renovate cannot make. Cilium
+      // 1.18 and later cannot load its host datapath on the nodes' kernel
+      // (5.10.160-rockchip): the BPF verifier rejects
+      // tail_nodeport_nat_egress_ipv4 on every node. Cilium 1.17 supports
+      // Gateway API v1.2. Lift both caps together after a node kernel upgrade.
+      description: 'Cap Cilium at 1.17 until the node kernel is upgraded',
+      matchDepNames: ['cilium'],
+      allowedVersions: '<1.18.0',
+    },
+    {
+      description: 'Cap Gateway API at v1.2 while Cilium is capped at 1.17',
+      matchDepNames: ['kubernetes-sigs/gateway-api'],
+      allowedVersions: '<1.3.0',
     },
     {
       // The *arr apps and qBittorrent share a download-client credential
@@ -185,7 +199,6 @@
       description: 'theater stack moves as one unit',
       groupName: 'theater stack',
       matchPackageNames: ['/^ghcr\\.io\\/hotio\\//'],
-      automerge: false,
     },
     {
       description: 'hotio images use `release-<x.y.z.build>` tags, which are not semver',
@@ -193,32 +206,34 @@
       versioning: 'regex:^release-(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?$',
     },
     {
-      description: 'Immich majors run irreversible DB migrations, never automatic',
-      matchDepNames: ['immich', 'ghcr.io/immich-app/immich-server'],
-      matchUpdateTypes: ['major'],
-      dependencyDashboardApproval: true,
-      labels: ['dependencies', 'renovate', 'needs-manual-review'],
-    },
-    {
-      description: 'Postgres / VectorChord majors refuse to start on an existing datadir',
+      // EXCEPTION: the Immich database image. Moving off pgvecto.rs (to
+      // VectorChord) migrates the database in place and cannot be rolled back,
+      // so a revert cannot undo it. The server image and the chart move with
+      // it, in one change that follows docs/runbooks/immich-upgrade.md, so
+      // Renovate updates none of the three.
+      description: 'Never update Immich: database image, server image, chart',
       matchPackageNames: [
+        '/cloudnative-pgvecto\\.rs/',
         '/cloudnative-vectorchord/',
-        '/postgres/',
-        '/^mariadb$/',
+        'ghcr.io/immich-app/immich-server',
+        'immich',
       ],
-      matchUpdateTypes: ['major'],
-      dependencyDashboardApproval: true,
-      labels: ['dependencies', 'renovate', 'needs-manual-review'],
+      enabled: false,
     },
     {
-      description: 'Keycloak majors change OIDC defaults; every federated app is downstream',
-      matchDepNames: ['quay.io/keycloak/keycloak'],
+      // EXCEPTION: an update that needs a step Renovate cannot make. The
+      // pg_dump / mariadb-dump images in the backup jobs must match the major
+      // of the servers they dump, and most server images are not tracked here,
+      // so a client major moves alone and the restore check breaks. A server
+      // major also needs a data directory upgrade. Approve from the Dependency
+      // Dashboard once the servers move with it; the PR then automerges.
+      description: 'Database majors wait for Dependency Dashboard approval',
+      matchPackageNames: ['/postgres/', '/^mariadb$/'],
       matchUpdateTypes: ['major'],
       dependencyDashboardApproval: true,
-      labels: ['dependencies', 'renovate', 'needs-manual-review'],
     },
     // ---------------------------------------------------------------------
-    // THE ONLY AUTO-MERGE RULE IS THE SWITCH AT THE TOP, and it is off.
+    // AUTOMERGE IS THE RULE AT THE TOP; THE EXCEPTIONS ABOVE NARROW IT.
     //
     // DEPLOY/ ON RENOVATE PRS. Bumping an image tag or chart version edits a
     // source under apps/, platform/, infrastructure/ or clusters/. `deploy/` is
@@ -233,14 +248,9 @@
     // and approves the ci run that commit triggers. `gitIgnoredAuthors` above keeps that commit from
     // marking the branch as edited.
     //
-    // NO AUTO-MERGE RULE BELOW THE GROUPS. packageRules are applied in array
-    // order and later entries win, so a rule like `{matchDatasources:
-    // ['docker'], matchUpdateTypes: ['patch'], automerge: true}` placed here
-    // matches every hotio image and overrides the `automerge: false` on the
-    // "theater stack moves as one unit" rule above -- the one rule written
-    // because bumping qBittorrent alone broke this cluster once. Any auto-merge
-    // rule added in future must go BEFORE those grouping rules, or explicitly
-    // exclude their packages.
+    // ORDER MATTERS. packageRules are applied in array order and later entries
+    // win, so a new exception goes BELOW the automerge rule, or the automerge
+    // rule silently overrides it.
     // ---------------------------------------------------------------------
     {
       description: 'Pin OpenTofu providers exactly',
