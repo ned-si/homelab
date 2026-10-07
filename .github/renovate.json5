@@ -249,6 +249,16 @@
       enabled: false,
     },
     {
+      // Paperless 3.0 upgrades only from 2.20.x
+      // (https://github.com/paperless-ngx/paperless-ngx/discussions/12756).
+      // Applies only while the current version is older, so v3 follows on
+      // its own once 2.20 is deployed.
+      description: 'Paperless 3 only from 2.20',
+      matchPackageNames: ['ghcr.io/paperless-ngx/paperless-ngx'],
+      matchCurrentVersion: '<2.20.0',
+      allowedVersions: '<3.0.0',
+    },
+    {
       // Seafile 12 replaces the environment-driven setup this Deployment uses
       // and requires a new JWT_PRIVATE_KEY secret
       // (https://manual.seafile.com/12.0/upgrade/upgrade_notes_for_12.0.x/):
