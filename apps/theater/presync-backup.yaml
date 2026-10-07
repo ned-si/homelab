@@ -80,12 +80,14 @@ spec:
         runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
-      # The image has no shell: one container per kubectl call, in order.
+      # The image has no shell: one container per kubectl call, in order. No
+      # --request-timeout: any client override makes kubectl skip the
+      # in-cluster config and dial localhost:8080.
       initContainers:
         - name: clean
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.37.1
-          args: ["delete", "job", "presync-theater-postgres-backup", "--ignore-not-found", "--wait=true", "--request-timeout=60s"]
+          image: registry.k8s.io/kubectl:v1.32.13
+          args: ["delete", "job", "presync-theater-postgres-backup", "--ignore-not-found", "--wait=true"]
           env:
             - name: HOME
               value: /tmp
@@ -105,8 +107,8 @@ spec:
               mountPath: /tmp
         - name: start
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.37.1
-          args: ["create", "job", "presync-theater-postgres-backup", "--from=cronjob/theater-postgres-backup", "--request-timeout=60s"]
+          image: registry.k8s.io/kubectl:v1.32.13
+          args: ["create", "job", "presync-theater-postgres-backup", "--from=cronjob/theater-postgres-backup"]
           env:
             - name: HOME
               value: /tmp
@@ -127,7 +129,7 @@ spec:
       containers:
         - name: wait
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.37.1
+          image: registry.k8s.io/kubectl:v1.32.13
           # A failed backup never completes, so this times out and fails the
           # sync. The deadline is the slowest nightly run plus margin.
           args: ["wait", "--for=condition=complete", "job/presync-theater-postgres-backup", "--timeout=45m"]
