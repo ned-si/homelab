@@ -46,6 +46,13 @@ spec:
                 secretKeyRef:
                   name: paperless-secrets
                   key: PAPERLESS_ADMIN_PASSWORD
+            # Signs sessions and tokens. Unset, Django falls back to a
+            # well-known default key.
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paperless-secrets
+                  key: PAPERLESS_SECRET_KEY
             - name: PAPERLESS_URL
               value: "https://archive.lilalala.com"
             - name: PAPERLESS_BIND_ADDR

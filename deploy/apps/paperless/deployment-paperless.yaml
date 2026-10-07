@@ -45,6 +45,11 @@ spec:
             secretKeyRef:
               key: PAPERLESS_ADMIN_PASSWORD
               name: paperless-secrets
+        - name: PAPERLESS_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: PAPERLESS_SECRET_KEY
+              name: paperless-secrets
         - name: PAPERLESS_URL
           value: https://archive.lilalala.com
         - name: PAPERLESS_BIND_ADDR
