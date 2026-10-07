@@ -1,0 +1,117 @@
+---
+# Automatic rollback of a deploy that Argo CD reports as broken.
+#
+# Argo CD Notifications (bootstrap/argocd-values.yaml) sends a
+# `repository_dispatch` of type `argo-degraded` when an Application's sync
+# fails or its health turns Degraded, with the Application name and the
+# revision of its last sync. `decide` checks the guard rails
+# (scripts/ci/auto-rollback-decide.sh: newest commit on main, merged under
+# 1 h ago, changes that app, not cilium or democratic-csi, never two automatic
+# reverts in a row) and `act` opens either an auto-merged revert pull request
+# plus an issue, or an issue only (scripts/ci/auto-rollback-act.sh).
+#
+# Manual test: `gh workflow run auto-rollback.yaml -f app=<app>
+# -f revision=<sha>` runs with dry_run=true by default: `decide` prints what it
+# would do and `act` is skipped, so nothing is created.
+#
+# - `decide` only reads the repository. `act` gets `contents: write` for the
+#   verified revert commit and its branch; the pull request, auto-merge and the
+#   issue use the AUTO_ROLLBACK_TOKEN secret (fine-grained, this repository
+#   only), see platform/secrets/argocd-notifications.sops.yaml.example.
+# - Every value from the payload or the inputs reaches a script through `env`,
+#   never through `${{ }}` inside `run:`.
+name: auto-rollback
+
+on:
+  repository_dispatch:
+    types: [argo-degraded]
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Argo CD Application name
+        required: true
+        type: string
+      revision:
+        description: Commit SHA (or the revision list Argo CD reports)
+        required: true
+        type: string
+      trigger:
+        description: Argo CD trigger to simulate
+        type: choice
+        options: [on-health-degraded, on-sync-failed]
+        default: on-health-degraded
+      dry_run:
+        description: Only print the decision, create nothing
+        type: boolean
+        default: true
+
+permissions: {}
+
+jobs:
+  decide:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      action: ${{ steps.decide.outputs.action }}
+      reason: ${{ steps.decide.outputs.reason }}
+      app: ${{ steps.decide.outputs.app }}
+      trigger: ${{ steps.decide.outputs.trigger }}
+      sha: ${{ steps.decide.outputs.sha }}
+      subject: ${{ steps.decide.outputs.subject }}
+      pr_title: ${{ steps.decide.outputs.pr_title }}
+      revert_tree: ${{ steps.decide.outputs.revert_tree }}
+      stateful: ${{ steps.decide.outputs.stateful }}
+      dry_run: ${{ steps.decide.outputs.dry_run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          # The guard rails read commit dates, parents and changed files.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Decide
+        id: decide
+        env:
+          APP: ${{ github.event.inputs.app || github.event.client_payload.app }}
+          REVISION: ${{ github.event.inputs.revision || github.event.client_payload.revision }}
+          TRIGGER: ${{ github.event.inputs.trigger || github.event.client_payload.trigger }}
+          # Inputs arrive as the strings 'true' / 'false'; a dispatch without
+          # dry_run is a real run.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || github.event.client_payload.dry_run || 'false' }}
+        run: |
+          set -euo pipefail
+          scripts/ci/auto-rollback-decide.sh | tee -a "$GITHUB_STEP_SUMMARY"
+
+  act:
+    needs: decide
+    if: ${{ needs.decide.outputs.dry_run == 'false' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      # The revert commit (signed by GitHub) and its branch.
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Revert and report
+        env:
+          ACTION: ${{ needs.decide.outputs.action }}
+          REASON: ${{ needs.decide.outputs.reason }}
+          APP: ${{ needs.decide.outputs.app }}
+          TRIGGER: ${{ needs.decide.outputs.trigger }}
+          SHA: ${{ needs.decide.outputs.sha }}
+          SUBJECT: ${{ needs.decide.outputs.subject }}
+          PR_TITLE: ${{ needs.decide.outputs.pr_title }}
+          REVERT_TREE: ${{ needs.decide.outputs.revert_tree }}
+          STATEFUL: ${{ needs.decide.outputs.stateful }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BOT_TOKEN: ${{ github.token }}
+          PR_TOKEN: ${{ secrets.AUTO_ROLLBACK_TOKEN }}
+        run: scripts/ci/auto-rollback-act.sh
