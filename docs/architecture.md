@@ -16,7 +16,7 @@ the shape of that tree and why it has that shape; addresses are in
 | API endpoint | `192.168.1.11:6443`, a VIP held by kube-vip v1.2.4 static pods |
 | CNI | Cilium 1.17.18: kube-proxy replacement, LB-IPAM with L2 announcements, Gateway API |
 | Storage | TrueNAS CORE at `192.168.1.228`: iSCSI block volumes through democratic-csi, an NFS share for media |
-| GitOps | Argo CD v3.4.6 in namespace `argo` (Helm release `argocd`, chart argo-cd 10.2.2) |
+| GitOps | Argo CD v2.14.11 in namespace `argo` (Helm release `argocd`, chart argo-cd 7.9.1) |
 
 Everything runs single-replica. Most workloads hold a `ReadWriteOnce` volume,
 so a second replica could not mount it, and there is one storage backend
