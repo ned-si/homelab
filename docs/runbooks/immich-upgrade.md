@@ -140,8 +140,8 @@ the map view (exercises `earthdistance`).
 ## 4. Afterwards
 
 Keep the `immich` Application manual: every Immich release can migrate its
-schema, so every upgrade deserves a person at the sync. Renovate holds Immich
-majors behind `dependencyDashboardApproval`.
+schema, so every upgrade deserves a person at the sync. Renovate never updates
+the database image, the server image or the chart (`.github/renovate.json5`).
 
 ## If it goes wrong
 
