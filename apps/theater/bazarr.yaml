@@ -61,7 +61,7 @@ spec:
   # 17.6 matches the other four theater clusters exactly, which is what lets the
   # single pinned pg_dump image in ./backup.yaml cover all five.
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.11
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6
   storage:
     size: 5Gi
     storageClass: iscsi
