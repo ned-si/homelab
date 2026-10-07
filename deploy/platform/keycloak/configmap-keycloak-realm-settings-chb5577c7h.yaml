@@ -100,11 +100,10 @@ data:
     clientOfflineSessionMaxLifespan=0
 
     # Access tokens stay short (5 minutes); clients renew them with the refresh
-    # token. Refresh tokens are reusable, so two tabs refreshing at once do not
-    # log each other out.
+    # token. Refresh token rotation stays at the realm default (off), so two tabs
+    # refreshing at once do not log each other out.
     accessTokenLifespan=300
-    revokeRefreshToken=false
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-fbf77bc2hh
+  name: keycloak-realm-settings-chb5577c7h
   namespace: keycloak
