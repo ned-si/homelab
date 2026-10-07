@@ -9,3 +9,12 @@ resources:
   - database.yaml
   - deployment.yaml
   - httproute.yaml
+  - realm-settings.yaml
+
+# Input of the realm-settings Job. The name hash makes a change here a new
+# ConfigMap, so the Job always runs with the file it was synced with.
+configMapGenerator:
+  - name: keycloak-realm-settings
+    files:
+      - realm/sessions.conf
+      - realm/apply.sh
