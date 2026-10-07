@@ -17,7 +17,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: igontfh79hks@opayq.com
+    email: nedsi@pm.me
     privateKeySecretRef:
       # `letsencrypt`, not `letsencrypt-account-key`: this Secret holds the ACME
       # ACCOUNT KEY, and the running cluster's is already registered as

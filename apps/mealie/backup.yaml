@@ -1,40 +1,6 @@
-# Mealie backup: the Postgres database and the recipe images.
-#
-# ###########################################################################
-# # docs/backups.md CLAIMS "Mealie Postgres | Barman Cloud -> S3 | 30d PITR".
-# # THAT IS NOT TRUE OF THE MANIFESTS.
-# #
-# # apps/mealie/database.yaml has:
-# #
-# #     backup:
-# #       retentionPolicy: 14d
-# #
-# # and NO `barmanObjectStore` underneath it. So CloudNativePG has a retention
-# # policy for a destination that does not exist -- it archives nothing, and it
-# # does not complain, because a retention policy with no object store is not a
-# # configuration error.
-# #
-# # This is worse than the REPLACE-ME placeholders elsewhere. A placeholder is
-# # caught by scripts/placeholder-check.sh; a retentionPolicy with no
-# # destination passes every check in this repository, renders cleanly, and
-# # validates against the CRD schema. It reads as "backed up" to anyone
-# # skimming, and it is the only Postgres cluster in the repo that fails this
-# # way -- the four *arr clusters have no `spec.backup` at all, which at least
-# # looks like the absence it is.
-# #
-# # `mealie-data` (100Gi) had no backup either. It holds user-uploaded recipe
-# # images and imported recipe assets, which pvc.yaml correctly describes and
-# # nothing was protecting.
-# ###########################################################################
-#
-# WHAT THIS FIXES, AND WHAT IT DOES NOT
-#
-# It adds a nightly logical dump and a file backup. It does NOT add WAL
-# archiving: `spec.backup.barmanObjectStore` has to go on the Cluster resource
-# in apps/mealie/database.yaml, which this change does not edit. So Mealie gets
-# point-in-time SNAPSHOTS, not point-in-time RECOVERY -- worst case, a day of
-# recipes. Adding the barman block is a listed manual step, and doing it makes
-# the dump below redundant rather than wrong.
+# Mealie backup: the Postgres database and the recipe images. A nightly
+# logical dump and a file backup; no WAL archiving (`spec.backup` on the
+# Cluster in database.yaml), so the worst case is a day of recipes.
 #
 # CONSISTENCY
 #   pg-mealie   CONSISTENT. pg_dump runs in a single transaction.
@@ -93,17 +59,8 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: dump
-              # Pinned to match the cluster: apps/mealie/database.yaml runs
-              # ghcr.io/cloudnative-pg/postgresql:17.6, so pg_dump 17.6 is an
-              # exact match.
-              #
-              # This repo does NOT have a uniform Postgres image -- keycloak-db
-              # is on 17.0 and immich-db on cloudnative-vectorchord:17-1.1.0
-              # (and on the live cluster today, cloudnative-pgvecto.rs:16.5 on
-              # PG 16 with vectors.so preloaded). An Immich dump will not
-              # restore against a stock postgresql image at all. Those two are
-              # covered by barman rather than by a dump job for that reason;
-              # see the same note in apps/theater/backup.yaml.
+              # Same image as mealie-postgresql (database.yaml, one Renovate
+              # dependency), so pg_dump always matches the server.
               # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
               image: ghcr.io/cloudnative-pg/postgresql:18.6
               imagePullPolicy: IfNotPresent

@@ -16,7 +16,7 @@ metadata:
   name: letsencrypt
 spec:
   acme:
-    email: igontfh79hks@opayq.com
+    email: nedsi@pm.me
     privateKeySecretRef:
       name: letsencrypt
     server: https://acme-v02.api.letsencrypt.org/directory
