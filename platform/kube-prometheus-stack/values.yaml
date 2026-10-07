@@ -28,8 +28,15 @@ grafana:
     server:
       domain: grafana.lilalala.com
       root_url: https://%(domain)s/
+    # Log in once per device: the Grafana session lasts 30 days without use
+    # and one year at most (defaults 7 d / 30 d). The Keycloak offline token
+    # (scope offline_access) renews the OAuth access token in the background.
+    auth:
+      login_maximum_inactive_lifetime_duration: 30d
+      login_maximum_lifetime_duration: 365d
     auth.generic_oauth:
       enabled: true
+      use_refresh_token: true
       name: Keycloak-OAuth
       allow_sign_up: true
       client_id: grafana-oauth
