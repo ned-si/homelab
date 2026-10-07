@@ -40,11 +40,7 @@ configs:
       issuer: https://auth.lilalala.com/realms/homelab
       clientID: argocd
       clientSecret: $oidc.keycloak.clientSecret
-      # Log in once per device: Argo CD renews the 5-minute Keycloak token
-      # with the offline token (365 d idle, no maximum) 2 minutes before it
-      # expires, instead of logging the UI out.
-      refreshTokenThreshold: 2m
-      requestedScopes: ["openid", "profile", "email", "groups", "offline_access"]
+      requestedScopes: ["openid", "profile", "email", "groups"]
 
   rbac:
     policy.default: ""

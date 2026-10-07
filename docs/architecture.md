@@ -174,10 +174,11 @@ CLI from a merged commit, as described at the top of
 
 ## Sessions
 
-Every app is "log in once per device". Keycloak holds a long SSO session;
-each app either keeps its own long session or renews its Keycloak token in
-the background. After the first login on a device, nobody should see a login
-page again unless they log out or stop using the device for a long time.
+Long for user apps, short for platform tools. Keycloak holds one long SSO
+session per device. User apps (Immich, Mealie, Paperless, Seafile) log in
+through it once and stay logged in. Platform tools (Argo CD, Grafana, the
+`homelab` realm admin console) ask for the password again once the last
+password login is 12 hours old.
 
 | Where | Setting | Value |
 | --- | --- | --- |
@@ -185,28 +186,38 @@ page again unless they log out or stop using the device for a long time.
 | | Remember me idle / max | 180 d / 365 d |
 | | Offline session idle / max | 365 d / none |
 | | Access token | 5 min |
+| | Browser flow `browser-loa`: password step behind "Condition - Level of Authentication", level 1 | max age 12 h |
+| | ACR `platform` = level 1 (`acr.loa.map`); default ACR of `argocd`, `grafana-oauth`, `security-admin-console` | `platform` |
+| Keycloak realm `master` (Keycloak admin) | defaults | 30 min idle, 10 h max |
 | Immich | built in: session tokens do not expire, cookies last 400 d; OAuth `autoLaunch` and `autoRegister` on; mobile redirect `app.immich:///oauth-callback` | none to set |
-| Grafana | `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`; `use_refresh_token` with `offline_access` | 30 d / 365 d; on |
-| Argo CD | `oidc.config`: `refreshTokenThreshold`, scope `offline_access` | 2 min |
 | Mealie | `TOKEN_TIME` | 8760 h |
 | Paperless | `PAPERLESS_SESSION_COOKIE_AGE` | 365 d |
 | Seafile (web) | `SESSION_COOKIE_AGE`, `LOGIN_REMEMBER_DAYS` in `seahub_settings.py`, written by the init container `seahub-settings` | 365 d |
 | Seafile, Jellyfin, Plex clients | app tokens without expiry; Jellyfin Quick Connect is on; Plex sessions belong to the Plex account | none to set |
+| Grafana | `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`; no refresh token | 12 h / 24 h |
+| Argo CD | `oidc.config`: no refresh, no `offline_access` | Keycloak token lifetime |
 
-The realm values live in `platform/keycloak/realm/sessions.conf`. After every
-sync of the `keycloak` Application, the PostSync Job `keycloak-realm-settings`
-writes them with `kcadm.sh` and reads them back; a mismatch fails the Job and
-the sync. Only the fields in that file are managed. Users, credentials,
-clients and groups stay in the Keycloak admin console.
+How the 12 hours work: a client that requests ACR `platform` is only
+satisfied by an SSO cookie whose level-1 (password) login is younger than the
+max age; otherwise Keycloak shows the login form. Clients that request no ACR
+are satisfied by the cookie alone, so the user apps never see the prompt.
 
-To change a value, edit `sessions.conf`, run `task render` and merge. To check
-the live realm:
+The realm values live in `platform/keycloak/realm/sessions.conf` and
+`platform.conf`. After every sync of the `keycloak` Application, the PostSync
+Job `keycloak-realm-settings` writes them with `kcadm.sh` and reads them back;
+a mismatch fails the Job and the sync. Only what those files list is managed.
+Users, credentials, other client settings and groups stay in the Keycloak
+admin console.
+
+To change a value, edit the file, run `task render` and merge. To check the
+live realm:
 
 ```sh
 kubectl -n keycloak logs job/keycloak-realm-settings
 ```
 
-Expected: one `ok   <field>=<value>` line per field and no `FAIL` line.
+Expected: one `ok   <name>=<value>` line per managed value, `ok   flow
+browser-loa: 9 executions`, and no `FAIL` line.
 
 To end a session early (lost phone), sign the user out in the Keycloak admin
 console (Users, the user, Sessions) and in the app itself (Immich: Account
@@ -242,12 +253,18 @@ any of the manifests (`task render`).
 - Enumerated AppProjects: `clusterResourceWhitelist` is the only thing that
   reports "this chart started creating a new kind of object". Rejected: the
   `default` project, where everything is allowed.
-- Long sessions: one household, a handful of devices, and TV and phone apps
-  that cannot easily sign in again. Repeated login prompts cost more than they
-  protect; a lost device is handled by revoking its sessions. Rejected: short
-  sessions with silent re-login, which most of these apps cannot do.
-- Realm settings applied by a Job with `kcadm.sh`, scoped to a list of
-  fields: it cannot reset users, credentials or clients. Rejected: a full
+- Long sessions for user apps: one household, a handful of devices, and TV
+  and phone apps that cannot easily sign in again. Repeated login prompts
+  cost more than they protect; a lost device is handled by revoking its
+  sessions. Rejected: short sessions with silent re-login, which most of these
+  apps cannot do.
+- Short sessions for platform tools: there is a single admin, and a stolen
+  Argo CD or Grafana session is cluster-admin. Enforced once in Keycloak (a
+  level-of-authentication max age) rather than per app, so every platform
+  client gets the same rule. Rejected: per-client session lifetimes, which do
+  not force a password when the SSO cookie is still valid.
+- Realm settings applied by a Job with `kcadm.sh`, scoped to what two files
+  list: it cannot reset users, credentials or other client settings. Rejected: a full
   realm import (keycloak-config-cli), which would make every client and
   mapper code first and is a larger change.
 - Cross-cutting decisions (`main` is production, prune policy, what is
