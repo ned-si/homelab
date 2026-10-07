@@ -27,8 +27,11 @@ metadata:
     app.kubernetes.io/name: sonarr
   name: sonarr
   namespace: theater
+  # Replace, not server-side apply: the API server defaulted
+  # strategy.rollingUpdate when this Deployment was created, and an apply
+  # cannot remove a field another manager owns, so Recreate is rejected.
   annotations:
-    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002); the digest pin is its own change, see docs/roadmap.md
+    argocd.argoproj.io/sync-options: Replace=true
 spec:
   replicas: 1
   # One RWO config volume: the new pod cannot attach it until the old one

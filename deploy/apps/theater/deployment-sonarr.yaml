@@ -12,8 +12,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    ignore-check.kube-linter.io/latest-tag: Image string byte-equal to live (ADR 0002);
-      the digest pin is its own change, see docs/roadmap.md
+    argocd.argoproj.io/sync-options: Replace=true
   labels:
     app.kubernetes.io/name: sonarr
   name: sonarr
