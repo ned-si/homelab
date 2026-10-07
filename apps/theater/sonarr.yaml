@@ -15,6 +15,8 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   instances: 1
+  # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.0
   storage:
     size: 5Gi
 ---
@@ -39,7 +41,8 @@ spec:
     spec:
       containers:
         - name: sonarr
-          image: ghcr.io/hotio/sonarr:latest
+          # renovate: datasource=docker depName=ghcr.io/hotio/sonarr
+          image: ghcr.io/hotio/sonarr:release-4.0.20.3014
           imagePullPolicy: Always
           env:
             - name: TZ

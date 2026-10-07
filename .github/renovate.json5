@@ -207,10 +207,9 @@
     },
     {
       // EXCEPTION: the Immich database image. Moving off pgvecto.rs (to
-      // VectorChord) migrates the database in place and cannot be rolled back,
-      // so a revert cannot undo it. The server image and the chart move with
-      // it, in one change that follows docs/runbooks/immich-upgrade.md, so
-      // Renovate updates none of the three.
+      // VectorChord) migrates the database in place and cannot be undone, so
+      // it follows docs/runbooks/immich-upgrade.md. The server image and the
+      // chart are not annotated yet: the `immich` Application syncs by hand.
       description: 'Never update Immich: database image, server image, chart',
       matchPackageNames: [
         '/cloudnative-pgvecto\\.rs/',
@@ -221,16 +220,51 @@
       enabled: false,
     },
     {
-      // EXCEPTION: an update that needs a step Renovate cannot make. The
-      // pg_dump / mariadb-dump images in the backup jobs must match the major
-      // of the servers they dump, and most server images are not tracked here,
-      // so a client major moves alone and the restore check breaks. A server
-      // major also needs a data directory upgrade. Approve from the Dependency
-      // Dashboard once the servers move with it; the PR then automerges.
-      description: 'Database majors wait for Dependency Dashboard approval',
-      matchPackageNames: ['/postgres/', '/^mariadb$/'],
+      // Database servers and their backup clients share one depName, so a
+      // bump moves both in the same PR and pg_dump / mariadb-dump always match
+      // the server. A server major is one-way: Argo CD's PreSync backup runs
+      // first, and a failed deploy is fixed forward (docs/decisions.md).
+      //
+      // Seafile 11 is built and documented against MariaDB 10.11
+      // (https://manual.seafile.com/11.0/upgrade/upgrade_docker/). Lift with a
+      // Seafile major that documents a newer MariaDB.
+      description: 'Cap MariaDB at 10.11 while Seafile is on 11.0',
+      matchPackageNames: ['mariadb'],
+      allowedVersions: '<11.0.0',
+    },
+    {
+      // keycloak-db has no backup job, so the PreSync backup that guards every
+      // other database major cannot run for it. Minors only restart the pod.
+      // Lift once keycloak-db is backed up (docs/backups.md).
+      description: 'No Postgres major for keycloak-db until it is backed up',
+      matchFileNames: ['platform/keycloak/database.yaml'],
       matchUpdateTypes: ['major'],
-      dependencyDashboardApproval: true,
+      enabled: false,
+    },
+    {
+      // Seafile 12 replaces the environment-driven setup this Deployment uses
+      // and requires a new JWT_PRIVATE_KEY secret
+      // (https://manual.seafile.com/12.0/upgrade/upgrade_notes_for_12.0.x/):
+      // a step Renovate cannot make.
+      description: 'Cap Seafile at 11 until the manifests are ported to 12',
+      matchPackageNames: ['seafileltd/seafile-mc'],
+      allowedVersions: '<12.0.0',
+    },
+    {
+      // Plex tags are <major>.<minor>.<patch>.<build>-<commit>. Default docker
+      // versioning reads the commit as a compatibility suffix, which differs on
+      // every release, so no newer tag would ever match.
+      description: 'Plex tags: four numbers and a commit hash',
+      matchPackageNames: ['plexinc/pms-docker'],
+      versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[0-9a-f]+$',
+    },
+    {
+      // This repo runs OpenTofu, which ignores `required_version` pins written
+      // for Terraform; tracking Terraform's release line here only adds noise.
+      description: 'Do not track the Terraform core version',
+      matchManagers: ['terraform'],
+      matchDepNames: ['hashicorp/terraform'],
+      enabled: false,
     },
     // ---------------------------------------------------------------------
     // AUTOMERGE IS THE RULE AT THE TOP; THE EXCEPTIONS ABOVE NARROW IT.

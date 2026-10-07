@@ -67,7 +67,7 @@ spec:
               name: sonarr-postgresql-app
         - name: SONARR__SERVER__URLBASE
           value: /arr/sonarr
-        image: ghcr.io/hotio/sonarr:latest
+        image: ghcr.io/hotio/sonarr:release-4.0.20.3014
         imagePullPolicy: Always
         name: sonarr
         ports:

@@ -100,6 +100,45 @@ should be the same.
 Rejected for now: rebase-merge, which keeps atomic commits on `main` but makes
 every commit a deployment and every rollback a multi-commit revert.
 
+## No human gates
+
+Nothing waits for a person: Renovate automerges every update on green CI
+(`.github/renovate.json5`), Argo CD deploys `main`, and a failed deploy is
+reverted automatically ([Automatic rollback](#automatic-rollback)). The only
+exclusions are technical caps with a stated reason and an upstream source: the
+Immich database image (pgvecto.rs, an irreversible migration) and, while the
+`immich` Application syncs by hand, the Immich server and chart; Cilium and
+Gateway API (the node kernel), and versions a consumer does not support yet
+(MariaDB for Seafile 11, Seafile 12). Policy gates, once they exist, are Kyverno
+policies (after Talos), not approvals.
+
+Why: one operator, and the goal is a system that updates and heals at any time.
+An approval queue only ages until someone clicks it.
+
+Rejected: Dependency Dashboard approval for database and Immich majors, which
+left updates pending indefinitely.
+
+## Database majors fix forward
+
+A database image bump (CloudNativePG Postgres, Seafile's MariaDB) automerges
+like any update. Its server and backup client share one Renovate dependency, so
+`pg_dump` and `mariadb-dump` always match the server. Before every sync of an
+app with a database, a PreSync hook runs its verified backup
+([backups.md](backups.md#databases)); a failed backup fails the sync.
+
+A major upgrades the data files in place (CloudNativePG runs `pg_upgrade`), so
+it is not reverted: CloudNativePG rejects a lower major on an existing cluster,
+and the revert's sync fails. A broken major is fixed forward: fix the
+configuration on `main`, or restore the pre-sync dump into a new cluster
+([backups.md](backups.md#how-to-restore)).
+
+Why: an automatic restore after a failed upgrade could overwrite data written
+since, and a restore that runs unwatched must be the rehearsed one, not a new
+code path. The PreSync backup makes fixing forward always possible.
+
+Rejected: automatic restore from the dump on rollback, and approval gates on
+database majors.
+
 ## Automatic rollback
 
 Argo CD Notifications sends a GitHub `repository_dispatch` (`argo-degraded`)

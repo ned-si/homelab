@@ -30,7 +30,8 @@ spec:
     spec:
       containers:
         - name: jellyfin
-          image: ghcr.io/jellyfin/jellyfin
+          # renovate: datasource=docker depName=ghcr.io/jellyfin/jellyfin
+          image: ghcr.io/jellyfin/jellyfin:10.11.11
           imagePullPolicy: Always
           env:
             - name: JELLYFIN_PublishedServerUrl

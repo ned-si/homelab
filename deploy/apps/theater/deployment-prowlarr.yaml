@@ -67,7 +67,7 @@ spec:
               name: prowlarr-postgresql-app
         - name: PROWLARR__SERVER__URLBASE
           value: /arr/prowlarr
-        image: ghcr.io/hotio/prowlarr:latest
+        image: ghcr.io/hotio/prowlarr:release-2.6.5.5623
         imagePullPolicy: Always
         name: prowlarr
         ports:

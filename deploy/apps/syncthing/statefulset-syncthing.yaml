@@ -34,7 +34,7 @@ spec:
           value: "1000"
         - name: PGID
           value: "1000"
-        image: syncthing/syncthing:latest
+        image: syncthing/syncthing:2.1.5
         name: syncthing
         ports:
         - containerPort: 8384

@@ -34,7 +34,8 @@ spec:
       #   1 day and "remember me" to 7 days. See docs/architecture.md "Sessions".
       initContainers:
         - name: seahub-settings
-          image: seafileltd/seafile-mc:11.0-latest
+          # renovate: datasource=docker depName=seafileltd/seafile-mc
+          image: seafileltd/seafile-mc:11.0.13
           imagePullPolicy: IfNotPresent
           command:
             - /bin/sh
@@ -64,7 +65,8 @@ spec:
               mountPath: /shared
       containers:
         - name: seafile
-          image: seafileltd/seafile-mc:11.0-latest
+          # renovate: datasource=docker depName=seafileltd/seafile-mc
+          image: seafileltd/seafile-mc:11.0.13
           imagePullPolicy: Always
           env:
             - name: DB_HOST

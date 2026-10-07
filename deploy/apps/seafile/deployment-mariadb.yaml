@@ -37,7 +37,7 @@ spec:
               name: seafile-db
         - name: MARIADB_AUTO_UPGRADE
           value: "true"
-        image: mariadb:10.11
+        image: mariadb:10.11.19
         name: mariadb
         ports:
         - containerPort: 3306

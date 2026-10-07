@@ -28,6 +28,7 @@ spec:
     spec:
       containers:
         - name: paperless
+          # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
           image: ghcr.io/paperless-ngx/paperless-ngx:2.13.5
           imagePullPolicy: Always
           env:
