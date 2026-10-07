@@ -220,6 +220,13 @@
       enabled: false,
     },
     {
+      // The `immich` Application syncs by hand, so any bump to its files would
+      // only leave it OutOfSync. Its updates follow docs/runbooks/immich-upgrade.md.
+      description: 'No updates in files the immich Application syncs',
+      matchFileNames: ['apps/immich/**', 'clusters/homelab/apps/immich.yaml'],
+      enabled: false,
+    },
+    {
       // Database servers and their backup clients share one depName, so a
       // bump moves both in the same PR and pg_dump / mariadb-dump always match
       // the server. A server major is one-way: Argo CD's PreSync backup runs
