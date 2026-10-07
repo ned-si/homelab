@@ -118,8 +118,8 @@ Expected: `gateway/cilium-gateway-shared` on `192.168.1.254`,
 
 ## Gateway
 
-Cilium implements the Gateway API (GatewayClass `cilium`, Gateway API v1.2.0
-CRDs, experimental channel, from the `gateway-api` Application). One shared
+Cilium implements the Gateway API (GatewayClass `cilium`, Gateway API v1.2
+CRDs, experimental channel, capped with Cilium below 1.18 by the node kernel, from the `gateway-api` Application). One shared
 Gateway serves every public hostname (`infrastructure/gateway/`):
 
 ```
@@ -165,7 +165,8 @@ almost always failed to attach: read `Accepted` and `ResolvedRefs` in
 
 ## DNS
 
-external-dns v0.15.0 (chart 1.15.0), provider Cloudflare, policy `upsert-only`
+external-dns (chart version in `clusters/homelab/infrastructure/external-dns.yaml`),
+provider Cloudflare, policy `upsert-only`
 (it creates and updates records, never deletes them), TXT registry with the
 default owner. Its only source is `gateway-httproute`. Every record is an A
 record to the single `--default-targets` address. The wildcard redirect route
@@ -176,11 +177,12 @@ Records for removed hostnames stay in Cloudflare until deleted by hand.
 
 ## Certificates
 
-cert-manager v1.15.0, ClusterIssuer `letsencrypt`, DNS-01 through Cloudflare
+cert-manager (chart version in `clusters/homelab/infrastructure/cert-manager.yaml`),
+ClusterIssuer `letsencrypt`, DNS-01 through Cloudflare
 (token in Secret `cert-manager/cloudflare-api-token-secret`). The Gateway uses
-one `Certificate`, `gateway/wildcard-lilalala`, for `*.lilalala.com`; the apex is
-left out until cert-manager is upgraded (see
-`infrastructure/gateway/certificate.yaml`). DNS-01 needs no inbound port 80.
+one `Certificate`, `gateway/wildcard-lilalala`, for `*.lilalala.com`; no listener
+serves the apex, so it is not on the certificate
+(`infrastructure/gateway/certificate.yaml`). DNS-01 needs no inbound port 80.
 
 ```sh
 kubectl -n gateway get certificate wildcard-lilalala
