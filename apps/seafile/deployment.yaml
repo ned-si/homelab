@@ -25,6 +25,35 @@ spec:
       labels:
         app.kubernetes.io/name: seafile
     spec:
+      # Log in once per device: Seahub's web session defaults to 1 day and
+      # "remember me" to 7 days. Both live in seahub_settings.py on the data
+      # volume, which the image writes on first start, so this rewrites one
+      # marked block at the end of that file on every start. On the very first
+      # start the file does not exist yet and the block lands on the next one.
+      # See docs/architecture.md "Sessions".
+      initContainers:
+        - name: seahub-sessions
+          image: seafileltd/seafile-mc:11.0-latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              f=/shared/seafile/conf/seahub_settings.py
+              [ -f "$f" ] || exit 0
+              [ -z "$(tail -c1 "$f")" ] || echo >> "$f"
+              sed -i '/^# BEGIN sessions (managed by apps\/seafile\/deployment.yaml)$/,/^# END sessions$/d' "$f"
+              cat >> "$f" <<'EOF'
+              # BEGIN sessions (managed by apps/seafile/deployment.yaml)
+              SESSION_COOKIE_AGE = 31536000
+              LOGIN_REMEMBER_DAYS = 365
+              # END sessions
+              EOF
+              grep -n -A3 '^# BEGIN sessions' "$f"
+          volumeMounts:
+            - name: seafile-data
+              mountPath: /shared
       containers:
         - name: seafile
           image: seafileltd/seafile-mc:11.0-latest
