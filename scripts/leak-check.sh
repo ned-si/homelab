@@ -58,8 +58,7 @@ is_exempt() {
 #
 # DELIBERATELY OUT OF SCOPE, and this is a decision rather than an oversight:
 #
-#   docs/ and *.md   Prose. docs/security-incident.md names every leaked variable
-#                    and docs/backups.md contains shell snippets with
+#   docs/ and *.md   Prose. docs/backups.md contains shell snippets with
 #                    `-p'<OLD>'`. Argo CD never syncs a markdown file, so a value
 #                    there cannot reach the cluster -- and a check that fires on
 #                    the document describing the incident is a check that gets an
@@ -193,7 +192,7 @@ done <<<"$files"
 #
 # WHY THIS EXISTS
 #   Check 3 above only recognises a `kind: Secret` with a `data:`/`stringData:`
-#   payload. Six of the nine credentials in docs/security-incident.md were not
+#   payload. Six of the nine credentials once committed in plaintext were not
 #   that shape at all. They were:
 #
 #     KC_BOOTSTRAP_ADMIN_PASSWORD   an `env:` entry with a literal `value:`
