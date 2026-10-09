@@ -66,7 +66,8 @@ their TV apps can sign in.
 
 The public WAN IP is set in one place only: `--default-targets` in
 [`infrastructure/external-dns/values.yaml`](infrastructure/external-dns/values.yaml).
-Ingresses carry no target annotation.
+Ingresses carry no target annotation. When the ISP changes it, follow
+[docs/runbooks/wan-ip-change.md](docs/runbooks/wan-ip-change.md).
 
 Chart versions live next to each Application in
 [`clusters/homelab/`](clusters/homelab), and in [`ci/helm-releases.yaml`](ci/helm-releases.yaml) for the releases

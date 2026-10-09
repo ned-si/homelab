@@ -122,6 +122,26 @@ If the NAS does not answer at all: check the cable is in the `B8:28` port of the
 Digitus card, then check the router's DHCP client list in case the NAS lost its
 static configuration (it then appears with a pool address).
 
+### The NAS does not start by itself after a power loss
+
+The NAS stays off when power returns; the Turing Pi does not. The nodes then
+boot without storage: the democratic-csi controller crash-loops, pods with
+iSCSI or NFS volumes sit in `Unknown`, `ContainerCreating` or `FailedMount`,
+and most public names answer `503`.
+
+1. Power the NAS on by hand and run the checks above until they pass.
+2. Wait 10 minutes. The CSI controller reconnects, and the controllers replace
+   the pods that were waiting on storage; most consumers recover on their own.
+3. Run step 4. Delete any pod still in `ContainerCreating`, `Unknown` or
+   `CrashLoopBackOff` (`kubectl -n <ns> delete pod <pod>`). Log in to iSCSI
+   again on a node only if its `iscsi-democratic-csi-node` pod logs session
+   errors after that.
+
+The permanent fix is the NAS BIOS setting "Restore on AC Power Loss" set to
+"Power On". TrueNAS cannot change or report it. Changing it needs a display,
+which means swapping the network card for a graphics card for the duration
+(see the NAS console row above).
+
 ## Step 3: nodes
 
 Power on the Turing Pi 2. Wait 3 minutes, then:
@@ -284,12 +304,9 @@ Expected: the WAN address equal to the one in `--default-targets`, and `200`,
 `302` (login redirect) or `401` (`theater`, Plex) for every hostname. `000` is
 a failure.
 
-- WAN address changed: change `--default-targets` in
-  `infrastructure/external-dns/values.yaml` in a pull request and merge it
-  ([README](../../README.md#how-changes-reach-the-cluster)). external-dns updates
-  every record once Argo CD syncs; `dig +short media.lilalala.com @1.1.1.1`
-  shows the new address after a minute or two. Old records are never deleted
-  (`upsert-only`), which is harmless.
+- WAN address changed: follow [wan-ip-change.md](wan-ip-change.md). It is one
+  line, `--default-targets` in `infrastructure/external-dns/values.yaml`,
+  changed in a pull request.
 - Every hostname `000` with the right WAN address: check the router's 80/443
   forward to `.254` and step 4's LoadBalancer line.
 
