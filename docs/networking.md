@@ -37,8 +37,12 @@ two other forwarded ports. The address table is in the README's
   grep default-targets infrastructure/external-dns/values.yaml
   ```
 
-  Expected: the same address twice. If they differ, change the values file in a
-  pull request; external-dns updates every record after the merge syncs.
+  Expected: the same address twice. If they differ, follow
+  [wan-ip-change.md](runbooks/wan-ip-change.md).
+- The Turing Pi 2 BMC takes a DHCP address; reach it as `turingpi.local`. Its
+  slots Node 1 to Node 4 hold `homelab-cp-1`, `homelab-cp-2`, `homelab-cp-3`
+  and `homelab-w-1`, in that order
+  ([node-power-cycle.md](runbooks/node-power-cycle.md)).
 
 ## Kubernetes API VIP
 
