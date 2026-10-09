@@ -176,7 +176,7 @@ OIDC client secrets). They were moved into SOPS, the values still in use were
 rotated or retired, and the history was rewritten; the owner tracks the
 remaining items privately. GitHub keeps old commits reachable through
 pull-request refs, so treat anything that was ever committed in plaintext as
-public. Details per credential: [security-incident.md](security-incident.md).
+public.
 
 ## Why it is like this
 

@@ -19,8 +19,7 @@
 # DECISION: THE LEAKED CREDENTIALS ARE CARRIED FORWARD, NOT ROTATED.
 # Recorded 2026-08-28. Owner's decision, not an oversight, and not a TODO.
 #
-# The nine credentials inventoried below (see docs/security-incident.md for the
-# table) are re-encrypted with SOPS and kept at their current values. Rotation is
+# The nine credentials inventoried below are re-encrypted with SOPS and kept at their current values. Rotation is
 # deferred; the git history is scrubbed once the migration is finished. This
 # script exists to move the values into sealed files, not to change them.
 #
@@ -52,20 +51,15 @@
 # TWO EXCEPTIONS THAT ARE NOT COVERED BY THIS DECISION, because they are not
 # LAN-only application passwords:
 #
-#   - the OpenSSH private key for root@truenas and the TrueNAS API key
-#     (docs/security-incident.md rows 1 and 2). These grant filesystem-level
+#   - the OpenSSH private key for root@truenas and the TrueNAS API key.
+#     These grant filesystem-level
 #     access to every dataset including the backups, and
 #     infrastructure/secrets/democratic-csi-iscsi.sops.yaml.example already
 #     requires a NEW keypair and a non-root account, so the replacement is a
 #     prerequisite of the driver working at all rather than a rotation task.
-#   - the Cloudflare API token (row 3). It is not LAN-scoped: it edits public DNS
+#   - the Cloudflare API token. It is not LAN-scoped: it edits public DNS
 #     for the zone, from anywhere, and therefore enables issuing valid
 #     certificates for any subdomain.
-#
-# docs/security-incident.md records the same position, and carries the full
-# inventory of what leaked. This header is the canonical statement of the
-# DECISION; that document is the canonical statement of the FACTS. If they ever
-# disagree again, one of them has been edited without the other.
 #
 # ---------------------------------------------------------------------------
 # SC2016 IS DISABLED FILE-WIDE, AND THAT IS THE RIGHT CALL HERE.
