@@ -1,10 +1,8 @@
 # auth.lilalala.com -> Keycloak.
 #
-# Replaces the old Ingress. Note what is NOT here any more: the
-# `external-dns.alpha.kubernetes.io/target: 188.155.74.203` annotation and the
-# `cert-manager.io/cluster-issuer` annotation. Both are now properties of the
-# shared Gateway, so the WAN IP and the certificate are configured once for the
-# whole site instead of once per service.
+# No external-dns target or cert-manager annotation: the WAN IP is set once in
+# infrastructure/external-dns/values.yaml and the certificate on the shared
+# Gateway.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

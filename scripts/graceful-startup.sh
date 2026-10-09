@@ -187,7 +187,8 @@ step "7. Certificates and DNS"
 kubectl get certificate -A 2>/dev/null || warn "no Certificates found"
 echo
 warn "If the WAN IP changed, external-dns needs the new value in"
-warn "infrastructure/gateway/gateway.yaml. Nothing else."
+warn "infrastructure/external-dns/values.yaml (--default-targets). Nothing else."
+warn "Steps: docs/runbooks/wan-ip-change.md"
 
 # ---------------------------------------------------------------------------
 step "8. Re-enable Argo CD automation -- LAST"
