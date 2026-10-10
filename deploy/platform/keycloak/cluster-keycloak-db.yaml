@@ -16,7 +16,7 @@ metadata:
   name: keycloak-db
   namespace: keycloak
 spec:
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.0
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11
   instances: 1
   storage:
     size: 5Gi
