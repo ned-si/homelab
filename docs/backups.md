@@ -570,7 +570,10 @@ spec:
 Expected: `kubectl -n restore-test wait --for=condition=Ready cluster/immich-db-restored --timeout=45m`
 returns `condition met`. The target time must lie inside the source's recovery
 window (`kubectl -n immich get objectstore cnpg-backup -o jsonpath='{.status.serverRecoveryWindow}'`)
-and its WAL must already be archived. Delete the namespace when done.
+and its WAL must already be archived. Recovery to a time also needs a commit after
+the target in the archived WAL; on an idle database it fails (exit code 4). Use
+`targetLSN` then, as `scripts/verify-barman-restore.sh` does. Delete the namespace
+when done.
 
 ### Not rehearsed
 
@@ -585,7 +588,7 @@ and its WAL must already be archived. Delete the namespace when done.
   `baseline` instead.
 - **A full Immich library restore**, and a restore after the packs moved to
   Glacier IR. Glacier IR reads are immediate; only the cost differs.
-- **Replacing a live Postgres cluster with a restored one.** Every rehearsal below
+- **Replacing a live Postgres cluster with a restored one.** Every rehearsal above
   restores into a new cluster in a scratch namespace. Pointing an app at a restored
   cluster (or recreating its Cluster from the backup) is not rehearsed.
 - **`immich-db` from a local dump.** Its image is
@@ -853,9 +856,10 @@ repository can be read in full for free from inside the cluster.
   `serverName` to `<cluster>-pg<major>`.
 - No alert reaches anyone: a failed backup Job is visible only in `kubectl get jobs`
   and the Prometheus alerts page.
-- Restores are rehearsed only for `mealie/data` and an Immich sample. Paperless,
-  Seafile, Syncthing, theater and the NAS repository are backed up and checked, not
-  restored.
+- File restores are rehearsed only for `mealie/data` and an Immich sample.
+  Paperless, Seafile, Syncthing, theater and the NAS repository are backed up and
+  checked, not restored. (All seven Postgres clusters are restored from S3, see
+  above.)
 - Paperless' SQLite copy may be torn.
 - The Syncthing excludes do not match the volume layout (see
   [Consistency, per tag](#consistency-per-tag)).
