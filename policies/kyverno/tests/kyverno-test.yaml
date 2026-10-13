@@ -1,0 +1,69 @@
+# Policy unit tests: `kyverno test policies/kyverno/tests`.
+---
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: baseline-policies
+policies:
+  - ../disallow-latest-tag.yaml
+  - ../disallow-privileged.yaml
+  - ../require-resources.yaml
+  - ../require-probes.yaml
+resources:
+  - resources.yaml
+results:
+  - policy: disallow-latest-tag
+    isValidatingPolicy: true
+    resources: [good]
+    kind: Pod
+    result: pass
+  - policy: disallow-latest-tag
+    isValidatingPolicy: true
+    resources: [probed]
+    kind: Deployment
+    result: pass
+  - policy: disallow-latest-tag
+    isValidatingPolicy: true
+    resources: [latest-tag, no-tag]
+    kind: Pod
+    result: fail
+  - policy: disallow-latest-tag
+    isValidatingPolicy: true
+    resources: [latest-cron]
+    kind: CronJob
+    result: fail
+  - policy: disallow-privileged
+    isValidatingPolicy: true
+    resources: [good]
+    kind: Pod
+    result: pass
+  - policy: disallow-privileged
+    isValidatingPolicy: true
+    resources: [privileged]
+    kind: Pod
+    result: fail
+  - policy: disallow-privileged
+    isValidatingPolicy: true
+    resources: [privileged-allowed]
+    kind: Pod
+    result: skip
+  - policy: require-resources
+    isValidatingPolicy: true
+    resources: [good]
+    kind: Pod
+    result: pass
+  - policy: require-resources
+    isValidatingPolicy: true
+    resources: [no-limits]
+    kind: Pod
+    result: fail
+  - policy: require-probes
+    isValidatingPolicy: true
+    resources: [probed]
+    kind: Deployment
+    result: pass
+  - policy: require-probes
+    isValidatingPolicy: true
+    resources: [no-liveness]
+    kind: Deployment
+    result: fail

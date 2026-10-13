@@ -4,7 +4,8 @@
 # Version and sha256 come from the workflow `env:` (<TOOL>_VERSION, <TOOL>_SHA256);
 # the download is verified with sha256sum before anything is extracted or run.
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
-# Tools: kubeconform actionlint shellcheck gitleaks trivy kube-linter helm kubectl tofu promtool
+# Tools: kubeconform actionlint shellcheck gitleaks trivy kyverno kube-linter helm
+#        kubectl tofu promtool
 set -euo pipefail
 
 bin="${RUNNER_TEMP:?RUNNER_TEMP not set}/bin"
@@ -40,6 +41,9 @@ for tool in "$@"; do
     trivy)
       v=$(need TRIVY_VERSION); fetch "https://github.com/aquasecurity/trivy/releases/download/v$v/trivy_${v}_Linux-64bit.tar.gz" "$(need TRIVY_SHA256)"
       tar -xzf "$work/dl" -C "$bin" trivy ;;
+    kyverno)
+      v=$(need KYVERNO_VERSION); fetch "https://github.com/kyverno/kyverno/releases/download/$v/kyverno-cli_${v}_linux_x86_64.tar.gz" "$(need KYVERNO_SHA256)"
+      tar -xzf "$work/dl" -C "$bin" kyverno ;;
     kube-linter)
       v=$(need KUBE_LINTER_VERSION); fetch "https://github.com/stackrox/kube-linter/releases/download/$v/kube-linter-linux.tar.gz" "$(need KUBE_LINTER_SHA256)"
       tar -xzf "$work/dl" -C "$bin" kube-linter ;;
