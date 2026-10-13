@@ -35,6 +35,11 @@
 # (macOS flags: nc -G, ping -W in milliseconds).
 set -uo pipefail
 
+# Shared helpers: is_ipv4, etcd_health_json, k. Sourced first so the
+# script's own die() below takes precedence.
+# shellcheck source=scripts/lib/cluster.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/cluster.sh"
+
 SSH_USER=${SMOKE_SSH_USER:-nedsi}
 API_VIP=${SMOKE_API_VIP:-192.168.1.11}
 DOMAIN=${SMOKE_DOMAIN:-lilalala.com}
@@ -73,12 +78,6 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 [ -n "$NODE_MACS" ] && [ -n "$IMMICH_SQL" ] && [ -n "$ARGO_GATE" ] && [ -n "$ENTRY_IP" ] || usage
-
-is_ipv4() {
-  printf '%s' "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
-  local IFS=. o
-  for o in $1; do [ "$o" -le 255 ] || return 1; done
-}
 
 # Lower-case, two hex digits per octet (macOS arp drops leading zeros).
 norm_mac() {
@@ -127,8 +126,6 @@ prev() { # prev <jq filter>: evaluate against --previous, or print null
 STARTED=$(utc_now)
 NOW=${SMOKE_NOW:-$(date -u +%s)}
 
-k() { kubectl --request-timeout=10s "$@"; }
-
 reason() { printf '%s\n' "$2" >> "$RES/reasons-$1"; }    # reason <item> <text>
 info() { printf '%s\n' "$*" >> "$RES/info.txt"; }
 hard() { printf '%s\n' "$*" >> "$RES/hard.txt"; }
@@ -172,16 +169,8 @@ item_nodes() {
 
 # --- 2. etcd and the API VIP ----------------------------------------------------
 item_etcd() {
-  local pods p out healthy=null total=null vip=false
-  pods=$(k -n kube-system get pods -l component=etcd -o name 2>/dev/null)
-  out=""
-  for p in $pods; do
-    out=$(k -n kube-system exec "${p#pod/}" -- etcdctl --endpoints=https://127.0.0.1:2379 \
-      --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
-      --key=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint health --cluster -w json 2>/dev/null) \
-      && jq -e 'type == "array"' <<<"$out" >/dev/null 2>&1 && break
-    out=""
-  done
+  local out healthy=null total=null vip=false
+  out=$(etcd_health_json) || out=""
   if [ -z "$out" ]; then
     reason 2 "etcdctl endpoint health --cluster failed on every etcd pod"
     hard "etcd health unreadable"

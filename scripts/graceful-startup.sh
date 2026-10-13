@@ -40,10 +40,9 @@ CNPG_CLUSTERS=(
 # cleared on reboot -- i.e. exactly when this script needs it.
 REPLICA_STATE="${BACKUP_DIR:-$HOME/homelab-backups}/replica-state.txt"
 
-step() { printf '\n\033[36m=== %s ===\033[0m\n' "$*"; }
-ok()   { printf '\033[32m  %s\033[0m\n' "$*"; }
-warn() { printf '\033[33m  %s\033[0m\n' "$*"; }
-die()  { printf '\033[31m  %s\033[0m\n' "$*" >&2; exit 1; }
+# step, ok, warn, die
+# shellcheck source=scripts/lib/cluster.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/cluster.sh"
 confirm() {
   [ "$ASSUME_YES" -eq 1 ] && return 0
   printf '  %s [y/N] ' "$1"; read -r r

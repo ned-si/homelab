@@ -16,8 +16,16 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
 
 Until notifications are wired, the checks are manual: the smoke suite
-([runbooks/cold-start.md](runbooks/cold-start.md#step-8-smoke-suite)) and the
-Argo CD application list.
+([runbooks/cold-start.md](runbooks/cold-start.md#step-8-smoke-suite)), the
+Argo CD application list, and `scripts/status.sh`.
+
+`scripts/status.sh` is a read-only, one-screen view without Grafana: nodes,
+etcd and the API VIP, Applications not Synced/Healthy, unhealthy pods and the
+most restarted, PVCs, CNPG clusters, NAS ports, Immich asset counts,
+certificates, the Gateway, HTTPRoutes and LoadBalancer addresses, backup
+CronJob freshness, the WAN address against `--default-targets`, and Secrets by
+name and age. It exits 1 when anything is red; `--json` prints the same data
+as one document. Tested against a fake kubectl in `tests/bash/test_status.sh`.
 
 ## Looking at it
 
