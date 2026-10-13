@@ -13,7 +13,8 @@
 #   1. Refuses unless <namespace>/<cluster> is a known production cluster and
 #      the scratch namespace cnpg-restore-test does not exist.
 #   2. L1: row count of every base table of the source database, read-only,
-#      in one statement that also returns its time T1 and the current WAL file.
+#      in one statement that also returns its time T1, its WAL position (LSN)
+#      and the current WAL file.
 #   3. Waits up to 7.5 min for that WAL file to be archived. archive_timeout
 #      is 5 min and only switches a segment that holds WAL, so if it is still
 #      not archived, it held nothing at T1: everything visible at T1 is
@@ -22,7 +23,9 @@
 #      (bootstrap/aws-backup output verify_*), ObjectStore cnpg-restore and
 #      Cluster restore-<cluster>: same image, preload libraries and size,
 #      bootstrapped by recovery from s3://ned-si-homelab-backups/cnpg/<cluster>/:
-#      point-in-time to T1 when the segment was archived, else a full replay. It has no spec.plugins, so
+#      to the LSN of T1 when the segment was archived, else a full replay. An
+#      LSN target, not a time: recovery to a time needs a commit after it in
+#      the archived WAL, which an idle moment does not have. It has no spec.plugins, so
 #      it never writes to the bucket.
 #   5. R: the same counts on the restored database. L2: the source again, for
 #      information. The run passes when the table sets are identical and every
@@ -63,9 +66,9 @@ created=0
 # Row count of every base table, as "schema.table<TAB>count", sorted.
 COUNT_SQL="select table_schema || '.' || table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text from information_schema.tables where table_type = 'BASE TABLE' and table_schema not in ('pg_catalog', 'information_schema') order by 1"
 
-# The same, plus two marker rows from the same snapshot: ~t1 (its time, UTC)
-# and ~wal (the WAL file being written).
-MARK_SQL="select '~t1', to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS.US') || '+00' union all select '~wal', pg_walfile_name(pg_current_wal_lsn()) union all ($COUNT_SQL)"
+# The same, plus three marker rows from the same statement: ~t1 (its time,
+# UTC), ~lsn (the WAL position) and ~wal (the WAL file being written).
+MARK_SQL="select '~t1', to_char(now() at time zone 'utc', 'YYYY-MM-DD HH24:MI:SS.US') || '+00' union all select '~lsn', pg_current_wal_lsn()::text union all select '~wal', pg_walfile_name(pg_current_wal_lsn()) union all ($COUNT_SQL)"
 
 psql_ro() { # ns pod db sql out
   kubectl --request-timeout=600s -n "$1" exec "$2" -c postgres -- \
@@ -123,9 +126,10 @@ id=$("$ROOT/scripts/tofu.sh" bootstrap/aws-backup output -raw verify_access_key_
 psql_ro "$NS" "$primary" "$db" "$MARK_SQL" "$WORK/l1m.tsv"
 t1=$(awk -F'\t' '$1=="~t1"{print $2}' "$WORK/l1m.tsv")
 wal=$(awk -F'\t' '$1=="~wal"{print $2}' "$WORK/l1m.tsv")
+lsn=$(awk -F'\t' '$1=="~lsn"{print $2}' "$WORK/l1m.tsv")
 grep -v '^~' "$WORK/l1m.tsv" > "$WORK/l1.tsv"
-[ -n "$t1" ] && [ -n "$wal" ] || die "no T1/WAL marker in the L1 query"
-log "L1 at $t1 (WAL $wal): $(wc -l < "$WORK/l1.tsv" | tr -d ' ') tables, $(awk -F'\t' '{s+=$2} END{print s}' "$WORK/l1.tsv") rows"
+[ -n "$t1" ] && [ -n "$wal" ] && [ -n "$lsn" ] || die "no T1/LSN/WAL marker in the L1 query"
+log "L1 at $t1 (LSN $lsn, WAL $wal): $(wc -l < "$WORK/l1.tsv" | tr -d ' ') tables, $(awk -F'\t' '{s+=$2} END{print s}' "$WORK/l1.tsv") rows"
 
 # --- 3. wait until the WAL holding T1 is archived ------------------------------
 archived() { [ -n "$last" ] && { [ "$last" = "$wal" ] || [[ "$last" > "$wal" ]]; }; }
@@ -138,8 +142,8 @@ for _ in $(seq 1 30); do
 done
 if archived; then
   target="      recoveryTarget:
-        targetTime: \"$t1\""
-  log "last archived WAL $last >= $wal: point-in-time recovery to $t1"
+        targetLSN: \"$lsn\""
+  log "last archived WAL $last >= $wal: point-in-time recovery to LSN $lsn"
 else
   target=""
   log "last archived WAL $last < $wal after 7.5 min: $wal held no WAL at T1; full replay"
@@ -206,7 +210,14 @@ k apply -f "$WORK/restore.yaml" > /dev/null || die "cannot create the restore Cl
 t0=$(date +%s)
 log "restoring into $SCRATCH/$DST (timeout $RESTORE_TIMEOUT)"
 kubectl -n "$SCRATCH" wait --for=condition=Ready "cluster.postgresql.cnpg.io/$DST" --timeout="$RESTORE_TIMEOUT" > /dev/null \
-  || { k -n "$SCRATCH" get cluster,pods,events 2>&1 | tail -20; die "restore did not become Ready"; }
+  || {
+    k -n "$SCRATCH" get cluster,pods 2>&1 | tail -10
+    for p in $(k -n "$SCRATCH" get pods -o name 2>/dev/null | head -2); do
+      log "postgres messages of $p:"
+      k -n "$SCRATCH" logs "$p" --all-containers 2>/dev/null | grep -E 'FATAL|PANIC|recovery ended|recovery stopping' | cut -c1-400 | tail -8
+    done
+    die "restore did not become Ready"
+  }
 log "restore Ready after $(( $(date +%s) - t0 )) s"
 
 # --- 5. R and L2 --------------------------------------------------------------
