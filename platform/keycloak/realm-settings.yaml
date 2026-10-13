@@ -5,7 +5,8 @@
 # deploy.
 #
 # Scope is deliberately those two files: realm session fields, the
-# `browser-loa` flow and the default ACR of the platform clients. Users,
+# `browser-loa` flow, the default ACR of the platform clients and the clients
+# that must not exist (`removed_clients`). Users,
 # credentials, other client settings and groups stay managed in the Keycloak
 # admin console.
 #

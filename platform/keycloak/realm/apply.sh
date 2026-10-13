@@ -147,9 +147,13 @@ fi
 
 kc update "realms/$REALM" -s browserFlow="$FLOW" -s "attributes.\"acr.loa.map\"=\"{\\\"$ACR\\\":1}\""
 
+client_id() { # clientId -> internal id; empty when the client does not exist
+  kc get clients -r "$REALM" -q clientId="$1" --format csv --noquotes --fields id,clientId |
+    grep -E ",$1\$" | cut -d, -f1 || true
+}
+
 for c in $clients; do
-  id=$(kc get clients -r "$REALM" -q clientId="$c" --format csv --noquotes --fields id,clientId |
-    grep -E ",$c\$" | cut -d, -f1 || true)
+  id=$(client_id "$c")
   if [ -z "$id" ]; then
     check "client $c" present ""
     continue
@@ -158,6 +162,17 @@ for c in $clients; do
   # `--fields attributes` returns an empty map: read the whole client.
   got=$(kc get "clients/$id" -r "$REALM" | sed -n 's/^ *"default\.acr\.values" : "\(.*\)",\{0,1\}$/\1/p')
   check "client $c default.acr.values" "$ACR" "$got"
+done
+
+# --- platform.conf: clients that must not exist --------------------------------
+for c in $(conf removed_clients); do
+  id=$(client_id "$c")
+  if [ -n "$id" ]; then
+    echo "deleting client $c"
+    kc delete "clients/$id" -r "$REALM"
+  fi
+  if [ -z "$(client_id "$c")" ]; then got=absent; else got=present; fi
+  check "client $c" absent "$got"
 done
 
 # Read back the flow, its condition and the realm binding.
