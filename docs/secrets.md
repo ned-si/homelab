@@ -28,7 +28,7 @@ Expected: the same `age1...` public key three times, and nothing else.
 | Directory | Files (`*.sops.yaml`) | Application |
 | --- | --- | --- |
 | `infrastructure/secrets/` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `democratic-csi-iscsi` | `secrets-infrastructure` (wave -25) |
-| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications` | `secrets-platform` (wave -25) |
+| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `cnpg-backup-s3` | `secrets-platform` (wave -25) |
 | `apps/secrets/` | `immich-config`, `mealie-oidc`, `paperless-secrets`, `plex-claim`, `recyclarr-api-keys`, `seafile-admin`, `seafile-db`, `theater-sso` | `secrets-apps` (wave -25) |
 
 Each file is a Kubernetes Secret with its own `metadata.namespace`; only
@@ -97,6 +97,7 @@ new value in the password manager.
 | Cloudflare tokens | Cloudflare dashboard: one token per consumer, Zone Read + DNS Edit on `lilalala.com` only | `cloudflare-cert-manager`, `cloudflare-external-dns`, `api-token` | check external-dns logs and a certificate renewal, then revoke the old token |
 | Automatic rollback GitHub token | GitHub, fine-grained token, `ned-si/homelab` only, Contents + Pull requests + Issues read and write | `platform/secrets/argocd-notifications.sops.yaml`, `github-token`, and the Actions secret `AUTO_ROLLBACK_TOKEN` | the same value in both places; see [decisions.md](decisions.md#automatic-rollback) |
 | S3 backup keys, `RESTIC_PASSWORD` | `bootstrap/aws-backup` outputs | `platform/secrets/s3-backup.sops.yaml` | the same `RESTIC_PASSWORD` in every namespace; changing it needs `restic key add` on every repository first |
+| CNPG S3 key (IAM user `ned-si-homelab-backups-cnpg`) | `bootstrap/aws-backup` outputs `cnpg_access_key_id`, `cnpg_secret_access_key`; `secrets.local.env` keys `CNPG_S3_ACCESS_KEY_ID`, `CNPG_S3_SECRET_ACCESS_KEY` | `platform/secrets/cnpg-backup-s3.sops.yaml`, Secret `cnpg-backup-s3` (`ACCESS_KEY_ID`, `ACCESS_SECRET_KEY`) in immich, keycloak, mealie, theater | rotate with a new `aws_iam_access_key`, re-seal, then check `ContinuousArchiving` on every cluster |
 
 ## Rotating the age key
 

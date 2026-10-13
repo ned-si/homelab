@@ -2,12 +2,12 @@
 # ---------------------------------------------------------------------------
 # Point every backup manifest at one S3 bucket and endpoint.
 #
-# The bucket name and endpoint appear in ELEVEN files across three layers.
+# The bucket name and endpoint appear in FOURTEEN files across three layers.
 # Editing them by hand is how you end up with the Immich database archiving to a
 # bucket that no longer exists while everything else looks fine -- and barman
 # reports that as a warning, not a failure.
 #
-# So: one command, all eleven, or none.
+# So: one command, all fourteen, or none.
 #
 # ---------------------------------------------------------------------------
 # TWO DEFECTS FIXED IN THIS SCRIPT, BOTH OF WHICH MADE IT LIE
@@ -95,11 +95,13 @@ echo
 # the bottom is -- but it is still the list, and keeping it accurate keeps the
 # discovery check quiet.
 #
-#   barman `destinationPath` + `endpointURL`
-#     apps/immich/resources/database.yaml            immich-db
-#     platform/keycloak/database.yaml                keycloak-db
+#   Barman Cloud ObjectStore `destinationPath` + `endpointURL`
+#     apps/immich/resources/backup.yaml              immich-db
+#     platform/keycloak/backup.yaml                  keycloak-db
+#     apps/mealie/cnpg-backup.yaml                   mealie-postgresql
+#     apps/theater/cnpg-backup.yaml                  the four *arr clusters
 #     platform/backup-verify/restore-postgres.yaml   the throwaway recovery
-#                                                    cluster's externalClusters
+#                                                    cluster's ObjectStore
 #
 #   restic `RESTIC_REPOSITORY`
 #     apps/immich/resources/backup-files.yaml        immich/library (S3 job only;
@@ -108,6 +110,7 @@ echo
 #                                                    deliberately untouched)
 #     apps/paperless/backup.yaml                     paperless/media
 #     apps/theater/backup.yaml                       theater/configs  (x7 jobs)
+#     apps/theater/backup-bazarr.yaml                theater/configs  (bazarr)
 #     apps/seafile/backup.yaml                       seafile/shared
 #     apps/syncthing/backup.yaml                     syncthing/data
 #     apps/mealie/backup.yaml                        mealie/data
@@ -116,14 +119,17 @@ echo
 #     platform/backup-verify/restore-files.yaml      the verifier's repository
 #                                                    prefix
 FILES="
-apps/immich/resources/database.yaml
+apps/immich/resources/backup.yaml
 apps/immich/resources/backup-files.yaml
+apps/mealie/cnpg-backup.yaml
+apps/theater/cnpg-backup.yaml
 apps/paperless/backup.yaml
 apps/theater/backup.yaml
+apps/theater/backup-bazarr.yaml
 apps/seafile/backup.yaml
 apps/syncthing/backup.yaml
 apps/mealie/backup.yaml
-platform/keycloak/database.yaml
+platform/keycloak/backup.yaml
 platform/kube-prometheus-stack/routes/grafana-backup.yaml
 platform/backup-verify/restore-postgres.yaml
 platform/backup-verify/restore-files.yaml

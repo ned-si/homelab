@@ -21,11 +21,9 @@ own pull request with its own diff, test and rollback
 
 ## Backups
 
-- WAL archiving and base backups for `immich-db` and `keycloak-db` with the
-  Barman Cloud plugin (`platform/barman-cloud-plugin/`, written; CNPG 1.30.1
-  supports it). Not the in-tree `barmanObjectStore`, which CNPG deprecates
-  ([backups.md](backups.md#why-it-is-like-this)). Then lift the Renovate rule
-  that holds Postgres majors for `keycloak-db`.
+- Automatic Postgres majors: a Renovate major bump also moves the Barman Cloud
+  `serverName` to `<cluster>-pg<major>`, CI checks they agree, then the Renovate
+  cap on CNPG Postgres majors goes ([backups.md](backups.md#why-it-is-like-this)).
 - Enable the weekly restore tests (`clusters/homelab/staged/backup-verify.yaml`).
 - Snapshot-then-backup for the two best-effort SQLite databases (Jellyfin,
   Grafana) and a consistent Paperless SQLite copy.

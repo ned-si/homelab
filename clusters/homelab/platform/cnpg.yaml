@@ -1,10 +1,11 @@
-# CloudNativePG operator (chart 0.22.1 = operator 1.24.1), at parity with the
-# running release: Application `cnpg`, release `cnpg`, namespace `immich`.
+# CloudNativePG operator (chart 0.29.1 = operator 1.30.1): Application `cnpg`,
+# release `cnpg`, namespace `immich`.
 #
 # The operator is cluster-wide (config.clusterWide defaults to true), so this
 # one instance serves the Clusters in immich/, keycloak/, mealie/ and theater/.
-# It sits in the photo app's namespace for historical reasons. Moving it to
-# `cnpg-system` and upgrading it are separate changes (docs/roadmap.md): a
+# The Barman Cloud plugin (barman-cloud-plugin.yaml) runs in the same
+# namespace, which the plugin requires. Both sit in the photo app's namespace
+# for historical reasons; moving them to `cnpg-system` is a separate change: a
 # second operator beside this one would reconcile the same Clusters.
 ---
 apiVersion: argoproj.io/v1alpha1

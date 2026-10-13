@@ -137,18 +137,13 @@ if [ "$SKIP_BACKUP" -eq 0 ]; then
   fi
 
   # ---------------------------------------------------------------------------
-  # 2b. BARMAN backup to object storage -- only if it is actually configured.
+  # 2b. Barman Cloud base backup to S3, for every cluster that uses the plugin.
   #
-  # An earlier version of this unconditionally created a Backup with
-  # `method: plugin` / barman-cloud.cloudnative-pg.io. On this cluster that is
-  # wrong twice over: CNPG 1.24.1 has no such plugin, and until the S3 bucket
-  # exists there is nowhere to write. The Backup went straight to `failed`, and
-  # the wait loop below called `die` -- so a missing OPTIONAL backup aborted the
-  # whole shutdown.
-  #
-  # Now: detect whether the cluster declares `spec.backup.barmanObjectStore` and
-  # skip cleanly if not. A backup that was never configured is not a failure; a
-  # backup that was configured and then failed still is.
+  # Each Cluster archives WAL through the Barman Cloud plugin
+  # (`spec.plugins[].name: barman-cloud.cloudnative-pg.io`), so a fresh base
+  # backup here makes the restore point the moment of shutdown. A cluster
+  # without the plugin is skipped: a backup that was never configured is not a
+  # failure; a backup that was configured and then failed still is.
   # ---------------------------------------------------------------------------
   ts=$(date +%Y%m%d-%H%M)
   requested=0
@@ -156,16 +151,14 @@ if [ "$SKIP_BACKUP" -eq 0 ]; then
     read -r ns cl <<<"$entry"
     kubectl get cluster "$cl" -n "$ns" >/dev/null 2>&1 || continue
 
-    dest=$(kubectl -n "$ns" get cluster "$cl" \
-             -o jsonpath='{.spec.backup.barmanObjectStore.destinationPath}' 2>/dev/null)
-    case "${dest:-}" in
-      ""|*REPLACE-ME*)
-        warn "$ns/$cl: no object store configured -- skipping remote backup"
-        continue
-        ;;
-    esac
+    plugin=$(kubectl -n "$ns" get cluster "$cl" \
+             -o jsonpath='{.spec.plugins[?(@.name=="barman-cloud.cloudnative-pg.io")].name}' 2>/dev/null)
+    if [ -z "${plugin:-}" ]; then
+      warn "$ns/$cl: no Barman Cloud plugin -- skipping remote backup"
+      continue
+    fi
 
-    cat <<EOF | kubectl apply -f - >/dev/null 2>&1 && { ok "backup requested: $ns/$cl -> $dest"; requested=$((requested + 1)); }
+    cat <<EOF | kubectl apply -f - >/dev/null 2>&1 && { ok "backup requested: $ns/$cl"; requested=$((requested + 1)); }
 apiVersion: postgresql.cnpg.io/v1
 kind: Backup
 metadata:
@@ -174,7 +167,9 @@ metadata:
 spec:
   cluster:
     name: ${cl}
-  method: barmanObjectStore
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
 EOF
   done
 

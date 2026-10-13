@@ -1,6 +1,7 @@
 # Mealie backup: the Postgres database and the recipe images. A nightly
-# logical dump and a file backup; no WAL archiving (`spec.backup` on the
-# Cluster in database.yaml), so the worst case is a day of recipes.
+# logical dump and a file backup. The dump is a second, independent copy of the
+# database: the Cluster also archives WAL and takes daily base backups through
+# the Barman Cloud plugin (cnpg-backup.yaml).
 #
 # CONSISTENCY
 #   pg-mealie   CONSISTENT. pg_dump runs in a single transaction.

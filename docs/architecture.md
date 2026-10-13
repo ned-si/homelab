@@ -50,7 +50,7 @@ and `clusters/homelab/root.yaml` are the same object; CI fails if they differ.
 | Layer | Applications | Depends on |
 | --- | --- | --- |
 | infrastructure | `namespaces`, `secrets-infrastructure`, `gateway-api`, `cilium`, `cilium-config`, `cert-manager`, `cert-manager-issuers`, `external-dns`, `gateway`, `democratic-csi` | nothing |
-| platform | `secrets-platform`, `cnpg`, `kube-prometheus-stack`, `keycloak` | StorageClasses, certificates |
+| platform | `secrets-platform`, `cnpg`, `barman-cloud-plugin`, `kube-prometheus-stack`, `keycloak` | StorageClasses, certificates |
 | apps | `secrets-apps`, `immich`, `mealie`, `paperless`, `seafile`, `syncthing`, `theater` | databases, identity, routing |
 
 Sync waves inside `infrastructure`:
@@ -68,10 +68,10 @@ Sync waves inside `infrastructure`:
 | 15 | `gateway` | The shared entrypoint |
 | 20 | `democratic-csi` | StorageClasses before any PVC in later layers |
 
-`platform`: `secrets-platform` (-25), `cnpg` (0), `kube-prometheus-stack` (10),
+`platform`: `secrets-platform` (-25), `cnpg` (0), `barman-cloud-plugin` (5), `kube-prometheus-stack` (10),
 `keycloak` (20). `apps`: `secrets-apps` (-25), every app at 0.
 
-On a cold start `cnpg` fails once with `no matches for kind "PodMonitor"`,
+On a cold start `cnpg` and `barman-cloud-plugin` fail once with `no matches for kind "PodMonitor"`,
 because the Prometheus CRDs arrive with `kube-prometheus-stack` at wave 10. The
 retry policy on every Application (5 tries, 5 s doubling to 3 min) absorbs it.
 
@@ -79,7 +79,7 @@ Written but not in any layer yet (each is a behaviour change with its own pull
 request): `infrastructure/snapshot-controller`, `infrastructure/nfs-storage`,
 `infrastructure/network-policies` (Application files in
 `clusters/homelab/infrastructure/`, not listed in its `kustomization.yaml`),
-`platform/barman-cloud-plugin`, and `clusters/homelab/staged/backup-verify.yaml`.
+and `clusters/homelab/staged/backup-verify.yaml`.
 
 ### Sync policy
 

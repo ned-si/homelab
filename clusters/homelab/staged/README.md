@@ -7,9 +7,9 @@ stands:
 - `backup-verify.yaml`: weekly restore tests of the restic and Postgres
   backups. Its two CronJobs need the `pending-guard` initContainer
   ([Backup CronJobs run only once reviewed](../../../docs/backups.md#why-it-is-like-this))
-  before they can be enabled. The restic half can test the nightly S3
-  backups today; the Postgres half needs barman, which no cluster runs yet
-  ([docs/backups.md](../../../docs/backups.md#known-gaps)). Enabling it also
+  before they can be enabled. Both halves can test today's backups: restic for
+  files, the Barman Cloud plugin for the seven Postgres clusters
+  ([docs/backups.md](../../../docs/backups.md#verification)). Enabling it also
   means removing the patch in `platform/secrets/kustomization.yaml` that drops
   its `s3-backup` Secret.
 
