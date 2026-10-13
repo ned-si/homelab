@@ -439,6 +439,11 @@ while IFS= read -r f; do
     kubeconfig|kubeconfig-*|*.kubeconfig)
       bad "MUST NOT BE TRACKED: $f"
       ;;
+    # Talos: the client config and generated machine configs hold the cluster
+    # keys in plaintext; only talos/talsecret.sops.yaml is committed.
+    talosconfig|*/talosconfig|talos/clusterconfig/*|talos/talsecret.yaml|talos/talsecret.yml)
+      bad "MUST NOT BE TRACKED: $f"
+      ;;
   esac
 done <<<"$files"
 

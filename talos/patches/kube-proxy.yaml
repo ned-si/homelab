@@ -1,0 +1,5 @@
+# Cilium replaces kube-proxy (kubeProxyReplacement); it reaches the API through
+# KubePrism on localhost:7445, which Talos enables by default.
+apiVersion: v1alpha1
+kind: KubeProxyConfig
+enabled: false

@@ -1,0 +1,16 @@
+# Expose controller-manager, scheduler and etcd metrics on all addresses so
+# kube-prometheus-stack can scrape them (by default they listen on localhost).
+apiVersion: v1alpha1
+kind: KubeControllerManagerConfig
+extraArgs:
+  bind-address: 0.0.0.0
+---
+apiVersion: v1alpha1
+kind: KubeSchedulerConfig
+extraArgs:
+  bind-address: 0.0.0.0
+---
+cluster:
+  etcd:
+    extraArgs:
+      listen-metrics-urls: http://0.0.0.0:2381

@@ -1,0 +1,7 @@
+# Reboot 10 s after a kernel oops instead of hanging until someone power-cycles
+# the node from the BMC (the Ubuntu nodes run the same values).
+apiVersion: v1alpha1
+kind: SysctlConfig
+params:
+  kernel.panic: "10"
+  kernel.panic_on_oops: "1"
