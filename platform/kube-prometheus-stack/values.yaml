@@ -11,6 +11,12 @@
 # upgrade: docs/roadmap.md.
 prometheus:
   prometheusSpec:
+    # 30 days for the SLO window (routes/slo.yaml). retentionSize caps the
+    # blocks below the 15Gi volume, leaving room for the WAL: at about 0.55
+    # GB/day of blocks (2026-10) it keeps roughly 20 days, so the 30-day SLO
+    # figures cover less than 30 days until the volume is grown to 25Gi.
+    retention: 30d
+    retentionSize: 11GiB
     storageSpec:
       volumeClaimTemplate:
         spec:

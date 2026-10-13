@@ -1,0 +1,109 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/slo.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-slo.yaml
+
+evaluation_interval: 30s
+
+tests:
+  # media fails every probe from minute 60: both burn alerts fire, the healthy
+  # app (cook) stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="media"}'
+        values: '1x59 0x40'
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '1x100'
+      # argo is probed but has no SLO.
+      - series: 'probe_success{job="blackbox-public", app="argo"}'
+        values: '1x59 0x40'
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              app: media
+              severity: critical
+            exp_annotations:
+              summary: media is burning its 30-day error budget fast
+              description: >-
+                At this rate the 99.5% availability budget of media is gone
+                within days. Check https://media.lilalala.com, then the Homelab
+                overview dashboard (probe status and duration).
+      - eval_time: 90m
+        alertname: SLOErrorBudgetBurnSlow
+        exp_alerts:
+          - exp_labels:
+              app: media
+              severity: warning
+            exp_annotations:
+              summary: media is slowly burning its 30-day error budget
+              description: >-
+                media fails more probes than its 99.5% objective allows, over a
+                day or more. Usually intermittent: look for restarts, slow
+                responses (probe_duration_seconds) or a flapping node.
+      - eval_time: 80m
+        alertname: SLOProbesAbsent
+        exp_alerts: []
+      # Before the outage nothing fires.
+      - eval_time: 55m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts: []
+
+  # A 30-minute outage that ended 40 minutes ago: the budget took a real hit
+  # (slow burn), but nothing is failing now (no fast burn).
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="drive"}'
+        values: '1x1379 0x29 1x100'
+    alert_rule_test:
+      - eval_time: 1450m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 1450m
+        alertname: SLOErrorBudgetBurnSlow
+        exp_alerts:
+          - exp_labels:
+              app: drive
+              severity: warning
+            exp_annotations:
+              summary: drive is slowly burning its 30-day error budget
+              description: >-
+                drive fails more probes than its 99.5% objective allows, over a
+                day or more. Usually intermittent: look for restarts, slow
+                responses (probe_duration_seconds) or a flapping node.
+
+  # A full day without errors: the whole budget is left.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="auth"}'
+        values: '1x1440'
+    promql_expr_test:
+      - expr: slo:error_budget_remaining:ratio_rate30d
+        eval_time: 1440m
+        exp_samples:
+          - labels: 'slo:error_budget_remaining:ratio_rate30d{app="auth"}'
+            value: 1
+      - expr: slo:availability:ratio_rate30d
+        eval_time: 1440m
+        exp_samples:
+          - labels: 'slo:availability:ratio_rate30d{app="auth"}'
+            value: 1
+
+  # No probe results at all: the SLO alerts would be blind, so this fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="kubelet"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SLOProbesAbsent
+        exp_alerts:
+          - exp_labels:
+              job: blackbox-public
+              severity: warning
+            exp_annotations:
+              summary: "No public blackbox probe results: the SLO alerts are blind"
+              description: >-
+                Check the blackbox-exporter Application and the Probes in
+                platform/blackbox-exporter/probes.

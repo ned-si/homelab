@@ -4,7 +4,8 @@
 #
 # Four parallel jobs, then one aggregate:
 #   lint         yamllint, actionlint, shellcheck, tofu fmt + validate
-#   render       unit tests, render, kubeconform, repo-policy (pins, invariants,
+#   render       unit tests, promtool (rule checks and rule unit tests),
+#                render, kubeconform, repo-policy (pins, invariants,
 #                secrets/leak/placeholder checks, deploy/ matches sources,
 #                kube-linter)
 #   security     gitleaks, Trivy waiver hygiene, Trivy gate
@@ -69,6 +70,10 @@ env:
   KUBECTL_SHA256: ebbd080e7c2e275093b55915722043257eb24004363e20acb3c4d71919f88336
   TOFU_VERSION: 1.12.6
   TOFU_SHA256: 50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec
+  # promtool from the Prometheus release the cluster runs (rule checks and
+  # rule unit tests, scripts/ci/promtool-check.sh).
+  PROMTOOL_VERSION: 3.15.0
+  PROMTOOL_SHA256: 2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0
   # One checkout serves every step of a job: keep it free of bytecode and
   # pytest caches so no check sees another check's leftovers.
   PYTHONDONTWRITEBYTECODE: "1"
@@ -135,7 +140,7 @@ jobs:
         id: setup
         run: |
           set -euo pipefail
-          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter
+          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool
           scripts/ci/setup-python-deps.sh
 
       - name: Unit tests (pytest)
@@ -145,6 +150,10 @@ jobs:
       - name: Unit tests (bash)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bash tests/run-bash-tests.sh
+
+      - name: Prometheus rules (promtool check + unit tests)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/promtool-check.sh
 
       # Rendered once; kubeconform and repo-policy read the same directory.
       - name: Render every Application in scope
