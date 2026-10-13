@@ -92,7 +92,8 @@ def test_wan_ip_counted_per_layout(tmp_path):
 def test_immich_db_image(tmp_path):
     good = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "immich-db"},
             "spec": {"imageName": "ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0"}}
-    assert policy(tmp_path, renders=[("legacy/all-apps", "1", None, "argo", [good])]).returncode == 0
+    assert not [f for f in fails(policy(tmp_path, renders=[("legacy/all-apps", "1", None, "argo", [good])]))
+                if "immich-db-image" in f]
     bad = copy.deepcopy(good)
     bad["spec"]["imageName"] = "ghcr.io/tensorchord/cloudnative-vectorchord:16"
     r = policy(tmp_path / "b", renders=[("legacy/all-apps", "1", None, "argo", [bad])])
@@ -294,6 +295,12 @@ def test_cnpg_backup_scheduled_backup_without_archiving_cluster_fails(tmp_path):
     cl, store, sb = cnpg_set()
     del cl["spec"]["plugins"]
     assert any("not a rendered Cluster" in x for x in cnpg_fails(tmp_path, [cl, store, sb]))
+
+
+def test_cnpg_backup_cluster_without_plugin_fails(tmp_path):
+    cl, _, _ = cnpg_set()
+    del cl["spec"]["plugins"]
+    assert any("does not archive WAL" in x for x in cnpg_fails(tmp_path, [cl]))
 
 
 def test_cnpg_backup_plugin_cluster_without_scheduled_backup_fails(tmp_path):
