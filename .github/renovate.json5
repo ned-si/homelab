@@ -179,17 +179,6 @@
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
     },
     {
-      // EXCEPTION: Talos and Kubernetes versions in talos/talconfig.yaml. A
-      // merge changes nothing on the nodes: the upgrade is `task talos:upgrade`
-      // (one node at a time, one reboot each) or `task talos:upgrade-k8s`, run
-      // by hand after the merge (docs/talos.md). Automerging would leave main
-      // claiming a version the nodes do not run. Lift once an in-cluster
-      // upgrade controller (tuppr) applies the merged version itself.
-      description: 'Talos and Kubernetes: no automerge until upgrades are GitOps',
-      matchDepNames: ['ghcr.io/siderolabs/installer', 'ghcr.io/siderolabs/kubelet'],
-      automerge: false,
-    },
-    {
       // The *arr apps and qBittorrent share a download-client credential
       // contract. Bumping qBittorrent alone is what broke this cluster once.
       description: 'theater stack moves as one unit',
@@ -243,17 +232,9 @@
     {
       // kubectl supports one minor of skew against the API server. Move with
       // the cluster (kubernetesVersion in talos/talconfig.yaml).
-      description: 'Keep kubectl images within one minor of the cluster (1.36)',
+      description: 'Keep kubectl images within one minor of the cluster (1.37)',
       matchPackageNames: ['registry.k8s.io/kubectl', 'bitnami/kubectl'],
-      allowedVersions: '<1.38.0',
-    },
-    {
-      // Argo CD 3.5 (chart >= 10.2.3) is tested on Kubernetes 1.33-1.36; the
-      // cluster runs 1.32. 10.2.2 is the last chart on Argo CD 3.4. Lift with
-      // the move to Talos.
-      description: 'Cap Argo CD at 3.4 while the cluster is on Kubernetes 1.32',
-      matchDepNames: ['argo-cd'],
-      allowedVersions: '<10.2.3',
+      allowedVersions: '<1.39.0',
     },
     {
       // A CNPG major runs pg_upgrade: new system ID, timeline back to 1. The
