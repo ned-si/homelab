@@ -53,6 +53,9 @@ for tool in "$@"; do
     kubectl)
       v=$(need KUBECTL_VERSION); fetch "https://dl.k8s.io/release/$v/bin/linux/amd64/kubectl" "$(need KUBECTL_SHA256)"
       install -m 0755 "$work/dl" "$bin/kubectl" ;;
+    kind)
+      v=$(need KIND_VERSION); fetch "https://github.com/kubernetes-sigs/kind/releases/download/$v/kind-linux-amd64" "$(need KIND_SHA256)"
+      install -m 0755 "$work/dl" "$bin/kind" ;;
     tofu)
       v=$(need TOFU_VERSION); fetch "https://github.com/opentofu/opentofu/releases/download/v$v/tofu_${v}_linux_amd64.tar.gz" "$(need TOFU_SHA256)"
       tar -xzf "$work/dl" -C "$bin" tofu ;;

@@ -1,0 +1,10 @@
+# Workloads the `preprod` CI job boots on kind (scripts/ci/kind-preprod.sh
+# boot): stateless, no PersistentVolumeClaim, no Secret, no external service.
+# One path under deploy/ per line; a directory means every file in it.
+deploy/infrastructure/snapshot-controller
+deploy/apps/seafile/deployment-memcached.yaml
+deploy/apps/seafile/service-memcached.yaml
+deploy/apps/paperless/deployment-valkey.yaml
+deploy/apps/paperless/service-valkey.yaml
+deploy/apps/immich/resources/deployment-valkey.yaml
+deploy/apps/immich/resources/service-valkey.yaml
