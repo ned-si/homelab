@@ -22,4 +22,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: plugin-barman-cloud
-  namespace: immich
+  namespace: cnpg-system
