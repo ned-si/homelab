@@ -14,3 +14,5 @@ namespace: immich
 # renovate: datasource=github-releases depName=cloudnative-pg/plugin-barman-cloud
 resources:
   - https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.1/manifest.yaml
+  # PodMonitor for the CNPG instances and the backup alert rules.
+  - monitoring.yaml
