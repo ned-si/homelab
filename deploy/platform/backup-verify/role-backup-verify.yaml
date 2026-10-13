@@ -25,6 +25,14 @@ rules:
   - watch
   - delete
 - apiGroups:
+  - barmancloud.cnpg.io
+  resources:
+  - objectstores
+  verbs:
+  - create
+  - get
+  - delete
+- apiGroups:
   - ""
   resources:
   - pods

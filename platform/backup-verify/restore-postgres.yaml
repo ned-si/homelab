@@ -11,15 +11,12 @@
 # # RECOVERY from the object store, runs assertions against it, records the
 # # result, and deletes it.
 # #
-# # The object store is referenced read-only: the restored cluster declares no
-# # `spec.backup` block, so it does NOT archive WAL and therefore cannot write
-# # to or corrupt the backup it was restored from.
-# #
-# # NOTE ON THE CNPG API: this uses the IN-TREE `barmanObjectStore` field on
-# # `externalClusters`, not the newer `barmancloud.cnpg.io/v1` `ObjectStore`
-# # CRD + `plugin:` reference. The cluster runs CNPG 1.24.1, which does not
-# # ship the Barman Cloud plugin at all. See docs/roadmap.md for the
-# # upgrade that unlocks the plugin form.
+# # The object store is referenced read-only: the restored cluster reads its
+# # source through the Barman Cloud plugin in `externalClusters` (an ObjectStore
+# # in this namespace, with the read-only verifier key) and declares no
+# # `spec.plugins`, so it does NOT archive WAL and cannot write to or corrupt
+# # the backup it was restored from. The same restore, run by hand, is
+# # scripts/verify-barman-restore.sh (docs/backups.md).
 # ###########################################################################
 ---
 apiVersion: v1
@@ -39,6 +36,9 @@ rules:
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["clusters"]
     verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: ["barmancloud.cnpg.io"]
+    resources: ["objectstores"]
+    verbs: ["create", "get", "delete"]
   - apiGroups: [""]
     resources: ["pods", "pods/exec", "secrets", "persistentvolumeclaims", "configmaps"]
     verbs: ["get", "list", "watch", "create", "delete"]
@@ -80,9 +80,8 @@ subjects:
 # # grant is worth.
 # #
 # # SO THE SCOPING IS DONE WITH `resourceNames` INSTEAD, which is tighter than
-# # per-namespace anyway: it names the two Clusters that the LIST in run-all.sh
-# # actually enables, so `mealie-postgresql` is unreadable in every namespace
-# # rather than merely unreadable outside two.
+# # per-namespace anyway: it names exactly the Clusters that the LIST in
+# # run-all.sh enables.
 # #
 # # `get` only, no `list`: RBAC cannot restrict `list` by resourceName (a LIST
 # # request names nothing), so granting it would silently widen this to every
@@ -104,10 +103,11 @@ rules:
     resourceNames:
       - immich-db
       - keycloak-db
-      # The five clusters with no barmanObjectStore are deliberately absent,
-      # matching the commented-out entries in run-all.sh:
-      #   mealie-postgresql, sonarr-postgresql, radarr-postgresql,
-      #   prowlarr-postgresql, lidarr-postgresql
+      - mealie-postgresql
+      - sonarr-postgresql
+      - radarr-postgresql
+      - lidarr-postgresql
+      - prowlarr-postgresql
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -146,6 +146,7 @@ data:
     cleanup() {
       echo "--- cleaning up $TARGET ---"
       kubectl -n backup-verify delete cluster "$TARGET" --ignore-not-found --wait=false
+      kubectl -n backup-verify delete objectstore "$TARGET" --ignore-not-found
     }
     trap cleanup EXIT
 
@@ -180,18 +181,45 @@ data:
       exit 1
     fi
     echo "    source image: $SRC_IMAGE"
+    # immich-db preloads vectors.so; a restore without it cannot start.
+    SRC_PRELOAD="$(kubectl -n "$SRC_NS" get cluster "$SRC" \
+                   -o jsonpath='{.spec.postgresql.shared_preload_libraries}')"
+    SRC_PRELOAD="${SRC_PRELOAD:-[]}"
 
     # The throwaway cluster.
     #
-    # Single instance, small volume, and -- critically -- NO `spec.backup`
-    # block. Without it the restored cluster has nowhere to archive WAL, so it
+    # Single instance, small volume, and -- critically -- NO `spec.plugins`.
+    # Without it the restored cluster has nowhere to archive WAL, so it
     # physically cannot write into the object store it was restored from. That
     # is what makes running this against production backups safe.
     #
-    # `serverName` under externalClusters is what selects WHICH backup inside
-    # destinationPath to read. It must match the source cluster's name, because
-    # this restored cluster is called something else entirely.
+    # `serverName` in the plugin parameters selects WHICH backup inside
+    # destinationPath to read: cnpg/<source cluster>/. The `s3-backup` Secret in
+    # this namespace holds the read-only verifier key.
     kubectl apply -f - <<EOF
+    apiVersion: barmancloud.cnpg.io/v1
+    kind: ObjectStore
+    metadata:
+      name: $TARGET
+      namespace: backup-verify
+    spec:
+      configuration:
+        destinationPath: s3://ned-si-homelab-backups/cnpg
+        endpointURL: https://s3.eu-central-1.amazonaws.com
+        s3Credentials:
+          accessKeyId:
+            name: s3-backup
+            key: ACCESS_KEY_ID
+          secretAccessKey:
+            name: s3-backup
+            key: ACCESS_SECRET_KEY
+        wal:
+          compression: gzip
+      instanceSidecarConfiguration:
+        env:
+          - name: AWS_DEFAULT_REGION
+            value: eu-central-1
+    ---
     apiVersion: postgresql.cnpg.io/v1
     kind: Cluster
     metadata:
@@ -202,6 +230,8 @@ data:
     spec:
       instances: 1
       imageName: $SRC_IMAGE
+      postgresql:
+        shared_preload_libraries: $SRC_PRELOAD
       storage:
         size: 20Gi
         storageClass: iscsi
@@ -210,19 +240,11 @@ data:
           source: src
       externalClusters:
         - name: src
-          barmanObjectStore:
-            destinationPath: s3://ned-si-homelab-backups/${SRC_NS}/postgres
-            endpointURL: https://s3.eu-central-1.amazonaws.com
-            serverName: $SRC
-            s3Credentials:
-              accessKeyId:
-                name: s3-backup
-                key: ACCESS_KEY_ID
-              secretAccessKey:
-                name: s3-backup
-                key: ACCESS_SECRET_KEY
-            wal:
-              maxParallel: 4
+          plugin:
+            name: barman-cloud.cloudnative-pg.io
+            parameters:
+              barmanObjectName: $TARGET
+              serverName: $SRC
       resources:
         requests:
           cpu: 100m
@@ -291,38 +313,17 @@ data:
         rc=1
       fi
     done <<'LIST'
-    # Same rule as run-all-files.sh: a line is enabled only once something
-    # actually writes the backup it verifies. A check that always fails is a
-    # check you learn to ignore.
-    #
-    # This job restores from the cluster's barmanObjectStore. Only these two
-    # clusters have one:
-    immich-db          immich      40
-    keycloak-db        keycloak    50
-    #
-    # The other five have NO spec.backup.barmanObjectStore, so there is nothing
-    # for this job to recover from and it would fail every Sunday forever:
-    #
-    #   mealie-postgresql   mealie    10
-    #   sonarr-postgresql   theater   10
-    #   radarr-postgresql   theater   10
-    #   prowlarr-postgresql theater   10
-    #   lidarr-postgresql   theater   10
-    #
-    # They are covered in the interim by nightly logical dumps -- snapshots, not
-    # PITR -- from apps/mealie/backup.yaml and apps/theater/backup.yaml, and the
-    # gap itself is alerted on by PostgresClusterHasNoBackupConfigured rather
-    # than left to a failing job to signal.
-    #
-    # Uncomment a line in the same change that adds barmanObjectStore +
-    # ScheduledBackup to that Cluster. Copy platform/keycloak/database.yaml.
-    #
-    # AND ADD ITS NAME TO `resourceNames` ON THE
-    # backup-verify-source-clusters ClusterRole AT THE TOP OF THIS FILE.
-    # verify.sh reads the source Cluster's .spec.imageName across namespaces and
-    # that ClusterRole is what authorises it. Forgetting this step fails the run
-    # immediately with a message naming the object, rather than 30 minutes later
-    # as a recovery timeout -- but it still fails, so do both lines at once.
+    # Every cluster archives WAL and takes daily base backups through the
+    # Barman Cloud plugin. Enabling another cluster takes two edits: a line
+    # here AND its name in `resourceNames` on the backup-verify-source-clusters
+    # ClusterRole at the top of this file (verify.sh reads the source Cluster).
+    immich-db           immich      40
+    keycloak-db         keycloak    50
+    mealie-postgresql   mealie      10
+    sonarr-postgresql   theater     10
+    radarr-postgresql   theater     10
+    lidarr-postgresql   theater     10
+    prowlarr-postgresql theater     10
     LIST
     echo
     [ $rc -eq 0 ] && echo "ALL BACKUPS VERIFIED" || echo "ONE OR MORE BACKUPS FAILED VERIFICATION"

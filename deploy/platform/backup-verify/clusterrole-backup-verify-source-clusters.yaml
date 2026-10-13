@@ -18,6 +18,11 @@ rules:
   resourceNames:
   - immich-db
   - keycloak-db
+  - mealie-postgresql
+  - sonarr-postgresql
+  - radarr-postgresql
+  - lidarr-postgresql
+  - prowlarr-postgresql
   resources:
   - clusters
   verbs:
