@@ -38,11 +38,11 @@ objects and rule ids only; values are never printed.
                         clusters/homelab/legacy/all-apps.yaml passes `legacy-root`
   cilium-version        the cilium Application's chart version equals the cilium
                         entry of ci/helm-releases.yaml
-  cnpg-backup           no rendered CNPG Cluster uses spec.backup.barmanObjectStore;
-                        every ScheduledBackup is method: plugin (Barman Cloud) and
-                        targets a rendered Cluster in its namespace that has the
-                        plugin as WAL archiver; every such Cluster has a
-                        ScheduledBackup and a rendered ObjectStore it references
+  cnpg-backup           every rendered CNPG Cluster archives WAL through the Barman
+                        Cloud plugin, has a ScheduledBackup and references a
+                        rendered ObjectStore in its namespace; no Cluster uses
+                        spec.backup.barmanObjectStore; every ScheduledBackup is
+                        method: plugin and targets such a Cluster
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
 """
@@ -392,6 +392,8 @@ class Policy:
         for (ns, name), (app, d) in sorted(clusters.items()):
             plugin = wal_archiver(d)
             if plugin is None:
+                self.fail("cnpg-backup", f"{app}: Cluster {ns}/{name} does not archive WAL through the "
+                                         f"Barman Cloud plugin ({CNPG_PLUGIN}, isWALArchiver: true)")
                 continue
             if (ns, name) not in backed_up:
                 self.fail("cnpg-backup", f"{app}: Cluster {ns}/{name} archives WAL but has no ScheduledBackup")

@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/immich/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/immich/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-backup
+  namespace: immich
+spec:
+  configuration:
+    data:
+      compression: gzip
+    destinationPath: s3://ned-si-homelab-backups/cnpg
+    endpointURL: https://s3.eu-central-1.amazonaws.com
+    s3Credentials:
+      accessKeyId:
+        key: ACCESS_KEY_ID
+        name: cnpg-backup-s3
+      secretAccessKey:
+        key: ACCESS_SECRET_KEY
+        name: cnpg-backup-s3
+    wal:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+    - name: AWS_DEFAULT_REGION
+      value: eu-central-1
+  retentionPolicy: 30d

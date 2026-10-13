@@ -29,6 +29,12 @@ spec:
       - GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "app";
   imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
   instances: 1
+  plugins:
+  - enabled: true
+    isWALArchiver: true
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: cnpg-backup
   postgresql:
     shared_preload_libraries:
     - vectors.so
