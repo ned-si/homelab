@@ -11,7 +11,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
 | Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); every other alert goes to the `null` receiver and is dropped |
 | Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml` |
-| Notification credentials | Secret `monitoring/alertmanager-notify` (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`), mounted into Alertmanager; all three are still `PENDING` sentinels, `heartbeat-url` a URL-shaped one (`https://pending.invalid/...`) |
+| Notification credentials | Secret `monitoring/alertmanager-notify` (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`), mounted into Alertmanager; `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes), the two Pushover keys are still `PENDING` sentinels |
 | Hubble | on in the Cilium agents; relay, UI and metrics not enabled ([networking.md](networking.md#debugging)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
 
