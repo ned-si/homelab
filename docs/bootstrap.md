@@ -1,50 +1,66 @@
 # Bootstrap
 
-From "kubeadm cluster with a kubeconfig" to "Argo CD manages everything". This
-runs once per cluster. Day-to-day changes go through pull requests
-([README](../README.md#how-changes-reach-the-cluster)); recovering an existing
-cluster after a power loss is [runbooks/cold-start.md](runbooks/cold-start.md).
+From "four Talos nodes in maintenance mode" to "Argo CD manages everything".
+This runs once per cluster. It keeps the data: the iSCSI volumes on the NAS are
+re-bound by name and the databases are recovered from their off-site backups.
+Machine configs, images and Talos upgrades are in [talos.md](talos.md).
+Day-to-day changes go through pull requests
+([README](../README.md#how-changes-reach-the-cluster)).
 
 ## What is bootstrapped, and why it cannot be GitOps
 
 | Step | Why by hand |
 | --- | --- |
-| Cilium | No pod schedules without a CNI, including Argo CD. Argo CD adopts the release afterwards. |
+| Machine configs, etcd bootstrap | There is no cluster yet. `talosctl` talks to the nodes directly. |
+| Gateway API CRDs | Cilium's Gateway controller checks for them when it starts. The `gateway-api` Application adopts them. |
+| Cilium | No pod schedules without a CNI, including Argo CD. The `cilium` Application adopts the release. |
 | Namespace `argo` and Secret `argo/sops-age` | Argo CD cannot decrypt the repo's secrets without the age key, and the key cannot live in the repo. |
-| Argo CD (Helm release `argocd`) | Something has to install the thing that installs everything. It stays a Helm CLI release. |
+| Argo CD (Helm release `argocd`) | Something has to install the thing that installs everything. The `argocd` Application adopts the release. |
 | Root Application | One object that points Argo CD at `deploy/clusters/homelab/bootstrap` on `main`. |
+| PV and PVC `immich-data` | The photo library. Never synced by Argo CD; applied by hand after a check ([step 7](#7-immich)). |
 
-Everything else, including Argo CD's own HTTPRoute, democratic-csi and the
-Gateway, is created by Argo CD from git.
+Everything else is created by Argo CD from git, including the static PVs of
+the other data volumes (`iscsi-volumes`) and the database recoveries.
 
 ## Prerequisites
 
-- A kubeadm cluster with the API on the VIP `192.168.1.11:6443` (kube-vip static
-  pods with the `/etc/nsswitch.conf` mount, see
-  [networking.md](networking.md#kubernetes-api-vip)), no kube-proxy (Cilium
-  replaces it: `kubeadm init --skip-phases=addon/kube-proxy`), swap off, and
-  every node's `INTERNAL-IP` its own address, never the VIP. Steps 3 to 8 of
-  [runbooks/node-replacement.md](runbooks/node-replacement.md) prepare a node,
-  join it and add kube-vip; the OS settings, package versions and the kube-vip
-  manifest are there.
-- `~/repos/homelab/kubeconfig-homelab` (git-ignored) and
-  `export KUBECONFIG=~/repos/homelab/kubeconfig-homelab`.
-- Tools: `task tools` (sops, age, kustomize, kubeconform, helm, yq), plus
-  `kubectl`.
+- Every node flashed with the Image Factory image and booted into maintenance
+  mode, its DHCP address read from the UART ([talos.md](talos.md#image)).
+- `talos/talsecret.sops.yaml` sealed and committed
+  ([talos.md](talos.md#cluster-secrets-once)).
 - The age identity in `~/.config/sops/age/keys.txt`, mode 600: restore it from
   the password manager, or generate a new one (step 1).
+- Tools: `task tools`, plus `kubectl`.
 - Run every command from the repository root on a checkout of `origin/main`.
+
+When the cluster replaces one that held data (the normal case):
+
+- The old cluster is powered off. The NAS shows **no iSCSI sessions** (TrueNAS
+  UI, Sharing, iSCSI, Sessions): a volume attached by two clusters at once is
+  corrupted.
+- Every CNPG Cluster has a completed backup in its ObjectStore `cnpg-backup`
+  (S3 `s3://ned-si-homelab-backups/cnpg/<cluster>/`), taken on the old cluster
+  after its writers stopped: `kubectl get backups.postgresql.cnpg.io -A` there
+  lists one `completed` per Cluster ([backups.md](backups.md)).
+- Each Cluster's `externalClusters[0]` server name is the archive to recover
+  from, and its `plugins[0]` server name is a new, empty one. Today:
+  recover from `<cluster>`, archive to `<cluster>-t1`. For the next rebuild,
+  first move both by one (`<cluster>-t1` and `<cluster>-t2`) in a pull request:
+  CNPG refuses to archive into a path that already holds an archive.
+- A recursive ZFS snapshot of the iSCSI parent dataset on the NAS, the
+  rollback point for every volume.
 
 Check:
 
 ```sh
-kubectl get nodes
+talosctl version --client --short
 age-keygen -y ~/.config/sops/age/keys.txt
 grep -o 'age1[0-9a-z]*' .sops.yaml | sort -u
 ```
 
-Expected: every node listed (`NotReady` is normal before a CNI), and the
-public key printed by `age-keygen -y` equal to the recipient in `.sops.yaml`.
+Expected: the talosctl client version equal to `talosVersion` in
+`talos/talconfig.yaml`, and the public key printed by `age-keygen -y` equal to
+the recipient in `.sops.yaml`.
 
 ## Steps
 
@@ -58,10 +74,51 @@ task secrets:keygen
 
 It writes `~/.config/sops/age/keys.txt` and prints the public key. Save the
 private key in the password manager now, put the public key in `.sops.yaml`,
-and re-seal every secret ([secrets.md](secrets.md)) before
-continuing: the sealed files in git are encrypted to the current key.
+and re-seal every secret ([secrets.md](secrets.md)) before continuing: the
+sealed files in git are encrypted to the current key.
 
-### 2. Cilium
+### 2. Machine configs and etcd
+
+```sh
+task talos:genconfig
+export TALOSCONFIG="$PWD/talos/clusterconfig/talosconfig"
+talosctl apply-config --insecure -n <dhcp-ip> -f talos/clusterconfig/homelab-homelab-cp-3.yaml
+```
+
+Repeat the `apply-config` line for every node in maintenance mode, each with
+its own file (`homelab-<hostname>.yaml`). Expected: the last line of
+`genconfig` is `talos-genconfig: 4 machine config(s) in <repo>/talos/clusterconfig`;
+each `apply-config` exits 0 and the node reboots onto its static address.
+
+Bootstrap etcd once, on one control plane, then fetch the kubeconfig:
+
+```sh
+talosctl -e 192.168.1.239 -n 192.168.1.239 bootstrap
+talosctl -e 192.168.1.239 -n 192.168.1.239 kubeconfig kubeconfig-homelab
+export KUBECONFIG="$PWD/kubeconfig-homelab"
+kubectl get nodes
+```
+
+Expected: `bootstrap` and `kubeconfig` exit 0 (`kubeconfig-homelab` is
+git-ignored); within about 5 minutes every configured node is listed as
+`NotReady`, which is normal before a CNI. The API answers on the VIP
+`192.168.1.11:6443` once etcd is up. Store `talosconfig` and the kubeconfig in
+the password manager.
+
+### 3. Gateway API CRDs
+
+From the render in git, no network fetch:
+
+```sh
+kubectl apply --server-side -f deploy/infrastructure/gateway-api/
+kubectl get crd gateways.gateway.networking.k8s.io \
+  -o jsonpath='{.metadata.annotations.gateway\.networking\.k8s\.io/bundle-version}{"\n"}'
+```
+
+Expected: every object `serverside-applied`, then the version pinned in
+`infrastructure/gateway-api/kustomization.yaml` (`v1.6.3`).
+
+### 4. Cilium
 
 From the values and chart version in git:
 
@@ -70,12 +127,13 @@ version=$(yq '.releases[] | select(.name == "cilium") | .version' ci/helm-releas
 helm install cilium cilium --repo https://helm.cilium.io --version "$version" \
   -n kube-system -f infrastructure/cilium/values.yaml --wait --timeout 15m
 kubectl -n kube-system rollout status ds/cilium --timeout=5m
+talosctl -e 192.168.1.239 -n 192.168.1.239 health --wait-timeout 10m
 ```
 
 Expected: `STATUS: deployed`, then `daemon set "cilium" successfully rolled
-out`, and every node `Ready` within a minute.
+out`, every node `Ready`, and `talosctl health` ending without an error.
 
-### 3. Argo CD and its key
+### 5. Argo CD and its key
 
 ```sh
 kubectl create namespace argo
@@ -90,7 +148,7 @@ kubectl -n argo get pods
 Expected: `STATUS: deployed` and every pod in `argo` `Running`. The repository
 is public, so Argo CD needs no credential to clone it.
 
-### 4. Root Application
+### 6. Root Application
 
 ```sh
 kubectl apply -f bootstrap/root-app.yaml
@@ -98,24 +156,66 @@ kubectl -n argo get applications -w
 ```
 
 Expected: `root`, then the three `layer-*` Applications, then every leaf
-appear. Expect 10 to 20 minutes on RK1 hardware. Argo CD adopts the Cilium
-release from step 2 in the `cilium` Application; its diff is only the
-`argocd.argoproj.io/instance` label.
+appear. Expect 10 to 20 minutes on RK1 hardware, plus the database recoveries.
+The `argocd`, `cilium` and `gateway-api` Applications adopt what steps 3 to 5
+installed; their diff is only the `argocd.argoproj.io/instance` label.
 
-Expected transient failures:
+Expected transient states:
 
-| Application | Error | Clears when |
+| Application | State | Clears when |
 | --- | --- | --- |
 | `cnpg` | `no matches for kind "PodMonitor"` | `kube-prometheus-stack` syncs (wave 10) and the retry runs |
-| `keycloak` | CrashLoopBackOff | its database is ready |
-| everything in `platform` and `apps` | Progressing | `democratic-csi` (infrastructure wave 20) provides the StorageClasses |
+| `keycloak` | CrashLoopBackOff | `keycloak-db` has recovered |
+| CNPG Clusters | `Setting up primary`, a `*-full-recovery` pod | the base backup and WAL are restored; minutes per GB |
+| everything in `platform` and `apps` | Progressing | `democratic-csi` (wave 20) provides the StorageClasses and `iscsi-volumes` (wave 25) the PVs |
+
+Then check that every data claim got its old volume and every database
+recovered:
+
+```sh
+kubectl get pv -o custom-columns=PV:.metadata.name,STATUS:.status.phase,CLAIM:.spec.claimRef.name \
+  | grep -F -f <(yq -N '.metadata.name' infrastructure/iscsi-volumes/*.yaml | grep '^pvc-')
+kubectl get clusters.postgresql.cnpg.io -A
+```
+
+Expected: 15 lines, every one `Bound`; every Cluster `Cluster in healthy state`.
+A data claim bound to any other PV is on a new, empty volume: scale its
+workload to 0 and stop. Compare row counts and file counts with the values
+recorded before the old cluster stopped.
 
 Anything not `Synced` and `Healthy` 30 minutes after the last layer appeared is
 a real problem: `kubectl -n argo get application <name> -o yaml` and read
 `status.conditions` and `status.operationState`. `immich` is the exception: it
-has no automated sync and stays `OutOfSync` until step 5.
+has no automated sync and stays `OutOfSync` until step 7.
 
-### 5. Log in to Argo CD, sync Immich
+### 7. Immich
+
+**Operator decision.** The photo library volume is the one thing that is not
+replaceable. Apply it only when step 6 is green and the NAS still shows no
+iSCSI session from any other host:
+
+```sh
+kubectl apply --server-side -f infrastructure/iscsi-volumes/operator/immich-data.yaml
+kubectl -n immich get pvc immich-data -o jsonpath='{.status.phase} {.spec.volumeName}{"\n"}'
+```
+
+Expected: `Bound pvc-b9d3e7d8-0d3e-43d4-b8d3-8f212ede0ea6`. Anything else:
+stop, do not sync Immich.
+
+Then sync it by hand (read [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md)
+before ever syncing a changed Immich chart or image):
+
+```sh
+argocd login argo.lilalala.com --grpc-web
+argocd app sync immich --grpc-web
+argocd app wait immich --health --timeout 900 --grpc-web
+```
+
+Expected: the sync succeeds, the wait ends with `Health Status: Healthy`, and
+the image and video counts (Administration, Server Stats) equal the values
+recorded before the old cluster stopped.
+
+### 8. Log in to Argo CD
 
 ```sh
 kubectl -n argo get secret argocd-initial-admin-secret \
@@ -124,17 +224,7 @@ kubectl -n argo port-forward svc/argocd-server 8080:80
 ```
 
 Open `http://localhost:8080` as `admin`. Once the `gateway` Application is
-healthy, `https://argo.lilalala.com` works too. Then sync Immich by hand:
-
-```sh
-argocd login argo.lilalala.com --grpc-web
-argocd app sync immich --grpc-web
-argocd app wait immich --health --timeout 900 --grpc-web
-```
-
-Expected: the sync succeeds and the wait ends with `Health Status: Healthy`.
-Read [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md) before ever
-syncing a changed Immich chart or image.
+healthy, `https://argo.lilalala.com` works too.
 
 Keycloak login (group `ArgoCDAdmins` is admin) needs the client secret of the
 Keycloak client `argocd` in `argocd-secret`. It is not in git; set it once
@@ -145,7 +235,10 @@ kubectl -n argo patch secret argocd-secret --type merge \
   -p '{"stringData":{"oidc.keycloak.clientSecret":"<client-secret-from-keycloak>"}}'
 ```
 
-### 6. Check
+The `argocd` Application ignores the data of `argocd-secret`, so a sync keeps
+it.
+
+### 9. Check
 
 ```sh
 kubectl -n argo get applications \
@@ -153,18 +246,23 @@ kubectl -n argo get applications \
 kubectl -n gateway get certificate wildcard-lilalala
 ```
 
-Expected: 25 Applications, all `Synced` and `Healthy`; the certificate
+Expected: 27 Applications, all `Synced` and `Healthy`; the certificate
 `READY True`. Production Let's Encrypt allows 50 certificates per domain per
 week; on a new domain or DNS token, try the staging issuer first
 (`infrastructure/cert-manager-issuers/cluster-issuer-staging.yaml`, kept out of
 the kustomization on purpose).
 
+If a database recovery fails, the fallback is an empty cluster plus the latest
+dump from `task backup:dump`: restore the Cluster's `bootstrap.initdb` block
+from git history, sync, then `pg_restore` as in
+`scripts/verify-dump-restore.sh`.
+
 ## OpenTofu alternative
 
-`bootstrap/main.tf` performs steps 2 to 4 in one run (Cilium, the `argo`
-namespace, `sops-age`, a repository credential, Argo CD, and the root
-Application through the local chart `bootstrap/charts/root-application`). The
-current cluster was bootstrapped by hand, not with it.
+`bootstrap/main.tf` performs steps 4 and 5 and the root Application of step 6
+in one run (Cilium, the `argo` namespace, `sops-age`, a repository credential,
+Argo CD, and the root Application through the local chart
+`bootstrap/charts/root-application`). Steps 2 and 3 come first, by hand.
 
 ```sh
 cp bootstrap/terraform.tfvars.example bootstrap/terraform.tfvars
@@ -247,16 +345,26 @@ kubectl -n argo delete application root
 ```
 
 Expected: the root goes away; layers, leaves and workloads keep running. Delete
-the layers the same way before uninstalling Argo CD. Re-applying
-`bootstrap/root-app.yaml` adopts everything again.
+the layers the same way, then the `argocd` Application, before uninstalling
+Argo CD. Re-applying `bootstrap/root-app.yaml` adopts everything again.
 
 ## Why it is like this
 
-- Argo CD is a Helm CLI release, not an Application: an Argo CD that manages its
-  own release can break the thing that would repair it. Upgrades are
-  `helm upgrade` from a merged commit, with the version from
-  `ci/helm-releases.yaml` and the values from `bootstrap/argocd-values.yaml`.
-- Cilium is installed once by hand and then adopted, rather than kept as a Helm
-  CLI release: the lifecycle (upgrades, values changes, drift) is then a pull
-  request like everything else. The cost is this one bootstrap step.
+- Argo CD manages its own release. Upgrades and values changes are pull
+  requests, and the live version cannot drift from git the way a Helm CLI
+  release did. The cost is that a bad Argo CD sync cannot be repaired by Argo
+  CD: the break-glass `helm upgrade` from a known-good commit is in
+  `clusters/homelab/infrastructure/argocd.yaml`.
+- Cilium and the Gateway API CRDs are installed once by hand and then adopted,
+  rather than kept as Talos inline manifests: Talos re-applies inline manifests
+  on every Kubernetes upgrade and would fight Argo CD for them.
+- Cilium reaches the API through KubePrism (`localhost:7445`), so it needs no
+  working pod network or VIP to start.
+- Data volumes are re-bound as static PVs with their old volume handles instead
+  of restored from backups: the zvols on the NAS are the data, and restoring
+  hundreds of GB from S3 would take hours. The databases are recovered from their
+  Barman Cloud backups instead of re-bound, because a PGDATA volume carries the
+  old cluster's identity; their old volumes stay on the NAS as a fallback.
+- `immich-data` stays out of every Application, so no sync, prune or mistake in
+  git can touch the photo library.
 - The repository credential is optional: the repository is public.
