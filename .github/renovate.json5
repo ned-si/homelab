@@ -255,6 +255,19 @@
       allowedVersions: '<10.2.3',
     },
     {
+      // A CNPG major runs pg_upgrade: new system ID, timeline back to 1. The
+      // Barman Cloud plugin does not separate archives, so the upgraded
+      // cluster's WAL would overwrite the old timeline-1 files in
+      // cnpg/<cluster>/ unless serverName changes in the same commit; and a
+      // PostgreSQL 17 older than 17.6 needs the 17.6+ minor first
+      // (https://cloudnative-pg.io/docs/1.27/postgres_upgrades/). Lift once
+      // a major bump also moves serverName to <cluster>-pg<major>.
+      description: 'No CNPG Postgres major until serverName follows the major',
+      matchPackageNames: ['ghcr.io/cloudnative-pg/postgresql'],
+      matchUpdateTypes: ['major'],
+      enabled: false,
+    },
+    {
       // Paperless 3.0 upgrades only from 2.20.x
       // (https://github.com/paperless-ngx/paperless-ngx/discussions/12756).
       // Applies only while the current version is older, so v3 follows on
