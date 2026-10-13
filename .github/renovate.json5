@@ -179,19 +179,15 @@
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
     },
     {
-      // EXCEPTION: an update that needs a step Renovate cannot make. Cilium
-      // 1.18 and later cannot load its host datapath on the nodes' kernel
-      // (5.10.160-rockchip): the BPF verifier rejects
-      // tail_nodeport_nat_egress_ipv4 on every node. Cilium 1.17 supports
-      // Gateway API v1.2. Lift both caps together after a node kernel upgrade.
-      description: 'Cap Cilium at 1.17 until the node kernel is upgraded',
-      matchDepNames: ['cilium'],
-      allowedVersions: '<1.18.0',
-    },
-    {
-      description: 'Cap Gateway API at v1.2 while Cilium is capped at 1.17',
-      matchDepNames: ['kubernetes-sigs/gateway-api'],
-      allowedVersions: '<1.3.0',
+      // EXCEPTION: Talos and Kubernetes versions in talos/talconfig.yaml. A
+      // merge changes nothing on the nodes: the upgrade is `task talos:upgrade`
+      // (one node at a time, one reboot each) or `task talos:upgrade-k8s`, run
+      // by hand after the merge (docs/talos.md). Automerging would leave main
+      // claiming a version the nodes do not run. Lift once an in-cluster
+      // upgrade controller (tuppr) applies the merged version itself.
+      description: 'Talos and Kubernetes: no automerge until upgrades are GitOps',
+      matchDepNames: ['ghcr.io/siderolabs/installer', 'ghcr.io/siderolabs/kubelet'],
+      automerge: false,
     },
     {
       // The *arr apps and qBittorrent share a download-client credential
@@ -246,10 +242,10 @@
     },
     {
       // kubectl supports one minor of skew against the API server. Move with
-      // the cluster (K8S_VERSION in .github/workflows/ci.yaml).
-      description: 'Keep kubectl images on the cluster minor (1.32)',
+      // the cluster (kubernetesVersion in talos/talconfig.yaml).
+      description: 'Keep kubectl images within one minor of the cluster (1.36)',
       matchPackageNames: ['registry.k8s.io/kubectl', 'bitnami/kubectl'],
-      allowedVersions: '<1.33.0',
+      allowedVersions: '<1.38.0',
     },
     {
       // Argo CD 3.5 (chart >= 10.2.3) is tested on Kubernetes 1.33-1.36; the
