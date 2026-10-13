@@ -76,7 +76,6 @@ XFAIL=(
   'platform/backup-verify::namespaces? "?backup-verify"? not found::namespace backup-verify not created until Phase 2'
   # nfs-storage declares the backup-local PVC in backup-verify as well as immich.
   'infrastructure/nfs-storage::namespaces? "?backup-verify"? not found::namespace backup-verify not created until Phase 2'
-  'platform/barman-cloud-plugin::namespaces? "?cnpg-system"? not found::namespace cnpg-system not created until Phase 2; also not wired in yet'
 
   # RollingUpdate -> Recreate. Fixed by scripts/normalize-deployment-strategy.sh
   # as a documented pre-cutover step. The regex is the API server's own wording;

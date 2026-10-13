@@ -5,7 +5,7 @@ d145babfbb765004030764e1b4e518bfb7a4bd7f111691a08fa57983b81881f3  https://raw.gi
 1ef3d577dd42dac91139fb5a03f292d1aec2dac91ef1f0eed1144c769f02fae0  https://raw.githubusercontent.com/argoproj/argo-cd/v2.14.11/manifests/crds/applicationset-crd.yaml
 d9a63cb9a12ef66bbf4e811c94fbaa3922af00ed7bb3af791e85dcd7337ffe4c  https://raw.githubusercontent.com/argoproj/argo-cd/v2.14.11/manifests/crds/appproject-crd.yaml
 847ccea9bd97fd1eb129dd5329d368cb59cf104760a3dedf2af6501843d05502  https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.crds.yaml
-d50e9d79396212670f6e9bef49998f28ec14a58e3cb9d2729e49c1b83da15677  https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/v1.24.1/releases/cnpg-1.24.1.yaml
+37237f145d8138256ea25ae830f87759255665ff08f8d552fdd8224a5ec032fb  https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/v1.30.1/releases/cnpg-1.30.1.yaml
 542004b80a240055c9985fca13ca777865ca81f67dfd5e06de2bfe4e1857edce  https://raw.githubusercontent.com/cilium/cilium/v1.16.3/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumclusterwideenvoyconfigs.yaml
 b35c514bc6516937f31d47e93bfcc5450ae91b102c5d81e79b81d8f416c035ca  https://raw.githubusercontent.com/cilium/cilium/v1.16.3/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumclusterwidenetworkpolicies.yaml
 359eda4690c3845ae923c1b4e3b942fb734e057a32c77015e06c6b8d03ff2e3d  https://raw.githubusercontent.com/cilium/cilium/v1.16.3/pkg/k8s/apis/cilium.io/client/crds/v2/ciliumegressgatewaypolicies.yaml
@@ -55,5 +55,5 @@ e35c128e5ae8607e04fe92e7d6aae28c7fc9cf24262549a84904fa0042ac21ae  https://github
 e0397fd4e3f81db22d7de4baeb333d333e802f05b7902d0a32f23cc70e693c47  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml
 974db7292f4ee4bf335483536b44e8b339e32ae4ca3423e4fbeb2299f3d96660  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
 d7939ea45a8798e11c0063dfdfe93e4d9e4b09a1160881f2cc403a6e8f0fa4d5  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
-83a3ade393ea767ac5340b055fa95e7cd51751e35dacf9f0b3ef1ed03ac531b0  https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.12.0/manifest.yaml
+8f377ff4a7d0d3f74fc64b0f7ac4f449fc38ca9e83a40107cca2f9315a9bd920  https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.1/manifest.yaml
 7fa74f9176dcac7202bb57a3b762a65eba602a16b331fd20863fea8efe8e3f2d  https://raw.githubusercontent.com/kubernetes/kubernetes/v1.31.2/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json
