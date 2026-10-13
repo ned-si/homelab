@@ -1,10 +1,16 @@
-# external-dns (chart 1.15.0, v0.15.0): publishes the public hostnames to
+# external-dns: publishes the public hostnames to
 # Cloudflare. Source: the shared Gateway's HTTPRoutes only. Every record
 # points at the single WAN address set by `--default-targets` in
 # infrastructure/external-dns/values.yaml.
 #
 # Its Cloudflare token comes from the `secrets-infrastructure` Application
 # (wave -25).
+#
+# The chart ships its CRDs (dnsendpoints, and dnsrecords since 1.23). For a
+# second or two after a CRD is created it has no `Established` condition,
+# which Argo CD's built-in CRD health check reports as Degraded, and that
+# triggers auto-rollback. A chart version that adds a CRD is merged with
+# auto-rollback paused; updates of existing CRDs are not affected.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -19,7 +25,7 @@ spec:
     - repoURL: https://kubernetes-sigs.github.io/external-dns/
       chart: external-dns
       # renovate: datasource=helm depName=external-dns registryUrl=https://kubernetes-sigs.github.io/external-dns/
-      targetRevision: 1.15.2
+      targetRevision: 1.23.0
       helm:
         releaseName: external-dns
         valueFiles:

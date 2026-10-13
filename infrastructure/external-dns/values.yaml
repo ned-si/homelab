@@ -1,11 +1,13 @@
-# external-dns chart 1.15.0 (v0.15.0) values: the running release's values
-# with `gateway-httproute` as the only source (ADR 0007, ADR 0011).
+# external-dns values, with `gateway-httproute` as the only source.
 #
-# Behaviour kept from the running release (chart defaults, not repeated here):
-# policy `upsert-only` (records are created and updated, never deleted), TXT
-# registry with the default owner id, no TXT prefix, no domain filter.
+# Chart defaults kept (not repeated here): TXT registry with the default owner
+# id, no TXT prefix, no domain filter.
 provider:
   name: cloudflare
+
+# Records are created and updated, never deleted: a bad render cannot wipe a
+# public hostname. The chart requires this to be set explicitly.
+policy: upsert-only
 
 env:
   - name: CF_API_TOKEN
@@ -28,9 +30,10 @@ sources:
 # `wan-ip-single-source`). Every published hostname is an A record to this
 # address; no Ingress, Gateway or HTTPRoute carries a target annotation.
 # The ISP (Sunrise) gives a dynamic address: re-check after router reboots.
-# Semantics verified for chart 1.15.0 / external-dns v0.15.0, where default
-# targets replace all targets of every endpoint. Before upgrading to >= 0.16,
-# add --force-default-targets, or every record flips to the LoadBalancer
-# address (external-dns#6134).
+# Since external-dns v0.16, default targets only fill endpoints that have
+# none; an HTTPRoute always has the Gateway's LAN address. The force flag
+# restores "default targets replace every target", without which every record
+# would point at the private LoadBalancer IP (external-dns#6134).
 extraArgs:
   - --default-targets=31.164.170.92
+  - --force-default-targets
