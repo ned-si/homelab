@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/blackbox-exporter/probes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/blackbox-exporter/probes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: public-https-gated
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-public
+  module: http_gated
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  scrapeTimeout: 15s
+  targets:
+    staticConfig:
+      labels:
+        probe: public
+      relabelingConfigs:
+      - regex: https://([^.]+)\..*
+        replacement: $1
+        sourceLabels:
+        - __param_target
+        targetLabel: app
+      static:
+      - https://theater.lilalala.com/

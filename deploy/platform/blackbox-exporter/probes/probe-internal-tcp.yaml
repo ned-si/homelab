@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/blackbox-exporter/probes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/blackbox-exporter/probes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: internal-tcp
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-internal
+  module: tcp_connect
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      labels:
+        probe: internal
+      static:
+      - 192.168.1.11:6443
+      - 192.168.1.254:443
+      - 192.168.1.228:3260
+      - 192.168.1.228:2049

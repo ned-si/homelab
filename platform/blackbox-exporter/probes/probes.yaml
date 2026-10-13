@@ -1,0 +1,170 @@
+# What blackbox-exporter probes. Every Probe carries `release:
+# kube-prometheus-stack`, the label Prometheus selects Probes on.
+#
+# Public probes go out through the public name, exactly as a client does:
+# cluster DNS -> router -> Cloudflare -> WAN address -> NAT loopback -> the
+# Gateway on 192.168.1.254. They therefore also fail when DNS, the WAN address
+# or the router's port forward is wrong, which is what a user would see. They
+# do not see an outage of the house's internet link from outside; the
+# Alertmanager heartbeat covers that.
+#
+# The `app` label (the first DNS label of the target) is what the SLO rules in
+# platform/kube-prometheus-stack/routes/slo.yaml group by.
+#
+# Not probed from inside: the syncthing (.201:22000) and qBittorrent
+# (.200:50000) LoadBalancers. Their network policies admit `world` only, so a
+# probe from a cluster pod would be dropped and report a false outage.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: public-https
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: blackbox-public
+  interval: 30s
+  scrapeTimeout: 15s
+  module: http_2xx
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      labels:
+        probe: public
+      # A health endpoint per app where one exists without login.
+      static:
+        - https://argo.lilalala.com/healthz
+        - https://auth.lilalala.com/realms/homelab
+        - https://grafana.lilalala.com/api/health
+        - https://cinema.lilalala.com/health
+        - https://media.lilalala.com/api/server/ping
+        - https://archive.lilalala.com/accounts/login/
+        - https://cook.lilalala.com/api/app/about
+        - https://drive.lilalala.com/api2/ping/
+        - https://syncthing.lilalala.com/rest/noauth/health
+      relabelingConfigs:
+        - sourceLabels: [__param_target]
+          regex: "https://([^.]+)\\..*"
+          targetLabel: app
+          replacement: "$1"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: public-https-gated
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: blackbox-public
+  interval: 30s
+  scrapeTimeout: 15s
+  module: http_gated
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      labels:
+        probe: public
+      # Behind the theater SSO proxy: every path answers 401 without a session.
+      static:
+        - https://theater.lilalala.com/
+      relabelingConfigs:
+        - sourceLabels: [__param_target]
+          regex: "https://([^.]+)\\..*"
+          targetLabel: app
+          replacement: "$1"
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: internal-tcp
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: blackbox-internal
+  interval: 30s
+  scrapeTimeout: 10s
+  module: tcp_connect
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      labels:
+        probe: internal
+      static:
+        # Kubernetes API VIP (kube-vip).
+        - 192.168.1.11:6443
+        # Shared Gateway (HTTPS listener).
+        - 192.168.1.254:443
+        # NAS: iSCSI portal (every PVC) and NFS (media, local backups).
+        - 192.168.1.228:3260
+        - 192.168.1.228:2049
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: internal-http
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: blackbox-internal
+  interval: 30s
+  scrapeTimeout: 10s
+  module: http_internal
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      labels:
+        probe: internal
+      static:
+        - http://keycloak.keycloak.svc.cluster.local:9000/health/ready
+        - http://argocd-server.argo.svc.cluster.local/healthz
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: dns-router
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: blackbox-internal
+  interval: 60s
+  scrapeTimeout: 10s
+  module: dns_public
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      labels:
+        probe: internal
+      # The router's DNS forwarder, which CoreDNS forwards to.
+      static:
+        - 192.168.1.1:53
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: dns-cluster
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: blackbox-internal
+  interval: 60s
+  scrapeTimeout: 10s
+  module: dns_cluster
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  targets:
+    staticConfig:
+      labels:
+        probe: internal
+      static:
+        - kube-dns.kube-system.svc.cluster.local:53

@@ -1,0 +1,83 @@
+# prometheus-blackbox-exporter chart values. The prober itself; what it probes
+# is declared as Probe objects in ./probes (Prometheus finds them through the
+# `release: kube-prometheus-stack` label).
+#
+# Modules, one per kind of check:
+#
+#   http_2xx      a public hostname answers 2xx over valid TLS, without
+#                 following redirects (a redirect to a login page would make
+#                 the probe measure Keycloak instead of the app).
+#   http_gated    a hostname whose front is an SSO proxy: 401 or 302 means the
+#                 proxy answered; 5xx or a timeout means it did not.
+#   http_internal plain HTTP inside the cluster (health endpoints).
+#   tcp_connect   something listens on the port.
+#   dns_public    the resolver returns an A record for a public hostname.
+#   dns_cluster   CoreDNS resolves the API Service.
+#
+# No ICMP module: it needs NET_RAW, and every target here has a TCP port.
+fullnameOverride: blackbox-exporter
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+config:
+  modules:
+    http_2xx:
+      prober: http
+      timeout: 10s
+      http:
+        valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+        follow_redirects: false
+        fail_if_not_ssl: true
+        preferred_ip_protocol: ip4
+        ip_protocol_fallback: false
+    http_gated:
+      prober: http
+      timeout: 10s
+      http:
+        valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+        valid_status_codes: [401, 302]
+        follow_redirects: false
+        fail_if_not_ssl: true
+        preferred_ip_protocol: ip4
+        ip_protocol_fallback: false
+    http_internal:
+      prober: http
+      timeout: 5s
+      http:
+        valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+        follow_redirects: false
+        preferred_ip_protocol: ip4
+        ip_protocol_fallback: false
+    tcp_connect:
+      prober: tcp
+      timeout: 5s
+      tcp:
+        preferred_ip_protocol: ip4
+        ip_protocol_fallback: false
+    dns_public:
+      prober: dns
+      timeout: 5s
+      dns:
+        query_name: media.lilalala.com
+        query_type: A
+        valid_rcodes: [NOERROR]
+        preferred_ip_protocol: ip4
+        ip_protocol_fallback: false
+        validate_answer_rrs:
+          fail_if_not_matches_regexp: ['.*\tIN\tA\t.*']
+    dns_cluster:
+      prober: dns
+      timeout: 5s
+      dns:
+        query_name: kubernetes.default.svc.cluster.local
+        query_type: A
+        valid_rcodes: [NOERROR]
+        preferred_ip_protocol: ip4
+        ip_protocol_fallback: false
+        validate_answer_rrs:
+          fail_if_not_matches_regexp: ['.*\tIN\tA\t.*']
