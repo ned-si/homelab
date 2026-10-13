@@ -38,11 +38,7 @@ objects and rule ids only; values are never printed.
                         clusters/homelab/legacy/all-apps.yaml passes `legacy-root`
   cilium-version        the cilium Application's chart version equals the cilium
                         entry of ci/helm-releases.yaml
-  cnpg-backup           no rendered CNPG Cluster uses spec.backup.barmanObjectStore;
-                        every ScheduledBackup is method: plugin (Barman Cloud) and
-                        targets a rendered Cluster in its namespace that has the
-                        plugin as WAL archiver; every such Cluster has a
-                        ScheduledBackup and a rendered ObjectStore it references
+  no-cnpg-backup        no rendered CNPG Cluster has spec.backup; no ScheduledBackup
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
 """
@@ -64,7 +60,6 @@ EXCLUDE_ANN = "external-dns.alpha.kubernetes.io/" + "exclude"
 CONTROLLER_ANN = "external-dns.alpha.kubernetes.io/controller"
 SYNC_OPTS_ANN = "argocd.argoproj.io/sync-options"
 IMMICH_DB_IMAGE = "ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0"
-CNPG_PLUGIN = "barman-cloud.cloudnative-pg.io"
 GUARD_CMD = ["/bin/sh", "/guard/pending-guard.sh"]
 GUARD_MODES = {"restic", "s3-creds", "always-block"}
 LEGACY_PREFIXES = ("kubernetes/applications/", "iac/")
@@ -358,47 +353,16 @@ class Policy:
                     self.fail("cilium-version", f"{f.relative_to(self.root)}: cilium chart {got} != ci/helm-releases.yaml {want}")
 
     def rule_cnpg_backup(self) -> None:
-        clusters: dict[tuple[str, str], tuple[str, dict]] = {}
-        scheduled: list[tuple[str, str, dict]] = []
-        stores: set[tuple[str, str]] = set()
         for e in self.entries():
             for d in self.docs_of(e):
-                api, kind = str(d.get("apiVersion", "")), d.get("kind")
-                ns = self.ns_of(d, e)
-                if api.startswith("barmancloud.cnpg.io/") and kind == "ObjectStore":
-                    stores.add((ns, self.name_of(d)))
+                api = str(d.get("apiVersion", ""))
                 if not api.startswith("postgresql.cnpg.io/"):
                     continue
-                self.on("cnpg-backup")
-                spec = d.get("spec") or {}
-                if kind == "Cluster":
-                    clusters[(ns, self.name_of(d))] = (e["app"], d)
-                    if "barmanObjectStore" in (spec.get("backup") or {}):
-                        self.fail("cnpg-backup", f"{e['app']}: Cluster {ns}/{self.name_of(d)} uses the in-tree "
-                                                 "spec.backup.barmanObjectStore (use the Barman Cloud plugin)")
-                if kind == "ScheduledBackup":
-                    scheduled.append((e["app"], ns, d))
-        backed_up: set[tuple[str, str]] = set()
-        for app, ns, d in scheduled:
-            spec = d.get("spec") or {}
-            where = f"{app}: ScheduledBackup {ns}/{self.name_of(d)}"
-            if spec.get("method") != "plugin" or (spec.get("pluginConfiguration") or {}).get("name") != CNPG_PLUGIN:
-                self.fail("cnpg-backup", f"{where} is not method: plugin with pluginConfiguration.name: {CNPG_PLUGIN}")
-            target = (ns, (spec.get("cluster") or {}).get("name") or "?")
-            if target not in clusters or wal_archiver(clusters[target][1]) is None:
-                self.fail("cnpg-backup", f"{where} targets {target[0]}/{target[1]}, which is not a rendered Cluster "
-                                         "with the Barman Cloud plugin as WAL archiver")
-            backed_up.add(target)
-        for (ns, name), (app, d) in sorted(clusters.items()):
-            plugin = wal_archiver(d)
-            if plugin is None:
-                continue
-            if (ns, name) not in backed_up:
-                self.fail("cnpg-backup", f"{app}: Cluster {ns}/{name} archives WAL but has no ScheduledBackup")
-            store = (plugin.get("parameters") or {}).get("barmanObjectName")
-            if (ns, store) not in stores:
-                self.fail("cnpg-backup", f"{app}: Cluster {ns}/{name} references ObjectStore {ns}/{store}, "
-                                         "which is not rendered")
+                self.on("no-cnpg-backup")
+                if d.get("kind") == "Cluster" and "backup" in (d.get("spec") or {}):
+                    self.fail("no-cnpg-backup", f"{e['app']}: Cluster {self.ns_of(d, e)}/{self.name_of(d)} has spec.backup")
+                if d.get("kind") == "ScheduledBackup":
+                    self.fail("no-cnpg-backup", f"{e['app']}: ScheduledBackup {self.ns_of(d, e)}/{self.name_of(d)} is rendered")
 
     def rule_expected_ingresses(self) -> None:
         wanted = self.read_list("ci/expected-ingresses.txt")
@@ -460,14 +424,6 @@ def check_guard(cj: dict, mode: str | None) -> list[str]:
     if mode is None and "RESTIC_REPOSITORY" not in {e.get("name") for e in c.get("env") or []}:
         problems.append("not in ci/guard-modes.txt and containers[0] has no RESTIC_REPOSITORY (restic mode needs it)")
     return problems
-
-
-def wal_archiver(cluster: dict) -> dict | None:
-    """The Barman Cloud plugin entry of a CNPG Cluster when it is the WAL archiver, else None."""
-    for p in (cluster.get("spec") or {}).get("plugins") or []:
-        if p.get("name") == CNPG_PLUGIN and p.get("isWALArchiver") is True:
-            return p
-    return None
 
 
 def yaml_file_docs(path: Path) -> list[dict]:
