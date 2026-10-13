@@ -86,8 +86,11 @@ those stuck in `ContainerCreating` with a `Multi-Attach` event clear once the
 reset node releases its iSCSI volumes. If the node does not come back, follow
 [node-replacement.md](node-replacement.md).
 
-After it is back, read why it died:
+After it is back, read why it died. List the boots first and pick the one that
+ended at the hang; do not assume it is `-1`, since extra reboots shift the
+offset:
 
 ```sh
-ssh nedsi@192.168.1.239 'sudo journalctl -b -1 -k -p warning --no-pager | tail -40'
+ssh nedsi@192.168.1.239 'sudo journalctl --list-boots --no-pager | tail -5'
+ssh nedsi@192.168.1.239 'sudo journalctl -b <boot-id> -k -p warning --no-pager | tail -40'
 ```
