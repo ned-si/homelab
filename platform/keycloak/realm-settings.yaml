@@ -1,14 +1,14 @@
 # Realm settings as code: after every sync of the `keycloak` Application,
-# this Job writes realm/sessions.conf and realm/platform.conf to the `homelab`
-# realm with kcadm.sh and verifies them (realm/apply.sh). A failed Job fails
-# the sync, which the auto-rollback workflow treats like any other failed
-# deploy.
+# this Job writes realm/sessions.conf, realm/platform.conf and
+# realm/clients.conf to the `homelab` realm with kcadm.sh and verifies them
+# (realm/apply.sh). A failed Job fails the sync, which the auto-rollback
+# workflow treats like any other failed deploy.
 #
-# Scope is deliberately those two files: realm session fields, the
-# `browser-loa` flow, the default ACR of the platform clients and the clients
-# that must not exist (`removed_clients`). Users,
-# credentials, other client settings and groups stay managed in the Keycloak
-# admin console.
+# Scope is deliberately those three files: realm session fields, the
+# `browser-loa` flow, the default ACR of the platform clients, the clients
+# that must not exist (`removed_clients`), and the redirect URIs and web
+# origins of the app clients. Users, credentials, other client settings and
+# groups stay managed in the Keycloak admin console.
 #
 # The image is the server's image (deployment.yaml); keep the two equal.
 ---

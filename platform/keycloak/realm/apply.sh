@@ -1,18 +1,22 @@
 #!/bin/bash
-# Apply sessions.conf and platform.conf to the `homelab` realm, then read the
-# realm back and fail unless every managed value is the expected one.
+# Apply sessions.conf, platform.conf and clients.conf to the `homelab` realm,
+# then read the realm back and fail unless every managed value is the
+# expected one. CHECK_ONLY=1 runs the static checks of the files and exits.
 #
 # Runs in the Keycloak image (kcadm.sh, bash, grep, sed; no awk, jq or curl).
 # `kcadm.sh update -s` fetches an object, changes only the given fields and
 # writes it back, so nothing outside the two files is touched.
 set -euo pipefail
+# Values such as a `*` redirect URI must never expand to file names.
+set -f
 
-KCADM=/opt/keycloak/bin/kcadm.sh
+KCADM=${KCADM:-/opt/keycloak/bin/kcadm.sh}
 CFG=/tmp/kcadm.config
 SERVER=${KEYCLOAK_URL:-http://keycloak.keycloak.svc.cluster.local:8080}
 REALM=${REALM:-homelab}
 CONF=${CONF:-/realm/sessions.conf}
 PLATFORM_CONF=${PLATFORM_CONF:-/realm/platform.conf}
+CLIENTS_CONF=${CLIENTS_CONF:-/realm/clients.conf}
 FLOW=browser-loa
 ACR=platform
 
@@ -27,6 +31,53 @@ check() { # name want got
     rc=1
   fi
 }
+
+conf() { sed -n "s/^$1=//p" "$PLATFORM_CONF" | tail -n 1; }
+
+# --- static checks, before any write -------------------------------------------
+# clients.conf lines: <clientId>.<field>=<values>
+client_lines() { sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$CLIENTS_CONF" | grep -v '^[[:space:]]*$' || true; }
+managed_clients=$(client_lines | sed 's/\..*//' | sort -u)
+bad=0
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  if ! [[ "$line" =~ ^[A-Za-z0-9_-]+\.(redirectUris|webOrigins)=[^[:space:]] ]]; then
+    echo "FAIL clients.conf: not <clientId>.<redirectUris|webOrigins>=<values>: $line" >&2
+    bad=1
+    continue
+  fi
+  field=${line#*.}
+  field=${field%%=*}
+  for v in ${line#*=}; do
+    case "$field:$v" in
+      *'*'* | *'+'* | *'"'* | *,*) ok=0 ;;
+      redirectUris:https://?*/*) ok=1 ;;
+      redirectUris:http:* | redirectUris:https:*) ok=0 ;;
+      redirectUris:[a-z]*.[a-z]*:///*) ok=1 ;;
+      webOrigins:https://*/*) ok=0 ;;
+      webOrigins:https://?*) ok=1 ;;
+      *) ok=0 ;;
+    esac
+    if [ "$ok" = 0 ]; then
+      echo "FAIL clients.conf: $field value not allowed: $v" >&2
+      bad=1
+    fi
+  done
+done < <(client_lines)
+# A client that must not exist cannot also be configured.
+for c in $(conf removed_clients); do
+  for m in $(conf platform_clients) $managed_clients; do
+    if [ "$c" = "$m" ]; then
+      echo "FAIL client $c is in removed_clients and configured elsewhere" >&2
+      bad=1
+    fi
+  done
+done
+[ "$bad" = 0 ] || exit 1
+if [ -n "${CHECK_ONLY:-}" ]; then
+  echo "ok   static checks"
+  exit 0
+fi
 
 # Keycloak may still be starting after a sync: retry the login for 5 minutes.
 for i in $(seq 1 30); do
@@ -63,7 +114,6 @@ if [ "${#fields[@]}" -gt 0 ]; then
 fi
 
 # --- platform.conf: browser flow with a level-of-authentication max age --------
-conf() { sed -n "s/^$1=//p" "$PLATFORM_CONF" | tail -n 1; }
 max_age=$(conf loa_max_age)
 clients=$(conf platform_clients)
 [[ "$max_age" =~ ^[0-9]+$ ]] || { echo "FAIL loa_max_age is not a number" >&2; exit 1; }
@@ -174,6 +224,57 @@ for c in $(conf removed_clients); do
   if [ -z "$(client_id "$c")" ]; then got=absent; else got=present; fi
   check "client $c" absent "$got"
 done
+
+# --- clients.conf: redirect URIs and web origins -------------------------------
+json_list() { # space-separated values -> ["a","b"]
+  local out="" v
+  for v in $1; do out="$out${out:+,}\"$v\""; done
+  printf '[%s]' "$out"
+}
+live_list() { # client JSON, field -> sorted, space-separated values
+  printf '%s\n' "$1" | grep -E "^ *\"$2\" : \[" | head -n 1 |
+    sed -E 's/^[^[]*\[//; s/\].*$//' | tr ',' '\n' | sed -E 's/^ *"//; s/" *$//' |
+    grep -v '^$' | sort | tr '\n' ' ' | sed 's/ $//' || true
+}
+for c in $managed_clients; do
+  id=$(client_id "$c")
+  if [ -z "$id" ]; then
+    check "client $c" present ""
+    continue
+  fi
+  args=()
+  fields=()
+  while IFS= read -r line; do
+    case "$line" in "$c".*) ;; *) continue ;; esac
+    f=${line#*.}
+    f=${f%%=*}
+    args+=(-s "$f=$(json_list "${line#*=}")")
+    fields+=("$f=${line#*=}")
+  done < <(client_lines)
+  kc update "clients/$id" -r "$REALM" "${args[@]}"
+  live=$(kc get "clients/$id" -r "$REALM" --fields redirectUris,webOrigins)
+  for f in "${fields[@]}"; do
+    want=$(printf '%s\n' "${f#*=}" | tr ' ' '\n' | sort | tr '\n' ' ' | sed 's/ $//')
+    check "client $c ${f%%=*}" "$want" "$(live_list "$live" "${f%%=*}")"
+  done
+done
+
+# Other clients: warn about absolute wildcard redirect URIs. Keycloak's own
+# consoles use relative ones (/realms/<realm>/account/*), which stay.
+current=""
+while IFS= read -r line; do
+  case "$line" in
+    *'"clientId" : '*) current=$(printf '%s' "$line" | sed -E 's/^[^:]+: "//; s/",?$//') ;;
+    *'"redirectUris" : '*)
+      for v in $(printf '%s' "$line" | sed -E 's/^[^[]*\[//; s/\].*$//' | tr ',' ' ' | tr -d '"'); do
+        case "$v" in
+          /*) ;;
+          *'*'*) echo "WARN client $current has a wildcard redirect URI: $v" >&2 ;;
+        esac
+      done
+      ;;
+  esac
+done < <(kc get clients -r "$REALM" --fields clientId,redirectUris)
 
 # Read back the flow, its condition and the realm binding.
 want="ALTERNATIVE,Cookie,0
