@@ -48,17 +48,23 @@ images() {
 }
 
 load() {
-  local imgs=() i tar="$CACHE_DIR/images.tar"
+  local imgs=() i node arch tar="$CACHE_DIR/images.tar"
   while IFS= read -r i; do imgs+=("$i"); done < <(images)
+  arch=$(docker version -f '{{.Server.Arch}}')
   mkdir -p "$CACHE_DIR"
   if [ -f "$tar" ]; then
     echo "images: from cache"
-    docker load -q -i "$tar"
   else
-    for i in "${imgs[@]}"; do docker pull -q "$i"; done
+    for i in "${imgs[@]}"; do docker pull -q --platform "linux/$arch" "$i"; done
     docker save -o "$tar" "${imgs[@]}"
   fi
-  kind load docker-image --name "$KIND_CLUSTER" "${imgs[@]}"
+  # Not `kind load docker-image`: it imports with --all-platforms, which fails
+  # ("content digest ... not found") when Docker's containerd image store
+  # holds only the runner's platform of a multi-arch image (kind#3795).
+  for node in $(kind get nodes --name "$KIND_CLUSTER"); do
+    docker exec -i "$node" ctr --namespace=k8s.io images import \
+      --platform "linux/$arch" --digests --snapshotter=overlayfs - < "$tar"
+  done
 }
 
 crds() {
