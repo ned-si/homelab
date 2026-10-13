@@ -11,6 +11,9 @@
 # The `app` label (the first DNS label of the target) is what the SLO rules in
 # platform/kube-prometheus-stack/routes/slo.yaml group by.
 #
+# `prober.path` and the relabeling `action` are the CRD defaults, written out
+# so the live objects equal the manifest and the app stays Synced.
+#
 # Not probed from inside: the syncthing (.201:22000) and qBittorrent
 # (.200:50000) LoadBalancers. Their network policies admit `world` only, so a
 # probe from a cluster pod would be dropped and report a false outage.
@@ -29,6 +32,7 @@ spec:
   module: http_2xx
   prober:
     url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
   targets:
     staticConfig:
       labels:
@@ -45,7 +49,8 @@ spec:
         - https://drive.lilalala.com/api2/ping/
         - https://syncthing.lilalala.com/rest/noauth/health
       relabelingConfigs:
-        - sourceLabels: [__param_target]
+        - action: replace
+          sourceLabels: [__param_target]
           regex: "https://([^.]+)\\..*"
           targetLabel: app
           replacement: "$1"
@@ -64,6 +69,7 @@ spec:
   module: http_gated
   prober:
     url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
   targets:
     staticConfig:
       labels:
@@ -72,7 +78,8 @@ spec:
       static:
         - https://theater.lilalala.com/
       relabelingConfigs:
-        - sourceLabels: [__param_target]
+        - action: replace
+          sourceLabels: [__param_target]
           regex: "https://([^.]+)\\..*"
           targetLabel: app
           replacement: "$1"
@@ -91,6 +98,7 @@ spec:
   module: tcp_connect
   prober:
     url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
   targets:
     staticConfig:
       labels:
@@ -118,6 +126,7 @@ spec:
   module: http_internal
   prober:
     url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
   targets:
     staticConfig:
       labels:
@@ -140,6 +149,7 @@ spec:
   module: dns_public
   prober:
     url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
   targets:
     staticConfig:
       labels:
@@ -162,6 +172,7 @@ spec:
   module: dns_cluster
   prober:
     url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
   targets:
     staticConfig:
       labels:
