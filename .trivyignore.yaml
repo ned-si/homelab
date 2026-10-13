@@ -256,6 +256,30 @@ misconfigurations:
       ships with the hardening change, not with the parity adoption.
     expired_at: 2027-01-31
 
+  # =========================================================================
+  # TEST FIXTURES -- deliberately non-compliant, never applied
+  # =========================================================================
+  # policies/kyverno/tests/resources.yaml holds the objects the Kyverno policy
+  # tests must reject or accept: privileged Pods, Pods without a security
+  # context. No Application syncs policies/. Fixing them would remove the very
+  # cases the tests exist for.
+  - id: AVD-KSV-0017
+    paths:
+      - "policies/kyverno/tests/resources.yaml"
+    statement: >-
+      Kyverno policy test fixture: the privileged Pods are the cases
+      disallow-privileged must reject (and allow in democratic-csi). Never
+      applied; no Application syncs policies/.
+    expired_at: 2027-04-01
+  - id: AVD-KSV-0118
+    paths:
+      - "policies/kyverno/tests/resources.yaml"
+    statement: >-
+      Kyverno policy test fixtures set no securityContext on purpose: each one
+      isolates the field its policy tests. Never applied; no Application syncs
+      policies/.
+    expired_at: 2027-04-01
+
   # readOnlyRootFilesystem. Several upstream images (Keycloak, the *arr apps,
   # Plex, Seafile, Paperless, Mealie) write to their own filesystem at runtime
   # with no way to relocate it, so enforcing this would mean forking every image.
