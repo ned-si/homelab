@@ -307,7 +307,7 @@ jobs:
   # real and checked for readiness. No cluster credentials: the cluster lives
   # and dies inside this job.
   preprod:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 15
     permissions:
       contents: read
