@@ -10,3 +10,14 @@ resources:
   - services.yaml
   - httproute.yaml
   - backup.yaml
+
+# After every sync: the Service answers on the health endpoint.
+components:
+  - ../../components/postsync-smoke
+patches:
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://syncthing-dashboard:8384/rest/noauth/health

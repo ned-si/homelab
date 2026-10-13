@@ -20,3 +20,14 @@ configMapGenerator:
       - realm/sessions.conf
       - realm/platform.conf
       - realm/apply.sh
+
+# After every sync: the management port reports ready.
+components:
+  - ../../components/postsync-smoke
+patches:
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://keycloak:9000/health/ready

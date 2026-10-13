@@ -1,0 +1,14 @@
+# PostSync smoke test (job.yaml). Use it from an app's kustomization:
+#
+#   components:
+#     - ../../components/postsync-smoke
+#   patches:
+#     - target: { kind: Job, name: postsync-smoke }
+#       patch: |-
+#         - op: replace
+#           path: /spec/template/spec/containers/0/args
+#           value: ["http://<service>:<port>/<health path>"]
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - job.yaml

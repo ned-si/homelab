@@ -1,0 +1,81 @@
+# After every sync of the Application that includes this component, Argo CD
+# runs this Job (PostSync hook: only once every synced resource is Healthy).
+# It GETs each URL in its args, the app's in-cluster Service and health
+# endpoint, and fails unless every one answers 2xx or 3xx within a minute.
+#
+# A failed hook fails the sync. Argo CD Notifications reports that as
+# `on-sync-failed`, and .github/workflows/auto-rollback.yaml reverts the
+# merge that deployed it (or opens an issue when a guard rail says no). The
+# revert's own sync runs this Job again; a revert is never reverted
+# (scripts/ci/auto-rollback-decide.sh), so a check that keeps failing ends
+# in an issue, not a loop.
+#
+# Each user of the component sets the URLs with a patch on
+# /spec/template/spec/containers/0/args. The hook object stays until the
+# next sync replaces it (BeforeHookCreation), so a failure can be read with
+# `kubectl -n <namespace> logs job/postsync-smoke`.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postsync-smoke
+  labels:
+    app.kubernetes.io/name: postsync-smoke
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    # After the app's own PostSync hooks (keycloak-realm-settings).
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postsync-smoke
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: smoke
+          # renovate: datasource=docker depName=curlimages/curl
+          image: curlimages/curl:8.22.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Up to 6 tries per URL, 5 s apart, 5 s timeout each.
+              fail=0
+              for url in "$@"; do
+                code=000
+                for try in 1 2 3 4 5 6; do
+                  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url") || code=000
+                  case "$code" in 2??|3??) break ;; esac
+                  [ "$try" -lt 6 ] && sleep 5
+                done
+                case "$code" in
+                  2??|3??) echo "ok   $code $url" ;;
+                  *) echo "FAIL $code $url"; fail=1 ;;
+                esac
+              done
+              exit "$fail"
+            - postsync-smoke
+          # Set by each user of the component.
+          args: []
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

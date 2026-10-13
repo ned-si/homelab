@@ -15,3 +15,14 @@ resources:
   - cnpg-backup.yaml
   # Runs the database backup before every sync (presync-backup.yaml).
   - presync-backup.yaml
+
+# After every sync: the Service answers on the health endpoint.
+components:
+  - ../../components/postsync-smoke
+patches:
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://mealie:9000/api/app/about
