@@ -1,5 +1,5 @@
 ---
-# CI: every check that can run without a cluster, for the layered
+# CI: every check that needs no live cluster, for the layered
 # clusters/ apps/ platform/ infrastructure/ deploy/ tree Argo CD syncs.
 #
 # Four parallel jobs, then one aggregate:
@@ -12,7 +12,9 @@
 #                kube-linter)
 #   security     gitleaks, Trivy waiver hygiene, Trivy gate
 #   pr-metadata  PR title and commits (pull requests only, skipped on push)
-#   ci           needs all four, runs always, and fails unless every one
+#   preprod      ephemeral kind cluster: CRDs, server-side dry-run of deploy/,
+#                stateless workloads booted and checked for readiness
+#   ci           needs all of them, runs always, and fails unless every one
 #                succeeded (pr-metadata may be skipped outside a pull request).
 # Inside a job every check runs even when an earlier one failed
 # (`!cancelled()`), and any failed step fails the job. `ci` is the only check
@@ -72,6 +74,11 @@ env:
   # EXPECT_KUSTOMIZE of scripts/render-deploy.sh in the layered tree.
   KUBECTL_VERSION: v1.36.3
   KUBECTL_SHA256: ebbd080e7c2e275093b55915722043257eb24004363e20acb3c4d71919f88336
+  # kind v0.31.0 is the last release with a node image of the cluster's minor
+  # (1.32); the image is pinned by digest from its release notes.
+  KIND_VERSION: v0.31.0
+  KIND_SHA256: eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa
+  KIND_NODE_IMAGE: kindest/node:v1.32.11@sha256:5fc52d52a7b9574015299724bd68f183702956aa4a2116ae75a63cb574b35af8
   TOFU_VERSION: 1.12.6
   TOFU_SHA256: 50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec
   # promtool from the Prometheus release the cluster runs (rule checks and
@@ -294,12 +301,69 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: scripts/ci/check-commits.sh "$REPO" "$PR"
 
+  # Dynamic pre-production on an ephemeral kind cluster
+  # (scripts/ci/kind-preprod.sh): the CRDs the repo uses, a server-side
+  # dry-run of all of deploy/, then a set of stateless workloads booted for
+  # real and checked for readiness. No cluster credentials: the cluster lives
+  # and dies inside this job.
+  preprod:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    # kind-preprod.sh caches under $RUNNER_TEMP/kind-cache.
+    env:
+      KIND_CLUSTER: preprod
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools
+        run: scripts/ci/install-tool.sh kind kubectl
+
+      # CRD sources are keyed on their pinned list, images on the image list.
+      - name: Cache keys
+        id: keys
+        run: |
+          set -euo pipefail
+          echo "images=$(scripts/ci/kind-preprod.sh images | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache CRD sources
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/kind-cache/crd-sources
+          key: kind-crds-${{ hashFiles('ci/schemas/SOURCES.txt') }}
+
+      - name: Cache workload images
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/kind-cache/images.tar
+          key: kind-images-${{ steps.keys.outputs.images }}
+
+      - name: Create the kind cluster
+        run: kind create cluster --name "$KIND_CLUSTER" --image "$KIND_NODE_IMAGE" --wait 120s
+
+      - name: Install CRDs
+        run: scripts/ci/kind-preprod.sh crds
+
+      - name: Server-side dry-run of deploy/
+        run: scripts/ci/kind-preprod.sh dry-run
+
+      - name: Load workload images
+        if: ${{ !cancelled() }}
+        run: scripts/ci/kind-preprod.sh load
+
+      - name: Boot stateless workloads and assert readiness
+        if: ${{ !cancelled() }}
+        run: scripts/ci/kind-preprod.sh boot
+
   # The one required check. `always()` so it reports even when a job above
   # failed; it fails unless every job succeeded, except pr-metadata, which may
   # be skipped outside a pull request.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, security, pr-metadata]
+    needs: [lint, render, security, pr-metadata, preprod]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -311,7 +375,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render security pr-metadata; do
+          for j in lint render security pr-metadata preprod; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"
