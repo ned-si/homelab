@@ -21,7 +21,7 @@ resources:
   # restic CronJobs for the photo library: S3, local NFS, monthly prune.
   - backup-files.yaml
 
-# After every (manual) sync: the server Service, from the chart, answers.
+# After every sync: the server Service, from the chart, answers.
 components:
   - ../../../components/postsync-smoke
 patches:

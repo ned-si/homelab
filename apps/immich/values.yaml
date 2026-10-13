@@ -1,8 +1,9 @@
-# Immich chart 0.9.0 values, at parity with the running release (ADR 0002).
+# Immich chart 0.9.x values.
 #
-# NEVER CHANGE WITHOUT THE RUNBOOK: the server image (v2.3.1) and the database
-# image (apps/immich/resources/database.yaml, pgvecto.rs 16.5) move together,
-# and the move to VectorChord is irreversible (docs/runbooks/immich-upgrade.md).
+# Renovate updates `image.tag` (server and machine learning) up to v2.x.
+# Immich 3.0 drops pgvecto.rs, so it moves together with the database image
+# (apps/immich/resources/database.yaml) and the chart's 0.10 values layout,
+# by hand: docs/runbooks/immich-upgrade.md.
 #
 # One intended difference from live: the runtime config file. Live renders it
 # from `immich.configuration` into the ConfigMap immich-immich-config, which
@@ -27,6 +28,7 @@ redis:
   enabled: false
 
 image:
+  # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
   tag: v2.3.1
 
 immich:
@@ -39,6 +41,10 @@ immich:
 
 server:
   enabled: true
+  # The library PVC is ReadWriteOnce: a second server pod could not mount it.
+  # Chart 0.9.3 defaults to RollingUpdate; 0.9.0 used Recreate.
+  controller:
+    strategy: Recreate
   image:
     repository: ghcr.io/immich-app/immich-server
     pullPolicy: IfNotPresent
@@ -59,6 +65,9 @@ server:
 
 machine-learning:
   enabled: true
+  # Its model cache PVC is ReadWriteOnce too.
+  controller:
+    strategy: Recreate
   image:
     repository: ghcr.io/immich-app/immich-machine-learning
     pullPolicy: IfNotPresent

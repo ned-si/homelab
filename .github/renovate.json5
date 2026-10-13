@@ -208,23 +208,28 @@
     {
       // EXCEPTION: the Immich database image. Moving off pgvecto.rs (to
       // VectorChord) migrates the database in place and cannot be undone, so
-      // it follows docs/runbooks/immich-upgrade.md. The server image and the
-      // chart are not annotated yet: the `immich` Application syncs by hand.
-      description: 'Never update Immich: database image, server image, chart',
+      // it follows docs/runbooks/immich-upgrade.md.
+      description: 'Never update the Immich database image',
       matchPackageNames: [
         '/cloudnative-pgvecto\\.rs/',
         '/cloudnative-vectorchord/',
-        'ghcr.io/immich-app/immich-server',
-        'immich',
       ],
       enabled: false,
     },
     {
-      // The `immich` Application syncs by hand, so any bump to its files would
-      // only leave it OutOfSync. Its updates follow docs/runbooks/immich-upgrade.md.
-      description: 'No updates in files the immich Application syncs',
-      matchFileNames: ['apps/immich/**', 'clusters/homelab/apps/immich.yaml'],
-      enabled: false,
+      // Immich 3.0 removes pgvecto.rs support, so the server stays on 2.x
+      // until the database moves to VectorChord (docs/runbooks/immich-upgrade.md).
+      description: 'Cap the Immich server below 3.0 while the database runs pgvecto.rs',
+      matchPackageNames: ['ghcr.io/immich-app/immich-server'],
+      allowedVersions: '<3.0.0',
+    },
+    {
+      // Chart 0.10 rewrote the values layout; apps/immich/values.yaml does not
+      // render on it. It moves with the VectorChord migration.
+      description: 'Cap the Immich chart below 0.10 until its values are migrated',
+      matchDatasources: ['helm'],
+      matchPackageNames: ['immich'],
+      allowedVersions: '<0.10.0',
     },
     {
       // Database servers and their backup clients share one depName, so a

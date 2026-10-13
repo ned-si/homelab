@@ -125,6 +125,19 @@ def test_pvc_rules_new_layout_only(tmp_path):
     assert len(f) == 2
 
 
+def test_immich_cluster_keeps_prune_guard(tmp_path):
+    db = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "db", "namespace": "immich"}}
+    kept = copy.deepcopy(db)
+    kept["metadata"]["annotations"] = {"argocd.argoproj.io/sync-options": "Delete=false,Prune=false"}
+    other = copy.deepcopy(db)
+    other["metadata"]["namespace"] = "scratch"
+    r = policy(tmp_path, renders=[("immich", "2+3", "apps", "immich", [db, other])])
+    assert [x for x in fails(r) if "pvc-sync-options" in x] == \
+        ["FAIL pvc-sync-options: immich: Cluster immich/db lacks argocd.argoproj.io/sync-options: Delete=false,Prune=false"]
+    r = policy(tmp_path / "b", renders=[("immich", "2+3", "apps", "immich", [kept, other])])
+    assert not [x for x in fails(r) if "pvc-sync-options" in x]
+
+
 def test_exclude_annotation_anywhere(tmp_path):
     r = policy(tmp_path, files={"infrastructure/gateway/route.yaml": f"annotations:\n  {EXCLUDE}: \"true\"\n"})
     assert any("no-external-dns-exclude: infrastructure/gateway/route.yaml:2" in f for f in fails(r))
