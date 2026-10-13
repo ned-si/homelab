@@ -19,3 +19,11 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:17.0
   storage:
     size: 5Gi
+  # WAL archiving and base backups to S3 (backup.yaml).
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      # The webhook defaults this; stating it keeps Argo CD's diff clean.
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: cnpg-backup

@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: sonarr-postgresql-daily
+  namespace: theater
+spec:
+  backupOwnerReference: self
+  cluster:
+    name: sonarr-postgresql
+  immediate: true
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+  schedule: 0 30 0 * * *
+  suspend: true
