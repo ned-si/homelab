@@ -109,44 +109,49 @@ boot() {
   local f kind ns name img rc=0 i ready
   workload_files > "$work/files"
   while IFS= read -r f; do kubectl apply --server-side -f "$f" > /dev/null; done < "$work/files"
+  # One "<kind> <namespace> <name>" line per object (plain `yq`, not
+  # `yq ea`: eval-all would join every document into one line).
   # shellcheck disable=SC2046
-  yq ea -N '[.kind, .metadata.namespace, .metadata.name] | join(" ")' $(cat "$work/files") > "$work/objects"
+  yq -N '.kind + " " + (.metadata.namespace // "-") + " " + .metadata.name' $(cat "$work/files") > "$work/objects"
+  grep '^Deployment ' "$work/objects" > "$work/deployments" || true
+  grep '^Service ' "$work/objects" > "$work/services" || true
+  # A boot that checks nothing must not pass.
+  [ -s "$work/deployments" ] || { echo "FAIL  no Deployment in $WORKLOADS" >&2; return 1; }
+  # Every kubectl in the loops reads /dev/null, not the list being read.
   while read -r kind ns name; do
-    [ "$kind" = Deployment ] || continue
-    if kubectl -n "$ns" rollout status "deployment/$name" --timeout="$ROLLOUT_TIMEOUT"; then
+    if kubectl -n "$ns" rollout status "deployment/$name" --timeout="$ROLLOUT_TIMEOUT" < /dev/null; then
       echo "ok    deployment $ns/$name"
     else
       echo "FAIL  deployment $ns/$name"
-      kubectl -n "$ns" describe "deployment/$name" | tail -n 20 || true
-      kubectl -n "$ns" get pods -o wide || true
-      kubectl -n "$ns" logs "deployment/$name" --all-containers --tail=30 || true
+      kubectl -n "$ns" describe "deployment/$name" < /dev/null | tail -n 20 || true
+      kubectl -n "$ns" get pods -o wide < /dev/null || true
+      kubectl -n "$ns" logs "deployment/$name" --all-containers --tail=30 < /dev/null || true
       rc=1
     fi
-  done < "$work/objects"
+  done < "$work/deployments"
   while read -r kind ns name; do
-    [ "$kind" = Service ] || continue
     ready=""
     for i in $(seq 1 30); do
       ready=$(kubectl -n "$ns" get endpointslices -l "kubernetes.io/service-name=$name" \
-        -o jsonpath='{.items[*].endpoints[?(@.conditions.ready==true)].addresses[0]}')
+        -o jsonpath='{.items[*].endpoints[?(@.conditions.ready==true)].addresses[0]}' < /dev/null)
       [ -n "$ready" ] && break
       sleep 2
     done
     if [ -n "$ready" ]; then echo "ok    service $ns/$name -> $ready"; else echo "FAIL  service $ns/$name has no ready endpoint"; rc=1; fi
-  done < "$work/objects"
+  done < "$work/services"
   # Valkey answers PING through its Service, from a pod in its namespace.
   while read -r kind ns name; do
-    [ "$kind" = Deployment ] || continue
-    img=$(kubectl -n "$ns" get "deployment/$name" -o jsonpath='{.spec.template.spec.containers[0].image}')
+    img=$(kubectl -n "$ns" get "deployment/$name" -o jsonpath='{.spec.template.spec.containers[0].image}' < /dev/null)
     case "$img" in */valkey:*) ;; *) continue ;; esac
     if kubectl -n "$ns" run "ping-$name" --image="$img" --restart=Never --rm -i --quiet \
-      --command -- valkey-cli -h "$name" -p 6379 ping 2>/dev/null | grep -q PONG; then
+      --command -- valkey-cli -h "$name" -p 6379 ping < /dev/null 2>/dev/null | grep -q PONG; then
       echo "ok    valkey $ns/$name answers PING"
     else
       echo "FAIL  valkey $ns/$name does not answer PING"
       rc=1
     fi
-  done < "$work/objects"
+  done < "$work/deployments"
+  echo "boot: $(wc -l < "$work/deployments" | tr -d ' ') Deployment(s), $(wc -l < "$work/services" | tr -d ' ') Service(s), rc=$rc"
   return "$rc"
 }
 
