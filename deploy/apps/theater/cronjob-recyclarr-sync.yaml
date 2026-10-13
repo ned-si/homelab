@@ -31,7 +31,7 @@ spec:
             env:
             - name: TZ
               value: Europe/Zurich
-            - name: RECYCLARR_APP_DATA
+            - name: RECYCLARR_CONFIG_DIR
               value: /config
             envFrom:
             - secretRef:
