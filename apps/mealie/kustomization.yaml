@@ -11,7 +11,5 @@ resources:
   - service.yaml
   - httproute.yaml
   - backup.yaml
-  # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
-  - cnpg-backup.yaml
   # Runs the database backup before every sync (presync-backup.yaml).
   - presync-backup.yaml
