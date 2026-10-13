@@ -45,10 +45,12 @@ tasks:
       # pre-commit hook resolves its binary as PCT_TFPATH, then `terraform`, then
       # `tofu`, and when it finds none it fails with exit 127 -- "command not
       # found" -- reported under a hook name that reads like a formatting problem.
-      # nmap is for scripts/discover-lan.sh.
-      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops opentofu nmap
+      # nmap is for scripts/discover-lan.sh. kube-linter and actionlint are for
+      # the pre-push and workflow hooks.
+      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops opentofu nmap kube-linter actionlint
+      # Installs every type in default_install_hook_types (pre-commit,
+      # commit-msg, pre-push).
       - pre-commit install --install-hooks
-      - pre-commit install --hook-type commit-msg
 
   tools:check:
     desc: Verify required tools are present

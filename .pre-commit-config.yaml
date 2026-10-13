@@ -3,17 +3,24 @@
 #     pre-commit install --install-hooks
 #     pre-commit install --hook-type commit-msg
 #
-# These are the same checks CI runs, so a green pre-commit means a green CI.
+# These are the same checks CI runs (.github/workflows/ci.yaml), so a green
+# pre-commit plus a green pre-push means a green CI static stage.
 # Run against everything with: pre-commit run --all-files
+#                              pre-commit run --all-files --hook-stage pre-push
 #
-# ONE EXCEPTION to "the same checks", and it is deliberate: `lint` in ci.yaml
-# sets SKIP=render-deploy. That hook REGENERATES deploy/, and CI has a dedicated
-# job (`rendered-manifests`) that runs the same script with `--check`. Running
-# both meant rendering the whole tree twice per CI run for one answer.
+# ONE SOURCE OF TRUTH. CI's `lint` job runs this file (`pre-commit run
+# --all-files`) and SKIPs only the hooks that a dedicated CI step runs with the
+# same script or the same pinned binary; tests/test_precommit_parity.py fails
+# when a hook is skipped in CI without such a step, or a hook is added without
+# being either run or skipped there.
+#
+# Stages: `pre-commit` is the fast set (seconds). `pre-push` adds the slow
+# ones that render every Application (helm, network): the same render,
+# kubeconform and repo-policy steps as CI's `render` job.
 #
 # NOTE ON PINS: each `rev` is pinned and tracked by Renovate's native
 # `pre-commit` manager, which is why these need no `# renovate:` comment.
-default_install_hook_types: [pre-commit, commit-msg]
+default_install_hook_types: [pre-commit, commit-msg, pre-push]
 
 # NOTE ON deploy/: it is generated output (scripts/render-deploy.sh). Any hook
 # that REWRITES files is excluded from it. A formatter that "fixes" generated
@@ -141,8 +148,8 @@ repos:
   # inside a pre-commit run whose every other line said Passed, which reads like
   # a formatting failure rather than a missing tool.
   #
-  # ci.yaml therefore installs OpenTofu (opentofu/setup-opentofu) in the lint job
-  # and sets PCT_TFPATH=tofu. Locally, `task tools` gets tofu via Homebrew.
+  # CI does not run this hook: its `lint` job runs `tofu fmt -check -recursive`
+  # with the pinned tofu binary. Locally, `task tools` gets tofu via Homebrew.
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.109.2
     hooks:
@@ -152,10 +159,9 @@ repos:
   # ---------------------------------------------------------------------------
   # Conventional commits.
   #
-  # THIS `args:` LIST IS THE ONLY LIST OF ALLOWED TYPES. The `commit-messages`
-  # job in ci.yaml used to carry a second copy as a regex, and the two had
-  # already drifted; that job now runs this very hook, once per commit in the PR.
-  # Add a type here and nowhere else.
+  # Local guard only. CI checks every PR title and commit subject with
+  # scripts/ci/check-title.sh (the `pr-metadata` job); keep the types here in
+  # line with its regex.
   # ---------------------------------------------------------------------------
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.4.0
@@ -174,6 +180,18 @@ repos:
           - chore
           - revert
           - security
+          - style
+
+  # ---------------------------------------------------------------------------
+  # Renovate's own validator for .github/renovate.json5. Installs the renovate
+  # npm package into the pre-commit cache on first use (about a minute).
+  # ---------------------------------------------------------------------------
+  - repo: https://github.com/renovatebot/pre-commit-hooks
+    rev: 44.155.1
+    hooks:
+      - id: renovate-config-validator
+        args: [--strict]
+        files: ^\.github/renovate\.json5$
 
   # ---------------------------------------------------------------------------
   # Repo-specific checks. Local hooks so they cannot drift from the scripts CI
@@ -181,6 +199,26 @@ repos:
   # ---------------------------------------------------------------------------
   - repo: local
     hooks:
+      - id: actionlint
+        name: actionlint (GitHub workflows)
+        entry: actionlint
+        language: system
+        pass_filenames: false
+        files: ^\.github/workflows/
+
+      # The CI `render` job, end to end: render every Application the way Argo
+      # CD does, kubeconform it against the pinned schemas, then
+      # scripts/ci/repo-policy.sh (pins, invariants, kube-linter, deploy/
+      # matches its sources). Needs helm, kubectl, kubeconform and kube-linter
+      # (`task tools`) and network for the Helm charts, so it runs on push.
+      - id: ci-render
+        name: render, kubeconform, repo-policy (CI render job)
+        entry: scripts/ci/render-validate.sh
+        language: script
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push, manual]
+
       - id: leak-check
         name: no unencrypted secrets
         entry: ./scripts/leak-check.sh

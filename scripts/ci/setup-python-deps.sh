@@ -1,5 +1,5 @@
 #!/bin/bash
-# setup-python-deps.sh -- CI Python tools (pytest, yamllint) from ci/requirements-ci.txt.
+# setup-python-deps.sh -- CI Python tools (pytest, yamllint, pre-commit) from ci/requirements-ci.txt.
 #
 # Every package, including transitive ones, is pinned by version and sha256;
 # `--require-hashes` makes pip refuse anything else. Installs into a venv under
