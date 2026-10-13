@@ -48,10 +48,11 @@ spec:
         - record: slo:probe_error:ratio_rate6h
           expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[6h]))
 
-    # The long windows change slowly; evaluating them every 5 minutes keeps the
-    # cost of reading days of samples low.
+    # The long windows change slowly; evaluating them every 2 minutes keeps the
+    # cost of reading days of samples low. Not 5m or more: an instant query
+    # looks back 5 minutes, so a 5m interval leaves gaps with no sample.
     - name: homelab.slo.sli-long
-      interval: 5m
+      interval: 2m
       rules:
         - record: slo:probe_error:ratio_rate1d
           expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[1d]))

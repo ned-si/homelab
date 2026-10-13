@@ -30,7 +30,7 @@ spec:
       record: slo:probe_error:ratio_rate2h
     - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[6h]))
       record: slo:probe_error:ratio_rate6h
-  - interval: 5m
+  - interval: 2m
     name: homelab.slo.sli-long
     rules:
     - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[1d]))
