@@ -3,7 +3,8 @@
 # clusters/ apps/ platform/ infrastructure/ deploy/ tree Argo CD syncs.
 #
 # Four parallel jobs, then one aggregate:
-#   lint         yamllint, actionlint, shellcheck, tofu fmt + validate
+#   lint         pre-commit hooks, yamllint, actionlint, shellcheck,
+#                tofu fmt + validate
 #   render       unit tests, promtool (rule checks and rule unit tests),
 #                render, kubeconform, repo-policy (pins, invariants,
 #                secrets/leak/placeholder checks, deploy/ matches sources,
@@ -95,6 +96,24 @@ jobs:
           set -euo pipefail
           scripts/ci/install-tool.sh actionlint shellcheck tofu
           scripts/ci/setup-python-deps.sh
+
+      # Hook environments (pre-commit-hooks, the renovate npm package) are
+      # keyed on the config that pins them.
+      - name: Cache pre-commit environments
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      # .pre-commit-config.yaml is the one list of local checks. SKIP names the
+      # hooks a dedicated CI step runs with the same script or pinned binary
+      # (tests/test_precommit_parity.py keeps the two in line).
+      - name: pre-commit (hooks without a dedicated step)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          SKIP: gitleaks,yamllint,shellcheck,terraform_fmt,actionlint,leak-check,placeholder-check,secrets-check,trivy-waivers,render-deploy
+        run: pre-commit run --all-files --show-diff-on-failure --color always
 
       - name: yamllint (strict)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}

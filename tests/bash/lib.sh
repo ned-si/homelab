@@ -1,4 +1,3 @@
-#!/bin/bash
 # shellcheck shell=bash
 # Shared helpers for the bash tests. Bash 3.2 compatible.
 

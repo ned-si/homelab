@@ -1,4 +1,3 @@
-#!/bin/bash
 # shellcheck shell=bash
 # cluster.sh -- helpers shared by the operator scripts that read the cluster
 # (scripts/status.sh, scripts/smoke.sh, scripts/graceful-startup.sh).

@@ -1,4 +1,3 @@
-#!/bin/bash
 # shellcheck shell=bash
 #
 # gh_var_state <NAME> -- does the GitHub Actions repository variable NAME exist?
