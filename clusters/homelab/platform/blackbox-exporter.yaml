@@ -1,0 +1,49 @@
+# blackbox-exporter: probes every public hostname and the endpoints the
+# cluster depends on from outside the pod (docs/observability.md).
+#
+# Multi-source: the chart, its values from this repo, and the Probe objects
+# (deploy/platform/blackbox-exporter/probes). Prometheus, from
+# kube-prometheus-stack, scrapes the Probes; this Application only runs the
+# prober and declares the targets.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: blackbox-exporter
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10): the Probe CRD comes with that chart.
+    argocd.argoproj.io/sync-wave: "15"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: prometheus-blackbox-exporter
+      # renovate: datasource=helm depName=prometheus-blackbox-exporter registryUrl=https://prometheus-community.github.io/helm-charts
+      targetRevision: 11.20.0
+      helm:
+        releaseName: blackbox-exporter
+        valueFiles:
+          - $values/platform/blackbox-exporter/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/blackbox-exporter/probes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

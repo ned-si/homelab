@@ -13,7 +13,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml` |
 | Notification credentials | Secret `monitoring/alertmanager-notify` exists (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`); nothing reads it yet, and the Pushover values are still `PENDING` sentinels |
 | Hubble | on in the Cilium agents; relay, UI and metrics not enabled ([networking.md](networking.md#debugging)) |
-| blackbox-exporter | not deployed: no rule can probe a service from outside |
+| blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
 
 Until notifications are wired, the checks are manual: the smoke suite
 ([runbooks/cold-start.md](runbooks/cold-start.md#step-8-smoke-suite)) and the
@@ -91,7 +91,9 @@ Two failure modes this cluster has had:
   from a dead sandbox is cleared by deleting the pod (new UID, new name).
 - A pod `Running 1/1` with nothing listening: the qBittorrent case
   ([runbooks/arr-qbittorrent.md](runbooks/arr-qbittorrent.md)). Only a readiness
-  probe, or a check from outside like blackbox-exporter, catches it.
+  probe, or a check from outside like blackbox-exporter, catches it. The
+  syncthing and qBittorrent LoadBalancer ports are not probed from inside: their
+  network policies admit `world` only, so a pod's probe would be dropped.
 
 ## Why it is like this
 

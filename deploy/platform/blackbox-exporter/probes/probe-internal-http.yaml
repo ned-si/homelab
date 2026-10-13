@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/blackbox-exporter/probes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/blackbox-exporter/probes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: internal-http
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-internal
+  module: http_internal
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      labels:
+        probe: internal
+      static:
+      - http://keycloak.keycloak.svc.cluster.local:9000/health/ready
+      - http://argocd-server.argo.svc.cluster.local/healthz

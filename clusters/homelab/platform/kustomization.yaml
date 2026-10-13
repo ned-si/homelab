@@ -8,4 +8,5 @@ resources:
   - cnpg.yaml
   - barman-cloud-plugin.yaml
   - kube-prometheus-stack.yaml
+  - blackbox-exporter.yaml
   - keycloak.yaml
