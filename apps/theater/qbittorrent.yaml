@@ -77,6 +77,8 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   storageClassName: iscsi
+  # The existing zvol (infrastructure/iscsi-volumes/).
+  volumeName: pvc-734ee65c-a1bc-4547-80fd-274160849198
   accessModes:
     - ReadWriteOnce
   resources:

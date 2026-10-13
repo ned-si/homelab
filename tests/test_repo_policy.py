@@ -262,15 +262,34 @@ def test_good_roots_pass(tmp_path):
     assert r.returncode == 0, r.stdout
 
 
-def test_cilium_version_matches_helm_releases(tmp_path):
-    app = ("apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata: {name: cilium, namespace: argo}\n"
-           "spec:\n  sources:\n    - {repoURL: https://helm.cilium.io, chart: cilium, targetRevision: 1.16.3}\n")
-    hr = "releases:\n  - {name: cilium, repo: https://helm.cilium.io, chart: cilium, version: 1.17.18}\n"
-    r = policy(tmp_path, files={"clusters/homelab/infrastructure/cilium.yaml": app, "ci/helm-releases.yaml": hr})
-    assert any("cilium-version" in f for f in fails(r))
-    r = policy(tmp_path / "b", files={"clusters/homelab/infrastructure/cilium.yaml": app.replace("1.16.3", "1.17.18"),
-                                      "ci/helm-releases.yaml": hr})
+def _bootstrap_app(name, repo, chart, version):
+    return ("apiVersion: argoproj.io/v1alpha1\nkind: Application\n"
+            f"metadata: {{name: {name}, namespace: argo}}\n"
+            f"spec:\n  sources:\n    - {{repoURL: {repo}, chart: {chart}, targetRevision: {version}}}\n")
+
+
+HELM_RELEASES = ("releases:\n"
+                 "  - {name: argocd, repo: https://argoproj.github.io/argo-helm, chart: argo-cd, version: 10.10.3}\n"
+                 "  - {name: cilium, repo: https://helm.cilium.io, chart: cilium, version: 1.20.2}\n")
+
+
+@pytest.mark.parametrize("name,repo,chart,good,bad", [
+    ("cilium", "https://helm.cilium.io", "cilium", "1.20.2", "1.17.18"),
+    ("argocd", "https://argoproj.github.io/argo-helm", "argo-cd", "10.10.3", "10.2.2"),
+])
+def test_bootstrap_chart_versions_match_helm_releases(tmp_path, name, repo, chart, good, bad):
+    rel = f"clusters/homelab/infrastructure/{name}.yaml"
+    r = policy(tmp_path, files={rel: _bootstrap_app(name, repo, chart, bad), "ci/helm-releases.yaml": HELM_RELEASES})
+    assert any("bootstrap-chart-versions" in f and chart in f for f in fails(r)), r.stdout
+    r = policy(tmp_path / "b", files={rel: _bootstrap_app(name, repo, chart, good), "ci/helm-releases.yaml": HELM_RELEASES})
     assert r.returncode == 0, r.stdout
+
+
+def test_bootstrap_chart_without_helm_releases_entry(tmp_path):
+    hr = "releases:\n  - {name: cilium, repo: https://helm.cilium.io, chart: cilium, version: 1.20.2}\n"
+    app = _bootstrap_app("argocd", "https://argoproj.github.io/argo-helm", "argo-cd", "10.10.3")
+    r = policy(tmp_path, files={"clusters/homelab/infrastructure/argocd.yaml": app, "ci/helm-releases.yaml": hr})
+    assert "FAIL bootstrap-chart-versions: ci/helm-releases.yaml has no argocd entry" in fails(r), r.stdout
 
 
 def cnpg_set():

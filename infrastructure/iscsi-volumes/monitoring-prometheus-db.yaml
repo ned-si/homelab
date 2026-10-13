@@ -1,0 +1,76 @@
+# Prometheus's TSDB (history kept across the cutover): the existing TrueNAS
+# zvol, bound statically on Talos. Generated from the live PV; see
+# kustomization.yaml in this directory.
+#
+# The claim is declared here too. The Prometheus StatefulSet
+# (kube-prometheus-stack, platform layer) would otherwise create it from its
+# volumeClaimTemplate; a claim that already exists under the template's name is
+# adopted as-is. This layer syncs first, so the claim exists, bound to the old
+# volume, before the StatefulSet does.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pvc-9e4a302a-8b0a-4642-a4e8-1b55c2d64f72
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  capacity:
+    storage: 15Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  volumeMode: Filesystem
+  claimRef:
+    namespace: monitoring
+    name: prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0
+  csi:
+    driver: org.democratic-csi.iscsi
+    volumeHandle: pvc-9e4a302a-8b0a-4642-a4e8-1b55c2d64f72
+    fsType: xfs
+    volumeAttributes:
+      interface: ""
+      iqn: "iqn.2005-10.org.freenas.ctl:csi-pvc-9e4a302a-8b0a-4642-a4e8-1b55c2d64f72-cluster"
+      lun: "0"
+      node_attach_driver: "iscsi"
+      portal: "192.168.1.228:3260"
+      portals: ""
+      provisioner_driver: "freenas-iscsi"
+    controllerExpandSecretRef:
+      name: controller-expand-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    controllerPublishSecretRef:
+      name: controller-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodePublishSecretRef:
+      name: node-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodeStageSecretRef:
+      name: node-stage-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0
+  namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  # The labels the StatefulSet puts on its claims, so selectors and dashboards
+  # see the same object as before.
+  labels:
+    app.kubernetes.io/instance: kube-prometheus-stack-prometheus
+    app.kubernetes.io/managed-by: prometheus-operator
+    app.kubernetes.io/name: prometheus
+    operator.prometheus.io/name: kube-prometheus-stack-prometheus
+    operator.prometheus.io/shard: "0"
+    prometheus: kube-prometheus-stack-prometheus
+spec:
+  storageClassName: iscsi
+  volumeName: pvc-9e4a302a-8b0a-4642-a4e8-1b55c2d64f72
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 15Gi

@@ -36,6 +36,7 @@ spec:
     - https://charts.jetstack.io
     - https://kubernetes-sigs.github.io/external-dns/
     - https://democratic-csi.github.io/charts/
+    - https://argoproj.github.io/argo-helm
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -44,14 +45,14 @@ spec:
     - group: ""
       kind: Namespace # namespaces/ -- the whole inventory
     - group: ""
-      kind: PersistentVolume # nfs-storage/ -- the media shares
+      kind: PersistentVolume # nfs-storage/ (media shares), iscsi-volumes/ (static data volumes)
     - group: cert-manager.io
       kind: ClusterIssuer # cert-manager-issuers/
     - group: cilium.io
       kind: CiliumLoadBalancerIPPool # cilium/ip-pools.yaml
     - group: cilium.io
       kind: CiliumL2AnnouncementPolicy # cilium/l2-announcement-policy.yaml
-    # Created by the charts this layer installs (cilium, cert-manager,
+    # Created by the charts this layer installs (argo-cd, cilium, cert-manager,
     # external-dns, democratic-csi) and by the two vendored CRD bundles
     # (gateway-api, snapshot-controller).
     - group: apiextensions.k8s.io
@@ -78,6 +79,14 @@ spec:
       kind: MutatingWebhookConfiguration
     - group: admissionregistration.k8s.io
       kind: ValidatingWebhookConfiguration
+    # The Gateway API CRD bundle (gateway-api/, v1.5+) ships the policy
+    # `safe-upgrades.gateway.networking.k8s.io`: it rejects Gateway API CRDs
+    # older than v1.5 and experimental CRDs over standard ones. In-process
+    # CEL, no webhook.
+    - group: admissionregistration.k8s.io
+      kind: ValidatingAdmissionPolicy
+    - group: admissionregistration.k8s.io
+      kind: ValidatingAdmissionPolicyBinding
   # Namespaced resources stay wildcarded: this layer installs DaemonSets,
   # Deployments, Secrets, Services and CRs across kube-system, cert-manager,
   # external-dns, democratic-csi and gateway. Enumerating those buys nothing --

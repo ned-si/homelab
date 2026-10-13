@@ -1,0 +1,46 @@
+# Static iSCSI PersistentVolumes: the data volumes that existed before the
+# Talos cluster, re-bound to their claims by name (infrastructure/iscsi-volumes/).
+#
+# Wave 25, after democratic-csi (20) and before the platform and apps layers,
+# so every PV exists before the claim that names it. A claim created first
+# would still bind to the right PV (`volumeName`), but would stay Pending
+# until it appears.
+#
+# Never prune, never delete: the PVs are Retain, so deleting one keeps the
+# zvol, but the claim would then need a hand-made PV to come back.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: iscsi-volumes
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "25"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/infrastructure/iscsi-volumes
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    # The binding controller completes claimRef (uid, resourceVersion).
+    - group: ""
+      kind: PersistentVolume
+      jsonPointers:
+        - /spec/claimRef

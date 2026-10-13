@@ -16,6 +16,18 @@ metadata:
   name: keycloak-db
   namespace: keycloak
 spec:
+  bootstrap:
+    recovery:
+      database: app
+      owner: app
+      source: origin
+  externalClusters:
+  - name: origin
+    plugin:
+      name: barman-cloud.cloudnative-pg.io
+      parameters:
+        barmanObjectName: cnpg-backup
+        serverName: keycloak-db
   imageName: ghcr.io/cloudnative-pg/postgresql:17.0
   instances: 1
   plugins:
@@ -24,5 +36,6 @@ spec:
     name: barman-cloud.cloudnative-pg.io
     parameters:
       barmanObjectName: cnpg-backup
+      serverName: keycloak-db-t1
   storage:
     size: 5Gi

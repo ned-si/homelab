@@ -1,10 +1,7 @@
-# L2 announcements (ARP) for LoadBalancer IPs, at parity with the running
-# cluster: every node may announce, LoadBalancer IPs only.
-#
-# kube-vip (static pods on the control planes, `svc_enable=true`) also binds
-# LoadBalancer IPs on its lease holder. Both announcers are live and both
-# forward correctly (externalTrafficPolicy Cluster + kube-proxy replacement);
-# docs/networking.md describes the arrangement and the open decision.
+# L2 announcements (ARP) for LoadBalancer IPs: every node may announce,
+# LoadBalancer IPs only. Cilium is the only announcer of these addresses; the
+# Kubernetes API VIP is announced by Talos itself (`vip` in
+# talos/talconfig.yaml), not by this policy.
 ---
 apiVersion: cilium.io/v2alpha1
 kind: CiliumL2AnnouncementPolicy

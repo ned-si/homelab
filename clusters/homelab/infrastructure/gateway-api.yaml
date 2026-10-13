@@ -1,20 +1,22 @@
 # Gateway API CRDs.
 #
+# Gateway API CRDs.
+#
 # Cilium implements the Gateway API but does NOT ship its CRDs, so they have to
-# be installed separately and kept in lockstep with the Cilium version. Cilium
-# 1.16.3 (what is running) implements Gateway API v1.2.
+# be installed separately and kept in lockstep with the Cilium version.
 #
 # The pinned version and channel live in
 # infrastructure/gateway-api/kustomization.yaml -- the single source of truth --
 # where Renovate tracks them via a `# renovate:` comment on the release URL.
-# Currently v1.2.0, **experimental** channel, matching the cluster.
+# Currently v1.6.3, **experimental** channel, the version Cilium 1.20 supports.
 #
-# The channel is not a free choice: the experimental bundle installs TCPRoute,
-# UDPRoute, TLSRoute and BackendLBPolicy, and applying the standard bundle over
-# it would delete those CRDs.
+# The channel is not a free choice: the experimental bundle installs CRDs the
+# standard one does not (TCPRoute, UDPRoute, the x-k8s.io kinds), and the
+# bundle's `safe-upgrades` admission policy rejects experimental CRDs over
+# standard ones.
 #
-# Replaces: the manual `kubectl apply -f .../experimental-install.yaml` step that
-# used to live in the README.
+# A fresh cluster needs these before Cilium starts, so the bootstrap applies
+# the same render by hand first (docs/bootstrap.md); this Application adopts it.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

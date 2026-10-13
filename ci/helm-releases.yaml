@@ -1,26 +1,24 @@
-# Helm releases installed with the helm CLI rather than by an Argo CD
-# Application. CI renders each entry (scripts/ci/render_apps.py scope 4) and
-# validates the render with kubeconform. A live upgrade takes the chart
-# version from this file and the values from the listed file, both read with
-# `git show <sha>:<path>` at a CI-green commit on main.
+# Helm releases the bootstrap installs with the helm CLI before Argo CD can
+# (docs/bootstrap.md). Argo CD adopts each one afterwards through an
+# Application with the same release name and values file, so these entries are
+# the versions the bootstrap installs; CI (repo-policy
+# `bootstrap-chart-versions`) keeps each equal to its Application's chart
+# version. CI also renders each entry (scripts/ci/render_apps.py scope 4) and
+# validates the render with kubeconform.
 releases:
-  # Live: chart argo-cd 10.2.2 (Argo CD v3.4.6).
+  # Application clusters/homelab/infrastructure/argocd.yaml.
   - name: argocd
     repo: https://argoproj.github.io/argo-helm
     chart: argo-cd
-    version: 10.2.2
+    version: 10.10.3
     release: argocd
     namespace: argo
     values: bootstrap/argocd-values.yaml
-  # Bootstrap only: Argo CD owns the release since 2026-10-05 (Application
-  # clusters/homelab/infrastructure/cilium.yaml). This entry is the version
-  # the bootstrap installs before Argo CD exists; CI keeps it equal to the
-  # Application's chart version. Chart digest of 1.17.18:
-  # 6a9a929a4bfa7a7cbb1fbb429514dde61fdf70622aac3adfd0bed8a4b09e34e9.
+  # Application clusters/homelab/infrastructure/cilium.yaml.
   - name: cilium
     repo: https://helm.cilium.io
     chart: cilium
-    version: 1.17.18
+    version: 1.20.2
     release: cilium
     namespace: kube-system
     values: infrastructure/cilium/values.yaml

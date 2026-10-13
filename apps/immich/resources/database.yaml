@@ -16,17 +16,26 @@ metadata:
 spec:
   instances: 1
   imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
+  # Created from its Barman Cloud backup, a physical copy, so the `vectors`,
+  # `cube` and `earthdistance` extensions and the search_path come with the
+  # data. The image above must stay the one the backup was taken with.
+  # Archives under a new server name (CNPG refuses a non-empty path; the old one
+  # stays readable). docs/bootstrap.md
+  #
+  # Fallback (empty cluster + pg_restore of a dump) needs the initdb block this
+  # replaced, with its postInitApplicationSQL: `git show pre-talos:<this file>`.
   bootstrap:
-    initdb:
-      postInitApplicationSQL:
-        - ALTER SYSTEM SET search_path TO "$user", public, vectors;
-        - SET search_path TO "$user", public, vectors;
-        - CREATE EXTENSION IF NOT EXISTS "vectors";
-        - CREATE EXTENSION IF NOT EXISTS "cube";
-        - CREATE EXTENSION IF NOT EXISTS "earthdistance";
-        - ALTER SCHEMA vectors OWNER TO "app";
-        - GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA vectors TO "app";
-        - GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "app";
+    recovery:
+      source: origin
+      database: app
+      owner: app
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: cnpg-backup
+          serverName: immich-db
   postgresql:
     shared_preload_libraries:
       - "vectors.so"
@@ -40,3 +49,4 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: cnpg-backup
+        serverName: immich-db-t1

@@ -2,20 +2,55 @@
 # the Argo CD Application clusters/homelab/infrastructure/cilium.yaml. A merge
 # to main that changes this file rolls the CNI on every node.
 #
-# These are the user values of helm revision 16 (Cilium 1.17.18), the release
-# Argo CD took over. upgradeCompatibility keeps the 1.16 defaults where 1.17
-# changed them, so the 1.16 -> 1.17 upgrade changed versions and not the
-# datapath.
-#
 # The bootstrap of a fresh cluster installs the release with this same file
 # (docs/bootstrap.md), then Argo CD adopts it.
-upgradeCompatibility: "1.16"
-k8sServiceHost: 192.168.1.11
-k8sServicePort: 6443
+#
+# Talos settings, from the Talos Cilium guide
+# (https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium):
+#   - The API server is reached through KubePrism, the load balancer Talos
+#     runs on every node at localhost:7445. It works before any pod network
+#     exists and does not depend on the VIP.
+#   - Talos mounts cgroup v2 itself and does not allow loading kernel modules,
+#     so Cilium does not mount cgroups and the agent drops SYS_MODULE (the
+#     lists below are the chart defaults without it).
+#   - Pod CIDRs come from the node objects (`ipam.mode: kubernetes`), i.e.
+#     from the cluster's pod subnet in talos/talconfig.yaml.
+# The cluster runs without kube-proxy (`proxy.disabled` in talconfig.yaml), so
+# kubeProxyReplacement is required, not optional.
+k8sServiceHost: localhost
+k8sServicePort: 7445
 kubeProxyReplacement: true
+ipam:
+  mode: kubernetes
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+      - SYSLOG
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
 externalIPs:
   enabled: true
 gatewayAPI:
   enabled: true
+# Serves the Gateway on 192.168.1.254 and the pinned LoadBalancer IPs
+# (infrastructure/cilium/ip-pools.yaml). The Kubernetes API VIP is not
+# Cilium's: Talos announces it (`vip` in talos/talconfig.yaml).
 l2announcements:
   enabled: true

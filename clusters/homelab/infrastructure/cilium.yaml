@@ -1,24 +1,22 @@
 # Cilium: CNI, kube-proxy replacement, L2 announcements, Gateway API controller.
 #
-# Argo CD owns the lifecycle since 2026-10-05 (taken over from the helm-CLI
-# release `cilium` by one manual sync). The chart is rendered with the same
-# release name and values file, so every object keeps its name. A chart or
-# values change merged to main rolls the CNI: upgrade one change at a time.
+# The bootstrap installs the release with the helm CLI (no pod schedules
+# without a CNI), then this Application adopts it with the same release name
+# and values file, so every object keeps its name; see docs/bootstrap.md.
+# CI (repo-policy `bootstrap-chart-versions`) keeps the chart version equal to
+# ci/helm-releases.yaml, which the bootstrap install reads. A chart or values
+# change merged to main rolls the CNI: upgrade one change at a time.
 #
 # Automated sync with self-heal, but NO prune: a pruned DaemonSet, ConfigMap
 # or ClusterRole would take the cluster's network down. Remove objects from
 # this chart deliberately, by hand.
 #
-# The helm release Secrets `sh.helm.release.v1.cilium.*` remain as stale
-# metadata; they are the rollback path (`helm rollback cilium 16`). Never
-# `helm uninstall cilium`: it deletes the CNI.
+# The helm release Secrets `sh.helm.release.v1.cilium.*` from the bootstrap
+# install remain as stale metadata. Never `helm uninstall cilium`: it deletes
+# the CNI.
 #
-# Fresh cluster: the bootstrap installs the release first (no pod schedules
-# without a CNI), then this Application adopts it; see docs/bootstrap.md.
-# CI (repo-policy `cilium-version`) keeps the chart version equal to
-# ci/helm-releases.yaml, which the bootstrap install reads.
-#
-# Upgrade one minor at a time (1.17 -> 1.18 ...), each its own pull request.
+# Upgrade one minor at a time, each its own pull request, together with the
+# Gateway API CRDs it supports (Renovate group "cluster networking").
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -33,7 +31,7 @@ spec:
     - repoURL: https://helm.cilium.io
       chart: cilium
       # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-      targetRevision: 1.17.18
+      targetRevision: 1.20.2
       helm:
         releaseName: cilium
         valueFiles:

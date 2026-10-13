@@ -9,6 +9,18 @@
 #
 # Upgrading the chart (56 -> current) is a separate change with its own CRD
 # upgrade: docs/roadmap.md.
+#
+# Talos: there is no kube-proxy (Cilium replaces it), so its ServiceMonitor
+# would only ever show a target down. The controller-manager, scheduler and
+# etcd metrics endpoints are reachable because talos/talconfig.yaml binds them
+# to 0.0.0.0; the chart defaults (10257, 10259 over HTTPS, etcd 2381 over HTTP)
+# match.
+kubeProxy:
+  enabled: false
+
+# The claim of the TSDB is pre-created in infrastructure/iscsi-volumes/ and
+# bound to the existing volume; the template below must keep its name (the
+# chart derives it from the release name) and its size.
 prometheus:
   prometheusSpec:
     # 30 days for the SLO window (routes/slo.yaml). At about 0.55 GB/day of

@@ -19,6 +19,3 @@ git_username = "ned-si"
 # Uncomment ONLY while rebuilding a cluster that owns nothing yet, and delete the
 # line again the moment the branch is merged.
 # target_revision = "some-working-branch"
-
-# SITE-SPECIFIC: update after the house move if the LAN subnet changes.
-api_server_ip = "192.168.1.11"

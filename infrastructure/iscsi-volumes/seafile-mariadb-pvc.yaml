@@ -1,0 +1,44 @@
+# seafile/mariadb-pvc: the existing TrueNAS zvol, bound statically on Talos.
+# Generated from the live PV; see kustomization.yaml in this directory.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pvc-2ed5ccbe-1e8d-4ab4-9ba1-8ac0bd74a126
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  volumeMode: Filesystem
+  claimRef:
+    namespace: seafile
+    name: mariadb-pvc
+  csi:
+    driver: org.democratic-csi.iscsi
+    volumeHandle: pvc-2ed5ccbe-1e8d-4ab4-9ba1-8ac0bd74a126
+    fsType: xfs
+    volumeAttributes:
+      interface: ""
+      iqn: "iqn.2005-10.org.freenas.ctl:csi-pvc-2ed5ccbe-1e8d-4ab4-9ba1-8ac0bd74a126-cluster"
+      lun: "0"
+      node_attach_driver: "iscsi"
+      portal: "192.168.1.228:3260"
+      portals: ""
+      provisioner_driver: "freenas-iscsi"
+    controllerExpandSecretRef:
+      name: controller-expand-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    controllerPublishSecretRef:
+      name: controller-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodePublishSecretRef:
+      name: node-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodeStageSecretRef:
+      name: node-stage-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi

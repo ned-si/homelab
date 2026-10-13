@@ -1,6 +1,6 @@
 # The shared Gateway: one entrypoint, one wildcard certificate, one LAN address.
 #
-# Implemented by Cilium (GatewayClass `cilium`, Gateway API v1.2 CRDs). Cilium
+# Implemented by Cilium (GatewayClass `cilium`, Gateway API v1.6 CRDs). Cilium
 # creates the LoadBalancer Service `cilium-gateway-shared` in this namespace and
 # copies `spec.infrastructure.annotations` onto it, which is how the address is
 # pinned (the same `lbipam.cilium.io/ips` mechanism as the .200/.201 Services).

@@ -19,6 +19,20 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:18.6
   storage:
     size: 5Gi
+  # Created from its Barman Cloud backup; archives under a new server name
+  # (CNPG refuses a non-empty path; the old one stays readable). docs/bootstrap.md
+  bootstrap:
+    recovery:
+      source: origin
+      database: app
+      owner: app
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: cnpg-backup
+          serverName: sonarr-postgresql
   # WAL archiving and base backups to S3 (cnpg-backup.yaml).
   plugins:
     - name: barman-cloud.cloudnative-pg.io
@@ -27,6 +41,7 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: cnpg-backup
+        serverName: sonarr-postgresql-t1
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -132,6 +147,8 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   storageClassName: iscsi
+  # The existing zvol (infrastructure/iscsi-volumes/).
+  volumeName: pvc-f52fca53-82a4-42b7-9bf0-e5630dfcfa4c
   accessModes:
     - ReadWriteOnce
   resources:

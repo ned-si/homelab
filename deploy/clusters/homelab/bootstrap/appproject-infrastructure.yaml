@@ -45,6 +45,10 @@ spec:
     kind: MutatingWebhookConfiguration
   - group: admissionregistration.k8s.io
     kind: ValidatingWebhookConfiguration
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicy
+  - group: admissionregistration.k8s.io
+    kind: ValidatingAdmissionPolicyBinding
   description: Cluster plumbing - CNI, Gateway API, cert-manager, DNS, CSI
   destinations:
   - namespace: '*'
@@ -58,3 +62,4 @@ spec:
   - https://charts.jetstack.io
   - https://kubernetes-sigs.github.io/external-dns/
   - https://democratic-csi.github.io/charts/
+  - https://argoproj.github.io/argo-helm

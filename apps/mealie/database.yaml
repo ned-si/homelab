@@ -19,6 +19,20 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:18.6
   storage:
     size: 5Gi
+  # Created from its Barman Cloud backup; archives under a new server name
+  # (CNPG refuses a non-empty path; the old one stays readable). docs/bootstrap.md
+  bootstrap:
+    recovery:
+      source: origin
+      database: app
+      owner: app
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: cnpg-backup
+          serverName: mealie-postgresql
   # WAL archiving and base backups to S3 (cnpg-backup.yaml).
   plugins:
     - name: barman-cloud.cloudnative-pg.io
@@ -27,3 +41,4 @@ spec:
       isWALArchiver: true
       parameters:
         barmanObjectName: cnpg-backup
+        serverName: mealie-postgresql-t1

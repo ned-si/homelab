@@ -22,3 +22,4 @@ spec:
     requests:
       storage: 100Gi
   storageClassName: iscsi
+  volumeName: pvc-e241e715-9745-4112-9cff-0332986c7b37

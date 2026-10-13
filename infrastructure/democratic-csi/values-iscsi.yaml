@@ -1,6 +1,7 @@
 # democratic-csi chart 0.15.1 values for the `democratic-csi` Application
-# (release name `iscsi`, namespace democratic-csi), at parity with the
-# running release.
+# (release name `iscsi`, namespace democratic-csi). The release name, driver
+# name and driver config are what the existing volumes were created with;
+# infrastructure/iscsi-volumes/ depends on all three staying the same.
 #
 # The driver configuration (TrueNAS API key, SSH key, portal) is NOT here. It
 # is the SOPS-sealed Secret iscsi-democratic-csi-driver-config
@@ -24,11 +25,26 @@ controller:
     image:
       registry: docker.io/democraticcsi/democratic-csi
       tag: latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+# Talos: there is no iscsiadm in the node image. The iscsi-tools system
+# extension runs iscsid on the host, and the node plugin runs the host's
+# iscsiadm by entering iscsid's namespaces (`nsenter`), which needs the host
+# PID namespace. iscsi-tools >= v0.2.0 keeps its state in /var/iscsi, not
+# /etc/iscsi (democratic-csi issue #461); the path type is left empty because
+# the directory exists only once iscsid has started.
+# https://github.com/democratic-csi/democratic-csi#talos
 node:
+  hostPID: true
   driver:
     image:
       registry: docker.io/democraticcsi/democratic-csi
       tag: latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+    extraEnv:
+      - name: ISCSIADM_HOST_STRATEGY
+        value: nsenter
+      - name: ISCSIADM_HOST_PATH
+        value: /usr/local/sbin/iscsiadm
+    iscsiDirHostPath: /var/iscsi
+    iscsiDirHostPathType: ""
 
 driver:
   # Same name as the Secret the chart used to render, so the pods' volume

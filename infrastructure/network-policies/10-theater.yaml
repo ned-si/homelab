@@ -741,8 +741,8 @@ spec:
               protocol: TCP
 
     # The Kubernetes API: the instance manager watches its Cluster and writes
-    # status. `kube-apiserver` matches the real API addresses, which matters
-    # because the agents use the VIP (k8sServiceHost) rather than the Service.
+    # status. `kube-apiserver` matches the real API addresses (the
+    # control-plane node IPs behind the `kubernetes` Service).
     - toEntities:
         - kube-apiserver
       toPorts:
