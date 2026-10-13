@@ -20,6 +20,7 @@ spec:
   jobName: blackbox-public
   module: http_gated
   prober:
+    path: /probe
     url: blackbox-exporter.monitoring.svc:9115
   scrapeTimeout: 15s
   targets:
@@ -27,7 +28,8 @@ spec:
       labels:
         probe: public
       relabelingConfigs:
-      - regex: https://([^.]+)\..*
+      - action: replace
+        regex: https://([^.]+)\..*
         replacement: $1
         sourceLabels:
         - __param_target

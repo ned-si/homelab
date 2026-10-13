@@ -20,6 +20,7 @@ spec:
   jobName: blackbox-internal
   module: dns_public
   prober:
+    path: /probe
     url: blackbox-exporter.monitoring.svc:9115
   scrapeTimeout: 10s
   targets:
