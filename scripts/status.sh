@@ -17,7 +17,8 @@
 # for the WAN address. Every call is bounded (kubectl --request-timeout,
 # nc -G, curl -m).
 #
-# Exit 0 when nothing is red, 1 when something is, 64 on a usage error.
+# Exit 0 when nothing is red, 1 when something is (a kubectl read that fails
+# counts), 64 on a usage error.
 # --json prints one JSON document instead of the text view.
 #
 # Requires bash 3.2+, kubectl, jq, nc, curl (macOS flags: nc -G).
@@ -31,7 +32,7 @@ for a in "$@"; do
   case "$a" in
     --json) JSON=1 ;;
     --no-color) export NO_COLOR=1 ;;
-    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
     *) echo "usage: $0 [--json] [--no-color]" >&2; exit 64 ;;
   esac
 done
@@ -52,11 +53,21 @@ command -v kubectl >/dev/null 2>&1 || die "kubectl not found"
 T=$(mktemp -d "${TMPDIR:-/tmp}/status.XXXXXX") || die "mktemp failed"
 trap 'rm -rf "$T"' EXIT
 
-# getj <file> <kubectl args...>: JSON list into $T/<file>, or an empty list.
+# A failed read is a problem, not an empty list: it is recorded in
+# $T/errors.txt and reported (an unreachable API must not look healthy).
+: > "$T/errors.txt"
+read_failed() { # <what> <stderr file>
+  printf '%s\n' "kubectl get $1 failed: $(head -n 1 "$2" 2>/dev/null | cut -c1-160)" >> "$T/errors.txt"
+}
+
+# getj <file> <kubectl args...>: JSON list into $T/<file>; an empty list and
+# an error line when the read fails.
 getj() {
   local f=$1; shift
-  k get "$@" -o json > "$T/$f" 2>/dev/null || echo '{"items":[]}' > "$T/$f"
-  jq -e '.items' "$T/$f" >/dev/null 2>&1 || echo '{"items":[]}' > "$T/$f"
+  if ! k get "$@" -o json > "$T/$f" 2> "$T/$f.err" || ! jq -e '.items' "$T/$f" >/dev/null 2>&1; then
+    read_failed "$*" "$T/$f.err"
+    echo '{"items":[]}' > "$T/$f"
+  fi
 }
 
 tcp_open() { nc -z -G 3 "$1" "$2" >/dev/null 2>&1; }
@@ -159,8 +170,12 @@ printf '%s\n' "${immich:-null}" > "$T/immich.json"
 
 # Names, types and timestamps only: kubectl filters server output to these
 # fields, so no Secret value reaches this script.
-k get secrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.type}{"\t"}{.metadata.creationTimestamp}{"\n"}{end}' \
-  2>/dev/null > "$T/secrets.tsv" || : > "$T/secrets.tsv"
+if ! k get secrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.type}{"\t"}{.metadata.creationTimestamp}{"\n"}{end}' \
+  2> "$T/secrets.err" > "$T/secrets.tsv"; then
+  read_failed "secrets -A" "$T/secrets.err"
+  : > "$T/secrets.tsv"
+fi
+jq -R -s -c 'split("\n") | map(select(length > 0))' "$T/errors.txt" > "$T/errors.json"
 jq -R -c --argjson now "$NOW" 'split("\t") | select(length == 4)
     | {ns: .[0], name: .[1], type: .[2], age_d: (($now - (.[3] | fromdateiso8601)) / 86400 | floor)}' "$T/secrets.tsv" \
   | jq -s -c '[group_by(.ns)[] | {ns: .[0].ns, count: length,
@@ -171,12 +186,14 @@ jq -n -c \
   --slurpfile pods "$T/pods.json" --slurpfile pvc "$T/pvc.json" --slurpfile cnpg "$T/cnpg.json" \
   --slurpfile certs "$T/certs.json" --slurpfile gateway "$T/gateway.json" --slurpfile backups "$T/backups.json" \
   --slurpfile nas "$T/nas.json" --slurpfile wan "$T/wan.json" --slurpfile immich "$T/immich.json" \
-  --slurpfile secrets "$T/secrets.json" --argjson now "$NOW" --argjson certwarn "$CERT_WARN_DAYS" '
+  --slurpfile secrets "$T/secrets.json" --slurpfile errors "$T/errors.json" \
+  --argjson now "$NOW" --argjson certwarn "$CERT_WARN_DAYS" '
   {schema: 1, generated: ($now | todate),
    nodes: $nodes[0], etcd: $etcd[0], argo: $argo[0], pods: $pods[0], pvcs: $pvc[0], cnpg: $cnpg[0],
    certificates: $certs[0], gateway: $gateway[0], backups: $backups[0], nas: $nas[0], wan: $wan[0],
-   immich: $immich[0], secrets: $secrets[0]}
+   immich: $immich[0], secrets: $secrets[0], errors: $errors[0]}
   | .problems = ([
+      (.errors[]),
       (.nodes[] | select((.ready | not) or .unschedulable) | "node \(.name) not Ready or cordoned"),
       (if .etcd.healthy == null then "etcd health unreadable" elif .etcd.healthy < .etcd.members then "etcd \(.etcd.healthy)/\(.etcd.members) healthy" else empty end),
       (if .etcd.vip_reachable then empty else "API VIP \(.etcd.vip):6443 unreachable" end),
@@ -211,6 +228,11 @@ show() {
 }
 
 printf '%shomelab status%s  %s\n' "$C_CYAN" "$C_OFF" "$(jq -r .generated "$T/status.json")"
+
+if [ "$(jq '.errors | length' "$T/status.json")" -gt 0 ]; then
+  step "Reads that failed (their sections below are incomplete)"
+  show '.errors[] | ["bad", .] | @tsv'
+fi
 
 step "Nodes"
 show '.nodes[] | [(if .ready and (.unschedulable | not) then "ok" else "bad" end),
