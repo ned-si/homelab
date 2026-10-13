@@ -1,100 +1,43 @@
 # CiliumNetworkPolicy for the application namespaces.
 #
-# ###########################################################################
-# # READ 90-enforcement.yaml BEFORE APPLYING ANYTHING HERE.
-# #
-# # In the state this directory ships in, these policies change NO traffic.
-# # Every rule below carries `enableDefaultDeny: {ingress: false, egress: false}`,
-# # which in Cilium means "contribute this allow-list, but do not put the
-# # selected endpoints into default-deny". Cilium then synthesises a
-# # wildcard-allow for each direction that has only default-allow policies, and
-# # logs it at Info level:
-# #
-# #     Only default-allow policies, synthesizing ingress wildcard-allow rule
-# #
-# # Seeing that line for every endpoint is the confirmation that the policies
-# # loaded and that nothing is being enforced yet.
-# #
-# # Enforcement is turned on per namespace, per direction, by editing ONE file:
-# # 90-enforcement.yaml.
-# ###########################################################################
+# As shipped these policies block nothing: every rule sets
+# `enableDefaultDeny: {ingress: false, egress: false}`. Enforcement is switched
+# per namespace and direction in 90-enforcement.yaml; read it first.
 #
-# WHY CiliumNetworkPolicy AND NOT NetworkPolicy
-#   Cilium is the CNI (infrastructure/cilium/values.yaml), so vanilla
-#   NetworkPolicy would work, but it cannot express three things this repo needs:
-#   the `reserved:ingress` identity that Cilium's Gateway API proxy uses,
-#   `toEntities: [kube-apiserver]` for CloudNativePG's instance manager, and
-#   `enableDefaultDeny`, which is the entire mechanism that makes this rollout
-#   reversible. A vanilla NetworkPolicy is default-deny the instant it selects a
-#   pod; there is no audit position between "absent" and "enforcing".
+# CiliumNetworkPolicy rather than NetworkPolicy: it can express the Gateway
+# proxy's `reserved:ingress` identity, `toEntities: [kube-apiserver]` for the
+# CNPG instance manager, and `enableDefaultDeny`, which makes the rollout
+# reversible (a NetworkPolicy denies the moment it selects a pod).
 #
-# WHY CiliumNetworkPolicy AND NOT CiliumClusterwideNetworkPolicy
-#   CCNP is cluster-scoped, and `clusters/homelab/bootstrap/project-infrastructure.yaml`
-#   enumerates `clusterResourceWhitelist` rather than wildcarding it. CCNP is not
-#   on that list, so an Application in the `infrastructure` project cannot create
-#   one -- the sync fails with "CiliumClusterwideNetworkPolicy is not permitted in
-#   project infrastructure". Namespaced CNP is covered by that project's
-#   `namespaceResourceWhitelist: [{group: "*", kind: "*"}]`.
-#   If a cluster-wide policy is ever genuinely needed, the AppProject has to gain
-#   the entry first, on purpose. That is the whole point of the enumerated list.
+# Namespaced rather than CiliumClusterwideNetworkPolicy: the `infrastructure`
+# AppProject (clusters/homelab/bootstrap/project-infrastructure.yaml) lists
+# its cluster-scoped kinds and CCNP is not one of them. Add it there on purpose
+# if a cluster-wide policy is ever needed.
 #
-# apiVersion: `cilium.io/v2`, NOT `v2alpha1`
-#   infrastructure/cilium/ip-pools.yaml documents that Cilium 1.16.3 serves ONLY
-#   v2alpha1 for CiliumLoadBalancerIPPool and CiliumL2AnnouncementPolicy. That is
-#   specific to those two types. CiliumNetworkPolicy has been `cilium.io/v2` since
-#   Cilium 1.0 and is v2 in 1.16.3. Verify on the cluster with:
+# `cilium.io/v2` (only the LB IP pool and L2 announcement types are v2alpha1).
+# Check:
 #
 #     kubectl get crd ciliumnetworkpolicies.cilium.io \
 #       -o jsonpath='{range .spec.versions[*]}{.name} served={.served}{"\n"}{end}'
 #
-# GRANULARITY, AND WHERE IT IS DELIBERATELY COARSE
-#   `theater` is written per workload, because that namespace is the reason this
-#   directory exists: qBittorrent pulls arbitrary content from the internet, is
-#   published on a LoadBalancer, and shares an L3 domain with four Postgres
-#   clusters it has no business reaching.
+# Granularity: `theater` is per workload (qBittorrent must not reach its
+# neighbours). The other namespaces are one application each, wired by an
+# upstream chart whose labels change on upgrades, so the namespace is the
+# boundary there.
 #
-#   The other five namespaces treat the NAMESPACE as the trust boundary: the
-#   components inside each one are a single application (server + database +
-#   cache + worker) whose internal wiring lives in an upstream chart and can
-#   change on a chart bump. Per-pod rules there would break on every upgrade
-#   while buying almost nothing -- the valuable boundary is "Immich cannot reach
-#   Keycloak's database", and namespace-level rules already deliver it.
+# No NFS or iSCSI rules: those mounts are made by the kubelet and iscsid in the
+# host network namespace, which pod policy never sees. Policing nodes needs the
+# host firewall and a CCNP. Enforcing these policies stops pods, not nodes,
+# from reaching the NAS; restricting the TrueNAS exports to the node IPs is the
+# other half (infrastructure/nfs-storage/nfs-volumes.yaml).
 #
-#   The rejected alternative was per-pod rules everywhere. It fails on labels
-#   this repo does not control: the Immich chart's pod labels are set by
-#   bjw-s/common, and apps/paperless/backup.yaml gives its CronJob pod template
-#   no labels at all.
-#
-# NO NFS OR iSCSI EGRESS RULES, ON PURPOSE
-#   The obvious-looking rules for 192.168.1.228:2049 (NFS) and :3260 (the iSCSI
-#   portal) are absent because those mounts are not pod traffic. `nfs:`
-#   PersistentVolumes and democratic-csi's iSCSI volumes are attached by the
-#   kubelet and iscsid in the HOST network namespace, before the container
-#   starts. CiliumNetworkPolicy selects Cilium endpoints -- pods -- so it never
-#   sees those packets. Node-level traffic is only policeable via
-#   CiliumClusterwideNetworkPolicy with `nodeSelector`, which requires the host
-#   firewall (`hostFirewall.enabled`, currently unset and therefore off) and the
-#   AppProject change described above.
-#
-#   Consequence worth stating plainly: enforcing these policies does NOT stop a
-#   node from reaching the NAS. It stops a POD from reaching it. Restricting the
-#   TrueNAS exports to the four node IPs is the control for the other half, and
-#   it is still outstanding -- see the hardening note in
-#   infrastructure/nfs-storage/nfs-volumes.yaml.
-#
-# NOT COVERED HERE
-#   cert-manager, external-dns, gateway, democratic-csi, cnpg-system, monitoring,
-#   keycloak, backup-verify, kube-system, argocd. Those namespaces have no
-#   policies, so they stay allow-all. That is the intended starting point: this
-#   directory covers the six namespaces whose blast radius is understood. The
-#   platform namespaces come next, and they are the ones where getting it wrong
-#   takes out certificates and DNS for the whole site.
+# Not covered: cert-manager, external-dns, gateway, democratic-csi,
+# cnpg-system, monitoring, keycloak, backup-verify, kube-system, argo. They stay
+# allow-all; a mistake there takes out certificates and DNS for the whole site.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# NO `namespace:` directive. These resources deliberately span six namespaces and
-# each one sets `metadata.namespace` explicitly; a kustomize-level namespace would
-# rewrite all of them into one.
+# No `namespace:`: these resources span six namespaces and set their own.
 resources:
   # Allow-lists. Load-bearing only once the matching namespace is switched on in
   # 90-enforcement.yaml.

@@ -1,65 +1,24 @@
-# ###########################################################################
-# # THE ENFORCEMENT SWITCH. THIS IS THE ONE FILE YOU EDIT.
-# #
-# # Every policy in this directory ships with
-# #     enableDefaultDeny: {ingress: false, egress: false}
-# # which means: contribute an allow-list, but do not put the selected endpoints
-# # into default-deny. In that state NOTHING is blocked and applying this
-# # directory is a no-op on traffic.
-# #
-# # Flipping one `false` to `true` below turns default-deny ON for one namespace,
-# # in one direction. That is the entire mechanism. There is no other switch, no
-# # Helm value and no annotation.
-# ###########################################################################
+# The enforcement switch: the one file to edit.
 #
-# HOW THIS WORKS IN CILIUM 1.16.3, precisely, because the semantics are subtle
-# and getting them wrong is how a homelab loses its network
+# Every policy in this directory sets
+#     enableDefaultDeny: {ingress: false, egress: false}
+# (contribute an allow-list, do not default-deny), so nothing is blocked.
+# Setting one `false` below to `true` turns default-deny on for one namespace
+# in one direction.
 #
-#   pkg/policy/repository.go, computePolicyEnforcementAndRules():
+# Cilium semantics (pkg/policy/repository.go):
 #
-#       if len(r.Ingress) > 0 || len(r.IngressDeny) > 0 {
-#           ingress = true
-#           if *r.EnableDefaultDeny.Ingress { hasIngressDefaultDeny = true }
-#       }
-#       ...
-#       if !hasIngressDefaultDeny && ingress {
-#           // "Only default-allow policies, synthesizing ingress wildcard-allow rule"
-#       }
+#   1. `enableDefaultDeny` only affects a direction that has rules, so each
+#      policy below carries a real rule in each direction.
+#   2. Any selecting policy asking for default-deny enables it, so one `true`
+#      here overrides every `false` in the allow-list files.
+#   3. While all are `false`, Cilium logs "Only default-allow policies,
+#      synthesizing ingress wildcard-allow rule" per endpoint. Not an error.
 #
-#   Three consequences:
-#
-#   1. `enableDefaultDeny` only has any effect on a DIRECTION THAT HAS RULES. A
-#      policy with `enableDefaultDeny: {ingress: true}` and no `ingress:` block
-#      does nothing at all. That is why each policy below carries a real rule in
-#      each direction rather than being an empty marker object.
-#
-#   2. Default-deny is enabled for an endpoint if ANY policy selecting it asks
-#      for it. So a single `true` below overrides every `false` in the allow-list
-#      files for that namespace -- which is exactly the behaviour wanted, and
-#      also why you cannot disable enforcement by editing an allow-list file.
-#
-#   3. While everything is `false`, Cilium logs
-#      "Only default-allow policies, synthesizing ingress wildcard-allow rule"
-#      once per endpoint. That line is the positive confirmation that the
-#      policies loaded and that nothing is being enforced. It is not an error.
-#
-# WHY NOT THE OTHER TWO MECHANISMS
-#
-#   `policyEnforcementMode: always` in infrastructure/cilium/values.yaml would
-#   put the WHOLE cluster into default-deny at once, including kube-system,
-#   argocd, cert-manager and democratic-csi. Wrong blast radius, and it is a
-#   Helm value in a file that also configures the CNI datapath.
-#
-#   `--enable-policy-audit-mode` (Helm `policyAuditMode: true`) is the textbook
-#   audit path: policy is computed, verdicts are reported as AUDIT, and nothing
-#   is dropped. It is genuinely useful and is described under "STEP 2" below, but
-#   it is cluster-wide, it lives in a Helm values file, and turning it on or off
-#   restarts every cilium-agent. It is a diagnostic to reach for, not the shape of
-#   the rollout.
-#
-#   Per-endpoint audit mode (`cilium-dbg endpoint config <id> PolicyAuditMode=Enabled`)
-#   is imperative, is lost when the pod restarts, and cannot be expressed in git.
-#
+# Not used instead: `policyEnforcementMode: always` (whole cluster at once,
+# kube-system included); `policyAuditMode: true` (cluster-wide, restarts every
+# agent; see step 2 for its diagnostic use); per-endpoint audit mode (lost on
+# pod restart, not in git).
 # ---------------------------------------------------------------------------
 # ROLLOUT, IN ORDER. DO NOT SKIP STEP 0.
 # ---------------------------------------------------------------------------
@@ -188,21 +147,16 @@ spec:
     ingress: false     # <-- true enforces INGRESS default-deny for this namespace
     egress: false      # <-- true enforces EGRESS default-deny for this namespace
   ingress:
-    # Kubelet readiness/liveness probes, which originate from the node the pod is
-    # scheduled on. Redundant while Cilium's `--allow-localhost` is at its default
-    # of `auto` (pkg/option/config.go: "defaults to policy except when running in
-    # Kubernetes where it then defaults to always"), which always permits
-    # reserved:host ingress. Stated explicitly anyway, because relying on an
-    # implicit allow for the mechanism that decides whether a pod is Ready is not
-    # a thing to leave undocumented -- and because this rule is what gives the
-    # ingress direction something to enforce.
+    # Kubelet probes from the pod's node. Already allowed by
+    # `--allow-localhost=auto`; stated explicitly, and it gives the ingress
+    # direction a rule to enforce.
     - fromEntities:
         - host
         - remote-node
   egress:
-    # Cluster DNS. Repeated from the per-workload policies on purpose: this is the
-    # one flow whose absence makes every other drop unreadable, and this policy
-    # selects every pod in the namespace including any added later.
+    # Cluster DNS, repeated from the per-workload policies: this policy
+    # selects every pod in the namespace, including future ones, and a DNS
+    # drop makes every other drop unreadable.
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: kube-system
@@ -330,10 +284,8 @@ spec:
             - port: "53"
               protocol: TCP
 ---
-# theater LAST. Seven workloads plus four CloudNativePG clusters, and the one
-# namespace whose components have a history of failing in ways that look like a
-# network problem and are not (see the header of apps/theater/qbittorrent.yaml).
-# Enforce it once the other five have been stable for a while.
+# theater last: the largest namespace (seven workloads, four Postgres
+# clusters). Enforce it once the other five have been stable.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:

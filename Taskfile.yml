@@ -10,22 +10,15 @@ version: "3"
 vars:
   # Where `task secrets:decrypt` writes plaintext. Git-ignored.
   DECRYPT_DIR: .decrypted
-  # NOTE: there is deliberately no GATEWAY_API_VERSION here. The pinned CRD
-  # bundle URL lives in infrastructure/gateway-api/kustomization.yaml and nowhere
-  # else. A second copy in this file drifted from it immediately -- it still said
-  # v1.6.1/standard while the cluster ran v1.2.0/experimental.
-  # No `2>/dev/null` on this one. It used to swallow find's errors, and because
-  # the pipeline's status is `sort`'s, a failing find produced an EMPTY variable
-  # and a silent exit 0 -- so `task build` and `task validate` iterated over
-  # nothing and reported success. The tasks that consume this also assert it is
-  # non-empty; the two together are what make "all kustomizations render" mean
-  # something.
+  # No GATEWAY_API_VERSION here: the pinned CRD bundle URL lives only in
+  # infrastructure/gateway-api/kustomization.yaml, so it cannot drift.
+  # No `2>/dev/null`: the pipeline's status is sort's, so a hidden find error
+  # would yield an empty list and a silent success. Consumers also refuse an
+  # empty list.
   KUSTOMIZE_DIRS:
     sh: find clusters infrastructure platform apps -name kustomization.yaml -exec dirname {} \; | sort
-  # Twelve sealed files today, one per credential the cluster needs from outside
-  # (see scripts/secrets-check.sh for what SHOULD be here). `secrets:decrypt`
-  # still handles the empty case rather than reporting success over nothing --
-  # that is the state a fresh clone is in before `task secrets:seal:all`.
+  # One sealed file per external credential (scripts/secrets-check.sh lists
+  # the expected set). Empty on a fresh clone before `task secrets:seal:all`.
   SOPS_FILES:
     sh: git ls-files '*.sops.yaml' 2>/dev/null || true
 
@@ -63,9 +56,7 @@ tasks:
     cmds:
       - |
         missing=0
-        # tofu is here because `task lint` runs terraform_fmt, which fails with a
-        # bare exit 127 when no tofu/terraform is on PATH -- a failure that names
-        # the wrong problem. Better to say so before the linter does.
+        # tofu: `task lint` runs terraform_fmt, which exits 127 without it.
         for t in sops age kustomize helm kubeconform ksops tofu; do
           command -v "$t" >/dev/null 2>&1 || { echo "missing: $t"; missing=1; }
         done
@@ -94,7 +85,7 @@ tasks:
       - ./scripts/secrets-inventory.sh
 
   # -------------------------------------------------------------------------
-  # Backups you can take today, with no S3 bucket
+  # Local backups (to ~/homelab-backups)
   # -------------------------------------------------------------------------
   backup:dump:
     desc: 'Dump every database to ~/homelab-backups/<utc>/ and verify each one'
@@ -127,13 +118,10 @@ tasks:
     cmds:
       - ./scripts/pre-upgrade-snapshot.sh --delete {{.CLI_ARGS}}
 
-  # Every task below that DECRYPTS sources scripts/lib/sops-age.sh first, which
-  # exports SOPS_AGE_KEY_FILE. On macOS sops looks for the identity in
-  # ~/Library/Application Support/sops/age/keys.txt, not ~/.config, so without
-  # this a `sops --decrypt` fails with "failed to load age identities" even
-  # though the key is exactly where every guide says to put it. Encryption is
-  # unaffected -- it only needs the recipient from .sops.yaml -- which is what
-  # makes the asymmetry so easy to miss.
+  # Tasks that decrypt source scripts/lib/sops-age.sh, which exports
+  # SOPS_AGE_KEY_FILE: on macOS sops looks in ~/Library/Application
+  # Support/sops/age/keys.txt, not ~/.config. Encryption needs only the
+  # recipient in .sops.yaml.
   secrets:seal:
     desc: 'Encrypt a plaintext file in place. Usage: task secrets:seal -- path/to/x.sops.yaml'
     deps: [tools:check]
@@ -143,8 +131,7 @@ tasks:
         [ -n "$f" ] || { echo 'usage: task secrets:seal -- path/to/secret.sops.yaml'; exit 1; }
         . ./scripts/lib/sops-age.sh && sops_age_env || exit 1
         sops --encrypt --in-place "$f"
-        # Encryption returning 0 does not mean the file can be read back, so
-        # prove it before saying "sealed".
+        # Prove the file decrypts with the local identity.
         sops --decrypt "$f" >/dev/null || {
           echo "SEALED BUT NOT READABLE: $f -- the age identity does not match .sops.yaml" >&2
           exit 1
@@ -207,9 +194,8 @@ tasks:
       - task: secrets:leak-check
       - task: lint:placeholders
       - task: lint:secrets
-      # Waivers only, not the full gate: `task lint` should stay fast enough to
-      # run habitually, and the gate scans the tree twice (HEAD and the
-      # merge-base). Run `task lint:trivy` for that, or let CI do it.
+      # Waivers only: the full Trivy gate scans twice (HEAD and merge-base).
+      # Run `task lint:trivy` for it, or let CI.
       - task: lint:trivy:waivers
 
   lint:yaml:
@@ -226,10 +212,7 @@ tasks:
   lint:tofu:
     desc: Check OpenTofu formatting
     cmds:
-      # Runs the pre-commit hook rather than `tofu fmt -check` directly. There is
-      # one rule, so there is one implementation of it: the hook rewrites and
-      # fails, this reports the same thing, and neither can be satisfied while
-      # the other complains.
+      # Same hook as pre-commit, so the two cannot disagree.
       - pre-commit run --all-files terraform_fmt
 
   lint:placeholders:
@@ -240,20 +223,18 @@ tasks:
   lint:secrets:
     desc: 'Check the KSOPS generators reference files that exist and are sealed'
     env:
-      # Fatal. All twelve sealed files exist, so a missing or unsealed one is a
-      # regression, not unfinished work -- and it stalls every Application below
-      # sync-wave -25 in that layer. pre-commit and ci.yaml set the same value.
+      # Fatal: every sealed file exists, so a missing one is a regression and
+      # stalls the layer's Applications below sync-wave -25. pre-commit and
+      # ci.yaml set the same value.
       SECRETS_CHECK_STRICT: "1"
     cmds:
-      # The script defaults to warn-only; the strictness is set above, not here.
       - ./scripts/secrets-check.sh
 
   lint:trivy:
     desc: 'Trivy gate: CRITICAL fails on presence, HIGH fails only when NEW vs the merge-base'
     cmds:
-      # Waiver hygiene first. An expired or malformed waiver makes the gate report
-      # findings it would otherwise suppress, and this names that cause rather than
-      # leaving you to work out why a finding reappeared.
+      # Waivers first: an expired or malformed waiver resurfaces findings, and
+      # this names that cause.
       - ./scripts/trivy-waivers.sh
       - ./scripts/trivy-gate.sh
 
@@ -265,9 +246,8 @@ tasks:
   lint:trivy:all:
     desc: 'Every Trivy finding including waived ones -- what the gate would see with no waivers'
     cmds:
-      # `--skip-check-update`: without it Trivy tries to pull its checks bundle
-      # from a registry and, on a slow link, spends minutes getting nothing and
-      # then dies instead of falling back to the embedded checks.
+      # `--skip-check-update`: the checks-bundle download stalls on slow links
+      # instead of falling back to the embedded checks.
       - trivy config . --severity HIGH,CRITICAL --ignorefile /dev/null --skip-check-update
 
   lint:kube-linter:
@@ -278,10 +258,8 @@ tasks:
   lint:kube-linter:advisory:
     desc: Run the checks .kube-linter.yaml deliberately does NOT enforce
     cmds:
-      # Findings here are known gaps, documented one by one in the ADVISORY
-      # section of .kube-linter.yaml. This exists so the information is runnable
-      # instead of only being a comment; it is not wired into CI, because a gate
-      # that is red on arrival is a gate that gets ignored.
+      # Known gaps, listed in the ADVISORY section of .kube-linter.yaml. Not
+      # in CI: it is red by design.
       - |
         kube-linter lint deploy --do-not-auto-add-defaults \
           --include no-read-only-root-fs \
@@ -311,9 +289,7 @@ tasks:
   build:no-plugins:
     desc: 'Diagnostic: which kustomization is broken, without writing anything'
     cmds:
-      # A read-only diagnostic, not a gate. `task render:check` covers the same
-      # ground and more (it also diffs deploy/), which is why render-check.sh is
-      # no longer a pre-commit hook.
+      # Read-only diagnostic. `task render:check` is the gate.
       - ./scripts/render-check.sh
 
   render:
@@ -330,23 +306,15 @@ tasks:
     desc: Render + schema-validate against the cluster's Kubernetes version
     deps: [tools:check]
     cmds:
-      # `set -o pipefail` IS THE POINT OF THIS BLOCK. Without it the status of
-      # `kustomize build | kubeconform` is kubeconform's alone, and kubeconform
-      # on empty stdin exits 0 -- so every kustomize build failure in this task
-      # was invisible and the task reported success having validated nothing.
-      #
-      # `set -e` alone does not help: it looks at the pipeline's status, which is
-      # the last command's. Every other pipeline in this file has been audited
-      # for the same shape.
+      # pipefail matters here: kubeconform exits 0 on empty stdin, so without
+      # it a failing kustomize build would pass.
       - |
         set -e
         set -o pipefail
         dirs="{{.KUSTOMIZE_DIRS}}"
         [ -n "$dirs" ] || { echo "no kustomizations found -- refusing to report success" >&2; exit 1; }
-        # Split across two variables purely to stay under yamllint's 160-column
-        # limit: the CRD-catalog URL plus kubeconform's own brace templating does
-        # not fit on one line. The backtick fences below are go-task escaping, so
-        # that kubeconform and not task is the one that sees the braces.
+        # Two variables to stay under yamllint's 160 columns. The backtick
+        # fences are go-task escaping, so kubeconform sees the braces.
         #
         # Nothing in this comment may contain a double brace -- go-task templates
         # the whole command string and would try to evaluate it as an action.
@@ -384,8 +352,7 @@ tasks:
     desc: Print the pinned Gateway API CRD bundle URL
     silent: true
     cmds:
-      # Read from the kustomization rather than restating it, so this can never
-      # disagree with what is actually applied.
+      # Read from the kustomization so it always matches what is applied.
       - grep -o 'https://github.com/kubernetes-sigs/gateway-api/[^ ]*' infrastructure/gateway-api/kustomization.yaml
 
   apps:status:
