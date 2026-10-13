@@ -259,13 +259,51 @@ def test_cilium_version_matches_helm_releases(tmp_path):
     assert r.returncode == 0, r.stdout
 
 
-def test_no_cnpg_backup(tmp_path):
+def cnpg_set():
+    plugin = "barman-cloud.cloudnative-pg.io"
     cl = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "db"},
-          "spec": {"backup": {"barmanObjectStore": {}}}}
-    sb = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "ScheduledBackup", "metadata": {"name": "nightly"}}
-    r = policy(tmp_path, renders=[("mealie", "2+3", "apps", "mealie", [cl, sb])])
-    f = fails(r)
-    assert any("has spec.backup" in x for x in f) and any("ScheduledBackup" in x for x in f)
+          "spec": {"plugins": [{"name": plugin, "isWALArchiver": True,
+                                "parameters": {"barmanObjectName": "cnpg-backup"}}]}}
+    store = {"apiVersion": "barmancloud.cnpg.io/v1", "kind": "ObjectStore", "metadata": {"name": "cnpg-backup"}}
+    sb = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "ScheduledBackup", "metadata": {"name": "db-daily"},
+          "spec": {"cluster": {"name": "db"}, "method": "plugin", "pluginConfiguration": {"name": plugin}}}
+    return cl, store, sb
+
+
+def cnpg_fails(tmp_path, docs):
+    return [x for x in fails(policy(tmp_path, renders=[("mealie", "2+3", "apps", "mealie", docs)])) if "cnpg-backup" in x]
+
+
+def test_cnpg_backup_plugin_set_passes(tmp_path):
+    assert cnpg_fails(tmp_path, list(cnpg_set())) == []
+
+
+def test_cnpg_backup_in_tree_barman_fails(tmp_path):
+    cl, store, sb = cnpg_set()
+    cl["spec"]["backup"] = {"barmanObjectStore": {}}
+    assert any("in-tree" in x for x in cnpg_fails(tmp_path, [cl, store, sb]))
+
+
+def test_cnpg_backup_non_plugin_scheduled_backup_fails(tmp_path):
+    cl, store, sb = cnpg_set()
+    sb["spec"]["method"] = "barmanObjectStore"
+    assert any("is not method: plugin" in x for x in cnpg_fails(tmp_path, [cl, store, sb]))
+
+
+def test_cnpg_backup_scheduled_backup_without_archiving_cluster_fails(tmp_path):
+    cl, store, sb = cnpg_set()
+    del cl["spec"]["plugins"]
+    assert any("not a rendered Cluster" in x for x in cnpg_fails(tmp_path, [cl, store, sb]))
+
+
+def test_cnpg_backup_plugin_cluster_without_scheduled_backup_fails(tmp_path):
+    cl, store, _ = cnpg_set()
+    assert any("has no ScheduledBackup" in x for x in cnpg_fails(tmp_path, [cl, store]))
+
+
+def test_cnpg_backup_missing_object_store_fails(tmp_path):
+    cl, _, sb = cnpg_set()
+    assert any("is not rendered" in x for x in cnpg_fails(tmp_path, [cl, sb]))
 
 
 def test_expected_ingresses(tmp_path):
