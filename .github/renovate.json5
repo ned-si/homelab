@@ -247,6 +247,14 @@
       allowedVersions: '<1.33.0',
     },
     {
+      // Argo CD 3.5 (chart >= 10.2.3) is tested on Kubernetes 1.33-1.36; the
+      // cluster runs 1.32. 10.2.2 is the last chart on Argo CD 3.4. Lift with
+      // the move to Talos.
+      description: 'Cap Argo CD at 3.4 while the cluster is on Kubernetes 1.32',
+      matchDepNames: ['argo-cd'],
+      allowedVersions: '<10.2.3',
+    },
+    {
       // keycloak-db has no backup job, so the PreSync backup that guards every
       // other database major cannot run for it. Minors only restart the pod.
       // Lift once keycloak-db is backed up (docs/backups.md).
