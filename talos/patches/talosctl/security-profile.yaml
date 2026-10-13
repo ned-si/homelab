@@ -1,0 +1,12 @@
+# Applied by scripts/talos-genconfig.sh with talosctl after talhelper: talhelper
+# 3.1.17 vendors Talos machinery 1.14.0-alpha.2, which does not know this
+# document. Move it into talconfig.yaml `patches:` once talhelper does.
+#
+# Talos 1.14 workload isolation runs containerd, the kubelet and every pod in a
+# separate PID and mount namespace (sandboxd). democratic-csi finds the host
+# iscsid with pgrep and nsenters into it, which isolation is expected to break.
+# The w-1 spike tests both values and production keeps the one that mounts:
+#   WORKLOAD_ISOLATION=true task talos:genconfig
+apiVersion: v1alpha1
+kind: SecurityProfileConfig
+workloadIsolation: false

@@ -1,0 +1,129 @@
+# talhelper source for the Talos machine configs: https://budimanjojo.github.io/talhelper/
+#
+#   task talos:genconfig   writes talos/clusterconfig/ (git-ignored) from this file
+#                          and talos/talsecret.sops.yaml
+#
+# docs/talos.md explains the tree, the commands and the choices below.
+---
+clusterName: homelab
+
+# renovate: datasource=docker depName=ghcr.io/siderolabs/installer
+talosVersion: v1.14.2
+# The Kubernetes that Talos 1.14.2 ships. Cilium 1.20, Argo CD 3.5 and
+# cert-manager 1.21 are tested up to 1.36 only, so the CI test cluster runs
+# this version before any node does. `task talos:upgrade-k8s` applies a change
+# to a running cluster.
+# renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
+kubernetesVersion: v1.37.1
+
+# The API VIP (Layer2VIPConfig on the control planes, below), not a node IP.
+endpoint: https://192.168.1.11:6443
+additionalApiServerCertSans:
+  - 192.168.1.11
+additionalMachineCertSans:
+  - 192.168.1.11
+
+# The kubeadm cluster schedules on its control planes too; 3 cp + 1 worker
+# could not host the workloads otherwise.
+allowSchedulingOnControlPlanes: true
+clusterPodNets:
+  - 10.244.0.0/16
+clusterSvcNets:
+  - 10.96.0.0/12
+# Cilium is installed once with the helm CLI, then adopted by Argo CD.
+cniConfig:
+  name: none
+
+# Patches for every node. patches/talosctl/ holds the documents talhelper cannot
+# parse yet; scripts/talos-genconfig.sh applies them with talosctl.
+patches:
+  - "@./patches/sysctls.yaml"
+
+controlPlane:
+  patches:
+    # Kubernetes component documents are control-plane only in Talos 1.14.
+    - "@./patches/kube-proxy.yaml"
+    - "@./patches/controlplane-metrics.yaml"
+  # Image Factory schematic ca77d17f5b2c67e1fdb32a57cdbb166e20b8e19010ab6d35a888970958d76c02.
+  # scripts/ci/talos-validate.sh fails if the generated installer image has another ID.
+  schematic: &schematic
+    overlay:
+      image: siderolabs/sbc-rockchip
+      name: turingrk1
+    customization:
+      systemExtensions:
+        officialExtensions:
+          # iscsiadm and iscsid for democratic-csi (ISCSIADM_HOST_STRATEGY=nsenter).
+          - siderolabs/iscsi-tools
+  machineSpec: &machineSpec
+    mode: metal
+    arch: arm64
+    bootMethod: disk-image
+    imageSuffix: raw.xz
+
+worker:
+  schematic: *schematic
+  machineSpec: *machineSpec
+
+nodes:
+  - hostname: homelab-cp-1
+    ipAddress: 192.168.1.247
+    controlPlane: true
+    installDisk: /dev/mmcblk0
+    nameservers: [192.168.1.1]
+    networkInterfaces:
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses: [192.168.1.247/24]
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+        vip:
+          ip: 192.168.1.11
+
+  - hostname: homelab-cp-2
+    ipAddress: 192.168.1.238
+    controlPlane: true
+    installDisk: /dev/mmcblk0
+    nameservers: [192.168.1.1]
+    networkInterfaces:
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses: [192.168.1.238/24]
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+        vip:
+          ip: 192.168.1.11
+
+  - hostname: homelab-cp-3
+    ipAddress: 192.168.1.239
+    controlPlane: true
+    installDisk: /dev/mmcblk0
+    nameservers: [192.168.1.1]
+    networkInterfaces:
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses: [192.168.1.239/24]
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1
+        vip:
+          ip: 192.168.1.11
+
+  - hostname: homelab-w-1
+    ipAddress: 192.168.1.240
+    controlPlane: false
+    installDisk: /dev/mmcblk0
+    nameservers: [192.168.1.1]
+    networkInterfaces:
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses: [192.168.1.240/24]
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.1.1

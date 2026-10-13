@@ -33,6 +33,13 @@ kubeconfig*
 !kubeconfig*.example
 *.kubeconfig
 
+# Talos: generated machine configs and client config (scripts/talos-genconfig.sh)
+# hold the cluster secrets in plaintext. Only talsecret.sops.yaml is committed.
+/talos/clusterconfig/
+talosconfig
+/talos/talsecret.yaml
+/talos/talsecret.yml
+
 # ---------------------------------------------------------------------------
 # OpenTofu / Terraform
 # ---------------------------------------------------------------------------

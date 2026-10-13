@@ -117,6 +117,7 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | [`deploy/`](deploy) | Rendered manifests Argo CD reads (`scripts/render-deploy.sh`; CI fails if stale) |
 | [`bootstrap/`](bootstrap) | `root-app.yaml` (the root Application, applied once by hand), values for the `argocd` Helm release, OpenTofu for a fresh install |
 | [`ansible/`](ansible) | Node OS and kubeadm upgrade playbooks |
+| [`talos/`](talos) | talhelper config for the planned Talos cluster (machine configs, Image Factory schematic, patches); [docs/talos.md](docs/talos.md) |
 | [`ci/`](ci) | Helm CLI release list, vendored CRD schemas, pinned CI Python requirements |
 | [`scripts/`](scripts) | CI entry points (`scripts/ci/`), read-only cluster smoke suite (`smoke.sh`), guarded merge (`pr-merge.sh`), Trivy gate |
 | [`tests/`](tests) | pytest and bash tests for the scripts |
@@ -133,7 +134,7 @@ is in no Application at all.
 ## CI
 
 Every pull request and every push to `main` runs
-[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml): four parallel jobs,
+[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml): five parallel jobs,
 one step per check. Inside a job every check runs even when an earlier one
 fails, and the job fails if any check failed.
 
@@ -147,10 +148,14 @@ fails, and the job fails if any check failed.
 - `security`: `gitleaks` on the new commits, and the Trivy config scan.
   CRITICAL fails; HIGH fails only when it increases against the merge base.
   Waivers in [`.trivyignore.yaml`](.trivyignore.yaml) are scoped and expire.
+- `talos`: generates the Talos machine configs from
+  [`talos/talconfig.yaml`](talos/talconfig.yaml) with throwaway secrets,
+  `talosctl validate --mode metal` on each, and checks the invariants in
+  [`scripts/ci/talos-validate.sh`](scripts/ci/talos-validate.sh).
 - `pr-metadata` (pull requests only): Conventional Commits, titles under 70
   characters, every commit signed and verified.
 
-A last job, `ci`, needs all four and fails unless each one passed
+A last job, `ci`, needs all five and fails unless each one passed
 (`pr-metadata` may be skipped on a push). `ci` is the only required check,
 for branch protection and for `scripts/pr-merge.sh`.
 
