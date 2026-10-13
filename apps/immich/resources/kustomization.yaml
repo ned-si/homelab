@@ -20,3 +20,14 @@ resources:
   - httproute.yaml
   # restic CronJobs for the photo library: S3, local NFS, monthly prune.
   - backup-files.yaml
+
+# After every (manual) sync: the server Service, from the chart, answers.
+components:
+  - ../../../components/postsync-smoke
+patches:
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://immich-server:2283/api/server/ping

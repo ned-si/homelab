@@ -137,6 +137,27 @@ expect_eq "long subject: still a revert" revert "$(get action "$o")"
 check "long subject: title under 70 ($t)" [ "${#t}" -lt 70 ]
 check "long title passes check-title.sh" "$REPO_ROOT/scripts/ci/check-title.sh" "$t"
 
+echo "decide: a failing PostSync smoke test (on-sync-failed)"
+# The hook fails the sync of the merge that broke the app: that merge is
+# reverted. The revert's sync runs the hook again; when it fails too, the
+# answer is an issue, never a second revert.
+c_bump=$(commit $((T0 + 650)) "chore(deps): update mealie to v3.29.0 (#40)" \
+  apps/mealie/deployment.yaml deploy/apps/mealie/deployment-mealie.yaml)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump")
+expect_eq "PostSync failure of the newest merge: revert" revert "$(get action "$o")"
+expect_eq "revert title" "revert: chore(deps): update mealie to v3.29.0 (auto)" "$(get pr_title "$o")"
+c_auto=$(commit $((T0 + 660)) "revert: chore(deps): update mealie to v3.29.0 (auto) (#41)" \
+  apps/mealie/deployment.yaml deploy/apps/mealie/deployment-mealie.yaml)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_auto")
+expect_eq "PostSync failure of the revert itself: issue" issue "$(get action "$o")"
+expect_contains "no revert of a revert" "itself a revert" "$(get reason "$o")"
+c_next=$(commit $((T0 + 670)) "fix(mealie): pin the old image tag (#42)" apps/mealie/deployment.yaml)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_next")
+expect_eq "PostSync failure right after an automatic revert: issue" issue "$(get action "$o")"
+
 echo "act"
 install_fake_gh_act() {
   mkdir -p "$tmp/bin" "$tmp/log"

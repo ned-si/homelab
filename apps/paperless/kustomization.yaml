@@ -11,3 +11,15 @@ resources:
   - service.yaml
   - httproute.yaml
   - backup.yaml
+
+# After every sync: the Service answers on the login page (no health
+# endpoint without authentication).
+components:
+  - ../../components/postsync-smoke
+patches:
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://paperless:8000/accounts/login/
