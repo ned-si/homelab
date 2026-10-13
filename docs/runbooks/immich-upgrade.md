@@ -1,10 +1,14 @@
 # Immich: migrating from pgvecto.rs to VectorChord
 
 **The one irreversible upgrade in this cluster. Not done yet.** Immich runs
-v2.3.1 (chart 0.9.0) on `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16).
-The `immich` Application has no automated sync, so a merged change does nothing
-until someone runs `argocd app sync immich`. Do it only after a verified
-off-site backup exists.
+v2.x (chart 0.9.x) on `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16).
+
+The `immich` Application syncs automatically, so a merged change deploys
+within minutes, after a PreSync base backup of `immich-db`. Renovate updates
+the server within 2.x and the chart within 0.9.x on its own. It never proposes
+what this runbook covers: the database image is disabled, the server is capped
+below 3.0.0 and the chart below 0.10.0 (`.github/renovate.json5`). Merge the
+migration only after a verified off-site backup exists.
 
 ## What changed and why it is forced
 
@@ -14,8 +18,8 @@ the extension at startup, refusing to boot outside `vchord >= 0.3, < 2.0`.
 
 | | Before | After |
 |---|---|---|
-| Immich | v2.3.1 | v3.1.0 or later |
-| Chart | 0.9.0 | 0.13.1 or later |
+| Immich | v2.x | v3.1.0 or later |
+| Chart | 0.9.x | the release that ships the target server |
 | DB image | `cloudnative-pgvecto.rs:16.5-v0.3.0` | `cloudnative-vectorchord:17-1.1.0` |
 | `shared_preload_libraries` | `vectors.so` | `vchord.so` |
 | Extension | `vectors` | `vchord` (+ `vector` via CASCADE) |
@@ -25,9 +29,9 @@ So this is not a version bump. It is **an extension migration and a Postgres maj
 upgrade at the same time**, and it cannot be rolled back once Immich 3.x has
 migrated its schema.
 
-There is also a chart-layout change: immich-charts 0.13.x moved to the bjw-s
-common library, so every values key is at a new path. The old values file would
-have silently applied almost nothing.
+There is also a chart-layout change: from 0.10.0, immich-charts uses a new
+values layout (`controllers:`, `valkey:`), so every values key is at a new path.
+The current values file fails to render on it.
 
 ## Before you start
 
@@ -72,9 +76,13 @@ re-derive thumbnails, faces and embeddings from the files.
 
 ### Option A — rebuild (simpler, loses albums and person names)
 
+First merge a change that removes the `automated:` block from
+`clusters/homelab/apps/immich.yaml`. Otherwise self-heal scales Immich straight
+back up and recreates the Cluster. A `kubectl patch` of the Application does not
+stick: the `apps` layer restores it.
+
 ```sh
-# Scale Immich down so nothing writes during the swap. This sticks: the
-# immich Application does not self-heal.
+# Scale Immich down so nothing writes during the swap.
 kubectl -n immich scale deploy immich-server --replicas=0
 
 # Delete the old cluster. CloudNativePG deletes its PVC; the PV is Retain, so
@@ -139,9 +147,9 @@ the map view (exercises `earthdistance`).
 
 ## 4. Afterwards
 
-Keep the `immich` Application manual: every Immich release can migrate its
-schema, so every upgrade deserves a person at the sync. Renovate never updates
-the database image, the server image or the chart (`.github/renovate.json5`).
+Put the `automated:` block back in `clusters/homelab/apps/immich.yaml`. In
+`.github/renovate.json5`, drop the 3.0.0 server cap and the 0.10.0 chart cap,
+and keep the database image rule (a Postgres major stays a manual step).
 
 ## If it goes wrong
 

@@ -88,8 +88,7 @@ request): `infrastructure/snapshot-controller`, `infrastructure/nfs-storage`,
 | `root`, the three layers, `namespaces` | yes, self-heal | no |
 | `cilium`, `democratic-csi` | yes, self-heal | no |
 | Leaves that ship CRDs: `gateway-api`, `cert-manager`, `cnpg`, `kube-prometheus-stack` | yes, self-heal | no |
-| Every other leaf | yes, self-heal | yes |
-| `immich` | no: synced by hand | - |
+| Every other leaf, including `immich` | yes, self-heal | yes |
 
 Every PVC, CNPG Cluster, StatefulSet and Namespace carries
 `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, and no Application

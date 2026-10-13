@@ -123,9 +123,8 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | [`docs/`](docs) | Architecture, networking, bootstrap, backups, secrets, observability, decisions, runbooks, [roadmap](docs/roadmap.md) |
 | [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) | CI |
 
-Every Application tracks `main` and syncs automatically with self-heal, except
-`immich`. Immich is synced by hand, because an Immich upgrade runs database
-migrations that cannot be undone. App leaves prune. The root, the layers,
+Every Application tracks `main` and syncs automatically with self-heal. App
+leaves prune. The root, the layers,
 `namespaces`, `cilium`, `democratic-csi` and the leaves that ship CRDs do not. Every PVC, CNPG Cluster, StatefulSet and Namespace
 carries `argocd.argoproj.io/sync-options: Delete=false,Prune=false`, and no
 Application has a cascading finalizer. The photo library PVC `immich/immich-data`
@@ -167,11 +166,8 @@ Every action is pinned to a commit SHA and every tool to a version and checksum.
 4. That is the deployment. Every Application tracks `main`, so Argo CD
    applies the merge within its sync interval (3 minutes). Rollback is a
    revert pull request.
-5. Two things are not automatic. `immich` is synced by hand
-   (`argocd app sync immich`, see
-   [docs/runbooks/immich-upgrade.md](docs/runbooks/immich-upgrade.md)). The Helm
-   CLI release `argocd` is upgraded by hand from a merged commit, as
-   described at the top of its values file.
+5. One thing is not automatic: the Helm CLI release `argocd` is upgraded by
+   hand from a merged commit, as described at the top of its values file.
 
 Check what is deployed:
 

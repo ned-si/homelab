@@ -19,8 +19,9 @@ Older code comments cite some of these by number:
 
 Every Argo CD Application tracks `main`. A merge is a deployment: Argo CD
 applies it within its 3-minute reconcile interval. A rollback is a revert pull
-request. The only exception is `immich`, which has no automated sync, because an
-Immich upgrade runs database migrations that cannot be undone.
+request. That includes `immich`: its database gets a PreSync base backup
+before every sync, and the one irreversible step (Immich 3.0 and VectorChord)
+is held back by Renovate caps and done by hand.
 
 Why: with `selfHeal: true` on every Application, the desired state in git is the
 only lever that sticks; one branch keeps "what is merged" and "what runs" the
@@ -106,8 +107,9 @@ Nothing waits for a person: Renovate automerges every update on green CI
 (`.github/renovate.json5`), Argo CD deploys `main`, and a failed deploy is
 reverted automatically ([Automatic rollback](#automatic-rollback)). The only
 exclusions are technical caps with a stated reason and an upstream source: the
-Immich database image (pgvecto.rs, an irreversible migration) and, while the
-`immich` Application syncs by hand, the Immich server and chart; Cilium and
+Immich database image (pgvecto.rs, an irreversible migration), the Immich
+server below 3.0 (which drops pgvecto.rs) and the chart below 0.10 (new values
+layout); Cilium and
 Gateway API (the node kernel), and versions a consumer does not support yet
 (MariaDB for Seafile 11, Seafile 12). Policy gates, once they exist, are Kyverno
 policies (after Talos), not approvals.

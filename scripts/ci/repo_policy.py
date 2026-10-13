@@ -18,8 +18,9 @@ objects and rule ids only; values are never printed.
   no-resources-finalizer  no Application (in git or rendered) carries Argo's
                         resources-finalizer
   pvc-sync-options      new-layout renders: no PVC immich/immich-data; every other
-                        PVC carries argocd.argoproj.io/sync-options with
-                        Delete=false and Prune=false
+                        PVC, and every CNPG Cluster in namespace immich, carries
+                        argocd.argoproj.io/sync-options with Delete=false and
+                        Prune=false
   no-external-dns-exclude  the external-dns `exclude` annotation (not a real
                         annotation in v0.15.0) appears in no non-doc file or render
   wildcard-route-dns    every HTTPRoute with a `*` hostname carries
@@ -225,10 +226,24 @@ class Policy:
                 if (ns, name) == ("immich", "immich-data"):
                     self.fail("pvc-sync-options", f"{e['app']}: renders PVC immich/immich-data (must stay out of every leaf)")
                     continue
-                ann = ((d.get("metadata") or {}).get("annotations") or {}).get(SYNC_OPTS_ANN, "")
-                opts = {o.strip() for o in str(ann).split(",")}
-                if not {"Delete=false", "Prune=false"} <= opts:
+                if not self._keeps(d):
                     self.fail("pvc-sync-options", f"{e['app']}: PVC {ns}/{name} lacks {SYNC_OPTS_ANN}: Delete=false,Prune=false")
+        # immich syncs automatically with prune: its database must survive a
+        # render that drops it, like every PVC above.
+        for e in self.entries(new_layout_only=True):
+            for d in self.docs_of(e):
+                if self.ns_of(d, e) != "immich" or d.get("kind") != "Cluster" \
+                        or not str(d.get("apiVersion", "")).startswith("postgresql.cnpg.io/"):
+                    continue
+                self.on("pvc-sync-options")
+                if not self._keeps(d):
+                    self.fail("pvc-sync-options", f"{e['app']}: Cluster immich/{self.name_of(d)} lacks "
+                              f"{SYNC_OPTS_ANN}: Delete=false,Prune=false")
+
+    @staticmethod
+    def _keeps(d: dict) -> bool:
+        ann = ((d.get("metadata") or {}).get("annotations") or {}).get(SYNC_OPTS_ANN, "")
+        return {"Delete=false", "Prune=false"} <= {o.strip() for o in str(ann).split(",")}
 
     def rule_exclude_annotation(self) -> None:
         self.on("no-external-dns-exclude")
