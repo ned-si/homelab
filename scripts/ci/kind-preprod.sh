@@ -140,11 +140,20 @@ boot() {
     if [ -n "$ready" ]; then echo "ok    service $ns/$name -> $ready"; else echo "FAIL  service $ns/$name has no ready endpoint"; rc=1; fi
   done < "$work/services"
   # Valkey answers PING through its Service, from a pod in its namespace.
+  # The Valkey Deployments have no readiness probe, so "rolled out" can come
+  # before the server listens: up to 5 attempts, 3 s apart.
   while read -r _ ns name; do
     img=$(kubectl -n "$ns" get "deployment/$name" -o jsonpath='{.spec.template.spec.containers[0].image}' < /dev/null)
     case "$img" in */valkey:*) ;; *) continue ;; esac
-    if kubectl -n "$ns" run "ping-$name" --image="$img" --restart=Never --rm -i --quiet \
-      --command -- valkey-cli -h "$name" -p 6379 ping < /dev/null 2>/dev/null | grep -q PONG; then
+    pong=0
+    for try in 1 2 3 4 5; do
+      if kubectl -n "$ns" run "ping-$name-$try" --image="$img" --restart=Never --rm -i --quiet \
+        --command -- valkey-cli -h "$name" -p 6379 ping < /dev/null 2>/dev/null | grep -q PONG; then
+        pong=1; break
+      fi
+      sleep 3
+    done
+    if [ "$pong" = 1 ]; then
       echo "ok    valkey $ns/$name answers PING"
     else
       echo "FAIL  valkey $ns/$name does not answer PING"
