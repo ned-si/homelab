@@ -2,7 +2,7 @@
 # CI: every check that needs no live cluster, for the layered
 # clusters/ apps/ platform/ infrastructure/ deploy/ tree Argo CD syncs.
 #
-# Four parallel jobs, then one aggregate:
+# Parallel jobs, then one aggregate:
 #   lint         pre-commit hooks, yamllint, actionlint, shellcheck,
 #                tofu fmt + validate
 #   render       unit tests, promtool (rule checks and rule unit tests),
