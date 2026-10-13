@@ -28,6 +28,7 @@ one root Application, three layers, one Application per app.
   [docs/networking.md](docs/networking.md), [docs/decisions.md](docs/decisions.md).
 - Data: [docs/backups.md](docs/backups.md), [docs/secrets.md](docs/secrets.md).
 - Monitoring: [docs/observability.md](docs/observability.md).
+- Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
 - App runbooks: [docs/runbooks/](docs/runbooks).
 
 ## Services
