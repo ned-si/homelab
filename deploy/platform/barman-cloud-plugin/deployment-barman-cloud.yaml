@@ -14,7 +14,7 @@ metadata:
   labels:
     app: barman-cloud
   name: barman-cloud
-  namespace: cnpg-system
+  namespace: immich
 spec:
   replicas: 1
   selector:
