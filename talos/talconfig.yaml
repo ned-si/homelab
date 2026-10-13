@@ -9,11 +9,12 @@ clusterName: homelab
 
 # renovate: datasource=docker depName=ghcr.io/siderolabs/installer
 talosVersion: v1.14.2
-# Kubernetes 1.36 is the newest minor Cilium 1.20, Argo CD 3.5 and cert-manager
-# 1.21 support. Talos 1.14 supports 1.33-1.37. Change this one field to move;
-# `task talos:upgrade-k8s` applies it to a running cluster.
+# The Kubernetes that Talos 1.14.2 ships. Cilium 1.20, Argo CD 3.5 and
+# cert-manager 1.21 are tested up to 1.36 only, so the CI test cluster runs
+# this version before any node does. `task talos:upgrade-k8s` applies a change
+# to a running cluster.
 # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
-kubernetesVersion: v1.36.5
+kubernetesVersion: v1.37.1
 
 # The API VIP (Layer2VIPConfig on the control planes, below), not a node IP.
 endpoint: https://192.168.1.11:6443

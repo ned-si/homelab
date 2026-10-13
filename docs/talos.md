@@ -1,6 +1,6 @@
 # Talos
 
-The planned replacement cluster runs Talos Linux v1.14.2 and Kubernetes 1.36.5
+The planned replacement cluster runs Talos Linux v1.14.2 and Kubernetes 1.37.1
 on the same four Turing RK1 nodes, with the same IPs and the same API VIP. Its
 machine configs are generated from [`talos/`](../talos) with
 [talhelper](https://budimanjojo.github.io/talhelper/). Nothing in `talos/`
@@ -128,10 +128,10 @@ password manager; `genconfig` recreates the same file from the sealed secrets.
 ## Upgrades
 
 Renovate tracks `talosVersion` (`ghcr.io/siderolabs/installer`) and
-`kubernetesVersion` (`ghcr.io/siderolabs/kubelet`) in `talconfig.yaml`.
-Kubernetes is capped below 1.37 in `.github/renovate.json5` until Cilium
-supports it. Merging a bump changes no node: run `task talos:upgrade` or
-`task talos:upgrade-k8s` afterwards. Keep `TALOSCTL_VERSION` in
+`kubernetesVersion` (`ghcr.io/siderolabs/kubelet`) in `talconfig.yaml`, with
+no cap and no approval gate: the bumps automerge on green CI. Merging a bump
+changes no node yet: run `task talos:upgrade` or `task talos:upgrade-k8s`
+afterwards. Keep `TALOSCTL_VERSION` in
 `.github/workflows/ci.yaml` on `talosVersion`.
 
 ## Validation
@@ -160,9 +160,11 @@ Expected: `ok` lines only, the last one `ok  git-ignore rules`, exit 0.
   secrets in remote state behind an AWS login and still needs talosctl for OS
   upgrades. talhelper reads SOPS natively and builds the installer URL from the
   schematic.
-- Kubernetes 1.36, not 1.37. Talos 1.14 ships 1.37, but Cilium 1.20, Argo CD
-  3.5 and cert-manager 1.21 support up to 1.36. Moving later is
-  `kubernetesVersion` plus `task talos:upgrade-k8s`, with no reflash.
+- Kubernetes 1.37, the version Talos 1.14.2 ships. Cilium 1.20, Argo CD 3.5
+  and cert-manager 1.21 are tested up to 1.36 only, so the CI test cluster
+  runs 1.37 before the nodes do.
+- eMMC only, no NVMe. EPHEMERAL stays on the eMMC; revisit once the eMMC
+  `life_time` trend gives a reason.
 - Workload isolation off until tested. iSCSI volumes, including the photo
   library, must mount. The w-1 spike runs both values.
 - `patches/talosctl/` exists because talhelper vendors a pre-release of the
