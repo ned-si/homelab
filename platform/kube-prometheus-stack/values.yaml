@@ -58,3 +58,40 @@ grafana:
   # (routes/grafana.yaml). ingress-nginx is removed (ADR 0011).
   ingress:
     enabled: false
+
+# Alertmanager: the Watchdog heartbeat only. `Watchdog` always fires; it goes
+# every 5 minutes to the dead-man's switch in Secret `alertmanager-notify`
+# key `heartbeat-url` (platform/secrets/alertmanager-notify.sops.yaml), whose
+# provider alerts when the pings stop: Prometheus, Alertmanager, the cluster
+# or the house's internet is down. Every other alert still goes to "null"
+# until a notification receiver is chosen (docs/observability.md).
+#
+# The operator mounts the Secret at
+# /etc/alertmanager/secrets/alertmanager-notify/<key>; `url_file` reads it at
+# send time, so the URL is never in git. While the Secret holds its sentinel
+# (https://pending.invalid/...), each send fails: Alertmanager logs "Notify
+# attempt failed" for receiver heartbeat, and nothing else is affected.
+#
+# Helm merges `config` into the chart default: `route` keys are merged,
+# `routes` and `receivers` (lists) are replaced, `inhibit_rules` and
+# `templates` stay the chart's.
+alertmanager:
+  alertmanagerSpec:
+    secrets:
+      - alertmanager-notify
+  config:
+    route:
+      receiver: "null"
+      routes:
+        - receiver: heartbeat
+          matchers:
+            - alertname = "Watchdog"
+          group_wait: 0s
+          group_interval: 1m
+          repeat_interval: 5m
+    receivers:
+      - name: "null"
+      - name: heartbeat
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/heartbeat-url
+            send_resolved: false
