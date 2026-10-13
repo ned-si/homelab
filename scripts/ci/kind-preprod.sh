@@ -106,7 +106,7 @@ dry_run() {
 }
 
 boot() {
-  local f kind ns name img rc=0 i ready
+  local f ns name img rc=0 i ready
   workload_files > "$work/files"
   while IFS= read -r f; do kubectl apply --server-side -f "$f" > /dev/null; done < "$work/files"
   # One "<kind> <namespace> <name>" line per object (plain `yq`, not
@@ -118,7 +118,7 @@ boot() {
   # A boot that checks nothing must not pass.
   [ -s "$work/deployments" ] || { echo "FAIL  no Deployment in $WORKLOADS" >&2; return 1; }
   # Every kubectl in the loops reads /dev/null, not the list being read.
-  while read -r kind ns name; do
+  while read -r _ ns name; do
     if kubectl -n "$ns" rollout status "deployment/$name" --timeout="$ROLLOUT_TIMEOUT" < /dev/null; then
       echo "ok    deployment $ns/$name"
     else
@@ -129,7 +129,7 @@ boot() {
       rc=1
     fi
   done < "$work/deployments"
-  while read -r kind ns name; do
+  while read -r _ ns name; do
     ready=""
     for i in $(seq 1 30); do
       ready=$(kubectl -n "$ns" get endpointslices -l "kubernetes.io/service-name=$name" \
@@ -140,7 +140,7 @@ boot() {
     if [ -n "$ready" ]; then echo "ok    service $ns/$name -> $ready"; else echo "FAIL  service $ns/$name has no ready endpoint"; rc=1; fi
   done < "$work/services"
   # Valkey answers PING through its Service, from a pod in its namespace.
-  while read -r kind ns name; do
+  while read -r _ ns name; do
     img=$(kubectl -n "$ns" get "deployment/$name" -o jsonpath='{.spec.template.spec.containers[0].image}' < /dev/null)
     case "$img" in */valkey:*) ;; *) continue ;; esac
     if kubectl -n "$ns" run "ping-$name" --image="$img" --restart=Never --rm -i --quiet \
