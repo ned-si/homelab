@@ -40,6 +40,9 @@ spec:
   - path: deploy/platform/kube-prometheus-stack/routes
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
+  - path: deploy/platform/kube-prometheus-stack/dashboards
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
   syncPolicy:
     automated:
       prune: false

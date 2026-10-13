@@ -6,7 +6,8 @@
 # subchart has no Gateway API template). The chart's own Ingress is disabled
 # (ingress-nginx is removed, ADR 0011).
 #
-# Alert rules, dashboards and the chart upgrade are later, separate changes.
+# A fourth source holds the Grafana dashboards
+# (platform/kube-prometheus-stack/dashboards).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -33,6 +34,10 @@ spec:
     - repoURL: https://github.com/ned-si/homelab.git
       targetRevision: main
       path: deploy/platform/kube-prometheus-stack/routes
+    # Grafana dashboards (ConfigMaps for the sidecar).
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/kube-prometheus-stack/dashboards
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
