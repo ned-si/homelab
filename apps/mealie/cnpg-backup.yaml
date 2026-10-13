@@ -41,10 +41,6 @@ spec:
   # Six fields (seconds first), UTC. Base backups are staggered 00:00-01:00,
   # before the restic window (docs/backups.md).
   schedule: "0 20 0 * * *"
-  # Suspended while the Cluster restarts to load the plugin sidecar: an
-  # immediate backup taken before that fails ("requested plugin is not
-  # available"). Unsuspending takes the first base backup at once.
-  suspend: true
   immediate: true
   backupOwnerReference: self
   cluster:

@@ -3,10 +3,6 @@
 # s3://ned-si-homelab-backups/cnpg/<cluster>/, kept 30 days (point-in-time
 # recovery anywhere in that window). The restic dumps in backup.yaml stay as a
 # second, independent copy. Restore: docs/backups.md.
-#
-# The ScheduledBackups start suspended while each Cluster restarts to load the
-# plugin sidecar: an immediate backup taken before that fails. Unsuspending
-# takes the first base backup at once.
 ---
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
@@ -43,7 +39,6 @@ metadata:
   namespace: theater
 spec:
   schedule: "0 30 0 * * *"
-  suspend: true
   immediate: true
   backupOwnerReference: self
   cluster:
@@ -59,7 +54,6 @@ metadata:
   namespace: theater
 spec:
   schedule: "0 40 0 * * *"
-  suspend: true
   immediate: true
   backupOwnerReference: self
   cluster:
@@ -75,7 +69,6 @@ metadata:
   namespace: theater
 spec:
   schedule: "0 50 0 * * *"
-  suspend: true
   immediate: true
   backupOwnerReference: self
   cluster:
@@ -91,7 +84,6 @@ metadata:
   namespace: theater
 spec:
   schedule: "0 0 1 * * *"
-  suspend: true
   immediate: true
   backupOwnerReference: self
   cluster:

@@ -42,7 +42,7 @@ objects and rule ids only; values are never printed.
                         Cloud plugin, has a ScheduledBackup and references a
                         rendered ObjectStore in its namespace; no Cluster uses
                         spec.backup.barmanObjectStore; every ScheduledBackup is
-                        method: plugin and targets such a Cluster
+                        method: plugin, not suspended, and targets such a Cluster
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
 """
@@ -382,6 +382,8 @@ class Policy:
         for app, ns, d in scheduled:
             spec = d.get("spec") or {}
             where = f"{app}: ScheduledBackup {ns}/{self.name_of(d)}"
+            if spec.get("suspend") is True:
+                self.fail("cnpg-backup", f"{where} is suspended")
             if spec.get("method") != "plugin" or (spec.get("pluginConfiguration") or {}).get("name") != CNPG_PLUGIN:
                 self.fail("cnpg-backup", f"{where} is not method: plugin with pluginConfiguration.name: {CNPG_PLUGIN}")
             target = (ns, (spec.get("cluster") or {}).get("name") or "?")

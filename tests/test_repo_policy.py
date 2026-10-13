@@ -303,6 +303,12 @@ def test_cnpg_backup_cluster_without_plugin_fails(tmp_path):
     assert any("does not archive WAL" in x for x in cnpg_fails(tmp_path, [cl]))
 
 
+def test_cnpg_backup_suspended_scheduled_backup_fails(tmp_path):
+    cl, store, sb = cnpg_set()
+    sb["spec"]["suspend"] = True
+    assert any("is suspended" in x for x in cnpg_fails(tmp_path, [cl, store, sb]))
+
+
 def test_cnpg_backup_plugin_cluster_without_scheduled_backup_fails(tmp_path):
     cl, store, _ = cnpg_set()
     assert any("has no ScheduledBackup" in x for x in cnpg_fails(tmp_path, [cl, store]))
