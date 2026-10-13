@@ -6,6 +6,8 @@ resources:
   - database.yaml
   # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
   - backup.yaml
+  # Takes a base backup before every sync (presync-backup.yaml).
+  - presync-backup.yaml
   - deployment.yaml
   - httproute.yaml
   - realm-settings.yaml

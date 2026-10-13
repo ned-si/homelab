@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/keycloak
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/keycloak and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  backup.yaml: |
+    apiVersion: postgresql.cnpg.io/v1
+    kind: Backup
+    metadata:
+      name: presync-keycloak-db
+      namespace: keycloak
+    spec:
+      cluster:
+        name: keycloak-db
+      method: plugin
+      pluginConfiguration:
+        name: barman-cloud.cloudnative-pg.io
+kind: ConfigMap
+metadata:
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "-1"
+  name: presync-backup
+  namespace: keycloak

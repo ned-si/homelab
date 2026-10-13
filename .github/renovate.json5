@@ -255,15 +255,6 @@
       allowedVersions: '<10.2.3',
     },
     {
-      // keycloak-db has no backup job, so the PreSync backup that guards every
-      // other database major cannot run for it. Minors only restart the pod.
-      // Lift once keycloak-db is backed up (docs/backups.md).
-      description: 'No Postgres major for keycloak-db until it is backed up',
-      matchFileNames: ['platform/keycloak/database.yaml'],
-      matchUpdateTypes: ['major'],
-      enabled: false,
-    },
-    {
       // Paperless 3.0 upgrades only from 2.20.x
       // (https://github.com/paperless-ngx/paperless-ngx/discussions/12756).
       // Applies only while the current version is older, so v3 follows on
