@@ -30,6 +30,18 @@ output "backup_secret_access_key" {
   sensitive   = true
 }
 
+output "cnpg_access_key_id" {
+  description = "ACCESS_KEY_ID for the cnpg-backup-s3 Secret (Barman Cloud plugin). Save to Bitwarden."
+  value       = aws_iam_access_key.cnpg.id
+  sensitive   = true
+}
+
+output "cnpg_secret_access_key" {
+  description = "ACCESS_SECRET_KEY for the cnpg-backup-s3 Secret (Barman Cloud plugin). Save to Bitwarden."
+  value       = aws_iam_access_key.cnpg.secret
+  sensitive   = true
+}
+
 output "verify_access_key_id" {
   description = "Read-only key for restore drills. Save to Bitwarden."
   value       = aws_iam_access_key.verify.id

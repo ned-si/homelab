@@ -177,13 +177,13 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
     }
   }
 
-  # NOTE: there is deliberately no expiry rule for `*/postgres/`. CloudNativePG
-  # manages that itself via `spec.backup.retentionPolicy` (30d for Immich, 90d
-  # for Keycloak) and it needs to be the one deciding, because deleting a base
-  # backup that later WAL still depends on silently destroys the ability to
-  # recover to any point in that window. Nor is it transitioned to Glacier: WAL
-  # is a stream of small objects with constant churn, which is the worst possible
-  # fit for a class with a 90-day minimum duration.
+  # NOTE: there is deliberately no expiry rule for `cnpg/`. The Barman Cloud
+  # plugin enforces the 30-day retention of each ObjectStore itself, and it needs
+  # to be the one deciding, because deleting a base backup that later WAL still
+  # depends on silently destroys the ability to recover to any point in that
+  # window. Nor is it transitioned to Glacier: WAL is a stream of small objects
+  # with constant churn, the worst possible fit for a class with a 90-day minimum
+  # duration.
   depends_on = [aws_s3_bucket_versioning.backups]
 }
 
@@ -264,6 +264,89 @@ resource "aws_iam_user_policy" "backup" {
 
 resource "aws_iam_access_key" "backup" {
   user = aws_iam_user.backup.name
+}
+
+# ---------------------------------------------------------------------------
+# The Postgres credential, used by the Barman Cloud plugin of every CNPG cluster
+# (WAL archiving and base backups under cnpg/<cluster>/). Separate from the
+# writer so a database pod never holds a key that can reach the restic
+# repositories, and the restic jobs never hold one that can reach the WAL.
+# ---------------------------------------------------------------------------
+resource "aws_iam_user" "cnpg" {
+  name = "${var.bucket_name}-cnpg"
+  tags = {
+    Purpose = "CNPG WAL archiving and base backups under cnpg/"
+    Managed = "opentofu"
+  }
+}
+
+data "aws_iam_policy_document" "cnpg" {
+  # The plugin enforces retention, so DeleteObject is required.
+  statement {
+    sid    = "CnpgObjectReadWrite"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts",
+    ]
+    resources = ["${aws_s3_bucket.backups.arn}/cnpg/*"]
+  }
+
+  # barman-cloud checks the bucket with HeadBucket, which IAM authorises as
+  # ListBucket without a prefix. `IfExists` lets that through while any listing
+  # with a prefix outside cnpg/ is still denied.
+  statement {
+    sid       = "CnpgBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.backups.arn]
+    condition {
+      test     = "StringLikeIfExists"
+      variable = "s3:prefix"
+      values   = ["cnpg/*"]
+    }
+  }
+
+  statement {
+    sid       = "CnpgBucketLocation"
+    effect    = "Allow"
+    actions   = ["s3:GetBucketLocation", "s3:ListBucketMultipartUploads"]
+    resources = [aws_s3_bucket.backups.arn]
+  }
+
+  # Same denials as the writer: nothing this key does can be made permanent.
+  statement {
+    sid    = "DenyIrreversibleDestruction"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteObjectVersion",
+      "s3:DeleteObjectVersionTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutLifecycleConfiguration",
+      "s3:DeleteBucket",
+      "s3:DeleteBucketPolicy",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketAcl",
+      "s3:PutEncryptionConfiguration",
+    ]
+    resources = [
+      aws_s3_bucket.backups.arn,
+      "${aws_s3_bucket.backups.arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_user_policy" "cnpg" {
+  name   = "cnpg-backups"
+  user   = aws_iam_user.cnpg.name
+  policy = data.aws_iam_policy_document.cnpg.json
+}
+
+resource "aws_iam_access_key" "cnpg" {
+  user = aws_iam_user.cnpg.name
 }
 
 # ---------------------------------------------------------------------------
