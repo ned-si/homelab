@@ -3,102 +3,46 @@
 # archiving (`spec.backup`), so these are nightly snapshots, not point-in-time
 # recovery; for quality profiles and indexer settings that is enough.
 #
-# ---------------------------------------------------------------------------
-# ONE RESTIC REPOSITORY, SIX TAGS
+# One restic repository, `theater/configs`. Every snapshot is tagged
+# `theater-configs` (one entry in platform/backup-verify/restore-files.yaml)
+# plus its app tag. bootstrap/aws-backup/main.tf needs the repository in
+# `local.restic_repos`, or its packs get no lifecycle rule and stay in S3
+# Standard; scripts/check-restic-repos.sh keeps the two lists equal.
 #
-# `theater/configs`, which is the name platform/backup-verify/restore-files.yaml
-# already anticipated in its commented-out list. Every job here tags
-# `theater-configs` plus its own app name, so:
+# One job per volume: each /config is ReadWriteOnce on its app's node, so
+# each job carries a podAffinity to that app. Jobs start ten minutes apart
+# because restic takes an exclusive repository lock for `backup`.
+# `forget --prune` runs monthly in theater-configs-prune: it holds the lock
+# much longer, and packs move to Glacier IR (90-day minimum billing), so
+# pruning nightly saves nothing.
 #
-#   - the existing verifier line works by uncommenting it, and
-#   - `bootstrap/aws-backup/main.tf` needs ONE new entry in
-#     `local.restic_repos`, not six.
+# bazarr's config job is in backup-bazarr.yaml.
 #
-# THAT TERRAFORM ENTRY IS NOT OPTIONAL. Without `theater/configs` in
-# local.restic_repos there is no lifecycle rule for `theater/configs/data/`, so
-# the pack files stay in S3 Standard at roughly 6x the price and nothing warns
-# you. scripts/check-restic-repos.sh keeps the two lists equal.
+# Consistency per tag:
 #
-# Six jobs rather than one because every /config volume is ReadWriteOnce and
-# attached to a different pod, which may be on a different node. A single pod
-# cannot mount four ReadWriteOnce volumes unless all four apps happen to be
-# co-scheduled, and "happen to" is not a design. Each job therefore carries the
-# same podAffinity as apps/immich/resources/backup-files.yaml.
-#
-# Schedules are staggered ten minutes apart. Not for load -- these volumes are
-# tiny -- but because they share one restic repository and restic takes an
-# exclusive lock for `backup`. Concurrent jobs would serialise on the lock and
-# the last one would sometimes time out.
-#
-# `forget --prune` runs ONCE A MONTH, in its own CronJob (theater-configs-prune,
-# at the end of this file), not in any nightly job. Two reasons: pruning holds
-# an exclusive lock for much longer than a backup does, so it must not share a
-# night with six backups; and the packs move to Glacier IR after a day, which
-# bills each one for at least 90 days, so deleting packs nightly saves nothing.
-#
-# bazarr's config job lives in backup-bazarr.yaml and is rendered together with
-# bazarr.yaml. Until then bazarr is also absent from the dump loop below.
-#
-# ---------------------------------------------------------------------------
-# CONSISTENCY: WHAT IS GUARANTEED, PER TAG
-#
-# This is the part that determines whether these are backups or wishful file
-# copies, so it is spelled out per tag rather than asserted in general.
-#
-#   theater-postgres            CONSISTENT. pg_dump runs in a single
-#                               transaction, so the dump is a true snapshot of
-#                               the database at one instant.
-#
+#   theater-postgres        consistent: pg_dump is one transaction.
 #   sonarr/radarr/lidarr/prowlarr
-#                               CONSISTENT for what is included. With
-#                               SONARR__POSTGRES__* et al. set, the *arr apps'
-#                               real database is in PostgreSQL -- /config holds
-#                               config.xml, the app's own Backups/ zips, and
-#                               ASP.NET data-protection keys. config.xml is
-#                               written to a temporary file and renamed, so it
-#                               is never read half-written. logs.db (the one
-#                               live SQLite file left, and explicitly disabled
-#                               via SONARR__LOG__DBENABLED=false) and
-#                               MediaCover/ are excluded.
+#                           consistent: the data is in Postgres; /config holds
+#                           config.xml (written by rename), the app's Backups/
+#                           zips and data-protection keys. logs.db and
+#                           MediaCover/ are excluded.
+#   plex                    consistent: live SQLite excluded, Plex's own
+#                           database backups included (see the plex job).
+#   jellyfin-config         consistent (XML).
+#   jellyfin-db-besteffort  not consistent, tagged so (see the jellyfin job).
 #
-#   plex                        CONSISTENT for what is included, because the
-#                               live SQLite databases are EXCLUDED and Plex's
-#                               own scheduled database backups are included
-#                               instead -- see the note in the plex job.
+# Apps are not scaled down for the backup: selfHeal reverts `replicas: 0`
+# within seconds. CSI snapshot-then-backup is the fix for the one
+# inconsistent tag (platform/kube-prometheus-stack/routes/grafana-backup.yaml).
 #
-#   jellyfin-config             CONSISTENT (XML configuration).
-#   jellyfin-db-besteffort      NOT CONSISTENT, and tagged so. Jellyfin core
-#                               has no consistent export and there is no sqlite3
-#                               binary in the restic image. Kept in a separate
-#                               snapshot with a separate tag so a restore cannot
-#                               mistake one guarantee for the other.
+# Not backed up:
 #
-# Quiescing the apps first was considered and is impossible here: every
-# Application in clusters/ runs `selfHeal: true`, so Argo CD reverts
-# `replicas: 0` within seconds -- restarting the app mid-backup and contending
-# for the ReadWriteOnce volume the backup pod now holds. Snapshot-then-backup via
-# the CSI VolumeSnapshot machinery is the correct fix for the one genuinely
-# inconsistent tag above; the reasoning for not hand-rolling it is in
-# platform/kube-prometheus-stack/routes/grafana-backup.yaml.
-#
-# NOT BACKED UP HERE, DELIBERATELY:
-#
-#   theater-data (26TB NFS, 9.5TB used)  the media library. Verified against
-#     the manifests rather than taken on trust: infrastructure/nfs-storage/
-#     nfs-volumes.yaml sets persistentVolumeReclaimPolicy: Retain on the PV, and
-#     plex.yaml:100 and jellyfin.yaml:83 both mount it readOnly: true with
-#     subPath: media. So no Kubernetes action can delete it and neither media
-#     server can write to it. Combined with ZFS snapshots on the NAS, and with
-#     the content being re-acquirable, the ~EUR 50-120/month is not a good
-#     trade. docs/backups.md argues this at length and the reasoning holds.
-#
-#   qbittorrent-config  torrent state and resume data. Reconstructible, and it
-#     references media that is itself not backed up. Note it is also the volume
-#     whose stale ipc-socket caused the three-month outage
-#     (docs/runbooks/arr-qbittorrent.md), so a restored copy of it could
-#     restore the fault. Add it by copying a block below if you disagree.
-#
-#   plex-transcode, jellyfin-cache  scratch, by definition.
+#   theater-data (NFS media)  PV reclaimPolicy Retain, mounted readOnly by
+#                             Plex and Jellyfin, ZFS snapshots on the NAS, and
+#                             re-acquirable. See docs/backups.md.
+#   qbittorrent-config        reconstructible; a restored copy could bring back
+#                             a stale ipc socket (docs/runbooks/arr-qbittorrent.md).
+#   plex-transcode, jellyfin-cache  scratch.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -106,14 +50,8 @@ metadata:
   name: theater-backup-scripts
   namespace: theater
 data:
-  # One script, six callers.
-  #
-  # Rejected alternative: the same twenty lines of shell inlined into six
-  # CronJob `args` blocks, the way apps/paperless/backup.yaml does for its
-  # single job. With one job inline is clearer. With six it guarantees drift --
-  # someone fixes an exclude in one and not the other five, and the difference
-  # only shows up at restore time. platform/backup-verify/ already uses a
-  # scripts ConfigMap for exactly this reason.
+  # One script for six jobs, so an exclude fixed in one cannot drift from
+  # the others.
   backup-config.sh: |
     #!/bin/sh
     # Usage: backup-config.sh <tag> <path> [extra restic backup args...]
@@ -152,12 +90,9 @@ data:
 
     echo "=== ${TAG}: done ==="
 
-  # Retention and integrity, run once a month by theater-configs-prune.
-  #
-  # Separated from backup-config.sh so it cannot accidentally be called six
-  # times: `forget --prune` holds an exclusive repository lock for far longer
-  # than a backup does, and six of them contending is how a nightly job starts
-  # timing out a month later for no obvious reason.
+  # Retention and integrity, monthly in theater-configs-prune. A separate
+  # script so the nightly jobs cannot call it: `forget --prune` holds the
+  # repository lock far longer than a backup.
   forget-and-prune.sh: |
     #!/bin/sh
     set -eu
@@ -199,12 +134,9 @@ data:
     # CronJob: platform/backup-verify/.
     restic check --with-cache
 
-  # Logical dumps of the four *arr databases.
-  #
-  # Runs in the CloudNativePG postgres image as an initContainer, writing to an
-  # emptyDir that the restic container then reads. Two containers in one pod
-  # rather than a pipe, because no single image has both pg_dump and restic and
-  # adding one would mean building and maintaining an image for this.
+  # Logical dumps of the four *arr databases: pg_dump in an initContainer
+  # (CNPG postgres image) writes to an emptyDir that the restic container
+  # reads. No single image has both tools.
   dump-postgres.sh: |
     #!/bin/bash
     # `bash`, deliberately: `set -o pipefail` is required below and dash does
@@ -273,8 +205,7 @@ data:
     exit $rc
 ---
 # =========================================================================
-# THE DATABASES. First, because everything else in this namespace is cheap and
-# this is the part that holds work you did.
+# The four *arr databases.
 # =========================================================================
 apiVersion: batch/v1
 kind: CronJob
@@ -299,9 +230,8 @@ spec:
             app.kubernetes.io/name: theater-postgres-backup
         spec:
           restartPolicy: OnFailure
-          # No podAffinity: this job mounts no application volume. It reaches
-          # the databases over the network via their `-rw` Services, so it can
-          # run anywhere. That is a real advantage of dumping over snapshotting.
+          # No podAffinity: no application volume; the databases are reached
+          # through their `-rw` Services.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -310,9 +240,8 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: dump
-              # Same image as the four *arr clusters (one Renovate dependency),
-              # so pg_dump always matches the server. immich-db and keycloak-db
-              # run other images and are not dumped here (docs/backups.md).
+              # Same image as the four *arr clusters, so pg_dump matches the
+              # server.
               # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
               image: ghcr.io/cloudnative-pg/postgresql:18.6
               imagePullPolicy: IfNotPresent
@@ -356,10 +285,7 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
+                # restic's temp pack files; /tmp is read-only here.
                 - name: TMPDIR
                   value: /cache
               envFrom:
@@ -389,12 +315,8 @@ spec:
               configMap:
                 name: theater-backup-scripts
                 defaultMode: 0755
-            # The four dumps together are a few tens of megabytes. sizeLimit is
-            # a guard, not a budget: emptyDir lives on the node's ephemeral
-            # storage, which on these nodes is a 29GB eMMC that was already at
-            # 83% and also holds kubelet and
-            # containerd. An unbounded emptyDir there breaks the node, not the
-            # backup.
+            # A few tens of MB. sizeLimit guards the node's 29 GB eMMC, which
+            # also holds kubelet and containerd.
             - name: dumps
               emptyDir:
                 sizeLimit: 2Gi
@@ -415,11 +337,8 @@ spec:
                 secretName: prowlarr-postgresql-app
 ---
 # =========================================================================
-# THE SIX /config VOLUMES.
-#
-# sonarr below is the REFERENCE SHAPE, following the convention set by
-# sonarr.yaml itself: the other five follow it and only note their differences.
-# Read this one; skim the rest.
+# The six /config volumes. sonarr is the reference; the others note only
+# their differences.
 # =========================================================================
 apiVersion: batch/v1
 kind: CronJob
@@ -442,11 +361,8 @@ spec:
             app.kubernetes.io/name: theater-config-backup-sonarr
         spec:
           restartPolicy: OnFailure
-          # `sonarr-config` is ReadWriteOnce, so this pod MUST land on the node
-          # already running sonarr or the volume will not attach. Without this
-          # the job fails intermittently and confusingly, depending on
-          # scheduling. Same constraint and same fix as
-          # apps/immich/resources/backup-files.yaml.
+          # `sonarr-config` is ReadWriteOnce: the pod must run on sonarr's node
+          # or the volume will not attach.
           affinity:
             podAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -456,10 +372,8 @@ spec:
                   topologyKey: kubernetes.io/hostname
           securityContext:
             runAsNonRoot: true
-            # Every app in this namespace runs PUID/PGID 1000 and the volumes
-            # are owned accordingly. sonarr.yaml:95 notes that changing it for
-            # one app breaks hardlinked imports for all -- the same numbers have
-            # to hold here or the backup reads nothing.
+            # PUID/PGID 1000, as every app in this namespace (sonarr.yaml):
+            # the volumes are owned by it.
             runAsUser: 1000
             runAsGroup: 1000
             seccompProfile:
@@ -474,17 +388,10 @@ spec:
                 - /scripts/backup-config.sh
                 - sonarr
                 - /config
-                # MediaCover: poster and banner art, re-downloaded from TheTVDB
-                # on demand. It is the bulk of the volume and it is derived --
-                # backing it up would dominate the repository for data the app
-                # regenerates, which is the same reasoning that excludes Immich's
-                # thumbs/ and encoded-video/.
+                # MediaCover: artwork the app re-downloads; most of the volume.
                 - --exclude=/config/MediaCover
-                # logs.db is the one live SQLite file left in /config, and
-                # sonarr.yaml already sets SONARR__LOG__DBENABLED=false because
-                # it is high-churn and worthless to retain. Excluding it is what
-                # makes the rest of this snapshot genuinely consistent rather
-                # than "probably fine".
+                # logs.db: the one live SQLite file (DB logging is disabled in
+                # sonarr.yaml). Excluding it keeps the snapshot consistent.
                 - --exclude=/config/logs.db
                 - --exclude=/config/logs.db-shm
                 - --exclude=/config/logs.db-wal
@@ -497,10 +404,7 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
+                # restic's temp pack files; /tmp is read-only here.
                 - name: TMPDIR
                   value: /cache
               envFrom:
@@ -534,10 +438,7 @@ spec:
               persistentVolumeClaim:
                 claimName: sonarr-config
                 readOnly: true
-            # emptyDir rather than a PVC. See the reasoning on the same volume
-            # in platform/kube-prometheus-stack/routes/grafana-backup.yaml: a
-            # dedicated cache PVC is right for Immich's 2TB repository and wrong
-            # for six jobs sharing a repository of a few hundred megabytes.
+            # emptyDir, not a PVC: the shared repository is a few hundred MB.
             - name: cache
               emptyDir:
                 sizeLimit: 1Gi
@@ -549,8 +450,7 @@ metadata:
   name: theater-config-backup-radarr
   namespace: theater
 spec:
-  # Ten minutes after sonarr. The stagger is about the shared restic
-  # repository lock, not about load -- see the header.
+  # Ten minutes after sonarr (shared repository lock).
   schedule: "10 4 * * *"
   suspend: false
   concurrencyPolicy: Forbid
@@ -600,10 +500,7 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
+                # restic's temp pack files; /tmp is read-only here.
                 - name: TMPDIR
                   value: /cache
               envFrom:
@@ -697,10 +594,7 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
+                # restic's temp pack files; /tmp is read-only here.
                 - name: TMPDIR
                   value: /cache
               envFrom:
@@ -793,10 +687,7 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
+                # restic's temp pack files; /tmp is read-only here.
                 - name: TMPDIR
                   value: /cache
               envFrom:
@@ -835,40 +726,22 @@ spec:
                 sizeLimit: 1Gi
 ---
 # =========================================================================
-# PLEX.
+# Plex.
 #
-# ###########################################################################
-# # WHAT IS INCLUDED HERE IS SMALL AND CONSISTENT. WHAT IS EXCLUDED IS THE
-# # 20GB OF DERIVED METADATA AND THE LIVE DATABASES.
-# #
-# # The live SQLite files -- com.plexapp.plugins.library.db and
-# # com.plexapp.plugins.blobs.db -- are EXCLUDED. A file-level copy of a
-# # database Plex has open can capture a torn write, and restic cannot know it
-# # did. There is no sqlite3 binary in the restic image, so the `sqlite3 .backup`
-# # trick from apps/paperless/backup.yaml is unavailable.
-# #
-# # Instead this includes PLEX'S OWN DATABASE BACKUPS. Plex runs a scheduled
-# # task, "Backup database every three days", which writes
-# #     com.plexapp.plugins.library.db-YYYY-MM-DD
-# # into the same Databases/ directory, produced through SQLite's backup API and
-# # therefore CONSISTENT.
-# #
-# # THAT SETTING IS A DEPENDENCY OF THIS BACKUP. It is enabled by default, but
-# # confirm it rather than assume:
-# #     Plex -> Settings -> Manage -> Scheduled Tasks -> "Backup database"
-# # and verify a dated file exists:
-# #     kubectl -n theater exec deploy/plex -- \
-# #       ls -la '/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/'
-# #
-# # If no dated file is there, this job backs up Preferences.xml and nothing
-# # else of substance -- and it will not tell you, because from restic's point of
-# # view the backup succeeded. That is the one silent failure mode left in this
-# # file, and it is the reason it is written in capital letters.
-# ###########################################################################
+# The live SQLite databases (library.db, blobs.db) are excluded: a file copy
+# of an open database can be torn, and the restic image has no sqlite3.
+# Instead the job includes Plex's own database backups, written by the
+# scheduled task "Backup database every three days" as
+# com.plexapp.plugins.library.db-YYYY-MM-DD in the same directory.
 #
-# Preferences.xml is the other thing that matters and is easy to overlook: it
-# holds the server's machine identity and its Plex account token. Losing it
-# means re-claiming the server, and every client re-pairing.
+# This backup depends on that task (Settings > Manage > Scheduled Tasks,
+# on by default). Without a dated file, restic still succeeds with only
+# Preferences.xml. Check:
+#     kubectl -n theater exec deploy/plex -- \
+#       ls -la '/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/'
+#
+# Preferences.xml holds the server identity and account token; losing it
+# means re-claiming the server and re-pairing every client.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -920,11 +793,7 @@ spec:
                 - --exclude=**/Databases/com.plexapp.plugins.blobs.db
                 - --exclude=**/Databases/com.plexapp.plugins.blobs.db-wal
                 - --exclude=**/Databases/com.plexapp.plugins.blobs.db-shm
-                # --- derived, and it is nearly all of the 20GB ---------------
-                # Metadata/ and Media/ are posters, fanart, chapter thumbnails
-                # and analysis, all re-downloaded or re-generated from the
-                # library. Backing them up would multiply the bill for data Plex
-                # rebuilds on its own.
+                # --- derived: posters, fanart, thumbnails, analysis ---------
                 - --exclude=**/Metadata
                 - --exclude=**/Media
                 - --exclude=**/Cache
@@ -938,10 +807,7 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
+                # restic's temp pack files; /tmp is read-only here.
                 - name: TMPDIR
                   value: /cache
               envFrom:
@@ -980,34 +846,16 @@ spec:
                 sizeLimit: 1Gi
 ---
 # =========================================================================
-# JELLYFIN, the last job of the night.
+# Jellyfin, the last job of the night. Two snapshots:
 #
-# ###########################################################################
-# # JELLYFIN IS THE ONE CASE IN THIS FILE THAT CANNOT BE MADE CONSISTENT, AND
-# # IT IS SPLIT INTO TWO SNAPSHOTS SO THAT IS VISIBLE AT RESTORE TIME.
-# #
-# #   tag jellyfin-config          the XML configuration under /config/config
-# #                                and the plugin configurations. Static files,
-# #                                CONSISTENT.
-# #
-# #   tag jellyfin-db-besteffort   /config/data/jellyfin.db and library.db, live
-# #                                SQLite, POSSIBLY TORN.
-# #
-# # Jellyfin core has no consistent database export (that is a plugin), and
-# # there is no sqlite3 in the restic image. Quiescing is impossible because Argo
-# # CD's selfHeal reverts `replicas: 0` within seconds. So the choice is
-# # best-effort-and-labelled or nothing, and nothing is worse.
-# #
-# # WHAT IS AT RISK IF THE DB COPY IS TORN: user accounts, watch state and
-# # playback positions. Not the media, and not the server's settings. Bounded,
-# # annoying, and honestly described rather than hidden behind a tag that says
-# # "jellyfin".
-# #
-# # The fix, when watch history starts to matter, is snapshot-then-backup via
-# # the CSI VolumeSnapshot machinery, or VolSync. See
-# # platform/kube-prometheus-stack/routes/grafana-backup.yaml for why that is
-# # not hand-rolled here.
-# ###########################################################################
+#   jellyfin-config          XML configuration and plugin settings; consistent.
+#   jellyfin-db-besteffort   jellyfin.db and library.db, live SQLite; may be
+#                            torn.
+#
+# Jellyfin core has no consistent export, the restic image has no sqlite3,
+# and selfHeal prevents scaling down. At risk if torn: accounts, watch state,
+# playback positions; not media or server settings. CSI snapshot-then-backup
+# would fix it (platform/kube-prometheus-stack/routes/grafana-backup.yaml).
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -1099,10 +947,7 @@ spec:
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
                 - name: RESTIC_CACHE_DIR
                   value: /cache
-                # restic writes temp pack files here while uploading. Without this it uses
-                # /tmp, which does not exist writable under readOnlyRootFilesystem, and
-                # `restic backup` fails the moment it has a pack to flush. /cache is
-                # already mounted and writable.
+                # restic's temp pack files; /tmp is read-only here.
                 - name: TMPDIR
                   value: /cache
               envFrom:
@@ -1144,10 +989,8 @@ spec:
                 # locally, and this repository holds six apps' snapshots.
                 sizeLimit: 3Gi
 ---
-# Retention for the whole theater/configs repository, once a month, via
-# forget-and-prune.sh. The 1st of the month at 13:00, after the other monthly
-# prunes and far from the nightly jobs that share this repository's lock. Talks
-# to S3 only, so it needs no app volume and no affinity.
+# Retention for theater/configs, monthly (1st, 13:00), away from the nightly
+# jobs that share the lock. S3 only: no app volume, no affinity.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

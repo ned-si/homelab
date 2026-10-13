@@ -1,9 +1,7 @@
 # mealie: the Mealie Deployment and its `mealie-postgresql` CloudNativePG cluster.
 #
-# THE SMALLEST NAMESPACE OF THE SIX, AND THEREFORE THE ONE TO ENFORCE FIRST.
-# Two workloads, one HTTPRoute, one database connection, one outbound dependency.
-# If a default-deny rollout is going to be wrong, it is much cheaper to find that
-# out here than in theater. See ./90-enforcement.yaml.
+# The smallest namespace (two workloads, one route, one database, one
+# outbound dependency), so it is enforced first. See ./90-enforcement.yaml.
 ---
 # ---------------------------------------------------------------------------
 # Mealie
@@ -58,16 +56,12 @@ spec:
             - port: "5432"
               protocol: TCP
 
-    # HTTPS and HTTP to the internet, for two reasons that need different ports:
+    # HTTPS and HTTP to the internet:
     #
-    #   - OIDC. apps/mealie/deployment.yaml -- OIDC_CONFIGURATION_URL
-    #     https://auth.lilalala.com/realms/homelab/.well-known/openid-configuration,
-    #     which resolves to the site's WAN address and is therefore `world` from a
-    #     pod. Same split-horizon-DNS caveat as in 20-immich.yaml.
-    #   - Recipe import by URL, which is Mealie's headline feature: it fetches and
-    #     scrapes arbitrary third-party sites. Plenty of recipe sites are still
-    #     plain HTTP or redirect through it, which is why port 80 is here and is
-    #     not an oversight.
+    #   - OIDC discovery at https://auth.lilalala.com, which resolves to the WAN
+    #     address, so `world` (see 20-immich.yaml for split-horizon DNS).
+    #   - Recipe import by URL scrapes arbitrary sites, many still on plain
+    #     HTTP, hence port 80.
     - toEntities:
         - world
       toPorts:
@@ -174,21 +168,11 @@ spec:
             - port: "6443"
               protocol: TCP
 
-    # NO S3 EGRESS FROM THE INSTANCE, and that is deliberate rather than an
-    # omission. apps/mealie/database.yaml sets `backup.retentionPolicy: 14d` but
-    # declares no `backup.barmanObjectStore`, and there is no ScheduledBackup for
-    # this cluster -- unlike apps/immich/resources/database.yaml and
-    # platform/keycloak/database.yaml, which both archive WAL to S3 and therefore
-    # do have such a rule. This cluster is protected by the logical pg_dump in
-    # apps/mealie/backup.yaml instead, which runs in a separate pod and carries its
-    # own S3 rule (see the `backup-jobs` policy below).
-    #
-    # Worth flagging separately: a `retentionPolicy` with no destination governs
-    # nothing, so that field in apps/mealie/database.yaml is inert.
-    #
-    # If a barmanObjectStore block is ever added here, add `toEntities: [world]` on
-    # 443 in the SAME change. Blocked WAL archiving does not fail the backup, it
-    # fills pg_wal and eventually stops the database accepting writes.
+    # No S3 egress: the cluster has no `backup.barmanObjectStore` (its
+    # `retentionPolicy` therefore governs nothing). It is protected by the
+    # pg_dump in apps/mealie/backup.yaml, whose pod has its own S3 rule.
+    # Adding a backup destination needs `toEntities: [world]` on 443 in the
+    # same change, or blocked WAL archiving fills pg_wal and stops writes.
 
     # Peer instances, counterpart of the ingress rule above.
     - toEndpoints:
@@ -205,18 +189,10 @@ spec:
 # ---------------------------------------------------------------------------
 # The backup CronJob
 #
-# apps/mealie/backup.yaml -- `mealie-backup` takes a pg_dump of
-# mealie-postgresql and pushes it, plus the `mealie-data` volume, to S3 with
-# restic.
-#
-# A separate policy from `mealie` above so that the application's `world` rule and
-# the job's stay independent: Mealie needs port 80 as well, for recipe scraping,
-# and a backup job has no business making plaintext HTTP requests.
-#
-# `batch.kubernetes.io/job-name: Exists` rather than
-# `app.kubernetes.io/name: mealie-backup` -- see the reasoning in 10-theater.yaml.
-# `cnpg.io/cluster: DoesNotExist` keeps this disjoint from `mealie-postgres`,
-# whose selector also matches CloudNativePG's own initdb and join Jobs.
+# apps/mealie/backup.yaml: `mealie-backup` pushes a pg_dump and the
+# `mealie-data` volume to S3 with restic. Separate from `mealie` so the job
+# does not inherit port 80. Selectors as in 10-theater.yaml: job-name Exists,
+# and `cnpg.io/cluster: DoesNotExist` to stay disjoint from `mealie-postgres`.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

@@ -1,68 +1,25 @@
-# Alerts on the backup pipeline.
+# Alerts on the backup pipeline, including the verifier itself: a backup that
+# succeeds while producing unrestorable data is the case that loses data.
 #
-# Without these, a verification CronJob that starts failing is just a red entry
-# in `kubectl get jobs` that nobody looks at -- which is exactly the failure mode
-# the verification exists to prevent.
+# Check every rule against three mistakes:
 #
-# These rules deliberately alert on the VERIFIER failing, not only on the backup
-# failing. A backup job that succeeds while producing unrestorable data is the
-# scenario that loses the photo library.
+#   1. A counter treated as a gauge: `x_total > 0` latches after the first
+#      event and never resolves. Use rate()/increase() over a window.
+#   2. No data in the failure case: `time() - max(completion_time)` cannot
+#      fire when nothing ever completed. Add a separate absent() alert.
+#   3. An aggregate that hides a member: `max()` over two CronJobs lets a
+#      fresh one mask a stale one. Keep a `by` clause on what you would fix.
 #
-# ---------------------------------------------------------------------------
-# TWO BUG CLASSES THIS FILE IS WRITTEN AGAINST
+# Metric sources:
 #
-# Both were present here, and both produce a rule that looks correct in a diff
-# and is useless in production. They are worth naming because every new rule has
-# to be checked against them.
+#   kube_job_*, kube_cronjob_*   kube-state-metrics (chart ServiceMonitor).
+#   cnpg_*                       the CNPG instance exporter, through each
+#                                Cluster's `monitoring.enablePodMonitor: true`
+#                                and podMonitorSelectorNilUsesHelmValues: false.
 #
-#   1. A COUNTER TREATED AS A GAUGE.
-#      `some_total > 0` on a monotonically increasing counter latches on after
-#      the first event in the process's lifetime and never resolves. It reports
-#      "this has happened at least once since boot", not "this is happening".
-#      The fix is a rate/increase over a window.
-#
-#   2. AN EXPRESSION THAT RETURNS NO DATA IN THE FAILURE CASE IT EXISTS FOR.
-#      `time() - max(completion_time) > 14d` cannot fire when nothing has ever
-#      completed, because there is no series to subtract from. The one scenario
-#      the rule was written for -- the job has never worked -- is the one it is
-#      blind to. The fix is an `absent()` companion, and the companion has to be
-#      a SEPARATE alert: `expr_a or absent(x)` collapses two different problems
-#      into one summary line.
-#
-# A third, less famous one shows up twice below: an aggregate that hides a
-# member. `max(x{namespace="backup-verify"})` over two different CronJobs means
-# a fresh Postgres verification masks a files verification that has not run in a
-# year. Aggregations in an alert need a `by` clause that keeps the thing you
-# would have to go and fix.
-#
-# ---------------------------------------------------------------------------
-# METRIC PROVENANCE
-#
-# Every expression below uses a metric from an exporter that is actually
-# deployed. Writing a rule on a metric nobody scrapes is the failure this repo
-# already had, so:
-#
-#   kube_job_*, kube_cronjob_*   kube-state-metrics. Enabled in
-#                                platform/kube-prometheus-stack/values.yaml
-#                                (`kubeStateMetrics.enabled: true`), scraped by
-#                                the ServiceMonitor the chart ships.
-#
-#   cnpg_*                       the CloudNativePG instance manager's exporter.
-#                                Scraped because EVERY Cluster in this repo sets
-#                                `monitoring.enablePodMonitor: true`, and
-#                                Prometheus is configured with
-#                                `podMonitorSelectorNilUsesHelmValues: false` so
-#                                PodMonitors outside the release namespace are
-#                                honoured.
-#
-# ONE NAME COULD NOT BE VERIFIED FROM HERE, and it is flagged where it is used:
-# the pg_stat_archiver family. CNPG publishes collector-level metrics as
-# `cnpg_collector_*` and its built-in SQL collectors as `cnpg_<collector>_*`, so
-# the archiver counter is most likely `cnpg_pg_stat_archiver_failed_count` and
-# NOT the `cnpg_collector_pg_stat_archiver_failed_count` this file used to name.
-# The rule below matches either spelling and there is a companion alert that
-# fires if neither exists, so a wrong guess is visible instead of silent.
-# Settle it in one command once the cluster is up:
+# The pg_stat_archiver metrics are matched under both possible names
+# (`cnpg_pg_stat_archiver_*` and `cnpg_collector_pg_stat_archiver_*`), with
+# an absent() alert if neither exists. Check with:
 #
 #     kubectl -n immich exec immich-db-1 -c postgres -- \
 #       curl -s localhost:9187/metrics | grep archiver
@@ -83,18 +40,10 @@ spec:
       rules:
         # --- verification ---------------------------------------------------
         - alert: BackupVerificationFailed
-          # WAS: kube_job_status_failed{namespace="backup-verify"} > 0
-          #
-          # `kube_job_status_failed` is the number of FAILED PODS, not a failed
-          # job. A Job with backoffLimit > 0 that failed one attempt and then
-          # succeeded keeps that count forever, so the old expression alerted on
-          # a job that worked -- and kept alerting for as long as the Job object
-          # was retained. `kube_job_failed{condition="true"}` is set only when
-          # the Job itself gives up, which is the event worth waking up for.
-          #
-          # (The verification CronJobs use backoffLimit: 0 today, so the two
-          # agree there. They stop agreeing the moment someone adds a retry, and
-          # a rule that is correct only by coincidence is not correct.)
+          # `kube_job_failed{condition="true"}`, set only when the Job gives up.
+          # `kube_job_status_failed` counts failed pods, so a Job that failed
+          # once and then succeeded on retry would alert for as long as the Job
+          # object exists.
           expr: |
             max by (namespace, job_name) (kube_job_failed{namespace="backup-verify", condition="true"}) > 0
           for: 15m
@@ -108,26 +57,14 @@ spec:
               Runbook: docs/backups.md#when-verification-fails
 
         - alert: BackupVerificationStale
-          # WAS: time() - max(kube_job_status_completion_time{namespace="backup-verify"}) > 14*24*3600
+          # Per CronJob, via kube_job_owner (Job names are <cronjob>-<timestamp>,
+          # so the CronJob is not a label of its own).
           #
-          # THREE defects, all fixed here:
-          #
-          #  a. the bare max() collapsed both CronJobs into one number, so a
-          #     healthy Postgres verification hid a files verification that had
-          #     not completed in months. The join onto kube_job_owner recovers
-          #     which CronJob a Job belonged to -- Job names are
-          #     <cronjob>-<timestamp>, so the CronJob identity is not in a label
-          #     of its own and has to come from the owner reference.
-          #
-          #  b. `> 14 * 24 * 3600` is longer than the history Kubernetes keeps.
-          #     kube_job_status_completion_time only exists while the Job OBJECT
-          #     exists. With successfulJobsHistoryLimit: 4 on a weekly schedule
-          #     that is about 4 weeks, so 14 days is measurable -- just. Change
-          #     the history limit and this rule silently stops working, which is
-          #     why the number is called out rather than left as arithmetic.
-          #
-          #  c. it could not fire when nothing had ever completed. See
-          #     BackupVerificationNeverRan below.
+          # completion_time exists only while the Job object exists: with
+          # successfulJobsHistoryLimit: 4 on a weekly schedule that is about 4
+          # weeks, so 14 days is measurable. Lowering the history limit breaks
+          # this rule silently. BackupVerificationNeverRan covers "never
+          # completed".
           expr: |
             time() - max by (owner_name) (
               kube_job_status_completion_time{namespace="backup-verify"}
@@ -145,23 +82,11 @@ spec:
               is failing. Check: kubectl -n backup-verify get jobs
 
         - alert: BackupVerificationNeverRan
-          # THE COMPANION THE STALENESS RULE NEEDED.
+          # absent() companion: fires when the CronJob has never completed a Job,
+          # so there is no completion_time series for the rule above.
           #
-          # `absent()` returns 1 exactly when its argument matches nothing. So
-          # this fires in the one situation BackupVerificationStale is blind to:
-          # the CronJob exists, has never produced a completed Job, and
-          # therefore has no completion_time series at all.
-          #
-          # That is not a hypothetical -- it is the state of this cluster today.
-          # No backup verification has ever run, because the S3 bucket does not
-          # exist yet.
-          #
-          # `for: 6h` rather than minutes: on a fresh install the first weekly
-          # run is up to seven days away, and a critical page during bootstrap
-          # teaches the operator to ignore this alert. 6h is enough to catch
-          # "someone deployed the manifests and it never worked" without firing
-          # during the deploy itself. Deliberately shorter than a week, because
-          # 'nothing has ever verified' should not need a week to become visible.
+          # `for: 6h`: long enough not to page during a deploy, far shorter than
+          # the weekly schedule.
           expr: |
             absent(kube_job_status_completion_time{namespace="backup-verify"})
           for: 6h
@@ -177,10 +102,8 @@ spec:
               Secret is missing from the backup-verify namespace.
 
         - alert: BackupVerificationCronJobSuspended
-          # A suspended CronJob produces no failures and no jobs. It is
-          # invisible to every other rule in this file, which is what makes it
-          # worth its own alert: 'I'll re-enable it after the migration' is the
-          # most common way scheduled verification stops existing.
+          # A suspended CronJob produces no failures and no Jobs, so no other
+          # rule here sees it.
           expr: |
             kube_cronjob_spec_suspend{namespace="backup-verify"} == 1
           for: 30m
@@ -211,18 +134,11 @@ spec:
               point, but the window is no longer growing.
 
         - alert: PostgresBackupNeverSucceeded
-          # The companion to the rule above, and the one that describes this
-          # cluster right now.
-          #
-          # If a Cluster has never completed a backup, CNPG reports the
-          # timestamp as 0 rather than omitting it, so `> ` comparisons between
-          # the two timestamps behave -- but 'never' and 'stale by two days'
-          # arrive as the same alert and need different responses. Splitting
-          # them makes the summary line actionable.
-          #
-          # 0, not `absent()`: absent would also fire for a Cluster that has no
-          # `spec.backup` at all, which is a different problem and gets its own
-          # alert (PostgresClusterHasNoBackupConfigured).
+          # CNPG reports a never-completed backup as timestamp 0, so "never" and
+          # "stale" would otherwise arrive as the same alert; they need
+          # different responses. 0 rather than absent(): absent() would also
+          # match a Cluster with no `spec.backup`, which has its own alert
+          # (PostgresClusterHasNoBackupConfigured).
           expr: |
             cnpg_collector_last_available_backup_timestamp == 0
           for: 2h
@@ -235,43 +151,15 @@ spec:
               no point-in-time recovery and no snapshot to fall back to.
 
         - alert: PostgresClusterHasNoBackupConfigured
-          # ###################################################################
-          # # THE LARGEST BACKUP GAP IN THIS REPOSITORY, AS AN ALERT.
-          # #
-          # # Five of the seven CloudNativePG clusters have no
-          # # `spec.backup.barmanObjectStore` at all:
-          # #
-          # #   mealie/mealie-postgresql       has spec.backup.retentionPolicy
-          # #                                  but NO barmanObjectStore, so CNPG
-          # #                                  has a retention policy for a
-          # #                                  destination that does not exist
-          # #   theater/sonarr-postgresql      no spec.backup whatsoever
-          # #   theater/radarr-postgresql      "
-          # #   theater/lidarr-postgresql      "
-          # #   theater/prowlarr-postgresql    "
-          # #
-          # # docs/backups.md claims 'Mealie Postgres | Barman Cloud -> S3 |
-          # # 30d PITR'. That is not true of the manifests.
-          # #
-          # # A cluster with no destination emits no failure and no stale
-          # # timestamp -- the backup metrics simply do not exist for it -- so
-          # # every other rule here is blind to it. absent_over_time() on a
-          # # per-cluster selector is the only thing that sees it.
-          # #
-          # # Fixing the manifests needs an edit to each Cluster's spec, which
-          # # is a different file from this one. Until then, these clusters are
-          # # covered by the logical pg_dump CronJobs added in
-          # # apps/theater/backup.yaml and apps/mealie/backup.yaml -- which is a
-          # # nightly dump, NOT point-in-time recovery.
-          # ###################################################################
+          # A Cluster with no backup destination emits no failure and no stale
+          # timestamp; its backup metrics do not exist, so every other rule
+          # here is blind to it. Databases without one are covered only by the
+          # nightly pg_dump CronJobs (apps/*/backup.yaml): no point-in-time
+          # recovery.
           #
-          # `cnpg_collector_up` exists for every scraped instance regardless of
-          # backup configuration, so it is the denominator that tells us the
-          # cluster is being scraped at all. `unless` then selects the instances
-          # that are up but publish no backup timestamp.
-          #
-          # 6h so a Cluster that has just been created does not page during its
-          # own bootstrap.
+          # `cnpg_collector_up` exists for every scraped instance, so `unless`
+          # selects instances that are up and publish no backup timestamp. 6h
+          # so a new Cluster does not page during bootstrap.
           expr: |
             (cnpg_collector_up == 1)
             unless on (namespace, pod)
@@ -301,15 +189,9 @@ spec:
               two consecutive failures.
 
         - alert: PostgresBackupMetricsAbsent
-          # The `absent()` companion for the whole cnpg backup family.
-          #
-          # If the CNPG exporter stops being scraped -- a PodMonitor deleted, a
-          # Prometheus selector changed, the operator rolled back to a version
-          # that names its metrics differently -- every rule above silently
-          # stops evaluating. No alert fires, and the dashboard looks calm.
-          #
-          # This is the rule that says 'the reason nothing is firing is that
-          # nothing is being measured'.
+          # absent() companion for the cnpg backup family: if the exporter stops
+          # being scraped (PodMonitor deleted, selector changed, metrics
+          # renamed), every rule above goes quiet.
           expr: |
             absent(cnpg_collector_up)
           for: 30m
@@ -324,16 +206,9 @@ spec:
               podMonitorSelectorNilUsesHelmValues: false.
 
         - alert: PostgresClusterUnhealthy
-          # `cnpg_collector_up` is the instance manager's own view of whether it
-          # can talk to its PostgreSQL. 0 means the exporter is running -- so
-          # this is not a scrape failure -- and Postgres is not answering.
-          #
-          # Rejected alternative: alerting on the Cluster CR's
-          # `status.phase != "Cluster in healthy state"`. There is no metric for
-          # it. kube-state-metrics does not know about CRDs without a
-          # CustomResourceStateMetrics config, which is not deployed here, so
-          # such a rule would reference a metric that is never scraped -- the
-          # exact mistake this file is written against.
+          # The instance manager's own check that it can reach PostgreSQL. 0
+          # means the exporter answers and Postgres does not. There is no metric
+          # for the Cluster CR's status.phase (no CustomResourceStateMetrics).
           expr: |
             cnpg_collector_up == 0
           for: 10m
@@ -346,27 +221,10 @@ spec:
               PostgreSQL. The database is down, not merely unmonitored.
 
         - alert: PostgresWALArchiveFailing
-          # WAS: cnpg_collector_pg_stat_archiver_failed_count > 0
-          #
-          # TWO defects:
-          #
-          #  a. pg_stat_archiver.failed_count is a CUMULATIVE COUNTER, reset only
-          #     by pg_stat_reset_shared(). One transient failure at any point in
-          #     the cluster's life latched this alert on permanently. A permanently
-          #     firing critical alert is worse than no alert: it trains the
-          #     operator to ignore the one name that matters most here.
-          #     `increase(...[1h]) > 0` asks the question that was meant --
-          #     is archiving failing NOW.
-          #
-          #  b. the metric name is probably wrong. CNPG prefixes collector-level
-          #     metrics `cnpg_collector_*` and SQL-collector metrics
-          #     `cnpg_<collector>_*`, which makes the real name
-          #     `cnpg_pg_stat_archiver_failed_count`. Rather than swap one guess
-          #     for another, the selector matches BOTH spellings, and
-          #     WALArchiveMetricAbsent below fires if neither exists.
-          #
-          # `__name__=~` is a legitimate selector and is used here deliberately:
-          # the alternative is being wrong in a way that produces silence.
+          # failed_count is cumulative (reset only by pg_stat_reset_shared()), so
+          # increase() over 1h asks whether archiving fails now. `__name__=~`
+          # matches both possible metric names; PostgresWALArchiveMetricAbsent
+          # fires if neither exists.
           expr: |
             increase({__name__=~"cnpg_(collector_)?pg_stat_archiver_failed_count"}[1h]) > 0
           for: 15m
@@ -381,13 +239,9 @@ spec:
               base backup.
 
         - alert: PostgresWALArchiveMetricAbsent
-          # The guard on the guess above. If CNPG names the archiver counter
-          # something else entirely, PostgresWALArchiveFailing can never fire
-          # and nothing would say so.
-          #
-          # Scoped with `unless` to instances that DO have backup configured:
-          # a cluster with no barmanObjectStore has nothing to archive and
-          # already has PostgresClusterHasNoBackupConfigured.
+          # Guard for the metric name above: without it, a different name means
+          # PostgresWALArchiveFailing can never fire. Limited with `unless` to
+          # instances that have a backup destination.
           expr: |
             (cnpg_collector_last_available_backup_timestamp > 0)
             unless on (namespace, pod)
@@ -405,19 +259,12 @@ spec:
               -c postgres -- curl -s localhost:9187/metrics | grep archiver
 
         - alert: PostgresWALArchiveBacklog
-          # The consequence, measured directly, in case the failure counter is
-          # unavailable or the failure is 'archiving is succeeding but far too
-          # slowly to keep up'.
+          # The consequence measured directly, for when the failure counter is
+          # missing or archiving is too slow to keep up. Same two-name selector.
           #
-          # `seconds_since_last_archival` is part of the same pg_stat_archiver
-          # family and carries the same name uncertainty, hence the same
-          # two-spelling selector.
-          #
-          # 4h: WAL is archived as segments fill or as `archive_timeout`
-          # elapses. An idle database can legitimately go a long time between
-          # segments, so a threshold in minutes would fire nightly on the *arr
-          # databases. 4h without a single archived segment on a cluster that
-          # is up means the pipe is blocked, not quiet.
+          # 4h: an idle database archives only when a segment fills or
+          # `archive_timeout` elapses, so minutes would fire nightly on the
+          # *arr databases.
           expr: |
             {__name__=~"cnpg_(collector_)?pg_stat_archiver_seconds_since_last_archival"} > 4 * 3600
           for: 30m
@@ -435,20 +282,10 @@ spec:
     - name: backup.files.rules
       rules:
         - alert: FileBackupJobFailed
-          # WAS: kube_job_status_failed{job_name=~".*-backup-.*"} > 0
-          #
-          # Same counter-vs-condition defect as BackupVerificationFailed: the
-          # old metric counts failed PODS, so a restic job that failed once and
-          # succeeded on retry alerted anyway -- and these jobs run with
-          # backoffLimit: 2, so that is the NORMAL case on a flaky uplink. This
-          # rule would have fired most weeks and been muted.
-          #
-          # The selector is also widened. `.*-backup-.*` required a dash on both
-          # sides of the word, which happens to match the CronJob-generated
-          # names today (`<cronjob>-<timestamp>`) but excludes any job whose
-          # name ends in 'backup'. Anchoring on `backup` anywhere is what was
-          # meant. `backup-verify-*` jobs are excluded explicitly because they
-          # have their own, louder rule above.
+          # `kube_job_failed{condition="true"}` for the same reason as
+          # BackupVerificationFailed; these Jobs use backoffLimit: 2, so a retry
+          # that succeeds is normal on a flaky uplink. The selector matches
+          # `backup` anywhere in the Job name; `backup-verify` has its own rule.
           expr: |
             max by (namespace, job_name) (
               kube_job_failed{namespace!="backup-verify", job_name=~".*backup.*", condition="true"}
@@ -463,22 +300,13 @@ spec:
               kubectl -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}
 
         - alert: FileBackupNotRunRecently
-          # 'The job is failing' and 'the job is not running' are different
-          # problems with the same consequence, and only the first had a rule.
+          # "Not running" rather than "failing": a deleted CronJob, a lost
+          # controller lease or a missed startingDeadlineSeconds produces no
+          # failed Job. last_schedule_time is set when the controller creates a
+          # Job. 36h allows one missed night on a daily schedule.
           #
-          # A CronJob that stops being scheduled -- a deleted CronJob, a
-          # controller that lost its lease, `startingDeadlineSeconds` missed
-          # every night because the node was asleep -- produces no failed Jobs
-          # at all. FileBackupJobFailed is blind to it by construction.
-          #
-          # kube_cronjob_status_last_schedule_time is set when the controller
-          # CREATES a job, which is exactly the event being tested. 36h covers
-          # a daily schedule with one missed night.
-          #
-          # `namespace!="backup-verify"` is NOT tidying. The verification
-          # CronJobs are WEEKLY, so a 36h threshold would fire against them
-          # every single week between Monday and Saturday. They have their own
-          # staleness rule with a 14-day window.
+          # backup-verify is excluded: its CronJobs are weekly and have their own
+          # 14-day rule.
           expr: |
             time() - kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"} > 36 * 3600
           for: 1h
@@ -503,10 +331,8 @@ spec:
             summary: "Backup CronJob is SUSPENDED ({{ $labels.namespace }}/{{ $labels.cronjob }})"
 
         - alert: FileBackupCronJobsAbsent
-          # The `absent()` companion for this whole group. If the backup
-          # CronJobs are not present -- an Application out of sync, a
-          # kustomization that lost a resource line, a namespace pruned -- then
-          # every rule above evaluates over an empty set and says nothing.
+          # absent() companion for this group: without the CronJobs (Application
+          # out of sync, resource line lost) every rule above says nothing.
           expr: |
             absent(kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"})
           for: 2h
@@ -523,18 +349,11 @@ spec:
     - name: backup.correlation.rules
       rules:
         - alert: BackupCredentialUnusable
-          # Not a new signal -- a CORRELATION, and it exists to make the
-          # inhibit_rule in platform/kube-prometheus-stack/values.yaml possible.
-          #
-          # When the S3 credential expires, the bucket name is wrong, or the
-          # endpoint changes, every database and every restic repository fails
-          # at once. Without this the operator gets ten notifications with ten
-          # different summaries and has to infer the common cause; with it, the
-          # inhibit_rule suppresses the ten and sends one that names the actual
-          # problem.
-          #
-          # Threshold of 2: one failing database is a database problem, two or
-          # more simultaneously is almost always the thing they share.
+          # A correlation for the inhibit_rule in
+          # platform/kube-prometheus-stack/values.yaml. An expired S3 credential
+          # or a wrong bucket fails every backup at once; this sends one alert
+          # naming the cause instead of ten. Two or more failing at once is
+          # almost always the shared credential.
           expr: |
             count(
               cnpg_collector_last_failed_backup_timestamp
