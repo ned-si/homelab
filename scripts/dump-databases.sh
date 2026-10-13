@@ -5,8 +5,9 @@
 #
 # WHY THIS EXISTS ALONGSIDE THE S3 BACKUPS
 #
-# platform/backup-verify/ and the CNPG `barmanObjectStore` config are the real,
-# continuous, off-site backup. They need an S3 bucket and credentials.
+# The Barman Cloud plugin (WAL archiving and daily base backups of every CNPG
+# cluster) and the restic jobs are the real, continuous, off-site backup. They
+# need an S3 bucket and credentials.
 #
 # This script needs nothing but a kubeconfig. It is what you run:
 #

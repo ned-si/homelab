@@ -4,15 +4,16 @@ The data of Immich, Mealie, Paperless, Seafile, Syncthing and the theater apps i
 backed up nightly with restic to one S3 bucket (`ned-si-homelab-backups`,
 `eu-central-1`). The
 Immich photo library also has a second, independent restic repository on the NAS.
-Postgres and MariaDB are captured as logical dumps inside those repositories.
-`immich-db` and `keycloak-db` have no scheduled backup: barman is not running on
-any CloudNativePG cluster yet, so those two are covered only by
-[on-demand local dumps](#local-dumps-and-pre-upgrade-snapshots).
+Every CloudNativePG cluster archives its WAL continuously and takes a daily base
+backup to the same bucket (`cnpg/<cluster>/`) through the Barman Cloud plugin,
+kept 30 days, so each Postgres database can be recovered to any point in that
+window. MariaDB and the Mealie and *arr Postgres databases are also captured as
+logical dumps inside the restic repositories.
 
 Restores have been rehearsed from S3 with the read-only key for `mealie/data` (files
-and Postgres dump) and for a sample of 50 Immich originals. Every restored file
-matched its live copy, except one log file written after the snapshot. The steps
-are in [How to restore](#how-to-restore).
+and Postgres dump), for a sample of 50 Immich originals, and for all seven Postgres
+clusters from their Barman Cloud backups. The steps are in
+[How to restore](#how-to-restore).
 
 ## What is backed up where
 
@@ -55,24 +56,42 @@ upgrades, not against losing the NAS.
 
 | Database | Captured by | Into | Consistency |
 |---|---|---|---|
-| `immich/immich-db` | nothing scheduled | — | on-demand local dump only |
-| `keycloak/keycloak-db` | nothing scheduled | — | on-demand local dump only |
-| `mealie/mealie-postgresql` | `pg_dump` in `mealie-backup` | `mealie/data` | consistent, one transaction |
-| `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | `pg_dump` in `theater-postgres-backup` | `theater/configs` | consistent, one transaction |
+| `immich/immich-db` | Barman Cloud plugin: WAL + `immich-db-daily` | `cnpg/immich-db/` | point-in-time, 30 days |
+| `keycloak/keycloak-db` | Barman Cloud plugin: WAL + `keycloak-db-daily` | `cnpg/keycloak-db/` | point-in-time, 30 days |
+| `mealie/mealie-postgresql` | Barman Cloud plugin: WAL + `mealie-postgresql-daily`; `pg_dump` in `mealie-backup` | `cnpg/mealie-postgresql/`; `mealie/data` | point-in-time, 30 days; dump consistent, one transaction |
+| `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | Barman Cloud plugin: WAL + `<cluster>-daily`; `pg_dump` in `theater-postgres-backup` | `cnpg/<cluster>/`; `theater/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | Seafile MariaDB | `mariadb-dump --single-transaction` (client `mariadb:10.11`, same as the server) in `seafile-backup` | `seafile/shared` | consistent, no table locks |
 | Paperless SQLite | file copy of `db.sqlite3` inside `/data` | `paperless/media` | may be torn: the restic image has no `sqlite3`, so `.backup` is skipped and the job logs a warning |
 
-No CloudNativePG cluster has `spec.backup` or a barman plugin, so no WAL is
-archived and there is no point-in-time recovery for any database. The
-`ContinuousArchiving=True` condition CNPG reports on every cluster is meaningless
-without a target: the archive command succeeds without sending anything. The
-cluster runs CNPG 1.30.1, so the Barman Cloud plugin
-(`platform/barman-cloud-plugin/`) can be wired in; that is not done yet.
+Each Cluster lists the plugin in `spec.plugins` with `isWALArchiver: true` and
+`barmanObjectName: cnpg-backup`, the ObjectStore in its namespace
+(`apps/mealie/cnpg-backup.yaml`, `apps/theater/cnpg-backup.yaml`,
+`platform/keycloak/backup.yaml`, `apps/immich/resources/backup.yaml`). The plugin
+runs as a sidecar (`plugin-barman-cloud`) in each instance pod, so the Postgres
+image needs no barman tools; that is why the pgvecto.rs image of `immich-db` works
+unchanged. With no `serverName` set, objects land under `cnpg/<cluster>/base/` and
+`cnpg/<cluster>/wals/`. A WAL segment is archived when it fills or after
+`archive_timeout` (5 minutes) if it holds any WAL. Check one cluster:
+
+```sh
+kubectl -n mealie get cluster mealie-postgresql \
+  -o jsonpath='{.status.conditions[?(@.type=="ContinuousArchiving")].status}{"\n"}'
+kubectl -n mealie get objectstore cnpg-backup -o jsonpath='{.status.serverRecoveryWindow}{"\n"}'
+kubectl -n mealie get backups.postgresql.cnpg.io
+```
+
+Expected: `True`; a `firstRecoverabilityPoint` and `lastSuccessfulBackupTime` for
+`mealie-postgresql`; a `mealie-postgresql-daily-<timestamp>` Backup in phase
+`completed` from the last night.
 
 Before every sync of `mealie`, `seafile` and `theater`, an Argo CD PreSync hook
 (`presync-backup.yaml` in each app) runs that app's database backup CronJob
-once and waits for it to complete. A failed backup fails the sync, so no image
-change, including a database major, is applied without a fresh, verified dump.
+once and waits for it to complete. Before every sync of `keycloak` and `immich`,
+the hook creates a Barman Cloud base backup (`Backup` `presync-<cluster>`) and
+waits for it. A failed backup fails the sync, so no image change, including a
+database major, is applied without a fresh, verified backup. Postgres majors are
+held by a Renovate rule until a major bump also moves the plugin's `serverName`
+([Why it is like this](#why-it-is-like-this)).
 
 ### Outside the cluster
 
@@ -91,9 +110,8 @@ nothing was rehearsed, the column says so.
 |---|---|---|---|---|
 | Immich originals | S3 + NAS | 24 h | from S3, 50-file sample, 2026-10-06 | 410 MiB in 8 s. Full library (256 GiB) not rehearsed; at the sample's rate about 1.5 h, plus about $30 of retrieval and egress |
 | Immich originals, NAS copy | NAS | 24 h | no | — |
-| Immich database (`immich-db`) | local dump only | since the last `task backup:dump` | no (`task backup:verify-restore` exists) | — |
-| Keycloak database (`keycloak-db`) | local dump only | since the last `task backup:dump` | no | — |
-| Mealie files + database | S3 | 24 h | from S3, full, 2026-10-06 | restore 24 s; dump restored into a throwaway Postgres, row counts equal to live |
+| Postgres databases (all seven CNPG clusters) | S3 (Barman Cloud) | about 5 min (`archive_timeout`) | from S3, every cluster, 2026-10-13 | 2 to 5 min per cluster into a new cluster (table in [Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3)) |
+| Mealie files + database dump | S3 | 24 h | from S3, full, 2026-10-06 | restore 24 s; dump restored into a throwaway Postgres, row counts equal to live |
 | Paperless documents + SQLite | S3 | 24 h | no | — |
 | Seafile blobs + MariaDB | S3 | 24 h | no | — |
 | Syncthing identity + config | S3 | 24 h | no | — |
@@ -110,6 +128,7 @@ the NAS:
 
 | UTC | Job |
 |---|---|
+| 00:00–01:00 | CNPG base backups (ScheduledBackup `<cluster>-daily`): immich-db 00:00, keycloak-db 00:10, mealie-postgresql 00:20, sonarr 00:30, radarr 00:40, lidarr 00:50, prowlarr 01:00 |
 | 01:30 | `immich/immich-library-backup-local` (NAS) |
 | 02:00 | `syncthing/syncthing-backup` |
 | 02:30 | `paperless/paperless-backup` |
@@ -126,9 +145,15 @@ The six theater jobs share one repository and restic takes an exclusive lock for
 `restic check`. The running set is listed in `ci/active-cronjobs.txt`; CI fails any
 other rendered CronJob that is not suspended.
 
-A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack,
-but Alertmanager has only the `null` receiver, so nobody is notified: check the Jobs
-by hand ([observability.md](observability.md)). The backup-specific alerts in
+A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack.
+For Postgres, PrometheusRule `cnpg-backups` (group `cnpg.backups`, in
+`platform/barman-cloud-plugin/monitoring.yaml`, scraped by PodMonitor
+`cnpg-instances`) fires `CNPGBackupFailed`, `CNPGBaseBackupTooOld` (no base backup
+in 26 h, or never), `CNPGBackupMetricsMissing` (an instance without the plugin
+sidecar), `CNPGWALArchivingFailing`, `CNPGWALArchiveLag` (more than 5 segments
+waiting for 30 min) and `CNPGMetricsAbsent`. Alertmanager has only the `null`
+receiver, so nobody is notified: check the alerts page and the Jobs by hand
+([observability.md](observability.md)). The file-backup alerts in
 `platform/backup-verify/alerts.yaml` are not deployed.
 
 ```sh
@@ -443,6 +468,110 @@ rm -f restored.sha256 live.sha256 restored-rows.txt live-rows.txt
 Expected: the last `kubectl` prints `NotFound` within a minute, once
 democratic-csi has deleted the volume.
 
+### Restore a Postgres cluster from S3
+
+Restores go into a **new** Cluster, never over the live one. The scripted test
+restores one cluster into the scratch namespace `cnpg-restore-test`, compares the
+row count of every table with the source, and deletes the namespace again. It only
+reads the source, and the restored cluster has no `spec.plugins`, so it cannot
+write to the bucket. It needs an `aws login` session for the verifier key:
+
+```sh
+aws login --profile homelab --region eu-central-1
+task backup:verify-barman -- mealie mealie-postgresql
+```
+
+Expected, after two to ten minutes:
+
+```text
+… L1 at <time> (LSN <lsn>, WAL <file>): 69 tables, 608 rows
+… restore Ready after 1xx s
+tables=69 rows L1=608 R=608 L2=608 failing=0
+… VERDICT mealie/mealie-postgresql: PASS
+… cleanup: cnpg-restore-test deleted
+```
+
+Any `FAIL <table>` line, or a namespace left behind, is a failed test. Results of
+the last run, per cluster:
+
+| Cluster | Tables | Rows (restored = source) | Restore time |
+|---|---|---|---|
+| `immich-db` | 60 | 750,652; assets 48,833 images / 2,311 videos | 295 s |
+| `keycloak-db` | 101 | 1,823 | 117 s |
+| `mealie-postgresql` | 69 | 608 | 104 s |
+| `sonarr-postgresql` | 38 | 39,054 | 149 s |
+| `radarr-postgresql` | 41 | 58,302 | 154 s |
+| `lidarr-postgresql` | 40 | 77 | 110 s |
+| `prowlarr-postgresql` | 20 | 6,496 | 149 s |
+
+Last run 2026-10-13. A quiet database adds up to 7.5 minutes before the restore
+starts: the script waits for the WAL file of its snapshot to be archived.
+
+To recover by hand, for example `immich-db` to a point in time, create the
+verifier Secret and the two objects below in a namespace of your choice, with the
+source's image and `shared_preload_libraries`
+(`kubectl -n immich get cluster immich-db -o jsonpath='{.spec.imageName} {.spec.postgresql.shared_preload_libraries}'`):
+
+```sh
+kubectl create namespace restore-test
+printf 'verifier key id: '; read -rs KEY_ID; echo
+printf 'verifier secret: '; read -rs KEY_SECRET; echo
+kubectl -n restore-test create secret generic cnpg-restore-s3 \
+  --from-literal=ACCESS_KEY_ID="$KEY_ID" --from-literal=ACCESS_SECRET_KEY="$KEY_SECRET"
+unset KEY_ID KEY_SECRET
+```
+
+```yaml
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-restore
+  namespace: restore-test
+spec:
+  configuration:
+    destinationPath: s3://ned-si-homelab-backups/cnpg
+    endpointURL: https://s3.eu-central-1.amazonaws.com
+    s3Credentials:
+      accessKeyId: { name: cnpg-restore-s3, key: ACCESS_KEY_ID }
+      secretAccessKey: { name: cnpg-restore-s3, key: ACCESS_SECRET_KEY }
+    wal:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      - { name: AWS_DEFAULT_REGION, value: eu-central-1 }
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: immich-db-restored
+  namespace: restore-test
+spec:
+  instances: 1
+  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
+  postgresql:
+    shared_preload_libraries: ["vectors.so"]
+  storage: { size: 5Gi, storageClass: iscsi }
+  bootstrap:
+    recovery:
+      source: origin
+      database: app
+      owner: app
+      recoveryTarget:
+        targetTime: "<YYYY-MM-DD HH:MM:SS+00>"   # omit to replay all archived WAL
+  externalClusters:
+    - name: origin
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: cnpg-restore
+          serverName: immich-db   # the SOURCE cluster's name
+```
+
+Expected: `kubectl -n restore-test wait --for=condition=Ready cluster/immich-db-restored --timeout=45m`
+returns `condition met`. The target time must lie inside the source's recovery
+window (`kubectl -n immich get objectstore cnpg-backup -o jsonpath='{.status.serverRecoveryWindow}'`)
+and its WAL must already be archived. Delete the namespace when done.
+
 ### Not rehearsed
 
 - **Writing restored data back into a live volume.** Every Application except
@@ -456,40 +585,9 @@ democratic-csi has deleted the volume.
   `baseline` instead.
 - **A full Immich library restore**, and a restore after the packs moved to
   Glacier IR. Glacier IR reads are immediate; only the cost differs.
-- **Point-in-time recovery.** There is no barman backup to recover from. Once
-  barman archives a cluster, recover into a **new** cluster, never over the live
-  one, with the source cluster's image
-  (`kubectl -n immich get cluster immich-db -o jsonpath='{.spec.imageName}'`):
-
-  ```yaml
-  apiVersion: postgresql.cnpg.io/v1
-  kind: Cluster
-  metadata:
-    name: immich-db-restored
-    namespace: immich
-  spec:
-    instances: 1
-    imageName: <the source cluster's image>
-    storage: { size: 20Gi, storageClass: iscsi-retain }
-    bootstrap:
-      recovery:
-        source: src
-        recoveryTarget:
-          targetTime: "<YYYY-MM-DD HH:MM:SS+02>"   # omit for latest
-    externalClusters:
-      - name: src
-        barmanObjectStore:
-          # serverName is the SOURCE cluster's name, not this one's.
-          destinationPath: s3://ned-si-homelab-backups/immich/postgres
-          endpointURL: https://s3.eu-central-1.amazonaws.com
-          serverName: immich-db
-          s3Credentials:
-            accessKeyId: { name: s3-backup, key: ACCESS_KEY_ID }
-            secretAccessKey: { name: s3-backup, key: ACCESS_SECRET_KEY }
-  ```
-
-  The restored cluster has no `spec.backup`, so it archives nothing until you add
-  it.
+- **Replacing a live Postgres cluster with a restored one.** Every rehearsal below
+  restores into a new cluster in a scratch namespace. Pointing an app at a restored
+  cluster (or recreating its Cluster from the backup) is not rehearsed.
 - **`immich-db` from a local dump.** Its image is
   `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16 with pgvecto.rs); restore
   into a cluster with exactly that image. `task backup:verify-restore -- immich
@@ -544,7 +642,7 @@ Versioning on, public access blocked, SSE-S3.
 |---|---|---|
 | `<repository>/data/` | restic pack files | Glacier Instant Retrieval after 1 day |
 | `<repository>/` everything else | restic `config`, `keys/`, `index/`, `snapshots/`, `locks/` | Standard: read on every restic operation |
-| `<namespace>/postgres/` | reserved for barman WAL and base backups; empty | Standard |
+| `cnpg/<cluster>/base/`, `cnpg/<cluster>/wals/` | Barman Cloud base backups and WAL of each CNPG cluster; the plugin deletes what falls out of its 30-day retention | Standard |
 
 The lifecycle rule is generated per repository from `local.restic_repos` in
 `bootstrap/aws-backup/main.tf`, because S3 prefix filters have no wildcards. A
@@ -562,8 +660,9 @@ would make the repository unreadable. Instant Retrieval, not Deep Archive, so
 |---|---|---|
 | `ned-si-homelab-backups-writer` | the backup jobs, via `s3-backup` | get, put and delete objects; list the bucket |
 | `ned-si-homelab-backups-verifier` | restores and drills | get objects and versions, list the bucket, write only under `*/locks/` |
+| `ned-si-homelab-backups-cnpg` | the Barman Cloud plugin, via `cnpg-backup-s3` | get, put and delete objects under `cnpg/` only; list the bucket only without a prefix or with `cnpg/*` |
 
-The writer has an explicit `Deny` on `s3:DeleteObjectVersion`, versioning,
+The writer and the cnpg user have an explicit `Deny` on `s3:DeleteObjectVersion`, versioning,
 lifecycle, bucket policy, ACL, encryption and bucket deletion. With versioning on, a
 delete by the writer only adds a delete marker, and the previous version stays for
 30 days. A test delete of a specific version with the writer key returns
@@ -725,9 +824,11 @@ What is written but not running: `platform/backup-verify/` (staged in
 `clusters/homelab/staged/`, namespace absent). Weekly, it would restore a sample of
 files from each repository, read a rotating 1/52 of the packs
 (`--read-data-subset=n/52`), alert when the newest snapshot is older than three
-days, and recover each barman-backed cluster into a throwaway cluster. Its
-`alerts.yaml` holds the backup-specific alerts. It needs its namespace and
-`s3-backup` copy, and its Postgres half needs barman.
+days, and recover each of the seven CNPG clusters into a throwaway cluster from
+its Barman Cloud backups (`restore-postgres.yaml`). Its `alerts.yaml` holds the
+file-backup alerts. It needs its namespace and `s3-backup` copy. Until it runs,
+`task backup:verify-barman` is the Postgres restore test
+([Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3)).
 
 **Annual full read.** Reading every pack is the only check that proves the whole
 backup, and S3 to EC2 in the same region has no egress charge. On a small instance
@@ -746,11 +847,10 @@ repository can be read in full for free from inside the cluster.
 
 ## Known gaps
 
-- `immich-db` and `keycloak-db` have no scheduled or off-site backup. Needs the
-  Barman Cloud plugin, which CNPG 1.30.1 supports; not wired in yet.
-- No point-in-time recovery for any database.
 - `platform/backup-verify/` is not running: no weekly sample restore, no
-  `--read-data`, no staleness alert.
+  `--read-data`, no staleness alert. The Postgres restore test runs by hand.
+- Postgres majors are held by Renovate until a major bump also moves the plugin's
+  `serverName` to `<cluster>-pg<major>`.
 - No alert reaches anyone: a failed backup Job is visible only in `kubectl get jobs`
   and the Prometheus alerts page.
 - Restores are rehearsed only for `mealie/data` and an Immich sample. Paperless,
@@ -775,11 +875,29 @@ repository can be read in full for free from inside the cluster.
   real and its first run has been seen to work. Every other CronJob ships suspended
   behind a `pending-guard` init container, so a placeholder bucket can never look
   like a working backup.
-- **Logical dumps until barman runs.** Barman for `immich-db` and `keycloak-db`
-  uses the Barman Cloud plugin ([roadmap](roadmap.md)). The in-tree `barmanObjectStore` was not used: it is
-  deprecated from CNPG 1.26. A nightly `pg_dump` gives a 24 h RPO, enough for
-  recipes and *arr settings; once barman runs, the dump becomes redundant, not
-  wrong.
+- **Postgres through the Barman Cloud plugin, not the in-tree
+  `barmanObjectStore`.** CNPG deprecated the in-tree support in 1.26; the plugin is
+  the supported path. Its sidecar carries the barman tools, so the pgvecto.rs image
+  of `immich-db` needs no change. The Mealie and *arr `pg_dump`s stay as a second,
+  independent copy.
+- **The plugin runs in `immich`.** It must share the operator's namespace, and the
+  operator is still there. Moving both to `cnpg-system` is a separate change.
+- **A separate IAM user scoped to `cnpg/`.** A database pod never holds a key that
+  can reach the restic repositories, and the restic jobs never hold one that can
+  reach the WAL. barman checks the bucket with HeadBucket, which IAM authorises as
+  `ListBucket` without a prefix, so listing is allowed without a prefix or under
+  `cnpg/*` (key names only; objects outside `cnpg/` stay unreadable).
+- **`cnpg/` in Standard, 30 days.** WAL is a stream of small objects with constant
+  churn; Glacier IR's 90-day minimum would bill every segment three times over. The
+  plugin, not a lifecycle rule, deletes old backups, because only it knows which WAL
+  a base backup still needs.
+- **Postgres majors wait for `serverName`.** pg_upgrade gives the cluster a new
+  system ID and restarts at timeline 1; the plugin does not separate archives, so
+  the upgraded cluster would overwrite the old timeline-1 WAL unless `serverName`
+  changes in the same commit, and PostgreSQL 17 before 17.6 needs the 17.6+ minor
+  first ([CNPG upgrade docs](https://cloudnative-pg.io/docs/1.27/postgres_upgrades/)).
+  Renovate holds `ghcr.io/cloudnative-pg/postgresql` majors until a bump does both.
+  Rejected: approving majors by hand.
 - **`Retain` on data PVs plus `iscsi-retain` for new ones**, rather than changing
   `iscsi`: a StorageClass's reclaim policy is immutable, and changing an existing
   claim's class means copying its data.

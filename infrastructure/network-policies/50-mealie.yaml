@@ -168,11 +168,10 @@ spec:
             - port: "6443"
               protocol: TCP
 
-    # No S3 egress: the cluster has no `backup.barmanObjectStore` (its
-    # `retentionPolicy` therefore governs nothing). It is protected by the
-    # pg_dump in apps/mealie/backup.yaml, whose pod has its own S3 rule.
-    # Adding a backup destination needs `toEntities: [world]` on 443 in the
-    # same change, or blocked WAL archiving fills pg_wal and stops writes.
+    # No S3 rule yet, although the cluster archives WAL to S3 through the
+    # Barman Cloud plugin (apps/mealie/cnpg-backup.yaml). Before default-deny
+    # egress is turned on for mealie this needs `toEntities: [world]` on 443,
+    # or blocked WAL archiving fills pg_wal and stops writes.
 
     # Peer instances, counterpart of the ingress rule above.
     - toEndpoints:

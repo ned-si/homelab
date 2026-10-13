@@ -184,10 +184,10 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
 
 - Ingress: the shared Cilium Gateway serves every public hostname on
   `192.168.1.254`; there is no ingress controller.
-- Backups: nightly restic jobs copy files and most databases to S3 (and the
-  photo library to the NAS). `immich-db`, `keycloak-db` and etcd rely on
-  on-demand local dumps and snapshots until the Barman Cloud plugin runs,
-  which needs a CloudNativePG upgrade.
+- Backups: nightly restic jobs copy files and dumps to S3 (and the photo
+  library to the NAS); every Postgres cluster archives WAL and takes daily base
+  backups to S3 through the Barman Cloud plugin (point-in-time, 30 days); etcd
+  relies on snapshots taken by hand.
   Data PVs are on reclaim policy `Retain`
   ([details](docs/backups.md#reclaim-policy)).
 - Alerting: Prometheus and Grafana run; Alertmanager delivers to nobody yet

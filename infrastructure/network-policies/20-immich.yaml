@@ -207,14 +207,14 @@ spec:
             - port: "6443"
               protocol: TCP
 
-    # Continuous WAL archiving and base backups to S3.
-    # apps/immich/resources/database.yaml -- `backup.barmanObjectStore`,
-    # endpointURL https://s3.eu-central-1.amazonaws.com.
+    # Continuous WAL archiving and base backups to S3 through the Barman Cloud
+    # plugin sidecar: apps/immich/resources/backup.yaml, endpointURL
+    # https://s3.eu-central-1.amazonaws.com.
     #
     # This one is easy to under-estimate: WAL archiving is not a nightly job. If
     # it is blocked, Postgres cannot recycle WAL segments, pg_wal grows until the
-    # 20Gi volume fills, and the database stops accepting writes. Losing this rule
-    # takes Immich down within hours, not at 02:30.
+    # 5Gi volume fills, and the database stops accepting writes. Losing this rule
+    # takes Immich down within hours, not at the nightly backup.
     - toEntities:
         - world
       toPorts:

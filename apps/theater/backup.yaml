@@ -1,7 +1,7 @@
 # Backups for the `theater` namespace: the six /config volumes (restic) and
-# logical dumps of the four *arr Postgres clusters. The clusters have no WAL
-# archiving (`spec.backup`), so these are nightly snapshots, not point-in-time
-# recovery; for quality profiles and indexer settings that is enough.
+# logical dumps of the four *arr Postgres clusters. The dumps are a second,
+# independent copy: the clusters also archive WAL and take daily base backups
+# through the Barman Cloud plugin (cnpg-backup.yaml).
 #
 # One restic repository, `theater/configs`. Every snapshot is tagged
 # `theater-configs` (one entry in platform/backup-verify/restore-files.yaml)

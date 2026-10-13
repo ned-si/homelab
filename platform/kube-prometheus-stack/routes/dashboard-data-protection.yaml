@@ -136,7 +136,7 @@ data:
         {
           "type": "stat",
           "title": "Postgres clusters with NO object store",
-          "description": "Scraped but publishing no backup timestamp: no spec.backup.barmanObjectStore. Expect 5 for now.",
+          "description": "Scraped but publishing no Barman Cloud backup timestamp: no plugin sidecar. Expect 0.",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
@@ -154,7 +154,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "count((cnpg_collector_up == 1) unless on (namespace, pod) cnpg_collector_last_available_backup_timestamp) or vector(0)",
+              "expr": "count((cnpg_collector_up == 1) unless on (namespace, pod) barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) or vector(0)",
               "instant": true
             }
           ],
@@ -313,7 +313,7 @@ data:
         {
           "type": "table",
           "title": "Postgres: age of the newest successful backup",
-          "description": "Hours since barman's last base backup. A cluster MISSING here has no object store. Over 36h = two failures.",
+          "description": "Hours since the last Barman Cloud base backup. A cluster MISSING here has no plugin. Over 26h fires CNPGBaseBackupTooOld.",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
@@ -331,7 +331,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "(time() - cnpg_collector_last_available_backup_timestamp) / 3600",
+              "expr": "(time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) / 3600",
               "instant": true,
               "format": "table"
             }

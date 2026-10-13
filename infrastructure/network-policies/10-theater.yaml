@@ -647,9 +647,10 @@ spec:
 # Selected by `cnpg.io/cluster: Exists` (instance pods and the operator's
 # initdb/join Jobs), so a new cluster here is covered on arrival.
 #
-# None of the four sets `spec.backup`, so there is no S3 egress. Adding a
-# backup destination needs `toEntities: [world]` on 443, or WAL archiving
-# fails and the volume fills.
+# All four archive WAL to S3 through the Barman Cloud plugin
+# (apps/theater/cnpg-backup.yaml). This policy has no S3 rule yet, so before
+# default-deny egress is turned on for theater it needs `toEntities: [world]`
+# on 443, or WAL archiving fails and the volume fills.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
