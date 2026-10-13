@@ -231,7 +231,7 @@ spec:
             description: >-
               Extrapolating the last 6 hours. If this is a Postgres data volume,
               check WAL archiving first -- unarchivable WAL is retained locally
-              and fills the volume, and PostgresWALArchiveFailing is the cause,
+              and fills the volume, and CNPGWALArchivingFailing is the cause,
               not this.
 
         - alert: PrometheusTsdbVolumeNearlyFull

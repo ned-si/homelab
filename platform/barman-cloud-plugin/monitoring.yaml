@@ -1,0 +1,118 @@
+# Scrape and alert on CNPG WAL archiving and Barman Cloud base backups.
+#
+# PodMonitor `cnpg-instances` scrapes the instance exporter (port `metrics`,
+# 9187) of every CNPG pod in the four namespaces that run production clusters.
+# A namespace list, not every namespace: scratch restore clusters must not be
+# scraped or alerted on. An explicit PodMonitor rather than the Cluster's
+# deprecated `spec.monitoring.enablePodMonitor`.
+#
+# Metric sources, all on the same endpoint:
+#   cnpg_collector_*, cnpg_pg_stat_archiver_*   the instance manager
+#   barman_cloud_cloudnative_pg_io_*            the Barman Cloud plugin sidecar
+#
+# What to do when one fires: docs/backups.md ("Alerts").
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cnpg-instances
+  namespace: immich
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [immich, keycloak, mealie, theater]
+  selector:
+    matchLabels:
+      cnpg.io/podRole: instance
+  podMetricsEndpoints:
+    - port: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cnpg-backups
+  namespace: immich
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: cnpg.backups
+      rules:
+        - alert: CNPGBackupFailed
+          expr: |
+            barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp
+              > barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Last base backup of {{ $labels.namespace }}/{{ $labels.pod }} failed"
+            description: >-
+              The newest Barman Cloud base backup failed after the last good one.
+              Check: kubectl -n {{ $labels.namespace }} get backups.postgresql.cnpg.io.
+              See docs/backups.md.
+        - alert: CNPGBaseBackupTooOld
+          # Also fires when there has never been a backup (timestamp 0).
+          expr: |
+            time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 26 * 3600
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No base backup of {{ $labels.namespace }}/{{ $labels.pod }} in 26 h"
+            description: >-
+              The daily ScheduledBackup did not produce a base backup.
+              Check: kubectl -n {{ $labels.namespace }} get scheduledbackups,backups.postgresql.cnpg.io.
+              See docs/backups.md.
+        - alert: CNPGBackupMetricsMissing
+          # An instance whose exporter is up but which reports no plugin
+          # metrics has no Barman Cloud sidecar, so it is not backed up.
+          expr: |
+            cnpg_collector_up == 1
+              unless on (namespace, pod) barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.namespace }}/{{ $labels.pod }} reports no Barman Cloud metrics"
+            description: >-
+              The pod has no plugin-barman-cloud sidecar or the plugin is down.
+              Check: kubectl -n {{ $labels.namespace }} get pod {{ $labels.pod }} -o jsonpath='{.spec.initContainers[*].name}'.
+              See docs/backups.md.
+        - alert: CNPGWALArchivingFailing
+          expr: |
+            cnpg_pg_stat_archiver_last_failed_time > cnpg_pg_stat_archiver_last_archived_time
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "WAL archiving of {{ $labels.namespace }}/{{ $labels.pod }} is failing"
+            description: >-
+              The last WAL archive attempt failed and none has succeeded since.
+              Check: kubectl -n {{ $labels.namespace }} logs {{ $labels.pod }} -c plugin-barman-cloud.
+              See docs/backups.md.
+        - alert: CNPGWALArchiveLag
+          expr: |
+            cnpg_collector_pg_wal_archive_status{value="ready"} > 5
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $value }} WAL segments of {{ $labels.namespace }}/{{ $labels.pod }} wait for archiving"
+            description: >-
+              WAL is produced faster than it is archived, or archiving stalls.
+              The pg_wal volume fills up if this continues.
+              Check: kubectl -n {{ $labels.namespace }} logs {{ $labels.pod }} -c plugin-barman-cloud.
+              See docs/backups.md.
+        - alert: CNPGMetricsAbsent
+          expr: absent(cnpg_collector_up)
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "No CNPG instance metrics at all"
+            description: >-
+              Prometheus scrapes no CNPG instance, so none of the backup alerts can fire.
+              Check: kubectl -n immich get podmonitor cnpg-instances.
+              See docs/backups.md.
