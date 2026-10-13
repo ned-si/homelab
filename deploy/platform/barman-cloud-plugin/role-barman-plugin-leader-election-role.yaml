@@ -15,7 +15,7 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/name: plugin-barman-cloud
   name: barman-plugin-leader-election-role
-  namespace: immich
+  namespace: cnpg-system
 rules:
 - apiGroups:
   - ""

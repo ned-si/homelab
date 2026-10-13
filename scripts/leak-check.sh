@@ -90,7 +90,7 @@ is_allowed_secret() {
     # ships it as a Secret rather than a ConfigMap; that is their choice, not a
     # leak. Verify after a bundle bump with:
     #   cat deploy/platform/barman-cloud-plugin/secret-plugin-barman-cloud-*.yaml
-    immich/plugin-barman-cloud-*) return 0 ;;
+    cnpg-system/plugin-barman-cloud-*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -104,7 +104,7 @@ is_allowed_inline() {
   case "$1" in
     # Vendored upstream bundle, not this repo's manifests:
     # platform/barman-cloud-plugin/kustomization.yaml pulls
-    # plugin-barman-cloud v0.15.1's manifest.yaml. These two annotations tell
+    # plugin-barman-cloud v0.12.0's manifest.yaml. These two annotations tell
     # CloudNativePG which Secret holds the plugin's mTLS certificate; the values
     # are Secret NAMES (`barman-cloud-client-tls`, `barman-cloud-server-tls`),
     # created by the cert-manager Certificate in the same bundle.
