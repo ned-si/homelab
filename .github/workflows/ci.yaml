@@ -11,6 +11,8 @@
 #                secrets/leak/placeholder checks, deploy/ matches sources,
 #                kube-linter)
 #   security     gitleaks, Trivy waiver hygiene, Trivy gate
+#   talos        talhelper genconfig with throwaway secrets, talosctl validate
+#                --mode metal, config invariants (scripts/ci/talos-validate.sh)
 #   pr-metadata  PR title and commits (pull requests only, skipped on push)
 #   preprod      ephemeral kind cluster: CRDs, server-side dry-run of deploy/,
 #                stateless workloads booted and checked for readiness
@@ -85,6 +87,12 @@ env:
   # rule unit tests, scripts/ci/promtool-check.sh).
   PROMTOOL_VERSION: 3.15.0
   PROMTOOL_SHA256: 2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0
+  TALHELPER_VERSION: v3.1.17
+  TALHELPER_SHA256: dff9162569004637b6a842c4020d909b0ffbc7fbbe2fca23a754708db95be204
+  # talosctl validates the generated configs: keep it on talosVersion in
+  # talos/talconfig.yaml.
+  TALOSCTL_VERSION: v1.14.2
+  TALOSCTL_SHA256: c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4
   # One checkout serves every step of a job: keep it free of bytecode and
   # pytest caches so no check sees another check's leftovers.
   PYTHONDONTWRITEBYTECODE: "1"
@@ -275,6 +283,25 @@ jobs:
           SUMMARY: ${{ runner.temp }}/trivy-summary.md
         run: if [ -f "$SUMMARY" ]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi
 
+  # Offline: throwaway secrets from `talhelper gensecret`, the schematic ID
+  # computed locally (--offline-mode), no cluster. Generated configs stay in a
+  # temp dir and are never printed or uploaded.
+  talos:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools
+        run: scripts/ci/install-tool.sh talhelper talosctl
+
+      - name: talhelper genconfig + talosctl validate --mode metal
+        run: scripts/ci/talos-validate.sh
+
   pr-metadata:
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-26.04
@@ -363,7 +390,7 @@ jobs:
   # be skipped outside a pull request.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, security, pr-metadata, preprod]
+    needs: [lint, render, security, talos, pr-metadata, preprod]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -375,7 +402,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render security pr-metadata preprod; do
+          for j in lint render security talos pr-metadata preprod; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"

@@ -5,7 +5,7 @@
 # the download is verified with sha256sum before anything is extracted or run.
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
 # Tools: kubeconform actionlint shellcheck gitleaks trivy kyverno kube-linter helm
-#        kubectl tofu promtool
+#        kubectl kind tofu promtool talhelper talosctl
 set -euo pipefail
 
 bin="${RUNNER_TEMP:?RUNNER_TEMP not set}/bin"
@@ -62,6 +62,12 @@ for tool in "$@"; do
     promtool)
       v=$(need PROMTOOL_VERSION); fetch "https://github.com/prometheus/prometheus/releases/download/v$v/prometheus-$v.linux-amd64.tar.gz" "$(need PROMTOOL_SHA256)"
       tar -xzf "$work/dl" -C "$work" && install -m 0755 "$work/prometheus-$v.linux-amd64/promtool" "$bin/promtool" ;;
+    talhelper)
+      v=$(need TALHELPER_VERSION); fetch "https://github.com/budimanjojo/talhelper/releases/download/$v/talhelper_linux_amd64.tar.gz" "$(need TALHELPER_SHA256)"
+      tar -xzf "$work/dl" -C "$bin" talhelper ;;
+    talosctl)
+      v=$(need TALOSCTL_VERSION); fetch "https://github.com/siderolabs/talos/releases/download/$v/talosctl-linux-amd64" "$(need TALOSCTL_SHA256)"
+      install -m 0755 "$work/dl" "$bin/talosctl" ;;
     *) echo "install-tool: unknown tool $tool" >&2; exit 64 ;;
   esac
   rm -f "$work/dl"
