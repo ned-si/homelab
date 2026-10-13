@@ -8,7 +8,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Part | State |
 | --- | --- |
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
-| Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards plus [ours](#dashboards) |
+| Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
 | Alertmanager | running with the chart's default configuration: one `null` receiver, so every alert is dropped |
 | Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml` |
 | Notification credentials | Secret `monitoring/alertmanager-notify` exists (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`); nothing reads it yet, and the Pushover values are still `PENDING` sentinels |
