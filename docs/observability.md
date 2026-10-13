@@ -64,6 +64,29 @@ with `group_left(node)` for that reason; do not remove the joins.
 arriving, which is the only way to learn that the cluster, Alertmanager or the
 house's internet is down. Never silence it.
 
+## SLOs
+
+Each user-facing app (auth cinema theater media archive cook drive syncthing)
+has one availability SLO: 99.5% of its public blackbox probes succeed over 30
+days, an error budget of about 3.6 hours a month. Plain recording rules, no
+SLO generator: `slo:probe_error:ratio_rate<window>`,
+`slo:availability:ratio_rate30d` and `slo:error_budget_remaining:ratio_rate30d`,
+all by `app`.
+
+| Alert | Fires when | Severity |
+| --- | --- | --- |
+| `SLOErrorBudgetBurnFast` | burn rate above 14.4x over 1h and 5m, or 6x over 6h and 30m | `critical` |
+| `SLOErrorBudgetBurnSlow` | burn rate above 3x over 1d and 2h, or 1x over 3d and 6h | `warning` |
+| `SLOProbesAbsent` | no `probe_success` for job `blackbox-public` for 15m | `warning` |
+
+Prometheus keeps `retention: 30d` capped by `retentionSize: 11GiB`. At about
+0.55 GB of blocks a day that is roughly 20 days, so the 30-day figures cover
+what is kept until the Prometheus volume grows to 25Gi.
+
+The rules are unit-tested: `scripts/ci/promtool-check.sh` runs `promtool check
+rules` on every rendered PrometheusRule and `promtool test rules` on
+`tests/prometheus/*_test.yaml` (CI, render job).
+
 ## Silencing
 
 Silences are imperative, expire on their own, and are the tool for planned

@@ -4,7 +4,7 @@
 # Version and sha256 come from the workflow `env:` (<TOOL>_VERSION, <TOOL>_SHA256);
 # the download is verified with sha256sum before anything is extracted or run.
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
-# Tools: kubeconform actionlint shellcheck gitleaks trivy kube-linter helm kubectl tofu
+# Tools: kubeconform actionlint shellcheck gitleaks trivy kube-linter helm kubectl tofu promtool
 set -euo pipefail
 
 bin="${RUNNER_TEMP:?RUNNER_TEMP not set}/bin"
@@ -52,6 +52,9 @@ for tool in "$@"; do
     tofu)
       v=$(need TOFU_VERSION); fetch "https://github.com/opentofu/opentofu/releases/download/v$v/tofu_${v}_linux_amd64.tar.gz" "$(need TOFU_SHA256)"
       tar -xzf "$work/dl" -C "$bin" tofu ;;
+    promtool)
+      v=$(need PROMTOOL_VERSION); fetch "https://github.com/prometheus/prometheus/releases/download/v$v/prometheus-$v.linux-amd64.tar.gz" "$(need PROMTOOL_SHA256)"
+      tar -xzf "$work/dl" -C "$work" && install -m 0755 "$work/prometheus-$v.linux-amd64/promtool" "$bin/promtool" ;;
     *) echo "install-tool: unknown tool $tool" >&2; exit 64 ;;
   esac
   rm -f "$work/dl"
