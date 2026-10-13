@@ -25,7 +25,10 @@ anyway. Node upgrades are `ansible/kube-upgrade.yml` (one minor at a time) and
 `kube-upgrade.yml` calls `etcdctl` on the host, which the nodes do not have, so
 the playbook stops at that task until it is fixed ([roadmap](roadmap.md)). Take
 the snapshot by hand
-([cold-start.md](runbooks/cold-start.md#snapshot)) before any upgrade. Replacing a failed node is
+([cold-start.md](runbooks/cold-start.md#snapshot)) before any upgrade. The
+kubeadm leaf certificates last one year and every `kubeadm upgrade` renews
+them; `ansible/cert-renew.yml` renews them without an upgrade
+(`--tags verify` only checks expiry). Replacing a failed node is
 [runbooks/node-replacement.md](runbooks/node-replacement.md).
 
 ## The tree
