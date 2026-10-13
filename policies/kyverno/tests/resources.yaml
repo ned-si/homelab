@@ -1,0 +1,133 @@
+# Fixtures for kyverno-test.yaml: one object per expected outcome.
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: good
+  namespace: apps
+spec:
+  initContainers:
+    - name: init
+      image: registry.k8s.io/kubectl:v1.32.13
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+        limits: { memory: 32Mi }
+  containers:
+    - name: app
+      image: ghcr.io/example/app:1.2.3@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      securityContext:
+        privileged: false
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+        limits: { memory: 32Mi }
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: latest-tag
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: ghcr.io/example/app:latest
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: no-tag
+  namespace: apps
+spec:
+  containers:
+    # A registry port is not a tag.
+    - name: app
+      image: registry.example:5000/app
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: ghcr.io/example/app:1.2.3
+      securityContext:
+        privileged: true
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: privileged-allowed
+  namespace: democratic-csi
+spec:
+  containers:
+    - name: node
+      image: ghcr.io/example/csi:1.2.3
+      securityContext:
+        privileged: true
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: no-limits
+  namespace: apps
+spec:
+  containers:
+    - name: app
+      image: ghcr.io/example/app:1.2.3
+      resources:
+        requests: { cpu: 10m, memory: 16Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: probed
+  namespace: apps
+spec:
+  selector:
+    matchLabels: { app: probed }
+  template:
+    metadata:
+      labels: { app: probed }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/example/app:1.2.3
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }
+          livenessProbe:
+            tcpSocket: { port: 8080 }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: latest-cron
+  namespace: apps
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: job
+              image: docker.io/library/busybox:latest
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: no-liveness
+  namespace: apps
+spec:
+  selector:
+    matchLabels: { app: no-liveness }
+  template:
+    metadata:
+      labels: { app: no-liveness }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/example/app:1.2.3
+          readinessProbe:
+            httpGet: { path: /ready, port: 8080 }

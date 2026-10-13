@@ -1,0 +1,26 @@
+# Every Deployment container has a readiness and a liveness probe: Argo CD
+# health, and so the PostSync smoke tests and the automatic rollback, only
+# mean something when Ready means "serves requests". Audit: most Deployments
+# have no probes yet.
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-probes
+  annotations:
+    policies.kyverno.io/title: Require probes on Deployments
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+spec:
+  validationActions: [Audit]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [apps]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments]
+  validations:
+    - expression: >-
+        object.spec.template.spec.containers.all(c,
+        has(c.readinessProbe) && has(c.livenessProbe))
+      message: Every container needs a readinessProbe and a livenessProbe.

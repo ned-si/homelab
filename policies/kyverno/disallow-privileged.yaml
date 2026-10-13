@@ -1,0 +1,47 @@
+# No privileged container outside the namespaces whose workloads need host
+# access by design: the CSI node plugin (democratic-csi) and the CNI and node
+# components (kube-system). Adding a namespace to the allowlist is a reviewed
+# change to this file.
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-privileged
+  annotations:
+    policies.kyverno.io/title: Disallow privileged containers
+    policies.kyverno.io/category: Pod Security
+    policies.kyverno.io/severity: high
+spec:
+  validationActions: [Deny]
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+      - apiGroups: [apps]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets, daemonsets]
+      - apiGroups: [batch]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [jobs, cronjobs]
+  matchConditions:
+    - name: not-allowlisted
+      expression: >-
+        !(object.metadata.?namespace.orValue('') in ['kube-system', 'democratic-csi'])
+  variables:
+    - name: pod
+      expression: >-
+        object.kind == 'Pod' ? object.spec :
+        object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
+        object.spec.template.spec
+    - name: containers
+      expression: >-
+        variables.pod.containers + variables.pod.?initContainers.orValue([])
+        + variables.pod.?ephemeralContainers.orValue([])
+  validations:
+    - expression: >-
+        variables.containers.all(c, !c.?securityContext.?privileged.orValue(false))
+      message: Privileged containers are only allowed in kube-system and democratic-csi.

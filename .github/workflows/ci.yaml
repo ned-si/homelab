@@ -6,7 +6,8 @@
 #   lint         pre-commit hooks, yamllint, actionlint, shellcheck,
 #                tofu fmt + validate
 #   render       unit tests, promtool (rule checks and rule unit tests),
-#                render, kubeconform, repo-policy (pins, invariants,
+#                render, kubeconform, Kyverno policies over deploy/,
+#                repo-policy (pins, invariants,
 #                secrets/leak/placeholder checks, deploy/ matches sources,
 #                kube-linter)
 #   security     gitleaks, Trivy waiver hygiene, Trivy gate
@@ -63,6 +64,8 @@ env:
   TRIVY_SHA256: 8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9
   KUBE_LINTER_VERSION: v0.8.3
   KUBE_LINTER_SHA256: 1a6d8419b11971372971fdbc22682b684ebfb7cf1c39591662d1b6ca736c41df
+  KYVERNO_VERSION: v1.19.1
+  KYVERNO_SHA256: b38228f367fc0fdc2b08f4c83ea50ac5f16c60ff8d62d76a66157c33c47b70ae
   HELM_VERSION: v3.22.0
   HELM_SHA256: 1e4ab49e429626cf6c6958d914248b78c9730803c2751b87627e171dc800e7bb
   # kubectl is the kustomize renderer: v1.36.3 embeds kustomize v5.8.1, the
@@ -159,7 +162,7 @@ jobs:
         id: setup
         run: |
           set -euo pipefail
-          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool
+          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool kyverno
           scripts/ci/setup-python-deps.sh
 
       - name: Unit tests (pytest)
@@ -186,6 +189,12 @@ jobs:
       - name: kubeconform (strict, pinned core schemas, vendored CRD schemas)
         if: ${{ !cancelled() && steps.render.outcome == 'success' }}
         run: scripts/ci/kubeconform.sh "$RUNNER_TEMP/render"
+
+      # Policy unit tests, then the policies over deploy/. Deny policies
+      # block; Audit policies report in the step summary.
+      - name: Kyverno policies (policies/kyverno over deploy/)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/kyverno.sh
 
       # Pins, repository invariants, secrets/leak/placeholder checks, deploy/
       # matches its sources, kube-linter. With no render (the render step
