@@ -49,7 +49,7 @@ permissions: {}
 
 jobs:
   decide:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -88,7 +88,7 @@ jobs:
   act:
     needs: decide
     if: ${{ needs.decide.outputs.dry_run == 'false' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
       # The revert commit (signed by GitHub) and its branch.
