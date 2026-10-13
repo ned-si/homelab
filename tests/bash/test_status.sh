@@ -43,6 +43,10 @@ done
 # `-n <ns>` puts the namespace first; skip it to find the verb.
 if [ "${args[0]}" = "-n" ]; then verb=${args[2]}; fi
 case "$verb" in get|exec) ;; *) echo "fake kubectl: mutating or unknown verb '$verb'" >&2; exit 3 ;; esac
+# STATUS_FAIL_GET=<resource>: that read fails, as with an unreachable API.
+for r in ${STATUS_FAIL_GET:-}; do
+  case "$s" in "get $r "*) echo "error: the server is currently unable to handle the request" >&2; exit 1 ;; esac
+done
 case "$s" in
   # First match wins: the jsonpath form is the only Secret read allowed.
   "get secrets -A -o jsonpath="*)
@@ -152,7 +156,8 @@ expect_eq "no problems" 0 "$(jq '.problems | length' <<<"$js")"
 expect_eq "immich images" 100 "$(jq .immich.image <<<"$js")"
 expect_eq "wan match" true "$(jq .wan.match <<<"$js")"
 expect_eq "wan in git" "$GIT_WAN" "$(jq -r .wan.in_git <<<"$js")"
-expect_eq "every section present" "argo,backups,certificates,cnpg,etcd,gateway,generated,immich,nas,nodes,pods,problems,pvcs,schema,secrets,wan" \
+expect_eq "no failed reads" 0 "$(jq '.errors | length' <<<"$js")"
+expect_eq "every section present" "argo,backups,certificates,cnpg,errors,etcd,gateway,generated,immich,nas,nodes,pods,problems,pvcs,schema,secrets,wan" \
   "$(jq -r 'keys | join(",")' <<<"$js")"
 
 echo "read-only"
@@ -185,6 +190,18 @@ expect_contains "nas" "NAS 192.0.2.228:2049 CLOSED" "$out"
 expect_contains "wan" "WAN 198.51.100.99 != --default-targets $GIT_WAN" "$out"
 js=$("$STATUS" --json 2>/dev/null) || true
 expect_eq "nine problems" 9 "$(jq '.problems | length' <<<"$js")"
+
+echo "failed reads"
+mkfix
+rc=0; out=$(STATUS_FAIL_GET="applications.argoproj.io pods secrets" "$STATUS" 2>&1) || rc=$?
+expect_eq "exit 1" 1 "$rc"
+expect_contains "section" "Reads that failed" "$out"
+expect_contains "argo read" "kubectl get applications.argoproj.io -n argo failed: error: the server is currently unable" "$out"
+expect_contains "pods read" "kubectl get pods -A failed" "$out"
+expect_contains "secrets read" "kubectl get secrets -A failed" "$out"
+js=$(STATUS_FAIL_GET="applications.argoproj.io pods secrets" "$STATUS" --json 2>/dev/null) || true
+expect_eq "three problems, all reads" 3 "$(jq '[.problems[] | select(test("^kubectl get .* failed"))] | length' <<<"$js")"
+expect_eq "nothing else" 3 "$(jq '.problems | length' <<<"$js")"
 
 echo "usage"
 rc=0; "$STATUS" --bogus >/dev/null 2>&1 || rc=$?
