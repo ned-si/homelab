@@ -1,26 +1,56 @@
-# Keycloak database backup.
+# Keycloak database backup through the Barman Cloud plugin: continuous WAL
+# archiving plus a daily base backup, into
+# s3://ned-si-homelab-backups/cnpg/keycloak-db/, kept 30 days (point-in-time
+# recovery anywhere in that window). Restore: docs/backups.md.
 #
 # Worth as much as it looks: this holds every user, every OIDC client and every
 # role mapping. Losing it means rebuilding the realm by hand AND re-issuing every
 # client secret referenced from `apps/secrets/`, because those live in Keycloak,
 # not here.
-#
-# Uses the in-tree `barmanObjectStore`. See apps/immich/resources/backup.yaml for
-# why the Barman Cloud plugin is not usable on CNPG 1.24.1.
-#
-# The object-store configuration itself lives on the Cluster
-# (./database.yaml `spec.backup`); this only schedules the base backups.
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-backup
+  namespace: keycloak
+spec:
+  retentionPolicy: "30d"
+  configuration:
+    destinationPath: s3://ned-si-homelab-backups/cnpg
+    endpointURL: https://s3.eu-central-1.amazonaws.com
+    s3Credentials:
+      accessKeyId:
+        name: cnpg-backup-s3
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: cnpg-backup-s3
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      # boto3 signs for this region; it must match the bucket.
+      - name: AWS_DEFAULT_REGION
+        value: eu-central-1
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
 metadata:
-  name: keycloak-nightly
+  name: keycloak-db-daily
   namespace: keycloak
 spec:
-  # Six-field cron (CNPG includes seconds). 02:00 daily.
-  schedule: "0 0 2 * * *"
-  backupOwnerReference: self
+  # Six fields (seconds first), UTC: 00:10 daily.
+  schedule: "0 10 0 * * *"
+  # Suspended while the Cluster restarts to load the plugin sidecar: an
+  # immediate backup taken before that fails. Unsuspending takes the first
+  # base backup at once.
+  suspend: true
   immediate: true
+  backupOwnerReference: self
   cluster:
     name: keycloak-db
-  method: barmanObjectStore
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

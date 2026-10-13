@@ -1,0 +1,101 @@
+# Off-site backup of the four *arr databases through the Barman Cloud plugin:
+# continuous WAL archiving plus a daily base backup each, into
+# s3://ned-si-homelab-backups/cnpg/<cluster>/, kept 30 days (point-in-time
+# recovery anywhere in that window). The restic dumps in backup.yaml stay as a
+# second, independent copy. Restore: docs/backups.md.
+#
+# The ScheduledBackups start suspended while each Cluster restarts to load the
+# plugin sidecar: an immediate backup taken before that fails. Unsuspending
+# takes the first base backup at once.
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-backup
+  namespace: theater
+spec:
+  retentionPolicy: "30d"
+  configuration:
+    destinationPath: s3://ned-si-homelab-backups/cnpg
+    endpointURL: https://s3.eu-central-1.amazonaws.com
+    s3Credentials:
+      accessKeyId:
+        name: cnpg-backup-s3
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: cnpg-backup-s3
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      # boto3 signs for this region; it must match the bucket.
+      - name: AWS_DEFAULT_REGION
+        value: eu-central-1
+# Six-field crons (seconds first), UTC, staggered 00:30-01:00.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: sonarr-postgresql-daily
+  namespace: theater
+spec:
+  schedule: "0 30 0 * * *"
+  suspend: true
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: sonarr-postgresql
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: radarr-postgresql-daily
+  namespace: theater
+spec:
+  schedule: "0 40 0 * * *"
+  suspend: true
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: radarr-postgresql
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: lidarr-postgresql-daily
+  namespace: theater
+spec:
+  schedule: "0 50 0 * * *"
+  suspend: true
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: lidarr-postgresql
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: prowlarr-postgresql-daily
+  namespace: theater
+spec:
+  schedule: "0 0 1 * * *"
+  suspend: true
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: prowlarr-postgresql
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

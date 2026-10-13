@@ -22,5 +22,7 @@ resources:
   # restic CronJobs for the /config volumes and the *arr databases, plus the
   # monthly prune of their shared repository.
   - backup.yaml
+  # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
+  - cnpg-backup.yaml
   # Runs the database backup before every sync (presync-backup.yaml).
   - presync-backup.yaml

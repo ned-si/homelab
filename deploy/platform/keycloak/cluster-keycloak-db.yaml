@@ -18,5 +18,11 @@ metadata:
 spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:17.0
   instances: 1
+  plugins:
+  - enabled: true
+    isWALArchiver: true
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: cnpg-backup
   storage:
     size: 5Gi
