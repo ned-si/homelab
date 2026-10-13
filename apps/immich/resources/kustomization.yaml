@@ -14,6 +14,8 @@ resources:
   - database.yaml
   # WAL archiving and daily base backups of immich-db to S3 (Barman Cloud plugin).
   - backup.yaml
+  # Takes a base backup of immich-db before every sync (presync-backup.yaml).
+  - presync-backup.yaml
   - valkey.yaml
   - httproute.yaml
   # restic CronJobs for the photo library: S3, local NFS, monthly prune.
