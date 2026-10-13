@@ -99,6 +99,11 @@ tasks:
     cmds:
       - ./scripts/verify-dump-restore.sh {{.CLI_ARGS}}
 
+  backup:verify-barman:
+    desc: 'Restore a CNPG cluster from S3 into a scratch namespace and compare row counts. Usage: task backup:verify-barman -- <ns> <cluster>'
+    cmds:
+      - ./scripts/verify-barman-restore.sh {{.CLI_ARGS}}
+
   backup:set-target:
     desc: 'Point every backup manifest at one bucket. Usage: task backup:set-target -- <bucket> <region>'
     cmds:
