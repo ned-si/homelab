@@ -1,6 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: cnpg-system
+# The plugin must run in the CloudNativePG operator's namespace, which is
+# `immich` (see clusters/homelab/platform/cnpg.yaml).
+namespace: immich
 
 # The upstream release bundle. Installs the CRD (`ObjectStore`), the plugin
 # Deployment and its cert-manager Certificate.

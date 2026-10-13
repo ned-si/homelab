@@ -19,7 +19,7 @@ metadata:
     app: barman-cloud
     cnpg.io/pluginName: barman-cloud.cloudnative-pg.io
   name: barman-cloud
-  namespace: cnpg-system
+  namespace: immich
 spec:
   ports:
   - port: 9090

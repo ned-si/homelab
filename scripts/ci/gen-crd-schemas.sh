@@ -28,13 +28,13 @@ O2J_SHA256="d145babfbb765004030764e1b4e518bfb7a4bd7f111691a08fa57983b81881f3"
 
 ARGOCD=v2.14.11
 CERT_MANAGER=v1.15.0
-CNPG=1.24.1
+CNPG=1.30.1
 CILIUM_OLD=v1.16.3
 CILIUM_NEW=v1.17.18
 GATEWAY_API=v1.2.0
 PROM_OPERATOR=v0.94.1
 SNAPSHOTTER=v6.3.2
-BARMAN=v0.12.0
+BARMAN=v0.15.1
 # CustomResourceDefinition itself: yannh/kubernetes-json-schema has no schema for
 # it (JSONSchemaProps is recursive), so it is built from the Kubernetes OpenAPI v3
 # document of the validated version with JSONSchemaProps left opaque.
