@@ -1,0 +1,565 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/dashboards
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/dashboards and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  homelab-security.json: |
+    {
+      "uid": "homelab-security",
+      "title": "Homelab / Security",
+      "description": "TLS as served, authentication errors at the API server and the public endpoints, Secret age and image hygiene.",
+      "tags": [
+        "homelab",
+        "security"
+      ],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "editable": true,
+      "refresh": "1m",
+      "graphTooltip": 1,
+      "time": {
+        "from": "now-24h",
+        "to": "now"
+      },
+      "templating": {
+        "list": [
+          {
+            "name": "datasource",
+            "label": "Datasource",
+            "type": "datasource",
+            "query": "prometheus",
+            "current": {},
+            "hide": 0
+          }
+        ]
+      },
+      "annotations": {
+        "list": []
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "row",
+          "title": "TLS",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "panels": []
+        },
+        {
+          "type": "bargauge",
+          "title": "Certificate expiry (as served)",
+          "description": "probe_ssl_earliest_cert_expiry per public hostname, in days.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(min by (app) (probe_ssl_earliest_cert_expiry{job=\"blackbox-public\"}) - time()) / 86400",
+              "refId": "A",
+              "legendFormat": "{{app}}",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 14
+                  },
+                  {
+                    "color": "green",
+                    "value": 21
+                  }
+                ]
+              },
+              "min": 0,
+              "max": 90,
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true
+          },
+          "id": 2,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 1
+          }
+        },
+        {
+          "type": "table",
+          "title": "TLS version and HTTP status per hostname",
+          "description": "probe_tls_version_info and probe_http_status_code from the public probes.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (app, version) (probe_tls_version_info{job=\"blackbox-public\"})",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max by (app) (probe_http_status_code{job=\"blackbox-public\"})",
+              "refId": "B",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value #A": true
+                },
+                "renameByName": {
+                  "Value #B": "HTTP status",
+                  "version": "TLS"
+                }
+              }
+            }
+          ],
+          "id": 3,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 1
+          }
+        },
+        {
+          "id": 4,
+          "type": "row",
+          "title": "Authentication",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 9
+          },
+          "panels": []
+        },
+        {
+          "type": "timeseries",
+          "title": "Kubernetes API: 401/403 per second",
+          "description": "apiserver_request_total with code 401 or 403: rejected credentials and denied requests at the API server.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (code, resource) (rate(apiserver_request_total{code=~\"401|403\"}[5m]))",
+              "refId": "A",
+              "legendFormat": "{{code}} {{resource}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "custom": {
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "id": 5,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 10
+          }
+        },
+        {
+          "type": "table",
+          "title": "Public endpoints answering 401/403",
+          "description": "Public probes whose last status was 401 or 403. Expected: theater (SSO proxy). Anything else means an app started demanding credentials on its health path.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "probe_http_status_code{job=\"blackbox-public\"} == 401 or probe_http_status_code{job=\"blackbox-public\"} == 403",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "job": true,
+                  "probe": true
+                },
+                "renameByName": {
+                  "Value": "status"
+                }
+              }
+            }
+          ],
+          "id": 6,
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 10
+          }
+        },
+        {
+          "id": 7,
+          "type": "row",
+          "title": "Secrets and images",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 18
+          },
+          "panels": []
+        },
+        {
+          "type": "table",
+          "title": "Secret age (days)",
+          "description": "kube_secret_created per Secret, by name only. Values are never read. Service-account tokens and Helm release Secrets are excluded.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sort_desc((time() - kube_secret_created{namespace=~\"argo|keycloak|monitoring|immich|theater|mealie|paperless|seafile|syncthing|cert-manager|external-dns|gateway|democratic-csi|kube-system\"} unless on (namespace, secret) kube_secret_type{type=~\"kubernetes.io/service-account-token|helm.sh/release.v1\"}) / 86400)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "color-background"
+                }
+              },
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 180
+                  },
+                  {
+                    "color": "red",
+                    "value": 365
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "__name__": true,
+                  "container": true,
+                  "endpoint": true,
+                  "instance": true,
+                  "job": true,
+                  "pod": true,
+                  "service": true,
+                  "uid": true
+                },
+                "renameByName": {
+                  "Value": "age (days)"
+                }
+              }
+            }
+          ],
+          "id": 8,
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 19
+          }
+        },
+        {
+          "type": "table",
+          "title": "Images without a pinned tag",
+          "description": "Running containers whose image has no tag or uses :latest.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count by (namespace, pod, container, image) (kube_pod_container_info{image=~\".*:latest|[^:]+\"})",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true
+                }
+              }
+            }
+          ],
+          "id": 9,
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 19
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Distinct images running",
+          "description": "count of distinct images in kube_pod_container_info: the set a vulnerability scanner would have to cover.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(count by (image) (kube_pod_container_info))",
+              "refId": "A",
+              "legendFormat": "images",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 10,
+          "gridPos": {
+            "h": 5,
+            "w": 12,
+            "x": 12,
+            "y": 24
+          }
+        },
+        {
+          "id": 11,
+          "type": "row",
+          "title": "Not available yet",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 29
+          },
+          "panels": []
+        },
+        {
+          "type": "text",
+          "title": "Data sources this dashboard does not have",
+          "options": {
+            "mode": "markdown",
+            "content": "- **Trivy findings and image CVE counts**: trivy-operator is not deployed. CI scans manifests and images (Trivy gate), the cluster does not.\n- **Keycloak failed logins**: Keycloak runs with `KC_METRICS_ENABLED=true` but without event metrics (`KC_EVENT_METRICS_USER_ENABLED`) and nothing scrapes its management port (9000).\n- **Auth errors at the Gateway**: Cilium's Envoy and Hubble HTTP metrics are not enabled or scraped, so per-route 401/403/5xx rates are not in Prometheus.\n\nSee docs/observability.md for what each needs."
+          },
+          "id": 12,
+          "gridPos": {
+            "h": 6,
+            "w": 24,
+            "x": 0,
+            "y": 30
+          }
+        }
+      ]
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    grafana_dashboard: "1"
+  name: grafana-dashboard-homelab-security
+  namespace: monitoring

@@ -8,7 +8,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Part | State |
 | --- | --- |
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
-| Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
+| Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards plus [ours](#dashboards) |
 | Alertmanager | running with the chart's default configuration: one `null` receiver, so every alert is dropped |
 | Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml` |
 | Notification credentials | Secret `monitoring/alertmanager-notify` exists (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`); nothing reads it yet, and the Pushover values are still `PENDING` sentinels |
@@ -27,6 +27,28 @@ kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:909
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093
 # http://localhost:9093 : what Alertmanager holds (and drops)
 ```
+
+## Dashboards
+
+JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
+(label `grafana_dashboard: "1"`, loaded by the Grafana sidecar). Checked by
+`tests/test_dashboards.py` (layout, `${datasource}` everywhere, PromQL parses).
+
+| Dashboard (uid) | Shows |
+| --- | --- |
+| Homelab / Overview (`homelab-overview`) | 30-day availability and error budget per app, 1h burn rate, probe status and duration, nodes Ready, internal endpoints, eMMC and PVC usage, pods not Ready and restarts, running image tags, certificate expiry as served, hours since each backup CronJob last succeeded |
+| Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Secret age (names only), images without a pinned tag |
+
+Not shown, and what each would need:
+
+| Missing | Needs |
+| --- | --- |
+| CI and Renovate status | a GitHub exporter with a token, or a JSON datasource plugin |
+| NAS pool usage | a TrueNAS exporter (PVC usage is shown) |
+| Trivy findings, image CVE counts | trivy-operator |
+| Keycloak failed logins | `KC_EVENT_METRICS_USER_ENABLED=true` and a ServiceMonitor on port 9000 |
+| Gateway auth errors per route | Cilium Envoy or Hubble HTTP metrics, scraped |
+| cert-manager, Argo CD, CNPG metrics | their ServiceMonitors/PodMonitors carry no `release: kube-prometheus-stack` label, so Prometheus ignores them |
 
 ## Turning alerting on
 
