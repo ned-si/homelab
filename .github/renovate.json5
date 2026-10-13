@@ -99,7 +99,7 @@
   customManagers: [
     {
       customType: 'regex',
-      description: 'Annotated version on a known key. Deliberately excludes `image:` and `imageName:` -- those carry a full `repo:tag` reference and are handled by the next manager. Matching both here would double-report every container and capture the repo as the version.',
+      description: 'Annotated version on a known key (talosVersion and kubernetesVersion are the talhelper keys in talos/talconfig.yaml). Deliberately excludes `image:` and `imageName:` -- those carry a full `repo:tag` reference and are handled by the next manager. Matching both here would double-report every container and capture the repo as the version.',
       managerFilePatterns: [
         '/\\.ya?ml$/',
         '/\\.tf$/',
@@ -107,7 +107,7 @@
         '/Makefile$/',
       ],
       matchStrings: [
-        '#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)(?:\\s+depName=(?<depName>[^\\s]+))?(?:\\s+packageName=(?<packageName>[^\\s]+))?(?:\\s+registryUrl=(?<registryUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?[^\\n]*\\n\\s*(?:targetRevision|version|tag|chart|[A-Z][A-Z0-9_]*)\\s*[:=]+\\s*[\'"]?(?<currentValue>[^\'"\\s]+)[\'"]?',
+        '#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)(?:\\s+depName=(?<depName>[^\\s]+))?(?:\\s+packageName=(?<packageName>[^\\s]+))?(?:\\s+registryUrl=(?<registryUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?[^\\n]*\\n\\s*(?:targetRevision|version|tag|chart|talosVersion|kubernetesVersion|[A-Z][A-Z0-9_]*)\\s*[:=]+\\s*[\'"]?(?<currentValue>[^\'"\\s]+)[\'"]?',
       ],
       datasourceTemplate: '{{{datasource}}}',
       versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}',
