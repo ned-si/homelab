@@ -19,6 +19,7 @@ configMapGenerator:
     files:
       - realm/sessions.conf
       - realm/platform.conf
+      - realm/clients.conf
       - realm/apply.sh
 
 # After every sync: the management port reports ready.
