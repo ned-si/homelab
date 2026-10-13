@@ -43,10 +43,6 @@ metadata:
 spec:
   # Six fields (seconds first), UTC: 00:10 daily.
   schedule: "0 10 0 * * *"
-  # Suspended while the Cluster restarts to load the plugin sidecar: an
-  # immediate backup taken before that fails. Unsuspending takes the first
-  # base backup at once.
-  suspend: true
   immediate: true
   backupOwnerReference: self
   cluster:
