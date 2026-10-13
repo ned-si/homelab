@@ -9,9 +9,9 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | --- | --- |
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
-| Alertmanager | running with the chart's default configuration: one `null` receiver, so every alert is dropped |
+| Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); every other alert goes to the `null` receiver and is dropped |
 | Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml` |
-| Notification credentials | Secret `monitoring/alertmanager-notify` exists (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`); nothing reads it yet, and the Pushover values are still `PENDING` sentinels |
+| Notification credentials | Secret `monitoring/alertmanager-notify` (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`), mounted into Alertmanager; all three are still `PENDING` sentinels, `heartbeat-url` a URL-shaped one (`https://pending.invalid/...`) |
 | Hubble | on in the Cilium agents; relay, UI and metrics not enabled ([networking.md](networking.md#debugging)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
 
@@ -56,17 +56,48 @@ The design is written; each step is its own pull request:
 
 1. Put real Pushover values in `platform/secrets/alertmanager-notify.sops.yaml`
    (`task secrets:edit -- platform/secrets/alertmanager-notify.sops.yaml`): a
-   Pushover application token and user key. `heartbeat-url` is a
-   dead-man's-switch ping URL (healthchecks.io or similar) whose own alert
-   reaches you without this cluster; set its grace period to 15 to 20 minutes.
+   Pushover application token and user key. `heartbeat-url` is done
+   separately, see [Heartbeat](#heartbeat).
 2. Configure Alertmanager in `platform/kube-prometheus-stack/values.yaml` to
-   read those files (Pushover receiver, `Watchdog` routed to the heartbeat every
-   5 minutes, severity routing below). Key names become file names: renaming one
-   gives an Alertmanager that starts and then fails every send.
+   read those files (Pushover receiver, severity routing below; the Secret
+   mount and the `Watchdog` route are already there). Key names become file
+   names: renaming one gives an Alertmanager that starts and then fails every
+   send.
 3. Add `alerts.yaml` (and `dashboard-data-protection.yaml`) to
    `platform/kube-prometheus-stack/routes/kustomization.yaml`.
 4. Check: `AlertmanagerHasNoReceiverConfigured` clears within 6 hours, and a
    test alert reaches the phone.
+
+### Heartbeat
+
+Alertmanager sends the always-firing `Watchdog` alert every 5 minutes (route
+`group_interval: 1m`, `repeat_interval: 5m`) as a webhook POST to the URL in
+Secret `monitoring/alertmanager-notify` key `heartbeat-url`, mounted at
+`/etc/alertmanager/secrets/alertmanager-notify/heartbeat-url` (`url_file`).
+The provider alerts when the pings stop, which covers Prometheus, Alertmanager,
+the cluster and the house's internet being down. While the key holds its
+sentinel, every send fails: Alertmanager logs `Notify attempt failed` for
+receiver `heartbeat`, and nothing else is affected.
+
+Turning it on (one signup, then one secret edit):
+
+1. Sign up at <https://healthchecks.io> (free tier), create a check with period
+   5 minutes and grace 15 minutes, set its notification to an address that does
+   not depend on this cluster, and copy its ping URL
+   (`https://hc-ping.com/<uuid>`).
+2. Put it in the Secret, then commit and open a pull request:
+
+   ```sh
+   task secrets:edit -- platform/secrets/alertmanager-notify.sops.yaml
+   # replace the heartbeat-url value, save
+   ```
+
+   Or set `HEARTBEAT_URL=<ping URL>` in `secrets.local.env` and run
+   `scripts/seal-secrets-from-env.sh --force`.
+3. After Argo CD syncs `secrets-platform` (the mounted file follows within a
+   minute or two, no restart): the check turns green within 5 minutes, and
+   `kubectl -n monitoring logs alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager --since=10m | grep -c 'Notify attempt failed'`
+   prints `0`.
 
 ### Severity conventions once enabled
 
