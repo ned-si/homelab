@@ -44,6 +44,7 @@ spec:
             argocd_app_sync_total{phase=~"Error|Failed"}
             unless argocd_app_sync_total{phase=~"Error|Failed"} offset 10m
           ) > 0
+          and on (name) max by (name) (argocd_app_info offset 10m)
         )
       labels:
         severity: warning
