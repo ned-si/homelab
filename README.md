@@ -1,5 +1,12 @@
 # homelab
 
+[![ci](https://github.com/ned-si/homelab/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/ned-si/homelab/actions/workflows/ci.yaml?query=branch%3Amain)
+[![dast](https://github.com/ned-si/homelab/actions/workflows/dast.yaml/badge.svg)](https://github.com/ned-si/homelab/actions/workflows/dast.yaml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/ned-si/homelab/badge)](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab)
+[![Renovate](https://img.shields.io/badge/renovate-enabled-brightgreen?logo=renovatebot)](.github/renovate.json5)
+[![last commit](https://img.shields.io/github/last-commit/ned-si/homelab/main)](https://github.com/ned-si/homelab/commits/main)
+[![license](https://img.shields.io/github/license/ned-si/homelab)](LICENSE)
+
 GitOps repository for a family homelab: a four-node arm64 Kubernetes cluster
 that hosts photos, media, files, documents and recipes for the household,
 behind one Keycloak single sign-on. Argo CD deploys it from this repository:
