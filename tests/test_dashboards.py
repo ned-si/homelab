@@ -32,8 +32,20 @@ def all_panels(board: dict) -> list[dict]:
     return out
 
 
+def annotations(board: dict) -> list[dict]:
+    return board.get("annotations", {}).get("list", [])
+
+
 def exprs(board: dict) -> list[str]:
-    return [t["expr"] for p in all_panels(board) for t in p.get("targets", []) if "expr" in t]
+    panel = [t["expr"] for p in all_panels(board) for t in p.get("targets", []) if "expr" in t]
+    return panel + [a["expr"] for a in annotations(board) if "expr" in a]
+
+
+@pytest.mark.parametrize("path", DASHBOARDS, ids=lambda p: p.name)
+def test_annotations_use_the_variable(path):
+    for a in annotations(load(path)):
+        assert a.get("datasource", {}).get("uid") == "${datasource}", a["name"]
+        assert a.get("expr", "").strip(), a["name"]
 
 
 def test_expected_dashboards_present():

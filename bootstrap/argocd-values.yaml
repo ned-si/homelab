@@ -220,8 +220,13 @@ repoServer:
       name: sops-age
       readOnly: true
 
+# The `release` label is what the kube-prometheus-stack Prometheus selects
+# ServiceMonitors by; without it the Argo CD alerts
+# (platform/kube-prometheus-stack/routes/argocd-alerts.yaml) have no data.
 controller:
   metrics:
     enabled: true
     serviceMonitor:
       enabled: true
+      additionalLabels:
+        release: kube-prometheus-stack
