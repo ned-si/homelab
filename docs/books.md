@@ -8,9 +8,9 @@ Namespace `books`, manifests in `apps/books/`, Argo CD Application `books`.
 
 ## Storage
 
-The library is on the TrueNAS share `192.168.1.228:/mnt/homelab/k8s/nfs`
-(PV `books-data`, `infrastructure/nfs-storage/books-volume.yaml`), next to
-`media/` and `torrents/`. Pods mount subdirectories of `books/`:
+The library is on the TrueNAS share `192.168.1.228:/mnt/homelab/k8s/nfs`,
+next to `media/` and `torrents/`, as an inline NFS volume in each Deployment
+(like the theater apps). Pods mount subdirectories of `books/`:
 
 | Directory | Used by |
 |---|---|
@@ -64,4 +64,6 @@ The audiobook and podcast files are not backed up, like the media library.
   NFS volume. The alternative, adding them to `theater`, would mix two
   unrelated stacks in one Application.
 - The NFS volume mounts the share root and pods narrow it with `subPath`,
-  because the export is known to work at that path (`theater-data` uses it).
+  because the export is known to work at that path (the theater apps use it).
+  Inline rather than a PV: the `infrastructure/nfs-storage/` layer is not
+  deployed yet, and the theater apps are inline too.
