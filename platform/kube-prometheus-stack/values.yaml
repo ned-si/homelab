@@ -11,12 +11,15 @@
 # upgrade: docs/roadmap.md.
 prometheus:
   prometheusSpec:
-    # 30 days for the SLO window (routes/slo.yaml). retentionSize caps the
-    # blocks below the 15Gi volume, leaving room for the WAL: at about 0.55
-    # GB/day of blocks (2026-10) it keeps roughly 20 days, so the 30-day SLO
-    # figures cover less than 30 days until the volume is grown to 25Gi.
+    # 30 days for the SLO window (routes/slo.yaml). At about 0.55 GB/day of
+    # blocks (2026-10) that is about 17 GB. retentionSize caps the blocks at
+    # 20GiB, leaving about 5Gi of the volume for the WAL and compaction.
+    #
+    # The operator does not resize the PVC: after a change to `storage`, patch
+    # prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0
+    # to the same size (`iscsi` allows expansion; online, no restart).
     retention: 30d
-    retentionSize: 11GiB
+    retentionSize: 20GiB
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -24,7 +27,7 @@ prometheus:
             - "ReadWriteOnce"
           resources:
             requests:
-              storage: 15Gi
+              storage: 25Gi
 
 grafana:
   defaultDashboardsTimezone: browser
