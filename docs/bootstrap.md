@@ -86,7 +86,10 @@ talosctl apply-config --insecure -n <dhcp-ip> -f talos/clusterconfig/homelab-hom
 ```
 
 Repeat the `apply-config` line for every node in maintenance mode, each with
-its own file (`homelab-<hostname>.yaml`). Expected: the last line of
+its own file (`homelab-<hostname>.yaml`). A node that already runs Talos from
+another cluster (a test node) goes back to maintenance mode first:
+`talosctl -e <ip> -n <ip> --talosconfig <its-old-talosconfig> reset --graceful=false --reboot`.
+Expected: the last line of
 `genconfig` is `talos-genconfig: 4 machine config(s) in <repo>/talos/clusterconfig`;
 each `apply-config` exits 0 and the node reboots onto its static address.
 
@@ -149,6 +152,20 @@ Expected: `STATUS: deployed` and every pod in `argo` `Running`. The repository
 is public, so Argo CD needs no credential to clone it.
 
 ### 6. Root Application
+
+When the old cluster's wildcard certificate is still valid, import its Secret
+first (exported from the old cluster with `kubectl -n gateway get secret
+wildcard-lilalala-tls -o yaml`, kept outside the repo). cert-manager then
+reuses it instead of requesting a new one, which keeps the rebuild clear of
+Let's Encrypt rate limits:
+
+```sh
+kubectl create namespace gateway
+yq 'del(.metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp)' \
+  <exported-secret>.yaml | kubectl apply -f -
+```
+
+Then:
 
 ```sh
 kubectl apply -f bootstrap/root-app.yaml

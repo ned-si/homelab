@@ -30,7 +30,10 @@ controller:
 # iscsiadm by entering iscsid's namespaces (`nsenter`), which needs the host
 # PID namespace. iscsi-tools >= v0.2.0 keeps its state in /var/iscsi, not
 # /etc/iscsi (democratic-csi issue #461); the path type is left empty because
-# the directory exists only once iscsid has started.
+# the directory exists only once iscsid has started. This only works with
+# Talos workload isolation off (`workloadIsolation: false`, talos/patches/talosctl/security-profile.yaml):
+# inside the sandbox the node plugin cannot see iscsid ("failed to find iscsid
+# pid for nsenter", measured on a test node).
 # https://github.com/democratic-csi/democratic-csi#talos
 node:
   hostPID: true
