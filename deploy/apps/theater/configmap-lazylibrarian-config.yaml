@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  apply.py: |
+    # Write managed.conf into /config/config.ini; keep every other setting.
+    # LazyLibrarian reads keys case-insensitively and writes them lower case.
+    import configparser, os, string
+    path = "/config/config.ini"
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.optionxform = str.lower
+    cp.read(path)
+    for line in open("/managed/managed.conf"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, value = line.split("=", 1)
+        section, option = key.split(".", 1)
+        if not cp.has_section(section):
+            cp.add_section(section)
+        cp.set(section, option.lower(), string.Template(value).substitute(os.environ))
+    with open(path + ".new", "w") as f:
+        cp.write(f)
+    os.replace(path + ".new", path)
+    print("config.ini: managed settings applied")
+  managed.conf: |
+    General.launch_browser=0
+    General.ebook_dir=/data/books/ingest
+    General.audio_dir=/data/books/audiobooks
+    General.download_dir=/data/torrents
+    General.ebook_tab=1
+    General.audio_tab=1
+    General.auth_type=FORM
+    WebServer.http_port=5299
+    WebServer.http_root=/arr/lazylibrarian
+    WebServer.http_user=${HTTP_USER}
+    WebServer.http_pass=${HTTP_PASS}
+    API.api_enabled=1
+    API.api_key=${API_KEY}
+    TORRENT.tor_downloader_qbittorrent=1
+    TORRENT.keep_seeding=1
+    QBITTORRENT.qbittorrent_host=qbittorrent.theater.svc.cluster.local
+    QBITTORRENT.qbittorrent_port=8080
+    QBITTORRENT.qbittorrent_user=${QBITTORRENT_USER}
+    QBITTORRENT.qbittorrent_pass=${QBITTORRENT_PASS}
+    QBITTORRENT.qbittorrent_label=ebooks,audiobooks
+kind: ConfigMap
+metadata:
+  name: lazylibrarian-config
+  namespace: theater

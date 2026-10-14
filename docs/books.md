@@ -1,6 +1,7 @@
 # Books
 
 Namespace `books`, manifests in `apps/books/`, Argo CD Application `books`.
+Acquisition (LazyLibrarian) runs in `theater`, see [Acquisition](#acquisition).
 
 | App | URL | Purpose |
 |---|---|---|
@@ -64,6 +65,36 @@ client ID `calibre-web`, client secret from Keycloak, scopes
 `openid profile email`. The local `admin` account stays as the break-glass
 login; its password is in the operator's password manager. A new image
 starts with `admin` / `admin123`: change it before anything else.
+
+## Acquisition
+
+LazyLibrarian (`apps/theater/lazylibrarian.yaml`, namespace `theater`) at
+https://theater.lilalala.com/arr/lazylibrarian. Readarr is retired upstream,
+so it is the book counterpart of Sonarr and Radarr. It sits in `theater`
+with qBittorrent and mounts the share root, like the *arr apps.
+
+| Kind | qBittorrent category | Finished files go to |
+|---|---|---|
+| Ebooks | `ebooks` | `books/ingest`, imported by Calibre-Web Automated |
+| Audiobooks | `audiobooks` | `books/audiobooks`, the Audiobookshelf library |
+
+An init container writes the paths, the qBittorrent connection, the login and
+the API key into `config.ini` on every start, from the ConfigMap
+`lazylibrarian-config` and the Secret `lazylibrarian`
+(`apps/secrets/lazylibrarian.sops.yaml`). The rest (wanted authors, metadata
+sources) is set in the UI.
+
+Indexers come from Prowlarr's application `LazyLibrarian`, which syncs only
+indexers tagged `books`. Only public indexers carry that tag
+([theater.md](theater.md#indexers)). Check:
+
+```sh
+scripts/check-indexers.sh
+```
+
+Login: form login `admin`; the password is in the operator's password manager.
+No OIDC (LazyLibrarian has none). Its config is backed up nightly by
+`theater-config-backup-lazylibrarian` (05:30) to `theater/configs`.
 
 ## Backups
 

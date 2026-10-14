@@ -1,0 +1,121 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: lazylibrarian
+  name: lazylibrarian
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lazylibrarian
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        homelab.lilalala.com/config-version: "1"
+      labels:
+        app.kubernetes.io/name: lazylibrarian
+    spec:
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: PUID
+          value: "1000"
+        - name: PGID
+          value: "1000"
+        - name: UMASK
+          value: "002"
+        image: lscr.io/linuxserver/lazylibrarian:39a35970-ls371
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /arr/lazylibrarian/auth/login
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+        name: lazylibrarian
+        ports:
+        - containerPort: 5299
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /arr/lazylibrarian/auth/login
+            port: http
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 1Gi
+          requests:
+            cpu: 50m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /data
+          name: data
+      initContainers:
+      - command:
+        - python3
+        - /managed/apply.py
+        envFrom:
+        - secretRef:
+            name: lazylibrarian
+        image: lscr.io/linuxserver/lazylibrarian:39a35970-ls371
+        imagePullPolicy: IfNotPresent
+        name: apply-config
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /managed
+          name: managed
+          readOnly: true
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: lazylibrarian-config
+      - name: data
+        nfs:
+          path: /mnt/homelab/k8s/nfs
+          server: 192.168.1.228
+      - configMap:
+          name: lazylibrarian-config
+        name: managed

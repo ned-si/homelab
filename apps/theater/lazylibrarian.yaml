@@ -1,0 +1,222 @@
+# LazyLibrarian: finds ebooks and audiobooks and sends them to qBittorrent.
+# https://theater.lilalala.com/arr/lazylibrarian, its own form login like the
+# *arr apps (no OIDC support). Setup and policy: docs/books.md.
+#
+# Readarr is retired upstream (archived, its metadata service is gone), so
+# this is the acquisition app for books.
+#
+# In `theater`, not `books`: it sits with qBittorrent, Prowlarr and the *arr
+# apps, and mounts the share root like they do, so finished downloads under
+# /data/torrents can be hardlinked into /data/books.
+#
+#   ebooks      qBittorrent category `ebooks` -> /data/books/ingest, which
+#               Calibre-Web Automated imports into the library
+#   audiobooks  qBittorrent category `audiobooks` -> /data/books/audiobooks,
+#               the Audiobookshelf library
+#
+# Indexers come from Prowlarr: only public indexers tagged `books` are synced
+# (docs/theater.md, "Indexers").
+#
+# The settings below are written into config.ini by an init container on
+# every start, so the UI cannot drift them; everything else is the UI's.
+# Bump `config-version` when managed.conf changes, to restart the pod.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: lazylibrarian-config
+  namespace: theater
+data:
+  # section.key=value, one per line. ${NAME} comes from the Secret
+  # `lazylibrarian` (apps/secrets/lazylibrarian.sops.yaml).
+  managed.conf: |
+    General.launch_browser=0
+    General.ebook_dir=/data/books/ingest
+    General.audio_dir=/data/books/audiobooks
+    General.download_dir=/data/torrents
+    General.ebook_tab=1
+    General.audio_tab=1
+    General.auth_type=FORM
+    WebServer.http_port=5299
+    WebServer.http_root=/arr/lazylibrarian
+    WebServer.http_user=${HTTP_USER}
+    WebServer.http_pass=${HTTP_PASS}
+    API.api_enabled=1
+    API.api_key=${API_KEY}
+    TORRENT.tor_downloader_qbittorrent=1
+    TORRENT.keep_seeding=1
+    QBITTORRENT.qbittorrent_host=qbittorrent.theater.svc.cluster.local
+    QBITTORRENT.qbittorrent_port=8080
+    QBITTORRENT.qbittorrent_user=${QBITTORRENT_USER}
+    QBITTORRENT.qbittorrent_pass=${QBITTORRENT_PASS}
+    QBITTORRENT.qbittorrent_label=ebooks,audiobooks
+  apply.py: |
+    # Write managed.conf into /config/config.ini; keep every other setting.
+    # LazyLibrarian reads keys case-insensitively and writes them lower case.
+    import configparser, os, string
+    path = "/config/config.ini"
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.optionxform = str.lower
+    cp.read(path)
+    for line in open("/managed/managed.conf"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        key, value = line.split("=", 1)
+        section, option = key.split(".", 1)
+        if not cp.has_section(section):
+            cp.add_section(section)
+        cp.set(section, option.lower(), string.Template(value).substitute(os.environ))
+    with open(path + ".new", "w") as f:
+        cp.write(f)
+    os.replace(path + ".new", path)
+    print("config.ini: managed settings applied")
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: lazylibrarian
+  name: lazylibrarian
+  namespace: theater
+spec:
+  replicas: 1
+  # One RWO config volume: a rolling update would hang on the attach.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lazylibrarian
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lazylibrarian
+      annotations:
+        homelab.lilalala.com/config-version: "1"
+    spec:
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: apply-config
+          # renovate: datasource=docker depName=lscr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
+          image: lscr.io/linuxserver/lazylibrarian:39a35970-ls371
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "/managed/apply.py"]
+          envFrom:
+            - secretRef:
+                name: lazylibrarian
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: managed
+              mountPath: /managed
+              readOnly: true
+      containers:
+        - name: lazylibrarian
+          # Starts as root (s6-overlay), then drops to PUID/PGID.
+          # renovate: datasource=docker depName=lscr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
+          image: lscr.io/linuxserver/lazylibrarian:39a35970-ls371
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            - name: UMASK
+              value: "002"
+          ports:
+            - name: http
+              containerPort: 5299
+              protocol: TCP
+          # Ready = answers on the endpoint the PostSync smoke test checks:
+          # the login page, which is exempt from authentication.
+          readinessProbe:
+            httpGet:
+              path: /arr/lazylibrarian/auth/login
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /arr/lazylibrarian/auth/login
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: lazylibrarian-config
+        # The share root, inline like the *arr apps: torrents/ and books/ on
+        # one mount, so imports can be hardlinks. SITE-SPECIFIC: the NAS.
+        - name: data
+          nfs:
+            server: 192.168.1.228
+            path: /mnt/homelab/k8s/nfs
+        - name: managed
+          configMap:
+            name: lazylibrarian-config
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: lazylibrarian-config
+  namespace: theater
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: lazylibrarian
+  name: lazylibrarian
+  namespace: theater
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5299
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: lazylibrarian

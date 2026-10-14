@@ -1,0 +1,97 @@
+# LazyLibrarian's /config (config.ini and its SQLite database), nightly, to the
+# shared theater repository, with the same script as the other config jobs
+# (./backup.yaml, `theater-backup-scripts`). Pruned by `theater-configs-prune`.
+#
+# The database is a live SQLite file and may be torn in a copy; LazyLibrarian
+# also writes its own backup under /config/backup every 30 days.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: theater-config-backup-lazylibrarian
+  namespace: theater
+spec:
+  # After the books jobs (05:10, 05:20); the theater slots end at 05:00.
+  schedule: "30 5 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-lazylibrarian
+        spec:
+          restartPolicy: OnFailure
+          # `lazylibrarian-config` is ReadWriteOnce: run next to the app.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: lazylibrarian
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - /scripts/backup-config.sh
+                - lazylibrarian
+                - /config
+                - --exclude=/config/cache
+                - --exclude=/config/log
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic's temp pack files; /tmp is read-only here.
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: theater-backup-scripts
+                defaultMode: 0755
+            - name: config
+              persistentVolumeClaim:
+                claimName: lazylibrarian-config
+                readOnly: true
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi
