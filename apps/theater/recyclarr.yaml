@@ -142,7 +142,7 @@ spec:
           containers:
             - name: recyclarr
               # renovate: datasource=docker depName=ghcr.io/recyclarr/recyclarr
-              image: ghcr.io/recyclarr/recyclarr:8.7.3
+              image: ghcr.io/recyclarr/recyclarr:8.8
               imagePullPolicy: IfNotPresent
               args: ["sync"]
               env:
