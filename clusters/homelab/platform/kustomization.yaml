@@ -10,3 +10,4 @@ resources:
   - kube-prometheus-stack.yaml
   - blackbox-exporter.yaml
   - keycloak.yaml
+  - agent-access.yaml

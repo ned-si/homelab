@@ -1,0 +1,61 @@
+# Read-only Kubernetes access for automation that inspects the cluster
+# (coding agents, MCP servers). It can read what `view` grants plus nodes, and
+# nothing else: `view` excludes Secrets, so no Secret value is readable, and it
+# has no exec, port-forward or proxy.
+#
+# The token is the long-lived ServiceAccount token below, filled in by the
+# token controller (the manifest carries no data). Extract it into a
+# kubeconfig outside the repository; docs/secrets.md has the commands.
+# Revoke: delete the Secret (Argo CD recreates it with a new token).
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-readonly
+  namespace: kube-system
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: agent-readonly-token
+  namespace: kube-system
+  annotations:
+    kubernetes.io/service-account.name: agent-readonly
+type: kubernetes.io/service-account-token
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-readonly-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: view
+subjects:
+  - kind: ServiceAccount
+    name: agent-readonly
+    namespace: kube-system
+---
+# `view` is namespaced in spirit: it grants no cluster-scoped kinds.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: agent-readonly-nodes
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: agent-readonly-nodes
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: agent-readonly-nodes
+subjects:
+  - kind: ServiceAccount
+    name: agent-readonly
+    namespace: kube-system
