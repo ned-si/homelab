@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/iscsi-volumes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/iscsi-volumes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: pvc-50d17d24-086b-4145-86f6-4e8488de04db
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 5Gi
+  claimRef:
+    name: lidarr-config
+    namespace: theater
+  csi:
+    controllerExpandSecretRef:
+      name: controller-expand-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    controllerPublishSecretRef:
+      name: controller-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    driver: org.democratic-csi.iscsi
+    fsType: xfs
+    nodePublishSecretRef:
+      name: node-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodeStageSecretRef:
+      name: node-stage-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    volumeAttributes:
+      interface: ""
+      iqn: iqn.2005-10.org.freenas.ctl:csi-pvc-50d17d24-086b-4145-86f6-4e8488de04db-cluster
+      lun: "0"
+      node_attach_driver: iscsi
+      portal: 192.168.1.228:3260
+      portals: ""
+      provisioner_driver: freenas-iscsi
+    volumeHandle: pvc-50d17d24-086b-4145-86f6-4e8488de04db
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  volumeMode: Filesystem

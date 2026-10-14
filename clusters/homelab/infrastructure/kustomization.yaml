@@ -5,7 +5,8 @@ kind: Kustomization
 #
 #   -30  namespaces        namespace inventory (PSA warn/audit labels)
 #   -25  secrets           SOPS-decrypted Secrets (needs the namespaces above)
-#   -20  gateway-api       Gateway API CRDs v1.2.0 (experimental channel)
+#   -20  gateway-api       Gateway API CRDs v1.6.3 (experimental channel)
+#   -15  argocd            Argo CD's own release; auto-sync, no prune
 #   -10  cilium            CNI; auto-sync, no prune
 #    -5  cilium-config     LB IP pools + L2 announcement policy
 #     0  cert-manager      its CRDs must be established before issuers appear
@@ -13,6 +14,7 @@ kind: Kustomization
 #    10  external-dns      publishes the public hostnames
 #    15  gateway           the shared Gateway on .254 (ADR 0007)
 #    20  democratic-csi    iSCSI CSI driver + StorageClasses; auto-sync, no prune
+#    25  iscsi-volumes     static PVs of the existing data zvols; no prune
 #
 # Kept in git, not part of the layer yet (each is new behaviour and ships in
 # its own change, ADR 0002):
@@ -24,6 +26,7 @@ kind: Kustomization
 resources:
   - namespaces.yaml
   - secrets.yaml
+  - argocd.yaml
   - gateway-api.yaml
   - cilium.yaml
   - cilium-config.yaml
@@ -32,3 +35,4 @@ resources:
   - external-dns.yaml
   - gateway.yaml
   - democratic-csi.yaml
+  - iscsi-volumes.yaml

@@ -1,0 +1,67 @@
+# Argo CD manages its own Helm release.
+#
+# The bootstrap installs the release `argocd` once with the helm CLI
+# (docs/bootstrap.md), then this Application adopts it with the same release
+# name, namespace and values file, so every object keeps its name. From then
+# on an Argo CD upgrade or a change to bootstrap/argocd-values.yaml is a pull
+# request like any other. CI (repo-policy `bootstrap-chart-versions`) keeps the
+# chart version equal to ci/helm-releases.yaml, which the bootstrap reads.
+#
+# Automated sync with self-heal, but NO prune: a pruned CRD would delete every
+# Application, and a pruned Deployment or ConfigMap would stop the controller
+# that could put it back.
+#
+# BREAK-GLASS. If a sync breaks Argo CD itself, it cannot repair itself:
+#   git show <last-good-sha>:bootstrap/argocd-values.yaml > /tmp/hv.yaml
+#   helm upgrade argocd argo-cd --repo https://argoproj.github.io/argo-helm \
+#     --version <chart at that sha> -n argo -f /tmp/hv.yaml --wait --timeout 10m
+# then revert the change on main; selfHeal converges on the reverted state.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "-15"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
+      targetRevision: 10.10.3
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/bootstrap/argocd-values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # A sync keeps the live value of every field ignored below.
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    # Argo CD writes server.secretkey and the admin password into it, and the
+    # Keycloak client secret is added by hand (docs/bootstrap.md step 6).
+    - group: ""
+      kind: Secret
+      name: argocd-secret
+      namespace: argo
+      jsonPointers:
+        - /data

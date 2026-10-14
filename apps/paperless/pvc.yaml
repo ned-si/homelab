@@ -14,6 +14,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
+  # The existing zvol (infrastructure/iscsi-volumes/).
+  volumeName: pvc-d028eb83-d038-4e51-b74c-9e5d23b296b0
   accessModes:
     - ReadWriteOnce
   resources:
@@ -29,6 +31,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
+  # The existing zvol (infrastructure/iscsi-volumes/).
+  volumeName: pvc-acdb98bd-8656-4ed3-9d91-fd24601b04f9
   accessModes:
     - ReadWriteOnce
   resources:
@@ -44,6 +48,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
+  # The existing zvol (infrastructure/iscsi-volumes/).
+  volumeName: pvc-5af3ee9f-77d6-4f43-8cc6-e67dd34f4b11
   accessModes:
     - ReadWriteOnce
   resources:

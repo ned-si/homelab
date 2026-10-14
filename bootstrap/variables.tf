@@ -70,14 +70,3 @@ variable "argocd_namespace" {
   type        = string
   default     = "argo"
 }
-
-variable "api_server_ip" {
-  description = <<-EOT
-    Kubernetes API server VIP, needed by Cilium's kube-proxy replacement.
-
-    SITE-SPECIFIC: this changes if the LAN subnet changes. It must match
-    `k8sServiceHost` in infrastructure/cilium/values.yaml.
-  EOT
-  type        = string
-  default     = "192.168.1.11"
-}

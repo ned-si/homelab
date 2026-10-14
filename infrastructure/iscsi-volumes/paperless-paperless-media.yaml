@@ -1,0 +1,44 @@
+# paperless/paperless-media: the existing TrueNAS zvol, bound statically on Talos.
+# Generated from the live PV; see kustomization.yaml in this directory.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pvc-acdb98bd-8656-4ed3-9d91-fd24601b04f9
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  volumeMode: Filesystem
+  claimRef:
+    namespace: paperless
+    name: paperless-media
+  csi:
+    driver: org.democratic-csi.iscsi
+    volumeHandle: pvc-acdb98bd-8656-4ed3-9d91-fd24601b04f9
+    fsType: xfs
+    volumeAttributes:
+      interface: ""
+      iqn: "iqn.2005-10.org.freenas.ctl:csi-pvc-acdb98bd-8656-4ed3-9d91-fd24601b04f9-cluster"
+      lun: "0"
+      node_attach_driver: "iscsi"
+      portal: "192.168.1.228:3260"
+      portals: ""
+      provisioner_driver: "freenas-iscsi"
+    controllerExpandSecretRef:
+      name: controller-expand-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    controllerPublishSecretRef:
+      name: controller-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodePublishSecretRef:
+      name: node-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodeStageSecretRef:
+      name: node-stage-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi

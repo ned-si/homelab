@@ -16,6 +16,18 @@ metadata:
   name: lidarr-postgresql
   namespace: theater
 spec:
+  bootstrap:
+    recovery:
+      database: app
+      owner: app
+      source: origin
+  externalClusters:
+  - name: origin
+    plugin:
+      name: barman-cloud.cloudnative-pg.io
+      parameters:
+        barmanObjectName: cnpg-backup
+        serverName: lidarr-postgresql
   imageName: ghcr.io/cloudnative-pg/postgresql:18.6
   instances: 1
   plugins:
@@ -24,5 +36,6 @@ spec:
     name: barman-cloud.cloudnative-pg.io
     parameters:
       barmanObjectName: cnpg-backup
+      serverName: lidarr-postgresql-t1
   storage:
     size: 5Gi

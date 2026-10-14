@@ -30,9 +30,9 @@ resource "kubernetes_namespace_v1" "argocd" {
 # 1. Cilium
 #
 # Installed here, then ADOPTED by the `cilium` Argo CD Application which reads
-# the same values file. So this is the only bootstrap step that is intentionally
-# duplicated in git -- and because both read
-# infrastructure/cilium/values.yaml, they cannot drift.
+# the same values file, so the two cannot drift. Argo CD (step 3 below) is
+# adopted the same way. The Gateway API CRDs must exist before this runs (Cilium checks
+# for them at startup): docs/bootstrap.md step 3.
 # ---------------------------------------------------------------------------
 resource "helm_release" "cilium" {
   name       = "cilium"
@@ -41,17 +41,12 @@ resource "helm_release" "cilium" {
   # Must match ci/helm-releases.yaml (the bootstrap version) and
   # clusters/homelab/infrastructure/cilium.yaml; CI checks the latter.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-  version   = "1.17.18"
+  version   = "1.20.2"
   namespace = "kube-system"
 
+  # No overrides: the values file reaches the API through Talos KubePrism
+  # (localhost:7445), which does not depend on the LAN or the VIP.
   values = [file("${path.module}/../infrastructure/cilium/values.yaml")]
-
-  # The API VIP lives in a variable so the bootstrap can be pointed at a new LAN
-  # without editing the shared values file first.
-  set = [{
-    name  = "k8sServiceHost"
-    value = var.api_server_ip
-  }]
 
   wait          = true
   wait_for_jobs = true
@@ -104,6 +99,9 @@ resource "kubernetes_secret_v1" "repo_credentials" {
 
 # ---------------------------------------------------------------------------
 # 3. Argo CD
+#
+# Adopted afterwards by the `argocd` Application
+# (clusters/homelab/infrastructure/argocd.yaml), same release and values file.
 # ---------------------------------------------------------------------------
 resource "helm_release" "argocd" {
   name       = "argocd"

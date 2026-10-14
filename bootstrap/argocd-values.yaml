@@ -1,12 +1,9 @@
-# Helm values for the `argocd` release (namespace `argo`), chart argo-cd 10.2.2
-# (Argo CD v3.4.6). The release is managed with the helm CLI, not by an Argo
-# CD Application, so merging a change here has no live effect on its own.
-#
-# Apply only from a CI-green commit on main, never from a working tree:
-#   git show <sha>:bootstrap/argocd-values.yaml > /tmp/hv.yaml   (mode 600)
-#   helm upgrade argocd argo/argo-cd --version <ci/helm-releases.yaml> \
-#     -n argo -f /tmp/hv.yaml --wait --timeout 10m
-# No --set, no --reuse-values: this file is the whole configuration.
+# Helm values for the `argocd` release (namespace `argo`), chart argo-cd
+# 10.10.3 (Argo CD 3.5). The bootstrap installs the release with the helm CLI
+# and this file (docs/bootstrap.md); the Application
+# clusters/homelab/infrastructure/argocd.yaml then adopts it, so a change
+# merged here rolls Argo CD. No --set, no --reuse-values anywhere: this file is
+# the whole configuration. Break-glass `helm upgrade`: see that Application.
 #
 # Every key of the live argocd-cm, argocd-rbac-cm and argocd-cmd-params-cm
 # is reproduced below, including the argocd-cm keys that were set outside

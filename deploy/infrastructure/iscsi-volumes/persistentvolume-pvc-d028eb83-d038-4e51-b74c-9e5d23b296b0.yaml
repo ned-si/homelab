@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/iscsi-volumes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/iscsi-volumes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: pvc-d028eb83-d038-4e51-b74c-9e5d23b296b0
+spec:
+  accessModes:
+  - ReadWriteOnce
+  capacity:
+    storage: 4Gi
+  claimRef:
+    name: paperless-data
+    namespace: paperless
+  csi:
+    controllerExpandSecretRef:
+      name: controller-expand-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    controllerPublishSecretRef:
+      name: controller-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    driver: org.democratic-csi.iscsi
+    fsType: xfs
+    nodePublishSecretRef:
+      name: node-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodeStageSecretRef:
+      name: node-stage-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    volumeAttributes:
+      interface: ""
+      iqn: iqn.2005-10.org.freenas.ctl:csi-pvc-d028eb83-d038-4e51-b74c-9e5d23b296b0-cluster
+      lun: "0"
+      node_attach_driver: iscsi
+      portal: 192.168.1.228:3260
+      portals: ""
+      provisioner_driver: freenas-iscsi
+    volumeHandle: pvc-d028eb83-d038-4e51-b74c-9e5d23b296b0
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  volumeMode: Filesystem

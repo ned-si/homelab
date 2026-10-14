@@ -1,14 +1,21 @@
 # Every namespace the layered tree deploys into, declared in one place.
 #
-# PARITY (ADR 0002). Every namespace below already exists on the cluster with
-# no Pod Security labels. Adopting this file adds only `warn` and `audit`
-# labels: admission keeps accepting every pod, and a pod that would fail the
-# level shows up as a warning and an audit event instead. `enforce` is set on
-# exactly one namespace, `gateway`, which is new and holds no pods (Cilium's
-# Envoy runs in kube-system).
+# Pod Security. Talos configures the admission plugin to ENFORCE `baseline`
+# in every namespace without an `enforce` label (kube-system is exempt). The
+# `warn` and `audit` labels below are the target level for each namespace;
+# a pod that would fail it shows up as a warning and an audit event.
 #
-# The levels are the target for each namespace. Moving one to `enforce` is its
-# own change, after the audit events for that namespace are clean.
+# `enforce` is set where baseline is wrong:
+#   gateway         restricted: new, holds no pods (Cilium's Envoy runs in
+#                   kube-system).
+#   democratic-csi  privileged: the node plugin needs host namespaces,
+#                   hostPath and privileged containers to attach iSCSI disks.
+#   monitoring      privileged: node-exporter needs host namespaces, hostPath
+#                   and a hostPort.
+# Every other namespace passes baseline today (server dry-run of
+# `enforce=baseline` against each namespace, 2026-10-13: no warnings outside
+# the two above). Moving one to `enforce: restricted` is its own change, after
+# its audit events are clean.
 #
 # `argocd.argoproj.io/sync-options: Delete=false,Prune=false`: Argo CD never
 # deletes a namespace, even if it disappears from git.
@@ -51,6 +58,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/warn: privileged
     pod-security.kubernetes.io/audit: privileged
 ---
@@ -71,6 +79,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/warn: privileged
     pod-security.kubernetes.io/audit: privileged
 ---

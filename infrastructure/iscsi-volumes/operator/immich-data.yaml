@@ -1,0 +1,80 @@
+# immich/immich-data: the photo library (2Ti zvol on TrueNAS), bound
+# statically on the Talos cluster.
+#
+# APPLIED BY HAND, ON THE OPERATOR'S GO, AND BY NOTHING ELSE. This directory
+# has no kustomization.yaml, so neither scripts/render-deploy.sh nor Argo CD
+# ever reads it, and CI (repo-policy pvc-sync-options) fails any render that
+# contains PVC immich/immich-data. Do not add it to a kustomization.
+#
+# When (docs/bootstrap.md, step 7), with the old cluster powered off and the
+# NAS showing no iSCSI session for this target:
+#
+#   kubectl apply --server-side -f infrastructure/iscsi-volumes/operator/immich-data.yaml
+#   kubectl -n immich get pvc immich-data
+#
+# Expected: `persistentvolume/... serverside-applied`,
+# `persistentvolumeclaim/immich-data serverside-applied`, then the claim
+# `Bound` to pvc-b9d3e7d8-0d3e-43d4-b8d3-8f212ede0ea6. Any other volume name
+# means the class provisioned a new, empty volume: scale Immich to 0 and stop.
+#
+# The PV is generated from the live object: same volumeHandle and iSCSI target,
+# reclaimPolicy Retain, so deleting either object never deletes the zvol. The
+# claim is apps/immich/resources/library-pvc.yaml plus `volumeName`.
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pvc-b9d3e7d8-0d3e-43d4-b8d3-8f212ede0ea6
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  capacity:
+    storage: 2Ti
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: iscsi
+  volumeMode: Filesystem
+  claimRef:
+    namespace: immich
+    name: immich-data
+  csi:
+    driver: org.democratic-csi.iscsi
+    volumeHandle: pvc-b9d3e7d8-0d3e-43d4-b8d3-8f212ede0ea6
+    fsType: xfs
+    volumeAttributes:
+      interface: ""
+      iqn: "iqn.2005-10.org.freenas.ctl:csi-pvc-b9d3e7d8-0d3e-43d4-b8d3-8f212ede0ea6-cluster"
+      lun: "0"
+      node_attach_driver: "iscsi"
+      portal: "192.168.1.228:3260"
+      portals: ""
+      provisioner_driver: "freenas-iscsi"
+    controllerExpandSecretRef:
+      name: controller-expand-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    controllerPublishSecretRef:
+      name: controller-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodePublishSecretRef:
+      name: node-publish-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+    nodeStageSecretRef:
+      name: node-stage-secret-iscsi-iscsi-democratic-csi
+      namespace: democratic-csi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-data
+  namespace: immich
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  volumeName: pvc-b9d3e7d8-0d3e-43d4-b8d3-8f212ede0ea6
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Ti

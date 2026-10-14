@@ -37,8 +37,9 @@ objects and rule ids only; values are never printed.
   root-profiles         clusters/homelab/root.yaml and bootstrap/root-app.yaml pass
                         `root` and are the same Application;
                         clusters/homelab/legacy/all-apps.yaml passes `legacy-root`
-  cilium-version        the cilium Application's chart version equals the cilium
-                        entry of ci/helm-releases.yaml
+  bootstrap-chart-versions  the chart version of each Application that adopts a
+                        bootstrap release (cilium, argocd) equals its entry in
+                        ci/helm-releases.yaml
   cnpg-backup           every rendered CNPG Cluster archives WAL through the Barman
                         Cloud plugin, has a ScheduledBackup and references a
                         rendered ObjectStore in its namespace; no Cluster uses
@@ -66,6 +67,8 @@ CONTROLLER_ANN = "external-dns.alpha.kubernetes.io/controller"
 SYNC_OPTS_ANN = "argocd.argoproj.io/sync-options"
 IMMICH_DB_IMAGE = "ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0"
 CNPG_PLUGIN = "barman-cloud.cloudnative-pg.io"
+# Applications that adopt a release the bootstrap installs with the helm CLI: name -> chart.
+BOOTSTRAP_CHARTS = {"cilium": "cilium", "argocd": "argo-cd"}
 GUARD_CMD = ["/bin/sh", "/guard/pending-guard.sh"]
 GUARD_MODES = {"restic", "s3-creds", "always-block"}
 LEGACY_PREFIXES = ("kubernetes/applications/", "iac/")
@@ -344,33 +347,37 @@ class Policy:
         if a is not None and b is not None and a != b:
             self.fail("root-profiles", "bootstrap/root-app.yaml is not the same Application as clusters/homelab/root.yaml")
 
-    def rule_cilium_version(self) -> None:
+    def rule_bootstrap_chart_versions(self) -> None:
+        rule = "bootstrap-chart-versions"
         hr = self.root / "ci/helm-releases.yaml"
         app_files = sorted((self.root / "clusters/homelab/infrastructure").glob("*.y*ml")) \
             if (self.root / "clusters/homelab/infrastructure").is_dir() else []
         if not hr.is_file() or not app_files:
             return
-        want = None
+        want: dict[str, str] = {}
         docs = yaml_file_docs(hr)
         if docs:
             top = docs[0]
             entries = top.get("releases") if isinstance(top.get("releases"), list) else \
                 [dict(v, name=k) for k, v in top.items() if isinstance(v, dict)]
             for ent in entries:
-                if (ent.get("name") or ent.get("release")) == "cilium":
-                    want = str(ent.get("version", "")).lstrip("v")
+                name = ent.get("name") or ent.get("release")
+                if name in BOOTSTRAP_CHARTS:
+                    want[name] = str(ent.get("version", "")).lstrip("v")
         for f in app_files:
             for d in yaml_file_docs(f):
-                if d.get("kind") != "Application" or self.name_of(d) != "cilium":
+                name = self.name_of(d)
+                if d.get("kind") != "Application" or name not in BOOTSTRAP_CHARTS:
                     continue
-                self.on("cilium-version")
+                self.on(rule)
+                chart = BOOTSTRAP_CHARTS[name]
                 spec = d.get("spec") or {}
                 srcs = spec.get("sources") or ([spec["source"]] if spec.get("source") else [])
-                got = [str(s.get("targetRevision", "")).lstrip("v") for s in srcs if s.get("chart") == "cilium"]
-                if want is None:
-                    self.fail("cilium-version", "ci/helm-releases.yaml has no cilium entry")
-                elif got != [want]:
-                    self.fail("cilium-version", f"{f.relative_to(self.root)}: cilium chart {got} != ci/helm-releases.yaml {want}")
+                got = [str(s.get("targetRevision", "")).lstrip("v") for s in srcs if s.get("chart") == chart]
+                if name not in want:
+                    self.fail(rule, f"ci/helm-releases.yaml has no {name} entry")
+                elif got != [want[name]]:
+                    self.fail(rule, f"{f.relative_to(self.root)}: {chart} chart {got} != ci/helm-releases.yaml {want[name]}")
 
     def rule_cnpg_backup(self) -> None:
         clusters: dict[tuple[str, str], tuple[str, dict]] = {}
@@ -436,7 +443,7 @@ class Policy:
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_cronjobs,
-                     self.rule_root_profiles, self.rule_cilium_version, self.rule_cnpg_backup,
+                     self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_expected_ingresses):
             rule()
         for f in self.fails:

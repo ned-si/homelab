@@ -21,3 +21,5 @@ spec:
   resources:
     requests:
       storage: 10Gi
+  storageClassName: iscsi
+  volumeName: pvc-2ed5ccbe-1e8d-4ab4-9ba1-8ac0bd74a126

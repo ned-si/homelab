@@ -22,3 +22,4 @@ spec:
     requests:
       storage: 5Gi
   storageClassName: iscsi
+  volumeName: pvc-f52fca53-82a4-42b7-9bf0-e5630dfcfa4c

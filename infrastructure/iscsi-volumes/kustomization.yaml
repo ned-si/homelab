@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Static PersistentVolumes for every Retain data volume on TrueNAS, so a new
+# cluster binds each claim to its existing zvol instead of provisioning an
+# empty one.
+#
+# Each PV is generated from the live object of the cluster that created it:
+# same name, `volumeHandle` and `volumeAttributes` (iSCSI target and portal),
+# the democratic-csi secret refs of release `iscsi`, reclaimPolicy Retain, and
+# a `claimRef` with namespace and name only. Dropped: uid, resourceVersion,
+# status, annotations, and `csiProvisionerIdentity` (informational). Each
+# claim sets `volumeName` to its PV and keeps `storageClassName: iscsi`, so
+# the class never provisions a new volume for it.
+#
+# Claims are defined where they were: apps/{mealie,paperless,seafile,syncthing,
+# theater}/. Prometheus's claim is here (monitoring-prometheus-db.yaml).
+#
+# NOT RENDERED, on purpose:
+#   operator/immich-data.yaml  the photo library PV and PVC. Applied by hand on
+#                              the operator's go (docs/bootstrap.md); CI
+#                              (repo-policy pvc-sync-options) fails any render
+#                              containing PVC immich/immich-data.
+#
+# Not here: the CNPG data volumes (each Cluster recovers from the object store
+# into a new volume; the old zvols stay on the NAS as a fallback) and the
+# Delete-policy caches (immich-machine-learning-cache, jellyfin-cache,
+# plex-transcode), which are re-provisioned empty.
+resources:
+  - mealie-mealie-pvc.yaml
+  - monitoring-prometheus-db.yaml
+  - paperless-paperless-consume.yaml
+  - paperless-paperless-data.yaml
+  - paperless-paperless-media.yaml
+  - seafile-mariadb-pvc.yaml
+  - seafile-seafile-pvc.yaml
+  - syncthing-syncthing-pvc.yaml
+  - theater-jellyfin-config.yaml
+  - theater-lidarr-config.yaml
+  - theater-plex-config.yaml
+  - theater-prowlarr-config.yaml
+  - theater-qbittorrent-config.yaml
+  - theater-radarr-config.yaml
+  - theater-sonarr-config.yaml

@@ -179,21 +179,6 @@
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
     },
     {
-      // EXCEPTION: an update that needs a step Renovate cannot make. Cilium
-      // 1.18 and later cannot load its host datapath on the nodes' kernel
-      // (5.10.160-rockchip): the BPF verifier rejects
-      // tail_nodeport_nat_egress_ipv4 on every node. Cilium 1.17 supports
-      // Gateway API v1.2. Lift both caps together after a node kernel upgrade.
-      description: 'Cap Cilium at 1.17 until the node kernel is upgraded',
-      matchDepNames: ['cilium'],
-      allowedVersions: '<1.18.0',
-    },
-    {
-      description: 'Cap Gateway API at v1.2 while Cilium is capped at 1.17',
-      matchDepNames: ['kubernetes-sigs/gateway-api'],
-      allowedVersions: '<1.3.0',
-    },
-    {
       // The *arr apps and qBittorrent share a download-client credential
       // contract. Bumping qBittorrent alone is what broke this cluster once.
       description: 'theater stack moves as one unit',
@@ -246,18 +231,10 @@
     },
     {
       // kubectl supports one minor of skew against the API server. Move with
-      // the cluster (K8S_VERSION in .github/workflows/ci.yaml).
-      description: 'Keep kubectl images on the cluster minor (1.32)',
+      // the cluster (kubernetesVersion in talos/talconfig.yaml).
+      description: 'Keep kubectl images within one minor of the cluster (1.37)',
       matchPackageNames: ['registry.k8s.io/kubectl', 'bitnami/kubectl'],
-      allowedVersions: '<1.33.0',
-    },
-    {
-      // Argo CD 3.5 (chart >= 10.2.3) is tested on Kubernetes 1.33-1.36; the
-      // cluster runs 1.32. 10.2.2 is the last chart on Argo CD 3.4. Lift with
-      // the move to Talos.
-      description: 'Cap Argo CD at 3.4 while the cluster is on Kubernetes 1.32',
-      matchDepNames: ['argo-cd'],
-      allowedVersions: '<10.2.3',
+      allowedVersions: '<1.39.0',
     },
     {
       // A CNPG major runs pg_upgrade: new system ID, timeline back to 1. The
