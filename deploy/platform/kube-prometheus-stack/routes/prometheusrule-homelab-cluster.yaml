@@ -175,7 +175,7 @@ spec:
         summary: '{{ $labels.instance }} {{ $labels.mountpoint }} is over 85% full'
       expr: |
         (
-          node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+          node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"}
           / node_filesystem_size_bytes
         ) < 0.15
         and on (instance, mountpoint) (
@@ -189,7 +189,7 @@ spec:
         summary: '{{ $labels.instance }} {{ $labels.mountpoint }} is over 92% full'
       expr: |
         (
-          node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+          node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"}
           / node_filesystem_size_bytes
         ) < 0.08
       for: 10m
@@ -202,7 +202,7 @@ spec:
           -- confirm which before rebooting anything.
         summary: '{{ $labels.instance }} remounted {{ $labels.mountpoint }} READ-ONLY'
       expr: |
-        node_filesystem_readonly{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
+        node_filesystem_readonly{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
       for: 5m
       labels:
         severity: critical
@@ -214,7 +214,7 @@ spec:
           inodes free'
       expr: |
         (
-          node_filesystem_files_free{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+          node_filesystem_files_free{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"}
           / node_filesystem_files
         ) < 0.10
       for: 30m
@@ -260,10 +260,10 @@ spec:
         severity: warning
     - alert: CertManagerMetricsAbsent
       annotations:
-        description: 'No certificate expiry series exists, so every certificate alert
+        description: No certificate expiry series exists, so every certificate alert
           is inert and the next expiry will be a surprise. Check `kubectl -n cert-manager
-          get servicemonitor` and that Prometheus still has serviceMonitorSelectorNilUsesHelmValues:
-          false.'
+          get servicemonitor --show-labels` for release=kube-prometheus-stack, and
+          the target in Prometheus.
         summary: cert-manager metrics are not being scraped
       expr: |
         absent(certmanager_certificate_expiration_timestamp_seconds)
@@ -294,7 +294,7 @@ spec:
           ''nothing is being sent'', and there is one action either way.'
         summary: Alertmanager has sent nothing in 6 hours
       expr: |
-        increase(alertmanager_notifications_total[6h]) == 0
+        sum(increase(alertmanager_notifications_total[6h])) == 0
         or absent(alertmanager_notifications_total)
       for: 1h
       labels:

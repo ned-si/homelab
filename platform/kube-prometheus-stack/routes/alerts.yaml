@@ -20,8 +20,9 @@
 #                           (kube-state-metrics only knows the requested size).
 #   certmanager_*           cert-manager; needs both `prometheus.enabled` and
 #                           `prometheus.servicemonitor.enabled` in
-#                           infrastructure/cert-manager/values.yaml, plus
-#                           serviceMonitorSelectorNilUsesHelmValues: false.
+#                           infrastructure/cert-manager/values.yaml, plus the
+#                           `release: kube-prometheus-stack` label that
+#                           Prometheus selects ServiceMonitors by.
 #   alertmanager_*          Alertmanager (chart ServiceMonitor).
 #
 # Not available, so not used: `probe_success` (no blackbox-exporter) and any
@@ -266,12 +267,13 @@ spec:
           # node still reports Ready.
           #
           # Not scoped to one mountpoint, so a layout change cannot silently
-          # drop coverage; the fstype exclusions skip tmpfs/overlay. The filter
+          # drop coverage; the fstype exclusions skip tmpfs/overlay and the
+          # Talos read-only rootfs bind mounts (/etc/extensions.yaml). The filter
           # is on the numerator only: PromQL matches all labels by default, so
           # filtering one side filters the result, and one copy cannot drift.
           expr: |
             (
-              node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+              node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"}
               / node_filesystem_size_bytes
             ) < 0.15
             and on (instance, mountpoint) (
@@ -291,7 +293,7 @@ spec:
         - alert: NodeFilesystemCriticallyFull
           expr: |
             (
-              node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+              node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"}
               / node_filesystem_size_bytes
             ) < 0.08
           for: 10m
@@ -305,7 +307,7 @@ spec:
           # to fail. It is not a capacity problem and no fullness rule sees it;
           # the node keeps reporting Ready and everything on it slowly breaks.
           expr: |
-            node_filesystem_readonly{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
+            node_filesystem_readonly{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
           for: 5m
           labels:
             severity: critical
@@ -321,7 +323,7 @@ spec:
           # small eMMC). The symptom is ENOSPC while `df -h` shows free space.
           expr: |
             (
-              node_filesystem_files_free{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+              node_filesystem_files_free{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"}
               / node_filesystem_files
             ) < 0.10
           for: 30m
@@ -388,9 +390,9 @@ spec:
               not recover on its own -- it has to be deleted and reissued.
 
         - alert: CertManagerMetricsAbsent
-          # absent() guard for this group. If a *SelectorNilUsesHelmValues flag
-          # in ../values.yaml is reverted, Prometheus ignores cert-manager's
-          # ServiceMonitor and every rule above goes quiet.
+          # absent() guard for this group. If cert-manager's ServiceMonitor
+          # loses the `release` label Prometheus selects by, every rule above
+          # goes quiet.
           expr: |
             absent(certmanager_certificate_expiration_timestamp_seconds)
           for: 1h
@@ -401,8 +403,8 @@ spec:
             description: >-
               No certificate expiry series exists, so every certificate alert is
               inert and the next expiry will be a surprise. Check
-              `kubectl -n cert-manager get servicemonitor` and that Prometheus
-              still has serviceMonitorSelectorNilUsesHelmValues: false.
+              `kubectl -n cert-manager get servicemonitor --show-labels` for
+              release=kube-prometheus-stack, and the target in Prometheus.
 
     # =====================================================================
     # The monitoring system monitoring itself. The main defence is the
@@ -434,8 +436,11 @@ spec:
           # Watchdog route sends every 5 minutes. Flat for 6h means every route
           # leads to a null receiver, or Alertmanager is not processing alerts.
           # 6h because shorter windows are noisy across a restart.
+          #
+          # Summed: Alertmanager exports a zero counter for every integration
+          # it supports (email, slack, ...), and the unused ones stay flat.
           expr: |
-            increase(alertmanager_notifications_total[6h]) == 0
+            sum(increase(alertmanager_notifications_total[6h])) == 0
             or absent(alertmanager_notifications_total)
           for: 1h
           labels:
