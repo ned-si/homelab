@@ -1,5 +1,5 @@
 # Reboot 10 s after a kernel oops instead of hanging until someone power-cycles
-# the node from the BMC (the Ubuntu nodes run the same values).
+# the node from the BMC.
 apiVersion: v1alpha1
 kind: SysctlConfig
 params:

@@ -283,9 +283,10 @@ spec:
           annotations:
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is over 85% full"
             description: >-
-              On these nodes the root/eMMC filesystem holds kubelet and
-              containerd. Reclaim with `crictl rmi --prune` before it stops
-              being able to create containers.
+              On these nodes the eMMC holds the kubelet and containerd
+              data (/var). Find what holds it with `talosctl -n <ip> usage
+              /var --depth 2` and remove unused images with `talosctl -n <ip>
+              image remove` before it stops being able to create containers.
 
         - alert: NodeFilesystemCriticallyFull
           expr: |
