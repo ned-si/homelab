@@ -13,12 +13,11 @@ two other forwarded ports. The address table is in the README's
   forwarder. The TP-Link Decos are access points only.
 - The router cannot reserve addresses outside its pool and has no static
   routes. Every infrastructure address is therefore set on the device itself:
-  the four nodes in `/etc/netplan/01-homelab-static.yaml` (cloud-init networking
-  disabled), the NAS on its `igb0` port. Everything static lives outside the
-  DHCP pool.
+  the four nodes in their Talos machine configs
+  ([`talos/talconfig.yaml`](../talos/talconfig.yaml), `nodes[].networkInterfaces`),
+  the NAS on its `igb0` port. Everything static lives outside the DHCP pool.
 - The router's DNS forwarder answers NXDOMAIN for bare names such as
-  `kubernetes`. Anything that must resolve a short name needs `/etc/hosts`
-  first (see [kube-vip](#kubernetes-api-vip)).
+  `kubernetes`.
 - NAT loopback works: public names resolve to the WAN IP and answer from inside
   the house.
 - Port forwards:
@@ -46,44 +45,19 @@ two other forwarded ports. The address table is in the README's
 
 ## Kubernetes API VIP
 
-kube-vip v1.2.4 runs as a static pod on each control plane
-(`/etc/kubernetes/manifests/kube-vip.yaml`, written by hand; the full manifest
-is in [runbooks/node-replacement.md](runbooks/node-replacement.md#kube-vip-manifest)) and holds
-`192.168.1.11:6443` with ARP and leader election (lease `plndr-cp-lock`).
-
-The kube-vip image has no `/etc/nsswitch.conf`, so Go asks DNS before
-`/etc/hosts` for `kubernetes` and stops on the router's NXDOMAIN. Each control
-plane's manifest therefore mounts the host's `/etc/nsswitch.conf` read-only.
-`kubeadm upgrade` does not rewrite that manifest; check the mount after every
-upgrade:
+Talos holds `192.168.1.11:6443` itself: `vip.ip` on each control plane's
+interface in [`talos/talconfig.yaml`](../talos/talconfig.yaml). One control
+plane, elected through etcd, carries the address and answers ARP for it; when
+it goes down, another takes it within seconds. Without etcd quorum there is no
+VIP. `talosctl` talks to the node IPs, not the VIP
+([talos.md](talos.md#nodes)).
 
 ```sh
-for h in 192.168.1.247 192.168.1.238 192.168.1.239; do
-  printf '%s ' "$h"
-  ssh -o ConnectTimeout=5 -o BatchMode=yes nedsi@"$h" \
-    'sudo -n grep -c nsswitch /etc/kubernetes/manifests/kube-vip.yaml'
-done
+export TALOSCONFIG=talos/clusterconfig/talosconfig   # after task talos:genconfig
+talosctl -n 192.168.1.247,192.168.1.238,192.168.1.239 get addresses | grep 192.168.1.11
 ```
 
-Expected: `4` after each address (the volume and its mount). `0` means the fix
-is gone and the VIP fails after the next kube-vip restart. Add it back with
-`sudo -e /etc/kubernetes/manifests/kube-vip.yaml` (the kubelet restarts the pod
-on save):
-
-```yaml
-# append to spec.containers[0].volumeMounts
-- mountPath: /etc/nsswitch.conf
-  name: nsswitch
-  readOnly: true
-# append to spec.volumes
-- name: nsswitch
-  hostPath:
-    path: /etc/nsswitch.conf
-    type: File
-```
-
-`/root/kube-vip.yaml.bak-*` on each control plane are the manifests from before
-this fix, kept for reference.
+Expected: one line, on the control plane that holds the VIP.
 
 ## LoadBalancer IPs
 
@@ -99,18 +73,15 @@ Addresses the router forwards to are pinned with the `lbipam.cilium.io/ips`
 annotation: `.254` on the Gateway (through `spec.infrastructure.annotations`),
 `.200` on `theater/qbittorrent-seed`, `.201` on `syncthing/syncthing-protocol`.
 
-Two announcers answer ARP for these addresses:
-
-- Cilium L2 announcements (`infrastructure/cilium/l2-announcement-policy.yaml`:
-  every node, LoadBalancer IPs only), one lease per Service;
-- kube-vip with `svc_enable=true`, which binds every LoadBalancer IP on its
-  lease holder (lease `plndr-svcs-lock`) and records it in the Service
-  annotation `kube-vip.io/vipHost`.
+Cilium L2 announcements answer ARP for these addresses
+(`infrastructure/cilium/l2-announcement-policy.yaml`: every node, LoadBalancer
+IPs only), one lease per Service. The address is on no node interface; the
+lease holder answers for it.
 
 With `externalTrafficPolicy: Cluster` and kube-proxy replacement, any node that
-answers forwards correctly, so a holder change is not a fault. Choosing one
-announcer is on the [roadmap](roadmap.md). L2 announcements do not work with
-`externalTrafficPolicy: Local`; no Service here sets it.
+answers forwards correctly, so a holder change is not a fault. L2
+announcements do not work with `externalTrafficPolicy: Local`; no Service here
+sets it.
 
 ```sh
 kubectl get svc -A --field-selector spec.type=LoadBalancer
@@ -122,8 +93,9 @@ Expected: `gateway/cilium-gateway-shared` on `192.168.1.254`,
 
 ## Gateway
 
-Cilium implements the Gateway API (GatewayClass `cilium`, Gateway API v1.2
-CRDs, experimental channel, capped with Cilium below 1.18 by the node kernel, from the `gateway-api` Application). One shared
+Cilium implements the Gateway API (GatewayClass `cilium`, experimental-channel
+CRDs at the version in `infrastructure/gateway-api/kustomization.yaml`, from
+the `gateway-api` Application). One shared
 Gateway serves every public hostname (`infrastructure/gateway/`):
 
 ```
@@ -231,3 +203,6 @@ kubectl -n kube-system exec <cilium-pod-on-that-node> -c cilium-agent -- \
   drift after the next ISP address change.
 - Static addresses on the devices, not DHCP reservations: the router cannot
   reserve outside its pool.
+- The API VIP from Talos, not kube-vip: it is part of the machine config in
+  git instead of a hand-written static pod per control plane. Cilium L2
+  announcements are the only LoadBalancer announcer.

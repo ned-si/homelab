@@ -58,7 +58,7 @@ their TV apps can sign in.
 | --- | --- | --- |
 | Argo CD | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm CLI release `argocd` (chart argo-cd) in namespace `argo`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
 | Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools, Gateway API | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by hand once on a fresh cluster |
-| kube-vip | Kubernetes API VIP `192.168.1.11` | Static pods on the control planes, written by hand ([manifest](docs/runbooks/node-replacement.md#kube-vip-manifest)) |
+| Talos | OS, kubelet, etcd, control plane, Kubernetes API VIP `192.168.1.11` | Machine configs rendered from [`talos/`](talos) by talhelper, applied with `task talos:*` ([docs/talos.md](docs/talos.md)) |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
 | external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
@@ -92,7 +92,7 @@ flowchart LR
 | `192.168.1.0/24` | Home LAN |
 | `192.168.1.1` | ISP router: gateway, DHCP, DNS forwarder |
 | `192.168.1.50`-`.199` | DHCP pool |
-| `192.168.1.11` | Kubernetes API VIP (kube-vip), port 6443 |
+| `192.168.1.11` | Kubernetes API VIP (held by Talos on a control plane), port 6443 |
 | `192.168.1.247` | `homelab-cp-1` |
 | `192.168.1.238` | `homelab-cp-2` |
 | `192.168.1.239` | `homelab-cp-3` |
