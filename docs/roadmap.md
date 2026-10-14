@@ -6,8 +6,6 @@ own pull request with its own diff, test and rollback
 
 ## Networking
 
-- Choose between kube-vip `svc_enable` and Cilium L2 announcements for
-  LoadBalancer IPs (both announce today, [networking.md](networking.md#loadbalancer-ips)).
 - Enforce the CiliumNetworkPolicies (`infrastructure/network-policies/`,
   written, not in a layer), one namespace at a time.
 - Cilium WireGuard transparent encryption, then Hubble relay, UI and metrics
@@ -48,8 +46,6 @@ Renovate automerges every other update on green CI
   off-site backup of `immich-db` exists.
 - MariaDB above 10.11 and Seafile 12 (capped in `.github/renovate.json5`):
   [runbook](runbooks/seafile-mariadb-upgrade.md).
-- Cilium 1.18 and Gateway API 1.3 need a newer node kernel than
-  5.10.160-rockchip.
 - external-dns: add `--force-default-targets` before chart 1.16 and later.
 
 ## Images: next pins

@@ -98,7 +98,7 @@ held by a Renovate rule until a major bump also moves the plugin's `serverName`
 | What | Where | How |
 |---|---|---|
 | All nine databases (seven Postgres, Seafile MariaDB, Paperless SQLite) | `~/homelab-backups/<utc>/` on the machine that runs it | `task backup:dump`, by hand |
-| etcd | `/root/etcd-snapshots/` on `homelab-cp-1` and `~/homelab-backups/etcd/` | by hand before every upgrade or risky change, [runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore) |
+| etcd | `~/homelab-backups/etcd/talos-<utc>.db` | `task talos:etcd-snapshot`, by hand before every upgrade or risky change, [runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore) |
 | Cluster configuration | this repository | every manifest is in git; see [bootstrap.md](bootstrap.md) |
 
 ## RPO and RTO
