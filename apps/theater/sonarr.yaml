@@ -30,6 +30,9 @@ spec:
     - name: origin
       plugin:
         name: barman-cloud.cloudnative-pg.io
+        # Webhook defaults, stated so the server-side apply diff stays clean.
+        enabled: true
+        isWALArchiver: false
         parameters:
           barmanObjectName: cnpg-backup
           serverName: sonarr-postgresql
