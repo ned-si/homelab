@@ -62,10 +62,9 @@ repos:
         exclude: ^deploy/
       - id: check-executables-have-shebangs
       # The one that actually matters here, and the mirror image of the above:
-      # a file with a `#!` line that is NOT executable. Four scripts were
-      # committed as mode 644, including graceful-shutdown.sh -- so `task shutdown`
-      # died with "permission denied, exit status 127" at the worst possible
-      # moment, and graceful-startup.sh would have failed the same way on arrival.
+      # a file with a `#!` line that is NOT executable. Four scripts were once
+      # committed as mode 644, so a `task` target that ran one died with
+      # "permission denied, exit status 127" at the worst possible moment.
       #
       # git tracks the executable bit, so a local `chmod +x` that is never staged
       # fixes it for you and for nobody else.

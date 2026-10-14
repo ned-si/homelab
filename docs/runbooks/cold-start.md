@@ -467,5 +467,4 @@ Before a move or planned power work:
 3. Shut the NAS down from its web UI (System, Shutdown), last.
 
 Nothing needs scaling down or suspending: Argo CD resumes from `main` and the
-databases recover on start, as above. `scripts/graceful-shutdown.sh` and
-`scripts/graceful-startup.sh` predate the current layout; do not use them.
+databases recover on start, as above.
