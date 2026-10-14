@@ -1,0 +1,50 @@
+# PreSync backup guard. Before every sync of the Application, including
+# selfHeal syncs, Argo CD runs Job presync-backup (presync-backup.sh) and
+# waits for it. A failed or timed-out backup fails the sync and nothing new
+# is applied. This is what makes a database image bump safe to automerge: a
+# major version upgrades the data files in place and cannot be reverted, so a
+# bad one is fixed forward from this backup (docs/decisions.md).
+#
+# The backup freshness rule (docs/backups.md):
+#   - no-op when the CronJob or CNPG Cluster does not exist yet (fresh
+#     cluster, first sync);
+#   - skip when the last backup is < 24 h old (CNPG: WAL archiving works
+#     and the last base backup is < 24 h old);
+#   - always back up for an image major change and when ALWAYS_FRESH=true.
+#
+# Use it from an app's kustomization:
+#
+#   components:
+#     - ../../components/presync-backup
+#   patches:
+#     - target: { kind: Job, name: presync-backup }
+#       patch: |-
+#         - op: add
+#           path: /spec/template/spec/containers/0/env/-
+#           value: { name: MODE, value: cronjob }
+#         ...
+#   # The rendered image of every IMAGE_CHECKS object, for the major check.
+#   replacements:
+#     - source: { kind: Cluster, name: <cluster>, fieldPath: spec.imageName }
+#       targets:
+#         - select: { kind: ConfigMap, name: presync-backup-desired }
+#           fieldPaths: [data.<cluster>]
+#           options: { create: true }
+#
+# Hook objects: Argo CD recreates them on every sync (BeforeHookCreation), the
+# RBAC and ConfigMaps first (wave -1).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - rbac.yaml
+  - job.yaml
+configMapGenerator:
+  - name: presync-backup-script
+    files:
+      - presync-backup.sh
+    options:
+      disableNameSuffixHash: true
+      annotations:
+        argocd.argoproj.io/hook: PreSync
+        argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+        argocd.argoproj.io/sync-wave: "-1"

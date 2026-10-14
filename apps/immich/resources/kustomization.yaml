@@ -14,17 +14,29 @@ resources:
   - database.yaml
   # WAL archiving and daily base backups of immich-db to S3 (Barman Cloud plugin).
   - backup.yaml
-  # Takes a base backup of immich-db before every sync (presync-backup.yaml).
-  - presync-backup.yaml
   - valkey.yaml
   - httproute.yaml
   # restic CronJobs for the photo library: S3, local NFS, monthly prune.
   - backup-files.yaml
 
-# After every sync: the server Service, from the chart, answers.
+# Before every sync: a base backup of immich-db, always (ALWAYS_FRESH), so
+# the freshness rule never skips it. After every sync: the server Service,
+# from the chart, answers.
 components:
+  - ../../../components/presync-backup
   - ../../../components/postsync-smoke
 patches:
+  - target: { kind: Job, name: presync-backup }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: MODE, value: cnpg }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CLUSTERS, value: immich-db }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: ALWAYS_FRESH, value: "true" }
   - target: { kind: Job, name: postsync-smoke }
     patch: |-
       - op: replace

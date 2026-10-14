@@ -13,13 +13,30 @@ resources:
   - backup.yaml
   # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
   - cnpg-backup.yaml
-  # Runs the database backup before every sync (presync-backup.yaml).
-  - presync-backup.yaml
 
+# Before every sync: the database backup, unless one is < 24 h old.
 # After every sync: the Service answers on the health endpoint.
 components:
+  - ../../components/presync-backup
   - ../../components/postsync-smoke
+replacements:
+  - source: { kind: Cluster, name: mealie-postgresql, fieldPath: spec.imageName }
+    targets:
+      - select: { kind: ConfigMap, name: presync-backup-desired }
+        fieldPaths: [data.mealie-postgresql]
+        options: { create: true }
 patches:
+  - target: { kind: Job, name: presync-backup }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: MODE, value: cronjob }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRONJOB, value: mealie-backup }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: IMAGE_CHECKS, value: clusters.postgresql.cnpg.io/mealie-postgresql }
   - target: { kind: Job, name: postsync-smoke }
     patch: |-
       - op: replace

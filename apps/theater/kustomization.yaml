@@ -25,14 +25,52 @@ resources:
   - backup.yaml
   # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
   - cnpg-backup.yaml
-  # Runs the database backup before every sync (presync-backup.yaml).
-  - presync-backup.yaml
 
+# Before every sync: the database backup, unless one is < 24 h old.
 # After every sync: every Service answers on its health endpoint
 # (qBittorrent has none without authentication: its login page).
 components:
+  - ../../components/presync-backup
   - ../../components/postsync-smoke
+replacements:
+  - source: { kind: Cluster, name: sonarr-postgresql, fieldPath: spec.imageName }
+    targets:
+      - select: { kind: ConfigMap, name: presync-backup-desired }
+        fieldPaths: [data.sonarr-postgresql]
+        options: { create: true }
+  - source: { kind: Cluster, name: radarr-postgresql, fieldPath: spec.imageName }
+    targets:
+      - select: { kind: ConfigMap, name: presync-backup-desired }
+        fieldPaths: [data.radarr-postgresql]
+        options: { create: true }
+  - source: { kind: Cluster, name: lidarr-postgresql, fieldPath: spec.imageName }
+    targets:
+      - select: { kind: ConfigMap, name: presync-backup-desired }
+        fieldPaths: [data.lidarr-postgresql]
+        options: { create: true }
+  - source: { kind: Cluster, name: prowlarr-postgresql, fieldPath: spec.imageName }
+    targets:
+      - select: { kind: ConfigMap, name: presync-backup-desired }
+        fieldPaths: [data.prowlarr-postgresql]
+        options: { create: true }
 patches:
+  - target: { kind: Job, name: presync-backup }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: MODE, value: cronjob }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRONJOB, value: theater-postgres-backup }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: IMAGE_CHECKS
+          value: >-
+            clusters.postgresql.cnpg.io/sonarr-postgresql
+            clusters.postgresql.cnpg.io/radarr-postgresql
+            clusters.postgresql.cnpg.io/lidarr-postgresql
+            clusters.postgresql.cnpg.io/prowlarr-postgresql
   - target: { kind: Job, name: postsync-smoke }
     patch: |-
       - op: replace

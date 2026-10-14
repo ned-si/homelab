@@ -27,16 +27,22 @@ spec:
         app.kubernetes.io/name: presync-backup
     spec:
       containers:
-      - args:
-        - wait
-        - --for=jsonpath={.status.phase}=completed
-        - backup.postgresql.cnpg.io/presync-immich-db
-        - --timeout=45m
+      - command:
+        - /bin/sh
+        - /scripts/presync-backup.sh
         env:
         - name: HOME
           value: /tmp
-        image: registry.k8s.io/kubectl:v1.37.1
-        name: wait
+        - name: MAX_AGE_HOURS
+          value: "24"
+        - name: MODE
+          value: cnpg
+        - name: CLUSTERS
+          value: immich-db
+        - name: ALWAYS_FRESH
+          value: "true"
+        image: alpine/kubectl:1.37.1
+        name: backup
         resources:
           limits:
             memory: 128Mi
@@ -52,59 +58,11 @@ spec:
         volumeMounts:
         - mountPath: /tmp
           name: tmp
-      initContainers:
-      - args:
-        - delete
-        - backup.postgresql.cnpg.io
-        - presync-immich-db
-        - --ignore-not-found
-        - --wait=true
-        env:
-        - name: HOME
-          value: /tmp
-        image: registry.k8s.io/kubectl:v1.37.1
-        name: clean
-        resources:
-          limits:
-            memory: 128Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp
-      - args:
-        - create
-        - -f
-        - /hook/backup.yaml
-        env:
-        - name: HOME
-          value: /tmp
-        image: registry.k8s.io/kubectl:v1.37.1
-        name: start
-        resources:
-          limits:
-            memory: 128Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp
-        - mountPath: /hook
-          name: hook
+        - mountPath: /scripts
+          name: scripts
+          readOnly: true
+        - mountPath: /desired
+          name: desired
           readOnly: true
       restartPolicy: Never
       securityContext:
@@ -118,5 +76,8 @@ spec:
       - emptyDir: {}
         name: tmp
       - configMap:
-          name: presync-backup
-        name: hook
+          name: presync-backup-script
+        name: scripts
+      - configMap:
+          name: presync-backup-desired
+        name: desired

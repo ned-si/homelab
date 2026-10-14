@@ -1,0 +1,141 @@
+#!/bin/sh
+# PreSync backup guard (components/presync-backup). Exit 0 lets the sync go
+# on; any other exit fails it, so nothing new is applied.
+#
+# Environment (set by the app's patch on Job presync-backup):
+#   MODE          cronjob: run a Job from CronJob $CRONJOB
+#                 cnpg:    take a Barman Cloud base backup of every $CLUSTERS
+#   CRONJOB       the backup CronJob (MODE=cronjob)
+#   CLUSTERS      CNPG Cluster names (MODE=cnpg)
+#   IMAGE_CHECKS  objects whose image is compared with the render, as
+#                 <resource>/<name>; the rendered image is /desired/<name>
+#   ALWAYS_FRESH  true: back up on every sync, whatever the age
+#   MAX_AGE_HOURS a backup younger than this is fresh (default 24)
+#
+# Order: an object missing (fresh cluster, first sync) -> no-op; an image
+# major change or ALWAYS_FRESH -> back up; a fresh backup -> skip; else back up.
+#
+# No --request-timeout: any client override makes kubectl skip the in-cluster
+# config and dial localhost:8080. The Job's activeDeadlineSeconds bounds it.
+set -eu
+
+MAX_AGE=$(( ${MAX_AGE_HOURS:-24} * 3600 ))
+NOW=$(date -u +%s)
+
+log() { echo "presync-backup: $*"; }
+
+# Exit 1 on any error other than NotFound, so an RBAC or API failure never
+# reads as "fresh cluster".
+exists() {
+  out=$(kubectl get "$1" --ignore-not-found -o name) || exit 1
+  [ -n "$out" ]
+}
+
+# 2026-10-14T10:06:56Z (optionally with fractions) -> epoch seconds. busybox
+# and GNU date both read "YYYY-MM-DD hh:mm:ss".
+epoch() {
+  t=${1%%.*}
+  t=${t%Z}
+  date -u -d "$(echo "$t" | tr T ' ')" +%s
+}
+
+# 0 when the timestamp is younger than MAX_AGE. Unparseable reads as stale,
+# which takes a backup rather than skipping one.
+fresh() {
+  [ -n "$1" ] || return 1
+  t=$(epoch "$1") || return 1
+  [ $((NOW - t)) -lt "$MAX_AGE" ]
+}
+
+# Leading number of the image tag: postgresql:18.6 -> 18, mariadb:10.11.19 -> 10.
+major() {
+  tag=${1%@*}
+  tag=${tag##*:}
+  echo "$tag" | sed -n 's/^v\{0,1\}\([0-9][0-9]*\).*/\1/p'
+}
+
+live_image() {
+  case "$1" in
+    clusters.postgresql.cnpg.io/*) kubectl get "$1" -o jsonpath='{.spec.imageName}' ;;
+    *) kubectl get "$1" -o jsonpath='{.spec.template.spec.containers[0].image}' ;;
+  esac
+}
+
+case "${MODE:-}" in
+  cronjob) refs="cronjob/${CRONJOB:?}" ;;
+  cnpg)
+    refs=""
+    for c in ${CLUSTERS:?}; do refs="$refs clusters.postgresql.cnpg.io/$c"; done
+    ;;
+  *) log "MODE must be cronjob or cnpg, got '${MODE:-}'"; exit 1 ;;
+esac
+
+# 1. Fresh cluster: the objects are created by this very sync.
+for ref in $refs ${IMAGE_CHECKS:-}; do
+  if ! exists "$ref"; then
+    log "$ref not found (fresh cluster): no-op"
+    exit 0
+  fi
+done
+
+# 2. One-way changes always get a fresh backup.
+force=""
+if [ "${ALWAYS_FRESH:-false}" = true ]; then
+  force="always fresh for this app"
+fi
+for ref in ${IMAGE_CHECKS:-}; do
+  desired=$(cat "/desired/${ref#*/}")
+  live=$(live_image "$ref")
+  if [ "$(major "$desired")" != "$(major "$live")" ]; then
+    force="$ref major $(major "$live") -> $(major "$desired")"
+  fi
+done
+
+if [ "$MODE" = cronjob ]; then
+  last=$(kubectl get "cronjob/$CRONJOB" -o jsonpath='{.status.lastSuccessfulTime}')
+  if [ -z "$force" ] && fresh "$last"; then
+    log "skip: cronjob/$CRONJOB last succeeded at $last (< ${MAX_AGE_HOURS:-24}h)"
+    exit 0
+  fi
+  log "backing up (${force:-last success ${last:-never}})"
+  job="presync-$CRONJOB"
+  kubectl delete job "$job" --ignore-not-found --wait=true
+  kubectl create job "$job" --from="cronjob/$CRONJOB"
+  # A failed backup never completes, so this times out and fails the sync.
+  kubectl wait --for=condition=complete "job/$job" --timeout=45m
+  exit 0
+fi
+
+for c in $CLUSTERS; do
+  ref="clusters.postgresql.cnpg.io/$c"
+  # 3. CNPG freshness: WAL archiving works and a base backup is recent.
+  archiving=$(kubectl get "$ref" -o jsonpath='{.status.conditions[?(@.type=="ContinuousArchiving")].status}')
+  store=$(kubectl get "$ref" -o jsonpath='{.spec.plugins[?(@.isWALArchiver==true)].parameters.barmanObjectName}')
+  server=$(kubectl get "$ref" -o jsonpath='{.spec.plugins[?(@.isWALArchiver==true)].parameters.serverName}')
+  server=${server:-$c}
+  last=""
+  if [ -n "$store" ]; then
+    last=$(kubectl get "objectstores.barmancloud.cnpg.io/$store" \
+      -o jsonpath="{.status.serverRecoveryWindow.$server.lastSuccessfulBackupTime}")
+  fi
+  if [ -z "$force" ] && [ "$archiving" = True ] && fresh "$last"; then
+    log "skip: $c archives WAL and its last base backup is $last (< ${MAX_AGE_HOURS:-24}h)"
+    continue
+  fi
+  log "backing up $c (${force:-archiving=${archiving:-unknown}, last base backup ${last:-never}})"
+  kubectl delete "backups.postgresql.cnpg.io/presync-$c" --ignore-not-found --wait=true
+  kubectl create -f - <<EOF
+apiVersion: postgresql.cnpg.io/v1
+kind: Backup
+metadata:
+  name: presync-$c
+spec:
+  cluster:
+    name: $c
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
+EOF
+  # A failed backup never completes, so this times out and fails the sync.
+  kubectl wait --for=jsonpath='{.status.phase}'=completed "backups.postgresql.cnpg.io/presync-$c" --timeout=45m
+done
