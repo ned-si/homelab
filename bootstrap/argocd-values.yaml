@@ -21,7 +21,9 @@ global:
 configs:
   cm:
     url: https://argo.lilalala.com
-    admin.enabled: true
+    # No local admin: login is Keycloak SSO (group ArgoCDAdmins). Break-glass
+    # is the Keycloak master-realm admin, or kubectl with `argocd --core`.
+    admin.enabled: false
     exec.enabled: false
     application.instanceLabelKey: argocd.argoproj.io/instance
     # Pinned: Argo CD 3.0 changes the default to annotation tracking.
