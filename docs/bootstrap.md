@@ -223,10 +223,13 @@ Then sync it by hand (read [runbooks/immich-upgrade.md](runbooks/immich-upgrade.
 before ever syncing a changed Immich chart or image):
 
 ```sh
-argocd login argo.lilalala.com --grpc-web
-argocd app sync immich --grpc-web
-argocd app wait immich --health --timeout 900 --grpc-web
+kubectl config set-context --current --namespace argo
+argocd app sync immich --core
+argocd app wait immich --health --timeout 900 --core
 ```
+
+`--core` talks to the cluster with the kubeconfig, so it needs neither the
+Argo CD API nor a login.
 
 Expected: the sync succeeds, the wait ends with `Health Status: Healthy`, and
 the image and video counts (Administration, Server Stats) equal the values
@@ -234,16 +237,14 @@ recorded before the old cluster stopped.
 
 ### 8. Log in to Argo CD
 
-```sh
-kubectl -n argo get secret argocd-initial-admin-secret \
-  -o jsonpath='{.data.password}' | base64 -d; echo
-kubectl -n argo port-forward svc/argocd-server 8080:80
-```
+The local `admin` account is disabled (`admin.enabled: false` in
+`bootstrap/argocd-values.yaml`). The only login is Keycloak SSO: members of
+the group `ArgoCDAdmins` get `role:admin`, everyone else gets nothing
+(`policy.default: ""`). Until Keycloak runs, use `kubectl` or
+`argocd --core`. Break-glass if SSO breaks: fix the realm as the Keycloak
+master-realm admin, or use `argocd --core`.
 
-Open `http://localhost:8080` as `admin`. Once the `gateway` Application is
-healthy, `https://argo.lilalala.com` works too.
-
-Keycloak login (group `ArgoCDAdmins` is admin) needs the client secret of the
+Keycloak login needs the client secret of the
 Keycloak client `argocd` in `argocd-secret`. It is not in git; set it once
 Keycloak runs:
 
