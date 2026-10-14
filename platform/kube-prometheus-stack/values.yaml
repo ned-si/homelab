@@ -74,18 +74,25 @@ grafana:
   ingress:
     enabled: false
 
-# Alertmanager: the Watchdog heartbeat only. `Watchdog` always fires; it goes
-# every 5 minutes to the dead-man's switch in Secret `alertmanager-notify`
-# key `heartbeat-url` (platform/secrets/alertmanager-notify.sops.yaml), whose
-# provider alerts when the pings stop: Prometheus, Alertmanager, the cluster
-# or the house's internet is down. Every other alert still goes to "null"
-# until a notification receiver is chosen (docs/observability.md).
+# Alertmanager routes (docs/observability.md "Alerting"):
+#
+#   Watchdog          -> heartbeat: the dead-man's switch (healthchecks.io) in
+#                        Secret `alertmanager-notify` key `heartbeat-url`,
+#                        every 5 minutes. It alerts when the pings stop.
+#   warning, critical -> ntfy: a push to the hosted ntfy.sh topic in key
+#                        `ntfy-url`. Hosted, so it does not depend on this
+#                        cluster or the house's network being up.
+#   anything else     -> "null" (info, InfoInhibitor).
 #
 # The operator mounts the Secret at
 # /etc/alertmanager/secrets/alertmanager-notify/<key>; `url_file` reads it at
-# send time, so the URL is never in git. While the Secret holds its sentinel
-# (https://pending.invalid/...), each send fails: Alertmanager logs "Notify
-# attempt failed" for receiver heartbeat, and nothing else is affected.
+# send time, so neither URL is in git (the ntfy topic is the only credential:
+# whoever knows it can read and post).
+#
+# ntfy formats the standard webhook JSON itself (inline templating,
+# https://docs.ntfy.sh/publish/#message-templating): `X-Template: yes` makes
+# the X-Title, X-Message and X-Priority headers Go templates over the body.
+# Priority: critical 5 (urgent), warning 4 (high), resolved 2 (low).
 #
 # Helm merges `config` into the chart default: `route` keys are merged,
 # `routes` and `receivers` (lists) are replaced, `inhibit_rules` and
@@ -97,6 +104,8 @@ alertmanager:
   config:
     route:
       receiver: "null"
+      group_by: [alertname, namespace]
+      group_wait: 5m
       routes:
         - receiver: heartbeat
           matchers:
@@ -104,9 +113,48 @@ alertmanager:
           group_wait: 0s
           group_interval: 1m
           repeat_interval: 5m
+        - receiver: ntfy
+          matchers:
+            - severity = "critical"
+          group_wait: 1m
+          repeat_interval: 4h
+        - receiver: ntfy
+          matchers:
+            - severity = "warning"
+          group_wait: 10m
+          repeat_interval: 24h
     receivers:
       - name: "null"
       - name: heartbeat
         webhook_configs:
           - url_file: /etc/alertmanager/secrets/alertmanager-notify/heartbeat-url
             send_resolved: false
+      - name: ntfy
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-url
+            send_resolved: true
+            # ntfy caps a message at 4 KiB; a batch beyond 5 alerts is cut.
+            max_alerts: 5
+            timeout: 10s
+            http_config:
+              http_headers:
+                X-Template:
+                  values: ["yes"]
+                X-Title:
+                  values:
+                    # Folded scalars: each line break becomes one space, so
+                    # lines break only inside {{ }} or where a space belongs.
+                    - >-
+                      {{if eq .status "resolved"}}Resolved{{else if eq
+                      .commonLabels.severity "critical"}}CRITICAL{{else}}Warning{{end}}:
+                      {{.commonLabels.alertname}}{{if .commonLabels.namespace}}
+                      ({{.commonLabels.namespace}}){{end}}
+                X-Message:
+                  values:
+                    - >-
+                      {{range .alerts}}{{if .annotations.summary}}{{.annotations.summary}}{{else
+                      }}{{.labels.alertname}}{{end}}{{"\n"}}{{end}}{{if eq (len .alerts)
+                      1}}{{with (index .alerts 0).annotations.description}}{{"\n"}}{{.}}{{end}}{{end}}
+                X-Priority:
+                  values:
+                    - '{{if eq .status "resolved"}}2{{else if eq .commonLabels.severity "critical"}}5{{else}}4{{end}}'

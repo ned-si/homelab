@@ -1,6 +1,6 @@
 # Observability
 
-Metrics and dashboards run; alerting does not reach anyone yet. Prometheus,
+Metrics, dashboards and push alerting run. Prometheus,
 Alertmanager and Grafana come from `kube-prometheus-stack` (chart 92.0.0,
 Prometheus v2.49.1, Alertmanager v0.26.0) in namespace `monitoring`, at the
 chart's defaults apart from Prometheus storage and the Grafana login.
@@ -9,13 +9,13 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | --- | --- |
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
-| Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); every other alert goes to the `null` receiver and is dropped |
+| Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); `warning` and `critical` go to the hosted ntfy.sh topic ([Notifications](#notifications)); everything else goes to `null` |
 | Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml`. Deployed: `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml` |
-| Notification credentials | Secret `monitoring/alertmanager-notify` (keys `pushover-token`, `pushover-user-key`, `heartbeat-url`), mounted into Alertmanager; `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes), the two Pushover keys are still `PENDING` sentinels |
+| Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents; relay, UI and metrics not enabled ([networking.md](networking.md#debugging)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
 
-Until notifications are wired, the checks are manual: the smoke suite
+Manual checks: the smoke suite
 ([runbooks/cold-start.md](runbooks/cold-start.md#step-8-smoke-suite)), the
 Argo CD application list, and `scripts/status.sh`.
 
@@ -58,23 +58,50 @@ Not shown, and what each would need:
 | Gateway auth errors per route | Cilium Envoy or Hubble HTTP metrics, scraped |
 | cert-manager, Argo CD, CNPG metrics | their ServiceMonitors/PodMonitors carry no `release: kube-prometheus-stack` label, so Prometheus ignores them |
 
-## Turning alerting on
+## Notifications
 
-The design is written; each step is its own pull request:
+`warning` and `critical` alerts go as a webhook POST to the hosted ntfy.sh
+topic in Secret `monitoring/alertmanager-notify` key `ntfy-url`, mounted at
+`/etc/alertmanager/secrets/alertmanager-notify/ntfy-url` (`url_file`). The
+topic name is the only credential: anyone who knows it can read and post, so
+it is long, random and only in SOPS. Hosted ntfy.sh, not a self-hosted ntfy,
+so a notification can still leave when the cluster or the NAS is in trouble.
 
-1. Put real Pushover values in `platform/secrets/alertmanager-notify.sops.yaml`
-   (`task secrets:edit -- platform/secrets/alertmanager-notify.sops.yaml`): a
-   Pushover application token and user key. `heartbeat-url` is done
-   separately, see [Heartbeat](#heartbeat).
-2. Configure Alertmanager in `platform/kube-prometheus-stack/values.yaml` to
-   read those files (Pushover receiver, severity routing below; the Secret
-   mount and the `Watchdog` route are already there). Key names become file
-   names: renaming one gives an Alertmanager that starts and then fails every
-   send.
-3. Add `alerts.yaml` (and `dashboard-data-protection.yaml`) to
-   `platform/kube-prometheus-stack/routes/kustomization.yaml`.
-4. Check: `AlertmanagerHasNoReceiverConfigured` clears within 6 hours, and a
-   test alert reaches the phone.
+ntfy formats the message itself: the receiver sends `X-Template: yes` and Go
+templates in `X-Title`, `X-Message` and `X-Priority`
+([inline templating](https://docs.ntfy.sh/publish/#message-templating)), all in
+`platform/kube-prometheus-stack/values.yaml`.
+
+| Alert | Title | Priority |
+| --- | --- | --- |
+| `critical` firing | `CRITICAL: <alertname> (<namespace>)` | 5 (urgent) |
+| `warning` firing | `Warning: <alertname> (<namespace>)` | 4 (high) |
+| resolved | `Resolved: <alertname> (<namespace>)` | 2 (low) |
+
+The body is one `summary` per alert, plus the `description` when the batch has
+one alert. A batch carries at most 5 alerts (ntfy caps a message at 4 KiB).
+
+Subscribe: install the ntfy app, add the topic on server `ntfy.sh`. Test from
+the Mac, without Alertmanager:
+
+```sh
+curl -m 10 -d "test" "https://ntfy.sh/<topic>"
+# expected: a JSON line with "event":"message"; the phone shows "test"
+```
+
+Test the whole path with a synthetic alert (it resolves after 5 minutes):
+
+```sh
+kubectl -n monitoring exec alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager -- \
+  amtool alert add SyntheticTest severity=warning namespace=monitoring \
+  --annotation=summary="Synthetic test" --end="$(date -u -v+5M +%Y-%m-%dT%H:%M:%SZ)" \
+  --alertmanager.url=http://localhost:9093
+# expected after the 10m warning group_wait: "Warning: SyntheticTest (monitoring)"
+```
+
+Rotating the topic: a new one in `secrets.local.env` (`NTFY_TOPIC`), then
+`rm platform/secrets/alertmanager-notify.sops.yaml && scripts/seal-secrets-from-env.sh`,
+a pull request, and the new topic in the app.
 
 ### Heartbeat
 
@@ -90,8 +117,9 @@ receiver `heartbeat`, and nothing else is affected.
 Turning it on (one signup, then one secret edit):
 
 1. Sign up at <https://healthchecks.io> (free tier), create a check with period
-   5 minutes and grace 15 minutes, set its notification to an address that does
-   not depend on this cluster, and copy its ping URL
+   5 minutes and grace 15 minutes, set its notification to the ntfy
+   integration with the same topic as `ntfy-url` (one place for every
+   notification), and copy its ping URL
    (`https://hc-ping.com/<uuid>`).
 2. Put it in the Secret, then commit and open a pull request:
 
@@ -107,13 +135,14 @@ Turning it on (one signup, then one secret edit):
    `kubectl -n monitoring logs alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager --since=10m | grep -c 'Notify attempt failed'`
    prints `0`.
 
-### Severity conventions once enabled
+### Severity routing
 
 | Severity | Meaning | `group_wait` | `repeat_interval` |
 | --- | --- | --- | --- |
-| `critical` | acting later costs data or availability | 1m | 4h |
-| `warning` | look at it this week | 10m | 24h |
+| `critical` | acting later costs data or availability; ntfy | 1m | 4h |
+| `warning` | look at it this week; ntfy | 10m | 24h |
 | `none` | `Watchdog` only, to the heartbeat, never the phone | 0s | 5m |
+| other (`info`) | dropped (`null`) | | |
 
 Grouping is by `(alertname, namespace)` with a base `group_wait` of 5m, so a
 cold start that fires every rule at once sends one batch. Inhibition rules are
@@ -185,7 +214,10 @@ Two failure modes this cluster has had:
 - Parity first: the chart was adopted with its running values, and alerting is
   new behaviour that ships in its own changes
   ([decisions.md](decisions.md#adopt-at-parity-change-afterwards)).
-- Pushover plus an external heartbeat: one person, one phone. Routing warnings
+- Hosted ntfy.sh plus an external heartbeat: one person, one phone, no account
+  and open source. A self-hosted ntfy was rejected for now: it would go down
+  with the cluster it reports on. Pushover was the earlier plan; it needs a
+  paid app per platform for the same result. Routing warnings
   to a quieter channel was rejected, because a warning that goes where nobody
   looks is the original problem again; warnings are batched harder instead.
 - Credentials as mounted files, not values: nothing about the destination

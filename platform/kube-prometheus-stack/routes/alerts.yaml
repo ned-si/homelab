@@ -413,7 +413,7 @@ spec:
       rules:
         - alert: AlertmanagerNotificationsFailing
           # A counter: rate() asks whether delivery fails now; `> 0` would
-          # latch after one transient failure. Catches a wrong Pushover token
+          # latch after one transient failure. Catches a wrong ntfy URL
           # or a dead heartbeat URL. If all delivery is broken this cannot be
           # delivered either; the external heartbeat covers that.
           expr: |
