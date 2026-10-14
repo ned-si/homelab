@@ -23,7 +23,6 @@
       "properties": {
         "annotations": {
           "additionalProperties": {
-            "default": "",
             "type": "string"
           },
           "description": "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata. They are not queryable and should be preserved when modifying objects. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations",
@@ -59,7 +58,6 @@
         "finalizers": {
           "description": "Must be empty before the object is deleted from the registry. Each entry is an identifier for the responsible component that will remove the entry from the list. If the deletionTimestamp of the object is non-nil, entries in this list can only be removed. Finalizers may be processed and removed in any order.  Order is NOT enforced because it introduces significant risk of stuck finalizers. finalizers is a shared field, any actor with permission can reorder it. If the finalizer list is processed in order, then this can lead to a situation in which the component responsible for the first finalizer in the list is waiting for a signal (field value, external system, or other) produced by a component responsible for a finalizer later in the list, resulting in a deadlock. Without enforced ordering finalizers are free to order amongst themselves and are not vulnerable to ordering changes in the list.",
           "items": {
-            "default": "",
             "type": "string"
           },
           "type": [
@@ -86,7 +84,6 @@
         },
         "labels": {
           "additionalProperties": {
-            "default": "",
             "type": "string"
           },
           "description": "Map of string keys and values that can be used to organize and categorize (scope and select) objects. May match selectors of replication controllers and services. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels",
@@ -99,7 +96,6 @@
           "description": "ManagedFields maps workflow-id and version to the set of fields that are managed by that workflow. This is mostly for internal housekeeping, and users typically shouldn't need to set or understand this field. A workflow can be the user's name, a controller's name, or the name of a specific apply path like \"ci-cd\". The set of fields is always in the version that the workflow used when modifying the object.",
           "items": {
             "additionalProperties": false,
-            "default": {},
             "description": "ManagedFieldsEntry is a workflow-id, a FieldSet and the group version of the resource that the fieldset applies to.",
             "properties": {
               "apiVersion": {
@@ -179,7 +175,6 @@
           "description": "List of objects depended by this object. If ALL objects in the list have been deleted, this object will be garbage collected. If this object is managed by a controller, then an entry in this list will point to this controller, with the controller field set to true. There cannot be more than one managing controller.",
           "items": {
             "additionalProperties": false,
-            "default": {},
             "description": "OwnerReference contains enough information to let you identify an owning object. An owning object must be in the same namespace as the dependent, or be cluster-scoped, so there is no namespace field.",
             "properties": {
               "apiVersion": {
@@ -349,7 +344,6 @@
                 "conversionReviewVersions": {
                   "description": "conversionReviewVersions is an ordered list of preferred `ConversionReview` versions the Webhook expects. The API server will use the first version in the list which it supports. If none of the versions specified in this list are supported by API server, conversion will fail for the custom resource. If a persisted Webhook configuration specifies allowed versions and does not include any versions known to the API Server, calls to the webhook will fail.",
                   "items": {
-                    "default": "",
                     "type": "string"
                   },
                   "type": "array",
@@ -386,7 +380,6 @@
             "categories": {
               "description": "categories is a list of grouped resources this custom resource belongs to (e.g. 'all'). This is published in API discovery documents, and used by clients to support invocations like `kubectl get all`.",
               "items": {
-                "default": "",
                 "type": "string"
               },
               "type": [
@@ -415,7 +408,6 @@
             "shortNames": {
               "description": "shortNames are short names for the resource, exposed in API discovery documents, and used by clients to support invocations like `kubectl get <shortname>`. It must be all lowercase.",
               "items": {
-                "default": "",
                 "type": "string"
               },
               "type": [
@@ -454,14 +446,12 @@
           "description": "versions is the list of all API versions of the defined custom resource. Version names are used to compute the order in which served versions are listed in API discovery. If the version string is \"kube-like\", it will sort above non \"kube-like\" version strings, which are ordered lexicographically. \"Kube-like\" versions start with a \"v\", then are followed by a number (the major version), then optionally the string \"alpha\" or \"beta\" and another number (the minor version). These are sorted first by GA > beta > alpha (where GA is a version with no suffix such as beta or alpha), and then by comparing major version, then minor version. An example sorted list of versions: v10, v2, v1, v11beta2, v10beta3, v3beta1, v12alpha1, v11alpha2, foo1, foo10.",
           "items": {
             "additionalProperties": false,
-            "default": {},
             "description": "CustomResourceDefinitionVersion describes a version for CRD.",
             "properties": {
               "additionalPrinterColumns": {
                 "description": "additionalPrinterColumns specifies additional columns returned in Table output. See https://kubernetes.io/docs/reference/using-api/api-concepts/#receiving-resources-as-tables for details. If no columns are specified, a single column displaying the age of the custom resource is used.",
                 "items": {
                   "additionalProperties": false,
-                  "default": {},
                   "description": "CustomResourceColumnDefinition specifies a column for server side printing.",
                   "properties": {
                     "description": {
@@ -551,7 +541,6 @@
                 "description": "selectableFields specifies paths to fields that may be used as field selectors. A maximum of 8 selectable fields are allowed. See https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors",
                 "items": {
                   "additionalProperties": false,
-                  "default": {},
                   "description": "SelectableField specifies the JSON path of a field that may be used with field selectors.",
                   "properties": {
                     "jsonPath": {
@@ -662,7 +651,6 @@
             "categories": {
               "description": "categories is a list of grouped resources this custom resource belongs to (e.g. 'all'). This is published in API discovery documents, and used by clients to support invocations like `kubectl get all`.",
               "items": {
-                "default": "",
                 "type": "string"
               },
               "type": [
@@ -691,7 +679,6 @@
             "shortNames": {
               "description": "shortNames are short names for the resource, exposed in API discovery documents, and used by clients to support invocations like `kubectl get <shortname>`. It must be all lowercase.",
               "items": {
-                "default": "",
                 "type": "string"
               },
               "type": [
@@ -721,7 +708,6 @@
           "description": "conditions indicate state for particular aspects of a CustomResourceDefinition",
           "items": {
             "additionalProperties": false,
-            "default": {},
             "description": "CustomResourceDefinitionCondition contains details for the current condition of this pod.",
             "properties": {
               "lastTransitionTime": {
@@ -736,6 +722,14 @@
                 "description": "message is a human-readable message indicating details about last transition.",
                 "type": [
                   "string",
+                  "null"
+                ]
+              },
+              "observedGeneration": {
+                "description": "observedGeneration represents the .metadata.generation that the condition was set based upon. For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date with respect to the current state of the instance.",
+                "format": "int64",
+                "type": [
+                  "integer",
                   "null"
                 ]
               },
@@ -772,10 +766,17 @@
           ],
           "x-kubernetes-list-type": "map"
         },
+        "observedGeneration": {
+          "description": "The generation observed by the CRD controller.",
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "storedVersions": {
           "description": "storedVersions lists all versions of CustomResources that were ever persisted. Tracking these versions allows a migration path for stored versions in etcd. The field is mutable so a migration controller can finish a migration to another version (ensuring no old objects are left in storage), and then remove the rest of the versions from this list. Versions may not be removed from `spec.versions` while they exist in this list.",
           "items": {
-            "default": "",
             "type": "string"
           },
           "type": [

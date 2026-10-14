@@ -65,8 +65,9 @@
 # re-rendering, in the same commit, and CI will say so.
 #
 # Note this is unrelated to K8S_VERSION in ci.yaml. That one must track the
-# cluster (1.31.2) because it validates against the API schema. This one is a
-# local templating engine and never talks to the cluster.
+# cluster (kubernetesVersion in talos/talconfig.yaml) because it validates
+# against the API schema. This one is a local templating engine and never
+# talks to the cluster.
 #
 # RETRIES, AND WHY ONLY FOR SOME DIRECTORIES
 #

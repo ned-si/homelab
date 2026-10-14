@@ -38,7 +38,7 @@ BARMAN=v0.15.1
 # CustomResourceDefinition itself: yannh/kubernetes-json-schema has no schema for
 # it (JSONSchemaProps is recursive), so it is built from the Kubernetes OpenAPI v3
 # document of the validated version with JSONSchemaProps left opaque.
-K8S_OPENAPI="https://raw.githubusercontent.com/kubernetes/kubernetes/v1.31.2/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json"
+K8S_OPENAPI="https://raw.githubusercontent.com/kubernetes/kubernetes/v1.37.1/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json"
 CRD_DEF="io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.CustomResourceDefinition"
 CRD_OPAQUE="io.k8s.apiextensions-apiserver.pkg.apis.apiextensions.v1.JSONSchemaProps"
 
