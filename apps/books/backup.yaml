@@ -1,5 +1,5 @@
-# Audiobookshelf backup: its config and metadata volume, nightly, to the
-# restic repository `books/configs`, plus the monthly prune.
+# Books backups, nightly, to the restic repository `books/configs`, plus the
+# monthly prune. Audiobookshelf first: its config and metadata volume.
 #
 # CONSISTENCY
 #   /config holds the live SQLite database, so its copy may be torn. The
@@ -98,6 +98,116 @@ spec:
             - name: data
               persistentVolumeClaim:
                 claimName: audiobookshelf-config
+                readOnly: true
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi
+---
+# Calibre-Web Automated: the ebook library itself (books/ebooks on NFS,
+# metadata.db included) and the config volume (app.db: users, settings,
+# shelves; processed_books: the originals CWA converted). Same repository.
+#
+# CONSISTENCY: metadata.db and app.db are live SQLite files, so a copy taken
+# during a write may be torn. The book files are write-once. A torn
+# metadata.db is rebuilt from the book folders (Calibre: Library maintenance,
+# restore database), which is why the files matter more than the database.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: books-config-backup-calibre-web
+  namespace: books
+spec:
+  # Ten minutes after audiobookshelf (shared repository lock).
+  schedule: "20 5 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 7200
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: books-config-backup-calibre-web
+        spec:
+          restartPolicy: OnFailure
+          # `calibre-web-config` is ReadWriteOnce: run next to the app.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: calibre-web
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic init 2>/dev/null || true
+                  restic backup /library \
+                    --tag calibre-library \
+                    --host books
+                  restic backup /config \
+                    --tag calibre-web \
+                    --host books \
+                    --exclude /config/log \
+                    --exclude /config/.cache
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/books/configs
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic's temp pack files; /tmp is read-only here.
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: config
+                  mountPath: /config
+                  readOnly: true
+                - name: library
+                  mountPath: /library
+                  subPath: books/ebooks
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: config
+              persistentVolumeClaim:
+                claimName: calibre-web-config
+                readOnly: true
+            # SITE-SPECIFIC: the NAS address.
+            - name: library
+              nfs:
+                server: 192.168.1.228
+                path: /mnt/homelab/k8s/nfs
                 readOnly: true
             - name: cache
               emptyDir:

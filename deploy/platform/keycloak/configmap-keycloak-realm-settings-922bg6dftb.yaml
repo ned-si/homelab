@@ -339,6 +339,9 @@ data:
     audiobookshelf.redirectUris=https://audiobooks.lilalala.com/auth/openid/callback https://audiobooks.lilalala.com/auth/openid/mobile-redirect
     audiobookshelf.webOrigins=https://audiobooks.lilalala.com
 
+    calibre-web.redirectUris=https://ebooks.lilalala.com/login/generic/authorized
+    calibre-web.webOrigins=https://ebooks.lilalala.com
+
     mealie.redirectUris=https://cook.lilalala.com/login https://cook.lilalala.com/login?direct=1
     mealie.webOrigins=https://cook.lilalala.com
 
@@ -409,5 +412,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-4tcdb65247
+  name: keycloak-realm-settings-922bg6dftb
   namespace: keycloak

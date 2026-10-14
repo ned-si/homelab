@@ -31,7 +31,7 @@ One restic repository per prefix. The restic URL is
 | `seafile/shared` | `seafile` | `/shared` → `seafile-data`; `/dumps` → `seafile-mariadb` | PVC `seafile-pvc`; `mariadb-dump` of Seafile's MariaDB | 0.7 MiB |
 | `syncthing/data` | `syncthing` | `/data` → `syncthing-identity` | PVC `syncthing-pvc` | 8.2 MiB |
 | `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
-| `books/configs` | `books` | `/data` → `audiobookshelf` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs` | not yet measured |
+| `books/configs` | `books` | `/data` → `audiobookshelf`; `/library` → `calibre-library`; `/config` → `calibre-web` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs`; NFS `books/ebooks`; PVC `calibre-web-config`, minus `log` | not yet measured |
 | `grafana/data` | — | — | none: Grafana has no persistent volume, so the job is not rendered. The repository exists and is empty | 0 |
 
 Every snapshot in `theater/configs` also carries the tag `theater-configs`. The
@@ -118,6 +118,7 @@ nothing was rehearsed, the column says so.
 | Syncthing identity + config | S3 | 24 h | no | — |
 | *arr, Plex, Jellyfin config and *arr databases | S3 | 24 h | no | — |
 | Audiobookshelf config and database backups | S3 | 24 h | no | — |
+| Ebook library and Calibre-Web config | S3 | 24 h | no | — |
 | Media library | none | everything | — | — |
 | Cluster state | git, plus etcd snapshots by hand | last merged commit | no | rebuild, see [bootstrap.md](bootstrap.md) and [runbooks/cold-start.md](runbooks/cold-start.md) |
 
@@ -141,6 +142,7 @@ the NAS:
 | 04:00–04:40 | `theater/theater-config-backup-{sonarr,radarr,lidarr,prowlarr,plex}`, ten minutes apart |
 | 05:00 | `theater/theater-config-backup-jellyfin` |
 | 05:10 | `books/books-config-backup-audiobookshelf` |
+| 05:20 | `books/books-config-backup-calibre-web` |
 | 1st of the month, 12:00–13:30 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, books 13:15, immich 13:30 |
 
 The six theater jobs share one repository and restic takes an exclusive lock for

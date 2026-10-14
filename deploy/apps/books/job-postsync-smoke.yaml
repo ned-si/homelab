@@ -31,6 +31,7 @@ spec:
       containers:
       - args:
         - http://audiobookshelf:13378/healthcheck
+        - http://calibre-web:8083/login
         command:
         - /bin/sh
         - -c

@@ -1,4 +1,4 @@
-# Books: Audiobookshelf (audiobooks, podcasts).
+# Books: Audiobookshelf (audiobooks, podcasts), Calibre-Web Automated (ebooks).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
