@@ -22,8 +22,8 @@
 # ---------------------------------------------------------------------------
 # WHY THIS DOES NOT SUGGEST NEW ADDRESSES
 #
-# The nodes' addresses are static in /etc/netplan/ ON THE NODES, and they are baked
-# into kubelet --node-ip, kube-vip's static pods, the apiserver certificate SANs and
+# The nodes' addresses are static in their Talos machine configs (talos/talconfig.yaml),
+# and they are baked into the API VIP config, the apiserver certificate SANs and
 # etcd's peer URLs. The NAS address is baked into the iSCSI portal config and every
 # NFS PersistentVolume. A device that comes back on a different address does not
 # reconfigure itself; it breaks things that then need certificates re-issued.

@@ -6,13 +6,12 @@
 #                         --entry-ip <ip> [--previous <json>] [--pod-exclude <file>]
 #
 # Every command is read-only: `kubectl get`, `kubectl exec` of read-only
-# commands (etcdctl endpoint health, psql with default_transaction_read_only=on,
-# a file-existence loop), read-only SSH (`ip -4 -o addr show`), curl, dig,
-# nc -z, ping, arp -n. On Talos nodes (no SSH, etcd is not a pod), `talosctl
-# get services etcd` and `talosctl get addresses` replace etcdctl and SSH.
+# commands (psql with default_transaction_read_only=on, a file-existence
+# loop), `talosctl get services etcd` and `talosctl get addresses` (the nodes
+# run Talos: no SSH, etcd is a system service), curl, dig, nc -z, ping, arp -n.
 # Every network call is bounded (kubectl --request-timeout=10s, curl -m 10,
-# ssh ConnectTimeout=5 BatchMode=yes, talosctl under a 20 s alarm, nc -G 3,
-# dig +time=3); network checks retry 3 times over about 60 s.
+# talosctl under a 20 s alarm, nc -G 3, dig +time=3); network checks retry
+# 3 times over about 60 s.
 #
 # Output: one JSON document on stdout; progress goes to stderr. Exit 0 when
 # every item passes, 1 when any item fails, 64 on a usage or input error.
@@ -33,9 +32,9 @@
 # Original paths (item 8) are piped through stdin only: never printed,
 # written or put on argv. The JSON holds names, counts, codes and node names.
 #
-# Requires bash 3.2+, jq, kubectl, ssh, curl, dig, nc, ping, arp, openssl,
-# perl, and talosctl with $TALOSCONFIG for Talos nodes (macOS flags: nc -G,
-# ping -W in milliseconds).
+# Requires bash 3.2+, jq, kubectl, curl, dig, nc, ping, arp, openssl, perl,
+# and talosctl with $TALOSCONFIG (macOS flags: nc -G, ping -W in
+# milliseconds).
 set -uo pipefail
 
 # Shared helpers: is_ipv4, etcd_health_json, k. Sourced first so the
@@ -43,7 +42,6 @@ set -uo pipefail
 # shellcheck source=scripts/lib/cluster.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/cluster.sh"
 
-SSH_USER=${SMOKE_SSH_USER:-nedsi}
 API_VIP=${SMOKE_API_VIP:-192.168.1.11}
 DOMAIN=${SMOKE_DOMAIN:-lilalala.com}
 HOSTS=${SMOKE_HOSTS:-"argo auth grafana theater cinema media archive cook drive syncthing"}
@@ -164,7 +162,6 @@ item_nodes() {
       version: .status.nodeInfo.kubeletVersion,
       ip: ([.status.addresses[]? | select(.type == "InternalIP") | .address][0])}]' <<<"$j")
   jq -r '.[] | "\(.name) \(.ip)"' <<<"$d" > "$RES/nodes.txt"
-  jq -r '.items[] | select((.status.nodeInfo.osImage // "") | startswith("Talos")) | .metadata.name' <<<"$j" > "$RES/talos-nodes.txt"
   [ "$(jq length <<<"$d")" -eq "$NODE_COUNT" ] || reason 1 "expected $NODE_COUNT nodes, found $(jq length <<<"$d")"
   jq -r '.[] | select(.ready | not) | "node \(.name) is not Ready"' <<<"$d" >> "$RES/reasons-1"
   jq -r '.[] | select(.unschedulable) | "node \(.name) is SchedulingDisabled"' <<<"$d" >> "$RES/reasons-1"
@@ -176,7 +173,7 @@ item_etcd() {
   local out healthy=null total=null vip=false
   out=$(etcd_health_json) || out=""
   if [ -z "$out" ]; then
-    reason 2 "etcdctl endpoint health --cluster failed on every etcd pod"
+    reason 2 "talosctl get services etcd failed on every control plane"
     hard "etcd health unreadable"
   else
     total=$(jq length <<<"$out")
@@ -509,20 +506,15 @@ mac_sample() { # mac_sample <ip>: retries ×3 on (incomplete); writes the node n
 }
 
 node_addrs() { # node_addrs <node> <ip>: the node's IPv4 addresses into $RES/addr-<node>
-  if grep -qxF "$1" "$RES/talos-nodes.txt" 2>/dev/null; then
-    # Talos has no SSH: read its address resources over the Talos API.
-    talos -n "$2" get addresses -o json </dev/null 2>/dev/null \
-      | jq -r 'select(.spec.family == "inet4") | .spec.address' | cut -d/ -f1 > "$RES/addr-$1"
-  else
-    # -n: ssh must not read the caller's stdin (the node list being looped over).
-    ssh -n -o ConnectTimeout=5 -o BatchMode=yes "$SSH_USER@$2" 'ip -4 -o addr show' 2>/dev/null \
-      | awk '{ print $4 }' | cut -d/ -f1 > "$RES/addr-$1"
-  fi
+  # Address resources over the Talos API. </dev/null: talosctl must not read
+  # the caller's stdin (the node list being looped over).
+  talos -n "$2" get addresses -o json </dev/null 2>/dev/null \
+    | jq -r 'select(.spec.family == "inet4") | .spec.address' | cut -d/ -f1 > "$RES/addr-$1"
   [ -s "$RES/addr-$1" ]
 }
 
 item_lb() {
-  local j svcs ips ip node nip holders nh viphost prevh r s m nodeseen d='[]' port tcpok first
+  local j svcs ips ip node nip holders nh prevh r s m nodeseen d='[]' port tcpok first
   if ! j=$(k get svc -A -o json 2>/dev/null); then
     reason 9 "kubectl get svc failed"; finish_item 9 lb null; return
   fi
@@ -530,16 +522,15 @@ item_lb() {
     | {svc: "\(.metadata.namespace)/\(.metadata.name)",
        want: ((.metadata.annotations["lbipam.cilium.io/ips"] // "") | split(",") | map(gsub(" "; "")) | map(select(. != "")) | sort),
        got: ([.status.loadBalancer.ingress[]?.ip // empty] | sort),
-       viphost: (.metadata.annotations["kube-vip.io/vipHost"] // ""),
        tcp: [.spec.ports[]? | select((.protocol // "TCP") == "TCP") | .port]}]' <<<"$j")
   jq -r '.[] | select((.want | length) > 0 and .want != .got) | "Service \(.svc) requests \(.want | join(",")) but has \(.got | join(",") | if . == "" then "none" else . end)"' <<<"$svcs" >> "$RES/reasons-9"
   ips=$( { jq -r '.[].got[]' <<<"$svcs"; echo "$ENTRY_IP"; } | sort -u)
   jq -e --arg ip "$ENTRY_IP" '[.[].got[]] | index($ip)' <<<"$svcs" >/dev/null || reason 9 "entry IP $ENTRY_IP is in no LoadBalancer Service status"
 
-  # (a) interface holders, one read-only SSH (or Talos API) call per node.
+  # (a) interface holders, one read-only Talos API call per node.
   while read -r node nip; do
     [ -n "$node" ] || continue
-    with_retry node_addrs "$node" "$nip" || { reason 9 "cannot read the addresses of $node (SSH or Talos API)"; : > "$RES/addr-$node"; }
+    with_retry node_addrs "$node" "$nip" || { reason 9 "cannot read the addresses of $node (Talos API)"; : > "$RES/addr-$node"; }
   done < "$RES/nodes.txt"
 
   # (b) MAC samples: every LB address once per round.
@@ -563,13 +554,10 @@ item_lb() {
 
   for ip in $ips; do
     s=$(jq -r --arg ip "$ip" '[.[] | select(.got | index($ip))][0].svc // ""' <<<"$svcs")
-    viphost=$(jq -r --arg ip "$ip" '[.[] | select(.got | index($ip))][0].viphost // ""' <<<"$svcs")
     holders=$(cd "$RES" && grep -lxF "$ip" addr-* 2>/dev/null | sed 's/^addr-//' | sort | tr '\n' ' ' | sed 's/ $//')
     nh=$(printf '%s' "$holders" | wc -w | tr -d ' ')
     if [ "$nh" -gt 1 ]; then
       reason 9 "$ip is on the interfaces of $holders (more than one node)"
-    elif [ "$nh" -eq 1 ] && [ -n "$viphost" ] && [ "$holders" != "$viphost" ]; then
-      reason 9 "$ip is held by $holders, but $s names kube-vip.io/vipHost $viphost"
     elif [ "$nh" -eq 0 ]; then
       info "$ip is on no node interface (answered by Cilium L2 announcements)"
     fi
@@ -597,8 +585,8 @@ item_lb() {
         done
       fi
     fi
-    d=$(jq -c --arg ip "$ip" --arg s "$s" --arg v "$viphost" --arg h "$holders" --arg seen "$nodeseen" --argjson tcp "$tcpok" \
-      '. + [{ip: $ip, service: $s, viphost: $v, holders: $h, arp_nodes: $seen, tcp_ok: $tcp}]' <<<"$d")
+    d=$(jq -c --arg ip "$ip" --arg s "$s" --arg h "$holders" --arg seen "$nodeseen" --argjson tcp "$tcpok" \
+      '. + [{ip: $ip, service: $s, holders: $h, arp_nodes: $seen, tcp_ok: $tcp}]' <<<"$d")
   done
 
   # Public TCP through NAT loopback.

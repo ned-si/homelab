@@ -1,9 +1,9 @@
 #!/bin/bash
-# scripts/status.sh against fake kubectl, nc and curl: no cluster, no network.
-# The fake kubectl refuses unbounded calls, any verb other than get/exec, any
-# exec that is not etcdctl health or a read-only psql, any Secret read that
-# could return values, and any call it does not know. Addresses are from the
-# documentation ranges.
+# scripts/status.sh against fake kubectl, talosctl, nc and curl: no cluster,
+# no network. The fake kubectl refuses unbounded calls, any verb other than
+# get/exec, any exec that is not a read-only psql, any Secret read that could
+# return values, and any call it does not know; the fake talosctl answers only
+# `get services etcd`. Addresses are from the documentation ranges.
 set -euo pipefail
 # shellcheck source=tests/bash/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -55,8 +55,6 @@ case "$s" in
   *" secret"*)
     echo "fake kubectl: Secret read that returns values: $s" >&2; exit 3 ;;
   "get nodes -o json") cat "$f/nodes.json" ;;
-  "-n kube-system get pods -l component=etcd -o name") printf 'pod/etcd-cp-1\npod/etcd-cp-2\n' ;;
-  "-n kube-system exec etcd-cp-"*" -- etcdctl "*" endpoint health --cluster -w json") cat "$f/etcd.json" ;;
   "get applications.argoproj.io -n argo -o json") cat "$f/apps.json" ;;
   "get pods -A -o json") cat "$f/pods.json" ;;
   "get pvc -A -o json") cat "$f/pvc.json" ;;
@@ -85,19 +83,31 @@ echo "curl $*" >> "$STATUS_FIX/calls.log"
 case " $* " in *" -m "*) ;; *) echo "fake curl: unbounded" >&2; exit 2 ;; esac
 case "$*" in *api.ipify.org*|*ifconfig.me*) cat "$STATUS_FIX/wan.txt" ;; *) exit 6 ;; esac
 FAKE
-chmod +x "$tmp/bin/kubectl" "$tmp/bin/nc" "$tmp/bin/curl"
+cat > "$tmp/bin/talosctl" <<'FAKE'
+#!/bin/bash
+# talosctl -n <ip> get services etcd -o json: healthy unless <ip> is listed
+# in etcd-unhealthy.
+echo "talosctl $*" >> "$STATUS_FIX/calls.log"
+[ "$1" = -n ] && [ "${*:3}" = "get services etcd -o json" ] || { echo "fake talosctl: unexpected call: $*" >&2; exit 1; }
+h=true
+grep -qxF "$2" "$STATUS_FIX/etcd-unhealthy" 2>/dev/null && h=false
+echo "{\"metadata\":{\"id\":\"etcd\"},\"spec\":{\"healthy\":$h,\"running\":true}}"
+FAKE
+chmod +x "$tmp/bin/kubectl" "$tmp/bin/talosctl" "$tmp/bin/nc" "$tmp/bin/curl"
 
 # mkfix: a healthy cluster.
 mkfix() {
   : > "$FIX/calls.log"
   : > "$FIX/nc-closed"
+  : > "$FIX/etcd-unhealthy"
   echo "$GIT_WAN" > "$FIX/wan.txt"
   cat > "$FIX/nodes.json" <<'EOF'
 {"items":[
- {"metadata":{"name":"cp-1"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.32.13","kernelVersion":"5.10.160-rockchip","osImage":"Ubuntu 22.04.5 LTS","containerRuntimeVersion":"containerd://1.7.24"},"addresses":[{"type":"InternalIP","address":"192.0.2.247"}]}},
- {"metadata":{"name":"w-1"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.32.13","kernelVersion":"5.10.160-rockchip","osImage":"Ubuntu 22.04.5 LTS","containerRuntimeVersion":"containerd://1.7.24"},"addresses":[{"type":"InternalIP","address":"192.0.2.240"}]}}]}
+ {"metadata":{"name":"cp-1","labels":{"node-role.kubernetes.io/control-plane":""}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","kernelVersion":"6.18.31-talos","osImage":"Talos (v1.14.2)","containerRuntimeVersion":"containerd://2.2.4"},"addresses":[{"type":"InternalIP","address":"192.0.2.247"}]}},
+ {"metadata":{"name":"cp-2","labels":{"node-role.kubernetes.io/control-plane":""}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","kernelVersion":"6.18.31-talos","osImage":"Talos (v1.14.2)","containerRuntimeVersion":"containerd://2.2.4"},"addresses":[{"type":"InternalIP","address":"192.0.2.238"}]}},
+ {"metadata":{"name":"cp-3","labels":{"node-role.kubernetes.io/control-plane":""}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","kernelVersion":"6.18.31-talos","osImage":"Talos (v1.14.2)","containerRuntimeVersion":"containerd://2.2.4"},"addresses":[{"type":"InternalIP","address":"192.0.2.239"}]}},
+ {"metadata":{"name":"w-1"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","kernelVersion":"6.18.31-talos","osImage":"Talos (v1.14.2)","containerRuntimeVersion":"containerd://2.2.4"},"addresses":[{"type":"InternalIP","address":"192.0.2.240"}]}}]}
 EOF
-  echo '[{"endpoint":"https://192.0.2.247:2379","health":true},{"endpoint":"https://192.0.2.238:2379","health":true},{"endpoint":"https://192.0.2.239:2379","health":true}]' > "$FIX/etcd.json"
   cat > "$FIX/apps.json" <<'EOF'
 {"items":[
  {"metadata":{"name":"root"},"status":{"sync":{"status":"Synced"},"health":{"status":"Healthy"}}},
@@ -128,7 +138,7 @@ mkfix
 rc=0; out=$("$STATUS" 2>&1) || rc=$?
 expect_eq "exit 0" 0 "$rc"
 expect_contains "no problems" "no problems" "$out"
-expect_contains "node line" "cp-1  Ready  192.0.2.247  v1.32.13  5.10.160-rockchip  containerd://1.7.24" "$out"
+expect_contains "node line" "cp-1  Ready  192.0.2.247  v1.37.1  6.18.31-talos  containerd://2.2.4" "$out"
 expect_contains "etcd" "etcd 3/3 healthy" "$out"
 expect_contains "VIP" "API VIP 192.0.2.11:6443 reachable" "$out"
 expect_contains "argo" "2 Applications Synced/Healthy" "$out"
@@ -168,8 +178,8 @@ expect_contains "psql is read-only" "PGOPTIONS=-c default_transaction_read_only=
 
 echo "broken cluster"
 mkfix
-jq '.items[1].status.conditions[0].status = "False"' "$FIX/nodes.json" > "$FIX/x" && mv "$FIX/x" "$FIX/nodes.json"
-echo '[{"endpoint":"a","health":true},{"endpoint":"b","health":false},{"endpoint":"c","health":true}]' > "$FIX/etcd.json"
+jq '.items[3].status.conditions[0].status = "False"' "$FIX/nodes.json" > "$FIX/x" && mv "$FIX/x" "$FIX/nodes.json"
+echo 192.0.2.238 > "$FIX/etcd-unhealthy"
 jq '.items[1].status.sync.status = "OutOfSync"' "$FIX/apps.json" > "$FIX/x" && mv "$FIX/x" "$FIX/apps.json"
 jq '.items[0].status.containerStatuses[0] += {ready: false, state: {waiting: {reason: "CrashLoopBackOff"}}}' "$FIX/pods.json" > "$FIX/x" && mv "$FIX/x" "$FIX/pods.json"
 echo '{"items":[{"metadata":{"namespace":"paperless","name":"paperless-data"},"status":{"phase":"Pending"}}]}' > "$FIX/pvc.json"
