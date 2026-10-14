@@ -57,6 +57,7 @@ locals {
     "seafile/shared",  # apps/seafile/backup.yaml
     "syncthing/data",  # apps/syncthing/backup.yaml
     "theater/configs", # apps/theater/backup.yaml (all six config jobs share it)
+    "books/configs",   # apps/books/backup.yaml
   ]
 }
 

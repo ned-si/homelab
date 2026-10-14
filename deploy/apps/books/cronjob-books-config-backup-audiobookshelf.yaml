@@ -1,0 +1,99 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/books
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/books and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: books-config-backup-audiobookshelf
+  namespace: books
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: books-config-backup-audiobookshelf
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: audiobookshelf
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+              restic backup /data \
+                --tag audiobookshelf \
+                --host books \
+                --exclude /data/metadata/cache \
+                --exclude /data/metadata/logs
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/books/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.1
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /data
+              name: data
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: audiobookshelf-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 10 5 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  suspend: false

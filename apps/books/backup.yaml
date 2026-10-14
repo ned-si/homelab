@@ -1,0 +1,177 @@
+# Audiobookshelf backup: its config and metadata volume, nightly, to the
+# restic repository `books/configs`, plus the monthly prune.
+#
+# CONSISTENCY
+#   /config holds the live SQLite database, so its copy may be torn. The
+#   restorable copy is /metadata/backups: Audiobookshelf writes a consistent
+#   zip of its database there every night at 01:30 (Settings, Backups) and
+#   keeps the last two. Restore from that zip (docs/books.md).
+#   /metadata/cache and /metadata/logs are skipped: rebuilt on demand.
+#
+# The library itself (books/audiobooks, books/podcasts on NFS) is not in this
+# backup, like the media library.
+#
+# `books/configs` must stay in `local.restic_repos` in
+# bootstrap/aws-backup/main.tf (scripts/check-restic-repos.sh).
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: books-config-backup-audiobookshelf
+  namespace: books
+spec:
+  # 05:10, after the theater jobs (04:00-05:00).
+  schedule: "10 5 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: books-config-backup-audiobookshelf
+        spec:
+          restartPolicy: OnFailure
+          # `audiobookshelf-config` is ReadWriteOnce: run next to the app.
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app.kubernetes.io/name: audiobookshelf
+                  topologyKey: kubernetes.io/hostname
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic init 2>/dev/null || true
+                  restic backup /data \
+                    --tag audiobookshelf \
+                    --host books \
+                    --exclude /data/metadata/cache \
+                    --exclude /data/metadata/logs
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/books/configs
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                # restic's temp pack files; /tmp is read-only here.
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: audiobookshelf-config
+                readOnly: true
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi
+---
+# Retention, once a month: every snapshot for three months (Glacier IR bills
+# 90 days minimum), then one per month for a year. S3 only, no app volume.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: books-configs-prune
+  namespace: books
+spec:
+  schedule: "15 13 1 * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: books-configs-prune
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: restic
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-euo", "pipefail", "-c"]
+              args:
+                - |
+                  restic forget \
+                    --host books \
+                    --keep-within 3m \
+                    --keep-monthly 12 \
+                    --prune
+                  restic check --with-cache
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/books/configs
+                - name: RESTIC_CACHE_DIR
+                  value: /cache
+                - name: TMPDIR
+                  value: /cache
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              volumeMounts:
+                - name: cache
+                  mountPath: /cache
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi

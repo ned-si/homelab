@@ -31,6 +31,8 @@ spec:
     server: https://kubernetes.default.svc
   - namespace: syncthing
     server: https://kubernetes.default.svc
+  - namespace: books
+    server: https://kubernetes.default.svc
   namespaceResourceWhitelist:
   - group: '*'
     kind: '*'
