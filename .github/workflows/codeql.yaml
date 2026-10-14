@@ -1,0 +1,60 @@
+---
+# CodeQL: static analysis (SAST) of the Python scripts and tests, and of the
+# GitHub Actions workflows themselves (script injection, untrusted checkout,
+# excessive permissions).
+#
+# Alerts go to the Security tab (code scanning, categories codeql-python and
+# codeql-actions). Not a required check: findings are triaged there, the CI gate
+# stays the `ci` job.
+#
+# Advanced setup on purpose: the repository's default setup is off, and the two
+# cannot run together.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Saturday 02:30 UTC.
+    - cron: "30 2 * * 6"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      # codeql-action reads the workflow run to label the analysis.
+      actions: read
+      # analyze uploads the results as code scanning alerts.
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          # Interpreted languages: nothing to build.
+          build-mode: none
+
+      - name: Analyse
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: codeql-${{ matrix.language }}
