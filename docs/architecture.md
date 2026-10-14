@@ -20,9 +20,10 @@ the shape of that tree and why it has that shape; addresses are in
 
 Everything runs single-replica. Most workloads hold a `ReadWriteOnce` volume,
 so a second replica could not mount it, and there is one storage backend
-anyway. Talos and Kubernetes upgrades are `task talos:upgrade` and
-`task talos:upgrade-k8s`, one node at a time; take an etcd snapshot first
-(`task talos:etcd-snapshot`). Replacing a failed node is a re-flash and an
+anyway. Talos and Kubernetes upgrades are Renovate pull requests, rehearsed
+in CI and rolled out one node at a time by tuppr after the merge
+([talos-cheatsheet.md](talos-cheatsheet.md#talos-and-kubernetes-upgrades)).
+Replacing a failed node is a re-flash and an
 `apply-config`
 ([talos-cheatsheet.md](talos-cheatsheet.md#adding-or-replacing-a-node)).
 
