@@ -1,8 +1,10 @@
 # Power-cycle a node
 
 Hard-reset one RK1 module from the Turing Pi 2 BMC when the node is gone: no
-ping, no SSH, `NotReady` in `kubectl get nodes`. A kernel oops on the RK1
-kernel freezes the module without rebooting it, so it stays down until it is
+ping, no answer from `talosctl`, `NotReady` in `kubectl get nodes`. Talos sets
+`kernel.panic_on_oops=1` and `kernel.panic=10`
+([talos.md](../talos.md#machine-config)), so a kernel oops reboots the node by
+itself; a module that hangs without a panic stays down until it is
 power-cycled.
 
 - Time: 10 minutes.
@@ -26,15 +28,15 @@ to 4:
 | Node 3 | `homelab-cp-3` | `192.168.1.239` |
 | Node 4 | `homelab-w-1` | `192.168.1.240` |
 
-The serial console prints the hostname at its login prompt
-(`Ubuntu 22.04.5 LTS homelab-cp-3 ttyS9`); read it to confirm the mapping
-before resetting anything.
+The serial console prints the node's hostname and address in its Talos boot
+messages; read it to confirm the mapping before resetting anything.
 
 ## 1. Confirm which node is down
 
 ```sh
 cd ~/repos/homelab
 export KUBECONFIG="$PWD/kubeconfig-homelab"
+export TALOSCONFIG="$PWD/talos/clusterconfig/talosconfig"   # from task talos:genconfig
 kubectl get nodes
 for h in 192.168.1.247 192.168.1.238 192.168.1.239 192.168.1.240; do
   printf '%-15s ' "$h"; ping -c1 -W2000 "$h" >/dev/null 2>&1 && echo up || echo DOWN
@@ -42,12 +44,14 @@ done
 ```
 
 Expected: one node `NotReady` and its address `DOWN`. If it answers ping or
-SSH, do not reset it; read its journal instead.
+`talosctl -n <ip> version`, do not reset it; read
+`talosctl -n <ip> services` and `talosctl -n <ip> dmesg` instead
+([talos-cheatsheet.md](../talos-cheatsheet.md#4-troubleshooting)).
 
 ## 2. Read the serial console
 
-The console holds the last kernel messages, often the only record of an oops
-(the journal on the eMMC loses the lines written while the kernel died).
+The console holds the last kernel messages, the only record of a hang: Talos
+keeps its logs in memory, so they are gone after the reset.
 
 ```sh
 tpi --host turingpi.local uart -n 3 get | tail -60
@@ -86,11 +90,10 @@ those stuck in `ContainerCreating` with a `Multi-Attach` event clear once the
 reset node releases its iSCSI volumes. If the node does not come back, follow
 [node-replacement.md](node-replacement.md).
 
-After it is back, read why it died. List the boots first and pick the one that
-ended at the hang; do not assume it is `-1`, since extra reboots shift the
-offset:
+After it is back, the UART capture from step 2 is the record of why it died.
+The current boot's kernel log shows what the reset left behind (eMMC or iSCSI
+errors, for example):
 
 ```sh
-ssh nedsi@192.168.1.239 'sudo journalctl --list-boots --no-pager | tail -5'
-ssh nedsi@192.168.1.239 'sudo journalctl -b <boot-id> -k -p warning --no-pager | tail -40'
+talosctl -n 192.168.1.239 dmesg | grep -Ei 'error|fail|oops|mmc' | tail -40
 ```

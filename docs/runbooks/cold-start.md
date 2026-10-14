@@ -5,9 +5,11 @@ to a new place. Work top to bottom; each check exists because the next step
 fails confusingly when it does not pass.
 
 - Time: 45 minutes when nothing is wrong, about 2 hours with surprises.
-- You need: the Mac with this repository and `kubeconfig-homelab`, the SSH key
-  for `nedsi@` on the nodes, physical access to the NAS and the Turing Pi 2, and
-  the router's admin page.
+- You need: the Mac with this repository, `kubeconfig-homelab` and
+  `talosconfig` (in the password manager, or rendered by `task talos:genconfig`
+  with the SOPS age key), `talosctl`, physical access to the NAS and the
+  Turing Pi 2, and the router's admin page. Talos command reference:
+  [talos-cheatsheet.md](../talos-cheatsheet.md).
 - Nothing needs to have been shut down cleanly. The order below handles an
   unclean stop.
 
@@ -18,32 +20,14 @@ For a planned power-off, see [Planned shutdown](#planned-shutdown) first.
 | Thing | Fact |
 | --- | --- |
 | Router | Sunrise Connect Box 3 Fiber, `192.168.1.1`: gateway, DHCP (pool `.50`-`.199`, set as start `192.168.1.50`, 150 addresses), DNS forwarder. It cannot reserve addresses outside the pool and has no static routes. TP-Link Decos are access points only. |
-| Static devices | Set on the device, outside the DHCP pool: nodes `.247` `.238` `.239` `.240` (`/etc/netplan/01-homelab-static.yaml`, cloud-init networking disabled), NAS `.228`. |
+| Static devices | Set on the device, outside the DHCP pool: nodes `.247` `.238` `.239` `.240` (their Talos machine configs, from [`talos/talconfig.yaml`](../../talos/talconfig.yaml)), NAS `.228`. |
 | Cluster addresses | API VIP `.11`; LoadBalancer IPs `.254` (Gateway), `.200` (qBittorrent seeding), `.201` (Syncthing); pool `.200`-`.227`. |
 | NAS | TrueNAS CORE, static `192.168.1.228` on `igb0`, a port of the Digitus PCIe network card (MAC ends `B8:28`). The card's second port (`igb1`) is unconfigured and the onboard NIC has no driver in TrueNAS CORE: plug the cable into the `B8:28` port only. |
 | NAS console | None: the CPU (Ryzen 5 3600) has no integrated GPU, and a graphics card needs the only PCIe slot, which holds the network card. Diagnose over the network (web UI on `:443`, SSH). |
 | NAS disks | The 2.5" SATA SSD is the boot drive. The M.2 NVMe (`nvd0`) is the L2ARC cache of pool `homelab` (RAIDZ1, 5 disks). The pool imports without its cache device; it does not boot without the SSD. |
 | Nodes | 4x Turing RK1 in a Turing Pi 2. All four slots power on with the board. Each boots from a 29 GB eMMC. The board's BMC gives per-slot power and a serial console per slot, from its web UI or the `tpi` CLI (`tpi power`, `tpi uart`; `tpi --help` for the flags of the installed version). |
-| Clocks | The RK1 modules have no RTC battery: the clock is wrong until NTP syncs, a minute or so after boot. TLS errors in the first minute are this. |
-
-Node network configuration, `/etc/netplan/01-homelab-static.yaml` (mode 600;
-`homelab-cp-1` shown, only the address differs per node):
-
-```yaml
-network:
-  version: 2
-  renderer: networkd
-  ethernets:
-    eth0:
-      dhcp4: false
-      dhcp6: false
-      addresses: [192.168.1.247/24]
-      routes:
-        - to: default
-          via: 192.168.1.1
-      nameservers:
-        addresses: [192.168.1.1]
-```
+| Clocks | The RK1 modules have no RTC battery: the clock is wrong until NTP syncs, a minute or so after boot. Talos holds etcd until the time is synced; TLS errors in the first minute are this. |
+| API VIP | Talos holds `.11` on one control plane, elected through etcd: without etcd quorum there is no VIP. `talosctl` talks to the node IPs, never the VIP. |
 
 ## Step 0: terminal
 
@@ -54,16 +38,18 @@ way; zsh, the macOS default, does not):
 /bin/bash
 cd ~/repos/homelab
 export KUBECONFIG="$PWD/kubeconfig-homelab"
+export TALOSCONFIG=~/homelab-backups/talos/talosconfig   # or talos/clusterconfig/talosconfig after task talos:genconfig
 NAS=192.168.1.228 VIP=192.168.1.11
 NODES="192.168.1.247 192.168.1.238 192.168.1.239 192.168.1.240"
-SSHO="-o ConnectTimeout=5 -o BatchMode=yes"
-for t in kubectl jq curl nc ssh showmount dig; do
+CPS=192.168.1.247,192.168.1.238,192.168.1.239
+for t in kubectl talosctl jq curl nc showmount dig; do
   printf '%-10s ' "$t"; command -v "$t" >/dev/null && echo ok || echo MISSING
 done
 ```
 
-Expected: `ok` for every tool. `brew install jq` or `brew install bind` (for
-`dig`) if one is missing; the smoke suite in step 8 needs both. Every later
+Expected: `ok` for every tool. `task tools` installs `talosctl`; `brew install
+jq` or `brew install bind` (for `dig`) if one is missing; the smoke suite in
+step 8 needs all three. Every later
 block assumes these variables are set in the same shell.
 
 ## Step 1: router and addresses
@@ -156,46 +142,38 @@ printf 'VIP %s:6443 ' "$VIP"; nc -z -G 3 -w 3 "$VIP" 6443 && echo listening || e
 `-W` is in milliseconds on macOS. Expected: four `up` and `listening`.
 
 - A node `DOWN`: in the BMC (web UI or `tpi`), check the slot is powered,
-  power it on if not, and read its serial console. A node that is powered but
-  frozen needs a power-cycle ([node-power-cycle.md](node-power-cycle.md)). A node that boots but is
-  unreachable usually has a broken `/etc/netplan/01-homelab-static.yaml`; fix it
-  from the serial console and run `sudo netplan apply`. A node that no longer
-  boots: carry on with the other three and rebuild it afterwards
-  ([node-replacement.md](node-replacement.md)).
-- The VIP `DOWN` while the control planes are up: read kube-vip's log on a
-  control plane:
+  power it on if not, and read its serial console
+  (`tpi --host turingpi.local uart -n <slot> get | tail -60`). A node that is
+  powered but frozen needs a power-cycle
+  ([node-power-cycle.md](node-power-cycle.md)). A node whose console shows
+  maintenance mode on a DHCP address has lost its config: apply it again
+  ([node-replacement.md step 4](node-replacement.md#step-4-apply-the-machine-config)).
+  A node that no longer boots: carry on with the other three and rebuild it
+  afterwards ([node-replacement.md](node-replacement.md)).
+- The VIP `DOWN` while the control planes are up: the VIP follows etcd, so
+  check etcd first (below). Then see which control plane holds it, and read
+  the VIP and etcd lines of the controller log:
 
   ```sh
-  ssh $SSHO nedsi@192.168.1.247 'sudo -n crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -a --name kube-vip'
-  ssh $SSHO nedsi@192.168.1.247 'sudo -n crictl --runtime-endpoint unix:///run/containerd/containerd.sock logs --tail 20 $(sudo -n crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -a -q --name kube-vip | head -1)'
+  talosctl -n "$CPS" get addresses | grep "$VIP"
+  talosctl -n 192.168.1.247 logs controller-runtime | grep -Ei 'vip|etcd' | tail -20
   ```
 
-  - `lookup kubernetes on ...:53: no such host`: the `/etc/nsswitch.conf`
-    mount is missing from `/etc/kubernetes/manifests/kube-vip.yaml`. Restore it
-    as in [networking.md](../networking.md#kubernetes-api-vip).
-  - `listen tcp :2112: bind: address already in use`: a sandbox from before the
-    power loss is still running. List them with `crictl pods --name kube-vip`,
-    then `crictl stopp <old-id>` and `crictl rmp <old-id>` (same
-    `--runtime-endpoint`).
-- etcd or kube-apiserver in a crash loop after the network is fixed:
-  `sudo systemctl restart kubelet` on that control plane resets the 5-minute
-  back-off.
+  Expected: one line with `$VIP` on one control plane.
+- A Talos service not `Running`: `talosctl -n <ip> services`, then
+  `talosctl -n <ip> logs <service>` for the failing one.
 
 Then etcd quorum:
 
 ```sh
-for h in 192.168.1.247 192.168.1.238 192.168.1.239; do
-  ssh $SSHO nedsi@"$h" 'E=unix:///run/containerd/containerd.sock;
-    c=$(sudo -n crictl --runtime-endpoint $E ps -q --name etcd | head -1);
-    sudo -n crictl --runtime-endpoint $E exec "$c" etcdctl \
-      --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt \
-      --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
-      endpoint health'
-done
+talosctl -n "$CPS" etcd status
 ```
 
-Expected: three `127.0.0.1:2379 is healthy` lines. Two is survivable (quorum),
-one is not: see [etcd snapshot and restore](#etcd-snapshot-and-restore).
+Expected: three rows, the same `LEADER` on each, an empty `ERRORS` column.
+Two rows is survivable (quorum), one is not: see
+[etcd snapshot and restore](#etcd-snapshot-and-restore). A row missing because
+its node times out: `talosctl -n <ip> service etcd` on that node shows why
+etcd is waiting (time sync, network, volumes).
 
 ## Step 4: cluster
 
@@ -225,13 +203,16 @@ Expected, in order:
 
 If PVCs are not Bound or volumes fail to attach, go back to step 2: port 3260
 and the iSCSI service. If pods on a node are `Evicted` with `DiskPressure`, the
-eMMC is full of images:
+eMMC is full, usually of images. The kubelet's image garbage collection frees
+space on its own; to see what holds it, and to remove an unused image by hand:
 
 ```sh
-ssh $SSHO nedsi@<node-ip> 'sudo -n crictl --runtime-endpoint unix:///run/containerd/containerd.sock rmi --prune; df -h / | tail -1'
+talosctl -n <node-ip> usage /var --depth 2 | sort -n | tail -10
+talosctl -n <node-ip> image list
+talosctl -n <node-ip> image remove <image-ref>
 ```
 
-The node condition clears a few minutes later.
+The node condition clears a few minutes after the space is back.
 
 ## Step 5: Argo CD
 
@@ -375,24 +356,16 @@ section). The nightly restic jobs copy files and most databases to S3, but
 
 ### Snapshot
 
+The task reads `talos/clusterconfig/talosconfig`: run `task talos:genconfig`
+once first.
+
 ```sh
-snap=snap-$(date -u +%Y%m%dT%H%M%SZ).db
-ssh $SSHO nedsi@192.168.1.247 "E=unix:///run/containerd/containerd.sock;
-  c=\$(sudo -n crictl --runtime-endpoint \$E ps -q --name etcd | head -1);
-  sudo -n crictl --runtime-endpoint \$E exec \$c etcdctl --endpoints=https://127.0.0.1:2379 \
-    --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt \
-    --key=/etc/kubernetes/pki/etcd/server.key snapshot save /var/lib/etcd/$snap >/dev/null &&
-  sudo -n mkdir -p /root/etcd-snapshots && sudo -n mv /var/lib/etcd/$snap /root/etcd-snapshots/ &&
-  sudo -n chmod 600 /root/etcd-snapshots/$snap && sudo -n sha256sum /root/etcd-snapshots/$snap"
-mkdir -p ~/homelab-backups/etcd
-ssh $SSHO nedsi@192.168.1.247 "sudo -n cat /root/etcd-snapshots/$snap" > ~/homelab-backups/etcd/$snap
-chmod 600 ~/homelab-backups/etcd/$snap
-shasum -a 256 ~/homelab-backups/etcd/$snap
+task talos:etcd-snapshot -- 192.168.1.239
+shasum -a 256 "$(ls -1t ~/homelab-backups/etcd/talos-*.db | head -1)"
 ```
 
-Expected: the same sha256 twice, and a file of about 55 MB. The snapshot is
-written inside the etcd container's data directory (`/var/lib/etcd`, a host
-mount) because the hosts have no `etcdctl`.
+Expected: an `ls -l` line for `~/homelab-backups/etcd/talos-<utc>.db` of about
+50 MB, then its sha256. Any healthy control plane works in place of `.239`.
 
 ### Restore
 
@@ -400,69 +373,61 @@ Only when etcd has lost quorum for good or its data is corrupt. It rewinds the
 whole cluster state to the snapshot. Argo CD then re-applies git on top, but
 anything created after the snapshot and not in git is gone (PVs provisioned
 since then stay on the NAS, `Retain`, and need re-binding by hand). This
-procedure follows the upstream kubeadm and etcd restore steps; it has not been
-rehearsed on this cluster.
+follows the upstream Talos disaster-recovery steps; it has not been rehearsed
+on this cluster.
 
-1. Copy the snapshot to the three control planes:
+1. If no snapshot is recent enough and one control plane still has its etcd
+   data, copy the raw database off it first:
 
    ```sh
-   snap=~/homelab-backups/etcd/<snapshot>.db
+   talosctl -n 192.168.1.239 cp /var/lib/etcd/member/snap/db ~/homelab-backups/etcd/
+   ```
+
+   Expected: `~/homelab-backups/etcd/db`.
+
+2. Wipe the etcd data on every control plane. Only the `EPHEMERAL` partition
+   is wiped; the OS, the boot partitions and the machine config stay. The
+   nodes reboot and wait for an etcd bootstrap:
+
+   ```sh
    for h in 192.168.1.247 192.168.1.238 192.168.1.239; do
-     scp -o ConnectTimeout=5 "$snap" nedsi@"$h":/tmp/restore.db
+     talosctl -n "$h" reset --graceful=false --reboot --system-labels-to-wipe=EPHEMERAL
    done
+   talosctl -n "$CPS" service etcd
    ```
 
-2. On each control plane, stop etcd and the API server and keep the old data:
+   Expected, after a few minutes: `STATE Preparing` on all three.
+
+3. Bootstrap etcd from the snapshot on one control plane:
 
    ```sh
-   sudo mv /etc/kubernetes/manifests/etcd.yaml /etc/kubernetes/manifests/kube-apiserver.yaml /etc/kubernetes/
-   sleep 30
-   sudo crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps --name 'etcd|kube-apiserver'
-   sudo mv /var/lib/etcd /var/lib/etcd.before-restore
+   talosctl -n 192.168.1.239 bootstrap --recover-from ~/homelab-backups/etcd/<snapshot>.db
    ```
 
-   Expected: the `crictl ps` table is empty.
+   For the raw copy of step 1, use `--recover-from ~/homelab-backups/etcd/db
+   --recover-skip-hash-check`. The other two
+   control planes join on their own.
 
-3. On each control plane, restore with `etcdutl` from the etcd image already on
-   the node. Set `NAME` and `IP` to that node: `homelab-cp-1` / `192.168.1.247`,
-   `homelab-cp-2` / `192.168.1.238`, `homelab-cp-3` / `192.168.1.239`:
+4. From the Mac, re-run the etcd quorum check of step 3, then steps 4 to 8.
 
-   ```sh
-   NAME=homelab-cp-1 IP=192.168.1.247
-   sudo ctr -n k8s.io run --rm --net-host \
-     --mount type=bind,src=/tmp,dst=/tmp,options=rbind:rw \
-     --mount type=bind,src=/var/lib,dst=/var/lib,options=rbind:rw \
-     registry.k8s.io/etcd:3.5.24-0 etcd-restore \
-     etcdutl snapshot restore /tmp/restore.db --name "$NAME" \
-       --initial-cluster homelab-cp-1=https://192.168.1.247:2380,homelab-cp-2=https://192.168.1.238:2380,homelab-cp-3=https://192.168.1.239:2380 \
-       --initial-advertise-peer-urls "https://$IP:2380" --data-dir /var/lib/etcd
-   ```
-
-   Expected: a `restored snapshot` log line and a new `/var/lib/etcd/member`.
-
-4. On each control plane, start them again:
-
-   ```sh
-   sudo mv /etc/kubernetes/etcd.yaml /etc/kubernetes/kube-apiserver.yaml /etc/kubernetes/manifests/
-   ```
-
-5. From the Mac, re-run the etcd quorum check of step 3, then steps 4 to 8.
-
-Rollback: stop the static pods again, move `/var/lib/etcd.before-restore` back
-to `/var/lib/etcd` on each node, and start them.
+There is no rollback once the data is wiped: the snapshot is the state.
 
 ## Planned shutdown
 
 Before a move or planned power work:
 
 1. Take the backups of step 9 (dumps and an etcd snapshot).
-2. Power the nodes off, worker first, cp-1 last:
+2. Power the nodes off, worker first, cp-1 last. `--force` skips the
+   per-node drain, which would only push every pod onto the nodes still up;
+   the kubelet still stops the pods before the node halts:
 
    ```sh
    for h in 192.168.1.240 192.168.1.239 192.168.1.238 192.168.1.247; do
-     ssh $SSHO nedsi@"$h" 'sudo -n shutdown -h now'; sleep 60
+     talosctl -n "$h" shutdown --force
    done
    ```
+
+   Expected: each command returns once that node is down.
 
 3. Shut the NAS down from its web UI (System, Shutdown), last.
 
