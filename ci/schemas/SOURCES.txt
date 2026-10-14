@@ -56,4 +56,4 @@ e0397fd4e3f81db22d7de4baeb333d333e802f05b7902d0a32f23cc70e693c47  https://raw.gi
 974db7292f4ee4bf335483536b44e8b339e32ae4ca3423e4fbeb2299f3d96660  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml
 d7939ea45a8798e11c0063dfdfe93e4d9e4b09a1160881f2cc403a6e8f0fa4d5  https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v6.3.2/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml
 8f377ff4a7d0d3f74fc64b0f7ac4f449fc38ca9e83a40107cca2f9315a9bd920  https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.1/manifest.yaml
-7fa74f9176dcac7202bb57a3b762a65eba602a16b331fd20863fea8efe8e3f2d  https://raw.githubusercontent.com/kubernetes/kubernetes/v1.31.2/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json
+41d85b9f6f2757d35b6645086d5bcadf4904a8f0133b00d77e2576b3feb47d56  https://raw.githubusercontent.com/kubernetes/kubernetes/v1.37.1/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json

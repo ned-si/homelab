@@ -47,6 +47,9 @@ objects and rule ids only; values are never printed.
                         method: plugin, not suspended, and targets such a Cluster
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
+  k8s-version-match     K8S_VERSION and the KIND_NODE_IMAGE tag in
+                        .github/workflows/ci.yaml are on the Kubernetes minor of
+                        kubernetesVersion in talos/talconfig.yaml
 """
 from __future__ import annotations
 
@@ -75,6 +78,9 @@ LEGACY_PREFIXES = ("kubernetes/applications/", "iac/")
 IPV4 = re.compile(r"(?<![0-9.])(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 # Only a literal IPv4 value counts as "setting" the public address.
 DEFAULT_TARGETS = re.compile(r"--default-targets=(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
+CI_WORKFLOW = ".github/workflows/ci.yaml"
+TALCONFIG = "talos/talconfig.yaml"
+K8S_MINOR = re.compile(r"^v?(\d+)\.(\d+)(?:\.\d+)?$")
 
 
 class Policy:
@@ -440,11 +446,32 @@ class Policy:
             if w not in have:
                 self.fail("expected-ingresses", f"Ingress {w} is not rendered by the new layout")
 
+    def rule_k8s_version(self) -> None:
+        rule = "k8s-version-match"
+        ci, tal = self.root / CI_WORKFLOW, self.root / TALCONFIG
+        if not ci.is_file() or not tal.is_file():
+            return
+        self.on(rule)
+        tal_docs = yaml_file_docs(tal)
+        want = k8s_minor(str((tal_docs[0] if tal_docs else {}).get("kubernetesVersion", "")))
+        if want is None:
+            self.fail(rule, f"{TALCONFIG}: no kubernetesVersion of the form vX.Y.Z")
+            return
+        ci_docs = yaml_file_docs(ci)
+        env = (ci_docs[0] if ci_docs else {}).get("env") or {}
+        ref = str(env.get("KIND_NODE_IMAGE", "")).split("@", 1)[0]
+        tag = ref.rsplit(":", 1)[1] if ":" in ref else ""
+        for key, value in (("K8S_VERSION", str(env.get("K8S_VERSION", ""))), ("KIND_NODE_IMAGE", tag)):
+            got = k8s_minor(value)
+            if got != want:
+                self.fail(rule, f"{CI_WORKFLOW}: env {key} is on minor {'.'.join(got) if got else '?'}, "
+                                f"{TALCONFIG} kubernetesVersion on {'.'.join(want)}")
+
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
-                     self.rule_expected_ingresses):
+                     self.rule_expected_ingresses, self.rule_k8s_version):
             rule()
         for f in self.fails:
             print(f)
@@ -486,6 +513,12 @@ def check_guard(cj: dict, mode: str | None) -> list[str]:
     if mode is None and "RESTIC_REPOSITORY" not in {e.get("name") for e in c.get("env") or []}:
         problems.append("not in ci/guard-modes.txt and containers[0] has no RESTIC_REPOSITORY (restic mode needs it)")
     return problems
+
+
+def k8s_minor(version: str) -> tuple[str, str] | None:
+    """('1', '37') for 1.37, 1.37.1 or v1.37.1; None for anything else."""
+    m = K8S_MINOR.match(version.strip())
+    return (m.group(1), m.group(2)) if m else None
 
 
 def wal_archiver(cluster: dict) -> dict | None:

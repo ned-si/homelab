@@ -356,3 +356,32 @@ def test_expected_ingresses(tmp_path):
     files = {"ci/expected-ingresses.txt": "# ns/name\nargo/argo\nmealie/mealie\n"}
     r = policy(tmp_path, files=files, renders=[("legacy-ingress", "2+3", "infrastructure", "argo", [ing])])
     assert fails(r) == ["FAIL expected-ingresses: Ingress mealie/mealie is not rendered by the new layout"]
+
+
+def k8s_tree(k8s="1.37.1", node="v1.37.0", talos="v1.37.1"):
+    ci = (f"name: ci\nenv:\n  K8S_VERSION: \"{k8s}\"\n"
+          f"  KIND_NODE_IMAGE: kindest/node:{node}@sha256:{'0' * 64}\n")
+    return {".github/workflows/ci.yaml": ci, "talos/talconfig.yaml": f"clusterName: x\nkubernetesVersion: {talos}\n"}
+
+
+def test_k8s_version_match_passes(tmp_path):
+    r = policy(tmp_path, files=k8s_tree())
+    assert r.returncode == 0, r.stdout
+    assert "k8s-version-match" in r.stdout
+
+
+@pytest.mark.parametrize("kw,key", [
+    ({"k8s": "1.32.13"}, "K8S_VERSION"),
+    ({"node": "v1.32.11"}, "KIND_NODE_IMAGE"),
+    ({"talos": "v1.38.0"}, "K8S_VERSION"),
+])
+def test_k8s_version_mismatch_fails(tmp_path, kw, key):
+    r = policy(tmp_path, files=k8s_tree(**kw))
+    assert any(f.startswith("FAIL k8s-version-match: .github/workflows/ci.yaml: env " + key) for f in fails(r)), r.stdout
+
+
+def test_k8s_version_missing_in_talconfig_fails(tmp_path):
+    files = k8s_tree()
+    files["talos/talconfig.yaml"] = "clusterName: x\n"
+    r = policy(tmp_path, files=files)
+    assert fails(r) == ["FAIL k8s-version-match: talos/talconfig.yaml: no kubernetesVersion of the form vX.Y.Z"]

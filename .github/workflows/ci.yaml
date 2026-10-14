@@ -49,8 +49,10 @@ concurrency:
 
 env:
   # Kubernetes version the manifests are validated against: the live cluster's.
-  # Bumped only in the PR that records a cluster upgrade.
-  K8S_VERSION: "1.32.13"
+  # Bumped only in the PR that records a cluster upgrade; repo-policy
+  # (k8s-version-match) keeps its minor on kubernetesVersion in
+  # talos/talconfig.yaml.
+  K8S_VERSION: "1.37.1"
   # yannh/kubernetes-json-schema commit (2026-09-29) used for core schemas.
   KUBE_SCHEMA_SHA: 8df8a883b68a24a104b4a9e43c1288090ae60b3b
   KUBECONFORM_VERSION: v0.7.0
@@ -76,11 +78,12 @@ env:
   # EXPECT_KUSTOMIZE of scripts/render-deploy.sh in the layered tree.
   KUBECTL_VERSION: v1.36.3
   KUBECTL_SHA256: ebbd080e7c2e275093b55915722043257eb24004363e20acb3c4d71919f88336
-  # kind v0.31.0 is the last release with a node image of the cluster's minor
-  # (1.32); the image is pinned by digest from its release notes.
-  KIND_VERSION: v0.31.0
-  KIND_SHA256: eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa
-  KIND_NODE_IMAGE: kindest/node:v1.32.11@sha256:5fc52d52a7b9574015299724bd68f183702956aa4a2116ae75a63cb574b35af8
+  # kind v0.33.0 ships a node image of the cluster's minor (1.37); the image is
+  # pinned by digest from its release notes. repo-policy (k8s-version-match)
+  # keeps its minor on talos/talconfig.yaml.
+  KIND_VERSION: v0.33.0
+  KIND_SHA256: aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d
+  KIND_NODE_IMAGE: kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
   TOFU_VERSION: 1.12.6
   TOFU_SHA256: 50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec
   # promtool from the Prometheus release the cluster runs (rule checks and
