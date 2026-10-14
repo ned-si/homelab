@@ -1,0 +1,17 @@
+#!/bin/bash
+# Fake talosctl for tests/smoke: only the two read-only `get` calls
+# scripts/smoke.sh makes on Talos nodes, answered from $SMOKE_FIX/talos/:
+# <ip>-etcd.json (`get services etcd`) and <ip>-addresses.json
+# (`get addresses`). A node without the file is unreachable.
+f=${SMOKE_FIX:?}
+echo "talosctl $*" >> "$f/calls.log"
+[ "${1:-}" = -n ] && [ "$#" -ge 3 ] || { echo "fake talosctl: unexpected call: $*" >&2; exit 1; }
+ip=$2
+shift 2
+case "$*" in
+  "get services etcd -o json") file="$f/talos/$ip-etcd.json" ;;
+  "get addresses -o json") file="$f/talos/$ip-addresses.json" ;;
+  *) echo "fake talosctl: unexpected call: $*" >&2; exit 1 ;;
+esac
+[ -f "$file" ] || { echo "rpc error: code = Unavailable desc = connection refused" >&2; exit 1; }
+cat "$file"
