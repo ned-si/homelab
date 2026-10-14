@@ -80,4 +80,4 @@ spec:
             name: tmp
   schedule: 0 6 * * *
   successfulJobsHistoryLimit: 3
-  suspend: true
+  suspend: false

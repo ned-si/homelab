@@ -1,54 +1,30 @@
 # Recyclarr: syncs TRaSH Guides quality definitions, quality profiles and custom
-# formats into Sonarr and Radarr.
+# formats into Sonarr and Radarr, every night at 06:00.
 #
-# ###########################################################################
-# # THIS CRONJOB SHIPS SUSPENDED. THAT IS NOT AN OVERSIGHT.
-# #
-# # Everything else in this repository DESCRIBES state. This MUTATES state in a
-# # system whose configuration is not in git: it rewrites quality profiles,
-# # scores and custom formats inside Sonarr's and Radarr's own databases, and
-# # nothing here can undo that. The only record of what those profiles looked
-# # like beforehand is the nightly `pg_dump` in ./backup.yaml.
-# #
-# # An unattended first run would therefore reshape a working library's grab
-# # rules at 06:00 with nobody watching, and the effect shows up later as "why
-# # did it start grabbing 720p".
-# #
-# # HOW TO TURN IT ON, ONCE THE CLUSTER IS UP:
-# #
-# #   1. The API keys are sealed (apps/secrets/recyclarr-api-keys.sops.yaml).
-# #
-# #   2. DRY RUN, and read the diff:
-# #
-# #        kubectl -n theater create job recyclarr-preview --from=cronjob/recyclarr-sync
-# #        kubectl -n theater set args job/recyclarr-preview -- sync --preview
-# #        kubectl -n theater logs -f job/recyclarr-preview
-# #
-# #      `--preview` shows every change it would make and applies none.
-# #
-# #   3. Only if that diff is what you want:
-# #
-# #        kubectl -n theater patch cronjob recyclarr-sync \
-# #          -p '{"spec":{"suspend":false}}'
-# #
-# #      then set `suspend: false` HERE and commit, or Argo CD's selfHeal will
-# #      revert the patch within minutes and the job will silently stop running
-# #      again. That is the same trap documented in ./backup.yaml.
-# # ###########################################################################
+# Each app has exactly two quality profiles, both TRaSH guide profiles used as
+# published (trash_id), only renamed:
 #
-# ---------------------------------------------------------------------------
-# WHY ONE PROFILE ID PER APP RATHER THAN A LIST OF CUSTOM FORMATS
+#   | Profile    | Sonarr (TRaSH)                            | Radarr (TRaSH)                     |
+#   |------------|-------------------------------------------|------------------------------------|
+#   | HD-Original| WEB-1080p                                 | HD Bluray + WEB                    |
+#   | HD-Kids-FR | [French MULTi.VF] HD Bluray + WEB (1080p) | [French MULTi.VF] HD Bluray + WEB  |
 #
-# Recyclarr 8 syncs a TRaSH guide quality profile from its trash_id, together
-# with the custom formats and default custom-format groups the guide attaches to
-# it. So each instance names one profile (the same ids as the upstream
-# templates hd-bluray-web and web-1080p) instead of dozens of custom-format ids
-# that go stale when the guides are reorganised. Recyclarr 8 dropped the
-# `include: - template:` files this config used before.
+# HD-Original: 1080p, no remux, original language, x265/AV1 penalised.
+# HD-Kids-FR: 1080p, no remux, French audio required, MULTi (original + French)
+# preferred. For animation and children's titles. Only the TRaSH defaults are
+# synced (default custom-format groups, default scores); nothing is hand-tuned.
 #
-# A wrong id fails the sync loudly (non-zero exit, visible in the job); step 2
-# above shows the effect before anything is written.
-# ---------------------------------------------------------------------------
+# This rewrites profiles, scores and custom formats inside Sonarr's and Radarr's
+# databases. Preview a change before it lands (docs/theater.md):
+#
+#   kubectl -n theater create job recyclarr-preview --from=cronjob/recyclarr-sync \
+#     --dry-run=client -o yaml \
+#     | yq '.spec.template.spec.containers[0].args = ["sync", "--preview"]' \
+#     | kubectl apply -f -
+#
+# Profiles are matched by name: the state directory is an emptyDir, so every
+# run adopts the existing profile with the configured `name`. Renaming a profile
+# here therefore creates a new one; rename it in the app first.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -70,15 +46,19 @@ data:
         base_url: http://sonarr.theater.svc.cluster.local:8989
         api_key: !env_var SONARR_API_KEY
 
-        # Quality definitions: the size limits per resolution. Safe and
-        # uncontroversial -- this is the part of the guides that is nearly
-        # always right.
+        # Quality definitions: the size limits per resolution.
         quality_definition:
           type: series
-        # Quality profile + the custom formats that score into it. This is the
-        # part that changes grab behaviour, and the reason for --preview.
+        # TRaSH guide profiles with their default custom-format groups and
+        # scores (upstream templates web-1080p and
+        # french-multi-vf-bluray-web-1080p); only the name is overridden.
         quality_profiles:
           - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+            name: HD-Original
+            reset_unmatched_scores:
+              enabled: true
+          - trash_id: 58e8dc75731040612dd6f4ac0676bfd7  # [French MULTi.VF] HD Bluray + WEB (1080p)
+            name: HD-Kids-FR
             reset_unmatched_scores:
               enabled: true
 
@@ -89,8 +69,14 @@ data:
 
         quality_definition:
           type: movie
+        # Upstream templates hd-bluray-web and french-multi-vf-hd-bluray-web.
         quality_profiles:
           - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+            name: HD-Original
+            reset_unmatched_scores:
+              enabled: true
+          - trash_id: 500ecc23572575511fd81893777d1e06  # [French MULTi.VF] HD Bluray + WEB
+            name: HD-Kids-FR
             reset_unmatched_scores:
               enabled: true
 
@@ -104,8 +90,7 @@ metadata:
   name: recyclarr-sync
   namespace: theater
 spec:
-  # SUSPENDED -- read the header before changing this.
-  suspend: true
+  suspend: false
   # 06:00: after the last backup job (jellyfin, 05:00, which also runs the
   # nightly restic prune) and well before anyone looks at the library. Nothing
   # here contends with the restic repository lock, but sharing a window with a
