@@ -1,0 +1,53 @@
+---
+# OpenSSF Scorecard: supply-chain security checks of this repository (branch
+# protection, pinned actions, token permissions, signed commits, ...).
+#
+# Results go to the Security tab (code scanning, category scorecard) and are
+# published to api.scorecard.dev, which serves the README badge.
+#
+# Publishing imposes workflow restrictions (github.com/ossf/scorecard-action,
+# "Workflow Restrictions"): no top-level env or defaults, no workflow-level
+# write permissions, and the job may only use checkout, upload-artifact,
+# upload-sarif and scorecard-action. Keep this file to that shape.
+name: scorecard
+
+on:
+  push:
+    # Only the default branch is supported.
+    branches: [main]
+  schedule:
+    # Saturday 01:30 UTC.
+    - cron: "30 1 * * 6"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      # upload-sarif writes code scanning alerts.
+      security-events: write
+      # OIDC token that signs the published results.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: results.sarif
+          category: scorecard
