@@ -16,13 +16,7 @@
 # #
 # # HOW TO TURN IT ON, ONCE THE CLUSTER IS UP:
 # #
-# #   1. Confirm the template names resolve. They are maintained by Recyclarr
-# #      upstream, not by this repo, and a rename is possible:
-# #
-# #        kubectl -n theater create job recyclarr-list --from=cronjob/recyclarr-sync
-# #        kubectl -n theater set args job/recyclarr-list -- list templates
-# #
-# #      (or just run `recyclarr list templates` in any local container)
+# #   1. The API keys are sealed (apps/secrets/recyclarr-api-keys.sops.yaml).
 # #
 # #   2. DRY RUN, and read the diff:
 # #
@@ -43,21 +37,17 @@
 # # ###########################################################################
 #
 # ---------------------------------------------------------------------------
-# WHY TEMPLATES RATHER THAN `trash_ids`
+# WHY ONE PROFILE ID PER APP RATHER THAN A LIST OF CUSTOM FORMATS
 #
-# The usual Recyclarr config pins guide entries by their TRaSH id -- opaque
-# 32-character hashes, dozens of them, that mean nothing in review and go stale
-# when the guides are reorganised. A stale id is not a hard error; it is a custom
-# format that quietly stops being applied.
+# Recyclarr 8 syncs a TRaSH guide quality profile from its trash_id, together
+# with the custom formats and default custom-format groups the guide attaches to
+# it. So each instance names one profile (the same ids as the upstream
+# templates hd-bluray-web and web-1080p) instead of dozens of custom-format ids
+# that go stale when the guides are reorganised. Recyclarr 8 dropped the
+# `include: - template:` files this config used before.
 #
-# `include: - template: <name>` instead delegates that list to templates Recyclarr
-# maintains and versions alongside itself. The pin that matters becomes the IMAGE
-# TAG, which Renovate already tracks, and the config below stays short enough to
-# review honestly.
-#
-# The cost: template names are upstream's to change, and a wrong one fails the
-# sync. That failure is loud (non-zero exit, visible in the job) rather than
-# silent, which is the right way round -- and step 1 above is how to confirm them.
+# A wrong id fails the sync loudly (non-zero exit, visible in the job); step 2
+# above shows the effect before anything is written.
 # ---------------------------------------------------------------------------
 apiVersion: v1
 kind: ConfigMap
@@ -80,25 +70,29 @@ data:
         base_url: http://sonarr.theater.svc.cluster.local:8989
         api_key: !env_var SONARR_API_KEY
 
-        include:
-          # Quality definitions: the size limits per resolution. Safe and
-          # uncontroversial -- this is the part of the guides that is nearly
-          # always right.
-          - template: sonarr-quality-definition-series
-          # Quality profile + the custom formats that score into it. This is the
-          # part that changes grab behaviour, and the reason for --preview.
-          - template: sonarr-v4-quality-profile-web-1080p
-          - template: sonarr-v4-custom-formats-web-1080p
+        # Quality definitions: the size limits per resolution. Safe and
+        # uncontroversial -- this is the part of the guides that is nearly
+        # always right.
+        quality_definition:
+          type: series
+        # Quality profile + the custom formats that score into it. This is the
+        # part that changes grab behaviour, and the reason for --preview.
+        quality_profiles:
+          - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+            reset_unmatched_scores:
+              enabled: true
 
     radarr:
       movies:
         base_url: http://radarr.theater.svc.cluster.local:7878
         api_key: !env_var RADARR_API_KEY
 
-        include:
-          - template: radarr-quality-definition-movie
-          - template: radarr-quality-profile-hd-bluray-web
-          - template: radarr-custom-formats-hd-bluray-web
+        quality_definition:
+          type: movie
+        quality_profiles:
+          - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+            reset_unmatched_scores:
+              enabled: true
 
     # Lidarr is deliberately absent. Recyclarr supports it, but the TRaSH music
     # guides are far less settled than the TV and film ones, and Lidarr here has
@@ -155,14 +149,14 @@ spec:
                 - name: TZ
                   value: Europe/Zurich
                 # Recyclarr resolves its config, its cache and its clone of the
-                # guides under this directory. Pointed at a writable emptyDir
-                # because the root filesystem is read-only.
-                - name: RECYCLARR_APP_DATA
+                # guides under this directory (the data dir defaults to it).
+                # Pointed at a writable emptyDir because the root filesystem is
+                # read-only. Recyclarr 8 refuses the old RECYCLARR_APP_DATA.
+                - name: RECYCLARR_CONFIG_DIR
                   value: /config
               envFrom:
                 # SONARR_API_KEY and RADARR_API_KEY, referenced from recyclarr.yml
-                # as `!env_var`. Sealed with PENDING sentinels until the cluster is
-                # up -- see apps/secrets/recyclarr-api-keys.sops.yaml.example.
+                # as `!env_var` (apps/secrets/recyclarr-api-keys.sops.yaml).
                 - secretRef:
                     name: recyclarr-api-keys
               volumeMounts:
@@ -187,7 +181,7 @@ spec:
                 allowPrivilegeEscalation: false
                 # Unlike the *arr apps -- which cannot do this, hence the
                 # AVD-KSV-0014 entry in .trivyignore -- Recyclarr is a plain .NET
-                # binary that writes only under RECYCLARR_APP_DATA and TMPDIR.
+                # binary that writes only under RECYCLARR_CONFIG_DIR and TMPDIR.
                 # Both are emptyDirs below.
                 #
                 # If it ever crashloops with a read-only filesystem error, the fix

@@ -25,25 +25,29 @@ data:
         base_url: http://sonarr.theater.svc.cluster.local:8989
         api_key: !env_var SONARR_API_KEY
 
-        include:
-          # Quality definitions: the size limits per resolution. Safe and
-          # uncontroversial -- this is the part of the guides that is nearly
-          # always right.
-          - template: sonarr-quality-definition-series
-          # Quality profile + the custom formats that score into it. This is the
-          # part that changes grab behaviour, and the reason for --preview.
-          - template: sonarr-v4-quality-profile-web-1080p
-          - template: sonarr-v4-custom-formats-web-1080p
+        # Quality definitions: the size limits per resolution. Safe and
+        # uncontroversial -- this is the part of the guides that is nearly
+        # always right.
+        quality_definition:
+          type: series
+        # Quality profile + the custom formats that score into it. This is the
+        # part that changes grab behaviour, and the reason for --preview.
+        quality_profiles:
+          - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+            reset_unmatched_scores:
+              enabled: true
 
     radarr:
       movies:
         base_url: http://radarr.theater.svc.cluster.local:7878
         api_key: !env_var RADARR_API_KEY
 
-        include:
-          - template: radarr-quality-definition-movie
-          - template: radarr-quality-profile-hd-bluray-web
-          - template: radarr-custom-formats-hd-bluray-web
+        quality_definition:
+          type: movie
+        quality_profiles:
+          - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+            reset_unmatched_scores:
+              enabled: true
 
     # Lidarr is deliberately absent. Recyclarr supports it, but the TRaSH music
     # guides are far less settled than the TV and film ones, and Lidarr here has
