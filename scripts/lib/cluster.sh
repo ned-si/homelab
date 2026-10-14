@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # cluster.sh -- helpers shared by the operator scripts that read the cluster
-# (scripts/status.sh, scripts/smoke.sh, scripts/graceful-startup.sh).
+# (scripts/status.sh, scripts/smoke.sh).
 # Source it; it defines functions and sets nothing else. Bash 3.2 compatible.
 
 # Colours only on a terminal, and never when NO_COLOR is set.

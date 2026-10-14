@@ -67,7 +67,7 @@ is_template() {
     .sops.yaml) return 1 ;;
     *.example|*.example.*|*.tmpl|*.template|*.sample) return 0 ;;
     # Prose that discusses the placeholders, and the scripts that carry them as
-    # literals (this one, age-key.sh, graceful-shutdown.sh, set-backup-target.sh).
+    # literals (this one, age-key.sh, set-backup-target.sh).
     docs/*|*.md|scripts/*) return 0 ;;
     # An encrypted file cannot be inspected and must not be.
     *.sops.yaml|*.sops.yml|*.sops.env) return 0 ;;

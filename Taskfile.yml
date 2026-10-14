@@ -438,13 +438,3 @@ tasks:
     desc: 'Diff a live Application against git. Usage: task apps:diff -- theater'
     cmds:
       - argocd app diff '{{.CLI_ARGS}}'
-
-  shutdown:
-    desc: Gracefully quiesce the cluster before a physical move
-    cmds:
-      - ./scripts/graceful-shutdown.sh
-
-  startup:
-    desc: Bring the cluster back up after a physical move
-    cmds:
-      - ./scripts/graceful-startup.sh
