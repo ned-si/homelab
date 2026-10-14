@@ -73,3 +73,18 @@ jobs:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: scripts/ci/commit-render.sh
+
+      # One place for alerts: post the failure to ntfy. The topic is the
+      # secret, so it is never printed; the body names the PR and run only.
+      - name: Notify ntfy on failure
+        if: ${{ failure() }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -fsS -m 10 -o /dev/null \
+            -H "Title: renovate-render failed" -H "Priority: high" -H "Tags: warning" \
+            -H "Click: $RUN_URL" \
+            -d "renovate-render failed on PR #$PR_NUMBER; see $RUN_URL" \
+            "https://ntfy.sh/$NTFY_TOPIC"
