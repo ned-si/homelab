@@ -56,6 +56,35 @@ but not rendered. Once it runs, its language profile is French + English, set
 in its UI (Settings, Languages): Bazarr keeps profiles in its database, not in
 a config file. See [subtitles](runbooks/subtitles.md).
 
+## Indexers
+
+Prowlarr syncs its indexers to Sonarr and Radarr (full sync). Policy: nothing
+is grabbed automatically from a private or semi-private tracker, because
+automatic grabs break their ratio and hit-and-run rules.
+
+- Private and semi-private indexers use the Prowlarr app profile
+  `Manual only` (RSS off, automatic search off, interactive search on). Sonarr
+  and Radarr receive them with RSS and automatic search off, so they are only
+  used from Interactive Search.
+- Public indexers use the profile `Standard` (everything on).
+- YGG stays disabled. Its definition is no longer shipped by Prowlarr, so it
+  cannot be edited until it is re-added.
+
+Prowlarr keeps this in its database, not in git. Check it after adding an
+indexer (read-only):
+
+```sh
+scripts/check-indexers.sh
+```
+
+Expected: one `ok` line per indexer, exit 0. A `FAIL` line names an enabled
+private or semi-private indexer on an automatic profile; fix it in Prowlarr
+(Indexers, edit, Sync Profile `Manual only`).
+
+qBittorrent has no global ratio or seeding-time limit and the categories
+inherit that, so torrents seed until removed. Queueing is on with 10 active
+torrents: beyond that, seeds are queued and stop uploading.
+
 ## Why it is like this
 
 - TRaSH profiles by `trash_id`, not hand-built: the guides maintain the release
@@ -64,3 +93,5 @@ a config file. See [subtitles](runbooks/subtitles.md).
 - Two profiles only: one per audio need. Per-title choice stays manual because
   "animated" is not the same as "for children" and a bulk rule would get it
   wrong.
+- Private trackers are manual only: their rules punish automatic grabs.
+  Public indexers carry the automatic search.
