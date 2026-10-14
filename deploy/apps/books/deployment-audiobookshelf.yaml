@@ -94,5 +94,6 @@ spec:
         persistentVolumeClaim:
           claimName: audiobookshelf-config
       - name: library
-        persistentVolumeClaim:
-          claimName: books-data
+        nfs:
+          path: /mnt/homelab/k8s/nfs
+          server: 192.168.1.228
