@@ -15,7 +15,6 @@ own pull request with its own diff, test and rollback
 
 - Deploy the custom alert rules (`platform/kube-prometheus-stack/routes/alerts.yaml`,
   [observability.md](observability.md#notifications)).
-- blackbox-exporter probes for every public hostname.
 
 ## Backups
 
@@ -28,11 +27,6 @@ own pull request with its own diff, test and rollback
 
 ## Delivery
 
-- Turn automatic rollback on: create its GitHub token
-  ([decisions.md](decisions.md#automatic-rollback)). Everything else is
-  deployed; until then a bad update is reverted by hand.
-- A watchdog outside the cluster: automatic rollback runs through Argo CD and
-  needs a working CNI, so it cannot rescue a broken Argo CD or Cilium.
 - `task apps:status` still uses namespace `argocd`; move it to `argo`.
 
 ## Versions
