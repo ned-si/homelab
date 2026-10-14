@@ -7,8 +7,10 @@
 #      sops). --offline-mode computes the Image Factory schematic ID locally
 #      instead of POSTing the schematic to factory.talos.dev.
 #   2. talosctl machineconfig patch with every document in
-#      talos/patches/talosctl/. talhelper 3.1.17 vendors Talos machinery
-#      1.14.0-alpha.2 and rejects documents added later (SecurityProfileConfig).
+#      talos/patches/talosctl/, plus talos/patches/talosctl/controlplane/ on the
+#      control planes only. talhelper 3.1.17 vendors Talos machinery
+#      1.14.0-alpha.2 and rejects documents added later (SecurityProfileConfig,
+#      KubeTalosAPIAccessConfig).
 #
 # Environment:
 #   WORKLOAD_ISOLATION  true|false, overrides SecurityProfileConfig
@@ -61,11 +63,20 @@ for p in "$TALOS_DIR"/patches/talosctl/*.yaml; do
   patches+=(--patch "@$p")
 done
 
+cp_patches=()
+for p in "$TALOS_DIR"/patches/talosctl/controlplane/*.yaml; do
+  [ -f "$p" ] && cp_patches+=(--patch "@$p")
+done
+
 n=0
 for f in "$out"/*.yaml; do
   [ -f "$f" ] || continue
-  if [ "${#patches[@]}" -gt 0 ]; then
-    talosctl machineconfig patch "$f" "${patches[@]}" -o "$work/patched.yaml"
+  these=(${patches[@]+"${patches[@]}"})
+  if grep -qE '^ +type: controlplane$' "$f"; then
+    these+=(${cp_patches[@]+"${cp_patches[@]}"})
+  fi
+  if [ "${#these[@]}" -gt 0 ]; then
+    talosctl machineconfig patch "$f" "${these[@]}" -o "$work/patched.yaml"
     # Keep the 0600 mode talhelper gave the file: it holds the cluster secrets.
     cat "$work/patched.yaml" > "$f"
   fi

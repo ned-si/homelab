@@ -1,0 +1,14 @@
+# Applied by scripts/talos-genconfig.sh with talosctl after talhelper: talhelper
+# 3.1.17 vendors Talos machinery 1.14.0-alpha.2, which does not know this
+# document. Move it into talconfig.yaml `patches:` once talhelper does.
+#
+# Lets pods in `system-upgrade` hold a Talos API client certificate with the
+# os:admin role, through a talos.dev/v1alpha1 ServiceAccount. tuppr
+# (platform/tuppr) runs there and upgrades the nodes over the Talos API.
+# Before Talos 1.14 this was machine.features.kubernetesTalosAPIAccess.
+apiVersion: v1alpha1
+kind: KubeTalosAPIAccessConfig
+allowedRoles:
+  - os:admin
+allowedKubernetesNamespaces:
+  - system-upgrade
