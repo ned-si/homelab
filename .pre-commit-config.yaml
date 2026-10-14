@@ -206,6 +206,15 @@ repos:
         pass_filenames: false
         files: ^\.github/workflows/
 
+      # The Kyverno policies, their unit tests, and deploy/ against them: the
+      # same script as the CI render job. Needs the kyverno CLI (`task tools`).
+      - id: kyverno
+        name: kyverno policies over deploy/
+        entry: scripts/ci/kyverno.sh
+        language: script
+        pass_filenames: false
+        files: ^(deploy|policies/kyverno)/
+
       # The CI `render` job, end to end: render every Application the way Argo
       # CD does, kubeconform it against the pinned schemas, then
       # scripts/ci/repo-policy.sh (pins, invariants, kube-linter, deploy/

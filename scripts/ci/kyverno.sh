@@ -10,6 +10,9 @@
 # in-cluster Kyverno gates: a policy moves from Audit to Deny once deploy/
 # passes it.
 #
+# A run that checks zero resources fails: an empty deploy/ or a policy
+# selector that matches nothing would otherwise pass silently.
+#
 # The decision is made here from the report, not from kyverno's exit code:
 # for ValidatingPolicy, `kyverno apply` exits 1 on Audit findings even with
 # --audit-warn.
@@ -34,6 +37,7 @@ done
 # `--resource <dir>` does not recurse: pass every file.
 resources=()
 while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -name '*.yaml' -type f | sort)
+[ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in deploy/; refusing to pass" >&2; exit 1; }
 echo "== kyverno apply: ${#policies[@]} policies over $((${#resources[@]} / 2)) files in deploy/"
 echo "enforced (Deny): ${enforced[*]:-none}"
 kyverno apply "${policies[@]}" "${resources[@]}" --audit-warn --policy-report \
@@ -43,6 +47,15 @@ if [ "$(yq '.kind' "$out/report.yaml" 2>/dev/null)" != "ClusterReport" ]; then
   head -n 20 "$out/apply.err" "$out/report.yaml" >&2
   exit 1
 fi
+
+# A run that evaluated nothing (no files, or no policy matched any of them)
+# must not pass: "skip" results do not count as checked.
+checked=$(yq -N '[.results[] | select(.result != "skip")] | length' "$out/report.yaml")
+if [ "${checked:-0}" -eq 0 ]; then
+  echo "kyverno: 0 resources checked; refusing to pass" >&2
+  exit 1
+fi
+echo "checked: $checked policy results"
 
 table=$(yq -N '.results[] | .policy + " " + .result' "$out/report.yaml" | sort | uniq -c \
   | awk '{printf "| %s | %s | %s |\n", $2, $3, $1}')
