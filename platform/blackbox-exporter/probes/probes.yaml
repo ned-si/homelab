@@ -104,7 +104,7 @@ spec:
       labels:
         probe: internal
       static:
-        # Kubernetes API VIP (kube-vip).
+        # Kubernetes API VIP (held by Talos on a control plane).
         - 192.168.1.11:6443
         # Shared Gateway (HTTPS listener).
         - 192.168.1.254:443

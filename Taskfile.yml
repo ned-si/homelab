@@ -391,7 +391,7 @@ tasks:
   talos:etcd-snapshot:
     desc: 'Save an etcd snapshot to ~/homelab-backups/etcd/. Usage: task talos:etcd-snapshot [-- <control-plane-ip>]'
     vars:
-      # cp-3 is the first Talos control plane and exists in every migration phase.
+      # Any control plane works; cp-3 by default.
       NODE: '{{default "192.168.1.239" .CLI_ARGS}}'
     cmds:
       - |

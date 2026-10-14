@@ -23,8 +23,8 @@ additionalApiServerCertSans:
 additionalMachineCertSans:
   - 192.168.1.11
 
-# The kubeadm cluster schedules on its control planes too; 3 cp + 1 worker
-# could not host the workloads otherwise.
+# Workloads run on the control planes too; 3 cp + 1 worker could not host
+# them otherwise.
 allowSchedulingOnControlPlanes: true
 clusterPodNets:
   - 10.244.0.0/16
