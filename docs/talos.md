@@ -74,9 +74,12 @@ A fresh node boots into maintenance mode on a DHCP address, printed on the UART.
   the node instead of hanging it.
 - Workload isolation: `SecurityProfileConfig workloadIsolation: false`. Talos
   1.14 turns it on for new clusters. It runs the kubelet and every pod in a
-  separate PID and mount namespace, where democratic-csi probably cannot find
-  the host `iscsid` it `nsenter`s into. Generate with
-  `WORKLOAD_ISOLATION=true task talos:genconfig` to test the other value.
+  separate PID and mount namespace, where democratic-csi cannot find the host
+  `iscsid` it `nsenter`s into: with `true`, every iSCSI mount fails with
+  `failed to find iscsid pid for nsenter` (measured on Talos v1.14.2,
+  democratic-csi chart 0.15.1). Generate with
+  `WORKLOAD_ISOLATION=true task talos:genconfig` to test the other value, and
+  reboot the node after applying a change.
 
 ## Cluster secrets (once)
 
@@ -165,8 +168,9 @@ Expected: `ok` lines only, the last one `ok  git-ignore rules`, exit 0.
   runs 1.37 before the nodes do.
 - eMMC only, no NVMe. EPHEMERAL stays on the eMMC; revisit once the eMMC
   `life_time` trend gives a reason.
-- Workload isolation off until tested. iSCSI volumes, including the photo
-  library, must mount. The w-1 spike runs both values.
+- Workload isolation off. iSCSI volumes, including the photo library, must
+  mount, and with isolation on they do not. Revisit when democratic-csi can
+  reach `iscsid` from inside the sandbox.
 - `patches/talosctl/` exists because talhelper vendors a pre-release of the
   Talos 1.14 config library. Move those documents into `talconfig.yaml` once
   talhelper parses them.

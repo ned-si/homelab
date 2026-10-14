@@ -4,9 +4,12 @@
 #
 # Talos 1.14 workload isolation runs containerd, the kubelet and every pod in a
 # separate PID and mount namespace (sandboxd). democratic-csi finds the host
-# iscsid with pgrep and nsenters into it, which isolation is expected to break.
-# The w-1 spike tests both values and production keeps the one that mounts:
-#   WORKLOAD_ISOLATION=true task talos:genconfig
+# iscsid with pgrep and nsenters into it, which isolation breaks: with `true`
+# every iSCSI NodeStageVolume fails with "failed to find iscsid pid for
+# nsenter" (Talos v1.14.2, democratic-csi chart 0.15.1). Keep `false` until
+# democratic-csi can reach iscsid from inside the sandbox. Reboot the node
+# after applying a change.
+# To try `true` again: WORKLOAD_ISOLATION=true task talos:genconfig
 apiVersion: v1alpha1
 kind: SecurityProfileConfig
 workloadIsolation: false
