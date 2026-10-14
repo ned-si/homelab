@@ -5,6 +5,7 @@ Namespace `books`, manifests in `apps/books/`, Argo CD Application `books`.
 | App | URL | Purpose |
 |---|---|---|
 | Audiobookshelf | https://audiobooks.lilalala.com | Audiobooks and podcasts; Android and iOS apps |
+| Calibre-Web Automated | https://ebooks.lilalala.com | The ebook library: read in the browser, OPDS, Kobo and KOReader sync |
 
 ## Storage
 
@@ -16,6 +17,8 @@ next to `media/` and `torrents/`, as an inline NFS volume in each Deployment
 |---|---|
 | `books/audiobooks` | Audiobookshelf library "Audiobooks" (`/audiobooks`) |
 | `books/podcasts` | Audiobookshelf library "Podcasts" (`/podcasts`) |
+| `books/ebooks` | The Calibre library of Calibre-Web Automated (`/calibre-library`, `metadata.db` included) |
+| `books/ingest` | Calibre-Web Automated drop folder (`/cwa-book-ingest`): files put here are imported into the library, then deleted |
 
 Every directory belongs to uid 1000, gid 0, like `media/`. The NAS squashes
 root, so create a missing one as uid 1000, for example from the Sonarr pod,
@@ -26,7 +29,12 @@ kubectl -n theater exec deploy/sonarr -- su -s /bin/sh hotio -c 'mkdir -p /data/
 ```
 
 App state is on iSCSI: PVC `audiobookshelf-config` holds `config/` (SQLite
-database) and `metadata/` (covers, cache, the app's own backups).
+database) and `metadata/` (covers, cache, the app's own backups);
+`calibre-web-config` holds Calibre-Web's `app.db` (users, settings, shelves)
+and `processed_books/` (the originals of converted books).
+
+Calibre-Web Automated runs with `NETWORK_SHARE_MODE=true`: the library's
+SQLite database is on NFS, so WAL mode is off and the ingest folder is polled.
 
 ## Login
 
@@ -47,6 +55,16 @@ the operator's password manager.
 Mobile apps: server address `https://audiobooks.lilalala.com`, then "Login
 with OpenID".
 
+Calibre-Web Automated: Keycloak client `calibre-web` (confidential, redirect
+URI `https://ebooks.lilalala.com/login/generic/authorized`). Its OAuth settings
+are also in its database: Admin, Edit Basic Configuration, Feature
+Configuration, Login type "Use OAuth", provider "Generic", metadata URL
+`https://auth.lilalala.com/realms/homelab/.well-known/openid-configuration`,
+client ID `calibre-web`, client secret from Keycloak, scopes
+`openid profile email`. The local `admin` account stays as the break-glass
+login; its password is in the operator's password manager. A new image
+starts with `admin` / `admin123`: change it before anything else.
+
 ## Backups
 
 CronJob `books-config-backup-audiobookshelf` (05:10) copies
@@ -55,6 +73,13 @@ CronJob `books-config-backup-audiobookshelf` (05:10) copies
 retention in [backups.md](backups.md). The live SQLite file may be torn in
 that copy. Restore from `metadata/backups/*.audiobookshelf`, the consistent
 nightly backup the app writes itself (Settings, Backups, Restore).
+
+CronJob `books-config-backup-calibre-web` (05:20) backs up the ebook library
+(`books/ebooks`, tag `calibre-library`) and `calibre-web-config` (tag
+`calibre-web`) to the same repository. `metadata.db` and `app.db` are live
+SQLite files and may be torn in a copy; the book files are not. A torn
+`metadata.db` is rebuilt from the book folders (Calibre, Library
+maintenance, Restore database).
 
 The audiobook and podcast files are not backed up, like the media library.
 

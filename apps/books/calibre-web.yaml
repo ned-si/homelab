@@ -1,0 +1,170 @@
+# Calibre-Web Automated: the ebook library, read in the browser, OPDS and
+# Kobo sync. https://ebooks.lilalala.com, login through Keycloak (docs/books.md).
+#
+# Volumes:
+#   calibre-web-config (iSCSI)  /config: app.db (users, settings), the
+#                               originals of processed books, logs
+#   NFS share (inline)          /calibre-library = books/ebooks (the Calibre
+#                               library, metadata.db included) and
+#                               /cwa-book-ingest = books/ingest (drop folder:
+#                               CWA imports and then deletes what lands here)
+#
+# The image is s6-overlay based: it starts as root, then drops to PUID/PGID.
+# So it runs at Pod Security `baseline`, not `restricted`.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: calibre-web
+  name: calibre-web
+  namespace: books
+spec:
+  replicas: 1
+  # One RWO config volume and a single-writer SQLite library.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: calibre-web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: calibre-web
+    spec:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: calibre-web
+          # renovate: datasource=docker depName=crocodilestick/calibre-web-automated
+          image: crocodilestick/calibre-web-automated:v4.0.8
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: PUID
+              value: "1000"
+            - name: PGID
+              value: "1000"
+            # The library is on NFS: no SQLite WAL, no recursive chown,
+            # polling instead of inotify for the ingest folder.
+            - name: NETWORK_SHARE_MODE
+              value: "true"
+            # One proxy in front: the Gateway's Envoy.
+            - name: TRUSTED_PROXY_COUNT
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8083
+              protocol: TCP
+          # Ready = answers on the endpoint the PostSync smoke test checks.
+          readinessProbe:
+            httpGet:
+              path: /login
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /login
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 5
+          startupProbe:
+            httpGet:
+              path: /login
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            # Conversions (ebook-convert) are the peak.
+            limits:
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: library
+              mountPath: /calibre-library
+              subPath: books/ebooks
+            - name: library
+              mountPath: /cwa-book-ingest
+              subPath: books/ingest
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: calibre-web-config
+        # Inline, like the theater apps. SITE-SPECIFIC: the NAS address.
+        - name: library
+          nfs:
+            server: 192.168.1.228
+            path: /mnt/homelab/k8s/nfs
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: calibre-web-config
+  namespace: books
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: calibre-web
+  name: calibre-web
+  namespace: books
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8083
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: calibre-web
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: calibre-web
+  namespace: books
+spec:
+  # group/kind/weight and the catch-all match are the API server's defaults,
+  # spelled out so that Argo CD's diff sees no drift.
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - ebooks.lilalala.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: calibre-web
+          port: 8083
+          weight: 1
+      # Uploads and conversions are long requests.
+      timeouts:
+        request: 0s

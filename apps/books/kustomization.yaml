@@ -5,7 +5,9 @@ namespace: books
 # The library is an inline NFS volume in each Deployment (docs/books.md).
 resources:
   - audiobookshelf.yaml
-  # restic CronJob for the config volume, plus the monthly prune.
+  - calibre-web.yaml
+  # restic CronJobs for the config volumes and the ebook library, plus the
+  # monthly prune.
   - backup.yaml
 
 # After every sync: every Service answers on its health endpoint.
@@ -18,3 +20,4 @@ patches:
         path: /spec/template/spec/containers/0/args
         value:
           - http://audiobookshelf:13378/healthcheck
+          - http://calibre-web:8083/login
