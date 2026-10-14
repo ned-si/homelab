@@ -22,6 +22,5 @@ theater/theater-config-backup-plex
 theater/theater-config-backup-jellyfin
 theater/theater-configs-prune
 theater/recyclarr-sync
-||||||| parent of 3b43905 (feat(books): add Audiobookshelf)
 books/books-config-backup-audiobookshelf
 books/books-configs-prune
