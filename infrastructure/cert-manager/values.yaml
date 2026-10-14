@@ -5,6 +5,11 @@ prometheus:
   enabled: true
   servicemonitor:
     enabled: true
+    # Prometheus selects ServiceMonitors by this label; without it the
+    # certificate alerts in platform/kube-prometheus-stack/routes/alerts.yaml
+    # have no data.
+    labels:
+      release: kube-prometheus-stack
 
 crds:
   enabled: true
