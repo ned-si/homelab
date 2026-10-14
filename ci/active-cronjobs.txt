@@ -22,6 +22,7 @@ theater/theater-config-backup-plex
 theater/theater-config-backup-jellyfin
 theater/theater-configs-prune
 theater/recyclarr-sync
+theater/theater-config-backup-lazylibrarian
 books/books-config-backup-audiobookshelf
 books/books-config-backup-calibre-web
 books/books-configs-prune

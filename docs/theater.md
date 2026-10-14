@@ -66,7 +66,9 @@ automatic grabs break their ratio and hit-and-run rules.
   `Manual only` (RSS off, automatic search off, interactive search on). Sonarr
   and Radarr receive them with RSS and automatic search off, so they are only
   used from Interactive Search.
-- Public indexers use the profile `Standard` (everything on).
+- Public indexers use the profile `Standard` (everything on). They also carry
+  the tag `books`, which is what Prowlarr's `LazyLibrarian` application syncs;
+  a non-public indexer must never get it.
 - YGG stays disabled. Its definition is no longer shipped by Prowlarr, so it
   cannot be edited until it is re-added.
 
@@ -78,7 +80,7 @@ scripts/check-indexers.sh
 ```
 
 Expected: one `ok` line per indexer, exit 0. A `FAIL` line names an enabled
-private or semi-private indexer on an automatic profile; fix it in Prowlarr
+private or semi-private indexer on an automatic profile or with the `books` tag; fix it in Prowlarr
 (Indexers, edit, Sync Profile `Manual only`).
 
 qBittorrent has no global ratio or seeding-time limit and the categories

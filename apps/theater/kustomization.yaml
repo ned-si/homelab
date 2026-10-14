@@ -16,6 +16,9 @@ resources:
   - recyclarr.yaml
   - plex.yaml
   - jellyfin.yaml
+  # Book acquisition for the books namespace (docs/books.md).
+  - lazylibrarian.yaml
+  - backup-lazylibrarian.yaml
   - httproute.yaml
   # restic CronJobs for the /config volumes and the *arr databases, plus the
   # monthly prune of their shared repository.
@@ -42,3 +45,4 @@ patches:
           - http://qbittorrent:8080/
           - http://plex:32400/identity
           - http://jellyfin:8096/health
+          - http://lazylibrarian:5299/arr/lazylibrarian/auth/login

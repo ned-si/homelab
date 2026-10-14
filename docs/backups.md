@@ -30,7 +30,7 @@ One restic repository per prefix. The restic URL is
 | `paperless/media` | `paperless` | `/media` → `paperless-media`; `/data` → `paperless-data` | PVCs `paperless-media`, `paperless-data` (includes `db.sqlite3`) | 2.4 MiB |
 | `seafile/shared` | `seafile` | `/shared` → `seafile-data`; `/dumps` → `seafile-mariadb` | PVC `seafile-pvc`; `mariadb-dump` of Seafile's MariaDB | 0.7 MiB |
 | `syncthing/data` | `syncthing` | `/data` → `syncthing-identity` | PVC `syncthing-pvc` | 8.2 MiB |
-| `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
+| `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`, `lazylibrarian`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
 | `books/configs` | `books` | `/data` → `audiobookshelf`; `/library` → `calibre-library`; `/config` → `calibre-web` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs`; NFS `books/ebooks`; PVC `calibre-web-config`, minus `log` | not yet measured |
 | `grafana/data` | — | — | none: Grafana has no persistent volume, so the job is not rendered. The repository exists and is empty | 0 |
 
@@ -143,6 +143,7 @@ the NAS:
 | 05:00 | `theater/theater-config-backup-jellyfin` |
 | 05:10 | `books/books-config-backup-audiobookshelf` |
 | 05:20 | `books/books-config-backup-calibre-web` |
+| 05:30 | `theater/theater-config-backup-lazylibrarian` |
 | 1st of the month, 12:00–13:30 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, books 13:15, immich 13:30 |
 
 The six theater jobs share one repository and restic takes an exclusive lock for
