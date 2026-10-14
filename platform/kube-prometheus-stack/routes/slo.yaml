@@ -126,3 +126,105 @@ spec:
             description: >-
               Check the blackbox-exporter Application and the Probes in
               platform/blackbox-exporter/probes.
+
+    # One absent() per SLO target: a target dropped from a Probe leaves its
+    # SLO with no series, so no burn alert can fire for it. Quiet while
+    # SLOProbesAbsent fires (every target missing is one problem, not eight).
+    - name: homelab.slo.targets
+      rules:
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="auth"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: auth
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="cinema"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: cinema
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="theater"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: theater
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="media"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: media
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="archive"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: archive
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="cook"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: cook
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="drive"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: drive
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="syncthing"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: syncthing
+            severity: warning
+          annotations:
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.

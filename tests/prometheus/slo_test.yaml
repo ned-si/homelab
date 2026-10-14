@@ -90,12 +90,51 @@ tests:
           - labels: 'slo:availability:ratio_rate30d{app="auth"}'
             value: 1
 
-  # No probe results at all: the SLO alerts would be blind, so this fires.
+  # Every SLO target but media reports: only media's absent() alert fires.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="auth"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="cinema"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="theater"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="archive"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="drive"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="syncthing"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: SLOTargetProbeAbsent
+        exp_alerts:
+          - exp_labels:
+              job: blackbox-public
+              app: media
+              severity: warning
+            exp_annotations:
+              summary: "No probe results for media: its SLO alerts are blind"
+              description: >-
+                The media target is missing from the Probes in
+                platform/blackbox-exporter/probes, or its `app` relabeling no
+                longer matches.
+      - eval_time: 20m
+        alertname: SLOProbesAbsent
+        exp_alerts: []
+
+  # No probe results at all: the SLO alerts would be blind, so this fires,
+  # and the per-target alerts stay quiet.
   - interval: 1m
     input_series:
       - series: 'up{job="kubelet"}'
         values: '1x30'
     alert_rule_test:
+      - eval_time: 20m
+        alertname: SLOTargetProbeAbsent
+        exp_alerts: []
       - eval_time: 20m
         alertname: SLOProbesAbsent
         exp_alerts:
