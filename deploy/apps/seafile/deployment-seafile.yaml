@@ -58,6 +58,12 @@ spec:
         - containerPort: 80
           name: http
           protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /api2/ping/
+            port: http
+          periodSeconds: 10
         resources:
           limits:
             memory: 1000Mi

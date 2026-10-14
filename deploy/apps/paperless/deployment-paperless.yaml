@@ -76,6 +76,12 @@ spec:
         - containerPort: 8000
           name: http
           protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /accounts/login/
+            port: http
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /data/data
           name: paperless-data

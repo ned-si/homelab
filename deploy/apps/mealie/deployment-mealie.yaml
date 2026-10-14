@@ -97,6 +97,12 @@ spec:
         - containerPort: 9000
           name: http
           protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /api/app/about
+            port: http
+          periodSeconds: 10
         resources:
           limits:
             memory: 1000Mi

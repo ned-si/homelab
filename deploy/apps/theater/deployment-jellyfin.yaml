@@ -42,6 +42,12 @@ spec:
         - containerPort: 7359
           name: udp
           protocol: UDP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config
