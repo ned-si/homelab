@@ -39,6 +39,9 @@ spec:
 
         # A counter, so increase(); the second half catches the first failure
         # of an app, which creates the series at 1 and so has no increase.
+        # That half only counts apps Prometheus already saw 10 minutes ago:
+        # when scraping starts (or resumes after a gap) every old failure
+        # counter looks new, and is not a failure now.
         - alert: ArgoCDSyncFailed
           expr: |
             (sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[10m])) > 0)
@@ -48,6 +51,7 @@ spec:
                 argocd_app_sync_total{phase=~"Error|Failed"}
                 unless argocd_app_sync_total{phase=~"Error|Failed"} offset 10m
               ) > 0
+              and on (name) max by (name) (argocd_app_info offset 10m)
             )
           labels:
             severity: warning

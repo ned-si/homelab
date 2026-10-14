@@ -65,6 +65,10 @@ tests:
   # Both fire and resolve 10 minutes later.
   - interval: 1m
     input_series:
+      - series: 'argocd_app_info{name="theater", health_status="Healthy", sync_status="Synced"}'
+        values: '1x40'
+      - series: 'argocd_app_info{name="mealie", health_status="Healthy", sync_status="Synced"}'
+        values: '1x40'
       - series: 'argocd_app_sync_total{name="theater", phase="Failed"}'
         values: '2x19 3x20'
       - series: 'argocd_app_sync_total{name="theater", phase="Succeeded"}'
@@ -97,6 +101,24 @@ tests:
                 minutes. Check
                 https://argo.lilalala.com/applications/argo/theater.
       - eval_time: 35m
+        alertname: ArgoCDSyncFailed
+        exp_alerts: []
+
+  # Scraping starts at minute 5 with old failure counters: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'argocd_app_info{name="seafile", health_status="Healthy", sync_status="Synced"}'
+        values: '_x5 1x30'
+      - series: 'argocd_app_sync_total{name="seafile", phase="Failed"}'
+        values: '_x5 4x30'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: ArgoCDSyncFailed
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: ArgoCDSyncFailed
+        exp_alerts: []
+      - eval_time: 20m
         alertname: ArgoCDSyncFailed
         exp_alerts: []
 
