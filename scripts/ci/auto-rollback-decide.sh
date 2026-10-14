@@ -6,8 +6,10 @@
 # Degraded (bootstrap/argocd-values.yaml). .github/workflows/auto-rollback.yaml
 # runs this script on a full checkout of main. It picks one action:
 #
-#   revert  an auto-merged revert pull request, plus an issue
-#   issue   an issue only (or a comment on the open issue for that app)
+#   revert  an auto-merged revert pull request (label `auto-rollback`)
+#   skip    nothing; the reason is in the run summary. The failure itself is
+#           an alert (PrometheusRule homelab-argocd, Alertmanager -> ntfy),
+#           not a GitHub issue.
 #
 # A revert needs every guard rail to pass:
 #   1. REVISION names a commit on main, and it is the newest commit on main:
@@ -23,15 +25,21 @@
 #   5. the commit changed a file of that app: a path segment `<app>/`, a file
 #      `<app>.yaml` or `application-<app>.yaml`, and `<layer>/secrets/` for
 #      `secrets-<layer>`. So the failure is pinned on the merge that deployed
-#      it, not on whatever merged last.
-# Anything else is an issue, with the reason. Apps in STATEFUL_APPS get a note
-# that a revert does not undo a schema migration.
+#      it, not on whatever merged last;
+#   6. the outage guard: after GUARD_WAIT seconds (so the outage alerts have
+#      time to fire), OUTAGE_CHECK (scripts/ci/auto-rollback-guard.sh in the
+#      workflow) prints nothing. It prints a reason when several apps fail at
+#      once, a node is NotReady or the NAS is unreachable: then the failure is
+#      the cluster, not the merge.
+# Anything else is a skip, with the reason. Apps in STATEFUL_APPS get a note
+# in the revert pull request that a revert does not undo a schema migration.
 #
 # Environment: APP, TRIGGER (on-sync-failed | on-health-degraded), REVISION
 # (tokens separated by spaces or commas; only 40-hex SHAs of this repository
 # count, chart versions are ignored), DRY_RUN (true = report only), MAIN_REF
 # (default origin/main), NOW (epoch seconds, default now), MAX_AGE,
-# LOOP_WINDOW, NO_REVERT_APPS, STATEFUL_APPS.
+# LOOP_WINDOW, NO_REVERT_APPS, STATEFUL_APPS, OUTAGE_CHECK (default none),
+# GUARD_WAIT (default 0).
 # Writes key=value lines to $GITHUB_OUTPUT when set; prints a summary.
 # Exit 0 with a decision, 1 on invalid input.
 set -euo pipefail
@@ -46,6 +54,8 @@ MAX_AGE=${MAX_AGE:-3600}
 LOOP_WINDOW=${LOOP_WINDOW:-86400}
 NO_REVERT_APPS=${NO_REVERT_APPS:-cilium democratic-csi}
 STATEFUL_APPS=${STATEFUL_APPS:-immich keycloak mealie paperless seafile theater}
+OUTAGE_CHECK=${OUTAGE_CHECK:-}
+GUARD_WAIT=${GUARD_WAIT:-0}
 
 die() { echo "auto-rollback-decide: $*" >&2; exit 1; }
 
@@ -57,6 +67,7 @@ case "$TRIGGER" in
   *) die "invalid trigger: '$TRIGGER'" ;;
 esac
 [ "$DRY_RUN" = true ] || DRY_RUN=false
+[[ "$GUARD_WAIT" =~ ^[0-9]+$ ]] || die "invalid GUARD_WAIT: '$GUARD_WAIT'"
 # One line of revision-like characters, so nothing in it can add an output.
 REVISION=$(printf '%s' "$REVISION" | tr -c 'A-Za-z0-9 ,._+-' ' ' | cut -c1-300)
 main=$(git rev-parse --verify "$MAIN_REF^{commit}") || die "cannot resolve $MAIN_REF"
@@ -93,7 +104,7 @@ for tok in $(tr ',' ' ' <<<"$REVISION"); do
   break
 done
 
-action=issue reason="" subject="" pr_title="" revert_tree=""
+action=skip reason="" subject="" pr_title="" revert_tree=""
 stateful=false
 in_list "$APP" "$STATEFUL_APPS" && stateful=true
 
@@ -136,10 +147,25 @@ else
   fi
 fi
 
+# The outage guard runs last, and only for a revert: it waits, and it reads
+# the GitHub API and ntfy.sh.
+if [ "$action" = revert ] && [ -n "$OUTAGE_CHECK" ]; then
+  [ "$GUARD_WAIT" -gt 0 ] && sleep "$GUARD_WAIT"
+  # A guard that fails holds nothing back; the first line, sanitised, so it
+  # cannot add an output.
+  raw=$("$OUTAGE_CHECK") || raw=""
+  outage=$(printf '%s' "${raw%%$'\n'*}" | tr -c 'A-Za-z0-9 ,.:_()-' ' ' | cut -c1-200)
+  if [ -n "${outage// /}" ]; then
+    action=skip pr_title=""
+    reason="outage guard: $outage"
+  fi
+fi
+
 echo "app=$APP trigger=$TRIGGER dry_run=$DRY_RUN"
 echo "revision=${sha:-none} subject=${subject:-n/a}"
 echo "decision: $action ($reason)"
 [ -n "$pr_title" ] && echo "revert pull request: $pr_title"
+[ "$action" = skip ] && echo "no revert and no issue; the Argo CD alerts report the failure"
 [ "$DRY_RUN" = true ] && echo "dry run: nothing is created"
 
 if [ -n "${GITHUB_OUTPUT:-}" ]; then

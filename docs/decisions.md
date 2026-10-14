@@ -147,14 +147,28 @@ Argo CD Notifications sends a GitHub `repository_dispatch` (`argo-degraded`)
 when any Application's sync fails or its health turns Degraded
 (`bootstrap/argocd-values.yaml`), once per Application and revision, with the
 revision of that Application's last sync. `.github/workflows/auto-rollback.yaml`
-then opens a revert pull request titled `revert: <title> (auto)` with
-auto-merge on, plus an issue, but only when every guard rail in
+then opens a revert pull request titled `revert: <title> (auto)`, label
+`auto-rollback`, with auto-merge on, but only when every guard rail in
 `scripts/ci/auto-rollback-decide.sh` holds: the commit is the newest on `main`,
 merged under an hour ago, it changed a file of that Application, the
-Application is not `cilium` or `democratic-csi`, and it would not be a second
-automatic revert in a row. Otherwise it opens an issue (one per Application,
-later reports are comments) with the reason. For the apps with a database, the
-issue says a revert does not undo a schema migration: restore from backup.
+Application is not `cilium` or `democratic-csi`, it would not be a second
+automatic revert in a row, and there is no outage. Otherwise it does nothing
+and writes the reason to the run summary. For the apps with a database, the
+pull request says a revert does not undo a schema migration: restore from
+backup.
+
+The outage guard (`scripts/ci/auto-rollback-guard.sh`) waits 5 minutes, then
+holds the revert back when 3 or more apps failed within 10 minutes (counted
+from this workflow's runs, named `auto-rollback <app>`), a node is NotReady or
+the NAS is unreachable (`HomelabNodeNotReady`, `HomelabNASUnreachable` in
+`platform/kube-prometheus-stack/routes/outage-alerts.yaml`, read from the
+ntfy.sh topic in the Actions secret `NTFY_TOPIC`). In an outage every app
+degrades at once and the newest merge is not the cause.
+
+No GitHub issues: the failure is an alert (`homelab-argocd`,
+[observability.md](observability.md#argo-cd-alerts)) that resolves on its own,
+and the revert pull request is the record. Rejected: an issue per failure. It
+stays open after the app recovers, and an outage opens one per app.
 
 Test without side effects: `gh workflow run auto-rollback.yaml -f app=<app>
 -f revision=<sha>` (dry run by default) prints the decision and creates

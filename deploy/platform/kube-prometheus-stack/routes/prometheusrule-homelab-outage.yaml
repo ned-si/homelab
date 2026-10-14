@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-outage
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.outage
+    rules:
+    - alert: HomelabNodeNotReady
+      annotations:
+        description: '{{ $labels.node }} has not been Ready for 2 minutes; its pods
+          and volumes are down. auto-rollback reverts nothing while this fires. Check
+          `kubectl get nodes` and `talosctl -n <node IP> dmesg`.'
+        summary: Node {{ $labels.node }} is NotReady
+      expr: max by (node) (kube_node_status_condition{condition="Ready", status="true"})
+        == 0
+      for: 2m
+      labels:
+        severity: critical
+    - alert: HomelabNASUnreachable
+      annotations:
+        description: 'The cluster cannot reach {{ $labels.instance }} for 2 minutes
+          (3260 iSCSI: every PVC; 2049 NFS: media and local backups). auto-rollback
+          reverts nothing while this fires. Check the NAS and the basement switch.'
+        summary: NAS port {{ $labels.instance }} is unreachable
+      expr: |
+        max by (instance) (
+          probe_success{job="blackbox-internal", instance=~"192\\.168\\.1\\.228:(3260|2049)"}
+        ) == 0
+      for: 2m
+      labels:
+        severity: critical

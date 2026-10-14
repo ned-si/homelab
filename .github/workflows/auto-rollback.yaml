@@ -7,20 +7,29 @@
 # revision of its last sync. `decide` checks the guard rails
 # (scripts/ci/auto-rollback-decide.sh: newest commit on main, merged under
 # 1 h ago, changes that app, not cilium or democratic-csi, never two automatic
-# reverts in a row) and `act` opens either an auto-merged revert pull request
-# plus an issue, or an issue only (scripts/ci/auto-rollback-act.sh).
+# reverts in a row) and the outage guard (scripts/ci/auto-rollback-guard.sh:
+# not 3+ apps failing within 10 minutes, no node NotReady, NAS reachable).
+# `act` runs only for a revert: an auto-merged revert pull request with label
+# `auto-rollback` (scripts/ci/auto-rollback-act.sh). Every other decision is a
+# skip, written to the run summary; no issue is opened, because the failure is
+# an Alertmanager alert (PrometheusRule homelab-argocd -> ntfy).
 #
 # Manual test: `gh workflow run auto-rollback.yaml -f app=<app>
 # -f revision=<sha>` runs with dry_run=true by default: `decide` prints what it
 # would do and `act` is skipped, so nothing is created.
 #
-# - `decide` only reads the repository. `act` gets `contents: write` for the
-#   verified revert commit and its branch; the pull request, auto-merge and the
-#   issue use the AUTO_ROLLBACK_TOKEN secret (fine-grained, this repository
-#   only), see platform/secrets/argocd-notifications.sops.yaml.example.
+# - `decide` reads the repository and the run list of this workflow (the
+#   several-apps check), and the ntfy.sh topic (secret NTFY_TOPIC, the same
+#   topic as platform/secrets/alertmanager-notify.sops.yaml `ntfy-url`) for
+#   the node and NAS alerts. `act` gets `contents: write` for the verified
+#   revert commit and its branch; the pull request, its label and auto-merge
+#   use the AUTO_ROLLBACK_TOKEN secret (fine-grained, this repository only),
+#   see platform/secrets/argocd-notifications.sops.yaml.example.
 # - Every value from the payload or the inputs reaches a script through `env`,
-#   never through `${{ }}` inside `run:`.
+#   never through `${{ }}` inside `run:`. `run-name` carries the app name: the
+#   several-apps check counts runs by it.
 name: auto-rollback
+run-name: auto-rollback ${{ github.event.inputs.app || github.event.client_payload.app }}
 
 on:
   repository_dispatch:
@@ -50,9 +59,12 @@ permissions: {}
 jobs:
   decide:
     runs-on: ubuntu-26.04
-    timeout-minutes: 5
+    # Includes the outage guard's wait (GUARD_WAIT).
+    timeout-minutes: 15
     permissions:
       contents: read
+      # The several-apps check lists this workflow's runs.
+      actions: read
     outputs:
       action: ${{ steps.decide.outputs.action }}
       reason: ${{ steps.decide.outputs.reason }}
@@ -81,13 +93,21 @@ jobs:
           # Inputs arrive as the strings 'true' / 'false'; a dispatch without
           # dry_run is a real run.
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.dry_run || github.event.client_payload.dry_run || 'false' }}
+          OUTAGE_CHECK: scripts/ci/auto-rollback-guard.sh
+          # Argo CD reports a failure at once; the node and NAS alerts need
+          # about 3 minutes (for: 2m, group_wait: 1m). A manual run or a dry
+          # run does not wait.
+          GUARD_WAIT: ${{ (github.event_name == 'workflow_dispatch' || format('{0}', github.event.client_payload.dry_run) == 'true') && '0' || '300' }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: |
           set -euo pipefail
           scripts/ci/auto-rollback-decide.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
   act:
     needs: decide
-    if: ${{ needs.decide.outputs.dry_run == 'false' }}
+    if: ${{ needs.decide.outputs.dry_run == 'false' && needs.decide.outputs.action == 'revert' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 10
     permissions:
@@ -99,7 +119,7 @@ jobs:
           ref: main
           persist-credentials: false
 
-      - name: Revert and report
+      - name: Revert
         env:
           ACTION: ${{ needs.decide.outputs.action }}
           REASON: ${{ needs.decide.outputs.reason }}
