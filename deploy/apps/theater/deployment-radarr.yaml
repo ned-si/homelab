@@ -71,6 +71,13 @@ spec:
           value: /arr/radarr
         image: ghcr.io/hotio/radarr:release-6.4.4.10685
         imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 6
+          httpGet:
+            path: /arr/radarr/ping
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
         name: radarr
         ports:
         - containerPort: 7878
@@ -82,11 +89,60 @@ spec:
             path: /arr/radarr/ping
             port: http
           periodSeconds: 10
+        startupProbe:
+          failureThreshold: 90
+          httpGet:
+            path: /arr/radarr/ping
+            port: http
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /data
           name: media
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - until pg_isready -t 5; do echo "waiting for $PGHOST:$PGPORT"; sleep 5; done
+        env:
+        - name: PGHOST
+          valueFrom:
+            secretKeyRef:
+              key: host
+              name: radarr-postgresql-app
+        - name: PGPORT
+          valueFrom:
+            secretKeyRef:
+              key: port
+              name: radarr-postgresql-app
+        - name: PGUSER
+          valueFrom:
+            secretKeyRef:
+              key: user
+              name: radarr-postgresql-app
+        - name: PGDATABASE
+          valueFrom:
+            secretKeyRef:
+              key: dbname
+              name: radarr-postgresql-app
+        image: ghcr.io/cloudnative-pg/postgresql:18.6
+        name: wait-for-db
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 65532
+          runAsNonRoot: true
+          runAsUser: 65532
       volumes:
       - name: config
         persistentVolumeClaim:

@@ -73,6 +73,51 @@ spec:
       labels:
         app.kubernetes.io/name: radarr
     spec:
+      # Starts the app only once its database accepts connections: started
+      # without it, the app hangs instead of retrying.
+      initContainers:
+        - name: wait-for-db
+          # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+          image: ghcr.io/cloudnative-pg/postgresql:18.6
+          command:
+            - sh
+            - -c
+            - until pg_isready -t 5; do echo "waiting for $PGHOST:$PGPORT"; sleep 5; done
+          env:
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-postgresql-app
+                  key: host
+            - name: PGPORT
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-postgresql-app
+                  key: port
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-postgresql-app
+                  key: user
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: radarr-postgresql-app
+                  key: dbname
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: radarr
           # renovate: datasource=docker depName=ghcr.io/hotio/radarr
@@ -127,6 +172,21 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 3
+          # /ping queries the database, so a lost connection restarts the app.
+          # Startup (migrations) gets 15 minutes before liveness applies.
+          startupProbe:
+            httpGet:
+              path: /arr/radarr/ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 90
+          livenessProbe:
+            httpGet:
+              path: /arr/radarr/ping
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
           volumeMounts:
             - name: config
               mountPath: /config
