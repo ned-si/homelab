@@ -107,7 +107,7 @@ spec:
       initContainers:
         - name: clean
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           args: ["delete", "backup.postgresql.cnpg.io", "presync-keycloak-db", "--ignore-not-found", "--wait=true"]
           env:
             - name: HOME
@@ -128,7 +128,7 @@ spec:
               mountPath: /tmp
         - name: start
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           args: ["create", "-f", "/hook/backup.yaml"]
           env:
             - name: HOME
@@ -153,7 +153,7 @@ spec:
       containers:
         - name: wait
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           # A failed backup never completes, so this times out and fails the
           # sync. The deadline is well above the slowest base backup.
           args: ["wait", "--for=jsonpath={.status.phase}=completed", "backup.postgresql.cnpg.io/presync-keycloak-db", "--timeout=45m"]

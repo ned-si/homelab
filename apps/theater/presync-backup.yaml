@@ -86,7 +86,7 @@ spec:
       initContainers:
         - name: clean
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           args: ["delete", "job", "presync-theater-postgres-backup", "--ignore-not-found", "--wait=true"]
           env:
             - name: HOME
@@ -107,7 +107,7 @@ spec:
               mountPath: /tmp
         - name: start
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           args: ["create", "job", "presync-theater-postgres-backup", "--from=cronjob/theater-postgres-backup"]
           env:
             - name: HOME
@@ -129,7 +129,7 @@ spec:
       containers:
         - name: wait
           # renovate: datasource=docker depName=registry.k8s.io/kubectl
-          image: registry.k8s.io/kubectl:v1.32.13
+          image: registry.k8s.io/kubectl:v1.37.1
           # A failed backup never completes, so this times out and fails the
           # sync. The deadline is the slowest nightly run plus margin.
           args: ["wait", "--for=condition=complete", "job/presync-theater-postgres-backup", "--timeout=45m"]
