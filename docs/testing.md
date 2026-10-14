@@ -113,8 +113,9 @@ The hook runs after every synced resource is Healthy. Each URL must answer
 When a hook fails, the sync fails. Argo CD Notifications then sends
 `on-sync-failed`, and `.github/workflows/auto-rollback.yaml` reverts the merge
 that deployed it ([decisions.md](decisions.md#automatic-rollback)). The revert
-syncs and runs the hook again. If that also fails, the result is an issue,
-because a revert is never reverted. A failing check therefore cannot loop.
+syncs and runs the hook again. If that also fails, nothing more is reverted,
+because a revert is never reverted; the `ArgoCDSyncFailed` alert reports it.
+A failing check therefore cannot loop.
 
 Read a failure:
 

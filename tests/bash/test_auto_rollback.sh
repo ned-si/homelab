@@ -1,6 +1,7 @@
 #!/bin/bash
 # test_auto_rollback.sh -- scripts/ci/auto-rollback-decide.sh against a scratch
-# repository, and scripts/ci/auto-rollback-act.sh against a stubbed `gh`.
+# repository, and scripts/ci/auto-rollback-act.sh and scripts/ci/auto-rollback-guard.sh against
+# a stubbed `gh` and `curl`.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,14 +73,14 @@ expect_eq "dry run is reported" true "$(get dry_run "$o")"
 expect_eq "dry run still decides" revert "$(get action "$o")"
 
 o=$(run_decide APP=mealie TRIGGER=on-health-degraded REVISION="$c_immich")
-expect_eq "commit that does not touch the app: issue" issue "$(get action "$o")"
+expect_eq "commit that does not touch the app: skip" skip "$(get action "$o")"
 expect_contains "reason names the app" "changes no file of mealie" "$(get reason "$o")"
 
 o=$(run_decide APP=immich TRIGGER=on-health-degraded REVISION="$c_immich" NOW=$((T0 + 100 + 3600)))
-expect_eq "older than 1 h: issue" issue "$(get action "$o")"
+expect_eq "older than 1 h: skip" skip "$(get action "$o")"
 
 o=$(run_decide APP=immich TRIGGER=on-health-degraded REVISION="1.2.3 0000000000000000000000000000000000000000")
-expect_eq "no commit of main in the revision: issue" issue "$(get action "$o")"
+expect_eq "no commit of main in the revision: skip" skip "$(get action "$o")"
 expect_eq "no commit: empty sha" "" "$(get sha "$o")"
 
 o=$(run_decide APP='bad;app' TRIGGER=on-health-degraded REVISION="$c_immich")
@@ -94,28 +95,28 @@ c_cilium=$(commit $((T0 + 200)) "feat(network): update Cilium to 1.18.0" \
   clusters/homelab/infrastructure/cilium.yaml infrastructure/cilium/values.yaml)
 git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=immich TRIGGER=on-health-degraded REVISION="$c_immich")
-expect_eq "not the newest commit on main: issue" issue "$(get action "$o")"
+expect_eq "not the newest commit on main: skip" skip "$(get action "$o")"
 o=$(run_decide APP=cilium TRIGGER=on-health-degraded REVISION="$c_cilium")
-expect_eq "cilium is never reverted" issue "$(get action "$o")"
+expect_eq "cilium is never reverted" skip "$(get action "$o")"
 expect_contains "cilium reason" "never reverted automatically" "$(get reason "$o")"
 
 c_dcsi=$(commit $((T0 + 250)) "feat(storage): update democratic-csi to 0.16.0" \
   deploy/clusters/homelab/infrastructure/application-democratic-csi.yaml)
 git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=democratic-csi TRIGGER=on-sync-failed REVISION="$c_dcsi")
-expect_eq "democratic-csi is never reverted" issue "$(get action "$o")"
+expect_eq "democratic-csi is never reverted" skip "$(get action "$o")"
 
 c_rev=$(commit $((T0 + 300)) "revert: feat(storage): update democratic-csi to 0.16.0 (auto) (#20)" \
   deploy/clusters/homelab/infrastructure/application-democratic-csi.yaml)
 git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=democratic-csi TRIGGER=on-sync-failed REVISION="$c_rev" NO_REVERT_APPS=cilium)
-expect_eq "a revert is never reverted" issue "$(get action "$o")"
+expect_eq "a revert is never reverted" skip "$(get action "$o")"
 
 c_kps=$(commit $((T0 + 400)) "feat(monitoring): update kube-prometheus-stack" \
   platform/kube-prometheus-stack/values.yaml)
 git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=kube-prometheus-stack TRIGGER=on-health-degraded REVISION="$c_kps")
-expect_eq "right after an automatic revert: issue" issue "$(get action "$o")"
+expect_eq "right after an automatic revert: skip" skip "$(get action "$o")"
 expect_contains "loop guard reason" "never two in a row" "$(get reason "$o")"
 o=$(run_decide APP=kube-prometheus-stack TRIGGER=on-health-degraded REVISION="$c_kps" \
   LOOP_WINDOW=50)
@@ -140,7 +141,7 @@ check "long title passes check-title.sh" "$REPO_ROOT/scripts/ci/check-title.sh" 
 echo "decide: a failing PostSync smoke test (on-sync-failed)"
 # The hook fails the sync of the merge that broke the app: that merge is
 # reverted. The revert's sync runs the hook again; when it fails too, the
-# answer is an issue, never a second revert.
+# answer is a skip, never a second revert.
 c_bump=$(commit $((T0 + 650)) "chore(deps): update mealie to v3.29.0 (#40)" \
   apps/mealie/deployment.yaml deploy/apps/mealie/deployment-mealie.yaml)
 git update-ref refs/remotes/origin/main HEAD
@@ -151,12 +152,83 @@ c_auto=$(commit $((T0 + 660)) "revert: chore(deps): update mealie to v3.29.0 (au
   apps/mealie/deployment.yaml deploy/apps/mealie/deployment-mealie.yaml)
 git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_auto")
-expect_eq "PostSync failure of the revert itself: issue" issue "$(get action "$o")"
+expect_eq "PostSync failure of the revert itself: skip" skip "$(get action "$o")"
 expect_contains "no revert of a revert" "itself a revert" "$(get reason "$o")"
 c_next=$(commit $((T0 + 670)) "fix(mealie): pin the old image tag (#42)" apps/mealie/deployment.yaml)
 git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_next")
-expect_eq "PostSync failure right after an automatic revert: issue" issue "$(get action "$o")"
+expect_eq "PostSync failure right after an automatic revert: skip" skip "$(get action "$o")"
+
+echo "decide: outage guard"
+# OUTAGE_CHECK is a command; its first line is the outage reason.
+mkdir -p "$tmp/guards"
+printf '#!/bin/bash\necho "3 apps failed within 10 minutes: a b c"\necho "action=revert"\n' > "$tmp/guards/outage"
+printf '#!/bin/bash\nexit 0\n' > "$tmp/guards/calm"
+printf '#!/bin/bash\necho "half a line"\nexit 1\n' > "$tmp/guards/broken"
+chmod +x "$tmp/guards"/*
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" MAIN_REF="$c_bump" OUTAGE_CHECK="$tmp/guards/outage")
+expect_eq "outage: the revert is skipped" skip "$(get action "$o")"
+expect_contains "outage: reason" "outage guard: 3 apps failed within 10 minutes" "$(get reason "$o")"
+expect_eq "outage: no pull request title" "" "$(get pr_title "$o")"
+expect_eq "outage: its second line cannot add an output" 1 "$(grep -c '^action=' <<<"$o")"
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" MAIN_REF="$c_bump" OUTAGE_CHECK="$tmp/guards/calm")
+expect_eq "no outage: revert" revert "$(get action "$o")"
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" MAIN_REF="$c_bump" OUTAGE_CHECK="$tmp/guards/broken")
+expect_eq "a failing guard holds nothing back" revert "$(get action "$o")"
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_auto" MAIN_REF="$c_auto" OUTAGE_CHECK="$tmp/guards/outage")
+expect_contains "the guard runs only for a revert" "itself a revert" "$(get reason "$o")"
+o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" GUARD_WAIT=soon)
+expect_contains "invalid GUARD_WAIT is refused" "rc=1" "$o"
+
+echo "guard"
+# Fake gh (the run list) and curl (the ntfy topic) for auto-rollback-guard.sh.
+GUARD="$REPO_ROOT/scripts/ci/auto-rollback-guard.sh"
+mkdir -p "$tmp/gbin"
+cat > "$tmp/gbin/gh" <<'EOF'
+#!/bin/bash
+echo "$*" >> "$GUARD_LOG"
+[ "${RUNS_FAIL:-}" = 1 ] && exit 1
+printf '%s' "${RUNS:-}"
+EOF
+cat > "$tmp/gbin/curl" <<'EOF'
+#!/bin/bash
+echo "curl $*" >> "$GUARD_LOG"
+[ "${NTFY_FAIL:-}" = 1 ] && exit 22
+printf '%s' "${NTFY_MSGS:-}"
+EOF
+chmod +x "$tmp/gbin/gh" "$tmp/gbin/curl"
+export GUARD_LOG="$tmp/guard.log"
+guard() { env PATH="$tmp/gbin:$PATH" REPO=o/r NOW=1700000600 "$@" "$GUARD" 2>"$tmp/guard.err"; }
+msg() { printf '{"event":"message","time":%s,"title":"%s"}\n' "$1" "$2"; }
+
+: > "$GUARD_LOG"
+out=$(guard RUNS=$'auto-rollback immich\nauto-rollback mealie\nauto-rollback immich\nauto-rollback seafile' NTFY_TOPIC=t)
+expect_eq "3 distinct apps: outage" "3 apps failed within 10 minutes: immich mealie seafile" "$out"
+expect_contains "runs since NOW - 10 minutes" "runs?created=%3E%3D2023-11-14T22:13:20Z" "$(cat "$GUARD_LOG")"
+check "several apps: ntfy not read" [ -z "$(grep '^curl' "$GUARD_LOG")" ]
+
+out=$(guard RUNS=$'auto-rollback immich\nauto-rollback immich\nauto-rollback mealie')
+expect_eq "2 apps, no topic: no outage" "" "$out"
+expect_contains "no topic: warned" "NTFY_TOPIC is not set" "$(cat "$tmp/guard.err")"
+
+out=$(guard RUNS='auto-rollback immich' NTFY_TOPIC=t \
+  NTFY_MSGS="$(msg 100 'CRITICAL: HomelabNodeNotReady'; msg 200 'Warning: SLOErrorBudgetBurnSlow')")
+expect_eq "node alert firing: outage" "HomelabNodeNotReady is firing" "$out"
+
+out=$(guard RUNS='auto-rollback immich' NTFY_TOPIC=t \
+  NTFY_MSGS="$(msg 300 'Resolved: HomelabNASUnreachable'; msg 100 'CRITICAL: HomelabNASUnreachable')")
+expect_eq "newest NAS message is Resolved: no outage" "" "$out"
+
+out=$(guard RUNS='auto-rollback immich' NTFY_TOPIC=t \
+  NTFY_MSGS="$(msg 100 'CRITICAL: HomelabNodeNotReadyish'; msg 100 'CRITICAL: ArgoCDAppDegraded')")
+expect_eq "other alerts: no outage" "" "$out"
+
+: > "$GUARD_LOG"
+out=$(guard RUNS_FAIL=1 NTFY_TOPIC=t NTFY_FAIL=1)
+expect_eq "both checks failing: no outage" "" "$out"
+expect_contains "run list failure warned" "cannot list" "$(cat "$tmp/guard.err")"
+expect_contains "ntfy failure warned" "cannot read the ntfy topic" "$(cat "$tmp/guard.err")"
+expect_contains "ntfy read with poll and since" "t/json?poll=1&since=12h" "$(cat "$GUARD_LOG")"
 
 echo "act"
 install_fake_gh_act() {
@@ -173,10 +245,10 @@ case "$*" in
     [ "${REF_EXISTS:-}" = 1 ] && { echo "Reference already exists" >&2; exit 1; }
     echo '{}' ;;
   "api repos/o/r/pulls --input - --jq .number") echo 77 ;;
+  "api repos/o/r/issues/77/labels --input -")
+    [ "${LABEL_FAIL:-}" = 1 ] && exit 1
+    echo '[]' ;;
   "pr merge 77 --repo o/r --auto --squash") ;;
-  "api repos/o/r/issues?state=open&per_page=100 --jq "*) echo "${OPEN_ISSUE:-}" ;;
-  "api repos/o/r/issues --input - --jq .number") echo 88 ;;
-  "api repos/o/r/issues/"*"/comments --input -") echo '{}' ;;
   *) echo "unexpected gh call: $*" >&2; exit 1 ;;
 esac
 EOF
@@ -206,25 +278,27 @@ p=$(call 'repos/o/r/pulls')
 expect_eq "pull request uses the owner token" owner-token "$(cat "$p.token")"
 expect_eq "pull request title" "revert: feat(immich): update chart to 0.10.0 (auto)" "$(jq -r .title "$p.stdin")"
 expect_eq "pull request base" main "$(jq -r .base "$p.stdin")"
+expect_contains "pull request has the migration note" "schema migration" "$(jq -r .body "$p.stdin")"
+expect_contains "pull request links the app" "applications/argo/immich" "$(jq -r .body "$p.stdin")"
+l=$(call 'issues/77/labels')
+expect_eq "label auto-rollback" auto-rollback "$(jq -r '.labels | join(",")' "$l.stdin")"
 m=$(call 'pr merge')
 expect_eq "auto-merge uses the owner token" owner-token "$(cat "$m.token")"
-i=$(call 'issues --input')
-expect_eq "issue title" "Argo CD: immich failed after a deploy" "$(jq -r .title "$i.stdin")"
-expect_contains "issue links the pull request" "#77" "$(jq -r .body "$i.stdin")"
-expect_contains "issue has the migration note" "schema migration" "$(jq -r .body "$i.stdin")"
+check "revert: no issue is opened" [ -z "$(grep -lE 'repos/o/r/issues --input|issues\?state|/comments' "$tmp/log"/*.args 2>/dev/null)" ]
 
 reset_log
-out=$(env "${act_env[@]}" ACTION=revert REF_EXISTS=1 OPEN_ISSUE=5 "$ACT" 2>&1) || bad "existing branch run failed: $out"
+out=$(env "${act_env[@]}" ACTION=revert LABEL_FAIL=1 "$ACT" 2>&1) || bad "label failure stopped the revert: $out"
+check "label failure: auto-merge still on" [ -n "$(call 'pr merge')" ]
+
+reset_log
+out=$(env "${act_env[@]}" ACTION=revert REF_EXISTS=1 "$ACT" 2>&1) || bad "existing branch run failed: $out"
 check "existing branch: no second pull request" [ -z "$(call 'repos/o/r/pulls')" ]
-c=$(call 'issues/5/comments')
-check "open issue: commented instead" [ -n "$c" ]
-expect_contains "comment says the branch existed" "already existed" "$(jq -r .body "$c.stdin")"
+expect_contains "existing branch: said so" "already exists" "$out"
 
 reset_log
-out=$(env "${act_env[@]}" ACTION=issue STATEFUL=false "$ACT" 2>&1) || bad "issue run failed: $out"
-check "issue only: no commit or branch" [ -z "$(call 'git/')" ]
-i=$(call 'issues --input')
-expect_contains "issue only: decision" "not reverted" "$(jq -r .body "$i.stdin")"
+out=$(env "${act_env[@]}" ACTION=skip STATEFUL=false "$ACT" 2>&1) || bad "skip run failed: $out"
+check "skip: no API call at all" [ -z "$(ls "$tmp/log")" ]
+expect_contains "skip: reason printed" "nothing to do (newest commit)" "$out"
 
 reset_log
 if env "${act_env[@]}" ACTION=revert PR_TOKEN= "$ACT" >/dev/null 2>&1; then

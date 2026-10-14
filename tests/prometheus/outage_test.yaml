@@ -1,0 +1,56 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/outage-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-outage.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # w-1 turns NotReady at minute 10; cp-3 stays Ready.
+  - interval: 1m
+    input_series:
+      - series: 'kube_node_status_condition{node="homelab-w-1", condition="Ready", status="true"}'
+        values: '1x9 0x10'
+      - series: 'kube_node_status_condition{node="homelab-cp-3", condition="Ready", status="true"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: HomelabNodeNotReady
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: HomelabNodeNotReady
+        exp_alerts:
+          - exp_labels:
+              node: homelab-w-1
+              severity: critical
+            exp_annotations:
+              summary: Node homelab-w-1 is NotReady
+              description: >-
+                homelab-w-1 has not been Ready for 2 minutes; its pods
+                and volumes are down. auto-rollback reverts nothing while this
+                fires. Check `kubectl get nodes` and
+                `talosctl -n <node IP> dmesg`.
+
+  # The iSCSI port drops at minute 5; another internal target is not the NAS.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-internal", instance="192.168.1.228:3260"}'
+        values: '1x4 0x10'
+      - series: 'probe_success{job="blackbox-internal", instance="192.168.1.228:2049"}'
+        values: '1x15'
+      - series: 'probe_success{job="blackbox-internal", instance="192.168.1.254:443"}'
+        values: '0x15'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: HomelabNASUnreachable
+        exp_alerts:
+          - exp_labels:
+              instance: 192.168.1.228:3260
+              severity: critical
+            exp_annotations:
+              summary: NAS port 192.168.1.228:3260 is unreachable
+              description: >-
+                The cluster cannot reach 192.168.1.228:3260 for 2 minutes
+                (3260 iSCSI: every PVC; 2049 NFS: media and local backups).
+                auto-rollback reverts nothing while this fires. Check the NAS
+                and the basement switch.

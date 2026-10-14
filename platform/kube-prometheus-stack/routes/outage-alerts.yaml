@@ -1,0 +1,52 @@
+# Cluster-wide outages: a node NotReady or the NAS unreachable.
+#
+# Each is critical in its own right, and both are also read by the outage
+# guard of auto-rollback (scripts/ci/auto-rollback-guard.sh): while one fires,
+# a failing app is blamed on the outage, not on the newest merge, and nothing
+# is reverted. The guard finds them by alert name in the ntfy.sh topic, so a
+# rename here needs the same rename in OUTAGE_ALERTS there.
+#
+#   HomelabNodeNotReady     a node not Ready for 2m       critical
+#   HomelabNASUnreachable   iSCSI or NFS port down for 2m critical
+#
+# Tests: tests/prometheus/outage_test.yaml (promtool test rules).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-outage
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.outage
+      rules:
+        - alert: HomelabNodeNotReady
+          expr: max by (node) (kube_node_status_condition{condition="Ready", status="true"}) == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node {{ $labels.node }} is NotReady"
+            description: >-
+              {{ $labels.node }} has not been Ready for 2 minutes; its pods
+              and volumes are down. auto-rollback reverts nothing while this
+              fires. Check `kubectl get nodes` and
+              `talosctl -n <node IP> dmesg`.
+
+        - alert: HomelabNASUnreachable
+          expr: |
+            max by (instance) (
+              probe_success{job="blackbox-internal", instance=~"192\\.168\\.1\\.228:(3260|2049)"}
+            ) == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "NAS port {{ $labels.instance }} is unreachable"
+            description: >-
+              The cluster cannot reach {{ $labels.instance }} for 2 minutes
+              (3260 iSCSI: every PVC; 2049 NFS: media and local backups).
+              auto-rollback reverts nothing while this fires. Check the NAS
+              and the basement switch.
