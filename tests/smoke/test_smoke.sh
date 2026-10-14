@@ -370,6 +370,41 @@ F=$(fresh dns3); echo "not-an-ip" > "$F/wan.txt"
 run "$F"
 expect_eq "unreadable --default-targets fails item 10" false "$(pass_of 10)"
 
+echo "-- Talos nodes: talosctl instead of etcd pods and SSH"
+# mktalos <dir>: the healthy fixture as Talos nodes (no etcd pod, no SSH).
+mktalos() {
+  local d=$1 ip
+  jset "$d/nodes.json" '.items[].status.nodeInfo.osImage = "Talos (v1.14.2)"
+    | (.items[] | select(.metadata.name | startswith("cp-")) | .metadata.labels) = {"node-role.kubernetes.io/control-plane": ""}'
+  : > "$d/etcd-pods.txt"
+  mkdir -p "$d/talos"
+  for ip in 192.0.2.247 192.0.2.238 192.0.2.239; do
+    echo '{"metadata":{"id":"etcd"},"spec":{"healthy":true,"running":true}}' > "$d/talos/$ip-etcd.json"
+  done
+  for ip in 192.0.2.247 192.0.2.238 192.0.2.239 192.0.2.240; do
+    awk '{ print $4 }' "$d/ssh/$ip.txt" | jq -c -R '{spec: {address: ., family: "inet4"}}' > "$d/talos/$ip-addresses.json"
+    echo '{"spec":{"address":"fe80::1/64","family":"inet6"}}' >> "$d/talos/$ip-addresses.json"
+  done
+  rm -rf "$d/ssh"
+}
+F=$(fresh t1); mktalos "$F"
+run "$F"
+expect_eq "Talos cluster: green" true "$(jq -r .green <<<"$OUT")"
+expect_eq "no SSH call" 0 "$(grep -c '^ssh ' "$F/calls.log" || true)"
+expect_eq "one etcd service read per control-plane node" 3 "$(grep -c '^talosctl -n 192\.0\.2\.2[0-9]* get services etcd -o json$' "$F/calls.log")"
+expect_eq "one address read per node" 4 "$(grep -c '^talosctl -n 192\.0\.2\.2[0-9]* get addresses -o json$' "$F/calls.log")"
+expect_eq "only read-only talosctl calls" 0 "$(grep '^talosctl ' "$F/calls.log" | grep -vc ' get ' || true)"
+expect_eq ".254 still found on cp-2, IPv6 ignored" "||cp-2" \
+  "$(jq -r '[.items[] | select(.id == 9) | .detail.bindings[] | .holders] | join("|")' <<<"$OUT")"
+F=$(fresh t2); mktalos "$F"; echo '{"spec":{"healthy":false,"running":true}}' > "$F/talos/192.0.2.238-etcd.json"
+run "$F"
+expect_eq "Talos etcd 2/3 fails" false "$(pass_of 2)"
+expect_contains "and is a hard-stop signal" "etcd quorum" "$(jq -r '.hard_stop_signals | join(",")' <<<"$OUT")"
+F=$(fresh t3); mktalos "$F"; rm "$F/talos/192.0.2.240-addresses.json"
+run "$F"
+expect_eq "Talos API unreachable on one node fails item 9" false "$(pass_of 9)"
+only_failed 9
+
 echo "-- usage and input validation (exit 64, nothing runs)"
 F=$(fresh u1)
 export SMOKE_FIX=$F

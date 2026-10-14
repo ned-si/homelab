@@ -25,17 +25,40 @@ is_ipv4() {
   for o in $1; do [ "$o" -le 255 ] || return 1; done
 }
 
+# talos <args>: talosctl, bounded by an alarm (talosctl has no timeout flag).
+# Uses $TALOSCONFIG, or talosctl's default config.
+talos() { perl -e 'alarm shift @ARGV; exec { $ARGV[0] } @ARGV or exit 127' "${TALOS_TIMEOUT:-20}" talosctl "$@"; }
+
+# talos_cp_ips: the InternalIP of every Talos control-plane node, one per line.
+talos_cp_ips() {
+  k get nodes -o json 2>/dev/null | jq -r '.items[]
+    | select(.metadata.labels["node-role.kubernetes.io/control-plane"] != null)
+    | select((.status.nodeInfo.osImage // "") | startswith("Talos"))
+    | [.status.addresses[]? | select(.type == "InternalIP") | .address][0] // empty'
+}
+
 # etcd_health_json: `etcdctl endpoint health --cluster -w json` from the first
-# etcd pod that answers (read-only). Prints the JSON array, or nothing.
+# etcd pod that answers (read-only). Talos runs etcd as a system service, not
+# a pod: there, each control-plane node reports its etcd service health
+# (`talosctl get services etcd`, read-only), in the same JSON shape.
+# Prints the JSON array, or nothing.
 etcd_health_json() {
-  local p out
+  local p out ip h arr='[]'
   for p in $(k -n kube-system get pods -l component=etcd -o name 2>/dev/null); do
     out=$(k -n kube-system exec "${p#pod/}" -- etcdctl --endpoints=https://127.0.0.1:2379 \
       --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
       --key=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint health --cluster -w json 2>/dev/null) \
       && jq -e 'type == "array"' <<<"$out" >/dev/null 2>&1 && { printf '%s\n' "$out"; return 0; }
   done
-  return 1
+  command -v talosctl >/dev/null 2>&1 || return 1
+  out=$(talos_cp_ips)
+  [ -n "$out" ] || return 1
+  for ip in $out; do
+    h=$(talos -n "$ip" get services etcd -o json </dev/null 2>/dev/null | jq -r '.spec.healthy == true' 2>/dev/null)
+    [ "$h" = true ] || h=false
+    arr=$(jq -c --arg e "https://$ip:2379" --argjson h "$h" '. + [{endpoint: $e, health: $h}]' <<<"$arr")
+  done
+  printf '%s\n' "$arr"
 }
 
 # wan_in_git <repo root>: the single --default-targets address in

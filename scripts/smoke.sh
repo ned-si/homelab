@@ -8,9 +8,11 @@
 # Every command is read-only: `kubectl get`, `kubectl exec` of read-only
 # commands (etcdctl endpoint health, psql with default_transaction_read_only=on,
 # a file-existence loop), read-only SSH (`ip -4 -o addr show`), curl, dig,
-# nc -z, ping, arp -n. Every network call is bounded (kubectl
-# --request-timeout=10s, curl -m 10, ssh ConnectTimeout=5 BatchMode=yes,
-# nc -G 3, dig +time=3); network checks retry 3 times over about 60 s.
+# nc -z, ping, arp -n. On Talos nodes (no SSH, etcd is not a pod), `talosctl
+# get services etcd` and `talosctl get addresses` replace etcdctl and SSH.
+# Every network call is bounded (kubectl --request-timeout=10s, curl -m 10,
+# ssh ConnectTimeout=5 BatchMode=yes, talosctl under a 20 s alarm, nc -G 3,
+# dig +time=3); network checks retry 3 times over about 60 s.
 #
 # Output: one JSON document on stdout; progress goes to stderr. Exit 0 when
 # every item passes, 1 when any item fails, 64 on a usage or input error.
@@ -31,8 +33,9 @@
 # Original paths (item 8) are piped through stdin only: never printed,
 # written or put on argv. The JSON holds names, counts, codes and node names.
 #
-# Requires bash 3.2+, jq, kubectl, ssh, curl, dig, nc, ping, arp, openssl
-# (macOS flags: nc -G, ping -W in milliseconds).
+# Requires bash 3.2+, jq, kubectl, ssh, curl, dig, nc, ping, arp, openssl,
+# perl, and talosctl with $TALOSCONFIG for Talos nodes (macOS flags: nc -G,
+# ping -W in milliseconds).
 set -uo pipefail
 
 # Shared helpers: is_ipv4, etcd_health_json, k. Sourced first so the
@@ -161,6 +164,7 @@ item_nodes() {
       version: .status.nodeInfo.kubeletVersion,
       ip: ([.status.addresses[]? | select(.type == "InternalIP") | .address][0])}]' <<<"$j")
   jq -r '.[] | "\(.name) \(.ip)"' <<<"$d" > "$RES/nodes.txt"
+  jq -r '.items[] | select((.status.nodeInfo.osImage // "") | startswith("Talos")) | .metadata.name' <<<"$j" > "$RES/talos-nodes.txt"
   [ "$(jq length <<<"$d")" -eq "$NODE_COUNT" ] || reason 1 "expected $NODE_COUNT nodes, found $(jq length <<<"$d")"
   jq -r '.[] | select(.ready | not) | "node \(.name) is not Ready"' <<<"$d" >> "$RES/reasons-1"
   jq -r '.[] | select(.unschedulable) | "node \(.name) is SchedulingDisabled"' <<<"$d" >> "$RES/reasons-1"
@@ -504,10 +508,17 @@ mac_sample() { # mac_sample <ip>: retries ×3 on (incomplete); writes the node n
   printf '%s %s\n' "$m" "${node:-}" > "$RES/mac-now"
 }
 
-ssh_addrs() { # ssh_addrs <node> <ip>
-  # -n: ssh must not read the caller's stdin (the node list being looped over).
-  ssh -n -o ConnectTimeout=5 -o BatchMode=yes "$SSH_USER@$2" 'ip -4 -o addr show' 2>/dev/null \
-    | awk '{ print $4 }' | cut -d/ -f1 > "$RES/addr-$1" && [ -s "$RES/addr-$1" ]
+node_addrs() { # node_addrs <node> <ip>: the node's IPv4 addresses into $RES/addr-<node>
+  if grep -qxF "$1" "$RES/talos-nodes.txt" 2>/dev/null; then
+    # Talos has no SSH: read its address resources over the Talos API.
+    talos -n "$2" get addresses -o json </dev/null 2>/dev/null \
+      | jq -r 'select(.spec.family == "inet4") | .spec.address' | cut -d/ -f1 > "$RES/addr-$1"
+  else
+    # -n: ssh must not read the caller's stdin (the node list being looped over).
+    ssh -n -o ConnectTimeout=5 -o BatchMode=yes "$SSH_USER@$2" 'ip -4 -o addr show' 2>/dev/null \
+      | awk '{ print $4 }' | cut -d/ -f1 > "$RES/addr-$1"
+  fi
+  [ -s "$RES/addr-$1" ]
 }
 
 item_lb() {
@@ -525,10 +536,10 @@ item_lb() {
   ips=$( { jq -r '.[].got[]' <<<"$svcs"; echo "$ENTRY_IP"; } | sort -u)
   jq -e --arg ip "$ENTRY_IP" '[.[].got[]] | index($ip)' <<<"$svcs" >/dev/null || reason 9 "entry IP $ENTRY_IP is in no LoadBalancer Service status"
 
-  # (a) interface holders, one read-only SSH per node.
+  # (a) interface holders, one read-only SSH (or Talos API) call per node.
   while read -r node nip; do
     [ -n "$node" ] || continue
-    with_retry ssh_addrs "$node" "$nip" || { reason 9 "cannot read the addresses of $node over SSH"; : > "$RES/addr-$node"; }
+    with_retry node_addrs "$node" "$nip" || { reason 9 "cannot read the addresses of $node (SSH or Talos API)"; : > "$RES/addr-$node"; }
   done < "$RES/nodes.txt"
 
   # (b) MAC samples: every LB address once per round.
