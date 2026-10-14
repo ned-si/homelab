@@ -130,7 +130,7 @@ jobs:
       - name: pre-commit (hooks without a dedicated step)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
-          SKIP: gitleaks,yamllint,shellcheck,terraform_fmt,actionlint,leak-check,placeholder-check,secrets-check,trivy-waivers,render-deploy
+          SKIP: gitleaks,yamllint,shellcheck,terraform_fmt,actionlint,kyverno,leak-check,placeholder-check,secrets-check,trivy-waivers,render-deploy
         run: pre-commit run --all-files --show-diff-on-failure --color always
 
       - name: yamllint (strict)
@@ -368,8 +368,18 @@ jobs:
           path: ${{ runner.temp }}/kind-cache/images.tar
           key: kind-images-${{ steps.keys.outputs.images }}
 
+      # The node image is keyed on its pinned digest reference.
+      - name: Cache the kind node image
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/kind-cache/node.tar
+          key: kind-node-${{ env.KIND_NODE_IMAGE }}
+
+      - name: Pull or load the kind node image
+        run: scripts/ci/kind-preprod.sh node
+
       - name: Create the kind cluster
-        run: kind create cluster --name "$KIND_CLUSTER" --image "$KIND_NODE_IMAGE" --wait 120s
+        run: kind create cluster --name "$KIND_CLUSTER" --image kindest/node:preprod --wait 120s
 
       - name: Install CRDs
         run: scripts/ci/kind-preprod.sh crds

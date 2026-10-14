@@ -2,6 +2,8 @@
 # kind-preprod.sh <stage> -- pre-production checks on an ephemeral kind
 # cluster: the `preprod` job of .github/workflows/ci.yaml.
 #
+#   node     pull $KIND_NODE_IMAGE (or load it from $CACHE_DIR/node.tar) and
+#            tag it $KIND_NODE_LOCAL for `kind create cluster --image`
 #   images   print the images the boot stage runs (cache key and pre-pull)
 #   load     pull (or load from $CACHE_DIR) those images into the kind nodes
 #   crds     install the CRDs: every pinned source in ci/schemas/SOURCES.txt
@@ -26,6 +28,7 @@ cd "$ROOT"
 KIND_CLUSTER=${KIND_CLUSTER:-preprod}
 CACHE_DIR=${CACHE_DIR:-${RUNNER_TEMP:-/tmp}/kind-cache}
 ROLLOUT_TIMEOUT=${ROLLOUT_TIMEOUT:-180s}
+KIND_NODE_LOCAL=${KIND_NODE_LOCAL:-kindest/node:preprod}
 WORKLOADS=ci/kind-workloads.txt
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
@@ -39,6 +42,25 @@ workload_files() {
   grep -vE '^[[:space:]]*(#|$)' "$WORKLOADS" | while IFS= read -r p; do
     if [ -d "$p" ]; then find "$p" -name '*.yaml' -type f | sort; else echo "$p"; fi
   done
+}
+
+# The tar holds the image under a local tag: `docker save` drops the repo
+# digest, so a digest reference would not match after `docker load` and kind
+# would pull again. The tar is only ever written from a pull of the pinned
+# digest (the cache key is that reference).
+node_image() {
+  local tar="$CACHE_DIR/node.tar"
+  : "${KIND_NODE_IMAGE:?KIND_NODE_IMAGE is not set}"
+  mkdir -p "$CACHE_DIR"
+  if [ -f "$tar" ]; then
+    docker load -q -i "$tar"
+    echo "node: $KIND_NODE_LOCAL from cache"
+  else
+    docker pull -q "$KIND_NODE_IMAGE"
+    docker tag "$KIND_NODE_IMAGE" "$KIND_NODE_LOCAL"
+    docker save -o "$tar" "$KIND_NODE_LOCAL"
+    echo "node: $KIND_NODE_IMAGE pulled and saved"
+  fi
 }
 
 images() {
@@ -172,11 +194,12 @@ boot() {
 
 stage=${1:-all}
 case "$stage" in
+  node) node_image ;;
   images) images ;;
   load) load ;;
   crds) crds ;;
   dry-run) dry_run ;;
   boot) boot ;;
   all) crds && dry_run && load && boot ;;
-  *) echo "usage: $0 images|load|crds|dry-run|boot|all" >&2; exit 64 ;;
+  *) echo "usage: $0 node|images|load|crds|dry-run|boot|all" >&2; exit 64 ;;
 esac

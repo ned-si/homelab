@@ -22,7 +22,8 @@ DEDICATED = {
     "yamllint": "yamllint -c .yamllint.yaml",
     "shellcheck": "scripts/ci/shellcheck-all.sh",
     "terraform_fmt": "tofu fmt -check",
-    "actionlint": "actionlint",
+    "actionlint": "actionlint -color",
+    "kyverno": "scripts/ci/kyverno.sh",
     "leak-check": "scripts/ci/repo-policy.sh",
     "placeholder-check": "scripts/ci/repo-policy.sh",
     "secrets-check": "scripts/ci/repo-policy.sh",
@@ -30,7 +31,7 @@ DEDICATED = {
     "trivy-waivers": "scripts/trivy-waivers.sh",
     # Not in the pre-commit stage, so never part of the CI pre-commit run.
     "conventional-pre-commit": "scripts/ci/check-commits.sh",
-    "ci-render": "scripts/ci/render_apps.py",
+    "ci-render": "python3 scripts/ci/render_apps.py",
 }
 # What repo-policy.sh must call for the hooks mapped to it above.
 REPO_POLICY_CALLS = {
@@ -67,6 +68,18 @@ def ci_run_text():
     return "\n".join(s.get("run", "") for job in wf["jobs"].values() for s in job.get("steps", []))
 
 
+def ci_commands():
+    """Every command line of every `run:` in ci.yaml, stripped."""
+    return [ln.strip() for ln in ci_run_text().splitlines() if ln.strip()]
+
+
+def runs_command(needle, lines=None):
+    # A command line that starts with the needle: a tool's name as an
+    # argument (`install-tool.sh actionlint`) does not count as running it.
+    lines = ci_commands() if lines is None else lines
+    return any(ln == needle or ln.startswith(needle + " ") for ln in lines)
+
+
 def test_ci_runs_precommit_with_all_files():
     wf = yaml_json(CI)
     runs = [s["run"] for s in wf["jobs"]["lint"]["steps"] if "pre-commit run" in s.get("run", "")]
@@ -79,15 +92,21 @@ def test_every_skipped_hook_exists():
 
 
 def test_skipped_or_other_stage_hooks_have_a_dedicated_ci_step():
-    text = ci_run_text()
     skip = ci_skip()
     uncovered = []
     for hid, stages, _ in hooks():
         if hid in skip or "pre-commit" not in stages:
             needle = DEDICATED.get(hid)
-            if needle is None or needle not in text:
+            if needle is None or not runs_command(needle):
                 uncovered.append(hid)
     assert uncovered == []
+
+
+def test_runs_command_ignores_a_tool_named_as_an_argument():
+    install = ["scripts/ci/install-tool.sh actionlint shellcheck tofu", "# actionlint -color"]
+    assert not runs_command("actionlint -color", install)
+    assert runs_command("actionlint -color", install + ["actionlint -color"])
+    assert not runs_command("actionlint -color", ["actionlint -colorful"])
 
 
 def test_repo_policy_calls_the_hook_scripts():

@@ -48,7 +48,7 @@ tasks:
       # nmap is for scripts/discover-lan.sh. kube-linter and actionlint are for
       # the pre-push and workflow hooks. talhelper and talosctl are for the
       # talos:* tasks (keep talosctl on talosVersion in talos/talconfig.yaml).
-      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops opentofu nmap kube-linter actionlint talhelper talosctl
+      - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops opentofu nmap kube-linter actionlint kyverno talhelper talosctl
       # Installs every type in default_install_hook_types (pre-commit,
       # commit-msg, pre-push).
       - pre-commit install --install-hooks
