@@ -142,10 +142,19 @@ alertmanager:
                   values: ["yes"]
                 X-Title:
                   values:
-                    - '{{if eq .status "resolved"}}Resolved{{else if eq .commonLabels.severity "critical"}}CRITICAL{{else}}Warning{{end}}: {{.commonLabels.alertname}}{{if .commonLabels.namespace}} ({{.commonLabels.namespace}}){{end}}'
+                    # Folded scalars: each line break becomes one space, so
+                    # lines break only inside {{ }} or where a space belongs.
+                    - >-
+                      {{if eq .status "resolved"}}Resolved{{else if eq
+                      .commonLabels.severity "critical"}}CRITICAL{{else}}Warning{{end}}:
+                      {{.commonLabels.alertname}}{{if .commonLabels.namespace}}
+                      ({{.commonLabels.namespace}}){{end}}
                 X-Message:
                   values:
-                    - '{{range .alerts}}{{if .annotations.summary}}{{.annotations.summary}}{{else}}{{.labels.alertname}}{{end}}{{"\n"}}{{end}}{{if eq (len .alerts) 1}}{{with (index .alerts 0).annotations.description}}{{"\n"}}{{.}}{{end}}{{end}}'
+                    - >-
+                      {{range .alerts}}{{if .annotations.summary}}{{.annotations.summary}}{{else
+                      }}{{.labels.alertname}}{{end}}{{"\n"}}{{end}}{{if eq (len .alerts)
+                      1}}{{with (index .alerts 0).annotations.description}}{{"\n"}}{{.}}{{end}}{{end}}
                 X-Priority:
                   values:
                     - '{{if eq .status "resolved"}}2{{else if eq .commonLabels.severity "critical"}}5{{else}}4{{end}}'
