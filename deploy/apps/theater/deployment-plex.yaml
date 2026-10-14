@@ -44,12 +44,6 @@ spec:
         - containerPort: 32400
           name: http
           protocol: TCP
-        readinessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /identity
-            port: http
-          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config

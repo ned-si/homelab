@@ -79,13 +79,6 @@ spec:
             - name: http
               containerPort: 8000
               protocol: TCP
-          # Ready = answers on the endpoint the PostSync smoke test checks.
-          readinessProbe:
-            httpGet:
-              path: /accounts/login/
-              port: http
-            periodSeconds: 10
-            failureThreshold: 3
           volumeMounts:
             - mountPath: "/data/data"
               name: paperless-data

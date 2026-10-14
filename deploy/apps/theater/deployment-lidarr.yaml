@@ -49,12 +49,6 @@ spec:
         - containerPort: 8686
           name: http
           protocol: TCP
-        readinessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /arr/lidarr/ping
-            port: http
-          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config

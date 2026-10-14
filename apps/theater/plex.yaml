@@ -43,13 +43,6 @@ spec:
             - name: http
               containerPort: 32400
               protocol: TCP
-          # Ready = answers on the endpoint the PostSync smoke test checks.
-          readinessProbe:
-            httpGet:
-              path: /identity
-              port: http
-            periodSeconds: 10
-            failureThreshold: 3
           volumeMounts:
             - name: config
               mountPath: /config

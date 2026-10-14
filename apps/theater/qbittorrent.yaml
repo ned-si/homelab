@@ -47,13 +47,6 @@ spec:
             - name: seed
               containerPort: 50000
               protocol: TCP
-          # Ready = answers on the endpoint the PostSync smoke test checks.
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-            periodSeconds: 10
-            failureThreshold: 3
           volumeMounts:
             - name: config
               mountPath: /config
