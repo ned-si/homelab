@@ -139,11 +139,10 @@ all by `app`.
 | `SLOErrorBudgetBurnFast` | burn rate above 14.4x over 1h and 5m, or 6x over 6h and 30m | `critical` |
 | `SLOErrorBudgetBurnSlow` | burn rate above 3x over 1d and 2h, or 1x over 3d and 6h | `warning` |
 | `SLOProbesAbsent` | no `probe_success` for job `blackbox-public` for 15m | `warning` |
-| `SLOTargetProbeAbsent` | no `probe_success` for one SLO target for 15m (quiet while `SLOProbesAbsent` fires) | `warning` |
 
-Prometheus keeps `retention: 30d` capped by `retentionSize: 20GiB` on a 25Gi
-volume. At about 0.55 GB of blocks a day, 30 days take about 17 GB; the rest
-of the volume is for the WAL and compaction.
+Prometheus keeps `retention: 30d` capped by `retentionSize: 11GiB`. At about
+0.55 GB of blocks a day that is roughly 20 days, so the 30-day figures cover
+what is kept until the Prometheus volume grows to 25Gi.
 
 The rules are unit-tested: `scripts/ci/promtool-check.sh` runs `promtool check
 rules` on every rendered PrometheusRule and `promtool test rules` on
