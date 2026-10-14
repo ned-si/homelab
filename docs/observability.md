@@ -10,7 +10,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
 | Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); `warning` and `critical` go to the hosted ntfy.sh topic ([Notifications](#notifications)); everything else goes to `null` |
-| Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml`. Deployed: `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml` |
+| Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml`. Deployed: `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)) |
 | Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents; relay, UI and metrics not enabled ([networking.md](networking.md#debugging)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
@@ -56,7 +56,7 @@ Not shown, and what each would need:
 | Trivy findings, image CVE counts | trivy-operator |
 | Keycloak failed logins | `KC_EVENT_METRICS_USER_ENABLED=true` and a ServiceMonitor on port 9000 |
 | Gateway auth errors per route | Cilium Envoy or Hubble HTTP metrics, scraped |
-| cert-manager, Argo CD, CNPG metrics | their ServiceMonitors/PodMonitors carry no `release: kube-prometheus-stack` label, so Prometheus ignores them |
+| cert-manager metrics | its ServiceMonitor carries no `release: kube-prometheus-stack` label, so Prometheus ignores it |
 
 ## Notifications
 
@@ -153,6 +153,29 @@ with `group_left(node)` for that reason; do not remove the joins.
 `Watchdog` always fires, by design: the heartbeat provider alerts when it stops
 arriving, which is the only way to learn that the cluster, Alertmanager or the
 house's internet is down. Never silence it.
+
+## Argo CD alerts
+
+Failed deploys are alerts, not GitHub issues. PrometheusRule `homelab-argocd`
+(`platform/kube-prometheus-stack/routes/argocd-alerts.yaml`) reads the
+application controller's metrics (ServiceMonitor
+`argo/argocd-application-controller`, label `release: kube-prometheus-stack`
+in `bootstrap/argocd-values.yaml`):
+
+| Alert | Fires when | Severity |
+| --- | --- | --- |
+| `ArgoCDAppDegraded` | an Application is `Degraded` for 5m | `critical` |
+| `ArgoCDSyncFailed` | a sync ended `Failed` or `Error` in the last 10m | `warning` |
+| `ArgoCDAppOutOfSync` | an Application is `OutOfSync` for 30m | `warning` |
+| `ArgoCDMetricsAbsent` | no `argocd_app_info` for 15m | `warning` |
+
+They resolve on their own. An automatic rollback is recorded by its revert
+pull request (label `auto-rollback`). The Homelab / Overview dashboard has two
+annotations: `Argo CD failure` (red, while one of the first two alerts fires)
+and `Argo CD recovery sync` (green, a successful sync of an app that failed in
+the previous hour: the auto-rollback revert, or a fix).
+
+Tests: `tests/prometheus/argocd_test.yaml`.
 
 ## SLOs
 

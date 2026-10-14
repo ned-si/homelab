@@ -28,7 +28,36 @@
     ]
   },
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "name": "Argo CD failure",
+        "enable": true,
+        "iconColor": "red",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "expr": "ALERTS{alertname=~\"ArgoCDAppDegraded|ArgoCDSyncFailed\", alertstate=\"firing\"}",
+        "step": "1m",
+        "titleFormat": "{{alertname}}",
+        "textFormat": "{{name}}",
+        "tagKeys": "name"
+      },
+      {
+        "name": "Argo CD recovery sync (auto-rollback or fix)",
+        "enable": true,
+        "iconColor": "green",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "expr": "(sum by (name) (increase(argocd_app_sync_total{phase=\"Succeeded\"}[5m])) > 0) and on (name) (max by (name) (max_over_time(ALERTS{alertname=~\"ArgoCDAppDegraded|ArgoCDSyncFailed\", alertstate=\"firing\"}[1h])))",
+        "step": "5m",
+        "titleFormat": "Recovery sync",
+        "textFormat": "{{name}}: a successful sync after a failure in the previous hour",
+        "tagKeys": "name"
+      }
+    ]
   },
   "panels": [
     {

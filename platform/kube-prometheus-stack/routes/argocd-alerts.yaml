@@ -1,0 +1,86 @@
+# Argo CD failures as alerts, from the application controller's metrics
+# (ServiceMonitor `argocd-application-controller`, bootstrap/argocd-values.yaml).
+#
+#   ArgoCDAppDegraded     health Degraded for 5m                    critical
+#   ArgoCDSyncFailed      a sync ended Failed or Error in the last 10m  warning
+#   ArgoCDAppOutOfSync    OutOfSync for 30m                         warning
+#   ArgoCDMetricsAbsent   no argocd_app_info for 15m, so the three above
+#                         cannot fire                               warning
+#
+# They resolve on their own once the app recovers. The record of an automatic
+# rollback is its revert pull request (label `auto-rollback`); the Homelab
+# overview dashboard marks the failure and the recovery sync as annotations.
+#
+# Tests: tests/prometheus/argocd_test.yaml (promtool test rules).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-argocd
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.argocd
+      rules:
+        - alert: ArgoCDAppDegraded
+          expr: max by (name) (argocd_app_info{health_status="Degraded"}) == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.name }} is Degraded"
+            description: >-
+              Argo CD reports the Application {{ $labels.name }} as Degraded
+              for 5 minutes. If the newest merge deployed it, auto-rollback
+              opens a revert pull request. Check
+              https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
+
+        # A counter, so increase(); the second half catches the first failure
+        # of an app, which creates the series at 1 and so has no increase.
+        - alert: ArgoCDSyncFailed
+          expr: |
+            (sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[10m])) > 0)
+            or
+            (
+              sum by (name) (
+                argocd_app_sync_total{phase=~"Error|Failed"}
+                unless argocd_app_sync_total{phase=~"Error|Failed"} offset 10m
+              ) > 0
+            )
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.name }}: sync failed"
+            description: >-
+              A sync of {{ $labels.name }} ended Failed or Error in the last 10
+              minutes. Check
+              https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
+
+        - alert: ArgoCDAppOutOfSync
+          expr: max by (name) (argocd_app_info{sync_status="OutOfSync"}) == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.name }} is OutOfSync for 30 minutes"
+            description: >-
+              The live state of {{ $labels.name }} differs from git and
+              self-heal has not closed the gap in 30 minutes: a stuck sync, a
+              field another controller rewrites, or a resource Argo CD cannot
+              apply. Check the diff in
+              https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
+
+        - alert: ArgoCDMetricsAbsent
+          expr: absent(argocd_app_info)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: Argo CD application metrics are missing
+            description: >-
+              Prometheus has no argocd_app_info for 15 minutes, so no Argo CD
+              alert can fire. Check the ServiceMonitor
+              argo/argocd-application-controller (label release) and the
+              application controller pod.
