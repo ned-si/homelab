@@ -98,6 +98,13 @@ spec:
             - name: http
               containerPort: 80
               protocol: TCP
+          # Ready = answers on the endpoint the PostSync smoke test checks.
+          readinessProbe:
+            httpGet:
+              path: /api2/ping/
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
           resources:
             limits:
               memory: "1000Mi"

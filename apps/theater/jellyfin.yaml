@@ -41,6 +41,13 @@ spec:
             - name: udp
               containerPort: 7359
               protocol: UDP
+          # Ready = answers on the endpoint the PostSync smoke test checks.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
           volumeMounts:
             - name: config
               mountPath: /config

@@ -48,6 +48,12 @@ spec:
         - containerPort: 50000
           name: seed
           protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config

@@ -76,6 +76,12 @@ spec:
         - containerPort: 7878
           name: http
           protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /arr/radarr/ping
+            port: http
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config

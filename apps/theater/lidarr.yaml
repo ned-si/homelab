@@ -75,6 +75,13 @@ spec:
             - name: http
               containerPort: 8686
               protocol: TCP
+          # Ready = answers on the endpoint the PostSync smoke test checks.
+          readinessProbe:
+            httpGet:
+              path: /arr/lidarr/ping
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
           volumeMounts:
             - name: config
               mountPath: /config
