@@ -1,0 +1,27 @@
+# Helm values for the `tuppr` release (namespace `system-upgrade`), rendered by
+# the Argo CD Application clusters/homelab/platform/tuppr.yaml. Chart defaults:
+# https://github.com/home-operations/tuppr/blob/main/charts/tuppr/values.yaml
+#
+# The chart also creates a talos.dev/v1alpha1 ServiceAccount (os:admin). Talos
+# answers it with the `tuppr-talosconfig` Secret the controller mounts; that
+# needs KubeTalosAPIAccessConfig on the control planes
+# (talos/patches/talosctl/controlplane/talos-api-access.yaml).
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+# Metrics and the chart's alerts (TalosUpgradeFailed, KubernetesUpgradeFailed,
+# TalosUpgradeStuck, TupprOperatorAbsent, ...) go to the kube-prometheus-stack
+# Prometheus, which selects on the `release` label, and from there to ntfy.
+monitoring:
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack
+  prometheusRule:
+    enabled: true
+    labels:
+      release: kube-prometheus-stack

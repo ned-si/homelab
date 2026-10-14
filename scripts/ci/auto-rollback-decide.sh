@@ -16,9 +16,11 @@
 #      a later merge may already have changed or fixed the app, and the revert
 #      is built as "main with the tree of that commit's parent";
 #   2. that commit landed less than MAX_AGE seconds ago (default 1 h);
-#   3. the app is not in NO_REVERT_APPS (default: cilium democratic-csi). A
-#      revert of the CNI or the CSI driver is itself a risky deploy that can
-#      take the network or every volume down, so a person decides;
+#   3. the app is not in NO_REVERT_APPS (default: cilium democratic-csi
+#      tuppr). A revert of the CNI or the CSI driver is itself a risky deploy
+#      that can take the network or every volume down, and a revert of a
+#      tuppr version would downgrade the nodes (Kubernetes cannot go back a
+#      minor; it is fixed forward), so a person decides;
 #   4. no two automatic reverts in a row: the commit is not itself a revert,
 #      and the commit before it is not an automatic revert (subject ending in
 #      `(auto)`) from the last LOOP_WINDOW seconds (default 24 h);
@@ -52,7 +54,7 @@ MAIN_REF=${MAIN_REF:-origin/main}
 NOW=${NOW:-$(date +%s)}
 MAX_AGE=${MAX_AGE:-3600}
 LOOP_WINDOW=${LOOP_WINDOW:-86400}
-NO_REVERT_APPS=${NO_REVERT_APPS:-cilium democratic-csi}
+NO_REVERT_APPS=${NO_REVERT_APPS:-cilium democratic-csi tuppr}
 STATEFUL_APPS=${STATEFUL_APPS:-immich keycloak mealie paperless seafile theater}
 OUTAGE_CHECK=${OUTAGE_CHECK:-}
 GUARD_WAIT=${GUARD_WAIT:-0}

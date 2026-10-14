@@ -27,6 +27,10 @@ spec:
     kind: MutatingWebhookConfiguration
   - group: admissionregistration.k8s.io
     kind: ValidatingWebhookConfiguration
+  - group: tuppr.home-operations.com
+    kind: TalosUpgrade
+  - group: tuppr.home-operations.com
+    kind: KubernetesUpgrade
   description: Shared services - CloudNativePG, observability, Keycloak
   destinations:
   - namespace: '*'
@@ -38,3 +42,4 @@ spec:
   - https://github.com/ned-si/homelab.git
   - https://cloudnative-pg.github.io/charts
   - https://prometheus-community.github.io/helm-charts
+  - ghcr.io/home-operations/charts

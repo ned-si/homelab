@@ -35,6 +35,10 @@ GATEWAY_API=v1.2.0
 PROM_OPERATOR=v0.94.1
 SNAPSHOTTER=v6.3.2
 BARMAN=v0.15.1
+TUPPR=0.5.7
+# talos.dev ServiceAccount: Talos installs this CRD itself; the file is its
+# test fixture at the release the nodes run.
+TALOS=v1.14.2
 # CustomResourceDefinition itself: yannh/kubernetes-json-schema has no schema for
 # it (JSONSchemaProps is recursive), so it is built from the Kubernetes OpenAPI v3
 # document of the validated version with JSONSchemaProps left opaque.
@@ -78,6 +82,10 @@ for k in volumesnapshotclasses volumesnapshotcontents volumesnapshots; do
   add "https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/$SNAPSHOTTER/client/config/crd/snapshot.storage.k8s.io_$k.yaml"
 done
 add "https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/$BARMAN/manifest.yaml"
+for k in kubernetesupgrades talosupgrades; do
+  add "https://raw.githubusercontent.com/home-operations/tuppr/$TUPPR/config/crd/bases/tuppr.home-operations.com_$k.yaml"
+done
+add "https://raw.githubusercontent.com/siderolabs/talos/$TALOS/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml"
 
 gen="$work/gen"
 mkdir -p "$gen"
