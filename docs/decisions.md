@@ -64,12 +64,13 @@ data.
 
 ## Hand-installed only where git cannot reach
 
-Three things run outside Argo CD: the Argo CD Helm release itself (`argocd`,
-upgraded with the Helm CLI from a merged commit), kube-vip (static pods on the
-control planes) and the bootstrap Secrets (`sops-age`, the repository
-credential). Cilium and democratic-csi were Helm CLI releases and are now
-Argo CD Applications; a fresh cluster installs Cilium once by hand, then Argo CD
-adopts it ([bootstrap.md](bootstrap.md)).
+Three things run outside Argo CD: the Talos machine configs (OS, etcd, control
+plane and the API VIP, rendered from `talos/` and applied with `task talos:*`,
+[talos.md](talos.md)), the Argo CD Helm release itself (`argocd`, upgraded
+with the Helm CLI from a merged commit) and the bootstrap Secrets (`sops-age`,
+the repository credential). Cilium and democratic-csi were Helm CLI releases
+and are now Argo CD Applications; a fresh cluster installs Cilium once by hand,
+then Argo CD adopts it ([bootstrap.md](bootstrap.md)).
 
 Why: each of the three is a bootstrap dependency of Argo CD itself.
 
@@ -218,13 +219,18 @@ across many services become a real need.
 
 ## Talos, built as a new cluster
 
-The nodes run Talos Linux. It replaced Ubuntu 22.04 with kubeadm as a new
-cluster (kubeadm and Talos cannot be mixed in one cluster), one node at a time
-on the same hardware and IPs, after every database had an off-site backup. The
-data volumes stayed on the NAS and were bound again as static PVs; the
-databases were recovered from their Barman Cloud backups.
+The nodes run Talos Linux. Until October 2026 the cluster ran Ubuntu 22.04
+with kubeadm, kube-vip for the API VIP and Ansible playbooks for the nodes.
+Talos replaced it as a new cluster (kubeadm and Talos cannot be mixed in one
+cluster), one node at a time on the same hardware and IPs, after every
+database had an off-site backup. The data volumes stayed on the NAS and were
+bound again as static PVs; the databases were recovered from their Barman
+Cloud backups. The repository no longer carries the Ubuntu-era playbooks,
+manifests or runbooks; git history does.
 
 Why: Talos removes the hand-maintained node state (netplan, kube-vip manifest,
 packages, kubeadm certificates). The whole node is one machine config in git.
+It also replaced the vendor 5.10 kernel, which held Cilium below 1.18 and
+Gateway API below 1.3.
 
 Rejected: an in-place conversion, which does not exist.
