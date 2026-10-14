@@ -239,7 +239,7 @@ spec:
           # takes the monitoring system down -- and a monitoring system that has
           # stopped ingesting cannot alert on anything, including itself.
           #
-          # retentionSize is 20GiB inside a 25Gi volume. That headroom is for
+          # retentionSize is 12GiB inside a 15Gi volume. That headroom is for
           # the WAL and for compaction, which retentionSize does not count. If
           # this fires, the volume is being used by something other than the
           # blocks Prometheus is accounting for.
@@ -254,8 +254,8 @@ spec:
           annotations:
             summary: "Prometheus TSDB volume is nearly full"
             description: >-
-              retentionSize (20GiB) is meant to keep this from happening inside
-              the 25Gi volume. If it has, the WAL or a compaction is using the
+              retentionSize (12GiB) is meant to keep this from happening inside
+              the 15Gi volume. If it has, the WAL or a compaction is using the
               headroom. Grow the volume -- `iscsi` allows expansion -- rather
               than cutting retention, and see the comment on retentionSize in
               platform/kube-prometheus-stack/values.yaml.
