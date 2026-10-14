@@ -29,6 +29,7 @@ one root Application, three layers, one Application per app.
 - Data: [docs/backups.md](docs/backups.md), [docs/secrets.md](docs/secrets.md).
 - Monitoring: [docs/observability.md](docs/observability.md).
 - Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
+- Operating Talos nodes: [docs/talos-cheatsheet.md](docs/talos-cheatsheet.md).
 - App runbooks: [docs/runbooks/](docs/runbooks).
 
 ## Services
