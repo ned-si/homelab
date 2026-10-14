@@ -57,7 +57,7 @@ spec:
           done
           exit "$fail"
         - postsync-smoke
-        image: curlimages/curl:8.22.0
+        image: curlimages/curl:8.23.0
         name: smoke
         resources:
           limits:
