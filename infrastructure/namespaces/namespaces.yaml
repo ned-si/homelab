@@ -8,6 +8,9 @@
 # `enforce` is set where baseline is wrong:
 #   gateway         restricted: new, holds no pods (Cilium's Envoy runs in
 #                   kube-system).
+#   argo, cert-manager, external-dns
+#                   restricted: every pod passes it (server dry-run of
+#                   `enforce=restricted`, 2026-10-15: no warnings).
 #   democratic-csi  privileged: the node plugin needs host namespaces,
 #                   hostPath and privileged containers to attach iSCSI disks.
 #   monitoring      privileged: node-exporter needs host namespaces, hostPath
@@ -31,6 +34,20 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
+# Argo CD itself. bootstrap/main.tf creates it with the same enforce label;
+# declaring it here keeps the labels on a cluster that was not bootstrapped
+# by OpenTofu.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argo
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -38,6 +55,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
+    pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
@@ -48,6 +66,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
+    pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
