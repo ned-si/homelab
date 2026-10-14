@@ -4,7 +4,7 @@
 # Volumes:
 #   audiobookshelf-config (iSCSI)  /config (SQLite database) and /metadata
 #                                  (covers, cache, its own daily backups)
-#   NFS share (inline, like theater) /audiobooks and /podcasts, the libraries
+#   books-data (NFS)               /audiobooks and /podcasts, the libraries
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -94,12 +94,9 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: audiobookshelf-config
-        # Inline, like the theater apps: infrastructure/nfs-storage/ is not
-        # deployed. SITE-SPECIFIC: the NAS address.
         - name: library
-          nfs:
-            server: 192.168.1.228
-            path: /mnt/homelab/k8s/nfs
+          persistentVolumeClaim:
+            claimName: books-data
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

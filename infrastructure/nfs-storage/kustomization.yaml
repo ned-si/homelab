@@ -5,5 +5,7 @@ resources:
   # The media library: one mount at the parent of media/ and torrents/ so the
   # *arr apps can hardlink imports.
   - nfs-volumes.yaml
+  # The books library (audiobooks, podcasts, ebooks) for the books namespace.
+  - books-volume.yaml
   # The local backup target: restic repositories and database dumps.
   - backup-volume.yaml
