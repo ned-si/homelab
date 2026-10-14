@@ -230,6 +230,20 @@
       allowedVersions: '<11.0.0',
     },
     {
+      // Talos and Kubernetes: talosVersion / kubernetesVersion in
+      // talos/talconfig.yaml and the tuppr upgrade resources in
+      // platform/tuppr/upgrades/ share a depName, so one pull request bumps
+      // both. They automerge like everything else (rule at the top): the
+      // `talos-upgrade` CI job rehearses the upgrade on a throwaway cluster
+      // first, and tuppr rolls it out after the merge. Talos supports
+      // upgrades one minor at a time, so each minor is its own pull request.
+      // A Kubernetes minor cannot be downgraded: a failure after the merge is
+      // fixed forward (docs/talos-cheatsheet.md, Upgrades).
+      description: 'Talos and Kubernetes: one minor per pull request',
+      matchPackageNames: ['ghcr.io/siderolabs/talos', 'ghcr.io/siderolabs/kubelet'],
+      separateMultipleMinor: true,
+    },
+    {
       // kubectl supports one minor of skew against the API server. Move with
       // the cluster (kubernetesVersion in talos/talconfig.yaml).
       description: 'Keep kubectl images within one minor of the cluster (1.37)',
