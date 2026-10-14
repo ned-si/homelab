@@ -35,8 +35,7 @@ own pull request with its own diff, test and rollback
   deployed; until then a bad update is reverted by hand.
 - A watchdog outside the cluster: automatic rollback runs through Argo CD and
   needs a working CNI, so it cannot rescue a broken Argo CD or Cilium.
-- Scripts and tasks that still use namespace `argocd` (`task apps:status`,
-  `scripts/graceful-*.sh`) move to `argo`.
+- `task apps:status` still uses namespace `argocd`; move it to `argo`.
 
 ## Versions
 
