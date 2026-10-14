@@ -77,6 +77,38 @@ Bulk sealing: `task secrets:seal:all` fills every template from
 proves each file decrypts. Keep the password manager as the record of every
 value; `secrets.local.env` is a working file.
 
+## Read-only automation access
+
+Tools that only inspect the platform (MCP servers, agents) get read-only
+credentials that live outside the repository, under `~/homelab-backups/agent/`
+(mode 600):
+
+| Credential | Defined in | Grants |
+| --- | --- | --- |
+| Kubernetes ServiceAccount `kube-system/agent-readonly` | `platform/agent-access/rbac.yaml` | ClusterRole `view` plus read on nodes; no Secrets, no exec |
+| Argo CD account `agent` (API key only) | `bootstrap/argocd-values.yaml`, `accounts.agent` | `role:readonly` |
+| Grafana service account `agent-readonly` | Grafana API (Grafana has no service account provisioning) | Viewer |
+
+Build the Kubernetes kubeconfig from the token Secret (prints nothing):
+
+```sh
+token=$(kubectl -n kube-system get secret agent-readonly-token -o jsonpath='{.data.token}' | base64 -d)
+out=~/homelab-backups/agent/kubeconfig-readonly
+kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > /tmp/agent-ca.crt
+KUBECONFIG=$out kubectl config set-cluster homelab --server=https://192.168.1.11:6443 --certificate-authority=/tmp/agent-ca.crt --embed-certs=true
+KUBECONFIG=$out kubectl config set-credentials agent-readonly --token="$token"
+KUBECONFIG=$out kubectl config set-context agent --cluster=homelab --user=agent-readonly
+KUBECONFIG=$out kubectl config use-context agent
+chmod 600 "$out"; rm /tmp/agent-ca.crt; unset token
+KUBECONFIG=$out kubectl auth can-i get secrets -A
+```
+
+Expected: `no`. Argo CD token: `argocd account generate-token --account agent`
+as an admin. Grafana token: Administration, Service accounts,
+`agent-readonly`, Add token. Revoke by deleting the token Secret (Argo CD
+recreates it with a new value), the Argo CD token
+(`argocd account delete-token`) or the Grafana token.
+
 ## Rotating a credential
 
 The general pattern: create the new value at its source, put it in the sealed

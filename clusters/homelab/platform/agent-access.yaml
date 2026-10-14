@@ -1,0 +1,29 @@
+# agent-access: read-only Kubernetes access for automation (platform/agent-access).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agent-access
+  namespace: argo
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/platform/agent-access
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

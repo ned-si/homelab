@@ -40,11 +40,16 @@ configs:
       clientID: argocd
       clientSecret: $oidc.keycloak.clientSecret
       requestedScopes: ["openid", "profile", "email", "groups"]
+    # Read-only API account for automation (MCP servers, agents): API tokens
+    # only, no UI login, bound to role:readonly below. Its token lives outside
+    # the repository (docs/secrets.md).
+    accounts.agent: apiKey
 
   rbac:
     policy.default: ""
     policy.csv: |
       g, ArgoCDAdmins, role:admin
+      g, agent, role:readonly
     scopes: "[groups]"
 
   params:
