@@ -7,8 +7,6 @@ namespace: theater
 #   backup-bazarr.yaml  (bazarr's config backup; rendered with bazarr.yaml)
 #   sso.yaml, sso-routes.yaml  (oauth2-proxy SSO for the *arr UIs: new
 #                public hostnames, its own change)
-# recyclarr.yaml is rendered but ships suspended (spec.suspend: true) and
-# its API-key Secret holds PENDING sentinels.
 resources:
   - sonarr.yaml
   - radarr.yaml

@@ -25,15 +25,19 @@ data:
         base_url: http://sonarr.theater.svc.cluster.local:8989
         api_key: !env_var SONARR_API_KEY
 
-        # Quality definitions: the size limits per resolution. Safe and
-        # uncontroversial -- this is the part of the guides that is nearly
-        # always right.
+        # Quality definitions: the size limits per resolution.
         quality_definition:
           type: series
-        # Quality profile + the custom formats that score into it. This is the
-        # part that changes grab behaviour, and the reason for --preview.
+        # TRaSH guide profiles with their default custom-format groups and
+        # scores (upstream templates web-1080p and
+        # french-multi-vf-bluray-web-1080p); only the name is overridden.
         quality_profiles:
           - trash_id: 72dae194fc92bf828f32cde7744e51a1  # WEB-1080p
+            name: HD-Original
+            reset_unmatched_scores:
+              enabled: true
+          - trash_id: 58e8dc75731040612dd6f4ac0676bfd7  # [French MULTi.VF] HD Bluray + WEB (1080p)
+            name: HD-Kids-FR
             reset_unmatched_scores:
               enabled: true
 
@@ -44,8 +48,14 @@ data:
 
         quality_definition:
           type: movie
+        # Upstream templates hd-bluray-web and french-multi-vf-hd-bluray-web.
         quality_profiles:
           - trash_id: d1d67249d3890e49bc12e275d989a7e9  # HD Bluray + WEB
+            name: HD-Original
+            reset_unmatched_scores:
+              enabled: true
+          - trash_id: 500ecc23572575511fd81893777d1e06  # [French MULTi.VF] HD Bluray + WEB
+            name: HD-Kids-FR
             reset_unmatched_scores:
               enabled: true
 

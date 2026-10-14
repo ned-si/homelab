@@ -21,3 +21,4 @@ theater/theater-config-backup-prowlarr
 theater/theater-config-backup-plex
 theater/theater-config-backup-jellyfin
 theater/theater-configs-prune
+theater/recyclarr-sync
