@@ -1,0 +1,570 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-cluster.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # ---------------------------------------------------------------- workload
+  # media/broken waits in CreateContainerError; media/starting is only
+  # ContainerCreating, which is excluded.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_waiting_reason{namespace="media", pod="broken", container="app", reason="CreateContainerError"}'
+        values: '1x30'
+      - series: 'kube_pod_container_status_waiting_reason{namespace="media", pod="starting", container="app", reason="ContainerCreating"}'
+        values: '1x30'
+      - series: 'kube_pod_info{namespace="media", pod="broken", node="homelab-w-1"}'
+        values: '1x30'
+      - series: 'kube_pod_info{namespace="media", pod="starting", node="homelab-w-1"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: PodStuckNotRunning
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: PodStuckNotRunning
+        exp_alerts:
+          - exp_labels:
+              namespace: media
+              pod: broken
+              container: app
+              reason: CreateContainerError
+              node: homelab-w-1
+              severity: warning
+            exp_annotations:
+              summary: "media/broken stuck in CreateContainerError"
+              description: >-
+                Container app has been unable to start for 15
+                minutes on node homelab-w-1. Read `state`, not `lastState`
+                -- see docs/observability.md: once the log pointed at the network
+                and the cause was a stale containerd name reservation.
+      - eval_time: 20m
+        alertname: KubeStateMetricsAbsent
+        exp_alerts: []
+
+  # The same pod stays broken for 6h: the critical escalation.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_waiting_reason{namespace="media", pod="broken", container="app", reason="ImagePullBackOff"}'
+        values: '1x420'
+      - series: 'kube_pod_info{namespace="media", pod="broken", node="homelab-w-1"}'
+        values: '1x420'
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: PodStuckNotRunningLongTerm
+        exp_alerts: []
+      - eval_time: 6h30m
+        alertname: PodStuckNotRunningLongTerm
+        exp_alerts:
+          - exp_labels:
+              namespace: media
+              pod: broken
+              container: app
+              reason: ImagePullBackOff
+              node: homelab-w-1
+              severity: critical
+            exp_annotations:
+              summary: "media/broken has been broken for 6h (ImagePullBackOff)"
+
+  # immich/pending is never scheduled.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_status_phase{namespace="immich", pod="pending", phase="Pending"}'
+        values: '1x40'
+      - series: 'kube_pod_status_phase{namespace="immich", pod="pending", phase="Running"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: PodPendingTooLong
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: PodPendingTooLong
+        exp_alerts:
+          - exp_labels:
+              namespace: immich
+              pod: pending
+              severity: warning
+            exp_annotations:
+              summary: "immich/pending has been Pending for 30m"
+              description: >-
+                Usually an unschedulable pod or a ReadWriteOnce volume still
+                attached elsewhere. kubectl -n immich describe pod
+                pending -- read the Events, not the status.
+
+  # mealie/web is Running and not Ready; a completed CronJob pod is not Ready
+  # either and is excluded.
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_status_ready{namespace="mealie", pod="web", condition="true"}'
+        values: '0x30'
+      - series: 'kube_pod_status_phase{namespace="mealie", pod="web", phase="Running"}'
+        values: '1x30'
+      - series: 'kube_pod_info{namespace="mealie", pod="web", node="homelab-cp-1"}'
+        values: '1x30'
+      - series: 'kube_pod_status_ready{namespace="mealie", pod="backup-1", condition="true"}'
+        values: '0x30'
+      - series: 'kube_pod_status_phase{namespace="mealie", pod="backup-1", phase="Succeeded"}'
+        values: '1x30'
+      - series: 'kube_pod_info{namespace="mealie", pod="backup-1", node="homelab-cp-1"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PodNotReady
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: PodNotReady
+        exp_alerts:
+          - exp_labels:
+              namespace: mealie
+              pod: web
+              node: homelab-cp-1
+              severity: warning
+            exp_annotations:
+              summary: "mealie/web is Running but not Ready"
+              description: >-
+                Its readiness probe has been failing for 20 minutes, so the
+                Service has removed it. If this is the only replica the app is
+                down. This is the signal that did not exist during the qBittorrent
+                outage -- there was no probe to fail.
+
+  # theater/sonarr has no available replica; theater/idle is scaled to zero.
+  - interval: 1m
+    input_series:
+      - series: 'kube_deployment_status_replicas_available{namespace="theater", deployment="sonarr"}'
+        values: '0x30'
+      - series: 'kube_deployment_spec_replicas{namespace="theater", deployment="sonarr"}'
+        values: '1x30'
+      - series: 'kube_deployment_status_replicas_available{namespace="theater", deployment="idle"}'
+        values: '0x30'
+      - series: 'kube_deployment_spec_replicas{namespace="theater", deployment="idle"}'
+        values: '0x30'
+      - series: 'kube_statefulset_status_replicas_ready{namespace="syncthing", statefulset="syncthing"}'
+        values: '0x30'
+      - series: 'kube_statefulset_replicas{namespace="syncthing", statefulset="syncthing"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ServiceHasNoReadyBackend
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: ServiceHasNoReadyBackend
+        exp_alerts:
+          - exp_labels:
+              namespace: theater
+              deployment: sonarr
+              severity: critical
+            exp_annotations:
+              summary: "theater/sonarr has ZERO available replicas"
+              description: >-
+                Nothing is serving this Deployment, so its Service has no ready
+                backend. Callers see connection refused, which the *arr apps
+                surface as 'download client unavailable' -- a message that reads
+                like an auth failure. See docs/runbooks/arr-qbittorrent.md.
+      - eval_time: 20m
+        alertname: StatefulSetHasNoReadyReplica
+        exp_alerts:
+          - exp_labels:
+              namespace: syncthing
+              statefulset: syncthing
+              severity: critical
+            exp_annotations:
+              summary: "syncthing/syncthing has no ready replica"
+
+  # ----------------------------------------------------------------- storage
+  # data-a 10% free (warning), data-b 3% free (warning + critical), the
+  # Prometheus volume 10% free, data-ok 50% free and flat.
+  - interval: 1m
+    input_series:
+      - series: 'kubelet_volume_stats_available_bytes{namespace="cook", persistentvolumeclaim="data-a"}'
+        values: '10x40'
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="cook", persistentvolumeclaim="data-a"}'
+        values: '100x40'
+      - series: 'kubelet_volume_stats_available_bytes{namespace="cook", persistentvolumeclaim="data-b"}'
+        values: '3x40'
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="cook", persistentvolumeclaim="data-b"}'
+        values: '100x40'
+      - series: 'kubelet_volume_stats_available_bytes{namespace="cook", persistentvolumeclaim="data-ok"}'
+        values: '50x40'
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="cook", persistentvolumeclaim="data-ok"}'
+        values: '100x40'
+      - series: 'kubelet_volume_stats_available_bytes{namespace="monitoring", persistentvolumeclaim="prometheus-db-0"}'
+        values: '10x40'
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="monitoring", persistentvolumeclaim="prometheus-db-0"}'
+        values: '100x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: PersistentVolumeNearlyFull
+        exp_alerts:
+          - exp_labels:
+              namespace: cook
+              persistentvolumeclaim: data-a
+              severity: warning
+            exp_annotations:
+              summary: "PVC cook/data-a is over 85% full"
+              description: >-
+                The `iscsi` StorageClass sets allowVolumeExpansion: true, so this
+                is fixable by editing spec.resources.requests.storage on the PVC
+                and letting the filesystem grow -- no data movement. Do it before
+                it becomes critical: a full volume under a database is an outage,
+                and under an iSCSI zvol with xfs it is not always a clean one.
+          - exp_labels:
+              namespace: cook
+              persistentvolumeclaim: data-b
+              severity: warning
+            exp_annotations:
+              summary: "PVC cook/data-b is over 85% full"
+              description: >-
+                The `iscsi` StorageClass sets allowVolumeExpansion: true, so this
+                is fixable by editing spec.resources.requests.storage on the PVC
+                and letting the filesystem grow -- no data movement. Do it before
+                it becomes critical: a full volume under a database is an outage,
+                and under an iSCSI zvol with xfs it is not always a clean one.
+          - exp_labels:
+              namespace: monitoring
+              persistentvolumeclaim: prometheus-db-0
+              severity: warning
+            exp_annotations:
+              summary: "PVC monitoring/prometheus-db-0 is over 85% full"
+              description: >-
+                The `iscsi` StorageClass sets allowVolumeExpansion: true, so this
+                is fixable by editing spec.resources.requests.storage on the PVC
+                and letting the filesystem grow -- no data movement. Do it before
+                it becomes critical: a full volume under a database is an outage,
+                and under an iSCSI zvol with xfs it is not always a clean one.
+      - eval_time: 15m
+        alertname: PersistentVolumeCriticallyFull
+        exp_alerts:
+          - exp_labels:
+              namespace: cook
+              persistentvolumeclaim: data-b
+              severity: critical
+            exp_annotations:
+              summary: "PVC cook/data-b is over 95% full"
+      - eval_time: 20m
+        alertname: PrometheusTsdbVolumeNearlyFull
+        exp_alerts:
+          - exp_labels:
+              namespace: monitoring
+              persistentvolumeclaim: prometheus-db-0
+              severity: critical
+            exp_annotations:
+              summary: "Prometheus TSDB volume is nearly full"
+              description: >-
+                retentionSize (20GiB) is meant to keep this from happening inside
+                the 25Gi volume. If it has, the WAL or a compaction is using the
+                headroom. Grow the volume -- `iscsi` allows expansion -- rather
+                than cutting retention, and see the comment on retentionSize in
+                platform/kube-prometheus-stack/values.yaml.
+      - eval_time: 2h
+        alertname: PersistentVolumeFillingUp
+        exp_alerts: []
+
+  # wal loses 6 bytes of 100 per hour from 50 free: full within 24h.
+  - interval: 1m
+    input_series:
+      - series: 'kubelet_volume_stats_available_bytes{namespace="immich", persistentvolumeclaim="wal"}'
+        values: '50-0.1x150'
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="immich", persistentvolumeclaim="wal"}'
+        values: '100x150'
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: PersistentVolumeFillingUp
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: PersistentVolumeFillingUp
+        exp_alerts:
+          - exp_labels:
+              namespace: immich
+              persistentvolumeclaim: wal
+              severity: warning
+            exp_annotations:
+              summary: "PVC immich/wal will be full within 24h"
+              description: >-
+                Extrapolating the last 6 hours. If this is a Postgres data volume,
+                check WAL archiving first -- unarchivable WAL is retained locally
+                and fills the volume, and CNPGWALArchivingFailing is the cause,
+                not this.
+
+  # Node filesystems on cp-1: /var 10% free, /data 5% free, /tmp is tmpfs
+  # (excluded), /boot read-only, /inodes short of inodes.
+  - interval: 1m
+    input_series:
+      - series: 'node_filesystem_avail_bytes{instance="cp-1", mountpoint="/var", fstype="xfs"}'
+        values: '10x40'
+      - series: 'node_filesystem_size_bytes{instance="cp-1", mountpoint="/var", fstype="xfs"}'
+        values: '100x40'
+      - series: 'node_filesystem_readonly{instance="cp-1", mountpoint="/var", fstype="xfs"}'
+        values: '0x40'
+      - series: 'node_filesystem_avail_bytes{instance="cp-1", mountpoint="/data", fstype="xfs"}'
+        values: '5x40'
+      - series: 'node_filesystem_size_bytes{instance="cp-1", mountpoint="/data", fstype="xfs"}'
+        values: '100x40'
+      - series: 'node_filesystem_readonly{instance="cp-1", mountpoint="/data", fstype="xfs"}'
+        values: '0x40'
+      - series: 'node_filesystem_avail_bytes{instance="cp-1", mountpoint="/tmp", fstype="tmpfs"}'
+        values: '1x40'
+      - series: 'node_filesystem_size_bytes{instance="cp-1", mountpoint="/tmp", fstype="tmpfs"}'
+        values: '100x40'
+      - series: 'node_filesystem_readonly{instance="cp-1", mountpoint="/tmp", fstype="tmpfs"}'
+        values: '0x40'
+      - series: 'node_filesystem_avail_bytes{instance="cp-1", mountpoint="/boot", fstype="ext4"}'
+        values: '90x40'
+      - series: 'node_filesystem_size_bytes{instance="cp-1", mountpoint="/boot", fstype="ext4"}'
+        values: '100x40'
+      - series: 'node_filesystem_readonly{instance="cp-1", mountpoint="/boot", fstype="ext4"}'
+        values: '1x40'
+      - series: 'node_filesystem_files_free{instance="cp-1", mountpoint="/inodes", fstype="xfs"}'
+        values: '5x40'
+      - series: 'node_filesystem_files{instance="cp-1", mountpoint="/inodes", fstype="xfs"}'
+        values: '100x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: NodeFilesystemNearlyFull
+        exp_alerts:
+          - exp_labels:
+              instance: cp-1
+              mountpoint: /data
+              fstype: xfs
+              severity: warning
+            exp_annotations:
+              summary: "cp-1 /data is over 85% full"
+              description: >-
+                On these nodes the eMMC holds the kubelet and containerd
+                data (/var). Find what holds it with `talosctl -n <ip> usage
+                /var --depth 2` and remove unused images with `talosctl -n <ip>
+                image remove` before it stops being able to create containers.
+          - exp_labels:
+              instance: cp-1
+              mountpoint: /var
+              fstype: xfs
+              severity: warning
+            exp_annotations:
+              summary: "cp-1 /var is over 85% full"
+              description: >-
+                On these nodes the eMMC holds the kubelet and containerd
+                data (/var). Find what holds it with `talosctl -n <ip> usage
+                /var --depth 2` and remove unused images with `talosctl -n <ip>
+                image remove` before it stops being able to create containers.
+      - eval_time: 15m
+        alertname: NodeFilesystemCriticallyFull
+        exp_alerts:
+          - exp_labels:
+              instance: cp-1
+              mountpoint: /data
+              fstype: xfs
+              severity: critical
+            exp_annotations:
+              summary: "cp-1 /data is over 92% full"
+      - eval_time: 10m
+        alertname: NodeFilesystemReadOnly
+        exp_alerts:
+          - exp_labels:
+              instance: cp-1
+              mountpoint: /boot
+              fstype: ext4
+              severity: critical
+            exp_annotations:
+              summary: "cp-1 remounted /boot READ-ONLY"
+              description: >-
+                Usually the beginning of eMMC failure, not a configuration change.
+                Check dmesg on the node. Four nodes, one of which is a control
+                plane member -- confirm which before rebooting anything.
+      - eval_time: 35m
+        alertname: NodeFilesystemInodesNearlyFull
+        exp_alerts:
+          - exp_labels:
+              instance: cp-1
+              mountpoint: /inodes
+              fstype: xfs
+              severity: warning
+            exp_annotations:
+              summary: "cp-1 /inodes has under 10% of inodes free"
+              description: >-
+                This reports as ENOSPC while `df -h` shows free space. Check
+                `df -i` on the node.
+      - eval_time: 35m
+        alertname: NodeExporterAbsent
+        exp_alerts: []
+
+  # ------------------------------------------------------------ certificates
+  # wildcard expires in 10 days, auth in 3 days, fresh in 60 days; auth is
+  # also not Ready.
+  - interval: 1m
+    input_series:
+      - series: 'certmanager_certificate_expiration_timestamp_seconds{namespace="gateway", name="wildcard"}'
+        values: '864000x90'
+      - series: 'certmanager_certificate_expiration_timestamp_seconds{namespace="gateway", name="auth"}'
+        values: '259200x90'
+      - series: 'certmanager_certificate_expiration_timestamp_seconds{namespace="gateway", name="fresh"}'
+        values: '5184000x90'
+      - series: 'certmanager_certificate_ready_status{namespace="gateway", name="auth", condition="True"}'
+        values: '0x90'
+      - series: 'certmanager_certificate_ready_status{namespace="gateway", name="fresh", condition="True"}'
+        values: '1x90'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: CertificateExpiringSoon
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: CertificateExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              namespace: gateway
+              name: auth
+              severity: warning
+            exp_annotations:
+              summary: "Certificate gateway/auth expires in under 21 days"
+              description: >-
+                cert-manager should have renewed this at 30 days remaining, so a
+                renewal has already failed silently. Check the Certificate's
+                conditions and the ClusterIssuer's Secret reference:
+                kubectl -n gateway describe certificate auth
+          - exp_labels:
+              namespace: gateway
+              name: wildcard
+              severity: warning
+            exp_annotations:
+              summary: "Certificate gateway/wildcard expires in under 21 days"
+              description: >-
+                cert-manager should have renewed this at 30 days remaining, so a
+                renewal has already failed silently. Check the Certificate's
+                conditions and the ClusterIssuer's Secret reference:
+                kubectl -n gateway describe certificate wildcard
+      - eval_time: 65m
+        alertname: CertificateExpiringVerySoon
+        exp_alerts:
+          - exp_labels:
+              namespace: gateway
+              name: auth
+              severity: critical
+            exp_annotations:
+              summary: "Certificate gateway/auth expires in under 7 days"
+              description: >-
+                Every published hostname is served from the wildcard certificate on
+                the shared Gateway. When this expires, everything breaks at once.
+                Let's Encrypt rate-limits, so do not fix it by deleting and
+                recreating in a loop.
+      - eval_time: 65m
+        alertname: CertificateNotReady
+        exp_alerts:
+          - exp_labels:
+              namespace: gateway
+              name: auth
+              condition: "True"
+              severity: warning
+            exp_annotations:
+              summary: "Certificate gateway/auth is not Ready"
+              description: >-
+                An order or challenge is failing. A Let's Encrypt order expires
+                after 7 days and then never completes, so a stuck Certificate does
+                not recover on its own -- it has to be deleted and reissued.
+      - eval_time: 65m
+        alertname: CertManagerMetricsAbsent
+        exp_alerts: []
+
+  # -------------------------------------------------------------------- meta
+  # webhook delivery fails continuously; email failed once long ago.
+  # Notifications keep being sent.
+  - interval: 1m
+    input_series:
+      - series: 'alertmanager_notifications_failed_total{integration="webhook"}'
+        values: '0+1x60'
+      - series: 'alertmanager_notifications_failed_total{integration="email"}'
+        values: '1x60'
+      - series: 'alertmanager_notifications_total{integration="webhook"}'
+        values: '0+1x60'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: AlertmanagerNotificationsFailing
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: AlertmanagerNotificationsFailing
+        exp_alerts:
+          - exp_labels:
+              integration: webhook
+              severity: critical
+            exp_annotations:
+              summary: "Alertmanager cannot deliver notifications (webhook)"
+              description: >-
+                Alerts are firing and not arriving. Check the credentials in the
+                `alertmanager-notify` Secret and the Alertmanager pod log. If the
+                phone has gone quiet, this is why.
+      - eval_time: 60m
+        alertname: AlertmanagerHasNoReceiverConfigured
+        exp_alerts: []
+
+  # The notification counter stays flat: nothing is being sent.
+  - interval: 10m
+    input_series:
+      - series: 'alertmanager_notifications_total{integration="webhook"}'
+        values: '5x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AlertmanagerHasNoReceiverConfigured
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: AlertmanagerHasNoReceiverConfigured
+        exp_alerts:
+          - exp_labels:
+              integration: webhook
+              severity: critical
+            exp_annotations: &am_silent
+              summary: "Alertmanager has sent nothing in 6 hours"
+              description: >-
+                The Watchdog route sends a heartbeat every 5 minutes, so this
+                counter should never be flat. Either the receivers have been
+                removed -- the state this repo was in before the alerting work --
+                or Alertmanager is wedged. This is one of the very few places
+                where `or absent(...)` is combined into a single rule rather than
+                split: both halves mean the identical thing, 'nothing is being
+                sent', and there is one action either way.
+
+  # No exporter is scraped at all: every absent() guard fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="apiserver"}'
+        values: '1x90'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: KubeStateMetricsAbsent
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: KubeStateMetricsAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "kube-state-metrics is not being scraped"
+              description: >-
+                Every kube_* alert in this cluster -- pods, jobs, cronjobs, PVCs,
+                deployments -- is currently inert.
+      - eval_time: 20m
+        alertname: NodeExporterAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "node-exporter is not being scraped"
+              description: >-
+                No node disk, memory or filesystem alerting is active. The
+                /controller eMMC is unmonitored while this fires.
+      - eval_time: 65m
+        alertname: CertManagerMetricsAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "cert-manager metrics are not being scraped"
+              description: >-
+                No certificate expiry series exists, so every certificate alert is
+                inert and the next expiry will be a surprise. Check
+                `kubectl -n cert-manager get servicemonitor` and that Prometheus
+                still has serviceMonitorSelectorNilUsesHelmValues: false.
+      - eval_time: 65m
+        alertname: AlertmanagerHasNoReceiverConfigured
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations: *am_silent
