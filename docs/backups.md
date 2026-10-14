@@ -717,9 +717,8 @@ deletes one when its manifest leaves git.
 - **Grafana.** No persistent volume: dashboards and data sources are provisioned
   from git, users come from Keycloak.
 - **etcd on a schedule.** Take a snapshot by hand before every Kubernetes upgrade
-  or risky change ([runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore)).
-  The snapshot task in `ansible/kube-upgrade.yml` calls `etcdctl` on the host, and
-  the hosts have none (it lives in the etcd container), so do not rely on it.
+  or risky change: `task talos:etcd-snapshot`
+  ([talos-cheatsheet.md](talos-cheatsheet.md#etcd-snapshots)).
 
 ## Local dumps and pre-upgrade snapshots
 

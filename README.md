@@ -117,7 +117,6 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | `*/secrets/` | SOPS-encrypted Secrets (age), decrypted by KSOPS in Argo CD |
 | [`deploy/`](deploy) | Rendered manifests Argo CD reads (`scripts/render-deploy.sh`; CI fails if stale) |
 | [`bootstrap/`](bootstrap) | `root-app.yaml` (the root Application, applied once by hand), values for the `argocd` Helm release, OpenTofu for a fresh install |
-| [`ansible/`](ansible) | Node OS and kubeadm upgrade playbooks |
 | [`talos/`](talos) | talhelper config for the Talos nodes (machine configs, Image Factory schematic, patches); [docs/talos.md](docs/talos.md) |
 | [`ci/`](ci) | Helm CLI release list, vendored CRD schemas, pinned CI Python requirements |
 | [`scripts/`](scripts) | CI entry points (`scripts/ci/`), read-only cluster smoke suite (`smoke.sh`), guarded merge (`pr-merge.sh`), Trivy gate |

@@ -27,8 +27,6 @@ own pull request with its own diff, test and rollback
 - Enable the weekly restore tests (`clusters/homelab/staged/backup-verify.yaml`).
 - Snapshot-then-backup for the two best-effort SQLite databases (Jellyfin,
   Grafana) and a consistent Paperless SQLite copy.
-- Fix the etcd snapshot task in `ansible/kube-upgrade.yml` (it calls a host
-  `etcdctl` that does not exist), or replace it with the runbook procedure.
 
 ## Delivery
 
@@ -38,7 +36,7 @@ own pull request with its own diff, test and rollback
 - A watchdog outside the cluster: automatic rollback runs through Argo CD and
   needs a working CNI, so it cannot rescue a broken Argo CD or Cilium.
 - Scripts and tasks that still use namespace `argocd` (`task apps:status`,
-  `ansible/os-upgrade.yml`, `scripts/graceful-*.sh`) move to `argo`.
+  `scripts/graceful-*.sh`) move to `argo`.
 
 ## Versions
 

@@ -229,8 +229,8 @@ any of the manifests (`task render`).
 | Value | Where |
 | --- | --- |
 | WAN IP | `infrastructure/external-dns/values.yaml` (`--default-targets`), the only copy |
-| API VIP `192.168.1.11` | `infrastructure/cilium/values.yaml` (`k8sServiceHost`), `bootstrap/variables.tf`, `ansible/inventory.yml`, `talos/talconfig.yaml` (`endpoint`, cert SANs, `vip:`) |
-| Node addresses | `ansible/inventory.yml`, `talos/talconfig.yaml` (`nodes:`) |
+| API VIP `192.168.1.11` | `infrastructure/cilium/values.yaml` (`k8sServiceHost`), `bootstrap/variables.tf`, `talos/talconfig.yaml` (`endpoint`, cert SANs, `vip:`) |
+| Node addresses | `talos/talconfig.yaml` (`nodes:`) |
 | LoadBalancer pools | `infrastructure/cilium/ip-pools.yaml` |
 | Pinned LoadBalancer IPs | `infrastructure/gateway/gateway.yaml` (`.254`), `apps/theater/qbittorrent.yaml` (`.200`), `apps/syncthing/services.yaml` (`.201`) |
 | NAS address | inline NFS volumes in `apps/theater/*.yaml` and `apps/immich/resources/backup-files.yaml` (the local Immich backup), `infrastructure/nfs-storage/*.yaml`, and three times in `infrastructure/secrets/democratic-csi-iscsi.sops.yaml` (API host, SSH host, iSCSI portal) |
