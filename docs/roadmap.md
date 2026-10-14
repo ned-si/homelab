@@ -15,8 +15,8 @@ own pull request with its own diff, test and rollback
 
 ## Monitoring
 
-- Turn alerting on: real Pushover values, Alertmanager receivers, the custom
-  rules ([observability.md](observability.md#turning-alerting-on)).
+- Deploy the custom alert rules (`platform/kube-prometheus-stack/routes/alerts.yaml`,
+  [observability.md](observability.md#notifications)).
 - blackbox-exporter probes for every public hostname.
 
 ## Backups
