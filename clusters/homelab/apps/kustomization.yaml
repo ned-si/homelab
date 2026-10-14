@@ -9,3 +9,4 @@ resources:
   - paperless.yaml
   - seafile.yaml
   - syncthing.yaml
+  - books.yaml

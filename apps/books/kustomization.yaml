@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: books
+
+# The library volume `books-data` is in infrastructure/nfs-storage/.
+resources:
+  - audiobookshelf.yaml
+  # restic CronJob for the config volume, plus the monthly prune.
+  - backup.yaml
+
+# After every sync: every Service answers on its health endpoint.
+components:
+  - ../../components/postsync-smoke
+patches:
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://audiobookshelf:13378/healthcheck

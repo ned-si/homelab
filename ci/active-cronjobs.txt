@@ -22,3 +22,5 @@ theater/theater-config-backup-plex
 theater/theater-config-backup-jellyfin
 theater/theater-configs-prune
 theater/recyclarr-sync
+books/books-config-backup-audiobookshelf
+books/books-configs-prune
