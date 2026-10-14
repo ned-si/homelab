@@ -1,0 +1,321 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-cluster
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.workload.rules
+    rules:
+    - alert: PodStuckNotRunning
+      annotations:
+        description: 'Container {{ $labels.container }} has been unable to start for
+          15 minutes on node {{ $labels.node }}. Read `state`, not `lastState` --
+          see docs/observability.md: once the log pointed at the network and the cause
+          was a stale containerd name reservation.'
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} stuck in {{ $labels.reason
+          }}'
+      expr: |
+        max by (namespace, pod, container, reason, node) (
+          kube_pod_container_status_waiting_reason{
+            reason=~"CreateContainerError|CreateContainerConfigError|ErrImagePull|ImagePullBackOff|InvalidImageName"
+          }
+          * on (namespace, pod) group_left (node) kube_pod_info
+        ) > 0
+      for: 15m
+      labels:
+        severity: warning
+    - alert: PodStuckNotRunningLongTerm
+      annotations:
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} has been broken for 6h
+          ({{ $labels.reason }})'
+      expr: |
+        max by (namespace, pod, container, reason, node) (
+          kube_pod_container_status_waiting_reason{
+            reason=~"CreateContainerError|CreateContainerConfigError|ErrImagePull|ImagePullBackOff|InvalidImageName"
+          }
+          * on (namespace, pod) group_left (node) kube_pod_info
+        ) > 0
+      for: 6h
+      labels:
+        severity: critical
+    - alert: PodPendingTooLong
+      annotations:
+        description: Usually an unschedulable pod or a ReadWriteOnce volume still
+          attached elsewhere. kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod
+          }} -- read the Events, not the status.
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} has been Pending for 30m'
+      expr: |
+        max by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown"}) > 0
+      for: 30m
+      labels:
+        severity: warning
+    - alert: PodNotReady
+      annotations:
+        description: Its readiness probe has been failing for 20 minutes, so the Service
+          has removed it. If this is the only replica the app is down. This is the
+          signal that did not exist during the qBittorrent outage -- there was no
+          probe to fail.
+        summary: '{{ $labels.namespace }}/{{ $labels.pod }} is Running but not Ready'
+      expr: |
+        max by (namespace, pod, node) (
+          kube_pod_status_ready{condition="true"}
+          * on (namespace, pod) group_left (node) kube_pod_info
+        ) == 0
+        unless on (namespace, pod) (
+          kube_pod_status_phase{phase=~"Succeeded|Failed|Pending"} == 1
+        )
+      for: 20m
+      labels:
+        severity: warning
+    - alert: ServiceHasNoReadyBackend
+      annotations:
+        description: Nothing is serving this Deployment, so its Service has no ready
+          backend. Callers see connection refused, which the *arr apps surface as
+          'download client unavailable' -- a message that reads like an auth failure.
+          See docs/runbooks/arr-qbittorrent.md.
+        summary: '{{ $labels.namespace }}/{{ $labels.deployment }} has ZERO available
+          replicas'
+      expr: |
+        kube_deployment_status_replicas_available == 0
+        and on (namespace, deployment) (kube_deployment_spec_replicas > 0)
+      for: 15m
+      labels:
+        severity: critical
+    - alert: StatefulSetHasNoReadyReplica
+      annotations:
+        summary: '{{ $labels.namespace }}/{{ $labels.statefulset }} has no ready replica'
+      expr: |
+        kube_statefulset_status_replicas_ready == 0
+        and on (namespace, statefulset) (kube_statefulset_replicas > 0)
+      for: 15m
+      labels:
+        severity: critical
+  - name: homelab.storage.rules
+    rules:
+    - alert: PersistentVolumeNearlyFull
+      annotations:
+        description: 'The `iscsi` StorageClass sets allowVolumeExpansion: true, so
+          this is fixable by editing spec.resources.requests.storage on the PVC and
+          letting the filesystem grow -- no data movement. Do it before it becomes
+          critical: a full volume under a database is an outage, and under an iSCSI
+          zvol with xfs it is not always a clean one.'
+        summary: PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is
+          over 85% full
+      expr: |
+        (
+          kubelet_volume_stats_available_bytes
+          / kubelet_volume_stats_capacity_bytes
+        ) < 0.15
+      for: 30m
+      labels:
+        severity: warning
+    - alert: PersistentVolumeCriticallyFull
+      annotations:
+        summary: PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is
+          over 95% full
+      expr: |
+        (
+          kubelet_volume_stats_available_bytes
+          / kubelet_volume_stats_capacity_bytes
+        ) < 0.05
+      for: 10m
+      labels:
+        severity: critical
+    - alert: PersistentVolumeFillingUp
+      annotations:
+        description: Extrapolating the last 6 hours. If this is a Postgres data volume,
+          check WAL archiving first -- unarchivable WAL is retained locally and fills
+          the volume, and CNPGWALArchivingFailing is the cause, not this.
+        summary: PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} will
+          be full within 24h
+      expr: |
+        (
+          kubelet_volume_stats_available_bytes
+          / kubelet_volume_stats_capacity_bytes
+        ) < 0.6
+        and
+        predict_linear(kubelet_volume_stats_available_bytes[6h], 24 * 3600) < 0
+      for: 1h
+      labels:
+        severity: warning
+    - alert: PrometheusTsdbVolumeNearlyFull
+      annotations:
+        description: retentionSize (20GiB) is meant to keep this from happening inside
+          the 25Gi volume. If it has, the WAL or a compaction is using the headroom.
+          Grow the volume -- `iscsi` allows expansion -- rather than cutting retention,
+          and see the comment on retentionSize in platform/kube-prometheus-stack/values.yaml.
+        summary: Prometheus TSDB volume is nearly full
+      expr: |
+        (
+          kubelet_volume_stats_available_bytes{namespace="monitoring", persistentvolumeclaim=~"prometheus-.*"}
+          / kubelet_volume_stats_capacity_bytes
+        ) < 0.12
+      for: 15m
+      labels:
+        severity: critical
+    - alert: NodeFilesystemNearlyFull
+      annotations:
+        description: On these nodes the eMMC holds the kubelet and containerd data
+          (/var). Find what holds it with `talosctl -n <ip> usage /var --depth 2`
+          and remove unused images with `talosctl -n <ip> image remove` before it
+          stops being able to create containers.
+        summary: '{{ $labels.instance }} {{ $labels.mountpoint }} is over 85% full'
+      expr: |
+        (
+          node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+          / node_filesystem_size_bytes
+        ) < 0.15
+        and on (instance, mountpoint) (
+          node_filesystem_readonly == 0
+        )
+      for: 30m
+      labels:
+        severity: warning
+    - alert: NodeFilesystemCriticallyFull
+      annotations:
+        summary: '{{ $labels.instance }} {{ $labels.mountpoint }} is over 92% full'
+      expr: |
+        (
+          node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+          / node_filesystem_size_bytes
+        ) < 0.08
+      for: 10m
+      labels:
+        severity: critical
+    - alert: NodeFilesystemReadOnly
+      annotations:
+        description: Usually the beginning of eMMC failure, not a configuration change.
+          Check dmesg on the node. Four nodes, one of which is a control plane member
+          -- confirm which before rebooting anything.
+        summary: '{{ $labels.instance }} remounted {{ $labels.mountpoint }} READ-ONLY'
+      expr: |
+        node_filesystem_readonly{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
+      for: 5m
+      labels:
+        severity: critical
+    - alert: NodeFilesystemInodesNearlyFull
+      annotations:
+        description: This reports as ENOSPC while `df -h` shows free space. Check
+          `df -i` on the node.
+        summary: '{{ $labels.instance }} {{ $labels.mountpoint }} has under 10% of
+          inodes free'
+      expr: |
+        (
+          node_filesystem_files_free{fstype!~"tmpfs|ramfs|overlay|squashfs|iso9660|nsfs|autofs"}
+          / node_filesystem_files
+        ) < 0.10
+      for: 30m
+      labels:
+        severity: warning
+  - name: homelab.certificates.rules
+    rules:
+    - alert: CertificateExpiringSoon
+      annotations:
+        description: 'cert-manager should have renewed this at 30 days remaining,
+          so a renewal has already failed silently. Check the Certificate''s conditions
+          and the ClusterIssuer''s Secret reference: kubectl -n {{ $labels.namespace
+          }} describe certificate {{ $labels.name }}'
+        summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in
+          under 21 days
+      expr: |
+        certmanager_certificate_expiration_timestamp_seconds - time() < 21 * 24 * 3600
+      for: 1h
+      labels:
+        severity: warning
+    - alert: CertificateExpiringVerySoon
+      annotations:
+        description: Every published hostname is served from the wildcard certificate
+          on the shared Gateway. When this expires, everything breaks at once. Let's
+          Encrypt rate-limits, so do not fix it by deleting and recreating in a loop.
+        summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in
+          under 7 days
+      expr: |
+        certmanager_certificate_expiration_timestamp_seconds - time() < 7 * 24 * 3600
+      for: 1h
+      labels:
+        severity: critical
+    - alert: CertificateNotReady
+      annotations:
+        description: An order or challenge is failing. A Let's Encrypt order expires
+          after 7 days and then never completes, so a stuck Certificate does not recover
+          on its own -- it has to be deleted and reissued.
+        summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready
+      expr: |
+        certmanager_certificate_ready_status{condition=~"True|true"} == 0
+      for: 1h
+      labels:
+        severity: warning
+    - alert: CertManagerMetricsAbsent
+      annotations:
+        description: 'No certificate expiry series exists, so every certificate alert
+          is inert and the next expiry will be a surprise. Check `kubectl -n cert-manager
+          get servicemonitor` and that Prometheus still has serviceMonitorSelectorNilUsesHelmValues:
+          false.'
+        summary: cert-manager metrics are not being scraped
+      expr: |
+        absent(certmanager_certificate_expiration_timestamp_seconds)
+      for: 1h
+      labels:
+        severity: critical
+  - name: homelab.meta.rules
+    rules:
+    - alert: AlertmanagerNotificationsFailing
+      annotations:
+        description: Alerts are firing and not arriving. Check the credentials in
+          the `alertmanager-notify` Secret and the Alertmanager pod log. If the phone
+          has gone quiet, this is why.
+        summary: Alertmanager cannot deliver notifications ({{ $labels.integration
+          }})
+      expr: |
+        rate(alertmanager_notifications_failed_total[15m]) > 0
+      for: 15m
+      labels:
+        severity: critical
+    - alert: AlertmanagerHasNoReceiverConfigured
+      annotations:
+        description: 'The Watchdog route sends a heartbeat every 5 minutes, so this
+          counter should never be flat. Either the receivers have been removed --
+          the state this repo was in before the alerting work -- or Alertmanager is
+          wedged. This is one of the very few places where `or absent(...)` is combined
+          into a single rule rather than split: both halves mean the identical thing,
+          ''nothing is being sent'', and there is one action either way.'
+        summary: Alertmanager has sent nothing in 6 hours
+      expr: |
+        increase(alertmanager_notifications_total[6h]) == 0
+        or absent(alertmanager_notifications_total)
+      for: 1h
+      labels:
+        severity: critical
+    - alert: KubeStateMetricsAbsent
+      annotations:
+        description: Every kube_* alert in this cluster -- pods, jobs, cronjobs, PVCs,
+          deployments -- is currently inert.
+        summary: kube-state-metrics is not being scraped
+      expr: |
+        absent(kube_pod_info)
+      for: 15m
+      labels:
+        severity: critical
+    - alert: NodeExporterAbsent
+      annotations:
+        description: No node disk, memory or filesystem alerting is active. The /controller
+          eMMC is unmonitored while this fires.
+        summary: node-exporter is not being scraped
+      expr: |
+        absent(node_filesystem_avail_bytes)
+      for: 15m
+      labels:
+        severity: critical

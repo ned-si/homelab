@@ -2,11 +2,12 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: monitoring
 
-# Rendered: the Grafana route, the SLO rules, the Argo CD and the outage
-# alerts. alerts.yaml, dashboard-data-protection.yaml and grafana-backup.yaml
-# are new behaviour (alerting and backups) and ship in their own changes.
+# Rendered: the Grafana route, the SLO rules, the general cluster alerts, the
+# Argo CD and the outage alerts. dashboard-data-protection.yaml and
+# grafana-backup.yaml are new behaviour (backups) and ship in their own changes.
 resources:
   - grafana.yaml
   - slo.yaml
+  - alerts.yaml
   - argocd-alerts.yaml
   - outage-alerts.yaml
