@@ -17,11 +17,6 @@ echo "kubectl $s" >> "$f/calls.log"
 [ "$bounded" = 1 ] || { echo "fake kubectl: unbounded call: $s" >&2; exit 2; }
 case "$s" in
   "get nodes -o json") cat "$f/nodes.json" ;;
-  "-n kube-system get pods -l component=etcd -o name") cat "$f/etcd-pods.txt" ;;
-  "-n kube-system exec "*" -- etcdctl "*" endpoint health --cluster -w json")
-    pod=${args[3]}
-    if [ -f "$f/etcd-down-$pod" ]; then echo "error: unable to upgrade connection" >&2; exit 1; fi
-    cat "$f/etcd-health.json" ;;
   "get pods -A -o json") cat "$f/pods.json" ;;
   "get pvc -A -o json") cat "$f/pvc.json" ;;
   "get clusters.postgresql.cnpg.io -A -o json") cat "$f/cnpg.json" ;;

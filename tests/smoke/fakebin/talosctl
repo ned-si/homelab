@@ -1,6 +1,6 @@
 #!/bin/bash
 # Fake talosctl for tests/smoke: only the two read-only `get` calls
-# scripts/smoke.sh makes on Talos nodes, answered from $SMOKE_FIX/talos/:
+# scripts/smoke.sh makes on the nodes, answered from $SMOKE_FIX/talos/:
 # <ip>-etcd.json (`get services etcd`) and <ip>-addresses.json
 # (`get addresses`). A node without the file is unreachable.
 f=${SMOKE_FIX:?}

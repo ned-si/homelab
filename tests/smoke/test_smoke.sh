@@ -1,6 +1,6 @@
 #!/bin/bash
-# scripts/smoke.sh against fake kubectl, ssh, curl, dig, nc, ping, arp and
-# openssl (tests/smoke/fakebin): no cluster, no network. The fakes refuse
+# scripts/smoke.sh against fake kubectl, talosctl, curl, dig, nc, ping, arp
+# and openssl (tests/smoke/fakebin): no cluster, no network. The fakes refuse
 # unbounded calls and any call they do not know, so a new or mutating command
 # in smoke.sh fails these tests. Addresses are from the documentation ranges.
 set -euo pipefail
@@ -18,22 +18,29 @@ export SMOKE_PVC_MIN=3 SMOKE_CNPG_MIN=2 SMOKE_NOW=1790000000
 WAN=198.51.100.7
 ENTRY=192.0.2.254
 
+# addr <dir> <node-ip> <cidr> [family]: one address resource, as
+# `talosctl get addresses -o json` prints it (one JSON document per line).
+addr() {
+  jq -cn --arg a "$3" --arg f "${4:-inet4}" '{spec: {address: $a, family: $f}}' >> "$1/talos/$2-addresses.json"
+}
+
 # mkfix <dir>: a healthy cluster.
 mkfix() {
   local d=$1 n ip
-  mkdir -p "$d/ssh"
+  mkdir -p "$d/talos"
   : > "$d/calls.log"
   echo "$WAN" > "$d/wan.txt"
   cat > "$d/nodes.json" <<'EOF'
 {"items":[
- {"metadata":{"name":"cp-1"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.31.2"},"addresses":[{"type":"InternalIP","address":"192.0.2.247"}]}},
- {"metadata":{"name":"cp-2"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.31.2"},"addresses":[{"type":"InternalIP","address":"192.0.2.238"}]}},
- {"metadata":{"name":"cp-3"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.31.2"},"addresses":[{"type":"InternalIP","address":"192.0.2.239"}]}},
- {"metadata":{"name":"w-1"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.31.2"},"addresses":[{"type":"InternalIP","address":"192.0.2.240"}]}}]}
+ {"metadata":{"name":"cp-1","labels":{"node-role.kubernetes.io/control-plane":""}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","osImage":"Talos (v1.14.2)"},"addresses":[{"type":"InternalIP","address":"192.0.2.247"}]}},
+ {"metadata":{"name":"cp-2","labels":{"node-role.kubernetes.io/control-plane":""}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","osImage":"Talos (v1.14.2)"},"addresses":[{"type":"InternalIP","address":"192.0.2.238"}]}},
+ {"metadata":{"name":"cp-3","labels":{"node-role.kubernetes.io/control-plane":""}},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","osImage":"Talos (v1.14.2)"},"addresses":[{"type":"InternalIP","address":"192.0.2.239"}]}},
+ {"metadata":{"name":"w-1"},"spec":{},"status":{"conditions":[{"type":"Ready","status":"True"}],"nodeInfo":{"kubeletVersion":"v1.37.1","osImage":"Talos (v1.14.2)"},"addresses":[{"type":"InternalIP","address":"192.0.2.240"}]}}]}
 EOF
   printf 'cp-1 aa:bb:cc:00:00:01\ncp-2 AA:BB:CC:00:00:02\ncp-3 aa:bb:cc:00:00:03\nw-1 aa:bb:cc:00:00:04\n' > "$d/node-macs.txt"
-  printf 'pod/etcd-cp-1\npod/etcd-cp-2\npod/etcd-cp-3\n' > "$d/etcd-pods.txt"
-  echo '[{"endpoint":"https://192.0.2.247:2379","health":true},{"endpoint":"https://192.0.2.238:2379","health":true},{"endpoint":"https://192.0.2.239:2379","health":true}]' > "$d/etcd-health.json"
+  for ip in 192.0.2.247 192.0.2.238 192.0.2.239; do
+    echo '{"metadata":{"id":"etcd"},"spec":{"healthy":true,"running":true}}' > "$d/talos/$ip-etcd.json"
+  done
   cat > "$d/pods.json" <<'EOF'
 {"items":[
  {"metadata":{"namespace":"immich","name":"immich-server-1","creationTimestamp":"2026-01-01T00:00:00Z"},"status":{"phase":"Running","containerStatuses":[{"state":{"running":{}}}]}},
@@ -71,22 +78,25 @@ EOF
   printf '/data/library/a.jpg\n/data/library/b.mp4\n' > "$d/orig.txt"
   cat > "$d/svc.json" <<'EOF'
 {"items":[
- {"metadata":{"namespace":"ingress","name":"ingress-nginx-controller","annotations":{"kube-vip.io/vipHost":"cp-2"}},
+ {"metadata":{"namespace":"gateway","name":"cilium-gateway-shared"},
   "spec":{"type":"LoadBalancer","ports":[{"port":80,"protocol":"TCP"},{"port":443,"protocol":"TCP"}]},
   "status":{"loadBalancer":{"ingress":[{"ip":"192.0.2.254"}]}}},
- {"metadata":{"namespace":"syncthing","name":"syncthing-protocol","annotations":{"kube-vip.io/vipHost":"cp-2","lbipam.cilium.io/ips":"192.0.2.201"}},
+ {"metadata":{"namespace":"syncthing","name":"syncthing-protocol","annotations":{"lbipam.cilium.io/ips":"192.0.2.201"}},
   "spec":{"type":"LoadBalancer","ports":[{"port":22000,"protocol":"TCP"},{"port":22000,"protocol":"UDP"}]},
   "status":{"loadBalancer":{"ingress":[{"ip":"192.0.2.201"}]}}},
- {"metadata":{"namespace":"theater","name":"qbittorrent-seed","annotations":{"kube-vip.io/vipHost":"cp-2","lbipam.cilium.io/ips":"192.0.2.200"}},
+ {"metadata":{"namespace":"theater","name":"qbittorrent-seed","annotations":{"lbipam.cilium.io/ips":"192.0.2.200"}},
   "spec":{"type":"LoadBalancer","ports":[{"port":50000,"protocol":"TCP"}]},
   "status":{"loadBalancer":{"ingress":[{"ip":"192.0.2.200"}]}}},
  {"metadata":{"namespace":"default","name":"kubernetes"},"spec":{"type":"ClusterIP"},"status":{}}]}
 EOF
   for n in 247 238 239 240; do
     ip=192.0.2.$n
-    printf '1: lo    inet 127.0.0.1/8 scope host lo\\       valid_lft forever\n2: eth0    inet %s/24 brd 192.0.2.255 scope global eth0\\       valid_lft forever\n' "$ip" > "$d/ssh/$ip.txt"
+    addr "$d" "$ip" 127.0.0.1/8
+    addr "$d" "$ip" "$ip/24"
+    addr "$d" "$ip" fe80::1/64 inet6
   done
-  printf '2: eth0    inet 192.0.2.254/32 scope global eth0\\       valid_lft forever\n2: eth0    inet 192.0.2.11/32 scope global eth0\\       valid_lft forever\n' >> "$d/ssh/192.0.2.238.txt"
+  addr "$d" 192.0.2.238 192.0.2.254/32
+  addr "$d" 192.0.2.238 192.0.2.11/32
   printf '192.0.2.254 aa:bb:cc:0:0:2\n192.0.2.201 aa:bb:cc:0:0:4\n192.0.2.200 aa:bb:cc:0:0:1\n' > "$d/arp.txt"
   printf '192.0.2.11:6443\n192.0.2.201:22000\n192.0.2.200:50000\n%s:22000\n%s:443\n' "$WAN" "$WAN" > "$d/nc-open.txt"
   printf 'argo.example.test %s\nmedia.example.test %s\n' "$WAN" "$WAN" > "$d/dig.txt"
@@ -133,8 +143,10 @@ case "$OUT" in */data/library/*) bad "original paths absent from the JSON" ;; *)
 case "$OUT" in *aa:bb:cc*) bad "no MAC in the JSON" ;; *) ok "no MAC in the JSON" ;; esac
 expect_eq "three psql calls (Q1, Q2, ORIG; Q3 only after a decrease)" 3 "$(grep -c ' psql ' "$F/calls.log")"
 expect_eq "every psql call is read-only" 0 "$(grep ' psql ' "$F/calls.log" | grep -vc 'PGOPTIONS=-c default_transaction_read_only=on' || true)"
-expect_eq "one read-only SSH call per node" 4 "$(grep -c '^ssh .*ip -4 -o addr show' "$F/calls.log")"
-expect_eq ".200/.201 on no interface, .254 on cp-2" "||cp-2" \
+expect_eq "one etcd service read per control-plane node" 3 "$(grep -c '^talosctl -n 192\.0\.2\.2[0-9]* get services etcd -o json$' "$F/calls.log")"
+expect_eq "one address read per node" 4 "$(grep -c '^talosctl -n 192\.0\.2\.2[0-9]* get addresses -o json$' "$F/calls.log")"
+expect_eq "only read-only talosctl calls" 0 "$(grep '^talosctl ' "$F/calls.log" | grep -vc ' get ' || true)"
+expect_eq ".200/.201 on no interface, .254 on cp-2, IPv6 ignored" "||cp-2" \
   "$(jq -r '[.items[] | select(.id == 9) | .detail.bindings[] | .holders] | join("|")' <<<"$OUT")"
 expect_contains "Cilium-L2-only address logged INFO" "192.0.2.200 is on no node interface" "$(jq -r '.info | join("\n")' <<<"$OUT")"
 expect_eq "a non-error condition does not fail item 6" true "$(pass_of 6)"
@@ -241,14 +253,10 @@ expect_contains "named as incomplete" "192.0.2.201: no ARP entry" "$(fails_of 9)
 F=$(fresh lb3); printf '192.0.2.254 aa:bb:cc:0:0:2\n192.0.2.201 incomplete,aa:bb:cc:0:0:4\n192.0.2.200 aa:bb:cc:0:0:1\n' > "$F/arp.txt"
 run "$F"
 expect_eq "one (incomplete) then an answer passes" true "$(pass_of 9)"
-F=$(fresh lb4); printf '2: eth0    inet 192.0.2.254/32 scope global eth0\n' >> "$F/ssh/192.0.2.240.txt"
+F=$(fresh lb4); addr "$F" 192.0.2.240 192.0.2.254/32
 run "$F"
 expect_eq "two interface holders fail" false "$(pass_of 9)"
 expect_contains "named as two holders" "more than one node" "$(fails_of 9)"
-F=$(fresh lb5); jset "$F/svc.json" '(.items[0].metadata.annotations["kube-vip.io/vipHost"]) = "cp-3"'
-run "$F"
-expect_eq "holder != vipHost fails" false "$(pass_of 9)"
-expect_contains "names the vipHost" "names kube-vip.io/vipHost cp-3" "$(fails_of 9)"
 F=$(fresh lb6); printf '192.0.2.254 aa:bb:cc:0:0:2,aa:bb:cc:0:0:4\n192.0.2.201 aa:bb:cc:0:0:4\n192.0.2.200 aa:bb:cc:0:0:1\n' > "$F/arp.txt"
 run "$F"
 expect_eq "ARP answer moving within N passes" true "$(pass_of 9)"
@@ -264,16 +272,16 @@ expect_eq "closed LB TCP port fails" false "$(pass_of 9)"
 F=$(fresh lb9); grep -v "$WAN:22000" "$F/nc-open.txt" > "$F/x" && mv "$F/x" "$F/nc-open.txt"
 run "$F"
 expect_eq "closed public TCP port fails" false "$(pass_of 9)"
-F=$(fresh lb10); grep -v '192.0.2.254' "$F/ssh/192.0.2.238.txt" > "$F/x" && mv "$F/x" "$F/ssh/192.0.2.238.txt"
-printf '2: eth0    inet 192.0.2.254/32 scope global eth0\n' >> "$F/ssh/192.0.2.239.txt"
-jset "$F/svc.json" '(.items[0].metadata.annotations["kube-vip.io/vipHost"]) = "cp-3"'
+F=$(fresh lb10); grep -v '192.0.2.254' "$F/talos/192.0.2.238-addresses.json" > "$F/x" && mv "$F/x" "$F/talos/192.0.2.238-addresses.json"
+addr "$F" 192.0.2.239 192.0.2.254/32
 run "$F" --previous "$tmp/base.json"
-expect_eq "holder moved with vipHost passes" true "$(pass_of 9)"
+expect_eq "holder moved to another node passes" true "$(pass_of 9)"
 expect_contains "holder move is INFO" "192.0.2.254 interface holder moved: 'cp-2' -> 'cp-3'" "$(jq -r '.info | join("\n")' <<<"$OUT")"
-F=$(fresh lb11); rm "$F/ssh/192.0.2.240.txt"
+F=$(fresh lb11); rm "$F/talos/192.0.2.240-addresses.json"
 run "$F"
-expect_eq "unreachable node over SSH fails" false "$(pass_of 9)"
-F=$(fresh lb12); jset "$F/svc.json" '.items |= map(select(.metadata.name != "ingress-nginx-controller"))'
+expect_eq "Talos API unreachable on one node fails item 9" false "$(pass_of 9)"
+only_failed 9
+F=$(fresh lb12); jset "$F/svc.json" '.items |= map(select(.metadata.name != "cilium-gateway-shared"))'
 run "$F"
 expect_eq "entry IP in no Service status fails" false "$(pass_of 9)"
 
@@ -288,10 +296,10 @@ expect_eq "NotReady node fails" false "$(pass_of 1)"
 F=$(fresh n3); jset "$F/nodes.json" 'del(.items[3])'
 run "$F"
 expect_eq "missing node fails" false "$(pass_of 1)"
-F=$(fresh e1); touch "$F/etcd-down-etcd-cp-1"
+F=$(fresh e1); rm "$F/talos/192.0.2.247-etcd.json"
 run "$F"
-expect_eq "etcd read through the next pod passes" true "$(pass_of 2)"
-F=$(fresh e2); echo '[{"endpoint":"a","health":true},{"endpoint":"b","health":false},{"endpoint":"c","health":true}]' > "$F/etcd-health.json"
+expect_eq "etcd unreadable on one control plane fails" false "$(pass_of 2)"
+F=$(fresh e2); echo '{"spec":{"healthy":false,"running":true}}' > "$F/talos/192.0.2.238-etcd.json"
 run "$F"
 expect_eq "etcd 2/3 fails" false "$(pass_of 2)"
 expect_contains "etcd 2/3 is a hard-stop signal" "etcd quorum" "$(jq -r '.hard_stop_signals | join(",")' <<<"$OUT")"
@@ -369,41 +377,6 @@ expect_contains "and reports both sources" "api.ipify.org and ifconfig.me agree 
 F=$(fresh dns3); echo "not-an-ip" > "$F/wan.txt"
 run "$F"
 expect_eq "unreadable --default-targets fails item 10" false "$(pass_of 10)"
-
-echo "-- Talos nodes: talosctl instead of etcd pods and SSH"
-# mktalos <dir>: the healthy fixture as Talos nodes (no etcd pod, no SSH).
-mktalos() {
-  local d=$1 ip
-  jset "$d/nodes.json" '.items[].status.nodeInfo.osImage = "Talos (v1.14.2)"
-    | (.items[] | select(.metadata.name | startswith("cp-")) | .metadata.labels) = {"node-role.kubernetes.io/control-plane": ""}'
-  : > "$d/etcd-pods.txt"
-  mkdir -p "$d/talos"
-  for ip in 192.0.2.247 192.0.2.238 192.0.2.239; do
-    echo '{"metadata":{"id":"etcd"},"spec":{"healthy":true,"running":true}}' > "$d/talos/$ip-etcd.json"
-  done
-  for ip in 192.0.2.247 192.0.2.238 192.0.2.239 192.0.2.240; do
-    awk '{ print $4 }' "$d/ssh/$ip.txt" | jq -c -R '{spec: {address: ., family: "inet4"}}' > "$d/talos/$ip-addresses.json"
-    echo '{"spec":{"address":"fe80::1/64","family":"inet6"}}' >> "$d/talos/$ip-addresses.json"
-  done
-  rm -rf "$d/ssh"
-}
-F=$(fresh t1); mktalos "$F"
-run "$F"
-expect_eq "Talos cluster: green" true "$(jq -r .green <<<"$OUT")"
-expect_eq "no SSH call" 0 "$(grep -c '^ssh ' "$F/calls.log" || true)"
-expect_eq "one etcd service read per control-plane node" 3 "$(grep -c '^talosctl -n 192\.0\.2\.2[0-9]* get services etcd -o json$' "$F/calls.log")"
-expect_eq "one address read per node" 4 "$(grep -c '^talosctl -n 192\.0\.2\.2[0-9]* get addresses -o json$' "$F/calls.log")"
-expect_eq "only read-only talosctl calls" 0 "$(grep '^talosctl ' "$F/calls.log" | grep -vc ' get ' || true)"
-expect_eq ".254 still found on cp-2, IPv6 ignored" "||cp-2" \
-  "$(jq -r '[.items[] | select(.id == 9) | .detail.bindings[] | .holders] | join("|")' <<<"$OUT")"
-F=$(fresh t2); mktalos "$F"; echo '{"spec":{"healthy":false,"running":true}}' > "$F/talos/192.0.2.238-etcd.json"
-run "$F"
-expect_eq "Talos etcd 2/3 fails" false "$(pass_of 2)"
-expect_contains "and is a hard-stop signal" "etcd quorum" "$(jq -r '.hard_stop_signals | join(",")' <<<"$OUT")"
-F=$(fresh t3); mktalos "$F"; rm "$F/talos/192.0.2.240-addresses.json"
-run "$F"
-expect_eq "Talos API unreachable on one node fails item 9" false "$(pass_of 9)"
-only_failed 9
 
 echo "-- usage and input validation (exit 64, nothing runs)"
 F=$(fresh u1)

@@ -12,16 +12,18 @@
 # infrastructure/external-dns/values.yaml, Immich asset counts, and Secrets by
 # namespace (names and ages only; values are never read into this script).
 #
-# Read-only: kubectl get / exec of read-only commands (etcdctl endpoint
-# health, psql with default_transaction_read_only=on), nc -z, two HTTPS calls
-# for the WAN address. Every call is bounded (kubectl --request-timeout,
-# nc -G, curl -m).
+# Read-only: kubectl get / exec of a read-only psql
+# (default_transaction_read_only=on), `talosctl get services etcd` on each
+# control plane, nc -z, two HTTPS calls for the WAN address. Every call is
+# bounded (kubectl --request-timeout, talosctl under a 20 s alarm, nc -G,
+# curl -m).
 #
 # Exit 0 when nothing is red, 1 when something is (a kubectl read that fails
 # counts), 64 on a usage error.
 # --json prints one JSON document instead of the text view.
 #
-# Requires bash 3.2+, kubectl, jq, nc, curl (macOS flags: nc -G).
+# Requires bash 3.2+, kubectl, jq, nc, curl, perl, and talosctl with
+# $TALOSCONFIG (macOS flags: nc -G).
 # shellcheck disable=SC2016 # single-quoted strings are jq programs
 set -uo pipefail
 
@@ -32,7 +34,7 @@ for a in "$@"; do
   case "$a" in
     --json) JSON=1 ;;
     --no-color) export NO_COLOR=1 ;;
-    -h|--help) sed -n '2,24p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     *) echo "usage: $0 [--json] [--no-color]" >&2; exit 64 ;;
   esac
 done

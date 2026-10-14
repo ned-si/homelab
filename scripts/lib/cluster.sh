@@ -37,19 +37,12 @@ talos_cp_ips() {
     | [.status.addresses[]? | select(.type == "InternalIP") | .address][0] // empty'
 }
 
-# etcd_health_json: `etcdctl endpoint health --cluster -w json` from the first
-# etcd pod that answers (read-only). Talos runs etcd as a system service, not
-# a pod: there, each control-plane node reports its etcd service health
-# (`talosctl get services etcd`, read-only), in the same JSON shape.
-# Prints the JSON array, or nothing.
+# etcd_health_json: the etcd service health of every control-plane node
+# (`talosctl get services etcd`, read-only), as
+# `[{endpoint: "https://<ip>:2379", health: true|false}, ...]`. Talos runs etcd
+# as a system service, not a pod. Prints the JSON array, or nothing.
 etcd_health_json() {
-  local p out ip h arr='[]'
-  for p in $(k -n kube-system get pods -l component=etcd -o name 2>/dev/null); do
-    out=$(k -n kube-system exec "${p#pod/}" -- etcdctl --endpoints=https://127.0.0.1:2379 \
-      --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt \
-      --key=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint health --cluster -w json 2>/dev/null) \
-      && jq -e 'type == "array"' <<<"$out" >/dev/null 2>&1 && { printf '%s\n' "$out"; return 0; }
-  done
+  local out ip h arr='[]'
   command -v talosctl >/dev/null 2>&1 || return 1
   out=$(talos_cp_ips)
   [ -n "$out" ] || return 1
