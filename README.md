@@ -63,7 +63,7 @@ their TV apps can sign in.
 
 | Component | Role | Managed by |
 | --- | --- | --- |
-| Argo CD | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Helm CLI release `argocd` (chart argo-cd) in namespace `argo`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml) |
+| Argo CD | App-of-apps: `root` -> `layer-infrastructure`, `layer-platform`, `layer-apps` -> one Application per app | Itself: Application `argocd` (release `argocd`, chart argo-cd) in namespace `argo`, values in [`bootstrap/argocd-values.yaml`](bootstrap/argocd-values.yaml); installed by hand once on a fresh cluster |
 | Cilium | CNI, kube-proxy replacement, L2-announced LoadBalancer IP pools, Gateway API | Argo CD (release name `cilium`), values in [`infrastructure/cilium/values.yaml`](infrastructure/cilium/values.yaml); installed by hand once on a fresh cluster |
 | Talos | OS, kubelet, etcd, control plane, Kubernetes API VIP `192.168.1.11` | Machine configs rendered from [`talos/`](talos) by talhelper, applied with `task talos:*` ([docs/talos.md](docs/talos.md)) |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
@@ -176,10 +176,10 @@ Every action is pinned to a commit SHA and every tool to a version and checksum.
    every required check is green, the title and commits pass, every commit is
    verified, the branch is up to date with `main` and no merge freeze is set.
 4. That is the deployment. Every Application tracks `main`, so Argo CD
-   applies the merge within its sync interval (3 minutes). Rollback is a
-   revert pull request.
-5. One thing is not automatic: the Helm CLI release `argocd` is upgraded by
-   hand from a merged commit, as described at the top of its values file.
+   applies the merge within its sync interval (3 minutes), Argo CD's own
+   release included. Rollback is a revert pull request, opened automatically
+   when a merge degrades its Application
+   ([docs/decisions.md](docs/decisions.md#automatic-rollback)).
 
 Check what is deployed:
 

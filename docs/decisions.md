@@ -64,18 +64,24 @@ data.
 
 ## Hand-installed only where git cannot reach
 
-Three things run outside Argo CD: the Talos machine configs (OS, etcd, control
+Two things run outside Argo CD: the Talos machine configs (OS, etcd, control
 plane and the API VIP, rendered from `talos/` and applied with `task talos:*`,
-[talos.md](talos.md)), the Argo CD Helm release itself (`argocd`, upgraded
-with the Helm CLI from a merged commit) and the bootstrap Secrets (`sops-age`,
-the repository credential). Cilium and democratic-csi were Helm CLI releases
-and are now Argo CD Applications; a fresh cluster installs Cilium once by hand,
-then Argo CD adopts it ([bootstrap.md](bootstrap.md)).
+[talos.md](talos.md)) and the bootstrap Secrets (`sops-age`, the repository
+credential). Cilium, democratic-csi and Argo CD itself are installed once by
+hand on a fresh cluster, then adopted by their Applications
+([bootstrap.md](bootstrap.md)). Argo CD manages its own Helm release through
+the Application `argocd` (`clusters/homelab/infrastructure/argocd.yaml`,
+infrastructure layer, sync wave -15): an Argo CD upgrade is a pull request like
+any other. That Application self-heals but does not prune; if a sync breaks
+Argo CD, the break-glass `helm upgrade` in that file's header repairs it.
 
-Why: each of the three is a bootstrap dependency of Argo CD itself.
+Why: the Talos configs and the bootstrap Secrets are dependencies of Argo CD
+itself, so it cannot apply them. Its own release can be adopted after the
+first install, which removes the last hand-run upgrade.
 
-Rejected: Argo CD managing its own release (an Argo CD outage could then block
-its own repair).
+Rejected: keeping the Argo CD release on the Helm CLI. Every upgrade was a
+manual step outside review, and the release drifted from `main` between
+upgrades.
 
 ## LAN addressing is public
 
@@ -110,10 +116,9 @@ reverted automatically ([Automatic rollback](#automatic-rollback)). The only
 exclusions are technical caps with a stated reason and an upstream source: the
 Immich database image (pgvecto.rs, an irreversible migration), the Immich
 server below 3.0 (which drops pgvecto.rs) and the chart below 0.10 (new values
-layout); Cilium and
-Gateway API (the node kernel), and versions a consumer does not support yet
+layout), and versions a consumer does not support yet
 (MariaDB for Seafile 11, Seafile 12). Policy gates, once they exist, are Kyverno
-policies (after Talos), not approvals.
+policies, not approvals.
 
 Why: one operator, and the goal is a system that updates and heals at any time.
 An approval queue only ages until someone clicks it.
@@ -175,9 +180,10 @@ Test without side effects: `gh workflow run auto-rollback.yaml -f app=<app>
 -f revision=<sha>` (dry run by default) prints the decision and creates
 nothing.
 
-Turning it on is one step: create a fine-grained token (resource owner
-`ned-si`, only `ned-si/homelab`, Contents, Pull requests and Issues read and
-write), then
+It runs on a fine-grained token (resource owner `ned-si`, only
+`ned-si/homelab`, Contents, Pull requests and Issues read and write), stored
+as the Actions secret `AUTO_ROLLBACK_TOKEN` and sealed in
+`platform/secrets/argocd-notifications.sops.yaml`. To rotate it:
 
 ```sh
 gh secret set AUTO_ROLLBACK_TOKEN --repo ned-si/homelab      # paste the token
@@ -186,8 +192,7 @@ rm platform/secrets/argocd-notifications.sops.yaml
 scripts/seal-secrets-from-env.sh                             # re-seals that file only
 ```
 
-and merge the re-sealed file. Until then the sealed value is a `PENDING`
-sentinel: GitHub refuses the dispatch and nothing happens.
+and merge the re-sealed file.
 
 Why: Renovate automerges every update on green CI, so a bad update must be
 undone without waiting for a person. The pull request goes through the same CI
