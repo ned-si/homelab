@@ -9,8 +9,8 @@ one root Application, three layers, one Application per app.
 
 - Hardware: 4x Turing RK1 (Rockchip RK3588, arm64, 32 GB) on a Turing Pi 2
   board. 3 control planes and 1 worker.
-- OS and Kubernetes: Ubuntu, Kubernetes (kubeadm), containerd.
-  API on the VIP `192.168.1.11` (kube-vip).
+- OS and Kubernetes: Talos Linux, Kubernetes, containerd.
+  API on the VIP `192.168.1.11`, held by Talos on the control planes.
 - GitOps: Argo CD. CNI: Cilium, which also serves the shared
   Gateway on `192.168.1.254`.
 - Storage: TrueNAS CORE NAS at `192.168.1.228`. iSCSI block volumes through
@@ -118,7 +118,7 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | [`deploy/`](deploy) | Rendered manifests Argo CD reads (`scripts/render-deploy.sh`; CI fails if stale) |
 | [`bootstrap/`](bootstrap) | `root-app.yaml` (the root Application, applied once by hand), values for the `argocd` Helm release, OpenTofu for a fresh install |
 | [`ansible/`](ansible) | Node OS and kubeadm upgrade playbooks |
-| [`talos/`](talos) | talhelper config for the planned Talos cluster (machine configs, Image Factory schematic, patches); [docs/talos.md](docs/talos.md) |
+| [`talos/`](talos) | talhelper config for the Talos nodes (machine configs, Image Factory schematic, patches); [docs/talos.md](docs/talos.md) |
 | [`ci/`](ci) | Helm CLI release list, vendored CRD schemas, pinned CI Python requirements |
 | [`scripts/`](scripts) | CI entry points (`scripts/ci/`), read-only cluster smoke suite (`smoke.sh`), guarded merge (`pr-merge.sh`), Trivy gate |
 | [`tests/`](tests) | pytest and bash tests for the scripts |

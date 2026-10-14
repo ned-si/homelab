@@ -202,14 +202,15 @@ Why: a mesh adds a sidecar or proxy per pod and a second control plane on four
 Rejected: a mesh now. Revisit if per-request retries or traffic splitting
 across many services become a real need.
 
-## kubeadm today, Talos later
+## Talos, built as a new cluster
 
-The nodes run Ubuntu 22.04 with kubeadm. Talos is the planned replacement, built
-as a new cluster (kubeadm and Talos cannot be mixed in one cluster) once the
-current platform work is finished and every database has an off-site backup.
+The nodes run Talos Linux. It replaced Ubuntu 22.04 with kubeadm as a new
+cluster (kubeadm and Talos cannot be mixed in one cluster), one node at a time
+on the same hardware and IPs, after every database had an off-site backup. The
+data volumes stayed on the NAS and were bound again as static PVs; the
+databases were recovered from their Barman Cloud backups.
 
 Why: Talos removes the hand-maintained node state (netplan, kube-vip manifest,
-packages), but the move recreates every node, so it waits for backups that do
-not live in the house.
+packages, kubeadm certificates). The whole node is one machine config in git.
 
 Rejected: an in-place conversion, which does not exist.

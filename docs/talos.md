@@ -1,11 +1,12 @@
 # Talos
 
-The planned replacement cluster runs Talos Linux v1.14.2 and Kubernetes 1.37.1
-on the same four Turing RK1 nodes, with the same IPs and the same API VIP. Its
-machine configs are generated from [`talos/`](../talos) with
-[talhelper](https://budimanjojo.github.io/talhelper/). Nothing in `talos/`
-touches the running kubeadm cluster: a config only reaches a node through the
-`task talos:*` commands below.
+The cluster runs Talos Linux and Kubernetes at the versions pinned in
+[`talos/talconfig.yaml`](../talos/talconfig.yaml), on four Turing RK1 nodes:
+three control planes with etcd, one worker. The machine configs are generated
+from [`talos/`](../talos) with
+[talhelper](https://budimanjojo.github.io/talhelper/). A merge in `talos/`
+changes no node: a config only reaches a node through the `task talos:*`
+commands below.
 
 ## Layout
 
@@ -29,7 +30,8 @@ touches the running kubeadm cluster: a config only reaches a node through the
 | `homelab-w-1` | `192.168.1.240` | worker |
 
 - API endpoint `https://192.168.1.11:6443`. Talos holds the VIP itself
-  (`Layer2VIPConfig` on the control planes), so kube-vip goes away.
+  (`Layer2VIPConfig` on the control planes); there is no kube-vip. When the
+  holder goes down, another control plane takes the VIP within seconds.
 - Static addresses on the one physical NIC (`deviceSelector: physical: true`),
   gateway and DNS `192.168.1.1`.
 - Install disk `/dev/mmcblk0`, the eMMC.

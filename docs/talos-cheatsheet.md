@@ -127,7 +127,8 @@ To replace one:
 2. Flash, power on and read the UART ([talos.md](talos.md#image)). The node
    boots into maintenance mode on a DHCP address.
 3. `talosctl apply-config --insecure -n <dhcp-ip> -f talos/clusterconfig/homelab-<hostname>.yaml`.
-   It reboots onto its static IP and joins.
+   It moves to its static IP (usually without a reboot) and joins; a control
+   plane shows up in `etcd members` within about two minutes.
 
 ## 4. Troubleshooting
 
