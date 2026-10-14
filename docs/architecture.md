@@ -11,25 +11,20 @@ the shape of that tree and why it has that shape; addresses are in
 | --- | --- |
 | Board | Turing Pi 2, which powers all four slots on with the board |
 | Nodes | 4x Turing RK1 (Rockchip RK3588, arm64, 32 GB RAM, 29 GB eMMC): `homelab-cp-1`..`cp-3` (control plane), `homelab-w-1` (worker) |
-| OS | Ubuntu 22.04.5, kernel 5.10.160-rockchip, containerd 1.7.24, static addresses in `/etc/netplan/01-homelab-static.yaml` |
-| Kubernetes | kubeadm v1.32.13, stacked etcd 3.5.24 on the three control planes |
-| API endpoint | `192.168.1.11:6443`, a VIP held by kube-vip v1.2.4 static pods |
-| CNI | Cilium 1.17.18: kube-proxy replacement, LB-IPAM with L2 announcements, Gateway API |
+| OS | Talos Linux v1.14.2 (kernel 6.18, containerd 2.3), installed on the eMMC; static addresses in [`talos/talconfig.yaml`](../talos/talconfig.yaml) |
+| Kubernetes | v1.37.1, etcd 3.7 on the three control planes, which also run workloads |
+| API endpoint | `192.168.1.11:6443`, a VIP that Talos holds on one control plane ([talos.md](talos.md#nodes)) |
+| CNI | Cilium 1.20.2: kube-proxy replacement, LB-IPAM with L2 announcements, Gateway API |
 | Storage | TrueNAS CORE at `192.168.1.228`: iSCSI block volumes through democratic-csi, an NFS share for media |
-| GitOps | Argo CD v3.4.6 in namespace `argo` (Helm release `argocd`, chart argo-cd 10.2.2) |
+| GitOps | Argo CD v3.5.5 in namespace `argo` (Helm release `argocd`, chart argo-cd 10.10.3) |
 
 Everything runs single-replica. Most workloads hold a `ReadWriteOnce` volume,
 so a second replica could not mount it, and there is one storage backend
-anyway. Node upgrades are `ansible/kube-upgrade.yml` (one minor at a time) and
-`ansible/os-upgrade.yml`, one node at a time. The etcd snapshot task in
-`kube-upgrade.yml` calls `etcdctl` on the host, which the nodes do not have, so
-the playbook stops at that task until it is fixed ([roadmap](roadmap.md)). Take
-the snapshot by hand
-([cold-start.md](runbooks/cold-start.md#snapshot)) before any upgrade. The
-kubeadm leaf certificates last one year and every `kubeadm upgrade` renews
-them; `ansible/cert-renew.yml` renews them without an upgrade
-(`--tags verify` only checks expiry). Replacing a failed node is
-[runbooks/node-replacement.md](runbooks/node-replacement.md).
+anyway. Talos and Kubernetes upgrades are `task talos:upgrade` and
+`task talos:upgrade-k8s`, one node at a time; take an etcd snapshot first
+(`task talos:etcd-snapshot`). Replacing a failed node is a re-flash and an
+`apply-config`
+([talos-cheatsheet.md](talos-cheatsheet.md#adding-or-replacing-a-node)).
 
 ## The tree
 
@@ -234,8 +229,8 @@ any of the manifests (`task render`).
 | Value | Where |
 | --- | --- |
 | WAN IP | `infrastructure/external-dns/values.yaml` (`--default-targets`), the only copy |
-| API VIP `192.168.1.11` | `infrastructure/cilium/values.yaml` (`k8sServiceHost`), `bootstrap/variables.tf`, `ansible/inventory.yml`, the kube-vip manifest on each control plane |
-| Node addresses | `ansible/inventory.yml`, netplan on each node |
+| API VIP `192.168.1.11` | `infrastructure/cilium/values.yaml` (`k8sServiceHost`), `bootstrap/variables.tf`, `ansible/inventory.yml`, `talos/talconfig.yaml` (`endpoint`, cert SANs, `vip:`) |
+| Node addresses | `ansible/inventory.yml`, `talos/talconfig.yaml` (`nodes:`) |
 | LoadBalancer pools | `infrastructure/cilium/ip-pools.yaml` |
 | Pinned LoadBalancer IPs | `infrastructure/gateway/gateway.yaml` (`.254`), `apps/theater/qbittorrent.yaml` (`.200`), `apps/syncthing/services.yaml` (`.201`) |
 | NAS address | inline NFS volumes in `apps/theater/*.yaml` and `apps/immich/resources/backup-files.yaml` (the local Immich backup), `infrastructure/nfs-storage/*.yaml`, and three times in `infrastructure/secrets/democratic-csi-iscsi.sops.yaml` (API host, SSH host, iSCSI portal) |

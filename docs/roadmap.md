@@ -53,7 +53,6 @@ Renovate automerges every other update on green CI
 - Cilium 1.18 and Gateway API 1.3 need a newer node kernel than
   5.10.160-rockchip.
 - external-dns: add `--force-default-targets` before chart 1.16 and later.
-- Talos, as a new cluster ([decisions.md](decisions.md#kubeadm-today-talos-later)).
 
 ## Images: next pins
 
