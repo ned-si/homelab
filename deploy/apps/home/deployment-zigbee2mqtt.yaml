@@ -1,0 +1,145 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/home
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/home and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: zigbee2mqtt
+  name: zigbee2mqtt
+  namespace: home
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zigbee2mqtt
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zigbee2mqtt
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: TZ
+          value: Europe/Zurich
+        - name: ZIGBEE2MQTT_DATA
+          value: /app/data
+        - name: ZIGBEE2MQTT_CONFIG_MQTT_SERVER
+          value: mqtt://mosquitto.home.svc.cluster.local:1883
+        - name: ZIGBEE2MQTT_CONFIG_MQTT_USER
+          value: zigbee2mqtt
+        - name: ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: zigbee2mqtt
+              name: mosquitto-users
+        - name: ZIGBEE2MQTT_CONFIG_SERIAL_PORT
+          value: tcp://192.168.1.20:20108
+        - name: ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED
+          value: "true"
+        - name: ZIGBEE2MQTT_CONFIG_FRONTEND_PORT
+          value: "8080"
+        - name: ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED
+          value: "true"
+        image: ghcr.io/koenkk/zigbee2mqtt:2.14.2
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 30
+        name: zigbee2mqtt
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 512Mi
+          requests:
+            cpu: 20m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 10
+        volumeMounts:
+        - mountPath: /app/data
+          name: data
+        - mountPath: /tmp
+          name: tmp
+      initContainers:
+      - args:
+        - |
+          if [ -f /app/data/configuration.yaml ]; then
+            echo "ok: configuration.yaml present"
+          else
+            cp /seed/configuration.yaml /app/data/configuration.yaml
+            echo "ok: configuration.yaml seeded"
+          fi
+        command:
+        - /bin/sh
+        - -euc
+        image: ghcr.io/koenkk/zigbee2mqtt:2.14.2
+        imagePullPolicy: IfNotPresent
+        name: config
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /app/data
+          name: data
+        - mountPath: /seed
+          name: seed
+          readOnly: true
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: zigbee2mqtt-data
+      - configMap:
+          name: zigbee2mqtt-config-2627gmtdkf
+        name: seed
+      - emptyDir:
+          sizeLimit: 64Mi
+        name: tmp
