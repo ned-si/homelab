@@ -38,7 +38,8 @@ objects and rule ids only; values are never printed.
                         `root` and are the same Application;
                         clusters/homelab/legacy/all-apps.yaml passes `legacy-root`
   bootstrap-chart-versions  the chart version of each Application that adopts a
-                        bootstrap release (cilium, argocd) equals its entry in
+                        bootstrap release (cilium, argocd) and its helm_release
+                        in bootstrap/main.tf equal its entry in
                         ci/helm-releases.yaml
   cnpg-backup           every rendered CNPG Cluster archives WAL through the Barman
                         Cloud plugin, has a ScheduledBackup and references a
@@ -370,6 +371,17 @@ class Policy:
                 name = ent.get("name") or ent.get("release")
                 if name in BOOTSTRAP_CHARTS:
                     want[name] = str(ent.get("version", "")).lstrip("v")
+        tf = self.root / "bootstrap/main.tf"
+        if tf.is_file():
+            for m in re.finditer(r'^resource\s+"helm_release"\s+"(\w+)"\s*\{(.*?)^\}', tf.read_text(), re.M | re.S):
+                name = m.group(1)
+                if name not in BOOTSTRAP_CHARTS or name not in want:
+                    continue
+                self.on(rule)
+                v = re.search(r'^\s*version\s*=\s*"([^"]+)"', m.group(2), re.M)
+                got_tf = v.group(1).lstrip("v") if v else ""
+                if got_tf != want[name]:
+                    self.fail(rule, f"bootstrap/main.tf: helm_release.{name} version {got_tf!r} != ci/helm-releases.yaml {want[name]}")
         for f in app_files:
             for d in yaml_file_docs(f):
                 name = self.name_of(d)

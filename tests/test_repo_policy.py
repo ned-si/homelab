@@ -285,6 +285,24 @@ def test_bootstrap_chart_versions_match_helm_releases(tmp_path, name, repo, char
     assert r.returncode == 0, r.stdout
 
 
+def _main_tf(argocd, cilium):
+    return (f'resource "helm_release" "cilium" {{\n  chart   = "cilium"\n  version = "{cilium}"\n}}\n\n'
+            f'resource "helm_release" "argocd" {{\n  chart   = "argo-cd"\n  version   = "{argocd}"\n}}\n')
+
+
+@pytest.mark.parametrize("argocd,cilium,needle", [
+    ("10.10.5", "1.20.2", "helm_release.argocd"),
+    ("10.10.3", "1.17.18", "helm_release.cilium"),
+])
+def test_bootstrap_main_tf_matches_helm_releases(tmp_path, argocd, cilium, needle):
+    app = _bootstrap_app("argocd", "https://argoproj.github.io/argo-helm", "argo-cd", "10.10.3")
+    files = {"clusters/homelab/infrastructure/argocd.yaml": app, "ci/helm-releases.yaml": HELM_RELEASES}
+    r = policy(tmp_path, files=dict(files, **{"bootstrap/main.tf": _main_tf(argocd, cilium)}))
+    assert any("bootstrap-chart-versions" in f and needle in f for f in fails(r)), r.stdout
+    r = policy(tmp_path / "b", files=dict(files, **{"bootstrap/main.tf": _main_tf("10.10.3", "1.20.2")}))
+    assert r.returncode == 0, r.stdout
+
+
 def test_bootstrap_chart_without_helm_releases_entry(tmp_path):
     hr = "releases:\n  - {name: cilium, repo: https://helm.cilium.io, chart: cilium, version: 1.20.2}\n"
     app = _bootstrap_app("argocd", "https://argoproj.github.io/argo-helm", "argo-cd", "10.10.3")
