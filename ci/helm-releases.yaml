@@ -22,7 +22,7 @@ releases:
     repo: https://helm.cilium.io
     chart: cilium
     # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-    version: 1.20.2
+    version: 1.20.3
     release: cilium
     namespace: kube-system
     values: infrastructure/cilium/values.yaml
