@@ -34,7 +34,9 @@ FLOOR_VIDEOS=${IMMICH_FLOOR_VIDEOS:-0}
 WORK=${WORK:-/tmp/work}
 LABEL=homelab.lilalala.com/backup-verify
 
-k() { kubectl --request-timeout=60s "$@"; }
+# No --request-timeout: with that flag kubectl ignores the in-cluster config
+# and dials localhost:8080. activeDeadlineSeconds bounds the whole Job.
+k() { kubectl "$@"; }
 
 COUNT_SQL="select table_schema || '.' || table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text from information_schema.tables where table_type = 'BASE TABLE' and table_schema not in ('pg_catalog', 'information_schema') order by 1"
 MARK_SQL="select '~ts', extract(epoch from now())::bigint::text union all select '~lsn', pg_current_wal_lsn()::text union all select '~wal', pg_walfile_name(pg_current_wal_lsn()) union all ($COUNT_SQL)"
@@ -43,14 +45,14 @@ MARK_SQL="select '~ts', extract(epoch from now())::bigint::text union all select
 # runs in the sidecar; the password goes over stdin, never into an argument.
 src_sql() {
   # shellcheck disable=SC2016 # expanded by the sidecar's shell
-  printf '%s\n' "$SRC_PW" | kubectl --request-timeout=600s -n "$NS" exec -i "$SELF" -c psql -- \
+  printf '%s\n' "$SRC_PW" | kubectl -n "$NS" exec -i "$SELF" -c psql -- \
     sh -c 'IFS= read -r PGPASSWORD; export PGPASSWORD; exec psql -X -q -At -F "|" -v ON_ERROR_STOP=1 "$1" -c "$2"' \
     sh "host=$SRC_HOST port=5432 dbname=$SRC_DB user=$SRC_USER sslmode=require connect_timeout=10 options='-c default_transaction_read_only=on'" "$1"
 }
 
 # dst_sql <sql>: on the restored primary, as the same owner role.
 dst_sql() {
-  kubectl --request-timeout=600s -n "$NS" exec "$DST_POD" -c postgres -- \
+  kubectl -n "$NS" exec "$DST_POD" -c postgres -- \
     psql -X -q -At -F '|' -v ON_ERROR_STOP=1 -d "$SRC_DB" -c "SET ROLE \"$SRC_USER\"" -c "$1"
 }
 
