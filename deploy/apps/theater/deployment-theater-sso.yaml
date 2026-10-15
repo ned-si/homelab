@@ -38,6 +38,8 @@ spec:
         - --cookie-samesite=lax
         - --cookie-expire=8760h
         - --cookie-refresh=1h
+        - --skip-auth-route=^/arr/(sonarr|radarr|lidarr|prowlarr|bazarr|lazylibrarian)/api(/.*)?$
+        - --skip-auth-route=^/arr/(sonarr|radarr)/feed/
         - --whitelist-domain=theater.lilalala.com
         - --skip-provider-button=true
         env:
