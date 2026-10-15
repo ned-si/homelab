@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """GitHub CI/CD exporter for one repository (stdlib only).
 
 Every INTERVAL seconds it reads, from the public GitHub REST API: the
@@ -6,8 +5,8 @@ workflows and the last 30 runs of each, open pull requests, the 100 most
 recently updated closed pull requests, and Renovate's Dependency Dashboard
 issue; then serves the derived gauges on :PORT/metrics. About 11 requests per
 cycle; conditional requests (ETag, a 304 is free) keep that well inside the
-unauthenticated quota of 60 requests/hour per IP. A GITHUB_TOKEN in the
-environment is used when present.
+unauthenticated quota of 60 requests/hour per IP. The repository is public,
+so no credential is used.
 
 Logs are JSON lines on stdout.
 """
@@ -16,7 +15,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import sys
 import threading
 import time
 import urllib.error
@@ -27,7 +25,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 REPO = os.environ.get("REPO", "ned-si/homelab")
 INTERVAL = int(os.environ.get("INTERVAL", "900"))
 PORT = int(os.environ.get("PORT", "9171"))
-TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
 API = "https://api.github.com"
 RENOVATE = "renovate[bot]"
 WINDOW = 30 * 86400
@@ -50,8 +47,6 @@ def get(path: str):
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "homelab-github-exporter",
     })
-    if TOKEN:
-        req.add_header("Authorization", f"Bearer {TOKEN}")
     cached = _etags.get(path)
     if cached:
         req.add_header("If-None-Match", cached[0])
@@ -235,6 +230,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    log("info", "starting", repo=REPO, interval=INTERVAL, port=PORT, authenticated=bool(TOKEN))
+    log("info", "starting", repo=REPO, interval=INTERVAL, port=PORT)
     threading.Thread(target=loop, daemon=True).start()
     ThreadingHTTPServer(("", PORT), Handler).serve_forever()
