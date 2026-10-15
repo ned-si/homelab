@@ -1,0 +1,19 @@
+# Prometheus scrapes Keycloak's management port (9000, /metrics): JVM, HTTP
+# and the user event metrics (keycloak_user_events_total) behind the
+# Security dashboard's failed-login panels. Not exposed on the Gateway.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  endpoints:
+    - port: mgmt
+      path: /metrics
+      interval: 1m

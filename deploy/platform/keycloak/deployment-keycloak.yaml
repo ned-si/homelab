@@ -58,6 +58,14 @@ spec:
           value: "true"
         - name: KC_METRICS_ENABLED
           value: "true"
+        - name: KC_FEATURES
+          value: user-event-metrics
+        - name: KC_EVENT_METRICS_USER_ENABLED
+          value: "true"
+        - name: KC_EVENT_METRICS_USER_TAGS
+          value: realm,clientId
+        - name: KC_EVENT_METRICS_USER_EVENTS
+          value: login,client_login,code_to_token,refresh_token,logout,reset_password,update_credential,user_disabled_by_temporary_lockout,user_disabled_by_permanent_lockout
         - name: KC_PROXY_HEADERS
           value: xforwarded
         - name: KC_LOG

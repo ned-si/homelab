@@ -47,7 +47,7 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 | Dashboard (uid) | Shows |
 | --- | --- |
 | Homelab / Overview (`homelab-overview`) | 30-day availability and error budget per app, 1h burn rate, probe status and duration, nodes Ready, internal endpoints, eMMC and PVC usage, pods not Ready and restarts, running image tags, certificate expiry as served, hours since each backup CronJob last succeeded |
-| Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
+| Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Keycloak failed logins and lockouts (`keycloak_user_events_total`, ServiceMonitor `keycloak/keycloak` on the management port), Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
 | Homelab / Nodes (`homelab-nodes`) | per node: Talos, kernel, Kubernetes and containerd versions, Ready, uptime; saturation (CPU, memory, PSI, eMMC busy), latency (eMMC and iSCSI per operation), traffic (NIC, eMMC, iSCSI, eMMC bytes written per day), errors (NIC errors and drops, link flaps, OOM kills); SoC temperature, eMMC wear; etcd leader, database size, WAL fsync and commit p99, failed proposals, peer round trip |
 | Homelab / Storage (`homelab-storage`) | NAS pools healthy, exporter up, days since the last scrub and its errors; pool used, "full in N days" at the 7-day trend, free space, used with a 30-day projection, used per dataset; disk temperatures, pool devices ONLINE, device errors, newest SMART self-test, disk models and sizes, the NAS's own alerts; iSCSI PVC usage ([NAS metrics](#nas-metrics)) |
 | Homelab / LAN (`homelab-lan`) | ping status and round trip of the static devices; devices on the LAN now, randomised MACs, MACs first seen in the last 7 days, age of the last ARP scan, every MAC and IP that answered, device count over time ([LAN inventory](#lan-inventory)) |
@@ -67,7 +67,6 @@ Not shown, and what each would need:
 | Missing | Needs |
 | --- | --- |
 | CI and Renovate status | a GitHub exporter with a token, or a JSON datasource plugin |
-| Keycloak failed logins | `KC_EVENT_METRICS_USER_ENABLED=true` and a ServiceMonitor on port 9000 |
 | cert-manager metrics | its ServiceMonitor carries no `release: kube-prometheus-stack` label, so Prometheus ignores it |
 
 ## NAS metrics
