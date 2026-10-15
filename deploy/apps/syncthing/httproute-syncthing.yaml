@@ -40,8 +40,6 @@ spec:
           value: camera=(), microphone=(), payment=(), usb=()
         - name: Referrer-Policy
           value: strict-origin-when-cross-origin
-        - name: X-Frame-Options
-          value: SAMEORIGIN
         - name: Content-Security-Policy
           value: frame-ancestors 'self'; base-uri 'self'; object-src 'none'
       type: ResponseHeaderModifier
