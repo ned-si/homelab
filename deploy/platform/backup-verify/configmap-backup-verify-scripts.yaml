@@ -11,7 +11,7 @@
 apiVersion: v1
 data:
   run-all.sh: |
-    #!/usr/bin/env bash
+    #!/bin/sh
     # Verify every database. Keeps going after a failure so one broken backup
     # does not hide the state of the others.
     set -uo pipefail
@@ -43,7 +43,8 @@ data:
     [ $rc -eq 0 ] && echo "ALL BACKUPS VERIFIED" || echo "ONE OR MORE BACKUPS FAILED VERIFICATION"
     exit $rc
   verify.sh: |
-    #!/usr/bin/env bash
+    #!/bin/sh
+    # POSIX sh: the alpine/kubectl image has BusyBox ash and no bash.
     # Restore one database from S3 into a throwaway cluster and assert it works.
     #
     # Usage: verify.sh <source-cluster> <objectstore-namespace> <min-expected-tables>

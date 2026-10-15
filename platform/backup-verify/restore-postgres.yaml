@@ -129,7 +129,8 @@ metadata:
   namespace: backup-verify
 data:
   verify.sh: |
-    #!/usr/bin/env bash
+    #!/bin/sh
+    # POSIX sh: the alpine/kubectl image has BusyBox ash and no bash.
     # Restore one database from S3 into a throwaway cluster and assert it works.
     #
     # Usage: verify.sh <source-cluster> <objectstore-namespace> <min-expected-tables>
@@ -297,7 +298,7 @@ data:
     echo
     echo "PASS: $SRC restored and verified"
   run-all.sh: |
-    #!/usr/bin/env bash
+    #!/bin/sh
     # Verify every database. Keeps going after a failure so one broken backup
     # does not hide the state of the others.
     set -uo pipefail
@@ -375,14 +376,16 @@ spec:
             - name: verify
               # Needs kubectl only: psql is exec'd *inside* the restored pod,
               # which already has the matching client. Pinned to the cluster's
-              # minor (1.31.x) rather than latest, so `kubectl wait` and CRD
-              # handling stay inside the supported one-minor skew window.
-              # renovate: datasource=docker depName=bitnami/kubectl
-              image: bitnami/kubectl:1.31.2
-              command: ["/bin/bash", "/scripts/run-all.sh"]
+              # minor (talos/talconfig.yaml) so `kubectl wait` and CRD handling
+              # stay inside the supported one-minor skew window. Alpine-based:
+              # the scripts need a shell, date, grep, sed and sort, which the
+              # distroless registry.k8s.io/kubectl image lacks.
+              # renovate: datasource=docker depName=alpine/kubectl
+              image: alpine/kubectl:1.37.1
+              command: ["/bin/sh", "/scripts/run-all.sh"]
               env:
-                # runAsUser 1000 is NOT this image's own uid (Bitnami images ship
-                # USER 1001), so $HOME from the image is not writable by us.
+                # The image runs as root with HOME=/root, which runAsUser 1000
+                # cannot write.
                 # kubectl writes a discovery cache on every invocation and dies on
                 # EACCES, so both are redirected to a writable emptyDir.
                 - name: HOME
