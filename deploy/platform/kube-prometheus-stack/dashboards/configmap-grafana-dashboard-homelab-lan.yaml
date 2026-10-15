@@ -315,7 +315,7 @@ data:
         {
           "type": "stat",
           "title": "New MACs, last 7 days",
-          "description": "MACs seen in the last 7 days and not in the 23 days before. Each one raised LANNewDeviceSeen (warning) when it appeared.",
+          "description": "MACs seen in the last 7 days and not in the 23 days before. Fixed MACs raised LANNewDeviceSeen (warning), randomised ones LANNewRandomMACSeen (info, not paged).",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"

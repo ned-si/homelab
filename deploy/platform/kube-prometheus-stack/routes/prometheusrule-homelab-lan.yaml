@@ -42,16 +42,26 @@ spec:
     - alert: LANNewDeviceSeen
       annotations:
         description: '{{ $labels.mac }} answered ARP at {{ $labels.ip }} and was not
-          seen in the last 30 days (random_mac={{ $labels.random_mac }}: true is usually
-          a phone or laptop with a private address). If it is not yours, find it in
-          the router''s DHCP list and block it.'
+          seen in the last 30 days. Its MAC is a fixed vendor address, so this is
+          new hardware, not a phone rotating its private address. If it is not yours,
+          find it in the router''s DHCP list and block it.'
         summary: 'New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}'
       expr: |
-        max by (mac, ip, random_mac) (lan_device_present)
+        max by (mac, ip, random_mac) (lan_device_present{random_mac="false"})
         unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
         and on () (count(lan_inventory_devices offset 1d) > 0)
       labels:
         severity: warning
+    - alert: LANNewRandomMACSeen
+      annotations:
+        summary: 'New randomised MAC on the LAN: {{ $labels.mac }} at {{ $labels.ip
+          }}'
+      expr: |
+        max by (mac, ip, random_mac) (lan_device_present{random_mac="true"})
+        unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
+        and on () (count(lan_inventory_devices offset 1d) > 0)
+      labels:
+        severity: info
     - alert: LANInventoryFailing
       annotations:
         description: LANNewDeviceSeen is inert while this fires. Read `kubectl -n
