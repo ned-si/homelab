@@ -46,3 +46,4 @@ spec:
       - https://syncthing.lilalala.com/rest/noauth/health
       - https://audiobooks.lilalala.com/healthcheck
       - https://ebooks.lilalala.com/login
+      - https://home.lilalala.com/manifest.json

@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/home
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/home and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  configuration.yaml: |
+    # Home Assistant configuration, from git (apps/home/config/). The `config`
+    # init container copies it over /config/configuration.yaml on every start,
+    # so an edit made on the pod is lost. Integrations, devices, areas and users
+    # are set up in the UI and live in /config/.storage.
+    #
+    # Location (latitude, longitude, elevation) is not here on purpose: the repo
+    # is public. It is set once in the UI (Settings, System, General).
+
+    default_config:
+
+    homeassistant:
+      name: Home
+      unit_system: metric
+      time_zone: Europe/Zurich
+      currency: CHF
+      country: CH
+      external_url: https://home.lilalala.com
+      internal_url: https://home.lilalala.com
+
+    # Behind the shared Gateway: Cilium's Envoy connects from an address in the
+    # pod CIDR (talos/talconfig.yaml, Talos default 10.244.0.0/16) and sets
+    # X-Forwarded-For. Requests with that header from anywhere else are refused.
+    http:
+      use_x_forwarded_for: true
+      trusted_proxies:
+        - 10.244.0.0/16
+      ip_ban_enabled: true
+      login_attempts_threshold: 10
+
+    # History on the CNPG cluster `home-assistant-postgresql` (database.yaml)
+    # instead of SQLite on the config volume: WAL archiving and point-in-time
+    # recovery like the other databases.
+    recorder:
+      db_url: !env_var HA_RECORDER_DB_URL
+      purge_keep_days: 30
+      auto_purge: true
+
+    # Metrics at /api/prometheus for Prometheus. Only domains that describe the
+    # house; the rest (automations, zones, sun, weather, ...) is noise.
+    prometheus:
+      namespace: hass
+      filter:
+        include_domains:
+          - alarm_control_panel
+          - binary_sensor
+          - climate
+          - cover
+          - fan
+          - humidifier
+          - light
+          - lock
+          - person
+          - sensor
+          - switch
+          - update
+          - water_heater
+
+    # Edited from the UI; created empty when missing, never overwritten.
+    automation: !include automations.yaml
+    script: !include scripts.yaml
+    scene: !include scenes.yaml
+kind: ConfigMap
+metadata:
+  name: home-assistant-config-758ggcm2m7
+  namespace: home

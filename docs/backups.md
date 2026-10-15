@@ -32,6 +32,7 @@ One restic repository per prefix. The restic URL is
 | `syncthing/data` | `syncthing` | `/data` → `syncthing-identity` | PVC `syncthing-pvc` | 8.2 MiB |
 | `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`, `lazylibrarian`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
 | `books/configs` | `books` | `/data` → `audiobookshelf`; `/library` → `calibre-library`; `/config` → `calibre-web` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs`; NFS `books/ebooks`; PVC `calibre-web-config`, minus `log` | not yet measured |
+| `home/configs` | `home` | `/dumps` → `home-assistant-postgres`; `/config` → `home-assistant-config` (both also `home-assistant`) | `pg_dump` of `home-assistant-postgresql`; PVC `home-assistant-config`, minus logs, `deps`, `tts`, `.cache` | not yet measured |
 | `grafana/data` | — | — | none: Grafana has no persistent volume, so the job is not rendered. The repository exists and is empty | 0 |
 
 Every snapshot in `theater/configs` also carries the tag `theater-configs`. The
@@ -61,6 +62,7 @@ upgrades, not against losing the NAS.
 | `keycloak/keycloak-db` | Barman Cloud plugin: WAL + `keycloak-db-daily` | `cnpg/keycloak-db/` | point-in-time, 30 days |
 | `mealie/mealie-postgresql` | Barman Cloud plugin: WAL + `mealie-postgresql-daily`; `pg_dump` in `mealie-backup` | `cnpg/mealie-postgresql/`; `mealie/data` | point-in-time, 30 days; dump consistent, one transaction |
 | `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | Barman Cloud plugin: WAL + `<cluster>-daily`; `pg_dump` in `theater-postgres-backup` | `cnpg/<cluster>/`; `theater/configs` | point-in-time, 30 days; dump consistent, one transaction |
+| `home/home-assistant-postgresql` | Barman Cloud plugin: WAL + `home-assistant-postgresql-daily`; `pg_dump` in `home-assistant-backup` | `cnpg/home-assistant-postgresql/`; `home/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | Seafile MariaDB | `mariadb-dump --single-transaction` (client `mariadb:10.11`, same as the server) in `seafile-backup` | `seafile/shared` | consistent, no table locks |
 | Paperless SQLite | file copy of `db.sqlite3` inside `/data` | `paperless/media` | may be torn: the restic image has no `sqlite3`, so `.backup` is skipped and the job logs a warning |
 
@@ -85,7 +87,7 @@ Expected: `True`; a `firstRecoverabilityPoint` and `lastSuccessfulBackupTime` fo
 `mealie-postgresql`; a `mealie-postgresql-daily-<timestamp>` Backup in phase
 `completed` from the last night.
 
-Before every sync of `mealie`, `seafile`, `theater`, `keycloak` and `immich`,
+Before every sync of `mealie`, `seafile`, `theater`, `home`, `keycloak` and `immich`,
 including selfHeal syncs, an Argo CD PreSync hook
 (`components/presync-backup`) decides whether a backup is needed:
 
@@ -93,12 +95,12 @@ including selfHeal syncs, an Argo CD PreSync hook
 |---|---|
 | The CronJob or CNPG Cluster does not exist yet (fresh cluster) | nothing |
 | The database image changes major version, or the app is `immich` | backs up |
-| `mealie`, `seafile`, `theater`: the backup CronJob last succeeded < 24 h ago | nothing |
+| `mealie`, `seafile`, `theater`, `home`: the backup CronJob last succeeded < 24 h ago | nothing |
 | `keycloak`: WAL archiving works and the last base backup is < 24 h old | nothing |
 | Otherwise | backs up |
 
 A backup is the app's backup CronJob run once (`mealie`, `seafile`,
-`theater`) or a Barman Cloud base backup (`Backup` `presync-<cluster>`). The
+`theater`, `home`) or a Barman Cloud base backup (`Backup` `presync-<cluster>`). The
 hook waits for it; a failed backup fails the sync, so no database major is
 applied without a fresh, verified backup. Postgres majors are
 held by a Renovate rule until a major bump also moves the plugin's `serverName`
@@ -128,6 +130,7 @@ nothing was rehearsed, the column says so.
 | Syncthing identity + config | S3 | 24 h | no | — |
 | *arr, Plex, Jellyfin config and *arr databases | S3 | 24 h | no | — |
 | Audiobookshelf config and database backups | S3 | 24 h | no | — |
+| Home Assistant config | S3 | 24 h | no | — |
 | Ebook library and Calibre-Web config | S3 | 24 h | no | — |
 | Media library | none | everything | — | — |
 | Cluster state | git, plus etcd snapshots by hand | last merged commit | no | rebuild, see [bootstrap.md](bootstrap.md) and [runbooks/cold-start.md](runbooks/cold-start.md) |
@@ -141,7 +144,7 @@ the NAS:
 
 | UTC | Job |
 |---|---|
-| 00:00–01:00 | CNPG base backups (ScheduledBackup `<cluster>-daily`): immich-db 00:00, keycloak-db 00:10, mealie-postgresql 00:20, sonarr 00:30, radarr 00:40, lidarr 00:50, prowlarr 01:00 |
+| 00:00–01:10 | CNPG base backups (ScheduledBackup `<cluster>-daily`): immich-db 00:00, keycloak-db 00:10, mealie-postgresql 00:20, sonarr 00:30, radarr 00:40, lidarr 00:50, prowlarr 01:00, home-assistant-postgresql 01:10 |
 | 01:30 | `immich/immich-library-backup-local` (NAS) |
 | 02:00 | `syncthing/syncthing-backup` |
 | 02:30 | `paperless/paperless-backup` |
@@ -154,7 +157,8 @@ the NAS:
 | 05:10 | `books/books-config-backup-audiobookshelf` |
 | 05:20 | `books/books-config-backup-calibre-web` |
 | 05:30 | `theater/theater-config-backup-lazylibrarian` |
-| 1st of the month, 12:00–13:30 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, books 13:15, immich 13:30 |
+| 05:40 | `home/home-assistant-backup` |
+| 1st of the month, 12:00–13:45 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, books 13:15, immich 13:30, home 13:45 |
 
 The six theater jobs share one repository and restic takes an exclusive lock for
 `backup`, hence the spacing; 04:50 is kept for bazarr. Each nightly job ends with
@@ -181,7 +185,7 @@ kubectl get jobs -A | grep -E 'backup|prune'       # after 05:30 UTC: every job 
 
 | Repository | Nightly job | Monthly `*-prune` job |
 |---|---|---|
-| `immich/library`, `mealie/data`, `theater/configs` | backup + check | `forget --keep-within 3m --keep-monthly 12 --prune`, then check |
+| `immich/library`, `mealie/data`, `theater/configs`, `home/configs` | backup + check | `forget --keep-within 3m --keep-monthly 12 --prune`, then check |
 | `paperless/media`, `seafile/shared`, `syncthing/data` | backup + check | `forget --keep-within 3m --keep-monthly 24 --prune`, then check |
 | NAS `immich/library` | backup + `forget --keep-daily 14 --keep-weekly 8 --keep-monthly 6 --prune` + check | — |
 

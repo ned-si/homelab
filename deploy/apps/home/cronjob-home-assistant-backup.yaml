@@ -1,0 +1,163 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/home
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/home and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: home-assistant-backup
+  namespace: home
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: home-assistant-backup
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: home-assistant
+                topologyKey: kubernetes.io/hostname
+          automountServiceAccountToken: false
+          containers:
+          - args:
+            - |
+              restic init 2>/dev/null || true
+              restic backup /dumps \
+                --tag home-assistant \
+                --tag home-assistant-postgres \
+                --host home
+              restic backup /config \
+                --tag home-assistant \
+                --tag home-assistant-config \
+                --host home \
+                --exclude '/config/home-assistant.log*' \
+                --exclude /config/deps \
+                --exclude /config/tts \
+                --exclude /config/.cache
+              restic check --with-cache
+            command:
+            - /bin/sh
+            - -euo
+            - pipefail
+            - -c
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/home/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.1
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /dumps
+              name: dumps
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          initContainers:
+          - args:
+            - |
+              set -uo pipefail
+              d=/creds
+              f=/dumps/pg-home-home-assistant-postgresql.dump
+              # -Fc: compressed, and pg_restore can inspect it. The name
+              # matches scripts/dump-databases.sh.
+              if ! PGPASSWORD="$(cat "$d/password")" pg_dump \
+                   -h "$(cat "$d/host")" -p "$(cat "$d/port")" \
+                   -U "$(cat "$d/user")" -d "$(cat "$d/dbname")" \
+                   -Fc -f "$f"; then
+                echo "FAIL: pg_dump exited non-zero"
+                rm -f "$f"
+                exit 1
+              fi
+              # Every custom-format archive starts with "PGDMP".
+              if [ "$(head -c 5 "$f")" != "PGDMP" ]; then
+                echo "FAIL: output is not a pg_dump archive"
+                rm -f "$f"
+                exit 1
+              fi
+              echo "ok: $(du -h "$f" | cut -f1)"
+            command:
+            - /bin/bash
+            - -c
+            image: ghcr.io/cloudnative-pg/postgresql:18.6
+            imagePullPolicy: IfNotPresent
+            name: dump
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 100m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /dumps
+              name: dumps
+            - mountPath: /creds
+              name: creds
+              readOnly: true
+          restartPolicy: OnFailure
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - name: config
+            persistentVolumeClaim:
+              claimName: home-assistant-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: dumps
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+          - name: creds
+            secret:
+              secretName: home-assistant-postgresql-app
+  schedule: 40 5 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 3
+  suspend: false

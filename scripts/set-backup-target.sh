@@ -99,6 +99,7 @@ echo
 #     apps/immich/resources/backup.yaml              immich-db
 #     platform/keycloak/backup.yaml                  keycloak-db
 #     apps/mealie/cnpg-backup.yaml                   mealie-postgresql
+#     apps/home/cnpg-backup.yaml                     home-assistant-postgresql
 #     apps/theater/cnpg-backup.yaml                  the four *arr clusters
 #     platform/backup-verify/restore-postgres.yaml   the throwaway recovery
 #                                                    cluster's ObjectStore
@@ -114,6 +115,7 @@ echo
 #     apps/seafile/backup.yaml                       seafile/shared
 #     apps/syncthing/backup.yaml                     syncthing/data
 #     apps/mealie/backup.yaml                        mealie/data
+#     apps/home/backup.yaml                          home/configs
 #     platform/kube-prometheus-stack/routes/grafana-backup.yaml
 #                                                    grafana/data
 #     platform/backup-verify/restore-files.yaml      the verifier's repository
@@ -129,6 +131,8 @@ apps/theater/backup-bazarr.yaml
 apps/seafile/backup.yaml
 apps/syncthing/backup.yaml
 apps/mealie/backup.yaml
+apps/home/cnpg-backup.yaml
+apps/home/backup.yaml
 platform/keycloak/backup.yaml
 platform/kube-prometheus-stack/routes/grafana-backup.yaml
 platform/backup-verify/restore-postgres.yaml

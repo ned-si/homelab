@@ -162,6 +162,17 @@ metadata:
     pod-security.kubernetes.io/warn: baseline
     pod-security.kubernetes.io/audit: baseline
 ---
+# Home automation: Home Assistant, Mosquitto, Zigbee2MQTT (docs/home-automation.md).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: home
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
 apiVersion: v1
 kind: Namespace
 metadata:

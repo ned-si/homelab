@@ -22,6 +22,7 @@ spec:
     - keycloak
     - mealie
     - theater
+    - home
   podMetricsEndpoints:
   - port: metrics
   selector:

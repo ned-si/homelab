@@ -33,6 +33,8 @@ spec:
     server: https://kubernetes.default.svc
   - namespace: books
     server: https://kubernetes.default.svc
+  - namespace: home
+    server: https://kubernetes.default.svc
   namespaceResourceWhitelist:
   - group: '*'
     kind: '*'

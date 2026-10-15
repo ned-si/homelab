@@ -1,0 +1,49 @@
+# Off-site backup of home-assistant-postgresql through the Barman Cloud
+# plugin: continuous WAL archiving plus a daily base backup, into
+# s3://ned-si-homelab-backups/cnpg/home-assistant-postgresql/, kept 30 days
+# (point-in-time recovery anywhere in that window). The restic dump in
+# backup.yaml is a second, independent copy. Restore: docs/backups.md.
+---
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: cnpg-backup
+  namespace: home
+spec:
+  retentionPolicy: "30d"
+  configuration:
+    destinationPath: s3://ned-si-homelab-backups/cnpg
+    endpointURL: https://s3.eu-central-1.amazonaws.com
+    s3Credentials:
+      accessKeyId:
+        name: cnpg-backup-s3
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: cnpg-backup-s3
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      # boto3 signs for this region; it must match the bucket.
+      - name: AWS_DEFAULT_REGION
+        value: eu-central-1
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: home-assistant-postgresql-daily
+  namespace: home
+spec:
+  # Six fields (seconds first), UTC. Base backups are staggered from 00:00,
+  # before the restic window (docs/backups.md).
+  schedule: "0 10 1 * * *"
+  immediate: true
+  backupOwnerReference: self
+  cluster:
+    name: home-assistant-postgresql
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

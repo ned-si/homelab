@@ -31,6 +31,8 @@ spec:
       namespace: syncthing
     - server: https://kubernetes.default.svc
       namespace: books
+    - server: https://kubernetes.default.svc
+      namespace: home
   # Empty means "no cluster-scoped resource of any kind", which is what makes
   # the header comment true. The namespaces these apps deploy into are
   # declared in infrastructure/namespaces/ with their Pod Security labels; an

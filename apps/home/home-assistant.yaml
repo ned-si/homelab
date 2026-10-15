@@ -1,0 +1,215 @@
+# Home Assistant: https://home.lilalala.com (docs/home-automation.md).
+#
+# Volumes:
+#   home-assistant-config (iSCSI)  /config: UI state in .storage, custom
+#                                  components, automations/scripts/scenes
+#                                  made in the UI
+#   ConfigMap home-assistant-config  configuration.yaml, copied over
+#                                  /config/configuration.yaml by the `config`
+#                                  init container on every start (config/)
+# The recorder (history) is the CNPG cluster in database.yaml.
+#
+# Pod network, no hostNetwork: devices get static IPs and are added by
+# address, so mDNS/SSDP discovery is not needed (docs/home-automation.md).
+#
+# Non-root, without the image's s6 init: `python3 -m homeassistant` as uid
+# 1000. Nothing here needs root: no USB, no Bluetooth adapter (BLE goes
+# through an ESPHome proxy), no ICMP.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: home-assistant
+  name: home-assistant
+  namespace: home
+spec:
+  replicas: 1
+  # One RWO config volume: a rolling update would hang on the attach.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: home-assistant
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: home-assistant
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # configuration.yaml comes from git and is replaced on every start;
+        # the files the UI writes are only created when missing.
+        - name: config
+          # Same image as the app: one Renovate dependency, and it has a shell.
+          # renovate: datasource=docker depName=ghcr.io/home-assistant/home-assistant
+          image: ghcr.io/home-assistant/home-assistant:2026.10.1
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-euc"]
+          args:
+            - |
+              cp /git/configuration.yaml /config/configuration.yaml
+              for f in automations.yaml scripts.yaml scenes.yaml; do
+                [ -f "/config/$f" ] || echo '[]' > "/config/$f"
+              done
+              echo "ok: configuration.yaml from git"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: git-config
+              mountPath: /git
+              readOnly: true
+      containers:
+        - name: home-assistant
+          # renovate: datasource=docker depName=ghcr.io/home-assistant/home-assistant
+          image: ghcr.io/home-assistant/home-assistant:2026.10.1
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "-m", "homeassistant", "--config", "/config"]
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            # Read by configuration.yaml (`!env_var`). CloudNativePG generates
+            # the Secret, so the password never enters git.
+            - name: HA_RECORDER_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: home-assistant-postgresql-app
+                  key: uri
+            # The root filesystem is read-only: caches go to /tmp.
+            - name: HOME
+              value: /tmp
+            - name: UV_CACHE_DIR
+              value: /tmp/uv-cache
+          ports:
+            - name: http
+              containerPort: 8123
+              protocol: TCP
+          # /manifest.json answers without a login; the PostSync smoke test
+          # checks the same path.
+          startupProbe:
+            httpGet:
+              path: /manifest.json
+              port: http
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /manifest.json
+              port: http
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /manifest.json
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: home-assistant-config
+        - name: git-config
+          configMap:
+            name: home-assistant-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 1Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: home-assistant-config
+  namespace: home
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi-retain
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: home-assistant
+  name: home-assistant
+  namespace: home
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8123
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: home-assistant
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: home-assistant
+  namespace: home
+spec:
+  # group/kind/weight and the catch-all match are the API server's defaults,
+  # spelled out so that Argo CD's diff sees no drift.
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - home.lilalala.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: home-assistant
+          port: 8123
+          weight: 1
+      # The frontend holds one long-lived WebSocket.
+      timeouts:
+        request: 0s

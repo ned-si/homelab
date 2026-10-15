@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/home
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/home and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  name: home-assistant-postgresql
+  namespace: home
+spec:
+  bootstrap:
+    initdb:
+      database: app
+      owner: app
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6
+  instances: 1
+  plugins:
+  - enabled: true
+    isWALArchiver: true
+    name: barman-cloud.cloudnative-pg.io
+    parameters:
+      barmanObjectName: cnpg-backup
+      serverName: home-assistant-postgresql
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 256Mi
+  storage:
+    size: 5Gi
+    storageClass: iscsi-retain

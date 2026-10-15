@@ -1,7 +1,7 @@
 # Scrape and alert on CNPG WAL archiving and Barman Cloud base backups.
 #
 # PodMonitor `cnpg-instances` scrapes the instance exporter (port `metrics`,
-# 9187) of every CNPG pod in the four namespaces that run production clusters.
+# 9187) of every CNPG pod in the namespaces that run production clusters.
 # A namespace list, not every namespace: scratch restore clusters must not be
 # scraped or alerted on. An explicit PodMonitor rather than the Cluster's
 # deprecated `spec.monitoring.enablePodMonitor`.
@@ -21,7 +21,7 @@ metadata:
     release: kube-prometheus-stack
 spec:
   namespaceSelector:
-    matchNames: [immich, keycloak, mealie, theater]
+    matchNames: [immich, keycloak, mealie, theater, home]
   selector:
     matchLabels:
       cnpg.io/podRole: instance
