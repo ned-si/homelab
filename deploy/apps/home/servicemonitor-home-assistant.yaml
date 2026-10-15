@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/home
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/home and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: home-assistant
+  namespace: home
+spec:
+  endpoints:
+  - authorization:
+      credentials:
+        key: token
+        name: home-assistant-prometheus
+      type: Bearer
+    interval: 60s
+    path: /api/prometheus
+    port: http
+    scrapeTimeout: 20s
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: home-assistant
