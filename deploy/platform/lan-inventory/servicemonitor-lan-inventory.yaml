@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/lan-inventory
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/lan-inventory and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: lan-inventory
+    release: kube-prometheus-stack
+  name: lan-inventory
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 60s
+    path: /metrics
+    port: metrics
+    scrapeTimeout: 10s
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lan-inventory

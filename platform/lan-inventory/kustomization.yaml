@@ -1,0 +1,17 @@
+# lan-inventory: every device on the LAN, from an ARP scan every 5 minutes
+# (docs/observability.md). The "new device" alert is in
+# platform/kube-prometheus-stack/routes/lan-alerts.yaml.
+#
+# The script is a ConfigMap with a content hash in its name, so a change to
+# inventory.py rolls the pod. Tests: tests/test_lan_inventory.py.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+
+resources:
+  - deployment.yaml
+
+configMapGenerator:
+  - name: lan-inventory
+    files:
+      - inventory.py

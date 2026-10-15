@@ -128,6 +128,31 @@ misconfigurations:
     expired_at: 2027-03-01
 
   # =========================================================================
+  # BY DESIGN -- the LAN inventory's ARP scan
+  # =========================================================================
+  # lan-inventory sends ARP requests from the node's interface through an
+  # AF_PACKET socket: ARP does not leave a pod network namespace, and a raw
+  # socket needs CAP_NET_RAW. Every other capability is dropped, the root
+  # filesystem is read-only, no service account token is mounted, and the
+  # namespace is the one node-exporter already makes privileged.
+  - id: AVD-KSV-0009
+    paths:
+      - "platform/lan-inventory/deployment.yaml"
+      - "deploy/platform/lan-inventory/deployment-lan-inventory.yaml"
+    statement: >-
+      hostNetwork is the control the scan needs: ARP requests must go out on
+      the node's LAN interface, which a pod network namespace does not reach.
+    expired_at: 2027-04-01
+  - id: AVD-KSV-0119
+    paths:
+      - "platform/lan-inventory/deployment.yaml"
+      - "deploy/platform/lan-inventory/deployment-lan-inventory.yaml"
+    statement: >-
+      NET_RAW is the only added capability, required to open the AF_PACKET
+      socket that sends and receives ARP frames; all others are dropped.
+    expired_at: 2027-04-01
+
+  # =========================================================================
   # DEFERRED -- the fix would break the thing
   # =========================================================================
   # pods/exec on a NAMESPACED Role, not a ClusterRole. This is how the drill

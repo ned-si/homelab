@@ -1,12 +1,16 @@
 # LAN devices, from the ICMP probes (job `blackbox-lan`,
-# platform/blackbox-exporter/probes/lan.yaml).
+# platform/blackbox-exporter/probes/lan.yaml) and the ARP inventory
+# (platform/lan-inventory).
 #
 #   LANDeviceUnreachable   the router or the BMC does not answer a ping for 10m   warning
+#   LANNewDeviceSeen       a MAC not seen in the last 30 days answers ARP          warning
+#   LANInventoryFailing    no completed ARP scan for 30m                          warning
+#   LANInventoryAbsent     no lan_inventory_devices series for 30m                warning
 #
 # Nodes and the NAS are left to HomelabNodeNotReady and HomelabNASUnreachable
 # (outage-alerts.yaml), which page for them already.
 #
-# Tests: tests/prometheus/lan_test.yaml.
+# Tests: tests/prometheus/lan_test.yaml, tests/prometheus/lan_inventory_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -31,3 +35,56 @@ spec:
               no internet and this may only arrive once it is back. For the
               BMC, check whether its DHCP lease moved (`turingpi.local` from
               the Mac) and update platform/blackbox-exporter/probes/lan.yaml.
+
+    # Device inventory from lan-inventory (platform/lan-inventory). Every
+    # 5 minutes: the 30-day lookback is the expensive part.
+    - name: homelab.lan.inventory.recording
+      interval: 5m
+      rules:
+        - record: lan:device_present:max_by_mac
+          expr: max by (mac) (lan_device_present)
+
+    - name: homelab.lan.inventory
+      interval: 5m
+      rules:
+        - alert: LANNewDeviceSeen
+          # A MAC that answers now and did not answer in the 30 days before
+          # the last hour. Quiet for the first day of data, so the first
+          # scans do not report every device. Resolves after an hour.
+          expr: |
+            max by (mac, ip, random_mac) (lan_device_present)
+            unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
+            and on () (count(lan_inventory_devices offset 1d) > 0)
+          labels:
+            severity: warning
+          annotations:
+            summary: "New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}"
+            description: >-
+              {{ $labels.mac }} answered ARP at {{ $labels.ip }} and was not
+              seen in the last 30 days (random_mac={{ $labels.random_mac }}:
+              true is usually a phone or laptop with a private address). If it
+              is not yours, find it in the router's DHCP list and block it.
+
+        - alert: LANInventoryFailing
+          expr: |
+            lan_inventory_scan_success == 0
+            or time() - lan_inventory_scan_timestamp_seconds > 1800
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "lan-inventory has not completed an ARP scan for 30 minutes"
+            description: >-
+              LANNewDeviceSeen is inert while this fires. Read
+              `kubectl -n monitoring logs deploy/lan-inventory`.
+
+        - alert: LANInventoryAbsent
+          expr: absent(lan_inventory_devices)
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "lan-inventory is not being scraped"
+            description: >-
+              LANNewDeviceSeen is inert while this fires. Check the
+              lan-inventory Application and its ServiceMonitor.

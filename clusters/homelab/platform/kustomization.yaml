@@ -10,6 +10,7 @@ resources:
   - kube-prometheus-stack.yaml
   - blackbox-exporter.yaml
   - truenas-exporter.yaml
+  - lan-inventory.yaml
   - keycloak.yaml
   - agent-access.yaml
   - tuppr.yaml

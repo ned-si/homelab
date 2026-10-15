@@ -31,3 +31,44 @@ spec:
       for: 10m
       labels:
         severity: warning
+  - interval: 5m
+    name: homelab.lan.inventory.recording
+    rules:
+    - expr: max by (mac) (lan_device_present)
+      record: lan:device_present:max_by_mac
+  - interval: 5m
+    name: homelab.lan.inventory
+    rules:
+    - alert: LANNewDeviceSeen
+      annotations:
+        description: '{{ $labels.mac }} answered ARP at {{ $labels.ip }} and was not
+          seen in the last 30 days (random_mac={{ $labels.random_mac }}: true is usually
+          a phone or laptop with a private address). If it is not yours, find it in
+          the router''s DHCP list and block it.'
+        summary: 'New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}'
+      expr: |
+        max by (mac, ip, random_mac) (lan_device_present)
+        unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
+        and on () (count(lan_inventory_devices offset 1d) > 0)
+      labels:
+        severity: warning
+    - alert: LANInventoryFailing
+      annotations:
+        description: LANNewDeviceSeen is inert while this fires. Read `kubectl -n
+          monitoring logs deploy/lan-inventory`.
+        summary: lan-inventory has not completed an ARP scan for 30 minutes
+      expr: |
+        lan_inventory_scan_success == 0
+        or time() - lan_inventory_scan_timestamp_seconds > 1800
+      for: 30m
+      labels:
+        severity: warning
+    - alert: LANInventoryAbsent
+      annotations:
+        description: LANNewDeviceSeen is inert while this fires. Check the lan-inventory
+          Application and its ServiceMonitor.
+        summary: lan-inventory is not being scraped
+      expr: absent(lan_inventory_devices)
+      for: 30m
+      labels:
+        severity: warning
