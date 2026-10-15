@@ -12,6 +12,6 @@
     {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "seafile", "pod": "seafile-0"},
     {"alertname": "NASExporterFailing", "severity": "warning"}
   ],
-  "notifications": ["ntfy HomelabNASUnreachable"],
+  "notifications": ["ntfy HomelabNASUnreachable", "ntfy-guard HomelabNASUnreachable"],
   "uninhibited": ["HomelabNASUnreachable", "HomelabNASUnreachable"]
 }

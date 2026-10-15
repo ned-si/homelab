@@ -11,7 +11,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
 | Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); SLO burn rates, infrastructure criticals, backup failures and critical security alerts go to the hosted ntfy.sh topic ([Notifications](#notifications), policy in [sre.md](sre.md#paging)); everything else goes to `null` and is visible in Grafana only |
 | Custom alert rules | `backup-verify` (group `backup.verify`, the restore tests, in `platform/backup-verify/alerts.yaml`; [backups.md](backups.md#verification)); `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)); `vuln-enrich` ([Vulnerability priority](#vulnerability-priority)); `talos-drift` in `system-upgrade` ([Talos drift check](talos.md#drift-check)) |
-| Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
+| Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `ntfy-guard-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `ntfy-guard-url` the same plus `-guard`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents with flow, drop, TCP, ICMP and HTTP metrics, scraped with the Cilium agent, operator and Envoy metrics ([networking.md](networking.md#metrics)); relay and UI not enabled |
 | truenas-exporter | Application `truenas-exporter` in `democratic-csi` ([NAS metrics](#nas-metrics)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`); a ping to the router, the NAS, the four nodes and the BMC (job `blackbox-lan`, label `device`; module `icmp` through the unprivileged-ICMP sysctl `net.ipv4.ping_group_range`, no NET_RAW). `LANDeviceUnreachable` (warning) fires when the router or the BMC does not answer for 10m (PrometheusRule `homelab-lan`) |
@@ -193,6 +193,10 @@ POST to the hosted ntfy.sh topic in Secret `monitoring/alertmanager-notify` key 
 topic name is the only credential: anyone who knows it can read and post, so
 it is long, random and only in SOPS. Hosted ntfy.sh, not a self-hosted ntfy,
 so a notification can still leave when the cluster or the NAS is in trouble.
+Nothing goes to this topic from 23:00 to 08:00 Europe/Zurich
+([quiet hours](sre.md#quiet-hours)). Key `ntfy-guard-url` (the same topic
+plus `-guard`) gets `HomelabNodeNotReady` and `HomelabNASUnreachable` at any
+hour, for the auto-rollback outage guard; do not subscribe to it.
 
 ntfy formats the message itself: the receiver sends `X-Template: yes` and Go
 templates in `X-Title`, `X-Message` and `X-Priority`

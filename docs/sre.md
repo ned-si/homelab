@@ -128,6 +128,25 @@ Not notified, by design: pod, workload and Argo CD alerts
 capacity and certificate warnings, LAN and exporter alerts. A cause that
 matters to users shows up as an SLO burn.
 
+### Quiet hours
+
+From 23:00 to 08:00 Europe/Zurich, every day, Alertmanager sends nothing to
+ntfy (time interval `quiet-hours`, `mute_time_intervals` on every ntfy
+route). Nothing is dropped: a group still firing at 08:00 notifies at its
+next flush, within 5 minutes, once per group. A group that fired and
+resolved overnight sends nothing; it stays in Alertmanager and Grafana.
+
+What quiet hours do not cover:
+
+- healthchecks.io posts to ntfy directly when the heartbeat stops, so a dead
+  cluster or a dead house internet still notifies at night.
+- The GitHub Actions failure posts (`dast`, `renovate-render`) go to ntfy
+  directly at priority low, which makes no sound.
+- `HomelabNodeNotReady` and `HomelabNASUnreachable` also go, unmuted, to a
+  second topic (`ntfy-guard-url`, the topic plus `-guard`) that nobody
+  subscribes to. The auto-rollback outage guard reads it, so it keeps
+  holding reverts back during a night-time outage.
+
 Inhibition hides the causes behind the alert that notified:
 
 | While this fires | These are inhibited |
@@ -142,7 +161,9 @@ The routes, inhibit rules and timings are in
 `platform/kube-prometheus-stack/values.yaml`. CI replays the Keycloak outage
 of 2026-10-15 (nine alerts), a node down and the NAS unreachable against a
 real Alertmanager and requires one notification each
-(`scripts/ci/alertmanager-test.sh`, scenarios in `tests/alertmanager/`).
+(`scripts/ci/alertmanager-test.sh`, scenarios in `tests/alertmanager/`). It
+also checks that every ntfy route mutes `quiet-hours`, and that a node down
+during quiet hours notifies once after they end.
 Adding an alert to the table above is a change to this page and to
 `tests/alertmanager/routes.txt` in the same pull request.
 

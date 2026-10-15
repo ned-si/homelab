@@ -167,11 +167,20 @@ grafana:
 #   security critical -> ntfy: any critical rule labelled `category: security`.
 #   anything else     -> "null".
 #
+# Quiet hours: every route to ntfy has mute_time_intervals [quiet-hours],
+# 23:00-08:00 Europe/Zurich (the location follows DST). A muted flush sends
+# nothing and records nothing, so a group still firing at 08:00 notifies at
+# its next group_interval flush (within 5 minutes), once per group, after
+# inhibition. Groups that fired and resolved overnight send nothing. The
+# heartbeat and ntfy-guard routes are never muted. A child route does not inherit
+# mute_time_intervals, so each one lists it.
+#
 # The ntfy pushes go to the hosted ntfy.sh topic in key `ntfy-url`. Hosted,
 # so they do not depend on this cluster or the house's network being up.
-# HomelabNodeNotReady and HomelabNASUnreachable must keep reaching ntfy with
-# their name in the title: the auto-rollback outage guard reads them there
-# (scripts/ci/auto-rollback-guard.sh).
+# HomelabNodeNotReady and HomelabNASUnreachable also go, unmuted and with
+# the same title, to the guard topic in key `ntfy-guard-url` (the ntfy topic
+# plus `-guard`, which nobody subscribes to): the auto-rollback outage guard
+# reads them there at any hour (scripts/ci/auto-rollback-guard.sh).
 #
 # Inhibition removes the cause alerts of an incident that already notifies,
 # so they show as suppressed in Alertmanager:
@@ -223,28 +232,41 @@ alertmanager:
           group_wait: 0s
           group_interval: 1m
           repeat_interval: 5m
+        # The outage guard's copy, never muted; `continue` so the ntfy route
+        # below still pages.
+        - receiver: ntfy-guard
+          matchers:
+            - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable"
+          group_by: [alertname]
+          repeat_interval: 4h
+          continue: true
         - receiver: ntfy
           matchers:
             - alertname =~ "SLOErrorBudgetBurnFast|SLOErrorBudgetBurnSlow"
           group_by: [alertname, namespace, app]
+          mute_time_intervals: [quiet-hours]
           routes:
             - matchers:
                 - severity = "critical"
               repeat_interval: 4h
+              mute_time_intervals: [quiet-hours]
             - matchers:
                 - severity = "warning"
               group_wait: 5m
               repeat_interval: 24h
+              mute_time_intervals: [quiet-hours]
         - receiver: ntfy
           matchers:
             - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable|etcdInsufficientMembers|etcdNoLeader|NASPoolUnhealthy"
           group_by: [alertname]
           repeat_interval: 4h
+          mute_time_intervals: [quiet-hours]
         - receiver: ntfy
           matchers:
             - alertname =~ "BackupVerifyFailed|CNPGBackupFailed|CNPGWALArchivingFailing"
           group_by: [alertname]
           group_wait: 5m
+          mute_time_intervals: [quiet-hours]
         # A failed backup or dump Job (the restic CronJobs are *-backup*).
         # The restore tests report through BackupVerifyFailed instead.
         - receiver: ntfy
@@ -254,12 +276,24 @@ alertmanager:
             - namespace != "backup-verify"
           group_by: [alertname]
           group_wait: 5m
+          mute_time_intervals: [quiet-hours]
         - receiver: ntfy
           matchers:
             - category = "security"
             - severity = "critical"
           group_by: [alertname]
           repeat_interval: 4h
+          mute_time_intervals: [quiet-hours]
+    # 23:00-08:00 local time; a range cannot cross midnight, so two ranges.
+    time_intervals:
+      - name: quiet-hours
+        time_intervals:
+          - times:
+              - start_time: "23:00"
+                end_time: "24:00"
+              - start_time: "00:00"
+                end_time: "08:00"
+            location: Europe/Zurich
     inhibit_rules:
       - source_matchers:
           - severity = "critical"
@@ -310,7 +344,7 @@ alertmanager:
             # ntfy caps a message at 4 KiB; a batch beyond 5 alerts is cut.
             max_alerts: 5
             timeout: 10s
-            http_config:
+            http_config: &ntfy-http
               http_headers:
                 X-Template:
                   values: ["yes"]
@@ -332,3 +366,10 @@ alertmanager:
                 X-Priority:
                   values:
                     - '{{if eq .status "resolved"}}2{{else if eq .commonLabels.severity "critical"}}5{{else}}4{{end}}'
+      - name: ntfy-guard
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-guard-url
+            send_resolved: true
+            max_alerts: 5
+            timeout: 10s
+            http_config: *ntfy-http

@@ -11,8 +11,9 @@
 #      `auto-rollback <app>` (`run-name`), so the run list is the history.
 #   2. A node is NotReady, or 3. the NAS is unreachable: an alert in
 #      OUTAGE_ALERTS (PrometheusRule homelab-outage) is firing. The runner
-#      cannot reach the cluster, so it reads the ntfy.sh topic Alertmanager
-#      posts to (NTFY_TOPIC): the newest message about an alert is titled
+#      cannot reach the cluster, so it reads the guard topic Alertmanager
+#      posts these alerts to at any hour, quiet hours included
+#      (`<NTFY_TOPIC>-guard`): the newest message about an alert is titled
 #      `CRITICAL: <alert>` while it fires and `Resolved: <alert>` after.
 #
 # Prints one line, the reason, when there is an outage; nothing otherwise.
@@ -57,7 +58,7 @@ if [ -z "$NTFY_TOPIC" ]; then
   warn "NTFY_TOPIC is not set; the node and NAS checks are skipped"
   exit 0
 fi
-if ! msgs=$(curl -fsS -m 15 "$NTFY_URL/$NTFY_TOPIC/json?poll=1&since=$NTFY_SINCE" 2>/dev/null); then
+if ! msgs=$(curl -fsS -m 15 "$NTFY_URL/$NTFY_TOPIC-guard/json?poll=1&since=$NTFY_SINCE" 2>/dev/null); then
   warn "cannot read the ntfy topic; the node and NAS checks are skipped"
   exit 0
 fi
