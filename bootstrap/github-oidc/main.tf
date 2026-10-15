@@ -117,11 +117,13 @@ data "aws_iam_policy_document" "plan" {
     resources = [local.backup_bucket_arn, local.state_bucket_arn]
   }
 
+  # The provider refreshes a bucket with HeadBucket, which IAM authorises as
+  # ListBucket; without it the backup bucket reads as deleted. Key names only.
   statement {
-    sid       = "StateList"
+    sid       = "BucketList"
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
-    resources = [local.state_bucket_arn]
+    resources = [local.backup_bucket_arn, local.state_bucket_arn]
   }
 
   statement {
@@ -208,11 +210,12 @@ data "aws_iam_policy_document" "apply" {
     resources = local.backup_user_arns
   }
 
+  # HeadBucket on the backup bucket, see the plan role.
   statement {
-    sid       = "StateList"
+    sid       = "BucketList"
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
-    resources = [local.state_bucket_arn]
+    resources = [local.backup_bucket_arn, local.state_bucket_arn]
   }
 
   statement {
