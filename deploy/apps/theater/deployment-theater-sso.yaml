@@ -1,0 +1,103 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: theater-sso
+  name: theater-sso
+  namespace: theater
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: theater-sso
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sso-proxy
+        app.kubernetes.io/name: theater-sso
+    spec:
+      containers:
+      - args:
+        - --alpha-config=/config/alpha-config.yaml
+        - --email-domain=*
+        - --reverse-proxy=true
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-expire=8760h
+        - --cookie-refresh=1h
+        - --whitelist-domain=theater.lilalala.com
+        - --skip-provider-button=true
+        env:
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: cookie-secret
+              name: theater-sso
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: oauth2-proxy
+        ports:
+        - containerPort: 4180
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /config
+          name: config
+          readOnly: true
+        - mountPath: /secrets
+          name: secrets
+          readOnly: true
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - configMap:
+          name: theater-sso
+        name: config
+      - name: secrets
+        secret:
+          items:
+          - key: client-secret
+            path: client-secret
+          secretName: theater-sso

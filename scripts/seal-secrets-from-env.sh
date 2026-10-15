@@ -124,6 +124,7 @@ platform/secrets/argocd-notifications|PUT_THE_AUTO_ROLLBACK_GITHUB_TOKEN_HERE=AU
 platform/secrets/cnpg-backup-s3|PUT_THE_CNPG_S3_ACCESS_KEY_HERE=CNPG_S3_ACCESS_KEY_ID,PUT_THE_CNPG_S3_SECRET_KEY_HERE=CNPG_S3_SECRET_ACCESS_KEY
 platform/secrets/usage-exporter|PUT_THE_IMMICH_API_KEY_HERE=USAGE_IMMICH_API_KEY,PUT_THE_JELLYFIN_API_KEY_HERE=USAGE_JELLYFIN_API_KEY
 platform/secrets/aws-exporter|PUT_THE_METRICS_ACCESS_KEY_HERE=AWS_METRICS_ACCESS_KEY_ID,PUT_THE_METRICS_SECRET_KEY_HERE=AWS_METRICS_SECRET_ACCESS_KEY
+platform/secrets/keycloak-proxy-clients|PUT_A_GENERATED_SECRET_HERE=THEATER_SSO_CLIENT_SECRET
 "
 
 # Files allowed to seal with `__PENDING__` values. See the block at the top.
@@ -135,6 +136,7 @@ platform/secrets/argocd-notifications
 apps/secrets/recyclarr-api-keys
 apps/secrets/theater-sso
 platform/secrets/usage-exporter
+platform/secrets/keycloak-proxy-clients
 "
 
 # Substitute one placeholder in a file, handling multi-line values.

@@ -65,8 +65,12 @@ spec:
       - port: "6767"
         protocol: TCP
   - fromEndpoints:
-    - matchLabels:
-        app.kubernetes.io/name: bazarr-settings
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - bazarr-settings
+        - theater-sso
     toPorts:
     - ports:
       - port: "6767"

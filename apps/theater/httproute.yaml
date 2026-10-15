@@ -1,11 +1,14 @@
-# Theater on the shared Gateway, mirroring the two live Ingresses
-# (theater/theater and theater/jellyfin) path for path. No rewrite: the *arr
-# apps run with URL base /arr/<name>, so the prefix is passed through as-is.
+# Theater on the shared Gateway. Every /arr/<app> path and the /oauth2 login
+# callback go to the SSO proxy `theater-sso` (./sso.yaml), which routes on to
+# the app; the *arr apps run with URL base /arr/<name>, so the prefix is
+# passed through as-is. Break-glass without Keycloak: a port-forward to the
+# app's Service and its local login (docs/theater.md, "Login").
 #
 # `timeouts.request: 0s` disables Envoy's default 15 s route timeout, which
 # would cut streams and long API calls.
 #
-# Plex and Jellyfin stay off SSO: their TV apps cannot complete an OIDC login.
+# Plex (the `/` catch-all) and Jellyfin stay off SSO: their TV apps cannot
+# complete an OIDC login.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -31,8 +34,8 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: radarr
-          port: 7878
+          name: theater-sso
+          port: 4180
           weight: 1
       timeouts:
         request: 0s
@@ -43,8 +46,8 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: sonarr
-          port: 8989
+          name: theater-sso
+          port: 4180
           weight: 1
       timeouts:
         request: 0s
@@ -55,8 +58,8 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: prowlarr
-          port: 9696
+          name: theater-sso
+          port: 4180
           weight: 1
       timeouts:
         request: 0s
@@ -67,8 +70,8 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: lidarr
-          port: 8686
+          name: theater-sso
+          port: 4180
           weight: 1
       timeouts:
         request: 0s
@@ -79,8 +82,44 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: lazylibrarian
-          port: 5299
+          name: theater-sso
+          port: 4180
+          weight: 1
+      timeouts:
+        request: 0s
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /arr/bazarr
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: theater-sso
+          port: 4180
+          weight: 1
+      timeouts:
+        request: 0s
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /arr/qbittorrent
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: theater-sso
+          port: 4180
+          weight: 1
+      timeouts:
+        request: 0s
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /oauth2
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: theater-sso
+          port: 4180
           weight: 1
       timeouts:
         request: 0s

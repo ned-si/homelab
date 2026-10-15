@@ -1,0 +1,75 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  alpha-config.yaml: |
+    upstreamConfig:
+      upstreams:
+        - id: sonarr
+          path: ^/arr/sonarr(/.*)?$
+          rewriteTarget: /arr/sonarr$1
+          uri: http://sonarr.theater.svc.cluster.local:8989
+          timeout: 300s
+        - id: radarr
+          path: ^/arr/radarr(/.*)?$
+          rewriteTarget: /arr/radarr$1
+          uri: http://radarr.theater.svc.cluster.local:7878
+          timeout: 300s
+        - id: lidarr
+          path: ^/arr/lidarr(/.*)?$
+          rewriteTarget: /arr/lidarr$1
+          uri: http://lidarr.theater.svc.cluster.local:8686
+          timeout: 300s
+        - id: prowlarr
+          path: ^/arr/prowlarr(/.*)?$
+          rewriteTarget: /arr/prowlarr$1
+          uri: http://prowlarr.theater.svc.cluster.local:9696
+          timeout: 300s
+        - id: bazarr
+          path: ^/arr/bazarr(/.*)?$
+          rewriteTarget: /arr/bazarr$1
+          uri: http://bazarr.theater.svc.cluster.local:6767
+          timeout: 300s
+        - id: lazylibrarian
+          path: ^/arr/lazylibrarian(/.*)?$
+          rewriteTarget: /arr/lazylibrarian$1
+          uri: http://lazylibrarian.theater.svc.cluster.local:5299
+          timeout: 300s
+        # No URL base in qBittorrent: strip the prefix. Its WebUI uses
+        # relative links, so it works under the prefix.
+        - id: qbittorrent
+          path: ^/arr/qbittorrent/(.*)$
+          rewriteTarget: /$1
+          uri: http://qbittorrent.theater.svc.cluster.local:8080
+          timeout: 300s
+    server:
+      bindAddress: 0.0.0.0:4180
+    providers:
+      - id: keycloak
+        provider: keycloak-oidc
+        clientID: theater-sso
+        clientSecretFile: /secrets/client-secret
+        scope: openid email profile groups
+        allowedGroups:
+          - TheaterAdmins
+        code_challenge_method: S256
+        oidcConfig:
+          issuerURL: https://auth.lilalala.com/realms/homelab
+          emailClaim: email
+          groupsClaim: groups
+          userIDClaim: email
+          audienceClaims:
+            - aud
+          insecureSkipNonce: false
+kind: ConfigMap
+metadata:
+  name: theater-sso
+  namespace: theater

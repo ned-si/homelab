@@ -5,6 +5,39 @@ Radarr (movies) and Lidarr (music) pick releases; Prowlarr manages indexers;
 qBittorrent downloads; Bazarr fetches subtitles. Manifests are in
 `apps/theater/`.
 
+## Login
+
+The admin UIs are on https://theater.lilalala.com behind a Keycloak login:
+
+| Path | App |
+|---|---|
+| `/arr/sonarr`, `/arr/radarr`, `/arr/lidarr`, `/arr/prowlarr` | the *arr apps |
+| `/arr/bazarr` | Bazarr |
+| `/arr/lazylibrarian` | LazyLibrarian |
+| `/arr/qbittorrent/` | qBittorrent WebUI (trailing slash required) |
+
+One oauth2-proxy, `theater-sso` (`apps/theater/sso.yaml`), takes every
+`/arr/*` path and `/oauth2` from the HTTPRoute `theater` and routes on by
+path. Access needs membership of the Keycloak group `TheaterAdmins`; add
+users to it in the Keycloak admin console (Groups). The client `theater-sso`
+and the group are realm code (`platform/keycloak/realm/platform.conf`,
+`proxy_clients`, and `clients.conf`); the PostSync Job
+`keycloak-realm-settings` creates them and sets the client secret. The
+session lasts a year, refreshed from the Keycloak session
+([architecture.md](architecture.md#sessions)).
+
+Each app keeps its own form login behind the proxy, so a login asks twice.
+That local admin is the break-glass account when Keycloak is down: forward
+the app's port and log in locally, for example
+
+```sh
+kubectl -n theater port-forward svc/sonarr 8989:8989
+```
+
+then open http://localhost:8989/arr/sonarr. Plex (`/`) and Jellyfin
+(cinema.lilalala.com) are not behind the proxy: their TV apps cannot complete
+an OIDC login. API calls between the apps go pod to pod and never pass it.
+
 ## Quality profiles
 
 Recyclarr (`apps/theater/recyclarr.yaml`, CronJob `recyclarr-sync`, daily 06:00)
@@ -184,6 +217,11 @@ Expected: `category private ok; <n> private torrent(s), <m> newly force-started`
 
 ## Why it is like this
 
+- One oauth2-proxy routing by path, not one per app or Gateway external
+  auth: the apps share one host and URL bases, the Gateway API version here
+  has no external-auth filter, and an Envoy filter injected into Cilium's
+  Gateway would break on Cilium upgrades. The apps keep Forms login rather
+  than `External` auth so their local admin stays usable as break-glass.
 - Private torrents are force-started by a CronJob because qBittorrent has no
   per-category queue limit. The alternative, raising or removing the global
   queue, would also keep every public seed active.

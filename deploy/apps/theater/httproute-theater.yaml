@@ -26,8 +26,8 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
-      name: radarr
-      port: 7878
+      name: theater-sso
+      port: 4180
       weight: 1
     matches:
     - path:
@@ -38,8 +38,8 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
-      name: sonarr
-      port: 8989
+      name: theater-sso
+      port: 4180
       weight: 1
     matches:
     - path:
@@ -50,8 +50,8 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
-      name: prowlarr
-      port: 9696
+      name: theater-sso
+      port: 4180
       weight: 1
     matches:
     - path:
@@ -62,8 +62,8 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
-      name: lidarr
-      port: 8686
+      name: theater-sso
+      port: 4180
       weight: 1
     matches:
     - path:
@@ -74,13 +74,49 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
-      name: lazylibrarian
-      port: 5299
+      name: theater-sso
+      port: 4180
       weight: 1
     matches:
     - path:
         type: PathPrefix
         value: /arr/lazylibrarian
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: theater-sso
+      port: 4180
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/bazarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: theater-sso
+      port: 4180
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/qbittorrent
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: theater-sso
+      port: 4180
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /oauth2
     timeouts:
       request: 0s
   - backendRefs:

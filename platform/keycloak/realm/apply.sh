@@ -64,9 +64,15 @@ while IFS= read -r line; do
     fi
   done
 done < <(client_lines)
+for pc in $(conf proxy_clients); do
+  if ! [[ "$pc" =~ ^[A-Za-z0-9_-]+:[A-Za-z0-9_-]+$ ]]; then
+    echo "FAIL platform.conf: proxy_clients entry is not <clientId>:<group>: $pc" >&2
+    bad=1
+  fi
+done
 # A client that must not exist cannot also be configured.
 for c in $(conf removed_clients); do
-  for m in $(conf platform_clients) $managed_clients; do
+  for m in $(conf platform_clients) $managed_clients $(conf proxy_clients | tr ' ' '\n' | sed 's/:.*//'); do
     if [ "$c" = "$m" ]; then
       echo "FAIL client $c is in removed_clients and configured elsewhere" >&2
       bad=1
@@ -223,6 +229,72 @@ for c in $(conf removed_clients); do
   fi
   if [ -z "$(client_id "$c")" ]; then got=absent; else got=present; fi
   check "client $c" absent "$got"
+done
+
+# --- platform.conf: confidential clients for oauth2-proxy ----------------------
+name_id() { # resource name -> id of the entry with that name
+  kc get "$1" -r "$REALM" --format csv --noquotes --fields id,name | grep -E ",$2\$" | cut -d, -f1 || true
+}
+for pc in $(conf proxy_clients); do
+  c=${pc%%:*}
+  g=${pc#*:}
+  if [ -z "$(name_id groups "$g")" ]; then
+    echo "creating group $g"
+    kc create groups -r "$REALM" -s name="$g" >/dev/null
+  fi
+  if [ -n "$(name_id groups "$g")" ]; then got=present; else got=absent; fi
+  check "group $g" present "$got"
+
+  if [ -z "$(client_id "$c")" ]; then
+    echo "creating client $c"
+    kc create clients -r "$REALM" -s clientId="$c" -s protocol=openid-connect \
+      -s publicClient=false -s standardFlowEnabled=true -s directAccessGrantsEnabled=false \
+      -s implicitFlowEnabled=false -s serviceAccountsEnabled=false \
+      -s 'attributes."pkce.code.challenge.method"=S256' >/dev/null
+  fi
+  id=$(client_id "$c")
+  if [ -z "$id" ]; then
+    check "client $c" present ""
+    continue
+  fi
+
+  # The secret is never printed: only whether the live one matches.
+  var="$(printf '%s' "$c" | tr 'a-z-' 'A-Z_')_CLIENT_SECRET"
+  want=${!var:-}
+  field=secret
+  if [ -z "$want" ] || [ "${want#PENDING}" != "$want" ]; then
+    echo "WARN client $c: $var is unset or PENDING; client $field left as is" >&2
+  else
+    kc update "clients/$id" -r "$REALM" -s "$field=$want"
+    live=$(kc get "clients/$id/client-$field" -r "$REALM" | sed -n 's/^ *"value" : "\(.*\)",\{0,1\}$/\1/p')
+    if [ "$live" = "$want" ]; then got=matches; else got=differs; fi
+    check "client $c $field ($var)" matches "$got"
+  fi
+  unset want live
+
+  sid=$(name_id client-scopes groups)
+  if ! kc get "clients/$id/default-client-scopes" -r "$REALM" --format csv --noquotes --fields name | grep -qx groups; then
+    kc update "clients/$id/default-client-scopes/$sid" -r "$REALM"
+  fi
+  if kc get "clients/$id/default-client-scopes" -r "$REALM" --format csv --noquotes --fields name | grep -qx groups; then
+    got=present
+  else
+    got=absent
+  fi
+  check "client $c default scope groups" present "$got"
+
+  if ! kc get "clients/$id/protocol-mappers/models" -r "$REALM" --format csv --noquotes --fields name | grep -qx audience; then
+    kc create "clients/$id/protocol-mappers/models" -r "$REALM" -s name=audience \
+      -s protocol=openid-connect -s protocolMapper=oidc-audience-mapper \
+      -s "config.\"included.client.audience\"=$c" -s 'config."access.token.claim"=true' \
+      -s 'config."id.token.claim"=false' >/dev/null
+  fi
+  if kc get "clients/$id/protocol-mappers/models" -r "$REALM" --format csv --noquotes --fields name | grep -qx audience; then
+    got=present
+  else
+    got=absent
+  fi
+  check "client $c audience mapper" present "$got"
 done
 
 # --- clients.conf: redirect URIs and web origins -------------------------------

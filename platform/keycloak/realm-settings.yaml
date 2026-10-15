@@ -6,8 +6,9 @@
 #
 # Scope is deliberately those three files: realm session fields, the
 # `browser-loa` flow, the default ACR of the platform clients, the clients
-# that must not exist (`removed_clients`), and the redirect URIs and web
-# origins of the app clients. Users, credentials, other client settings and
+# that must not exist (`removed_clients`), the oauth2-proxy clients and their
+# groups (`proxy_clients`), and the redirect URIs and web origins of the app
+# clients. Users, group members, credentials, other client settings and other
 # groups stay managed in the Keycloak admin console.
 #
 # The image is the server's image (deployment.yaml); keep the two equal.
@@ -54,6 +55,15 @@ spec:
                 secretKeyRef:
                   name: keycloak-admin
                   key: password
+            # Secrets of the platform.conf `proxy_clients`
+            # (platform/secrets/keycloak-proxy-clients.sops.yaml). Optional:
+            # apply.sh warns and leaves the secret alone when it is missing.
+            - name: THEATER_SSO_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-proxy-clients
+                  key: THEATER_SSO_CLIENT_SECRET
+                  optional: true
           resources:
             requests:
               cpu: 50m
