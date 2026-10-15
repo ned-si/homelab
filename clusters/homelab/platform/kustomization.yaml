@@ -12,3 +12,4 @@ resources:
   - keycloak.yaml
   - agent-access.yaml
   - tuppr.yaml
+  - trivy-operator.yaml

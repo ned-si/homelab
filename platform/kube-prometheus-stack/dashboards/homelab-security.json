@@ -1,7 +1,7 @@
 {
   "uid": "homelab-security",
   "title": "Homelab / Security",
-  "description": "TLS as served, authentication errors at the API server and the public endpoints, Secret age and image hygiene.",
+  "description": "TLS as served, authentication errors at the API server and the public endpoints, Secret age, image hygiene and CVEs in running images.",
   "tags": [
     "homelab",
     "security"
@@ -515,9 +515,9 @@
       }
     },
     {
-      "id": 11,
+      "id": 13,
       "type": "row",
-      "title": "Not available yet",
+      "title": "Vulnerabilities (trivy-operator)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -528,18 +528,324 @@
       "panels": []
     },
     {
+      "type": "stat",
+      "title": "CVEs in running images",
+      "description": "trivy_image_vulnerabilities from the VulnerabilityReports, one count per distinct image (an image shared by several workloads counts once). Fixable CVEs only, MEDIUM and above.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (severity) (max by (image_registry, image_repository, image_tag, severity) (trivy_image_vulnerabilities))",
+          "refId": "A",
+          "legendFormat": "{{severity}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Critical"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "red",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Medium"
+            },
+            "properties": [
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "id": 14,
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 30
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Images scanned",
+      "description": "Distinct images with a VulnerabilityReport, against the distinct images running (Secrets and images row). Reports expire after 24 h and the image is scanned again, one scan Job at a time.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(count by (image_registry, image_repository, image_tag) (trivy_image_vulnerabilities))",
+          "refId": "A",
+          "legendFormat": "scanned",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "id": 15,
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 8,
+        "y": 30
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Critical and High CVEs by namespace",
+      "description": "Sum over the workloads of each namespace (an image used twice counts twice).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(sum by (namespace) (trivy_image_vulnerabilities{severity=~\"Critical|High\"}))",
+          "refId": "A",
+          "legendFormat": "{{namespace}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 20
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "id": 16,
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      }
+    },
+    {
+      "type": "table",
+      "title": "Images with Critical or High CVEs",
+      "description": "One row per image and severity. The CVE ids are in the VulnerabilityReport: kubectl get vulnerabilityreports -A -o wide.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(max by (image_registry, image_repository, image_tag, severity) (trivy_image_vulnerabilities{severity=~\"Critical|High\"}) > 0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "renameByName": {
+              "Value": "CVEs",
+              "image_registry": "registry",
+              "image_repository": "image",
+              "image_tag": "tag"
+            }
+          }
+        }
+      ],
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Not available yet",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 44
+      },
+      "panels": []
+    },
+    {
       "type": "text",
       "title": "Data sources this dashboard does not have",
       "options": {
         "mode": "markdown",
-        "content": "- **Trivy findings and image CVE counts**: trivy-operator is not deployed. CI scans manifests and images (Trivy gate), the cluster does not.\n- **Keycloak failed logins**: Keycloak runs with `KC_METRICS_ENABLED=true` but without event metrics (`KC_EVENT_METRICS_USER_ENABLED`) and nothing scrapes its management port (9000).\n- **Auth errors at the Gateway**: Cilium's Envoy and Hubble HTTP metrics are not enabled or scraped, so per-route 401/403/5xx rates are not in Prometheus.\n\nSee docs/observability.md for what each needs."
+        "content": "- **Keycloak failed logins**: Keycloak runs with `KC_METRICS_ENABLED=true` but without event metrics (`KC_EVENT_METRICS_USER_ENABLED`) and nothing scrapes its management port (9000).\n- **Auth errors at the Gateway**: Cilium's Envoy and Hubble HTTP metrics are not enabled or scraped, so per-route 401/403/5xx rates are not in Prometheus.\n\nSee docs/observability.md for what each needs."
       },
       "id": 12,
       "gridPos": {
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 30
+        "y": 45
       }
     }
   ]
