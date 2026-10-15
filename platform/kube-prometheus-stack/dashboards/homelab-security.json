@@ -728,7 +728,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum by (severity) (max by (image_registry, image_repository, image_tag, severity) (trivy_image_vulnerabilities))",
+          "expr": "sum by (severity) (max by (image_registry, image_repository, image_tag, severity) (trivy_image_vulnerabilities{severity=~\"Critical|High|Medium\"}))",
           "refId": "A",
           "legendFormat": "{{severity}}",
           "instant": true,
