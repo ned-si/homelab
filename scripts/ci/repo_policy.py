@@ -58,7 +58,8 @@ objects and rule ids only; values are never printed.
   image-variant         (--base only) no such line moves an image to a tag
                         variant (alpine, slim, distroless, a Debian or Ubuntu
                         codename) that the base tree does not use for that
-                        image; only adding alpine, slim or distroless is free
+                        image; adding a light variant (alpine, slim, distroless,
+                        minimal), with or without a distro codename, is free
 
 Either image rule accepts a line that carries `# image-policy: allow <reason>`.
 """
@@ -98,7 +99,8 @@ IMAGE_ALLOW = re.compile(r"image-policy:\s*allow\s+\S")
 # Tag tokens (digits stripped) that name an image variant.
 VARIANT_WORDS = {"alpine", "slim", "distroless", "bookworm", "bullseye", "buster", "trixie",
                  "noble", "jammy", "focal", "ubi", "musl", "minimal"}
-LIGHT_VARIANTS = {"alpine", "slim", "distroless"}
+LIGHT_VARIANTS = {"alpine", "slim", "distroless", "minimal"}
+CODENAMES = {"bookworm", "bullseye", "buster", "trixie", "noble", "jammy", "focal"}
 BULKY_IMAGES = {"python", "node", "golang", "ubuntu", "debian"}
 
 
@@ -548,7 +550,7 @@ class Policy:
             v = image_variant(tag)
             if repo not in known or v in known[repo] or allowed:
                 continue
-            if any(b <= v and (v - b) <= LIGHT_VARIANTS for b in known[repo]):
+            if any(b <= v and is_lighter(v - b) for b in known[repo]):
                 continue
             was = " or ".join(sorted("-".join(sorted(b)) or "none" for b in known[repo]))
             self.fail(rule, f"{rel}:{n}: {repo} changes tag variant to {'-'.join(sorted(v)) or 'none'} "
@@ -623,6 +625,11 @@ def image_variant(tag: str) -> frozenset:
     """Variant words in a tag: python:3.14.8-alpine3.24 -> {alpine}, debian:bookworm-slim -> {bookworm, slim}."""
     return frozenset(w for w in (re.sub(r"\d+", "", t) for t in re.split(r"[-_.]", tag.lower()))
                      if w in VARIANT_WORDS)
+
+
+def is_lighter(added: frozenset) -> bool:
+    """Variant words added to a tag only make it lighter: a light variant, optionally with its distro codename."""
+    return added <= LIGHT_VARIANTS | CODENAMES and bool(added & LIGHT_VARIANTS)
 
 
 def k8s_minor(version: str) -> tuple[str, str] | None:
