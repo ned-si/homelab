@@ -37,7 +37,7 @@ data:
 
     TAG = "kids-fr"
     KIDS_PROFILE = "HD-Kids-FR"
-    PROVIDERS = ["gestdown", "tvsubtitles", "yifysubtitles", "soustitreseu", "subsynchro"]
+    PROVIDERS = ["podnapisi", "gestdown", "tvsubtitles", "yifysubtitles", "soustitreseu", "subsynchro"]
     LANG = lambda i, code, forced: {"id": i, "language": code, "forced": forced,
                                    "hi": "False", "audio_exclude": "False"}
     PROFILES = [
