@@ -41,6 +41,9 @@ data:
     General.auth_type=FORM
     WebServer.http_port=5299
     WebServer.http_root=/arr/lazylibrarian
+    # Behind the Gateway's TLS: build redirects from X-Forwarded-Proto/Host,
+    # so the login redirect stays on https.
+    WebServer.http_proxy=1
     WebServer.http_user=${HTTP_USER}
     WebServer.http_pass=${HTTP_PASS}
     API.api_enabled=1
