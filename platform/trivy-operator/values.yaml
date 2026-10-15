@@ -61,6 +61,18 @@ trivy:
   # Unfixed CVEs are not actionable here: images move only with upstream.
   ignoreUnfixed: true
   severity: MEDIUM,HIGH,CRITICAL
+  # `severity` does not drop findings without a severity (mostly Go module
+  # advisories): about 60% of the entries. They are not actionable and push
+  # the largest reports past the 2 MiB etcd request limit, so the report is
+  # never stored.
+  ignorePolicy: |
+    package trivy
+
+    import rego.v1
+
+    default ignore := false
+
+    ignore if input.Severity == "UNKNOWN"
   slow: true
   storageClassEnabled: false
   resources:
