@@ -4,7 +4,8 @@
 #   1. on an automatic profile (RSS or automatic search) only with the
 #      definition's freeleech-only option on;
 #   2. without that option, on a manual profile;
-#   and never with the `books` tag that syncs them to LazyLibrarian.
+#   and never with the `books` tag that syncs them to LazyLibrarian;
+#   3. the indexers in MUST_BE_DISABLED are disabled.
 # Read-only; reads the API key inside the Prowlarr pod, never prints it.
 #
 # Usage: scripts/check-indexers.sh
@@ -31,6 +32,9 @@ profiles = {p["id"]: p for p in json.load(open(f"{d}/appprofile.json"))}
 books = {t["id"] for t in json.load(open(f"{d}/tag.json")) if t["label"] == "books"}
 # The definition's "freeleech only" switch; its name varies per definition.
 FREELEECH = {"freeleechonly", "freeleech"}
+# Off whatever their settings (docs/theater.md): IPTorrents has locked the
+# account; no use, freeleech included, until it restores access.
+MUST_BE_DISABLED = {"iptorrents"}
 bad = 0
 for i in sorted(indexers, key=lambda x: x["name"].lower()):
     p = profiles.get(i["appProfileId"], {})
@@ -55,6 +59,8 @@ for i in sorted(indexers, key=lambda x: x["name"].lower()):
         # A disabled indexer is not used at all, whatever its settings.
         if verdict == "FAIL" and not i.get("enable"):
             verdict, reason = "ok", reason + " (ignored: disabled)"
+    if i["name"].lower() in MUST_BE_DISABLED and i.get("enable"):
+        verdict, reason = "FAIL", "enabled, must stay disabled"
     if verdict == "FAIL":
         bad = 1
     freeleech = "n/a" if fl is None else ("on" if fl is True else "off")
