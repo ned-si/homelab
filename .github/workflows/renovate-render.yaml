@@ -76,8 +76,8 @@ jobs:
 
       # One place for alerts: post the failure to ntfy. The topic is the
       # secret, so it is never printed; the body names the PR and run only.
-      # Priority low (no sound) because Actions has no quiet hours
-      # (docs/sre.md).
+      # Priority low (no sound); in quiet hours ntfy holds it until 08:00
+      # Zurich (docs/sre.md).
       - name: Notify ntfy on failure
         if: ${{ failure() }}
         env:
@@ -85,7 +85,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          curl -fsS -m 10 -o /dev/null \
+          delay=$(scripts/ci/ntfy-quiet-delay.sh)
+          curl -fsS -m 10 -o /dev/null ${delay:+-H "Delay: ${delay}m"} \
             -H "Title: renovate-render failed" -H "Priority: low" -H "Tags: warning" \
             -H "Click: $RUN_URL" \
             -d "renovate-render failed on PR #$PR_NUMBER; see $RUN_URL" \
