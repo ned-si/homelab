@@ -1,0 +1,69 @@
+# Scrape Cilium (values in infrastructure/cilium/values.yaml). PodMonitors
+# here rather than the chart's ServiceMonitors, so the Cilium chart installs
+# on a cluster that has no Prometheus CRDs yet (bootstrap, CI rehearsal).
+#
+#   cilium-agent     port prometheus (9962): cilium_* datapath metrics
+#                    port hubble-metrics (9965): hubble_* flow metrics
+#   cilium-operator  port prometheus (9963): cilium_operator_*
+#   cilium-envoy     port envoy-metrics (9964): envoy_* of the Gateway
+#
+# The agent and Envoy run in the host network, so the pod IP is the node IP;
+# the `node` label names the node.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cilium-agent
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [kube-system]
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  podMetricsEndpoints:
+    - port: prometheus
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+    - port: hubble-metrics
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cilium-operator
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [kube-system]
+  selector:
+    matchLabels:
+      io.cilium/app: operator
+  podMetricsEndpoints:
+    - port: prometheus
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cilium-envoy
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [kube-system]
+  selector:
+    matchLabels:
+      k8s-app: cilium-envoy
+  podMetricsEndpoints:
+    - port: envoy-metrics
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node

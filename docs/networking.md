@@ -178,6 +178,37 @@ NFS and iSCSI are mounted by the kubelet and `iscsid` in the host network
 namespace, so a pod policy never sees that traffic. The NAS export allow-list is
 what limits it ([runbooks/nfs-hardening.md](runbooks/nfs-hardening.md)).
 
+## Metrics
+
+The Cilium agents export datapath metrics (`cilium_*`, port 9962) and Hubble
+flow metrics (`hubble_*`, port 9965); Envoy, which serves the Gateway,
+exports `envoy_*` on 9964 and the operator `cilium_operator_*` on 9963.
+Prometheus scrapes them through the PodMonitors in
+`platform/kube-prometheus-stack/routes/cilium-monitors.yaml`.
+
+| Hubble metric | Labels |
+| --- | --- |
+| `hubble_flows_processed_total` | type, subtype, verdict, source, destination |
+| `hubble_drop_total` | reason, protocol, source, destination |
+| `hubble_tcp_flags_total` | flag, family, source, destination |
+| `hubble_icmp_total` | type, family, source, destination |
+| `hubble_http_requests_total`, `hubble_http_request_duration_seconds` | method, protocol, status, reporter, source, destination |
+
+`source` and `destination` are the namespace, or the reserved identity
+(`world`, `host`, `remote-node`, ...) for endpoints outside a namespace. HTTP
+metrics cover traffic through Envoy, which today is the Gateway. Hubble DNS
+metrics are off: they need Cilium's DNS proxy, which only runs with an FQDN
+policy; CoreDNS's metrics cover DNS.
+
+```sh
+kubectl get --raw '/api/v1/namespaces/monitoring/services/kube-prometheus-stack-prometheus:9090/proxy/api/v1/query?query=count%20by%20(job)%20(up%7Bjob%3D~%22.*cilium.*%22%7D%3D%3D1)' |
+  jq -r '.data.result[] | "\(.metric.job) \(.value[1])"'
+```
+
+Expected: `monitoring/cilium-agent 8` (two endpoints on four nodes),
+`monitoring/cilium-envoy 4`, `monitoring/cilium-operator` with one per
+operator replica.
+
 ## Debugging
 
 Hubble runs inside each Cilium agent; the relay is not deployed. Read flows on

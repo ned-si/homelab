@@ -54,3 +54,30 @@ gatewayAPI:
 # Cilium's: Talos announces it (`vip` in talos/talconfig.yaml).
 l2announcements:
   enabled: true
+
+# Metrics: the agent on :9962, Hubble on :9965 (both host ports on every
+# node), the operator on :9963 and Envoy on :9964 (chart defaults). Scraped by
+# the PodMonitors in platform/kube-prometheus-stack/routes/cilium-monitors.yaml,
+# not by the chart's ServiceMonitors: the bootstrap and the CI Talos
+# rehearsal install this chart before the Prometheus CRDs exist.
+#
+# Hubble metrics, labelled by namespace (or the reserved identity, such as
+# `world` for traffic from outside the cluster) on both ends:
+#   flow    every flow by type and verdict
+#   drop    drops by reason
+#   tcp     TCP flags (SYN without SYN-ACK = failed connections)
+#   icmp    ICMP by type
+#   httpV2  requests, status and latency of L7 traffic through Envoy (the
+#           Gateway)
+# No `dns`: Hubble sees DNS only through its DNS proxy, which needs an FQDN
+# policy; CoreDNS's own metrics cover DNS.
+prometheus:
+  enabled: true
+hubble:
+  metrics:
+    enabled:
+      - flow:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
+      - drop:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
+      - tcp:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
+      - icmp:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
+      - httpV2:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity

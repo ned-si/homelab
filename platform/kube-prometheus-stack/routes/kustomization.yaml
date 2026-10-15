@@ -3,7 +3,8 @@ kind: Kustomization
 namespace: monitoring
 
 # Rendered: the Grafana route, the SLO rules, the general cluster alerts, the
-# Argo CD and the outage alerts. dashboard-data-protection.yaml and
+# Argo CD and the outage alerts, the Cilium PodMonitors.
+# dashboard-data-protection.yaml and
 # grafana-backup.yaml are new behaviour (backups) and ship in their own changes.
 resources:
   - grafana.yaml
@@ -11,3 +12,4 @@ resources:
   - alerts.yaml
   - argocd-alerts.yaml
   - outage-alerts.yaml
+  - cilium-monitors.yaml
