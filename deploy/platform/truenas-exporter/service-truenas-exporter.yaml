@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/truenas-exporter
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/truenas-exporter and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: truenas-exporter
+  name: truenas-exporter
+  namespace: democratic-csi
+spec:
+  ports:
+  - name: metrics
+    port: 9814
+    targetPort: metrics
+  selector:
+    app.kubernetes.io/name: truenas-exporter

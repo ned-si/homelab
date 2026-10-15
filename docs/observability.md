@@ -13,6 +13,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Custom alert rules | written, not deployed: `platform/kube-prometheus-stack/routes/alerts.yaml`, `platform/backup-verify/alerts.yaml`. Deployed: `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)) |
 | Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents with flow, drop, TCP, ICMP and HTTP metrics, scraped with the Cilium agent, operator and Envoy metrics ([networking.md](networking.md#metrics)); relay and UI not enabled |
+| truenas-exporter | Application `truenas-exporter` in `democratic-csi` ([NAS metrics](#nas-metrics)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
 | trivy-operator | Application `trivy-operator` in `trivy-system` (`platform/trivy-operator/values.yaml`): a VulnerabilityReport per running workload, fixable MEDIUM and above, rescanned every 24 h; one scan Job at a time against the built-in Trivy server (DB in an emptyDir); metric `trivy_image_vulnerabilities`. CVEs show in Grafana only, they do not page |
 
@@ -63,9 +64,62 @@ Not shown, and what each would need:
 | Missing | Needs |
 | --- | --- |
 | CI and Renovate status | a GitHub exporter with a token, or a JSON datasource plugin |
-| NAS pool usage | a TrueNAS exporter (PVC usage is shown) |
 | Keycloak failed logins | `KC_EVENT_METRICS_USER_ENABLED=true` and a ServiceMonitor on port 9000 |
 | cert-manager metrics | its ServiceMonitor carries no `release: kube-prometheus-stack` label, so Prometheus ignores it |
+
+## NAS metrics
+
+`truenas-exporter` (`platform/truenas-exporter/exporter.py`, Python standard
+library, JSON logs) reads the TrueNAS REST API v2.0 on `192.168.1.228` and
+serves `truenas_*` metrics on port 9814, scraped every 60 s by ServiceMonitor
+`democratic-csi/truenas-exporter`. It runs in `democratic-csi` and reads the
+API key from the CSI driver's Secret `iscsi-democratic-csi-driver-config`
+(key `driver-config-file.yaml`, field `httpConnection.apiKey`), so the key
+exists once. TrueNAS CORE 13 API keys cannot be scoped; the exporter only
+sends GETs, plus the `disk/temperatures` query, which the API exposes as POST.
+
+| Metric | From |
+| --- | --- |
+| `truenas_pool_healthy`, `truenas_pool_status` | `pool`, `boot/get_state` |
+| `truenas_pool_device_online`, `truenas_pool_device_errors` (`type` read, write, checksum) | each leaf device of each pool, label `role` data, cache, log, ... |
+| `truenas_pool_scrub_end_timestamp_seconds`, `truenas_pool_scrub_errors` | the last scrub |
+| `truenas_dataset_used_bytes`, `truenas_dataset_available_bytes` | each pool's root dataset and its direct children |
+| `truenas_disk_temperature_celsius`, `truenas_disk_info`, `truenas_disk_size_bytes` | `disk`, `disk/temperatures` |
+| `truenas_disk_smart_tests`, `truenas_disk_smart_last_test_success` | `smart/test/results` (absent for a disk with no self-test) |
+| `truenas_alerts` (`level`, `klass`) | the NAS's own alert list, not dismissed |
+| `truenas_up` | 1 when every call of the last scrape succeeded |
+
+Recording rules `nas:pool_used:ratio` and `nas:pool_days_until_full` (7-day
+linear trend) and the alerts are in PrometheusRule `homelab-nas`
+(`platform/kube-prometheus-stack/routes/nas-alerts.yaml`):
+
+| Alert | Fires when | Severity |
+| --- | --- | --- |
+| `NASPoolUnhealthy` | ZFS reports a pool unhealthy for 5m | `critical` |
+| `NASPoolDeviceNotOnline` | a pool device is not ONLINE for 10m | `warning` |
+| `NASPoolDeviceErrors` | a pool device has read, write or checksum errors | `warning` |
+| `NASSmartTestFailed` | the newest SMART self-test of a disk failed | `warning` |
+| `NASDiskHot` | a disk above 65 °C for 30m | `warning` |
+| `NASPoolNearlyFull`, `NASPoolCriticallyFull` | a pool over 80% / 90% used | `warning` / `critical` |
+| `NASPoolFillingUp` | full within 30 days at the 7-day trend, for 6h | `warning` |
+| `NASScrubOverdue` | no finished scrub for 40 days | `warning` |
+| `NASExporterFailing` | API calls failing for 15m while the NAS ports answer | `warning` |
+| `NASExporterAbsent` | no `truenas_up` for 15m | `warning` |
+
+The NAS's own alerts are shown, not paged: they include conditions already
+known, such as its expired self-signed certificate. Tests:
+`tests/test_truenas_exporter.py`, `tests/prometheus/nas_test.yaml`.
+
+```sh
+kubectl -n democratic-csi port-forward deploy/truenas-exporter 9814:9814 > /dev/null 2>&1 &
+PF=$!
+sleep 3
+curl -s -m 30 http://localhost:9814/metrics | grep -E '^truenas_(up|pool_healthy)'
+kill "$PF"
+```
+
+Expected: `truenas_up 1` and `truenas_pool_healthy{pool="..."} 1` for
+`homelab` and `boot-pool`.
 
 ## Notifications
 

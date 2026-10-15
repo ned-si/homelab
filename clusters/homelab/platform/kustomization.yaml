@@ -9,6 +9,7 @@ resources:
   - barman-cloud-plugin.yaml
   - kube-prometheus-stack.yaml
   - blackbox-exporter.yaml
+  - truenas-exporter.yaml
   - keycloak.yaml
   - agent-access.yaml
   - tuppr.yaml

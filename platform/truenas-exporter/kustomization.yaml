@@ -1,0 +1,19 @@
+# truenas-exporter: NAS health as Prometheus metrics (docs/observability.md).
+#
+# Runs in `democratic-csi` so it reads the API key from the Secret the CSI
+# driver already uses (iscsi-democratic-csi-driver-config) instead of a second
+# copy. TrueNAS CORE 13 API keys cannot be scoped; the exporter only reads.
+#
+# The script is a ConfigMap with a content hash in its name, so a change to
+# exporter.py rolls the pod. Tests: tests/test_truenas_exporter.py.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: democratic-csi
+
+resources:
+  - deployment.yaml
+
+configMapGenerator:
+  - name: truenas-exporter
+    files:
+      - exporter.py
