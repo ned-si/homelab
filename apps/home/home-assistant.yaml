@@ -9,6 +9,12 @@
 #                                  init container on every start (config/)
 # The recorder (history) is the CNPG cluster in database.yaml.
 #
+# Login: Keycloak through the hass-oidc-auth custom component (auth_oidc in
+# config/configuration.yaml). The `custom-components` init container installs
+# the pinned release into /config/custom_components/auth_oidc and its one
+# dependency missing from the image (joserfc) into /config/deps, on
+# PYTHONPATH, so Home Assistant never installs packages at runtime.
+#
 # Pod network, no hostNetwork: devices get static IPs and are added by
 # address, so mDNS/SSDP discovery is not needed (docs/home-automation.md).
 #
@@ -78,6 +84,57 @@ spec:
             - name: git-config
               mountPath: /git
               readOnly: true
+        # Downloads only when the installed version differs from the pin, so a
+        # restart does not depend on GitHub or PyPI.
+        - name: custom-components
+          # renovate: datasource=docker depName=ghcr.io/home-assistant/home-assistant
+          image: ghcr.io/home-assistant/home-assistant:2026.10.1
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-euc"]
+          args:
+            - |
+              # renovate: datasource=github-releases depName=christiaangoossens/hass-oidc-auth
+              OIDC_VERSION=v1.2.1
+              # renovate: datasource=pypi depName=joserfc
+              JOSERFC_VERSION=1.7.5
+              cc=/config/custom_components
+              mkdir -p "$cc"
+              if [ "$(cat "$cc/auth_oidc/.version" 2>/dev/null)" != "$OIDC_VERSION" ]; then
+                rm -rf /tmp/auth_oidc /tmp/auth_oidc.zip
+                curl -fsSL --retry 3 -m 120 -o /tmp/auth_oidc.zip \
+                  "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/$OIDC_VERSION/hass-oidc-auth.zip"
+                python3 -m zipfile -e /tmp/auth_oidc.zip /tmp/auth_oidc
+                test -f /tmp/auth_oidc/manifest.json
+                echo "$OIDC_VERSION" > /tmp/auth_oidc/.version
+                rm -rf "$cc/auth_oidc"
+                cp -r /tmp/auth_oidc "$cc/auth_oidc"
+              fi
+              if [ "$(cat /config/deps/.joserfc 2>/dev/null)" != "$JOSERFC_VERSION" ]; then
+                rm -rf /config/deps
+                uv pip install --quiet --no-deps --python "$(command -v python3)" \
+                  --target /config/deps "joserfc==$JOSERFC_VERSION"
+                echo "$JOSERFC_VERSION" > /config/deps/.joserfc
+              fi
+              echo "ok: auth_oidc $OIDC_VERSION, joserfc $JOSERFC_VERSION"
+          env:
+            - name: UV_CACHE_DIR
+              value: /tmp/uv-cache
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
       containers:
         - name: home-assistant
           # renovate: datasource=docker depName=ghcr.io/home-assistant/home-assistant
@@ -99,6 +156,10 @@ spec:
               value: /tmp
             - name: UV_CACHE_DIR
               value: /tmp/uv-cache
+            # joserfc for auth_oidc, installed by the custom-components init
+            # container.
+            - name: PYTHONPATH
+              value: /config/deps
           ports:
             - name: http
               containerPort: 8123

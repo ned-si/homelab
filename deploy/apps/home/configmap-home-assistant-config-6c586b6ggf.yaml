@@ -40,6 +40,20 @@ data:
       ip_ban_enabled: true
       login_attempts_threshold: 10
 
+    # Login with Keycloak (custom component hass-oidc-auth, installed by the
+    # `custom-components` init container). Public client with PKCE, so there is
+    # no client secret. Members of the Keycloak group HomeAssistantAdmins become
+    # administrators; every other realm user gets a normal user. The local
+    # owner account stays as break-glass: https://home.lilalala.com/?skip_oidc_redirect=true
+    auth_oidc:
+      client_id: home-assistant
+      discovery_url: https://auth.lilalala.com/realms/homelab/.well-known/openid-configuration
+      display_name: Keycloak
+      roles:
+        admin: HomeAssistantAdmins
+      features:
+        default_redirect: true
+
     # History on the CNPG cluster `home-assistant-postgresql` (database.yaml)
     # instead of SQLite on the config volume: WAL archiving and point-in-time
     # recovery like the other databases.
@@ -74,5 +88,5 @@ data:
     scene: !include scenes.yaml
 kind: ConfigMap
 metadata:
-  name: home-assistant-config-758ggcm2m7
+  name: home-assistant-config-6c586b6ggf
   namespace: home
