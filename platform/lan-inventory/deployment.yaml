@@ -1,0 +1,112 @@
+# Host network and CAP_NET_RAW: ARP only reaches the LAN from the node's own
+# interface, through an AF_PACKET socket. Root with every other capability
+# dropped, because Kubernetes grants added capabilities to uid 0 only.
+# `monitoring` enforces the privileged Pod Security level (node-exporter);
+# this pod is not privileged.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lan-inventory
+  labels:
+    app.kubernetes.io/name: lan-inventory
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    # One scanner on a host port: the old pod goes before the new one starts.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lan-inventory
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: lan-inventory
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: inventory
+          # renovate: datasource=docker depName=python
+          image: docker.io/library/python:3.14.8-alpine3.24
+          command: ["python3", "-u", "/app/inventory.py"]
+          env:
+            - name: SCAN_INTERVAL
+              value: "300"
+            - name: LISTEN_PORT
+              value: "9815"
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          ports:
+            - name: metrics
+              containerPort: 9815
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+              memory: 24Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_RAW"]
+          volumeMounts:
+            - name: script
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: lan-inventory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: lan-inventory
+  labels:
+    app.kubernetes.io/name: lan-inventory
+spec:
+  selector:
+    app.kubernetes.io/name: lan-inventory
+  ports:
+    - name: metrics
+      port: 9815
+      targetPort: metrics
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: lan-inventory
+  labels:
+    app.kubernetes.io/name: lan-inventory
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: lan-inventory
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 60s
+      scrapeTimeout: 10s

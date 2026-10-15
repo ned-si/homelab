@@ -50,6 +50,7 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 | Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
 | Homelab / Nodes (`homelab-nodes`) | per node: Talos, kernel, Kubernetes and containerd versions, Ready, uptime; saturation (CPU, memory, PSI, eMMC busy), latency (eMMC and iSCSI per operation), traffic (NIC, eMMC, iSCSI, eMMC bytes written per day), errors (NIC errors and drops, link flaps, OOM kills); SoC temperature, eMMC wear; etcd leader, database size, WAL fsync and commit p99, failed proposals, peer round trip |
 | Homelab / Storage (`homelab-storage`) | NAS pools healthy, exporter up, days since the last scrub and its errors; pool used, "full in N days" at the 7-day trend, free space, used with a 30-day projection, used per dataset; disk temperatures, pool devices ONLINE, device errors, newest SMART self-test, disk models and sizes, the NAS's own alerts; iSCSI PVC usage ([NAS metrics](#nas-metrics)) |
+| Homelab / LAN (`homelab-lan`) | ping status and round trip of the static devices; devices on the LAN now, randomised MACs, MACs first seen in the last 7 days, age of the last ARP scan, every MAC and IP that answered, device count over time ([LAN inventory](#lan-inventory)) |
 
 eMMC wear comes from a sidecar (`emmc-wear`) in the node-exporter DaemonSet:
 it reads `life_time` and `pre_eol_info` of every eMMC from node-exporter's
@@ -121,6 +122,44 @@ kill "$PF"
 
 Expected: `truenas_up 1` and `truenas_pool_healthy{pool="..."} 1` for
 `homelab` and `boot-pool`.
+
+## LAN inventory
+
+`lan-inventory` (`platform/lan-inventory/inventory.py`, Python standard
+library, JSON logs) sends an ARP request to every address of the node's /24
+every 5 minutes, twice, and records each reply: `lan_device_present{mac, ip,
+random_mac}` (1 per MAC and IP that answered the last scan; `random_mac` is
+the locally administered bit, set by phones and laptops with a private
+address), `lan_inventory_devices`, `lan_inventory_scan_success` and
+`lan_inventory_scan_timestamp_seconds`, on port 9815, scraped every 60 s by
+ServiceMonitor `monitoring/lan-inventory`. ARP only reaches the LAN from a
+node's own interface, so the pod runs with host networking and CAP_NET_RAW,
+as root with every other capability dropped (Kubernetes grants added
+capabilities to uid 0 only); `monitoring` enforces the privileged Pod
+Security level. No MAC address is kept in git: the baseline is the last 30
+days of Prometheus data.
+
+PrometheusRule `homelab-lan` (`routes/lan-alerts.yaml`), evaluated every 5
+minutes:
+
+| Alert | Fires when | Severity |
+| --- | --- | --- |
+| `LANNewDeviceSeen` | a MAC answers that did not answer in the 30 days before the last hour; quiet during the first day of data; resolves after an hour | `warning` |
+| `LANInventoryFailing` | no completed scan for 30m | `warning` |
+| `LANInventoryAbsent` | no `lan_inventory_devices` for 30m | `warning` |
+
+The scan sees what answers ARP on the LAN: Cilium answers for the
+LoadBalancer addresses and Talos for the API VIP, with a node's MAC. A
+device that changes its private MAC (some phones rotate it per day) shows up
+as new each time. Tests: `tests/test_lan_inventory.py`,
+`tests/prometheus/lan_inventory_test.yaml`.
+
+```sh
+kubectl -n monitoring logs deploy/lan-inventory --tail=3
+```
+
+Expected: JSON lines with `"msg": "scan"`, `"ok": true` and a `devices`
+count.
 
 ## Notifications
 

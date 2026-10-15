@@ -29,3 +29,6 @@ configMapGenerator:
   - name: grafana-dashboard-homelab-storage
     files:
       - homelab-storage.json
+  - name: grafana-dashboard-homelab-lan
+    files:
+      - homelab-lan.json
