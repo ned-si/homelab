@@ -398,10 +398,13 @@ spec:
             - port: "6767"
               protocol: TCP
 
-    # The `bazarr-settings` PostSync Job (apps/theater/bazarr.yaml).
+    # The `bazarr-settings` PostSync Job (apps/theater/bazarr.yaml) and the
+    # SSO proxy (apps/theater/sso.yaml).
     - fromEndpoints:
-        - matchLabels:
-            app.kubernetes.io/name: bazarr-settings
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [bazarr-settings, theater-sso]
       toPorts:
         - ports:
             - port: "6767"
@@ -670,11 +673,21 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # The protected *.lilalala.com UIs terminate here; every proxy uses 4180.
+    # theater.lilalala.com/arr/* and /oauth2 (HTTPRoute `theater` -> :4180).
     - fromEntities:
         - ingress
         - host
         - remote-node
+      toPorts:
+        - ports:
+            - port: "4180"
+              protocol: TCP
+
+    # The PostSync smoke test (/ping).
+    - fromEndpoints:
+        - matchExpressions:
+            - key: batch.kubernetes.io/job-name
+              operator: Exists
       toPorts:
         - ports:
             - port: "4180"
@@ -692,14 +705,13 @@ spec:
             - port: "53"
               protocol: TCP
 
-    # The fronted apps. The shared label cannot tell proxies apart, so each
-    # may reach all five apps. Accepted: `--upstream` is a fixed flag, not
+    # The fronted apps. The upstreams are fixed in the proxy's config, not
     # something a request can change.
     - toEndpoints:
         - matchExpressions:
             - key: app.kubernetes.io/name
               operator: In
-              values: [sonarr, radarr, lidarr, prowlarr, qbittorrent]
+              values: [sonarr, radarr, lidarr, prowlarr, qbittorrent, bazarr, lazylibrarian]
       toPorts:
         - ports:
             - port: "8989"
@@ -711,6 +723,10 @@ spec:
             - port: "9696"
               protocol: TCP
             - port: "8080"
+              protocol: TCP
+            - port: "6767"
+              protocol: TCP
+            - port: "5299"
               protocol: TCP
 
     # Keycloak (discovery, token exchange, JWKS) via `world`: the issuer is

@@ -37,6 +37,8 @@ spec:
         - lidarr
         - prowlarr
         - qbittorrent
+        - bazarr
+        - lazylibrarian
     toPorts:
     - ports:
       - port: "8989"
@@ -48,6 +50,10 @@ spec:
       - port: "9696"
         protocol: TCP
       - port: "8080"
+        protocol: TCP
+      - port: "6767"
+        protocol: TCP
+      - port: "5299"
         protocol: TCP
   - toEntities:
     - world
@@ -66,6 +72,14 @@ spec:
     - ingress
     - host
     - remote-node
+    toPorts:
+    - ports:
+      - port: "4180"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
     toPorts:
     - ports:
       - port: "4180"

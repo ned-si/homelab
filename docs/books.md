@@ -92,8 +92,9 @@ indexers tagged `books`. Only public indexers carry that tag
 scripts/check-indexers.sh
 ```
 
-Login: form login `admin`; the password is in the operator's password manager.
-No OIDC (LazyLibrarian has none). Its config is backed up nightly by
+Login: Keycloak through the theater SSO proxy ([theater.md](theater.md#login)),
+then LazyLibrarian's own form login `admin` (it has no OIDC); the password is
+in the operator's password manager and is the break-glass login. Its config is backed up nightly by
 `theater-config-backup-lazylibrarian` (05:30) to `theater/configs`.
 
 ## Backups

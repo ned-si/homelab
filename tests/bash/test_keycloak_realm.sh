@@ -51,6 +51,14 @@ expect_contains "removed platform client fails" "client argocd is in removed_cli
 sed 's/^removed_clients=.*/removed_clients=myclient app/' "$REALM_DIR/platform.conf" > "$tmp/p2.conf"
 o=$(run "$tmp/p2.conf" "$(clients "app.redirectUris=$good")")
 expect_contains "removed managed client fails" "client app is in removed_clients" "$o"
+
+# proxy_clients: <clientId>:<group>, and not also removed.
+sed 's/^proxy_clients=.*/proxy_clients=theater-sso/' "$REALM_DIR/platform.conf" > "$tmp/p3.conf"
+o=$(run "$tmp/p3.conf" "$REALM_DIR/clients.conf")
+expect_contains "proxy client without group fails" "proxy_clients entry is not <clientId>:<group>: theater-sso" "$o"
+sed 's/^removed_clients=.*/removed_clients=myclient theater-sso/' "$REALM_DIR/platform.conf" > "$tmp/p4.conf"
+o=$(run "$tmp/p4.conf" "$REALM_DIR/clients.conf")
+expect_contains "removed proxy client fails" "client theater-sso is in removed_clients" "$o"
 expect_eq "still no kcadm call" "" "$(cat "$tmp/kcadm.log" 2>/dev/null || true)"
 
 finish
