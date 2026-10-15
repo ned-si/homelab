@@ -1,0 +1,158 @@
+"""Usage exporter: Immich and Jellyfin library and usage figures (stdlib only).
+
+Every INTERVAL seconds it reads
+  Immich   GET /api/server/statistics   totals and per-user photos, videos, bytes
+  Jellyfin GET /Items/Counts            items per type
+           GET /Sessions                streams playing now, per user
+and serves gauges on :PORT/metrics. Each source needs an API key in the
+environment (IMMICH_API_KEY, JELLYFIN_API_KEY); a missing key, or a PENDING-*
+sentinel, leaves that source out with usage_source_configured 0.
+
+Logs are JSON lines on stdout.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import threading
+import time
+import urllib.request
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+INTERVAL = int(os.environ.get("INTERVAL", "300"))
+PORT = int(os.environ.get("PORT", "9172"))
+IMMICH_URL = os.environ.get("IMMICH_URL", "http://immich-server.immich:2283")
+JELLYFIN_URL = os.environ.get("JELLYFIN_URL", "http://jellyfin.theater:8096")
+
+_metrics = "# no data yet\n"
+_lock = threading.Lock()
+
+
+def log(level: str, msg: str, **kw) -> None:
+    rec = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "level": level, "msg": msg}
+    rec.update(kw)
+    print(json.dumps(rec), flush=True)
+
+
+def cred(name: str) -> str:
+    v = os.environ.get(name, "").strip()
+    return "" if not v or v.startswith("PENDING") else v
+
+
+def get(url: str, headers: dict) -> object:
+    req = urllib.request.Request(url, headers={"Accept": "application/json", **headers})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return json.load(r)
+
+
+def esc(v) -> str:
+    return str(v).replace("\\", "\\\\").replace("\n", " ").replace('"', '\\"')
+
+
+class Out:
+    """Gauges grouped per metric family, as the text format requires."""
+
+    def __init__(self):
+        self.families: dict[str, list[str]] = {}
+
+    def g(self, name: str, help_: str, value: float, **labels) -> None:
+        fam = self.families.setdefault(name, [f"# HELP {name} {help_}", f"# TYPE {name} gauge"])
+        lab = ",".join(f'{k}="{esc(v)}"' for k, v in sorted(labels.items()))
+        fam.append(f"{name}{{{lab}}} {value}" if lab else f"{name} {value}")
+
+    def text(self) -> str:
+        return "\n".join(line for fam in self.families.values() for line in fam) + "\n"
+
+
+def immich(o: Out, k: str) -> None:
+    s = get(f"{IMMICH_URL}/api/server/statistics", {"x-api-key": k})
+    for t in ("photos", "videos"):
+        o.g("immich_assets", "Assets in Immich, by type.", s.get(t, 0), type=t.rstrip("s"))
+    o.g("immich_usage_bytes", "Bytes used by all Immich assets.", s.get("usage", 0))
+    for u in s.get("usageByUser", []):
+        user = u.get("userName") or u.get("userId", "unknown")
+        for t in ("photos", "videos"):
+            o.g("immich_user_assets", "Assets per Immich user, by type.", u.get(t, 0), user=user, type=t.rstrip("s"))
+        o.g("immich_user_usage_bytes", "Bytes used per Immich user.", u.get("usage", 0), user=user)
+        if u.get("quotaSizeInBytes"):
+            o.g("immich_user_quota_bytes", "Storage quota per Immich user.", u["quotaSizeInBytes"], user=user)
+
+
+def jellyfin(o: Out, k: str) -> None:
+    h = {"X-Emby-Token": k}
+    counts = get(f"{JELLYFIN_URL}/Items/Counts", h)
+    for key, n in sorted(counts.items()):
+        m = re.fullmatch(r"(\w+?)Count", key)
+        if m and isinstance(n, int):
+            o.g("jellyfin_items", "Items in the Jellyfin libraries, by type.", n, type=m.group(1).lower())
+    streams: dict[tuple[str, str], int] = {}
+    for s in get(f"{JELLYFIN_URL}/Sessions?activeWithinSeconds=600", h):
+        item = s.get("NowPlayingItem")
+        if item:
+            key = (s.get("UserName") or "unknown", (item.get("Type") or "unknown").lower())
+            streams[key] = streams.get(key, 0) + 1
+    o.g("jellyfin_streams", "Streams playing now, all users.", sum(streams.values()))
+    for (user, kind), n in sorted(streams.items()):
+        o.g("jellyfin_user_streams", "Streams playing now, per user and item type.", n, user=user, type=kind)
+
+
+SOURCES = (("immich", "IMMICH_API_KEY", immich), ("jellyfin", "JELLYFIN_API_KEY", jellyfin))
+
+
+def collect() -> str:
+    o = Out()
+    for name, env, fn in SOURCES:
+        k = cred(env)
+        o.g("usage_source_configured", "1 if the source has an API key.", 1 if k else 0, source=name)
+        if not k:
+            continue
+        try:
+            fn(o, k)
+            ok = 1
+        except Exception as e:  # one source failing keeps the others
+            ok = 0
+            log("error", "collect failed", source=name, error=f"{type(e).__name__}: {e}")
+        o.g("usage_source_up", "1 if the last read of the source succeeded.", ok, source=name)
+    o.g("usage_exporter_last_run_timestamp_seconds", "End of the last collection.", round(time.time()))
+    return o.text()
+
+
+def loop() -> None:
+    global _metrics
+    while True:
+        started = time.time()
+        body = collect()
+        with _lock:
+            _metrics = body
+        log("info", "collected", seconds=round(time.time() - started, 2))
+        time.sleep(max(30, INTERVAL - (time.time() - started)))
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):  # noqa: N802
+        if self.path == "/metrics":
+            with _lock:
+                data = _metrics.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+        elif self.path == "/healthz":
+            data = b"ok\n"
+            self.send_response(200)
+        else:
+            data = b"not found\n"
+            self.send_response(404)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, fmt, *args):  # scrapes are not logged
+        pass
+
+
+if __name__ == "__main__":
+    log("info", "starting", interval=INTERVAL, port=PORT,
+        sources=[n for n, env, _ in SOURCES if cred(env)])
+    threading.Thread(target=loop, daemon=True).start()
+    ThreadingHTTPServer(("", PORT), Handler).serve_forever()

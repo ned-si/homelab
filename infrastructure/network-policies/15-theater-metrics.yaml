@@ -1,0 +1,52 @@
+# Metrics paths into the theater namespace, kept apart from the per-workload
+# allow-lists in 10-theater.yaml (Cilium allows the union of all policies):
+#   - Prometheus scrapes the exportarr sidecars of the *arr apps on 9707;
+#   - the usage exporter (monitoring) reads library counts and sessions from
+#     Jellyfin's API on 8096.
+# Off like the rest: an allow-list only, switched in ./90-enforcement.yaml.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-metrics
+  namespace: theater
+spec:
+  description: Prometheus scrapes the exportarr sidecars of the *arr apps.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [sonarr, radarr, lidarr, prowlarr]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9707"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jellyfin-usage
+  namespace: theater
+spec:
+  description: The usage exporter reads Jellyfin's API.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: jellyfin
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8096"
+              protocol: TCP

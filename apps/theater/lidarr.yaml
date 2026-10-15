@@ -118,6 +118,35 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+        # The API key for the exportarr sidecar, read from the app's own
+        # config.xml (the app generates it; it is not in git).
+        - name: exportarr-key
+          # renovate: datasource=docker depName=busybox
+          image: busybox:1.38.0
+          command:
+            - sh
+            - -c
+            - sed -n 's|.*<ApiKey>\(.*\)</ApiKey>.*|\1|p' /config/config.xml > /run/exportarr/api-key && test -s /run/exportarr/api-key
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              memory: 32Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: exportarr
+              mountPath: /run/exportarr
       containers:
         - name: lidarr
           # renovate: datasource=docker depName=ghcr.io/hotio/lidarr
@@ -165,7 +194,58 @@ spec:
               mountPath: /config
             - name: media
               mountPath: /data
+        # Prometheus metrics for the Usage dashboard (PodMonitor exportarr).
+        - name: exportarr
+          # renovate: datasource=docker depName=ghcr.io/onedr0p/exportarr
+          image: ghcr.io/onedr0p/exportarr:v2.3.0
+          args: ["lidarr"]
+          env:
+            - name: PORT
+              value: "9707"
+            - name: URL
+              value: http://localhost:8686/arr/lidarr
+            - name: API_KEY_FILE
+              value: /run/exportarr/api-key
+            - name: LOG_FORMAT
+              value: json
+          ports:
+            - name: metrics
+              containerPort: 9707
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 60
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 5m
+              memory: 24Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: exportarr
+              mountPath: /run/exportarr
+              readOnly: true
       volumes:
+        - name: exportarr
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
         - name: config
           persistentVolumeClaim:
             claimName: lidarr-config

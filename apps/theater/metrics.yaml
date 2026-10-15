@@ -1,0 +1,21 @@
+# exportarr sidecars of Sonarr, Radarr, Lidarr and Prowlarr (port `metrics`,
+# 9707), for the Usage dashboard. Prometheus finds this through the
+# `release: kube-prometheus-stack` label.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: exportarr
+  namespace: theater
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [sonarr, radarr, lidarr, prowlarr]
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 5m
+      scrapeTimeout: 60s

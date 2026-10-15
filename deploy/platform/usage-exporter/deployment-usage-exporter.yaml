@@ -1,0 +1,90 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/usage-exporter
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/usage-exporter and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: usage-exporter
+  name: usage-exporter
+  namespace: monitoring
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: usage-exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: usage-exporter
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - command:
+        - python3
+        - -u
+        - /app/exporter.py
+        env:
+        - name: INTERVAL
+          value: "300"
+        - name: PORT
+          value: "9172"
+        - name: IMMICH_URL
+          value: http://immich-server.immich:2283
+        - name: JELLYFIN_URL
+          value: http://jellyfin.theater:8096
+        envFrom:
+        - secretRef:
+            name: usage-exporter
+        image: python:3.15.0-alpine3.24
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 60
+        name: exporter
+        ports:
+        - containerPort: 9172
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 30
+        resources:
+          limits:
+            memory: 96Mi
+          requests:
+            cpu: 5m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /app
+          name: app
+          readOnly: true
+      securityContext:
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: usage-exporter
+      volumes:
+      - configMap:
+          name: usage-exporter-44kct744mk
+        name: app

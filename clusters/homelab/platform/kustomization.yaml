@@ -16,3 +16,4 @@ resources:
   - tuppr.yaml
   - trivy-operator.yaml
   - github-exporter.yaml
+  - usage-exporter.yaml

@@ -98,6 +98,53 @@ spec:
         volumeMounts:
         - mountPath: /config
           name: config
+      - args:
+        - prowlarr
+        env:
+        - name: PORT
+          value: "9707"
+        - name: URL
+          value: http://localhost:9696/arr/prowlarr
+        - name: API_KEY_FILE
+          value: /run/exportarr/api-key
+        - name: LOG_FORMAT
+          value: json
+        image: ghcr.io/onedr0p/exportarr:v2.3.0
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 60
+        name: exportarr
+        ports:
+        - containerPort: 9707
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 30
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 5m
+            memory: 24Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /run/exportarr
+          name: exportarr
+          readOnly: true
       initContainers:
       - command:
         - sh
@@ -141,7 +188,39 @@ spec:
           runAsGroup: 65532
           runAsNonRoot: true
           runAsUser: 65532
+      - command:
+        - sh
+        - -c
+        - sed -n 's|.*<ApiKey>\(.*\)</ApiKey>.*|\1|p' /config/config.xml > /run/exportarr/api-key
+          && test -s /run/exportarr/api-key
+        image: busybox:1.38.0
+        name: exportarr-key
+        resources:
+          limits:
+            memory: 32Mi
+          requests:
+            cpu: 5m
+            memory: 8Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /config
+          name: config
+          readOnly: true
+        - mountPath: /run/exportarr
+          name: exportarr
       volumes:
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
+        name: exportarr
       - name: config
         persistentVolumeClaim:
           claimName: prowlarr-config
