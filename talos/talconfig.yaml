@@ -41,6 +41,7 @@ cniConfig:
 # parse yet; scripts/talos-genconfig.sh applies them with talosctl.
 patches:
   - "@./patches/sysctls.yaml"
+  - "@./patches/kubelet-image-gc.yaml"
 
 controlPlane:
   patches:

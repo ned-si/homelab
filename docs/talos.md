@@ -189,7 +189,12 @@ Expected: `ok` lines only, the last one `ok  git-ignore rules`, exit 0.
   and cert-manager 1.21 are tested up to 1.36 only, so the CI test cluster
   runs 1.37 before the nodes do.
 - eMMC only, no NVMe. EPHEMERAL stays on the eMMC; revisit once the eMMC
-  `life_time` trend gives a reason.
+  `life_time` trend gives a reason (Homelab / Nodes dashboard, alerts
+  `NodeEmmcWearHigh` and `NodeEmmcEndOfLife`).
+- Kubelet image GC from 70% used down to 60% (`patches/kubelet-image-gc.yaml`).
+  Images share EPHEMERAL with everything else, so the default start at 85%
+  coincides with the default eviction threshold: GC only ran once the node was
+  already under DiskPressure and evicting pods.
 - Workload isolation off. iSCSI volumes, including the photo library, must
   mount, and with isolation on they do not. Revisit when democratic-csi can
   reach `iscsid` from inside the sandbox.
