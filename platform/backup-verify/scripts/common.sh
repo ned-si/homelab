@@ -20,21 +20,21 @@ push_result() {
   _check=$1 _target=$2 _ok=$3 _start=$4
   shift 4
   _now=$(date -u +%s)
-  _body=$(mktemp)
-  {
-    echo "backup_verify_success $_ok"
-    echo "backup_verify_last_run_timestamp_seconds $_now"
-    echo "backup_verify_duration_seconds $((_now - _start))"
-    [ "$_ok" = 1 ] && echo "backup_verify_last_success_timestamp_seconds $_now"
-    for _m in "$@"; do echo "$_m"; done
-  } > "$_body"
-  if wget -q -T 20 -O /dev/null --post-file="$_body" \
+  # The body is built in memory: some containers have no writable /tmp.
+  _body="backup_verify_success $_ok
+backup_verify_last_run_timestamp_seconds $_now
+backup_verify_duration_seconds $((_now - _start))
+"
+  [ "$_ok" = 1 ] && _body="${_body}backup_verify_last_success_timestamp_seconds $_now
+"
+  for _m in "$@"; do
+    _body="$_body$_m
+"
+  done
+  if wget -q -T 20 -O /dev/null --post-data="$_body" \
       "$PUSHGATEWAY/metrics/job/backup-verify/check/$_check/target/$_target"; then
-    _rc=0
-  else
-    log "ERROR: push of $_check/$_target to $PUSHGATEWAY failed"
-    _rc=1
+    return 0
   fi
-  rm -f "$_body"
-  return "$_rc"
+  log "ERROR: push of $_check/$_target to $PUSHGATEWAY failed"
+  return 1
 }
