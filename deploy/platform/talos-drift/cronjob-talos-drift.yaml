@@ -85,7 +85,7 @@ spec:
           serviceAccountName: talos-drift-check
           volumes:
           - configMap:
-              name: talos-drift-f9bgkh6gh8
+              name: talos-drift-kg9b656m52
             name: app
           - emptyDir:
               medium: Memory
