@@ -113,7 +113,8 @@ How it works, with no step for you:
    a Job on another node, reboot, wait Ready on the new version, next node.
    Kubernetes: `talosctl upgrade-k8s`, no reboot.
 4. A failure stops the run in phase `Failed` and fires `TalosUpgradeFailed`
-   or `KubernetesUpgradeFailed` to ntfy. A stuck run fires
+   or `KubernetesUpgradeFailed` (Grafana; a node left NotReady notifies as
+   `HomelabNodeNotReady`). A stuck run fires
    `TalosUpgradeStuck` (1 h), a parked one `TupprUpgradeBlocked` (30 min).
 
 No drain: every CloudNativePG cluster has one instance and a PDB that

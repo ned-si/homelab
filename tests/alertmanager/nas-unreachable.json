@@ -1,0 +1,17 @@
+{
+  "description": "The basement switch drops the NAS: one notification, HomelabNASUnreachable for both ports. Every storage consumer, SLO burns included, is inhibited.",
+  "alerts": [
+    {"alertname": "HomelabNASUnreachable", "severity": "critical", "instance": "192.168.1.228:3260"},
+    {"alertname": "HomelabNASUnreachable", "severity": "critical", "instance": "192.168.1.228:2049"},
+    {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "media", "namespace": "immich"},
+    {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "drive", "namespace": "seafile"},
+    {"alertname": "ServiceHasNoReadyBackend", "severity": "critical", "namespace": "immich", "deployment": "immich-server"},
+    {"alertname": "CNPGWALArchivingFailing", "severity": "critical", "namespace": "immich", "pod": "immich-db-1"},
+    {"alertname": "BackupVerifyFailed", "severity": "warning", "check": "restic", "target": "paperless"},
+    {"alertname": "KubeJobFailed", "severity": "warning", "namespace": "mealie", "job_name": "mealie-backup-29868120"},
+    {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "seafile", "pod": "seafile-0"},
+    {"alertname": "NASExporterFailing", "severity": "warning"}
+  ],
+  "notifications": ["ntfy HomelabNASUnreachable"],
+  "uninhibited": ["HomelabNASUnreachable", "HomelabNASUnreachable"]
+}

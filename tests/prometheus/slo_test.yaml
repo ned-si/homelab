@@ -6,8 +6,9 @@ rule_files:
 evaluation_interval: 30s
 
 tests:
-  # media fails every probe from minute 60: both burn alerts fire, the healthy
-  # app (cook) stays quiet.
+  # media fails every probe from minute 60: the fast burn fires with media's
+  # namespace, the slow burn stays quiet behind it, the healthy app (cook)
+  # stays quiet.
   - interval: 1m
     input_series:
       - series: 'probe_success{job="blackbox-public", app="media"}'
@@ -23,6 +24,7 @@ tests:
         exp_alerts:
           - exp_labels:
               app: media
+              namespace: immich
               severity: critical
             exp_annotations:
               summary: media is burning its 30-day error budget fast
@@ -32,16 +34,7 @@ tests:
                 overview dashboard (probe status and duration).
       - eval_time: 90m
         alertname: SLOErrorBudgetBurnSlow
-        exp_alerts:
-          - exp_labels:
-              app: media
-              severity: warning
-            exp_annotations:
-              summary: media is slowly burning its 30-day error budget
-              description: >-
-                media fails more probes than its 99.5% objective allows, over a
-                day or more. Usually intermittent: look for restarts, slow
-                responses (probe_duration_seconds) or a flapping node.
+        exp_alerts: []
       - eval_time: 80m
         alertname: SLOProbesAbsent
         exp_alerts: []
@@ -50,26 +43,55 @@ tests:
         alertname: SLOErrorBudgetBurnFast
         exp_alerts: []
 
-  # A 30-minute outage that ended 40 minutes ago: the budget took a real hit
-  # (slow burn), but nothing is failing now (no fast burn).
+  # A 30-minute outage that ended 40 minutes ago: the fast burn fired during
+  # it and has resolved; the slow windows still hold the outage, but the
+  # slow burn stays quiet because the fast burn already notified.
   - interval: 1m
     input_series:
       - series: 'probe_success{job="blackbox-public", app="drive"}'
         values: '1x1379 0x29 1x100'
     alert_rule_test:
+      - eval_time: 1400m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              app: drive
+              namespace: seafile
+              severity: critical
+            exp_annotations:
+              summary: drive is burning its 30-day error budget fast
+              description: >-
+                At this rate the 99.5% availability budget of drive is gone
+                within days. Check https://drive.lilalala.com, then the Homelab
+                overview dashboard (probe status and duration).
       - eval_time: 1450m
         alertname: SLOErrorBudgetBurnFast
         exp_alerts: []
       - eval_time: 1450m
         alertname: SLOErrorBudgetBurnSlow
+        exp_alerts: []
+
+  # cook fails 2% of its probes all day: above the slow threshold (1.5%),
+  # below the fast ones (3%, 7.2%). Only the slow burn fires.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '0.98x120'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: SLOErrorBudgetBurnSlow
         exp_alerts:
           - exp_labels:
-              app: drive
+              app: cook
+              namespace: mealie
               severity: warning
             exp_annotations:
-              summary: drive is slowly burning its 30-day error budget
+              summary: cook is slowly burning its 30-day error budget
               description: >-
-                drive fails more probes than its 99.5% objective allows, over a
+                cook fails more probes than its 99.5% objective allows, over a
                 day or more. Usually intermittent: look for restarts, slow
                 responses (probe_duration_seconds) or a flapping node.
 

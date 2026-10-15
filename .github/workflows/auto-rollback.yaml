@@ -12,7 +12,7 @@
 # `act` runs only for a revert: an auto-merged revert pull request with label
 # `auto-rollback` (scripts/ci/auto-rollback-act.sh). Every other decision is a
 # skip, written to the run summary; no issue is opened, because the failure is
-# an Alertmanager alert (PrometheusRule homelab-argocd -> ntfy).
+# an Alertmanager alert (PrometheusRule homelab-argocd, in Grafana).
 #
 # Manual test: `gh workflow run auto-rollback.yaml -f app=<app>
 # -f revision=<sha>` runs with dry_run=true by default: `decide` prints what it

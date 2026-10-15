@@ -1,0 +1,42 @@
+# Receiver each alert reaches (scripts/ci/alertmanager-test.sh), the paging
+# policy of docs/sre.md "Paging". Format: <receiver> <label>=<value>...
+#
+# Notifies: the heartbeat.
+heartbeat alertname=Watchdog severity=none
+# Notifies: SLO burn rates.
+ntfy alertname=SLOErrorBudgetBurnFast severity=critical app=auth namespace=keycloak
+ntfy alertname=SLOErrorBudgetBurnSlow severity=warning app=cook namespace=mealie
+# Notifies: infrastructure criticals.
+ntfy alertname=HomelabNodeNotReady severity=critical node=homelab-w-1
+ntfy alertname=HomelabNASUnreachable severity=critical instance=192.168.1.228:3260
+ntfy alertname=etcdInsufficientMembers severity=critical job=kube-etcd
+ntfy alertname=etcdNoLeader severity=critical job=kube-etcd
+ntfy alertname=NASPoolUnhealthy severity=critical pool=homelab
+# Notifies: backups and restore tests.
+ntfy alertname=BackupVerifyFailed severity=warning check=postgres target=immich-db
+ntfy alertname=CNPGBackupFailed severity=critical namespace=immich pod=immich-db-1
+ntfy alertname=CNPGWALArchivingFailing severity=critical namespace=keycloak pod=keycloak-db-1
+ntfy alertname=KubeJobFailed severity=warning namespace=mealie job_name=mealie-backup-29868120
+ntfy alertname=KubeJobFailed severity=warning namespace=theater job_name=theater-config-backup-sonarr-29868120
+# Notifies: critical security.
+ntfy alertname=SecurityExample severity=critical category=security
+# Grafana only.
+null alertname=SecurityExample severity=warning category=security
+null alertname=KubeJobFailed severity=warning namespace=theater job_name=qbittorrent-private-seed-29868120
+null alertname=KubeJobFailed severity=warning namespace=backup-verify job_name=backup-verify-files-29868120
+null alertname=ServiceHasNoReadyBackend severity=critical namespace=keycloak deployment=keycloak
+null alertname=StatefulSetHasNoReadyReplica severity=critical namespace=syncthing statefulset=syncthing
+null alertname=ArgoCDAppDegraded severity=critical name=keycloak namespace=keycloak
+null alertname=ArgoCDSyncFailed severity=warning name=keycloak namespace=keycloak
+null alertname=KubePodNotReady severity=warning namespace=keycloak pod=keycloak-0
+null alertname=KubePodCrashLooping severity=warning namespace=keycloak pod=keycloak-db-1
+null alertname=KubeDeploymentReplicasMismatch severity=warning namespace=keycloak deployment=keycloak
+null alertname=KubePdbNotEnoughHealthyPods severity=warning namespace=keycloak poddisruptionbudget=keycloak-db
+null alertname=PodStuckNotRunningLongTerm severity=critical namespace=home pod=mosquitto-0
+null alertname=KubeNodeNotReady severity=warning node=homelab-w-1
+null alertname=CertificateExpiringVerySoon severity=critical namespace=gateway name=wildcard
+null alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9100
+null alertname=AlertmanagerNotificationsFailing severity=critical integration=webhook
+null alertname=SLOProbesAbsent severity=warning job=blackbox-public
+null alertname=LANNewDeviceSeen severity=warning mac=00:11:22:33:44:55
+null alertname=InfoInhibitor severity=none

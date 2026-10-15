@@ -61,8 +61,8 @@ spec:
           # KubePodCrashLooping, which uses the restart rate).
           #
           # The join adds `node`, which the waiting-reason metric lacks. The
-          # KubeNodeNotReady inhibit rule in ../values.yaml matches on `node`;
-          # without it a dead node pages once per pod.
+          # HomelabNodeNotReady inhibit rule in ../values.yaml matches on
+          # `node`.
           expr: |
             max by (namespace, pod, container, reason, node) (
               kube_pod_container_status_waiting_reason{
@@ -527,6 +527,5 @@ spec:
 
         # ---------------------------------------------------------------
         # No "Prometheus stopped ingesting" rule: the chart's
-        # PrometheusNotIngestingSamples uses the same expression, and warnings
-        # reach the same phone as criticals (../values.yaml).
+        # PrometheusNotIngestingSamples uses the same expression.
         # ---------------------------------------------------------------

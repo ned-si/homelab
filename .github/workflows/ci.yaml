@@ -6,6 +6,7 @@
 #   lint         pre-commit hooks, yamllint, actionlint, shellcheck,
 #                tofu fmt + validate
 #   render       unit tests, promtool (rule checks and rule unit tests),
+#                Alertmanager routing and inhibition tests,
 #                render, kubeconform, Kyverno policies over deploy/,
 #                repo-policy (pins, invariants,
 #                secrets/leak/placeholder checks, deploy/ matches sources,
@@ -106,6 +107,10 @@ env:
   # rule unit tests, scripts/ci/promtool-check.sh).
   PROMTOOL_VERSION: 3.15.0
   PROMTOOL_SHA256: 2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0
+  # alertmanager + amtool from the release the cluster runs (routing and
+  # inhibition tests, scripts/ci/alertmanager-test.sh).
+  ALERTMANAGER_VERSION: 0.34.1
+  ALERTMANAGER_SHA256: 265b9d1e55ef0d5306a436018af6d2b686c2ce051f03d968f7464ecb1372a7e8
   TALHELPER_VERSION: v3.1.17
   TALHELPER_SHA256: dff9162569004637b6a842c4020d909b0ffbc7fbbe2fca23a754708db95be204
   # talosctl validates the generated configs and runs the upgrade rehearsal:
@@ -197,7 +202,7 @@ jobs:
         id: setup
         run: |
           set -euo pipefail
-          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool kyverno
+          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
           scripts/ci/setup-python-deps.sh
 
       - name: Unit tests (pytest)
@@ -211,6 +216,10 @@ jobs:
       - name: Prometheus rules (promtool check + unit tests)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: scripts/ci/promtool-check.sh
+
+      - name: Alertmanager routing (amtool + replayed outages)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/alertmanager-test.sh
 
       # Rendered once; kubeconform and repo-policy read the same directory.
       - name: Render every Application in scope

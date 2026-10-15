@@ -7,6 +7,10 @@
 #   ArgoCDMetricsAbsent   no argocd_app_info for 15m, so the three above
 #                         cannot fire                               warning
 #
+# None of them notifies (docs/sre.md "Paging"). `namespace` is the
+# Application's destination namespace, so an app-level alert of that
+# namespace inhibits them (../values.yaml).
+#
 # They resolve on their own once the app recovers. The record of an automatic
 # rollback is its revert pull request (label `auto-rollback`); the Homelab
 # overview dashboard marks the failure and the recovery sync as annotations.
@@ -25,7 +29,10 @@ spec:
     - name: homelab.argocd
       rules:
         - alert: ArgoCDAppDegraded
-          expr: max by (name) (argocd_app_info{health_status="Degraded"}) == 1
+          expr: |
+            max by (name, namespace) (
+              label_replace(argocd_app_info{health_status="Degraded"}, "namespace", "$1", "dest_namespace", "(.*)")
+            ) == 1
           for: 5m
           labels:
             severity: critical
@@ -41,17 +48,24 @@ spec:
         # of an app, which creates the series at 1 and so has no increase.
         # That half only counts apps Prometheus already saw 10 minutes ago:
         # when scraping starts (or resumes after a gap) every old failure
-        # counter looks new, and is not a failure now.
+        # counter looks new, and is not a failure now. The join adds
+        # `namespace` from argocd_app_info.
         - alert: ArgoCDSyncFailed
           expr: |
-            (sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[10m])) > 0)
-            or
             (
-              sum by (name) (
-                argocd_app_sync_total{phase=~"Error|Failed"}
-                unless argocd_app_sync_total{phase=~"Error|Failed"} offset 10m
-              ) > 0
-              and on (name) max by (name) (argocd_app_info offset 10m)
+              (sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[10m])) > 0)
+              or
+              (
+                sum by (name) (
+                  argocd_app_sync_total{phase=~"Error|Failed"}
+                  unless argocd_app_sync_total{phase=~"Error|Failed"} offset 10m
+                ) > 0
+                and on (name) max by (name) (argocd_app_info offset 10m)
+              )
+            )
+            * on (name) group_left (namespace)
+            max by (name, namespace) (
+              label_replace(argocd_app_info, "namespace", "$1", "dest_namespace", "(.*)")
             )
           labels:
             severity: warning
@@ -63,7 +77,10 @@ spec:
               https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
 
         - alert: ArgoCDAppOutOfSync
-          expr: max by (name) (argocd_app_info{sync_status="OutOfSync"}) == 1
+          expr: |
+            max by (name, namespace) (
+              label_replace(argocd_app_info{sync_status="OutOfSync"}, "namespace", "$1", "dest_namespace", "(.*)")
+            ) == 1
           for: 30m
           labels:
             severity: warning

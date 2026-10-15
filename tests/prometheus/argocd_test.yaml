@@ -9,11 +9,11 @@ tests:
   # immich turns Degraded at minute 10; mealie stays Healthy.
   - interval: 1m
     input_series:
-      - series: 'argocd_app_info{name="immich", health_status="Healthy", sync_status="Synced"}'
+      - series: 'argocd_app_info{name="immich", dest_namespace="immich", health_status="Healthy", sync_status="Synced"}'
         values: '1x9 _x20'
-      - series: 'argocd_app_info{name="immich", health_status="Degraded", sync_status="Synced"}'
+      - series: 'argocd_app_info{name="immich", dest_namespace="immich", health_status="Degraded", sync_status="Synced"}'
         values: '_x9 1x20'
-      - series: 'argocd_app_info{name="mealie", health_status="Healthy", sync_status="Synced"}'
+      - series: 'argocd_app_info{name="mealie", dest_namespace="mealie", health_status="Healthy", sync_status="Synced"}'
         values: '1x30'
     alert_rule_test:
       - eval_time: 12m
@@ -24,6 +24,7 @@ tests:
         exp_alerts:
           - exp_labels:
               name: immich
+              namespace: immich
               severity: critical
             exp_annotations:
               summary: immich is Degraded
@@ -39,7 +40,7 @@ tests:
   # seafile: OutOfSync from minute 5, alert after 30 minutes.
   - interval: 1m
     input_series:
-      - series: 'argocd_app_info{name="seafile", health_status="Healthy", sync_status="OutOfSync"}'
+      - series: 'argocd_app_info{name="seafile", dest_namespace="seafile", health_status="Healthy", sync_status="OutOfSync"}'
         values: '_x4 1x40'
     alert_rule_test:
       - eval_time: 30m
@@ -50,6 +51,7 @@ tests:
         exp_alerts:
           - exp_labels:
               name: seafile
+              namespace: seafile
               severity: warning
             exp_annotations:
               summary: seafile is OutOfSync for 30 minutes
@@ -65,9 +67,9 @@ tests:
   # Both fire and resolve 10 minutes later.
   - interval: 1m
     input_series:
-      - series: 'argocd_app_info{name="theater", health_status="Healthy", sync_status="Synced"}'
+      - series: 'argocd_app_info{name="theater", dest_namespace="theater", health_status="Healthy", sync_status="Synced"}'
         values: '1x40'
-      - series: 'argocd_app_info{name="mealie", health_status="Healthy", sync_status="Synced"}'
+      - series: 'argocd_app_info{name="mealie", dest_namespace="mealie", health_status="Healthy", sync_status="Synced"}'
         values: '1x40'
       - series: 'argocd_app_sync_total{name="theater", phase="Failed"}'
         values: '2x19 3x20'
@@ -84,6 +86,7 @@ tests:
         exp_alerts:
           - exp_labels:
               name: mealie
+              namespace: mealie
               severity: warning
             exp_annotations:
               summary: "mealie: sync failed"
@@ -93,6 +96,7 @@ tests:
                 https://argo.lilalala.com/applications/argo/mealie.
           - exp_labels:
               name: theater
+              namespace: theater
               severity: warning
             exp_annotations:
               summary: "theater: sync failed"
@@ -107,7 +111,7 @@ tests:
   # Scraping starts at minute 5 with old failure counters: nothing fires.
   - interval: 1m
     input_series:
-      - series: 'argocd_app_info{name="seafile", health_status="Healthy", sync_status="Synced"}'
+      - series: 'argocd_app_info{name="seafile", dest_namespace="seafile", health_status="Healthy", sync_status="Synced"}'
         values: '_x5 1x30'
       - series: 'argocd_app_sync_total{name="seafile", phase="Failed"}'
         values: '_x5 4x30'

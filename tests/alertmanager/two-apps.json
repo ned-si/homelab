@@ -1,0 +1,9 @@
+{
+  "description": "Two unrelated apps burn their budget: one notification per app.",
+  "alerts": [
+    {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "cook", "namespace": "mealie"},
+    {"alertname": "SLOErrorBudgetBurnSlow", "severity": "warning", "app": "archive", "namespace": "paperless"}
+  ],
+  "notifications": ["ntfy SLOErrorBudgetBurnFast", "ntfy SLOErrorBudgetBurnSlow"],
+  "uninhibited": ["SLOErrorBudgetBurnFast", "SLOErrorBudgetBurnSlow"]
+}
