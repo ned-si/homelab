@@ -26,7 +26,10 @@ spec:
           pull request. Check https://argo.lilalala.com/applications/argo/{{ $labels.name
           }}.
         summary: '{{ $labels.name }} is Degraded'
-      expr: max by (name) (argocd_app_info{health_status="Degraded"}) == 1
+      expr: |
+        max by (name, namespace) (
+          label_replace(argocd_app_info{health_status="Degraded"}, "namespace", "$1", "dest_namespace", "(.*)")
+        ) == 1
       for: 5m
       labels:
         severity: critical
@@ -37,14 +40,20 @@ spec:
           }}.
         summary: '{{ $labels.name }}: sync failed'
       expr: |
-        (sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[10m])) > 0)
-        or
         (
-          sum by (name) (
-            argocd_app_sync_total{phase=~"Error|Failed"}
-            unless argocd_app_sync_total{phase=~"Error|Failed"} offset 10m
-          ) > 0
-          and on (name) max by (name) (argocd_app_info offset 10m)
+          (sum by (name) (increase(argocd_app_sync_total{phase=~"Error|Failed"}[10m])) > 0)
+          or
+          (
+            sum by (name) (
+              argocd_app_sync_total{phase=~"Error|Failed"}
+              unless argocd_app_sync_total{phase=~"Error|Failed"} offset 10m
+            ) > 0
+            and on (name) max by (name) (argocd_app_info offset 10m)
+          )
+        )
+        * on (name) group_left (namespace)
+        max by (name, namespace) (
+          label_replace(argocd_app_info, "namespace", "$1", "dest_namespace", "(.*)")
         )
       labels:
         severity: warning
@@ -55,7 +64,10 @@ spec:
           rewrites, or a resource Argo CD cannot apply. Check the diff in https://argo.lilalala.com/applications/argo/{{
           $labels.name }}.'
         summary: '{{ $labels.name }} is OutOfSync for 30 minutes'
-      expr: max by (name) (argocd_app_info{sync_status="OutOfSync"}) == 1
+      expr: |
+        max by (name, namespace) (
+          label_replace(argocd_app_info{sync_status="OutOfSync"}, "namespace", "$1", "dest_namespace", "(.*)")
+        ) == 1
       for: 30m
       labels:
         severity: warning

@@ -106,6 +106,46 @@ reviewed in one pull request that changes this page and
 `platform/kube-prometheus-stack/routes/slo.yaml` together: either the app gets
 a design change that removes the cause, or its target is lowered on purpose.
 
+## Paging
+
+A notification (ntfy) means a user is affected or data is at risk now. One
+root cause sends one notification. Every other alert stays in Grafana and
+Alertmanager, where the agent pass and the dashboards read it.
+
+| Notifies | Alerts | Grouped by | Repeats |
+| --- | --- | --- | --- |
+| SLO fast burn | `SLOErrorBudgetBurnFast` (critical) | app | 4 h |
+| SLO slow burn | `SLOErrorBudgetBurnSlow` (warning); quiet for a day after a fast burn of the same app | app | 24 h |
+| Node down | `HomelabNodeNotReady` | alert | 4 h |
+| etcd quorum | `etcdInsufficientMembers`, `etcdNoLeader` | alert | 4 h |
+| NAS | `HomelabNASUnreachable`, `NASPoolUnhealthy` | alert | 4 h |
+| Backups | `BackupVerifyFailed`, `CNPGBackupFailed`, `CNPGWALArchivingFailing`, `KubeJobFailed` of a `*-backup-*` Job | alert | 24 h |
+| Security | any `critical` alert labelled `category: security` | alert | 4 h |
+| Heartbeat | `Watchdog`, to healthchecks.io every 5 minutes, which notifies when it stops | | |
+
+Not notified, by design: pod, workload and Argo CD alerts
+(`KubePodCrashLooping`, `ServiceHasNoReadyBackend`, `ArgoCDAppDegraded`, ...),
+capacity and certificate warnings, LAN and exporter alerts. A cause that
+matters to users shows up as an SLO burn.
+
+Inhibition hides the causes behind the alert that notified:
+
+| While this fires | These are inhibited |
+| --- | --- |
+| `SLOErrorBudgetBurnFast` | the pod, workload and Argo CD alerts and `ServiceHasNoReadyBackend` of the app's namespace |
+| `ServiceHasNoReadyBackend`, `StatefulSetHasNoReadyReplica` | the pod, workload and Argo CD alerts of that namespace |
+| `HomelabNodeNotReady` | the node and pod alerts with the same `node` label |
+| `HomelabNASUnreachable` | every storage consumer: SLO burns, pods, workloads, Argo CD, CNPG, backups, the NAS exporter |
+| any `critical` | the `warning` of the same alert and namespace |
+
+The routes, inhibit rules and timings are in
+`platform/kube-prometheus-stack/values.yaml`. CI replays the Keycloak outage
+of 2026-10-15 (nine alerts), a node down and the NAS unreachable against a
+real Alertmanager and requires one notification each
+(`scripts/ci/alertmanager-test.sh`, scenarios in `tests/alertmanager/`).
+Adding an alert to the table above is a change to this page and to
+`tests/alertmanager/routes.txt` in the same pull request.
+
 ## Postmortems
 
 A postmortem is written, from [postmortems/template.md](postmortems/template.md),
@@ -151,3 +191,8 @@ exists.
   release freeze.
 - Triggers as thresholds, not judgement: they are checkable by a script and
   by an agent, and they cannot be argued with during an incident.
+- Page on symptoms, not causes: sending every `warning` and `critical` sent
+  eight notifications for the one Keycloak outage of 2026-10-15. The SLO burn
+  says a user is affected; the causes are in Grafana when the operator looks.
+  Rejected: per-alert tuning of `for:` durations, which still sends one
+  notification per cause.

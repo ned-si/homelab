@@ -5,7 +5,7 @@
 # the download is verified with sha256sum before anything is extracted or run.
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
 # Tools: kubeconform actionlint shellcheck gitleaks trivy kyverno kube-linter helm
-#        kubectl kind tofu promtool talhelper talosctl
+#        kubectl kind tofu promtool alertmanager talhelper talosctl
 set -euo pipefail
 
 bin="${RUNNER_TEMP:?RUNNER_TEMP not set}/bin"
@@ -62,6 +62,11 @@ for tool in "$@"; do
     promtool)
       v=$(need PROMTOOL_VERSION); fetch "https://github.com/prometheus/prometheus/releases/download/v$v/prometheus-$v.linux-amd64.tar.gz" "$(need PROMTOOL_SHA256)"
       tar -xzf "$work/dl" -C "$work" && install -m 0755 "$work/prometheus-$v.linux-amd64/promtool" "$bin/promtool" ;;
+    alertmanager) # alertmanager and amtool
+      v=$(need ALERTMANAGER_VERSION); fetch "https://github.com/prometheus/alertmanager/releases/download/v$v/alertmanager-$v.linux-amd64.tar.gz" "$(need ALERTMANAGER_SHA256)"
+      tar -xzf "$work/dl" -C "$work"
+      install -m 0755 "$work/alertmanager-$v.linux-amd64/alertmanager" "$bin/alertmanager"
+      install -m 0755 "$work/alertmanager-$v.linux-amd64/amtool" "$bin/amtool" ;;
     talhelper)
       v=$(need TALHELPER_VERSION); fetch "https://github.com/budimanjojo/talhelper/releases/download/$v/talhelper_linux_amd64.tar.gz" "$(need TALHELPER_SHA256)"
       tar -xzf "$work/dl" -C "$bin" talhelper ;;

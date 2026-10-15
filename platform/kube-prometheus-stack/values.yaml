@@ -152,15 +152,42 @@ grafana:
   ingress:
     enabled: false
 
-# Alertmanager routes (docs/observability.md "Alerting"):
+# Alertmanager routes: the paging policy of docs/sre.md "Paging". Only the
+# alerts below notify; every other alert is visible in Grafana and
+# Alertmanager and sends nothing.
 #
 #   Watchdog          -> heartbeat: the dead-man's switch (healthchecks.io) in
 #                        Secret `alertmanager-notify` key `heartbeat-url`,
 #                        every 5 minutes. It alerts when the pings stop.
-#   warning, critical -> ntfy: a push to the hosted ntfy.sh topic in key
-#                        `ntfy-url`. Hosted, so it does not depend on this
-#                        cluster or the house's network being up.
-#   anything else     -> "null" (info, InfoInhibitor).
+#   SLO burn rate     -> ntfy, one group per app (fast critical, slow warning).
+#   infra critical    -> ntfy, one group per alert name: node down, etcd
+#                        quorum, NAS unreachable or pool unhealthy.
+#   backup failed     -> ntfy, one group per alert name: a restore test, a
+#                        CNPG base backup or WAL archive, a backup Job.
+#   security critical -> ntfy: any critical rule labelled `category: security`.
+#   anything else     -> "null".
+#
+# The ntfy pushes go to the hosted ntfy.sh topic in key `ntfy-url`. Hosted,
+# so they do not depend on this cluster or the house's network being up.
+# HomelabNodeNotReady and HomelabNASUnreachable must keep reaching ntfy with
+# their name in the title: the auto-rollback outage guard reads them there
+# (scripts/ci/auto-rollback-guard.sh).
+#
+# Inhibition removes the cause alerts of an incident that already notifies,
+# so they show as suppressed in Alertmanager:
+#
+#   SLOErrorBudgetBurnFast              -> the pod, workload and Argo CD
+#   ServiceHasNoReadyBackend,              alerts of the same namespace
+#   StatefulSetHasNoReadyReplica
+#   HomelabNodeNotReady                 -> the node and pod alerts with the
+#                                          same `node` label
+#   HomelabNASUnreachable               -> everything that needs storage:
+#                                          pods, workloads, Argo CD, CNPG,
+#                                          backups, SLO burns, everywhere
+#
+# Tests: scripts/ci/alertmanager-test.sh (CI: render job) runs amtool on
+# tests/alertmanager/routes.txt and replays tests/alertmanager/*.json against
+# a real Alertmanager, counting notifications.
 #
 # The operator mounts the Secret at
 # /etc/alertmanager/secrets/alertmanager-notify/<key>; `url_file` reads it at
@@ -172,9 +199,12 @@ grafana:
 # the X-Title, X-Message and X-Priority headers Go templates over the body.
 # Priority: critical 5 (urgent), warning 4 (high), resolved 2 (low).
 #
+# Every ntfy group has one alert name, so the title names it.
+#
 # Helm merges `config` into the chart default: `route` keys are merged,
-# `routes` and `receivers` (lists) are replaced, `inhibit_rules` and
-# `templates` stay the chart's.
+# `routes`, `receivers` and `inhibit_rules` (lists) are replaced, `global`
+# and `templates` stay the chart's. The first two inhibit rules are the
+# chart's own.
 alertmanager:
   alertmanagerSpec:
     secrets:
@@ -182,8 +212,10 @@ alertmanager:
   config:
     route:
       receiver: "null"
-      group_by: [alertname, namespace]
-      group_wait: 5m
+      group_by: [namespace, app]
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
       routes:
         - receiver: heartbeat
           matchers:
@@ -193,14 +225,71 @@ alertmanager:
           repeat_interval: 5m
         - receiver: ntfy
           matchers:
-            - severity = "critical"
-          group_wait: 1m
+            - alertname =~ "SLOErrorBudgetBurnFast|SLOErrorBudgetBurnSlow"
+          group_by: [alertname, namespace, app]
+          routes:
+            - matchers:
+                - severity = "critical"
+              repeat_interval: 4h
+            - matchers:
+                - severity = "warning"
+              group_wait: 5m
+              repeat_interval: 24h
+        - receiver: ntfy
+          matchers:
+            - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable|etcdInsufficientMembers|etcdNoLeader|NASPoolUnhealthy"
+          group_by: [alertname]
           repeat_interval: 4h
         - receiver: ntfy
           matchers:
-            - severity = "warning"
-          group_wait: 10m
-          repeat_interval: 24h
+            - alertname =~ "BackupVerifyFailed|CNPGBackupFailed|CNPGWALArchivingFailing"
+          group_by: [alertname]
+          group_wait: 5m
+        # A failed backup or dump Job (the restic CronJobs are *-backup*).
+        # The restore tests report through BackupVerifyFailed instead.
+        - receiver: ntfy
+          matchers:
+            - alertname = "KubeJobFailed"
+            - job_name =~ ".+-backup-.+"
+            - namespace != "backup-verify"
+          group_by: [alertname]
+          group_wait: 5m
+        - receiver: ntfy
+          matchers:
+            - category = "security"
+            - severity = "critical"
+          group_by: [alertname]
+          repeat_interval: 4h
+    inhibit_rules:
+      - source_matchers:
+          - severity = "critical"
+        target_matchers:
+          - severity =~ "warning|info"
+        equal: [namespace, alertname]
+      - source_matchers:
+          - severity = "warning"
+        target_matchers:
+          - severity = "info"
+        equal: [namespace, alertname]
+      - source_matchers:
+          - alertname = "SLOErrorBudgetBurnFast"
+        target_matchers:
+          - alertname =~ "ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica|KubePod.*|KubeContainerWaiting|KubeDeployment.*|KubeStatefulSet.*|KubePdbNotEnoughHealthyPods|KubeJobFailed|Pod.*|ArgoCD.*"
+        equal: [namespace]
+      - source_matchers:
+          - alertname =~ "ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica"
+        target_matchers:
+          - alertname =~ "KubePod.*|KubeContainerWaiting|KubeDeployment.*|KubeStatefulSet.*|KubePdbNotEnoughHealthyPods|KubeJobFailed|Pod.*|ArgoCD.*"
+        equal: [namespace]
+      - source_matchers:
+          - alertname = "HomelabNodeNotReady"
+        target_matchers:
+          - alertname =~ "KubeNode.*|KubePod.*|Pod.*"
+        equal: [node]
+      - source_matchers:
+          - alertname = "HomelabNASUnreachable"
+        target_matchers:
+          - alertname =~ "SLOErrorBudgetBurn.*|ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica|KubePod.*|KubeContainerWaiting|KubeDeployment.*|KubeStatefulSet.*|KubePdbNotEnoughHealthyPods|KubeJobFailed|KubePersistentVolumeErrors|Pod.*|ArgoCD.*|CNPG.*|BackupVerify.*|NASExporter.*"
     receivers:
       - name: "null"
       - name: heartbeat

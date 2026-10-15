@@ -1,0 +1,15 @@
+{
+  "description": "w-1 goes NotReady: one notification, HomelabNodeNotReady. The node and pod alerts of w-1 are inhibited.",
+  "alerts": [
+    {"alertname": "HomelabNodeNotReady", "severity": "critical", "node": "homelab-w-1"},
+    {"alertname": "KubeNodeNotReady", "severity": "warning", "node": "homelab-w-1"},
+    {"alertname": "KubeNodeUnreachable", "severity": "warning", "node": "homelab-w-1"},
+    {"alertname": "PodNotReady", "severity": "warning", "namespace": "theater", "pod": "sonarr-0", "node": "homelab-w-1"},
+    {"alertname": "PodStuckNotRunning", "severity": "warning", "namespace": "mealie", "pod": "mealie-0", "node": "homelab-w-1", "reason": "CreateContainerError"},
+    {"alertname": "KubePodNotReady", "severity": "warning", "namespace": "theater", "pod": "sonarr-0"},
+    {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "theater", "namespace": "theater"},
+    {"alertname": "TargetDown", "severity": "warning", "namespace": "kube-system", "job": "node-exporter"}
+  ],
+  "notifications": ["ntfy HomelabNodeNotReady"],
+  "uninhibited": ["ArgoCDAppDegraded", "HomelabNodeNotReady", "KubePodNotReady", "TargetDown"]
+}

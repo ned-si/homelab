@@ -9,7 +9,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | --- | --- |
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
-| Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); `warning` and `critical` go to the hosted ntfy.sh topic ([Notifications](#notifications)); everything else goes to `null` |
+| Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); SLO burn rates, infrastructure criticals, backup failures and critical security alerts go to the hosted ntfy.sh topic ([Notifications](#notifications), policy in [sre.md](sre.md#paging)); everything else goes to `null` and is visible in Grafana only |
 | Custom alert rules | `backup-verify` (group `backup.verify`, the restore tests, in `platform/backup-verify/alerts.yaml`; [backups.md](backups.md#verification)); `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)) |
 | Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents with flow, drop, TCP, ICMP and HTTP metrics, scraped with the Cilium agent, operator and Envoy metrics ([networking.md](networking.md#metrics)); relay and UI not enabled |
@@ -186,8 +186,8 @@ count.
 
 ## Notifications
 
-`warning` and `critical` alerts go as a webhook POST to the hosted ntfy.sh
-topic in Secret `monitoring/alertmanager-notify` key `ntfy-url`, mounted at
+The alerts of the paging policy ([sre.md](sre.md#paging)) go as a webhook
+POST to the hosted ntfy.sh topic in Secret `monitoring/alertmanager-notify` key `ntfy-url`, mounted at
 `/etc/alertmanager/secrets/alertmanager-notify/ntfy-url` (`url_file`). The
 topic name is the only credential: anyone who knows it can read and post, so
 it is long, random and only in SOPS. Hosted ntfy.sh, not a self-hosted ntfy,
@@ -215,14 +215,15 @@ curl -m 10 -d "test" "https://ntfy.sh/<topic>"
 # expected: a JSON line with "event":"message"; the phone shows "test"
 ```
 
-Test the whole path with a synthetic alert (it resolves after 5 minutes):
+Test the whole path with a synthetic slow burn of a made-up app (it resolves
+after 10 minutes):
 
 ```sh
 kubectl -n monitoring exec alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager -- \
-  amtool alert add SyntheticTest severity=warning namespace=monitoring \
-  --annotation=summary="Synthetic test" --end="$(date -u -v+5M +%Y-%m-%dT%H:%M:%SZ)" \
+  amtool alert add SLOErrorBudgetBurnSlow severity=warning app=synthetic namespace=monitoring \
+  --annotation=summary="Synthetic test" --end="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ)" \
   --alertmanager.url=http://localhost:9093
-# expected after the 10m warning group_wait: "Warning: SyntheticTest (monitoring)"
+# expected after the 5m group_wait: "Warning: SLOErrorBudgetBurnSlow (monitoring)"
 ```
 
 Rotating the topic: a new one in `secrets.local.env` (`NTFY_TOPIC`), then
@@ -261,20 +262,22 @@ Turning it on (one signup, then one secret edit):
    `kubectl -n monitoring logs alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager --since=10m | grep -c 'Notify attempt failed'`
    prints `0`.
 
-### Severity routing
+### Routing and inhibition
 
-| Severity | Meaning | `group_wait` | `repeat_interval` |
-| --- | --- | --- | --- |
-| `critical` | acting later costs data or availability; ntfy | 1m | 4h |
-| `warning` | look at it this week; ntfy | 10m | 24h |
-| `none` | `Watchdog` only, to the heartbeat, never the phone | 0s | 5m |
-| other (`info`) | dropped (`null`) | | |
+Which alerts notify, how they are grouped and what they inhibit is the paging
+policy in [sre.md](sre.md#paging), implemented in
+`platform/kube-prometheus-stack/values.yaml`. Several pod rules join
+`kube_pod_info` with `group_left(node)` so that a node going down inhibits
+them (`equal: [node]`); the SLO burn alerts carry the app's `namespace`
+(recording rule `slo:app:info`) and the Argo CD alerts the Application's
+destination namespace, so that an app outage inhibits the cause alerts of
+that namespace. Do not remove those labels.
 
-Grouping is by `(alertname, namespace)` with a base `group_wait` of 5m, so a
-cold start that fires every rule at once sends one batch. Inhibition rules are
-scoped with `equal: [node]`: a node going down suppresses the pod and volume
-alerts on that node, not cluster-wide. Several pod rules join `kube_pod_info`
-with `group_left(node)` for that reason; do not remove the joins.
+`scripts/ci/alertmanager-test.sh` (CI, render job) tests the routing: amtool
+checks the receiver of every label set in `tests/alertmanager/routes.txt`, and
+each scenario in `tests/alertmanager/*.json` (the Keycloak outage, a node
+down, the NAS unreachable) is replayed against a real Alertmanager with the
+repository's config, counting the notifications it sends.
 
 `Watchdog` always fires, by design: the heartbeat provider alerts when it stops
 arriving, which is the only way to learn that the cluster, Alertmanager or the
@@ -366,9 +369,10 @@ Two failure modes this cluster has had:
 - Hosted ntfy.sh plus an external heartbeat: one person, one phone, no account
   and open source. A self-hosted ntfy was rejected for now: it would go down
   with the cluster it reports on. Pushover was the earlier plan; it needs a
-  paid app per platform for the same result. Routing warnings
-  to a quieter channel was rejected, because a warning that goes where nobody
-  looks is the original problem again; warnings are batched harder instead.
+  paid app per platform for the same result.
+- Only symptoms and a few infrastructure criticals notify
+  ([sre.md](sre.md#why-it-is-like-this)): sending every `warning` and
+  `critical` sent eight notifications for one Keycloak outage.
 - Credentials as mounted files, not values: nothing about the destination
   devices is in git.
 - eMMC wear from sysfs through a node-exporter sidecar: Talos has no metric

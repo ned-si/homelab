@@ -21,6 +21,10 @@
 #   SLOErrorBudgetBurnSlow    3x          1d / 2h               10% in 1d
 #                             1x          3d / 6h               10% in 3d
 #
+# Both notify (docs/sre.md "Paging"): fast is critical, slow is warning. The
+# slow burn stays quiet for a day after a fast burn of the same app, so one
+# outage notifies once.
+#
 # The 30-day figures need 30 days of data: `retention: 30d` in ../values.yaml.
 #
 # Tests: tests/prometheus/slo_test.yaml (promtool test rules).
@@ -66,21 +70,54 @@ spec:
         - record: slo:error_budget_remaining:ratio_rate30d
           expr: 1 - slo:probe_error:ratio_rate30d / 0.005
 
+    # The namespace each app runs in. The burn alerts carry it, so that an app
+    # outage inhibits the pod, workload and Argo CD alerts of the same
+    # namespace in Alertmanager (../values.yaml).
+    - name: homelab.slo.apps
+      rules:
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: auth, namespace: keycloak}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: cinema, namespace: theater}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: theater, namespace: theater}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: media, namespace: immich}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: archive, namespace: paperless}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: cook, namespace: mealie}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: drive, namespace: seafile}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: syncthing, namespace: syncthing}
+
     - name: homelab.slo.alerts
       rules:
         - alert: SLOErrorBudgetBurnFast
           expr: |
             (
-              slo:probe_error:ratio_rate1h > (14.4 * 0.005)
-              and
-              slo:probe_error:ratio_rate5m > (14.4 * 0.005)
+              (
+                slo:probe_error:ratio_rate1h > (14.4 * 0.005)
+                and
+                slo:probe_error:ratio_rate5m > (14.4 * 0.005)
+              )
+              or
+              (
+                slo:probe_error:ratio_rate6h > (6 * 0.005)
+                and
+                slo:probe_error:ratio_rate30m > (6 * 0.005)
+              )
             )
-            or
-            (
-              slo:probe_error:ratio_rate6h > (6 * 0.005)
-              and
-              slo:probe_error:ratio_rate30m > (6 * 0.005)
-            )
+            * on (app) group_left (namespace) slo:app:info
           for: 2m
           labels:
             severity: critical
@@ -90,19 +127,25 @@ spec:
               At this rate the 99.5% availability budget of {{ $labels.app }}
               is gone within days. Check https://{{ $labels.app }}.lilalala.com,
               then the Homelab overview dashboard (probe status and duration).
+        # Quiet for a day after a fast burn of the same app: the slow windows
+        # still hold that outage after it ends, and it has already notified.
         - alert: SLOErrorBudgetBurnSlow
           expr: |
             (
-              slo:probe_error:ratio_rate1d > (3 * 0.005)
-              and
-              slo:probe_error:ratio_rate2h > (3 * 0.005)
+              (
+                slo:probe_error:ratio_rate1d > (3 * 0.005)
+                and
+                slo:probe_error:ratio_rate2h > (3 * 0.005)
+              )
+              or
+              (
+                slo:probe_error:ratio_rate3d > 0.005
+                and
+                slo:probe_error:ratio_rate6h > 0.005
+              )
             )
-            or
-            (
-              slo:probe_error:ratio_rate3d > 0.005
-              and
-              slo:probe_error:ratio_rate6h > 0.005
-            )
+            * on (app) group_left (namespace) slo:app:info
+            unless on (app) max_over_time(ALERTS{alertname="SLOErrorBudgetBurnFast", alertstate="firing"}[1d])
           for: 15m
           labels:
             severity: warning
