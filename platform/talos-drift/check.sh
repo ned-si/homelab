@@ -8,7 +8,7 @@
 #      from main with scripts/talos-genconfig.sh, as `task talos:genconfig`
 #      does with talos/talsecret.sops.yaml. The age key never enters the
 #      cluster; same secrets in, same bytes out.
-#   4. Compare sha256 per node and push talos_config_drift{node} (1 = differs
+#   4. Compare sha256 per node (see norm) and push talos_config_drift{node} (1 = differs
 #      from main) and the run timestamp to the Pushgateway.
 #
 # Configs and secrets stay in a memory-backed emptyDir and are never printed;
@@ -51,6 +51,13 @@ talosctl gen secrets --from-controlplane-config "$cp_live" -o "$work/secrets.yam
 TALOS_SECRET_FILE="$work/secrets.yaml" TALOS_OUT_DIR="$work/gen" \
   scripts/talos-genconfig.sh > /dev/null
 
+# The running config has a blank line before the first `---` that the rendered
+# one lacks; drop blank lines before a document separator on both sides.
+norm() {
+  awk '/^$/ { n++; next } { if ($0 != "---") for (; n > 0; n--) print ""; n = 0; print }
+       END { for (; n > 0; n--) print "" }' "$1" | sha256sum | cut -c1-64
+}
+
 metrics="$work/metrics.txt"
 {
   echo "# TYPE talos_config_drift gauge"
@@ -58,8 +65,8 @@ metrics="$work/metrics.txt"
 } > "$metrics"
 drift=0
 while read -r host ip; do
-  want=$(sha256sum < "$work/gen/homelab-$host.yaml" | cut -c1-64)
-  have=$(sha256sum < "$work/live/$host.yaml" | cut -c1-64)
+  want=$(norm "$work/gen/homelab-$host.yaml")
+  have=$(norm "$work/live/$host.yaml")
   if [ "$want" = "$have" ]; then
     v=0; echo "talos-drift: $host ($ip) matches main (${have:0:12})"
   else
