@@ -51,6 +51,7 @@ one root Application, three layers, one Application per app.
 | Seafile | File sync and share | `seafile` | `drive` | No |
 | Paperless-ngx | Document archive | `paperless` | `archive` | Yes |
 | Mealie | Recipes | `mealie` | `cook` | Yes |
+| Home Assistant, Mosquitto, Zigbee2MQTT | Home automation ([docs/home-automation.md](docs/home-automation.md)) | `home` | `home` | Yes (Home Assistant) |
 | Syncthing | Device sync | `syncthing` | `syncthing` (UI); sync on `.201` | No |
 | Keycloak | Single sign-on, realm `homelab` | `keycloak` | `auth` | - |
 | Grafana, Prometheus, Alertmanager | Monitoring | `monitoring` | `grafana` | Yes (Grafana) |
@@ -105,6 +106,7 @@ flowchart LR
 | `192.168.1.239` | `homelab-cp-3` |
 | `192.168.1.240` | `homelab-w-1` (worker) |
 | `192.168.1.228` | TrueNAS CORE (iSCSI, NFS) |
+| `192.168.1.20` | Raspberry Pi, Zigbee coordinator over ser2net, static on the Pi ([docs/home-automation.md](docs/home-automation.md#zigbee)) |
 | `192.168.1.200`-`.227` | Cilium pool `pool-2` (LoadBalancer Services) |
 | `192.168.1.200` | `theater/qbittorrent-seed`, pinned |
 | `192.168.1.201` | `syncthing/syncthing-protocol`, pinned |
