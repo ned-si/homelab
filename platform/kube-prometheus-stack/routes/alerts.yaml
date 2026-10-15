@@ -16,6 +16,8 @@
 #
 #   kube_*                  kube-state-metrics (chart ServiceMonitor).
 #   node_*                  node-exporter (chart ServiceMonitor).
+#   node_emmc_*             node-exporter's textfile collector, written by
+#                           its emmc-wear sidecar (../values.yaml).
 #   kubelet_volume_stats_*  the kubelet; the only source of PVC usage
 #                           (kube-state-metrics only knows the requested size).
 #   certmanager_*           cert-manager; needs both `prometheus.enabled` and
@@ -334,6 +336,46 @@ spec:
             description: >-
               This reports as ENOSPC while `df -h` shows free space. Check
               `df -i` on the node.
+
+        - alert: NodeEmmcWearHigh
+          # The eMMC is soldered to the RK1 module: a worn-out eMMC means a new
+          # module. life_time step 9 = 80-90% of rated wear used; pre_eol 2 =
+          # 80% of the reserved blocks consumed. Either leaves months, not
+          # days, to plan the replacement (docs/runbooks/node-replacement.md).
+          # Series from the node-exporter emmc-wear sidecar
+          # (../values.yaml).
+          expr: |
+            max by (instance, device) (node_emmc_life_time_estimate) >= 9
+            or
+            max by (instance, device) (node_emmc_pre_eol_info) >= 2
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "{{ $labels.instance }} eMMC {{ $labels.device }} is wearing out"
+            description: >-
+              The eMMC reports 80% or more of its rated wear or of its reserved
+              blocks used. Plan the module replacement
+              (docs/runbooks/node-replacement.md) and check what writes most
+              with the Homelab / Nodes dashboard.
+
+        - alert: NodeEmmcEndOfLife
+          # life_time 11 = rated wear exceeded; pre_eol 3 = reserved blocks
+          # nearly gone. Writes can start failing at any time.
+          expr: |
+            max by (instance, device) (node_emmc_life_time_estimate) >= 11
+            or
+            max by (instance, device) (node_emmc_pre_eol_info) >= 3
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.instance }} eMMC {{ $labels.device }} is at end of life"
+            description: >-
+              The eMMC reports its rated wear exceeded or its reserved blocks
+              nearly gone. Replace the module (docs/runbooks/node-replacement.md);
+              on a control plane, take an etcd snapshot first
+              (`task talos:etcd-snapshot`).
 
     # =====================================================================
     - name: homelab.certificates.rules

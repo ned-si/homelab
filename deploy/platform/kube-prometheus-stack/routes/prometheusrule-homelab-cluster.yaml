@@ -220,6 +220,32 @@ spec:
       for: 30m
       labels:
         severity: warning
+    - alert: NodeEmmcWearHigh
+      annotations:
+        description: The eMMC reports 80% or more of its rated wear or of its reserved
+          blocks used. Plan the module replacement (docs/runbooks/node-replacement.md)
+          and check what writes most with the Homelab / Nodes dashboard.
+        summary: '{{ $labels.instance }} eMMC {{ $labels.device }} is wearing out'
+      expr: |
+        max by (instance, device) (node_emmc_life_time_estimate) >= 9
+        or
+        max by (instance, device) (node_emmc_pre_eol_info) >= 2
+      for: 1h
+      labels:
+        severity: warning
+    - alert: NodeEmmcEndOfLife
+      annotations:
+        description: The eMMC reports its rated wear exceeded or its reserved blocks
+          nearly gone. Replace the module (docs/runbooks/node-replacement.md); on
+          a control plane, take an etcd snapshot first (`task talos:etcd-snapshot`).
+        summary: '{{ $labels.instance }} eMMC {{ $labels.device }} is at end of life'
+      expr: |
+        max by (instance, device) (node_emmc_life_time_estimate) >= 11
+        or
+        max by (instance, device) (node_emmc_pre_eol_info) >= 3
+      for: 10m
+      labels:
+        severity: critical
   - name: homelab.certificates.rules
     rules:
     - alert: CertificateExpiringSoon

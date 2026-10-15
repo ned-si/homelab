@@ -47,6 +47,16 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 | --- | --- |
 | Homelab / Overview (`homelab-overview`) | 30-day availability and error budget per app, 1h burn rate, probe status and duration, nodes Ready, internal endpoints, eMMC and PVC usage, pods not Ready and restarts, running image tags, certificate expiry as served, hours since each backup CronJob last succeeded |
 | Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
+| Homelab / Nodes (`homelab-nodes`) | per node: Talos, kernel, Kubernetes and containerd versions, Ready, uptime; saturation (CPU, memory, PSI, eMMC busy), latency (eMMC and iSCSI per operation), traffic (NIC, eMMC, iSCSI, eMMC bytes written per day), errors (NIC errors and drops, link flaps, OOM kills); SoC temperature, eMMC wear; etcd leader, database size, WAL fsync and commit p99, failed proposals, peer round trip |
+
+eMMC wear comes from a sidecar (`emmc-wear`) in the node-exporter DaemonSet:
+it reads `life_time` and `pre_eol_info` of every eMMC from node-exporter's
+read-only `/host/sys` every 5 minutes and writes them for the textfile
+collector as `node_emmc_life_time_estimate{device,type}` (1 to 11, each step
+10% of rated wear) and `node_emmc_pre_eol_info{device}` (1 normal, 2 warning,
+3 urgent). `NodeEmmcWearHigh` (warning) fires at step 9 or pre-EOL 2,
+`NodeEmmcEndOfLife` (critical) at step 11 or pre-EOL 3. etcd is scraped on the
+control-plane IPs (`kubeEtcd.endpoints`), because on Talos it is not a pod.
 
 Not shown, and what each would need:
 
@@ -245,3 +255,7 @@ Two failure modes this cluster has had:
   looks is the original problem again; warnings are batched harder instead.
 - Credentials as mounted files, not values: nothing about the destination
   devices is in git.
+- eMMC wear from sysfs through a node-exporter sidecar: Talos has no metric
+  for it, and reading the file through the Talos API needs the `os:admin`
+  role, which no pod should hold. The sidecar reuses node-exporter's
+  read-only host mount, so it adds no privilege.
