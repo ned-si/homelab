@@ -120,7 +120,10 @@
         '#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?[^\\n]*\\n\\s*-?\\s*(?:image|imageName):\\s*[\'"]?[^\\s:\'"]+:(?<currentValue>[^\'"\\s@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\'"]?',
       ],
       datasourceTemplate: 'docker',
-      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}',
+      // `docker` versioning keeps the tag's suffix (-alpine3.24, -slim, ...)
+      // as a compatibility constraint. `semver-coerced` drops it, which is how
+      // python:3.14.8-alpine3.24 was offered python:3.15.0 (full Debian).
+      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}',
     },
     {
       customType: 'regex',
