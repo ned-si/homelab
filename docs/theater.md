@@ -2,7 +2,8 @@
 
 Namespace `theater`: Plex and Jellyfin serve the library; Sonarr (series),
 Radarr (movies) and Lidarr (music) pick releases; Prowlarr manages indexers;
-qBittorrent downloads. Manifests are in `apps/theater/`.
+qBittorrent downloads; Bazarr fetches subtitles. Manifests are in
+`apps/theater/`.
 
 ## Quality profiles
 
@@ -82,10 +83,34 @@ the job.
 
 ## Subtitles
 
-Not automated yet. Bazarr's manifest (`apps/theater/bazarr.yaml`) is written
-but not rendered. Once it runs, its language profile is French + English, set
-in its UI (Settings, Languages): Bazarr keeps profiles in its database, not in
-a config file. See [subtitles](runbooks/subtitles.md).
+Bazarr (`apps/theater/bazarr.yaml`, https://theater.lilalala.com/arr/bazarr,
+user `admin`, password in `apps/secrets/bazarr.sops.yaml`) downloads subtitles
+for every series and movie in Sonarr and Radarr and saves them as external
+files next to the video: `<video>.en.srt`, `<video>.fr.srt`,
+`<video>.fr.forced.srt`.
+
+| Language profile | Languages | Applies to |
+|---|---|---|
+| `EN` | English | Default, every title |
+| `FR` | French, full and forced | Titles tagged `kids-fr` |
+
+Sonarr and Radarr tag a title `kids-fr` automatically while its quality
+profile is `HD-Kids-FR` (auto tagging rule `kids-fr (Bazarr FR)`), and Bazarr
+assigns the `FR` profile to tagged titles at its next sync with them (hourly).
+Providers, none of which needs an account: Podnapisi, Gestdown (Addic7ed proxy),
+TVSubtitles, YIFY Subtitles, Sous-Titres.eu, Subsynchro. Embedded text
+subtitles count as present.
+
+The PostSync Job `bazarr-settings` applies all of this through the Bazarr,
+Sonarr and Radarr APIs on every Argo CD sync of `theater`; UI changes to these
+settings are overwritten then. Check its last run (read-only):
+
+```sh
+kubectl -n theater logs job/bazarr-settings
+```
+
+Expected: one `auto tag kids-fr` line each for sonarr and radarr, then
+`bazarr: settings applied`. See also [subtitles](runbooks/subtitles.md).
 
 ## Indexers
 
@@ -129,5 +154,11 @@ torrents: beyond that, seeds are queued and stop uploading.
 - Two profiles only: one per audio need. Per-title choice stays manual because
   "animated" is not the same as "for children" and a bulk rule would get it
   wrong.
+- Bazarr's subtitle language follows the quality profile through a tag, so
+  choosing `HD-Kids-FR` for a title is the only per-title decision. Its
+  settings are applied through the API rather than kept in a file because
+  Bazarr stores profiles in its database. SQLite, not CloudNativePG: the
+  database holds nothing that is not rebuilt from git and from Sonarr and
+  Radarr, apart from the download history.
 - Private trackers are manual only: their rules punish automatic grabs.
   Public indexers carry the automatic search.

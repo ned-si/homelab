@@ -1,0 +1,98 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: theater-config-backup-bazarr
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: theater-config-backup-bazarr
+        spec:
+          affinity:
+            podAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+              - labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: bazarr
+                topologyKey: kubernetes.io/hostname
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/backup-config.sh
+            - bazarr
+            - /config
+            - --exclude=/config/log
+            - --exclude=/config/cache
+            - --exclude=/config/backup
+            env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
+            - name: RESTIC_CACHE_DIR
+              value: /cache
+            - name: TMPDIR
+              value: /cache
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.1
+            imagePullPolicy: IfNotPresent
+            name: restic
+            resources:
+              limits:
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /config
+              name: config
+              readOnly: true
+            - mountPath: /cache
+              name: cache
+          restartPolicy: OnFailure
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              defaultMode: 493
+              name: theater-backup-scripts
+            name: scripts
+          - name: config
+            persistentVolumeClaim:
+              claimName: bazarr-config
+              readOnly: true
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: cache
+  schedule: 50 4 * * *
+  successfulJobsHistoryLimit: 3
+  suspend: false

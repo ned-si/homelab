@@ -117,8 +117,12 @@ spec:
       - port: "7878"
         protocol: TCP
   - fromEndpoints:
-    - matchLabels:
-        app.kubernetes.io/name: recyclarr-sync
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - recyclarr-sync
+        - bazarr-settings
     toPorts:
     - ports:
       - port: "8989"

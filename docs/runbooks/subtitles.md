@@ -67,25 +67,15 @@ This is why the same file behaves differently in the two servers.
 
 Bazarr fetches **text** subtitles for everything Sonarr and Radarr manage, and
 names them the way both servers expect. No bitmap, no burn-in, no transcode,
-and the naming concern disappears as a side effect. Its manifest is written
-(`apps/theater/bazarr.yaml`) but not deployed: adding it to
-`apps/theater/kustomization.yaml` is its own pull request.
+and the naming concern disappears as a side effect. It runs from
+`apps/theater/bazarr.yaml`, configured as code (docs/theater.md, "Subtitles").
 
-After it is running:
+To fix one title now: Bazarr UI → Series or Movies → the title → Search, then
+check the file gained an `.srt`. Plex picks it up at its next library scan
+(or Plex → the title → Refresh Metadata).
 
-1. Settings → Providers: add at least one. OpenSubtitles.com needs a free
-   account; Podnapisi and Addic7ed do not.
-2. Settings → Languages: create a profile, mark it default. Enable
-   **"Use Embedded Subtitles"** so it does not re-download what a file already
-   carries as text.
-3. Settings → Sonarr / Radarr: the URLs are in-cluster, so
-   `http://sonarr.theater.svc.cluster.local:8989` and
-   `http://radarr.theater.svc.cluster.local:7878`. API keys come from each app's
-   Settings → General.
-4. Trigger a sync and check one known-bad file gained an `.srt`.
-
-**No path mapping should be needed** as long as Bazarr mounts the media share at
-the same path as Sonarr and Radarr, so the paths they report resolve. If the UI
+**No path mapping is needed**: Bazarr mounts the media share at `/data`, the
+same path as Sonarr and Radarr, so the paths they report resolve. If the UI
 shows path-mapping errors, the mount is wrong — fix the mount, not the mapping.
 
 ### 2. Force text where a file only has bitmap

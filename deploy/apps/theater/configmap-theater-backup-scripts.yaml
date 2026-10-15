@@ -59,11 +59,8 @@ data:
     # Credentials come from the CloudNativePG-generated `<cluster>-app` Secrets,
     # mounted as directories of files rather than as twenty environment
     # variables. CNPG rotates these itself, so there is no password in git in
-    # any form -- not even encrypted.
-    # bazarr joins this list (and gets a creds-bazarr volume below) when
-    # bazarr.yaml is rendered: it runs on CloudNativePG rather than its default
-    # SQLite, so it gets a transactional dump here instead of a best-effort file
-    # snapshot. Listing it before its Secret exists would fail every night.
+    # any form -- not even encrypted. Bazarr is not here: it runs on SQLite
+    # (backup-bazarr.yaml).
     for app in sonarr radarr lidarr prowlarr; do
       d="/creds/${app}"
       if [ ! -f "$d/password" ]; then

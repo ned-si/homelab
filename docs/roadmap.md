@@ -65,6 +65,6 @@ updates. Pin it to a release tag. Every other image carries a version tag and a
 
 ## Features
 
-- Bazarr (`apps/theater/bazarr.yaml`) and SSO in front of the *arr UIs
-  (`apps/theater/sso.yaml`, new public hostnames).
+- SSO in front of the *arr UIs (`apps/theater/sso.yaml`, new public
+  hostnames).
 - Jellyfin on Keycloak SSO (the TV app keeps Quick Connect or local login).

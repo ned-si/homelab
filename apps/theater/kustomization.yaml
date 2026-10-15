@@ -3,8 +3,6 @@ kind: Kustomization
 namespace: theater
 
 # Parity with the running cluster (ADR 0002). Kept in git, not rendered:
-#   bazarr.yaml  (new app, its own adoption change)
-#   backup-bazarr.yaml  (bazarr's config backup; rendered with bazarr.yaml)
 #   sso.yaml, sso-routes.yaml  (oauth2-proxy SSO for the *arr UIs: new
 #                public hostnames, its own change)
 resources:
@@ -19,6 +17,9 @@ resources:
   # Book acquisition for the books namespace (docs/books.md).
   - lazylibrarian.yaml
   - backup-lazylibrarian.yaml
+  # Subtitles for Sonarr and Radarr (docs/theater.md, "Subtitles").
+  - bazarr.yaml
+  - backup-bazarr.yaml
   - httproute.yaml
   # restic CronJobs for the /config volumes and the *arr databases, plus the
   # monthly prune of their shared repository.
@@ -86,3 +87,4 @@ patches:
           - http://plex:32400/identity
           - http://jellyfin:8096/health
           - http://lazylibrarian:5299/arr/lazylibrarian/auth/login
+          - http://bazarr:6767/arr/bazarr/api/system/ping

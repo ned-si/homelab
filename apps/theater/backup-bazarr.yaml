@@ -1,22 +1,15 @@
-# bazarr's config backup. NOT RENDERED until bazarr.yaml is: the job mounts
-# `bazarr-config`, and a CronJob whose PVC does not exist leaves a Pending pod
-# every night.
-#
-# Enabling it, in the same change that renders bazarr.yaml:
-#   - add this file to kustomization.yaml and theater/theater-config-backup-bazarr
-#     to ci/active-cronjobs.txt;
-#   - add bazarr to the dump loop in backup.yaml (dump-postgres.sh) and give the
-#     dump initContainer a `creds-bazarr` volume from `bazarr-postgresql-app`.
+# bazarr's config backup: /config, including its SQLite database in
+# /config/db, copied while Bazarr runs (best effort, like jellyfin's). The
+# settings and language profiles are code (bazarr.yaml), so a torn database
+# loses at most the download history.
 #
 # Same shape as the sonarr job in backup.yaml; different PVC, label, tag and
 # slot. The 04:50 slot sits before jellyfin's 05:00, in the same shared
 # repository, ten minutes apart for the restic lock.
 #
-# /config here holds the provider credentials, the per-series subtitle language
-# profiles and the scoring rules. The subtitle FILES themselves are not in it --
-# they are written next to the media on `theater-data`, which is a separate
-# concern and is not backed up by this repository at all (26TB of re-acquirable
-# media is deliberately out of scope; see backup.yaml).
+# The subtitle FILES are not in it: they are written next to the media on the
+# NAS share, which this repository does not back up (re-acquirable media is
+# deliberately out of scope; see backup.yaml).
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -70,11 +63,6 @@ spec:
                 # Bazarr writes its own periodic config backups into /config.
                 # Backing up backups doubles the snapshot for nothing.
                 - --exclude=/config/backup
-                # Only present if POSTGRES_ENABLED is ever turned off. Harmless
-                # while it is on, and the reason it is listed is that flipping
-                # that switch must not silently start capturing a live SQLite
-                # file -- the failure the jellyfin job has to hedge about.
-                - --exclude=/config/db
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs
