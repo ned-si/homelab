@@ -11,6 +11,7 @@
 #   barman_cloud_cloudnative_pg_io_*            the Barman Cloud plugin sidecar
 #
 # What to do when one fires: docs/backups.md ("Alerts").
+# Tests: tests/prometheus/cnpg_backups_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
