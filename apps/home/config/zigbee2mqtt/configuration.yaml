@@ -1,0 +1,21 @@
+# Zigbee2MQTT seed configuration, from git (apps/home/config/zigbee2mqtt/).
+# Copied to /app/data/configuration.yaml only when that file is missing:
+# Zigbee2MQTT then owns the file (devices, groups, generated keys). The MQTT
+# server and user, the serial port and the frontend are environment
+# variables in apps/home/zigbee2mqtt.yaml, which override this file.
+version: 4
+homeassistant:
+  enabled: true
+frontend:
+  enabled: true
+  port: 8080
+mqtt:
+  base_topic: zigbee2mqtt
+serial: {}
+advanced:
+  # Generated on the first start and written back into the file.
+  network_key: GENERATE
+  pan_id: GENERATE
+  ext_pan_id: GENERATE
+  log_output:
+    - console

@@ -1,0 +1,195 @@
+# Zigbee2MQTT: Zigbee devices to MQTT (Mosquitto) and Home Assistant
+# discovery. docs/home-automation.md, "Zigbee".
+#
+# SCALED TO 0 until the coordinator is online. The coordinator is a USB
+# Zigbee adapter on a Raspberry Pi outside the cluster, shared over TCP by
+# ser2net (serial.port tcp://192.168.1.20:20108), so no node needs USB
+# passthrough and Zigbee2MQTT can run on any node. To enable: set the adapter
+# type (ZIGBEE2MQTT_CONFIG_SERIAL_ADAPTER below), replicas: 1, and add the
+# backup of zigbee2mqtt-data (network key, coordinator backup, device list).
+#
+# Volumes:
+#   zigbee2mqtt-data (iSCSI)  /app/data: configuration.yaml (Zigbee2MQTT
+#                             writes devices, groups and the generated
+#                             network key into it), database.db,
+#                             coordinator_backup.json
+#   ConfigMap zigbee2mqtt-config  the seed configuration.yaml, copied in by
+#                             the `config` init container only when missing
+# Settings git owns are ZIGBEE2MQTT_CONFIG_* environment variables, which
+# override the file on every start.
+#
+# The frontend (port 8080) has no route: kubectl -n home port-forward
+# svc/zigbee2mqtt 8080, until it sits behind Keycloak.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: zigbee2mqtt
+  name: zigbee2mqtt
+  namespace: home
+spec:
+  replicas: 0
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: zigbee2mqtt
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zigbee2mqtt
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: config
+          # renovate: datasource=docker depName=ghcr.io/koenkk/zigbee2mqtt
+          image: ghcr.io/koenkk/zigbee2mqtt:2.14.2
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-euc"]
+          args:
+            - |
+              if [ -f /app/data/configuration.yaml ]; then
+                echo "ok: configuration.yaml present"
+              else
+                cp /seed/configuration.yaml /app/data/configuration.yaml
+                echo "ok: configuration.yaml seeded"
+              fi
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: seed
+              mountPath: /seed
+              readOnly: true
+      containers:
+        - name: zigbee2mqtt
+          # renovate: datasource=docker depName=ghcr.io/koenkk/zigbee2mqtt
+          image: ghcr.io/koenkk/zigbee2mqtt:2.14.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TZ
+              value: Europe/Zurich
+            - name: ZIGBEE2MQTT_DATA
+              value: /app/data
+            - name: ZIGBEE2MQTT_CONFIG_MQTT_SERVER
+              value: mqtt://mosquitto.home.svc.cluster.local:1883
+            - name: ZIGBEE2MQTT_CONFIG_MQTT_USER
+              value: zigbee2mqtt
+            - name: ZIGBEE2MQTT_CONFIG_MQTT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mosquitto-users
+                  key: zigbee2mqtt
+            # SITE-SPECIFIC: the Raspberry Pi's static address and the
+            # ser2net port (docs/home-automation.md, "Zigbee").
+            - name: ZIGBEE2MQTT_CONFIG_SERIAL_PORT
+              value: tcp://192.168.1.20:20108
+            # Set with the coordinator model: zstack (TI CC2652/CC1352),
+            # ember (Silicon Labs EFR32, EmberZNet 7.4+), deconz (ConBee,
+            # RaspBee), zigate, zboss.
+            # - name: ZIGBEE2MQTT_CONFIG_SERIAL_ADAPTER
+            #   value: zstack
+            - name: ZIGBEE2MQTT_CONFIG_FRONTEND_ENABLED
+              value: "true"
+            - name: ZIGBEE2MQTT_CONFIG_FRONTEND_PORT
+              value: "8080"
+            - name: ZIGBEE2MQTT_CONFIG_HOMEASSISTANT_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: zigbee2mqtt-data
+        - name: seed
+          configMap:
+            name: zigbee2mqtt-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zigbee2mqtt-data
+  namespace: home
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  storageClassName: iscsi-retain
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: zigbee2mqtt
+  name: zigbee2mqtt
+  namespace: home
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: zigbee2mqtt
