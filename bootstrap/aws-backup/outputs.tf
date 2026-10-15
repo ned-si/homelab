@@ -54,6 +54,18 @@ output "verify_secret_access_key" {
   sensitive   = true
 }
 
+output "metrics_access_key_id" {
+  description = "AWS_ACCESS_KEY_ID for the aws-exporter Secret (read-only metrics)."
+  value       = aws_iam_access_key.metrics.id
+  sensitive   = true
+}
+
+output "metrics_secret_access_key" {
+  description = "AWS_SECRET_ACCESS_KEY for the aws-exporter Secret (read-only metrics)."
+  value       = aws_iam_access_key.metrics.secret
+  sensitive   = true
+}
+
 output "next_steps" {
   description = "What to do with the above."
   value       = <<-EOT

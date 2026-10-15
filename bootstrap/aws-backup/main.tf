@@ -397,3 +397,51 @@ resource "aws_iam_user_policy" "verify" {
 resource "aws_iam_access_key" "verify" {
   user = aws_iam_user.verify.name
 }
+
+# ---------------------------------------------------------------------------
+# A read-only metrics credential for the AWS dashboard (platform/aws-exporter):
+# CloudWatch S3 storage metrics (bucket size per storage class, via YACE),
+# Cost Explorer (cost per day, month and service) and a listing of the backup
+# bucket for the size per prefix. No object reads, no writes.
+# ---------------------------------------------------------------------------
+resource "aws_iam_user" "metrics" {
+  name = "homelab-metrics-reader"
+  tags = {
+    Purpose = "read-only CloudWatch, Cost Explorer and bucket listing for Grafana"
+    Managed = "opentofu"
+  }
+}
+
+data "aws_iam_policy_document" "metrics" {
+  # These actions do not support resource-level permissions.
+  statement {
+    sid    = "MetricsRead"
+    effect = "Allow"
+    actions = [
+      "cloudwatch:GetMetricData",
+      "cloudwatch:GetMetricStatistics",
+      "cloudwatch:ListMetrics",
+      "tag:GetResources",
+      "ce:GetCostAndUsage",
+      "ce:GetCostForecast",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "BackupBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.backups.arn]
+  }
+}
+
+resource "aws_iam_user_policy" "metrics" {
+  name   = "metrics-readonly"
+  user   = aws_iam_user.metrics.name
+  policy = data.aws_iam_policy_document.metrics.json
+}
+
+resource "aws_iam_access_key" "metrics" {
+  user = aws_iam_user.metrics.name
+}

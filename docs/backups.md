@@ -684,6 +684,7 @@ would make the repository unreadable. Instant Retrieval, not Deep Archive, so
 | `ned-si-homelab-backups-writer` | the backup jobs, via `s3-backup` | get, put and delete objects; list the bucket |
 | `ned-si-homelab-backups-verifier` | restores and drills | get objects and versions, list the bucket, write only under `*/locks/` |
 | `ned-si-homelab-backups-cnpg` | the Barman Cloud plugin, via `cnpg-backup-s3` | get, put and delete objects under `cnpg/` only; list the bucket only without a prefix or with `cnpg/*` |
+| `homelab-metrics-reader` | the AWS dashboard, via `aws-exporter` | list the bucket (no object reads); read CloudWatch metrics and Cost Explorer |
 
 The writer and the cnpg user have an explicit `Deny` on `s3:DeleteObjectVersion`, versioning,
 lifecycle, bucket policy, ACL, encryption and bucket deletion. With versioning on, a
