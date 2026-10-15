@@ -968,7 +968,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(node_disk_written_bytes_total{device=\"mmcblk0\"}[24h]) * on (instance) group_left (nodename) node_uname_info",
+          "expr": "max by (instance) (increase(node_disk_written_bytes_total{device=\"mmcblk0\"}[24h])) * on (instance) group_left (nodename) node_uname_info",
           "refId": "A",
           "legendFormat": "{{nodename}}"
         }
@@ -1097,7 +1097,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(node_network_carrier_changes_total{device=~\"en.*|eth.*\"}[24h]) * on (instance) group_left (nodename) node_uname_info",
+          "expr": "max by (instance) (increase(node_network_carrier_changes_total{device=~\"en.*|eth.*\"}[24h])) * on (instance) group_left (nodename) node_uname_info",
           "refId": "A",
           "legendFormat": "{{nodename}}",
           "instant": true,
@@ -1164,7 +1164,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "increase(node_vmstat_oom_kill[24h]) * on (instance) group_left (nodename) node_uname_info",
+          "expr": "max by (instance) (increase(node_vmstat_oom_kill[24h])) * on (instance) group_left (nodename) node_uname_info",
           "refId": "A",
           "legendFormat": "{{nodename}}",
           "instant": true,
