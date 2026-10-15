@@ -137,7 +137,7 @@
     {
       "type": "stat",
       "title": "Restore tests stale",
-      "description": "Weekly checks without a pass in 8 days, monthly pack reads without one in 36. Fires BackupVerifyStale / BackupVerifyDataStale.",
+      "description": "Weekly checks without a success in 8 days, monthly pack reads without one in 36. Fires BackupVerifyStale / BackupVerifyDataStale.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -198,8 +198,8 @@
     },
     {
       "type": "stat",
-      "title": "Restore tests passing",
-      "description": "Checks whose last run passed.",
+      "title": "Restore tests succeeding",
+      "description": "Checks whose last run succeeded.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -319,7 +319,7 @@
     {
       "type": "table",
       "title": "Restore tests: last result per check",
-      "description": "One row per check and target. result: 1 pass, 0 fail. Days since pass: from Prometheus' 30-day history. Backup age: how old the verified backup was when it was tested. Logs: kubectl -n backup-verify logs job/<job> --all-containers.",
+      "description": "One row per check and target. result: 1 success, 0 failure. Days since success: from Prometheus' 30-day history. Backup age: how old the verified backup was when it was tested. Logs: kubectl -n backup-verify logs job/<job> --all-containers.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -455,7 +455,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "days since pass"
+              "options": "days since success"
             },
             "properties": [
               {
@@ -617,7 +617,7 @@
             },
             "renameByName": {
               "Value #A": "result",
-              "Value #B": "days since pass",
+              "Value #B": "days since success",
               "Value #C": "backup age",
               "Value #D": "duration",
               "Value #E": "rows",
@@ -926,7 +926,7 @@
     {
       "type": "state-timeline",
       "title": "Restore test results over time",
-      "description": "1 pass, 0 fail, per check and target, as last pushed.",
+      "description": "1 success, 0 failure, per check and target, as last pushed.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
