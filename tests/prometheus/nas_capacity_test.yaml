@@ -6,6 +6,11 @@ rule_files:
   - homelab-nas.yaml
 
 evaluation_interval: 1h
+# Recording rules first: at an hourly step the alerts must read this step's
+# recorded value, not one an hour old (beyond the 5m lookback).
+group_eval_order:
+  - homelab.nas.recording
+  - homelab.nas
 
 tests:
   # 10 TB pool, 7 TB used, growing 10 GB an hour (240 GB a day). After 8
