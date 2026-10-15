@@ -186,7 +186,7 @@ repos:
   # npm package into the pre-commit cache on first use (about a minute).
   # ---------------------------------------------------------------------------
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 44.158.2
+    rev: 44.161.2
     hooks:
       - id: renovate-config-validator
         args: [--strict]
