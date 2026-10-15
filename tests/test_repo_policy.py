@@ -449,6 +449,9 @@ def variant_policy(tmp_path, before, after):
     ("debian:bookworm-slim", "debian:trixie-slim", True),
     ("memcached:1.6.45", "memcached:1.6.45-alpine", False),
     ("postgres:18-bookworm", "postgres:18-bookworm-slim", False),
+    ("ghcr.io/cloudnative-pg/postgresql:18.6", "ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie", False),
+    ("ghcr.io/cloudnative-pg/postgresql:18.6", "ghcr.io/cloudnative-pg/postgresql:18.6-trixie", True),
+    ("example/app:1.0-bookworm", "example/app:1.0-slim-trixie", True),
     ("example/app:1.0-alpine", "example/app:1.1-slim", True),
     ("plexinc/pms-docker:1.43.4.10903-e5521bd8c", "plexinc/pms-docker:1.43.5.11000-0abc1234d", False),
 ])
