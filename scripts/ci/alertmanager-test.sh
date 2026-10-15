@@ -8,7 +8,14 @@
 #   3. tests/alertmanager/*.json: a scenario of firing alerts, the
 #      notifications it must produce (`<receiver> <alertname>`, as a local
 #      webhook sink receives them) and the alerts left uninhibited. Each
-#      scenario starts a fresh Alertmanager with the real config.
+#      scenario starts a fresh Alertmanager with the real config, quiet
+#      hours off so the result does not depend on the clock.
+#   4. Quiet hours: every route to ntfy (and no other) mutes `quiet-hours`,
+#      which covers 02:00 and not 08:05 Europe/Zurich, every day. Then a
+#      real Alertmanager with the interval moved to end within 2 minutes
+#      (amtool has no --time): node-down is muted while the Watchdog still
+#      reaches the heartbeat and the guard topic still gets it, and ntfy
+#      gets it exactly once after the end.
 #
 # The webhook URLs (`url_file`, the SOPS Secret) point at the sink instead,
 # and every group_wait is 2s so a scenario takes seconds; routes, grouping
@@ -53,6 +60,10 @@ if ! amtool check-config "$work/am.yaml" >/dev/null; then
 fi
 echo "ok    amtool check-config"
 
+# The scenarios run with quiet hours never active (year 2000).
+yq '(.time_intervals[] | select(.name == "quiet-hours") | .time_intervals) = [{"years": ["2000"]}]' \
+  "$work/am.yaml" > "$work/am-scenarios.yaml"
+
 # 2. Routes.
 while read -r want labels; do
   case "$want" in '' | '#'*) continue ;; esac
@@ -94,25 +105,39 @@ wait_ready() { # url
   return 1
 }
 
-for s in tests/alertmanager/*.json; do
-  [ -f "$s" ] || continue
+start_am() { # config file; empties the sink
   : > "$work/sink"
   rm -rf "$work/data"
-  alertmanager --config.file="$work/am.yaml" --storage.path="$work/data" \
+  alertmanager --config.file="$1" --storage.path="$work/data" \
     --web.listen-address="127.0.0.1:$AM_PORT" --cluster.listen-address= \
     --log.level=error > "$work/am.log" 2>&1 &
   am_pid=$!
-  if ! wait_ready "http://127.0.0.1:$AM_PORT/-/ready"; then
-    echo "FAIL  $s: Alertmanager did not start"; cat "$work/am.log"; rc=1
-    kill "$am_pid" 2>/dev/null; am_pid=""; continue
-  fi
-  jq -c '[.alerts[] | {labels: .}]' "$s" |
+  wait_ready "http://127.0.0.1:$AM_PORT/-/ready" && return 0
+  cat "$work/am.log"
+  stop_am
+  return 1
+}
+
+stop_am() {
+  kill "$am_pid" 2>/dev/null; wait "$am_pid" 2>/dev/null; am_pid=""
+}
+
+post_alerts() { # JSON array of label sets on stdin
+  jq -c '[.[] | {labels: .}]' |
     curl -fsS -m 5 -H 'Content-Type: application/json' --data-binary @- \
-      "http://127.0.0.1:$AM_PORT/api/v2/alerts" >/dev/null || { echo "FAIL  $s: post"; rc=1; }
+      "http://127.0.0.1:$AM_PORT/api/v2/alerts" >/dev/null
+}
+
+for s in tests/alertmanager/*.json; do
+  [ -f "$s" ] || continue
+  if ! start_am "$work/am-scenarios.yaml"; then
+    echo "FAIL  $s: Alertmanager did not start"; rc=1; continue
+  fi
+  jq '.alerts' "$s" | post_alerts || { echo "FAIL  $s: post"; rc=1; }
   sleep 6
   open=$(curl -fsS -m 5 "http://127.0.0.1:$AM_PORT/api/v2/alerts" |
     jq -r '.[] | select((.status.inhibitedBy // []) | length == 0) | .labels.alertname' | sort)
-  kill "$am_pid" 2>/dev/null; wait "$am_pid" 2>/dev/null; am_pid=""
+  stop_am
   for check in notifications uninhibited; do
     want=$(jq -r ".${check}[]" "$s" | sort)
     if [ "$check" = notifications ]; then got=$(sort "$work/sink"); else got=$open; fi
@@ -126,4 +151,87 @@ for s in tests/alertmanager/*.json; do
     fi
   done
 done
+
+# 4. Quiet hours. a) The routes and the interval, at Zurich wall-clock times.
+yq -o=json '.' "$work/am.yaml" | python3 -c '
+import json, sys
+
+cfg, rc = json.load(sys.stdin), 0
+
+def walk(route, receiver, path):
+    global rc
+    receiver = route.get("receiver", receiver)
+    muted = "quiet-hours" in route.get("mute_time_intervals", [])
+    if path != "route" and muted != (receiver == "ntfy"):
+        print("FAIL  quiet hours: %s (%s) %s" % (path, receiver, "mutes it" if muted else "does not mute it"))
+        rc = 1
+    for i, child in enumerate(route.get("routes", [])):
+        walk(child, receiver, "%s.routes[%d]" % (path, i))
+
+walk(cfg["route"], None, "route")
+if rc == 0:
+    print("ok    quiet hours: every ntfy route mutes quiet-hours, no other route does")
+
+ivs = [t for n in cfg.get("time_intervals", []) if n["name"] == "quiet-hours" for t in n["time_intervals"]]
+if not ivs or any(set(t) != {"times", "location"} or t["location"] != "Europe/Zurich" for t in ivs):
+    print("FAIL  quiet hours: want times only (every day), location Europe/Zurich; got %s" % ivs)
+    sys.exit(1)
+
+def minutes(hhmm):
+    h, m = hhmm.split(":")
+    return int(h) * 60 + int(m)
+
+def muted(hhmm):
+    return any(minutes(r["start_time"]) <= minutes(hhmm) < minutes(r["end_time"]) for t in ivs for r in t["times"])
+
+for hhmm, want in [("22:59", False), ("23:00", True), ("02:00", True), ("07:59", True), ("08:00", False), ("08:05", False)]:
+    if muted(hhmm) == want:
+        print("ok    quiet hours: %s Europe/Zurich %s" % (hhmm, "muted" if want else "delivered"))
+    else:
+        print("FAIL  quiet hours: %s Europe/Zurich, want %s" % (hhmm, "muted" if want else "delivered"))
+        rc = 1
+sys.exit(rc)
+' || rc=1
+
+# b) A real Alertmanager with the interval at 00:00 UTC until the next minute
+# boundary at least 20 s away, and every group_interval 5s so the first flush
+# after the end comes at once.
+while :; do
+  read -r h m sec <<<"$(date -u '+%H %M %S')"
+  now=$((10#$h * 3600 + 10#$m * 60 + 10#$sec))
+  end_min=$((now / 60 + 1))
+  [ $((now % 60)) -gt 40 ] && end_min=$((end_min + 1))
+  [ "$end_min" -le 1440 ] && break
+  sleep 30 # a range cannot cross midnight UTC
+done
+end=$(printf '%02d:%02d' $((end_min / 60)) $((end_min % 60)))
+deadline=$(($(date +%s) + end_min * 60 - now))
+# shellcheck disable=SC2016 # strenv, not a shell variable
+END=$end yq '(.time_intervals[] | select(.name == "quiet-hours") | .time_intervals) =
+    [{"times": [{"start_time": "00:00", "end_time": strenv(END)}], "location": "UTC"}]
+  | (.route | .. | select(tag == "!!map" and has("group_interval")) | .group_interval) = "5s"' \
+  "$work/am.yaml" > "$work/am-quiet.yaml"
+if start_am "$work/am-quiet.yaml"; then
+  jq '.alerts + [{"alertname": "Watchdog", "severity": "none"}]' tests/alertmanager/node-down.json |
+    post_alerts || { echo "FAIL  quiet hours: post"; rc=1; }
+  sleep 5
+  got=$(LC_ALL=C sort "$work/sink" | tr '\n' ';')
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "FAIL  quiet hours: the interval ended before the check"; rc=1
+  elif [ "$got" = "heartbeat Watchdog;ntfy-guard HomelabNodeNotReady;" ]; then
+    echo "ok    quiet hours: node-down muted until $end UTC, Watchdog and the guard topic delivered"
+  else
+    echo "FAIL  quiet hours: while muted, want heartbeat Watchdog and ntfy-guard; got $got"; rc=1
+  fi
+  sleep $((deadline - $(date +%s) + 12))
+  got=$(LC_ALL=C sort "$work/sink" | tr '\n' ';')
+  if [ "$got" = "heartbeat Watchdog;ntfy HomelabNodeNotReady;ntfy-guard HomelabNodeNotReady;" ]; then
+    echo "ok    quiet hours: node-down notified once after $end UTC"
+  else
+    echo "FAIL  quiet hours: after the end, want one HomelabNodeNotReady; got $got"; rc=1
+  fi
+  stop_am
+else
+  echo "FAIL  quiet hours: Alertmanager did not start"; rc=1
+fi
 exit "$rc"

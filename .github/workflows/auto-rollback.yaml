@@ -19,9 +19,9 @@
 # would do and `act` is skipped, so nothing is created.
 #
 # - `decide` reads the repository and the run list of this workflow (the
-#   several-apps check), and the ntfy.sh topic (secret NTFY_TOPIC, the same
-#   topic as platform/secrets/alertmanager-notify.sops.yaml `ntfy-url`) for
-#   the node and NAS alerts. `act` gets `contents: write` for the verified
+#   several-apps check), and the ntfy.sh guard topic (secret NTFY_TOPIC plus
+#   `-guard`, platform/secrets/alertmanager-notify.sops.yaml `ntfy-guard-url`)
+#   for the node and NAS alerts. `act` gets `contents: write` for the verified
 #   revert commit and its branch; the pull request, its label and auto-merge
 #   use the AUTO_ROLLBACK_TOKEN secret (fine-grained, this repository only),
 #   see platform/secrets/argocd-notifications.sops.yaml.example.

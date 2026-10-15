@@ -10,6 +10,6 @@
     {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "theater", "namespace": "theater"},
     {"alertname": "TargetDown", "severity": "warning", "namespace": "kube-system", "job": "node-exporter"}
   ],
-  "notifications": ["ntfy HomelabNodeNotReady"],
+  "notifications": ["ntfy HomelabNodeNotReady", "ntfy-guard HomelabNodeNotReady"],
   "uninhibited": ["ArgoCDAppDegraded", "HomelabNodeNotReady", "KubePodNotReady", "TargetDown"]
 }

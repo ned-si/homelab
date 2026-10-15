@@ -137,7 +137,8 @@ jobs:
           exit "$rc"
 
       # One place for alerts: post the failure to ntfy. The topic is the
-      # secret, so it is never printed; the body names the run only.
+      # secret, so it is never printed; the body names the run only. Priority
+      # low (no sound) because Actions has no quiet hours (docs/sre.md).
       - name: Notify ntfy on failure
         if: ${{ failure() }}
         env:
@@ -145,7 +146,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           curl -fsS -m 10 -o /dev/null \
-            -H "Title: dast failed" -H "Priority: high" -H "Tags: warning" \
+            -H "Title: dast failed" -H "Priority: low" -H "Tags: warning" \
             -H "Click: $RUN_URL" \
             -d "dast run failed; see the Security tab and $RUN_URL" \
             "https://ntfy.sh/$NTFY_TOPIC"

@@ -228,7 +228,7 @@ out=$(guard RUNS_FAIL=1 NTFY_TOPIC=t NTFY_FAIL=1)
 expect_eq "both checks failing: no outage" "" "$out"
 expect_contains "run list failure warned" "cannot list" "$(cat "$tmp/guard.err")"
 expect_contains "ntfy failure warned" "cannot read the ntfy topic" "$(cat "$tmp/guard.err")"
-expect_contains "ntfy read with poll and since" "t/json?poll=1&since=12h" "$(cat "$GUARD_LOG")"
+expect_contains "guard topic read with poll and since" "t-guard/json?poll=1&since=12h" "$(cat "$GUARD_LOG")"
 
 echo "act"
 install_fake_gh_act() {

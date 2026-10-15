@@ -190,7 +190,8 @@ holds the revert back when 3 or more apps failed within 10 minutes (counted
 from this workflow's runs, named `auto-rollback <app>`), a node is NotReady or
 the NAS is unreachable (`HomelabNodeNotReady`, `HomelabNASUnreachable` in
 `platform/kube-prometheus-stack/routes/outage-alerts.yaml`, read from the
-ntfy.sh topic in the Actions secret `NTFY_TOPIC`). In an outage every app
+ntfy.sh guard topic, the Actions secret `NTFY_TOPIC` plus `-guard`, which
+quiet hours do not mute). In an outage every app
 degrades at once and the newest merge is not the cause.
 
 No GitHub issues: the failure is an alert (`homelab-argocd`,

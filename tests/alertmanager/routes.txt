@@ -7,8 +7,9 @@ heartbeat alertname=Watchdog severity=none
 ntfy alertname=SLOErrorBudgetBurnFast severity=critical app=auth namespace=keycloak
 ntfy alertname=SLOErrorBudgetBurnSlow severity=warning app=cook namespace=mealie
 # Notifies: infrastructure criticals.
-ntfy alertname=HomelabNodeNotReady severity=critical node=homelab-w-1
-ntfy alertname=HomelabNASUnreachable severity=critical instance=192.168.1.228:3260
+# The node and NAS alerts also reach the outage guard's topic.
+ntfy-guard,ntfy alertname=HomelabNodeNotReady severity=critical node=homelab-w-1
+ntfy-guard,ntfy alertname=HomelabNASUnreachable severity=critical instance=192.168.1.228:3260
 ntfy alertname=etcdInsufficientMembers severity=critical job=kube-etcd
 ntfy alertname=etcdNoLeader severity=critical job=kube-etcd
 ntfy alertname=NASPoolUnhealthy severity=critical pool=homelab
