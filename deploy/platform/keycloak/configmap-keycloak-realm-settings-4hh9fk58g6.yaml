@@ -273,16 +273,17 @@ data:
 
       # The secret is never printed: only whether the live one matches.
       var="$(printf '%s' "$c" | tr 'a-z-' 'A-Z_')_CLIENT_SECRET"
-      secret=${!var:-}
-      if [ -z "$secret" ] || [ "${secret#PENDING}" != "$secret" ]; then
-        echo "WARN client $c: $var is unset or PENDING; secret left as is" >&2
+      want=${!var:-}
+      field=secret
+      if [ -z "$want" ] || [ "${want#PENDING}" != "$want" ]; then
+        echo "WARN client $c: $var is unset or PENDING; client $field left as is" >&2
       else
-        kc update "clients/$id" -r "$REALM" -s "secret=$secret"
-        live=$(kc get "clients/$id/client-secret" -r "$REALM" | sed -n 's/^ *"value" : "\(.*\)",\{0,1\}$/\1/p')
-        if [ "$live" = "$secret" ]; then got=matches; else got=differs; fi
-        check "client $c secret ($var)" matches "$got"
+        kc update "clients/$id" -r "$REALM" -s "$field=$want"
+        live=$(kc get "clients/$id/client-$field" -r "$REALM" | sed -n 's/^ *"value" : "\(.*\)",\{0,1\}$/\1/p')
+        if [ "$live" = "$want" ]; then got=matches; else got=differs; fi
+        check "client $c $field ($var)" matches "$got"
       fi
-      unset secret live
+      unset want live
 
       sid=$(name_id client-scopes groups)
       if ! kc get "clients/$id/default-client-scopes" -r "$REALM" --format csv --noquotes --fields name | grep -qx groups; then
@@ -499,5 +500,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-d4cdg845kb
+  name: keycloak-realm-settings-4hh9fk58g6
   namespace: keycloak
