@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/aws-exporter
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/aws-exporter and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: aws-cost-exporter
+    release: kube-prometheus-stack
+  name: aws-cost-exporter
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 5m
+    port: metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aws-cost-exporter

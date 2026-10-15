@@ -1,0 +1,259 @@
+"""AWS cost and backup-bucket exporter (stdlib only, SigV4 signed by hand).
+
+Every INTERVAL seconds it lists the backup bucket (ListObjectsV2, current
+versions only) and sums bytes and objects per prefix (the first PREFIX_DEPTH
+path segments, e.g. `immich/library`, `cnpg/immich-db`) and storage class.
+
+Once per UTC day it calls Cost Explorer (about $0.01 per call, two calls):
+  GetCostAndUsage   DAILY UnblendedCost per SERVICE, from the first day of last
+                    month to today: yesterday, month to date, last month
+  GetCostForecast   rest of the current month, for the month-end estimate;
+                    while AWS has too little history it refuses, and the
+                    estimate is the month-to-date daily average instead
+
+Credentials: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY (the read-only
+homelab-metrics-reader user, bootstrap/aws-backup). A missing key or a
+PENDING-* sentinel leaves AWS out with aws_exporter_configured 0.
+
+Logs are JSON lines on stdout.
+"""
+from __future__ import annotations
+
+import hashlib
+import hmac
+import json
+import os
+import threading
+import time
+import urllib.parse
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
+from datetime import date, datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+INTERVAL = int(os.environ.get("INTERVAL", "21600"))
+PORT = int(os.environ.get("PORT", "9173"))
+BUCKET = os.environ.get("BUCKET", "ned-si-homelab-backups")
+REGION = os.environ.get("REGION", "eu-central-1")
+PREFIX_DEPTH = int(os.environ.get("PREFIX_DEPTH", "2"))
+
+_metrics = "# no data yet\n"
+_lock = threading.Lock()
+_cost: dict = {"day": None, "families": {}}
+
+
+def log(level: str, msg: str, **kw) -> None:
+    rec = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "level": level, "msg": msg}
+    rec.update(kw)
+    print(json.dumps(rec), flush=True)
+
+
+def cred(name: str) -> str:
+    v = os.environ.get(name, "").strip()
+    return "" if not v or v.startswith("PENDING") else v
+
+
+def _hmac(key: bytes, msg: str) -> bytes:
+    return hmac.new(key, msg.encode(), hashlib.sha256).digest()
+
+
+def sign(method: str, host: str, path: str, query: dict, headers: dict, body: bytes,
+         region: str, service: str, now: datetime | None = None) -> dict:
+    """Headers for an AWS Signature Version 4 request."""
+    now = now or datetime.now(timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    day = amz_date[:8]
+    payload = hashlib.sha256(body).hexdigest()
+    h = {k.lower(): v.strip() for k, v in headers.items()}
+    h.update({"host": host, "x-amz-date": amz_date, "x-amz-content-sha256": payload})
+    q = "&".join(f"{urllib.parse.quote(k, safe='-_.~')}={urllib.parse.quote(str(v), safe='-_.~')}"
+                 for k, v in sorted(query.items()))
+    names = sorted(h)
+    canonical = "\n".join([method, urllib.parse.quote(path, safe="/-_.~"), q,
+                           "".join(f"{n}:{h[n]}\n" for n in names), ";".join(names), payload])
+    scope = f"{day}/{region}/{service}/aws4_request"
+    to_sign = "\n".join(["AWS4-HMAC-SHA256", amz_date, scope, hashlib.sha256(canonical.encode()).hexdigest()])
+    k = _hmac(_hmac(_hmac(_hmac(("AWS4" + os.environ["AWS_SECRET_ACCESS_KEY"]).encode(), day), region), service),
+              "aws4_request")
+    sig = hmac.new(k, to_sign.encode(), hashlib.sha256).hexdigest()
+    h["authorization"] = (f"AWS4-HMAC-SHA256 Credential={os.environ['AWS_ACCESS_KEY_ID']}/{scope}, "
+                          f"SignedHeaders={';'.join(names)}, Signature={sig}")
+    return h
+
+
+def request(method: str, host: str, path: str, query: dict, headers: dict, body: bytes,
+            region: str, service: str) -> bytes:
+    url = f"https://{host}{path}" + ("?" + urllib.parse.urlencode(sorted(query.items()), quote_via=urllib.parse.quote)
+                                     if query else "")
+    req = urllib.request.Request(url, data=body or None, method=method,
+                                 headers=sign(method, host, path, query, headers, body, region, service))
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return r.read()
+
+
+def ce(target: str, payload: dict) -> dict:
+    body = json.dumps(payload).encode()
+    out = request("POST", "ce.us-east-1.amazonaws.com", "/", {},
+                  {"content-type": "application/x-amz-json-1.1",
+                   "x-amz-target": f"AWSInsightsIndexService.{target}"}, body, "us-east-1", "ce")
+    return json.loads(out)
+
+
+def list_bucket() -> list[tuple[str, int, str]]:
+    host = f"{BUCKET}.s3.{REGION}.amazonaws.com"
+    ns = "{http://s3.amazonaws.com/doc/2006-03-01/}"
+    objs, token = [], None
+    while True:
+        q = {"list-type": "2", "max-keys": "1000"}
+        if token:
+            q["continuation-token"] = token
+        root = ET.fromstring(request("GET", host, "/", q, {}, b"", REGION, "s3"))
+        for c in root.iter(f"{ns}Contents"):
+            objs.append((c.findtext(f"{ns}Key"), int(c.findtext(f"{ns}Size") or 0),
+                         c.findtext(f"{ns}StorageClass") or "STANDARD"))
+        if root.findtext(f"{ns}IsTruncated") != "true":
+            return objs
+        token = root.findtext(f"{ns}NextContinuationToken")
+
+
+def esc(v) -> str:
+    return str(v).replace("\\", "\\\\").replace("\n", " ").replace('"', '\\"')
+
+
+class Out:
+    """Gauges grouped per metric family, as the text format requires."""
+
+    def __init__(self):
+        self.families: dict[str, list[str]] = {}
+
+    def g(self, name: str, help_: str, value: float, **labels) -> None:
+        fam = self.families.setdefault(name, [f"# HELP {name} {help_}", f"# TYPE {name} gauge"])
+        lab = ",".join(f'{k}="{esc(v)}"' for k, v in sorted(labels.items()))
+        fam.append(f"{name}{{{lab}}} {value}" if lab else f"{name} {value}")
+
+    def text(self) -> str:
+        return "\n".join(line for fam in self.families.values() for line in fam) + "\n"
+
+
+def bucket(o: Out) -> None:
+    sizes: dict[tuple[str, str], list[int]] = {}
+    for key, size, cls in list_bucket():
+        prefix = "/".join(key.split("/")[:-1][:PREFIX_DEPTH]) or "(root)"
+        s = sizes.setdefault((prefix, cls), [0, 0])
+        s[0] += size
+        s[1] += 1
+    for (prefix, cls), (b, n) in sorted(sizes.items()):
+        o.g("aws_s3_prefix_bytes", "Bytes of current objects per prefix and storage class.", b,
+            bucket=BUCKET, prefix=prefix, storage_class=cls)
+        o.g("aws_s3_prefix_objects", "Current objects per prefix and storage class.", n,
+            bucket=BUCKET, prefix=prefix, storage_class=cls)
+
+
+def costs(o: Out, today: date) -> None:
+    """Cost Explorer figures, cached for the UTC day."""
+    if _cost["day"] != today:
+        first = today.replace(day=1)
+        last_first = (first - timedelta(days=1)).replace(day=1)
+        o2 = Out()
+        r = ce("GetCostAndUsage", {
+            "TimePeriod": {"Start": last_first.isoformat(), "End": today.isoformat()},
+            "Granularity": "DAILY", "Metrics": ["UnblendedCost"],
+            "GroupBy": [{"Type": "DIMENSION", "Key": "SERVICE"}]})
+        yday = (today - timedelta(days=1)).isoformat()
+        mtd: dict[str, float] = {}
+        prev: dict[str, float] = {}
+        yest: dict[str, float] = {}
+        for period in r.get("ResultsByTime", []):
+            start = period["TimePeriod"]["Start"]
+            for g in period.get("Groups", []):
+                svc = g["Keys"][0]
+                amount = float(g["Metrics"]["UnblendedCost"]["Amount"])
+                target = mtd if start >= first.isoformat() else prev
+                target[svc] = target.get(svc, 0.0) + amount
+                if start == yday:
+                    yest[svc] = yest.get(svc, 0.0) + amount
+        for name, help_, d in (
+                ("aws_cost_yesterday_usd", "Unblended cost of the previous UTC day, per service.", yest),
+                ("aws_cost_month_to_date_usd", "Unblended cost of the current month up to yesterday, per service.", mtd),
+                ("aws_cost_last_month_usd", "Unblended cost of the previous month, per service.", prev)):
+            for svc, v in sorted(d.items()):
+                o2.g(name, help_, round(v, 4), service=svc)
+        month_end = (first + timedelta(days=32)).replace(day=1)
+        spent = sum(mtd.values())
+        elapsed = (today - first).days
+        # Linear fallback: the month-to-date daily average over the whole month.
+        forecast = spent / elapsed * (month_end - today).days if elapsed else 0.0
+        method = "linear"
+        if today + timedelta(days=1) < month_end:
+            # The forecast must start today or later; on the last day of the month there is nothing left.
+            try:
+                f = ce("GetCostForecast", {"TimePeriod": {"Start": today.isoformat(), "End": month_end.isoformat()},
+                                           "Granularity": "MONTHLY", "Metric": "UNBLENDED_COST"})
+                forecast = float(f.get("Total", {}).get("Amount", 0))
+                method = "cost_explorer"
+            except urllib.error.HTTPError as e:
+                # DataUnavailableException until the account has enough history.
+                log("info", "forecast unavailable, linear estimate", detail=e.read(300).decode(errors="replace"))
+        o2.g("aws_cost_month_forecast_usd", "Month to date plus the forecast for the rest of the month.",
+             round(spent + forecast, 4), method=method)
+        _cost.update(day=today, families=o2.families)
+        log("info", "cost explorer read", day=today.isoformat())
+    o.families.update(_cost["families"])
+
+
+def collect(today: date | None = None) -> str:
+    o = Out()
+    ok = bool(cred("AWS_ACCESS_KEY_ID") and cred("AWS_SECRET_ACCESS_KEY"))
+    o.g("aws_exporter_configured", "1 if the exporter has AWS credentials.", 1 if ok else 0)
+    if ok:
+        for name, fn in (("s3", bucket), ("cost", lambda out: costs(out, today or datetime.now(timezone.utc).date()))):
+            try:
+                fn(o)
+                up = 1
+            except Exception as e:  # one source failing keeps the other
+                up = 0
+                detail = e.read(500).decode(errors="replace") if hasattr(e, "read") else ""
+                log("error", "collect failed", source=name, error=f"{type(e).__name__}: {e}", detail=detail)
+            o.g("aws_exporter_source_up", "1 if the last read of the source succeeded.", up, source=name)
+    o.g("aws_exporter_last_run_timestamp_seconds", "End of the last collection.", round(time.time()))
+    return o.text()
+
+
+def loop() -> None:
+    global _metrics
+    while True:
+        started = time.time()
+        body = collect()
+        with _lock:
+            _metrics = body
+        log("info", "collected", seconds=round(time.time() - started, 2))
+        time.sleep(max(60, INTERVAL - (time.time() - started)))
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):  # noqa: N802
+        if self.path == "/metrics":
+            with _lock:
+                data = _metrics.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+        elif self.path == "/healthz":
+            data = b"ok\n"
+            self.send_response(200)
+        else:
+            data = b"not found\n"
+            self.send_response(404)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, fmt, *args):  # scrapes are not logged
+        pass
+
+
+if __name__ == "__main__":
+    log("info", "starting", interval=INTERVAL, port=PORT, bucket=BUCKET,
+        configured=bool(cred("AWS_ACCESS_KEY_ID")))
+    threading.Thread(target=loop, daemon=True).start()
+    ThreadingHTTPServer(("", PORT), Handler).serve_forever()

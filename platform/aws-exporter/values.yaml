@@ -1,0 +1,67 @@
+# prometheus-yet-another-cloudwatch-exporter (YACE) chart values: the daily
+# S3 storage metrics of every tagged bucket in eu-central-1 (BucketSizeBytes
+# per storage class, NumberOfObjects). Credentials: the read-only
+# homelab-metrics-reader key in the aws-exporter Secret (access_key,
+# secret_key).
+#
+# S3 publishes these once a day, so YACE reads CloudWatch once an hour:
+# about 10 metrics x 24 GetMetricData reads a day, a few cents a month.
+fullnameOverride: yace
+
+aws:
+  secret:
+    name: aws-exporter
+    includesSessionToken: false
+
+serviceAccount:
+  automountServiceAccountToken: false
+
+testConnection: false
+
+extraArgs:
+  scraping-interval: 3600
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+  runAsGroup: 65534
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 5m
+    memory: 32Mi
+  limits:
+    memory: 128Mi
+
+serviceMonitor:
+  enabled: true
+  interval: 5m
+  labels:
+    release: kube-prometheus-stack
+
+config: |-
+  apiVersion: v1alpha1
+  sts-region: eu-central-1
+  discovery:
+    jobs:
+      - type: AWS/S3
+        regions:
+          - eu-central-1
+        metrics:
+          - name: BucketSizeBytes
+            statistics: [Average]
+            period: 86400
+            length: 172800
+          - name: NumberOfObjects
+            statistics: [Average]
+            period: 86400
+            length: 172800

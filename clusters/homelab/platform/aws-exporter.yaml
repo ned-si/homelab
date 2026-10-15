@@ -1,0 +1,47 @@
+# aws-exporter: S3 storage (YACE, CloudWatch) and running cost (Cost Explorer)
+# for the Homelab / AWS dashboard (platform/aws-exporter).
+#
+# Multi-source: the YACE chart with its values from this repo, and the
+# rendered aws-cost-exporter (deploy/platform/aws-exporter).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: aws-exporter
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10): the ServiceMonitor CRD comes with that chart.
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: prometheus-yet-another-cloudwatch-exporter
+      # renovate: datasource=helm depName=prometheus-yet-another-cloudwatch-exporter registryUrl=https://prometheus-community.github.io/helm-charts
+      targetRevision: 0.48.0
+      helm:
+        releaseName: yace
+        valueFiles:
+          - $values/platform/aws-exporter/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/aws-exporter
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

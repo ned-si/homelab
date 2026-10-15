@@ -1,0 +1,16 @@
+# aws-cost-exporter: Cost Explorer figures and the backup bucket's size per
+# prefix for the Homelab / AWS dashboard (docs/observability.md). exporter.py
+# is stdlib Python; the ConfigMap name carries a content hash, so a change to
+# the script rolls the pod. YACE (S3 CloudWatch metrics) is the Helm chart
+# in the same Application, with values.yaml beside this file.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+
+resources:
+  - deployment.yaml
+
+configMapGenerator:
+  - name: aws-cost-exporter
+    files:
+      - exporter.py
