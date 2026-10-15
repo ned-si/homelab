@@ -144,14 +144,15 @@ minutes:
 
 | Alert | Fires when | Severity |
 | --- | --- | --- |
-| `LANNewDeviceSeen` | a MAC answers that did not answer in the 30 days before the last hour; quiet during the first day of data; resolves after an hour | `warning` |
+| `LANNewDeviceSeen` | a fixed (vendor) MAC answers that did not answer in the 30 days before the last hour; quiet during the first day of data; resolves after an hour | `warning` |
+| `LANNewRandomMACSeen` | the same for a randomised MAC: phones and laptops can rotate those, and ARP carries no hostname to recognise them by | `info` (Grafana only, no ntfy) |
 | `LANInventoryFailing` | no completed scan for 30m | `warning` |
 | `LANInventoryAbsent` | no `lan_inventory_devices` for 30m | `warning` |
 
 The scan sees what answers ARP on the LAN: Cilium answers for the
 LoadBalancer addresses and Talos for the API VIP, with a node's MAC. A
 device that changes its private MAC (some phones rotate it per day) shows up
-as new each time. Tests: `tests/test_lan_inventory.py`,
+as new each time, which is why randomised MACs are `info`. Tests: `tests/test_lan_inventory.py`,
 `tests/prometheus/lan_inventory_test.yaml`.
 
 ```sh

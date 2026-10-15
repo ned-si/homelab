@@ -3,7 +3,8 @@
 # (platform/lan-inventory).
 #
 #   LANDeviceUnreachable   the router or the BMC does not answer a ping for 10m   warning
-#   LANNewDeviceSeen       a MAC not seen in the last 30 days answers ARP          warning
+#   LANNewDeviceSeen       a fixed MAC not seen in the last 30 days answers ARP    warning
+#   LANNewRandomMACSeen    the same for a randomised MAC (Grafana only)           info
 #   LANInventoryFailing    no completed ARP scan for 30m                          warning
 #   LANInventoryAbsent     no lan_inventory_devices series for 30m                warning
 #
@@ -48,11 +49,12 @@ spec:
       interval: 5m
       rules:
         - alert: LANNewDeviceSeen
-          # A MAC that answers now and did not answer in the 30 days before
-          # the last hour. Quiet for the first day of data, so the first
-          # scans do not report every device. Resolves after an hour.
+          # A MAC with a fixed (vendor) address that answers now and did not
+          # answer in the 30 days before the last hour. Quiet for the first
+          # day of data, so the first scans do not report every device.
+          # Resolves after an hour.
           expr: |
-            max by (mac, ip, random_mac) (lan_device_present)
+            max by (mac, ip, random_mac) (lan_device_present{random_mac="false"})
             unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
             and on () (count(lan_inventory_devices offset 1d) > 0)
           labels:
@@ -61,9 +63,23 @@ spec:
             summary: "New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}"
             description: >-
               {{ $labels.mac }} answered ARP at {{ $labels.ip }} and was not
-              seen in the last 30 days (random_mac={{ $labels.random_mac }}:
-              true is usually a phone or laptop with a private address). If it
-              is not yours, find it in the router's DHCP list and block it.
+              seen in the last 30 days. Its MAC is a fixed vendor address, so
+              this is new hardware, not a phone rotating its private address.
+              If it is not yours, find it in the router's DHCP list and block it.
+
+        - alert: LANNewRandomMACSeen
+          # The same condition for randomised (locally administered) MACs.
+          # Phones and laptops can rotate those, and ARP carries no hostname
+          # to recognise the device by, so a rotation reads as a new device.
+          # Severity info: Alertmanager drops it, Grafana shows it.
+          expr: |
+            max by (mac, ip, random_mac) (lan_device_present{random_mac="true"})
+            unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
+            and on () (count(lan_inventory_devices offset 1d) > 0)
+          labels:
+            severity: info
+          annotations:
+            summary: "New randomised MAC on the LAN: {{ $labels.mac }} at {{ $labels.ip }}"
 
         - alert: LANInventoryFailing
           expr: |
