@@ -241,6 +241,9 @@ jobs:
           RENDERED: ${{ steps.render.outcome }}
           # image-variant: compare image tag variants with the PR base.
           IMAGE_POLICY_BASE: ${{ github.event.pull_request.base.sha }}
+          # Reverts skip image-variant (see repo_policy.py).
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           if [ "$RENDERED" = "success" ]; then
             scripts/ci/repo-policy.sh "$RUNNER_TEMP/render"

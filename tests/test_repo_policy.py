@@ -428,7 +428,7 @@ def test_image_bulky_base_allow_comment(tmp_path):
     assert any("image-bulky-base" in f for f in fails(policy(tmp_path / "b", files=files)))
 
 
-def variant_policy(tmp_path, before, after):
+def variant_policy(tmp_path, before, after, *extra):
     """Commit `before` as the base, write `after` over it, run with --base HEAD."""
     root = tmp_path / "repo"
     r = policy(tmp_path, files=before)
@@ -439,7 +439,7 @@ def variant_policy(tmp_path, before, after):
         write(root, rel, text)
     out = tmp_path / "render"
     return subprocess.run([sys.executable, str(SCRIPTS / "repo_policy.py"), "--render", str(out),
-                           "--repo-root", str(root), "--base", "HEAD"], capture_output=True, text=True)
+                           "--repo-root", str(root), "--base", "HEAD", *extra], capture_output=True, text=True)
 
 
 @pytest.mark.parametrize("old,new,bad", [
@@ -460,6 +460,21 @@ def test_image_variant(tmp_path, old, new, bad):
     got = [f for f in fails(r) if "image-variant" in f]
     assert bool(got) == bad, r.stdout
     assert "image-variant" in r.stdout
+
+
+@pytest.mark.parametrize("extra,exempt", [
+    (["--pr-title", "fix(keycloak): put keycloak-db back on the 17.11 image"], False),
+    (["--pr-title", "revert: fix(cnpg): minimal images (auto)"], True),
+    (["--pr-title", 'Revert "fix(cnpg): minimal images"'], True),
+    (["--pr-branch", "auto-revert/d52a5f6b2f36"], True),
+    (["--pr-branch", "fix/auto-revert-docs"], False),
+])
+def test_image_variant_reverts_are_exempt(tmp_path, extra, exempt):
+    old = "ghcr.io/cloudnative-pg/postgresql:17.11-minimal-trixie"
+    r = variant_policy(tmp_path, {"apps/x/d.yaml": deployment(old)},
+                       {"apps/x/d.yaml": deployment("ghcr.io/cloudnative-pg/postgresql:17.11")}, *extra)
+    assert (r.returncode == 0) == exempt, r.stdout
+    assert ("image-variant: skipped" in r.stdout) == exempt
 
 
 def test_image_variant_allow_and_new_image(tmp_path):
