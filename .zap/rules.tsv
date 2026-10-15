@@ -1,4 +1,5 @@
-# ZAP alert filter. Tab-separated: <ruleId>	<WARN|IGNORE|FAIL>	<comment>
+# ZAP alert filter. Tab-separated:
+#   <ruleId>[@<host>]	<WARN|IGNORE|FAIL>	<comment>[	expires=YYYY-MM-DD]
 #
 # ZAP runs weekly against the live site from a GitHub-hosted runner
 # (.github/workflows/dast.yaml). Findings go to code scanning as SARIF, never to
@@ -6,18 +7,16 @@
 #
 # WHAT GATES: any HIGH alert, by count (scripts/zap_sarif.py, then the gate
 # step). The accepted baseline is zero HIGH. A HIGH that is accepted gets an
-# IGNORE row below with its reason; IGNORE rows are dropped before the count,
-# so every HIGH that reaches the gate is new. Medium and below report only.
-# FAIL rows are not used: the HIGH count is the gate.
+# IGNORE row below with its reason, scoped to its host, and an expiry date;
+# IGNORE rows are dropped before the count, so every HIGH that reaches the gate
+# is new. From the expiry date on the alert counts again: review it, then
+# extend or fix. Medium and below report only. FAIL rows are not used: the
+# HIGH count is the gate.
 #
-# The four header rules are WARN because the shared Gateway sets no response
-# headers yet (no ResponseHeaderModifier filter in the repo).
-# scripts/tls-check.sh checks the same four headers, and hard-fails on
-# reachability, the http -> https redirect and certificate expiry.
-#
-# TO PROMOTE THE HEADERS TO A GATE, in one commit:
-#   1. add the ResponseHeaderModifier filter in infrastructure/gateway
-#   2. set STRICT_HEADERS=1 on the tls step in dast.yaml
+# Security headers are gated by scripts/tls-check.sh (STRICT_HEADERS=1 in
+# dast.yaml), not by ZAP: the Gateway sets them per route
+# (docs/networking.md, Security headers). The header rows below stay WARN so
+# ZAP keeps reporting pages an app serves without them.
 #
 # Only rules with a stated reason belong here. Everything not listed keeps its
 # default behaviour, which for a baseline scan is WARN.
@@ -34,12 +33,17 @@
 # ---------------------------------------------------------------------------
 10037	IGNORE	Server leaks version via banner - upstream images, not ours to patch
 # ---------------------------------------------------------------------------
-# Real, fixable at the Gateway, and currently missing on every host.
-# scripts/tls-check.sh reports the same four as warnings; keep the two lists in
-# step. Promotion path is at the top of this file.
+# Accepted HIGH: JavaScript bundled by the upstream app, not ours to patch.
+# Renovate updates the image; review on expiry.
 # ---------------------------------------------------------------------------
-10035	WARN	Strict-Transport-Security missing - the Gateway should set HSTS
-10038	WARN	Content-Security-Policy missing
+10003@syncthing.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Syncthing web UI	expires=2027-01-31
+10003@theater.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Plex web app	expires=2027-01-31
+# ---------------------------------------------------------------------------
+# Set at the Gateway (tls-check gates them); reported where an app page
+# still lacks one.
+# ---------------------------------------------------------------------------
+10035	WARN	Strict-Transport-Security missing
+10038	WARN	Content-Security-Policy missing - per-app CSP, only where the app does not set its own
 10020	WARN	Missing X-Frame-Options / frame-ancestors
 10021	WARN	X-Content-Type-Options missing
-10063	WARN	Permissions-Policy not set - worth adding at the Gateway eventually
+10063	WARN	Permissions-Policy not set - not set on Home Assistant (microphone for Assist)

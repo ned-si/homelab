@@ -67,6 +67,21 @@ def test_converts_counts_and_drops_ignored(tmp_path):
     assert rule["fullDescription"]["text"] == "Desc & more"
 
 
+def test_host_scoped_and_expiring_ignore(tmp_path, monkeypatch):
+    monkeypatch.setattr(sys.modules[__name__], "RULES",
+                        RULES + "10003@a.example.test\tIGNORE\tupstream\texpires=2999-01-01\n"
+                        "10004@a.example.test\tIGNORE\texpired\texpires=2000-01-01\n")
+    p, out, outputs = run(
+        tmp_path,
+        report("a.example.test", alert("10003", 3), alert("10004", 3)),
+        report("b.example.test", alert("10003", 3)),
+    )
+    assert p.returncode == 0, p.stderr
+    fps = {r["partialFingerprints"]["zapAlert/v1"] for r in json.loads(out.read_text())["runs"][0]["results"]}
+    assert fps == {"a.example.test:10004", "b.example.test:10003"}
+    assert outputs["high"] == "2"
+
+
 def test_stdout_has_counts_but_no_finding(tmp_path):
     p, _, _ = run(tmp_path, report("a.example.test", alert("40012", 3, name="Cross Site Scripting")))
     assert "1 high" in p.stdout

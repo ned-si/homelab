@@ -268,6 +268,16 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
