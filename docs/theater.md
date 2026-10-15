@@ -16,11 +16,42 @@ Each app has two profiles, TRaSH guide profiles used as published and renamed:
 | `HD-Kids-FR` | [French MULTi.VF] HD Bluray + WEB (1080p) | [French MULTi.VF] HD Bluray + WEB | Animation and children's titles: French audio required, MULTi preferred |
 
 Both are 1080p without remux, upgrade within 1080p, and penalise x265 (HD) and
-AV1 (TRaSH "Golden Rule HD" and "Unwanted Formats" groups). Only TRaSH defaults
-are synced; scores are not hand-tuned. Not covered by the guide profiles, so
-left at the TRaSH default: a positive x264 score, a 5.1-audio preference, and
-VFF/VFQ ranking inside French releases. The Sonarr English profile is WEB only;
-TRaSH has no English Bluray + WEB 1080p profile for Sonarr.
+AV1 (TRaSH "Golden Rule HD" and "Unwanted Formats" groups). TRaSH defaults are
+synced, plus the deviations below. VFF/VFQ ranking inside French releases stays
+at the TRaSH default. The Sonarr English profile is WEB only; TRaSH has no
+English Bluray + WEB 1080p profile for Sonarr.
+
+### Deviations from TRaSH
+
+Deliberate operator preferences, set in the `custom_formats` blocks of
+`apps/theater/recyclarr.yaml`. They use TRaSH custom formats by `trash_id` and
+override only the score, in both profiles of both apps:
+
+| Custom format | TRaSH default in these profiles | Score here |
+|---|---|---|
+| `x264` | 0 | +50 |
+| `x265 (HD)` | -10000 | -10000 (pinned) |
+| `5.1 Surround`, `6.1 Surround`, `7.1 Surround` | 0 | +100 |
+
+The bonuses are preferences, not blocks: a release without them still
+qualifies, and they stay below a release group tier step plus the streaming
+service bonus. They also act as upgrades: a 5.1 release of the same tier
+replaces a stereo file, from public indexers only (see Indexers).
+
+Check the scores after a sync (read-only; prints one line per profile and
+custom format):
+
+```sh
+kubectl -n theater exec deploy/radarr -c radarr -- sh -c '
+  K=$(grep -o "<ApiKey>[^<]*" /config/config.xml | cut -d">" -f2)
+  curl -s -H "X-Api-Key: $K" http://127.0.0.1:7878/arr/radarr/api/v3/qualityprofile' \
+  | jq -r '.[] | .name as $p | .formatItems[]
+      | select(.name | test("x26[45]|Surround")) | "\($p) \(.name) \(.score)"'
+```
+
+Expected: `HD-Original` and `HD-Kids-FR` show the scores in the table. For
+Sonarr use `deploy/sonarr`, container `sonarr`, port `8989`, path
+`/arr/sonarr`.
 
 Assign `HD-Kids-FR` per series or movie (Edit, Quality Profile). Nothing
 reassigns titles automatically.
@@ -92,6 +123,9 @@ torrents: beyond that, seeds are queued and stop uploading.
 - TRaSH profiles by `trash_id`, not hand-built: the guides maintain the release
   group tiers and scores, and recyclarr re-applies them nightly. The alternative,
   custom profiles in the UI, drifts and is not in git.
+- The x264 and multichannel-audio preferences are score overrides on TRaSH
+  custom formats, not custom formats of our own: TRaSH keeps maintaining the
+  matching rules, and the deviation is a few lines in git.
 - Two profiles only: one per audio need. Per-title choice stays manual because
   "animated" is not the same as "for children" and a bulk rule would get it
   wrong.

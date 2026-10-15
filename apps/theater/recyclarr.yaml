@@ -11,8 +11,11 @@
 #
 # HD-Original: 1080p, no remux, original language, x265/AV1 penalised.
 # HD-Kids-FR: 1080p, no remux, French audio required, MULTi (original + French)
-# preferred. For animation and children's titles. Only the TRaSH defaults are
-# synced (default custom-format groups, default scores); nothing is hand-tuned.
+# preferred. For animation and children's titles. The TRaSH defaults are synced
+# (default custom-format groups, default scores) with one deliberate deviation,
+# the `custom_formats` blocks below: TRaSH custom formats, our scores, so both
+# profiles prefer x264 over x265 and 5.1 or more channels over stereo
+# (docs/theater.md, "Deviations from TRaSH").
 #
 # This rewrites profiles, scores and custom formats inside Sonarr's and Radarr's
 # databases. Preview a change before it lands (docs/theater.md):
@@ -61,6 +64,34 @@ data:
             name: HD-Kids-FR
             reset_unmatched_scores:
               enabled: true
+        # Deviation from TRaSH (operator preference): TRaSH custom formats,
+        # our scores. x265 (HD) keeps the TRaSH -10000, pinned here so it
+        # stays a block if the guide changes. Bonuses stay below one release
+        # group tier step plus the streaming bonus: preferences, never blocks.
+        custom_formats:
+          - trash_ids:
+              - cddfb4e32db826151d97352b8e37c648  # x264
+            assign_scores_to:
+              - name: HD-Original
+                score: 50
+              - name: HD-Kids-FR
+                score: 50
+          - trash_ids:
+              - 47435ece6b99a0b477caf360e79ba0bb  # x265 (HD)
+            assign_scores_to:
+              - name: HD-Original
+                score: -10000
+              - name: HD-Kids-FR
+                score: -10000
+          - trash_ids:
+              - 3fbafa924f361e66fbc6187af82dfa85  # 5.1 Surround
+              - 9fb6d778592c293467437593ef394bf1  # 6.1 Surround
+              - 204c8c3e7315bb0ea81332774fa888d6  # 7.1 Surround
+            assign_scores_to:
+              - name: HD-Original
+                score: 100
+              - name: HD-Kids-FR
+                score: 100
 
     radarr:
       movies:
@@ -79,6 +110,31 @@ data:
             name: HD-Kids-FR
             reset_unmatched_scores:
               enabled: true
+        # Same deviation as Sonarr; Radarr has its own trash_ids.
+        custom_formats:
+          - trash_ids:
+              - 2899d84dc9372de3408e6d8cc18e9666  # x264
+            assign_scores_to:
+              - name: HD-Original
+                score: 50
+              - name: HD-Kids-FR
+                score: 50
+          - trash_ids:
+              - dc98083864ea246d05a42df0d05f81cc  # x265 (HD)
+            assign_scores_to:
+              - name: HD-Original
+                score: -10000
+              - name: HD-Kids-FR
+                score: -10000
+          - trash_ids:
+              - 77ff61788dfe1097194fd8743d7b4524  # 5.1 Surround
+              - 6fd7b090c3f7317502ab3b63cc7f51e3  # 6.1 Surround
+              - e77382bcfeba57cb83744c9c5449b401  # 7.1 Surround
+            assign_scores_to:
+              - name: HD-Original
+                score: 100
+              - name: HD-Kids-FR
+                score: 100
 
     # Lidarr is deliberately absent. Recyclarr supports it, but the TRaSH music
     # guides are far less settled than the TV and film ones, and Lidarr here has
