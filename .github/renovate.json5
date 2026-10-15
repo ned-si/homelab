@@ -110,7 +110,9 @@
         '#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)(?:\\s+depName=(?<depName>[^\\s]+))?(?:\\s+packageName=(?<packageName>[^\\s]+))?(?:\\s+registryUrl=(?<registryUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?[^\\n]*\\n\\s*(?:targetRevision|version|tag|chart|talosVersion|kubernetesVersion|[A-Z][A-Z0-9_]*)\\s*[:=]+\\s*[\'"]?(?<currentValue>[^\'"\\s]+)[\'"]?',
       ],
       datasourceTemplate: '{{{datasource}}}',
-      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}',
+      // Docker tags keep their suffix only under `docker` versioning (see the
+      // image manager below).
+      versioningTemplate: "{{#if versioning}}{{{versioning}}}{{else}}{{#if (equals datasource 'docker')}}docker{{else}}semver-coerced{{/if}}{{/if}}",
     },
     {
       customType: 'regex',
@@ -293,6 +295,30 @@
       matchPackageNames: ['plexinc/pms-docker'],
       versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)-[0-9a-f]+$',
     },
+    {
+      // `docker` versioning would hold X.Y.Z-alpine3.24 on Alpine 3.24 until
+      // that tag stops being published. Reading the Alpine release as build
+      // and revision keeps the variant (compatibility `alpine`) and still moves
+      // to a newer Alpine.
+      description: 'X.Y.Z-alpineA.B tags: stay on Alpine, follow its releases',
+      matchDatasources: ['docker'],
+      matchCurrentValue: '/^\\d+\\.\\d+\\.\\d+-alpine\\d+\\.\\d+$/',
+      versioning: 'regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-(?<compatibility>alpine)(?<build>\\d+)\\.(?<revision>\\d+)$',
+    },
+    // IMAGE VARIANTS. A docker tag's variant (-alpine*, -slim, -distroless,
+    // a Debian or Ubuntu codename) never changes in an update: `docker`
+    // versioning already treats the suffix as a compatibility constraint, and
+    // these rules drop any update that still loses one. #394 moved a
+    // python:*-alpine3.24 image to the full Debian python:3.15.0 that way.
+    // The `image-variant` rule in scripts/ci/repo_policy.py gates the same in CI.
+    { description: 'Keep -alpine', matchDatasources: ['docker'], matchCurrentValue: '/alpine/', matchNewValue: '!/alpine/', enabled: false },
+    { description: 'Keep -slim', matchDatasources: ['docker'], matchCurrentValue: '/slim/', matchNewValue: '!/slim/', enabled: false },
+    { description: 'Keep -distroless', matchDatasources: ['docker'], matchCurrentValue: '/distroless/', matchNewValue: '!/distroless/', enabled: false },
+    { description: 'Keep -bookworm', matchDatasources: ['docker'], matchCurrentValue: '/bookworm/', matchNewValue: '!/bookworm/', enabled: false },
+    { description: 'Keep -trixie', matchDatasources: ['docker'], matchCurrentValue: '/trixie/', matchNewValue: '!/trixie/', enabled: false },
+    { description: 'Keep -bullseye', matchDatasources: ['docker'], matchCurrentValue: '/bullseye/', matchNewValue: '!/bullseye/', enabled: false },
+    { description: 'Keep -noble', matchDatasources: ['docker'], matchCurrentValue: '/noble/', matchNewValue: '!/noble/', enabled: false },
+    { description: 'Keep -jammy', matchDatasources: ['docker'], matchCurrentValue: '/jammy/', matchNewValue: '!/jammy/', enabled: false },
     {
       // This repo runs OpenTofu, which ignores `required_version` pins written
       // for Terraform; tracking Terraform's release line here only adds noise.
