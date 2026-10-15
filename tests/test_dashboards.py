@@ -17,7 +17,7 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 DASH_DIR = REPO / "platform" / "kube-prometheus-stack" / "dashboards"
 DASHBOARDS = sorted(DASH_DIR.glob("*.json"))
-EXPECTED_UIDS = {"homelab-overview", "homelab-security", "homelab-cicd", "homelab-lan", "homelab-network", "homelab-nodes", "homelab-storage", "homelab-usage", "home"}
+EXPECTED_UIDS = {"homelab-overview", "homelab-security", "homelab-cicd", "homelab-lan", "homelab-network", "homelab-nodes", "homelab-storage", "homelab-usage", "home", "homelab-aws"}
 
 
 def load(path: Path) -> dict:

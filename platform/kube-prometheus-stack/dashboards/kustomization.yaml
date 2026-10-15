@@ -44,3 +44,6 @@ configMapGenerator:
   - name: grafana-dashboard-home
     files:
       - home.json
+  - name: grafana-dashboard-homelab-aws
+    files:
+      - homelab-aws.json

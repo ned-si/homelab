@@ -57,6 +57,7 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 | Homelab / Storage (`homelab-storage`) | NAS pools healthy, exporter up, days since the last scrub and its errors; pool used, "full in N days" at the 7-day trend, free space, used with a 30-day projection, used per dataset; disk temperatures, pool devices ONLINE, device errors, newest SMART self-test, disk models and sizes, the NAS's own alerts; iSCSI PVC usage ([NAS metrics](#nas-metrics)) |
 | Homelab / LAN (`homelab-lan`) | ping status and round trip of the static devices; devices on the LAN now, randomised MACs, MACs first seen in the last 7 days, age of the last ARP scan, every MAC and IP that answered, device count over time ([LAN inventory](#lan-inventory)) |
 | Homelab / Network (`homelab-network`) | Gateway requests/s, 5xx share, p50/p95/p99 duration and active connections (Envoy), HTTP status and p95 per backend namespace (Hubble); flows by verdict, destination, node and from `world`; drops by reason (Hubble and datapath) and destination, unanswered SYNs and RSTs; CoreDNS responses by code, SERVFAIL/NXDOMAIN share, duration and upstream duration; BPF map pressure, endpoints not ready, unreachable nodes |
+| Homelab / AWS (`homelab-aws`) | cost month to date, month-end estimate, last month, yesterday, cost per day and per service; S3 bucket size per storage class and objects (CloudWatch), the backup bucket per prefix and storage class; exporter health ([AWS metrics](#aws-metrics)) |
 
 eMMC wear comes from a sidecar (`emmc-wear`) in the node-exporter DaemonSet:
 it reads `life_time` and `pre_eol_info` of every eMMC from node-exporter's
@@ -72,6 +73,22 @@ Not shown, and what each would need:
 | Missing | Needs |
 | --- | --- |
 | cert-manager metrics | its ServiceMonitor carries no `release: kube-prometheus-stack` label, so Prometheus ignores it |
+
+## AWS metrics
+
+Argo CD Application `aws-exporter` (namespace `monitoring`) runs two
+exporters with the read-only key of IAM user `homelab-metrics-reader`
+(`bootstrap/aws-backup`, Secret `aws-exporter`, keys `access_key` and
+`secret_key`):
+
+| Exporter | Reads | Metrics |
+| --- | --- | --- |
+| YACE (chart `prometheus-yet-another-cloudwatch-exporter`, `platform/aws-exporter/values.yaml`) | CloudWatch `AWS/S3` daily storage metrics of every tagged bucket in `eu-central-1`, once an hour | `aws_s3_bucket_size_bytes_average{dimension_BucketName,dimension_StorageType}`, `aws_s3_number_of_objects_average` |
+| `aws-cost-exporter` (`platform/aws-exporter/exporter.py`, Python standard library, JSON logs, port 9173) | `ListObjectsV2` of the backup bucket every 6 h; Cost Explorer `GetCostAndUsage` and `GetCostForecast` once per UTC day | `aws_s3_prefix_bytes` and `aws_s3_prefix_objects{prefix,storage_class}` (current versions, first two path segments), `aws_cost_yesterday_usd`, `aws_cost_month_to_date_usd`, `aws_cost_last_month_usd{service}`, `aws_cost_month_forecast_usd{method}` (`cost_explorer`, or `linear` from the month-to-date daily average while AWS has too little history to forecast), `aws_exporter_source_up{source}` |
+
+Cost Explorer bills $0.01 per request: two a day, plus two per pod restart.
+The CloudWatch reads cost a few cents a month. The prefix figures leave out
+noncurrent versions (kept 30 days); the CloudWatch bucket size includes them.
 
 ## NAS metrics
 
