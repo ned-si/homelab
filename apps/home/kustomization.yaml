@@ -14,6 +14,8 @@ resources:
   - mosquitto.yaml
   # Zigbee, scaled to 0 until the coordinator is online.
   - zigbee2mqtt.yaml
+  # ServiceMonitor for Home Assistant's /api/prometheus.
+  - monitoring.yaml
 
 # Config files from git. The hash suffix restarts the pod when one changes.
 configMapGenerator:
