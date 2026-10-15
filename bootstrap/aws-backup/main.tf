@@ -407,7 +407,7 @@ resource "aws_iam_access_key" "verify" {
 resource "aws_iam_user" "metrics" {
   name = "homelab-metrics-reader"
   tags = {
-    Purpose = "read-only CloudWatch, Cost Explorer and bucket listing for Grafana"
+    Purpose = "read-only CloudWatch and Cost Explorer for Grafana"
     Managed = "opentofu"
   }
 }
