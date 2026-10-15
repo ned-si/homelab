@@ -169,16 +169,29 @@ boot() {
   done < "$work/services"
   # Valkey answers PING through its Service, from a pod in its namespace.
   # The Valkey Deployments have no readiness probe, so "rolled out" can come
-  # before the server listens: up to 5 attempts, 3 s apart.
+  # before the server listens: up to 5 attempts, 3 s apart. Each attempt runs
+  # a detached pod and reads its log once it has finished: `run --rm -i` loses
+  # the output when the pod exits before kubectl attaches.
   while read -r _ ns name; do
     img=$(kubectl -n "$ns" get "deployment/$name" -o jsonpath='{.spec.template.spec.containers[0].image}' < /dev/null)
     case "$img" in */valkey:*) ;; *) continue ;; esac
     pong=0
     for try in 1 2 3 4 5; do
-      if kubectl -n "$ns" run "ping-$name-$try" --image="$img" --restart=Never --rm -i --quiet \
-        --command -- valkey-cli -h "$name" -p 6379 ping < /dev/null 2>/dev/null | grep -q PONG; then
+      pod="ping-$name-$try"
+      kubectl -n "$ns" run "$pod" --image="$img" --restart=Never --quiet \
+        --command -- valkey-cli -h "$name" -p 6379 ping < /dev/null > /dev/null 2>&1 || true
+      phase=""
+      for i in $(seq 1 30); do
+        phase=$(kubectl -n "$ns" get "pod/$pod" -o jsonpath='{.status.phase}' < /dev/null 2>/dev/null)
+        case "$phase" in Succeeded|Failed) break ;; esac
+        sleep 2
+      done
+      out=$(kubectl -n "$ns" logs "pod/$pod" < /dev/null 2>/dev/null || true)
+      kubectl -n "$ns" delete "pod/$pod" --wait=false < /dev/null > /dev/null 2>&1 || true
+      if printf '%s\n' "$out" | grep -q PONG; then
         pong=1; break
       fi
+      echo "      valkey $ns/$name attempt $try: phase=${phase:-none} ${out:-no output}"
       sleep 3
     done
     if [ "$pong" = 1 ]; then
