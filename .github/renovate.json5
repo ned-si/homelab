@@ -252,7 +252,7 @@
       // kubectl supports one minor of skew against the API server. Move with
       // the cluster (kubernetesVersion in talos/talconfig.yaml).
       description: 'Keep kubectl images within one minor of the cluster (1.37)',
-      matchPackageNames: ['registry.k8s.io/kubectl', 'bitnami/kubectl', 'alpine/kubectl'],
+      matchPackageNames: ['registry.k8s.io/kubectl', 'alpine/kubectl'],
       allowedVersions: '<1.39.0',
     },
     {

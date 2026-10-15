@@ -24,14 +24,14 @@ spec:
         spec:
           containers:
           - command:
-            - /bin/bash
+            - /bin/sh
             - /scripts/run-all.sh
             env:
             - name: HOME
               value: /tmp
             - name: KUBECACHEDIR
               value: /tmp/.kube/cache
-            image: bitnami/kubectl:1.31.2
+            image: alpine/kubectl:1.37.1
             name: verify
             resources:
               limits:
