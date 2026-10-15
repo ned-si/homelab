@@ -100,6 +100,102 @@ resource "aws_s3_bucket_public_access_block" "backups" {
   restrict_public_buckets = true
 }
 
+# ---------------------------------------------------------------------------
+# Immutable versions: the bucket policy
+#
+# The IAM denials on each user below protect against those keys. This policy
+# protects against every other principal in the account too, the account's
+# own admin sessions and the CI roles included: nobody can delete an object
+# version, suspend versioning or delete the bucket. A delete only ever adds a
+# delete marker, and the noncurrent-version lifecycle rule (30 days) is the
+# only thing that removes old versions. Lifecycle expiration is done by S3
+# itself and is not subject to bucket policies.
+#
+# The rules that bound that window (lifecycle) and this policy can be changed
+# only by the CI apply role (bootstrap/github-oidc), i.e. by a merge to main.
+# The account root user can always delete a bucket policy (S3 exempts it from
+# denials on the policy actions): that is the break-glass, in the console
+# (docs/backups.md "Immutable versions").
+#
+# Not S3 Object Lock: default retention counts from each version's creation,
+# so a restic pack written a year ago and pruned today would get no
+# protection, while this policy covers every noncurrent version for its whole
+# 30 days. Default retention also makes every PUT require a checksum header,
+# a new failure mode for WAL archiving, and enabling Object Lock cannot be
+# undone.
+# ---------------------------------------------------------------------------
+data "aws_caller_identity" "current" {}
+
+locals {
+  ci_apply_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/homelab-github-tofu-apply"
+}
+
+data "aws_iam_policy_document" "bucket" {
+  statement {
+    sid     = "DenyInsecureTransport"
+    effect  = "Deny"
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.backups.arn,
+      "${aws_s3_bucket.backups.arn}/*",
+    ]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+
+  statement {
+    sid    = "DenyVersionDestruction"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteObjectVersion",
+      "s3:PutBucketVersioning",
+      "s3:DeleteBucket",
+    ]
+    resources = [
+      aws_s3_bucket.backups.arn,
+      "${aws_s3_bucket.backups.arn}/*",
+    ]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+
+  statement {
+    sid    = "RetentionRulesFromCiOnly"
+    effect = "Deny"
+    actions = [
+      "s3:PutLifecycleConfiguration",
+      "s3:PutBucketPolicy",
+      "s3:DeleteBucketPolicy",
+    ]
+    resources = [aws_s3_bucket.backups.arn]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+    condition {
+      test     = "ArnNotEquals"
+      variable = "aws:PrincipalArn"
+      values   = [local.ci_apply_role_arn]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "backups" {
+  bucket = aws_s3_bucket.backups.id
+  policy = data.aws_iam_policy_document.bucket.json
+
+  depends_on = [aws_s3_bucket_public_access_block.backups]
+}
+
 # SSE-S3 rather than SSE-KMS. restic already encrypts client-side, so this only
 # protects the barman/Postgres objects at rest -- and SSE-KMS would add a
 # per-request charge on every WAL segment for no meaningful gain here.

@@ -667,8 +667,10 @@ rather than a database row with no blob. Restore both from the same night.
 
 ## The bucket
 
-Created by [`bootstrap/aws-backup/`](../bootstrap/aws-backup/main.tf) (OpenTofu).
-Versioning on, public access blocked, SSE-S3.
+Created by [`bootstrap/aws-backup/`](../bootstrap/aws-backup/main.tf) (OpenTofu),
+applied by the `tofu` workflow ([bootstrap.md](bootstrap.md#drift-detection)).
+Versioning on, public access blocked, SSE-S3, TLS only, and immutable versions
+([below](#immutable-versions)).
 
 | Prefix | Contents | Storage class |
 |---|---|---|
@@ -700,6 +702,40 @@ lifecycle, bucket policy, ACL, encryption and bucket deletion. With versioning o
 delete by the writer only adds a delete marker, and the previous version stays for
 30 days. A test delete of a specific version with the writer key returns
 `AccessDenied`.
+
+### Immutable versions
+
+The bucket policy extends that to every principal in the account, admin
+sessions and the CI roles included:
+
+| Statement | Denies | To |
+|---|---|---|
+| `DenyVersionDestruction` | `s3:DeleteObjectVersion`, `s3:PutBucketVersioning`, `s3:DeleteBucket` | everyone |
+| `RetentionRulesFromCiOnly` | `s3:PutLifecycleConfiguration`, `s3:PutBucketPolicy`, `s3:DeleteBucketPolicy` | everyone but `homelab-github-tofu-apply` |
+| `DenyInsecureTransport` | any request without TLS | everyone |
+
+So a delete, by anyone, adds a delete marker; the old version stays until the
+30-day noncurrent lifecycle rule expires it (S3 runs lifecycle itself, outside
+bucket policies). Restic prune, the Barman Cloud retention and the verify
+jobs only issue plain deletes, so they work unchanged. Changing the lifecycle
+or the policy is a pull request: the `tofu` workflow applies it on merge.
+
+Check it (expected: `AccessDenied` on a key that does not exist, so nothing
+can be lost if it were allowed):
+
+```sh
+aws s3api delete-object-version --profile homelab --bucket ned-si-homelab-backups \
+  --key policy-check/none --version-id null
+```
+
+Break-glass (purging versions, emergency lifecycle change): sign in to the
+AWS console as the account root user, which S3 always lets manage a bucket
+policy; delete the bucket policy, do the change, then re-run the `tofu`
+workflow (`gh workflow run tofu.yaml`), which puts the policy back.
+
+Accepted limit: the account root user can remove the policy and then delete
+versions. Only S3 Object Lock in compliance mode stops root, at the cost of
+locking every version, and the bucket, for the whole retention period.
 
 ## Reclaim policy
 
@@ -1022,9 +1058,14 @@ repository can be read in full for free from inside the cluster.
 - **One bucket, Glacier IR on `data/` only.** Cheap storage for packs while every
   restic read keeps working. Rejected: Deep Archive, about four times cheaper, but
   every read needs an hours-long thaw that restic cannot do.
-- **Versioning plus an explicit deny, not Object Lock.** The backup key cannot make
-  a deletion permanent, and the owner can still fix mistakes. Object Lock is
-  stronger but must be set at bucket creation and cannot be turned off.
+- **Versioning plus a bucket policy that denies version deletion, not Object
+  Lock.** No key, role or admin session in the account can make a deletion
+  permanent, and every noncurrent version is kept for its full 30 days. Object
+  Lock default retention counts from each version's creation, so an old restic
+  pack pruned today would get none; it makes every upload require a checksum
+  header (a new failure mode for WAL archiving); and it cannot be turned off.
+  Compliance mode would also stop the root user, at the cost of locking the
+  bucket for the retention period.
 - **Retention in months.** Glacier IR bills 90 days per object, so pruning sooner
   saves nothing.
 - **No quiescing.** Argo CD `selfHeal` reverts any scale-down. Live SQLite copies
