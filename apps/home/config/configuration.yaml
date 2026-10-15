@@ -17,15 +17,10 @@ homeassistant:
   external_url: https://home.lilalala.com
   internal_url: https://home.lilalala.com
 
-# Behind the shared Gateway: Cilium's Envoy connects from an address in the
-# pod CIDR (talos/talconfig.yaml, Talos default 10.244.0.0/16) and sets
-# X-Forwarded-For. Requests with that header from anywhere else are refused.
-http:
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 10.244.0.0/16
-  ip_ban_enabled: true
-  login_attempts_threshold: 10
+# No `http:` here: Home Assistant 2026 reads the HTTP settings (reverse proxy,
+# IP ban) only from /config/.storage/http and ignores YAML after a one-time
+# import. config/http-store.json is that file; the `config` init container
+# writes it on every start.
 
 # Login with Keycloak (custom component hass-oidc-auth, installed by the
 # `custom-components` init container). Public client with PKCE, so there is
