@@ -16,7 +16,7 @@ metadata:
 data:
   import-lists.py: |
     # Idempotent; standard library only.
-    import json, os, urllib.request
+    import json, os, urllib.error, urllib.request
 
     NAME = "Plex Watchlist"
     PROFILE = "HD-Original"
@@ -34,9 +34,20 @@ data:
         data = json.dumps(body).encode() if body is not None else None
         req = urllib.request.Request(url, data=data, method=method,
                                      headers={"X-Api-Key": key, "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            raw = r.read()
-            return json.loads(raw) if raw else None
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                raw = r.read()
+                return json.loads(raw) if raw else None
+        except urllib.error.HTTPError as e:
+            # Validation errors name the property; never print attemptedValue,
+            # which can be the token.
+            try:
+                errs = json.loads(e.read())
+                errs = [(x.get("propertyName"), x.get("errorMessage")) for x in errs] \
+                    if isinstance(errs, list) else errs.get("message")
+            except ValueError:
+                errs = None
+            raise SystemExit(f"{method} {url}: HTTP {e.code} {errs}")
 
     for app, (base, env, settings) in APPS.items():
         key = os.environ[env]
@@ -52,11 +63,13 @@ data:
         for k in ("presets", "message", "infoLink"):
             item.pop(k, None)
         old = next((i for i in call("GET", f"{api}/importlist", key) if i["name"] == NAME), None)
+        # forceSave: Radarr refuses to save a list that returns nothing, which
+        # an empty watchlist does.
         if old is None:
-            call("POST", f"{api}/importlist", key, item)
+            call("POST", f"{api}/importlist?forceSave=true", key, item)
         else:
             item["id"] = old["id"]
-            call("PUT", f"{api}/importlist/{old['id']}", key, item)
+            call("PUT", f"{api}/importlist/{old['id']}?forceSave=true", key, item)
         print(f"{app}: import list '{NAME}' -> {PROFILE}, {root}")
 ---
 # Applies the lists after every sync. Re-run by hand: sync `theater` in Argo CD.
