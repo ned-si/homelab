@@ -25,17 +25,13 @@
 #   - certificate unreadable
 #   - certificate closer to expiry than MIN_DAYS
 #
-# WARNINGS (real gaps, not regressions)
-#   - the four security headers below. The shared Gateway sets NO response
-#     headers at all right now: there is no ResponseHeaderModifier filter
-#     anywhere in the repo. Making these hard failures today would mean a job
-#     that is red on arrival, which is how a gate gets ignored.
-#
-#     When the Gateway grows the header filter, the promotion is one variable:
+# HEADERS
+#   - the four security headers below, on the page `/` lands on (same-host
+#     redirects followed). The Gateway sets them per route
+#     (docs/networking.md, Security headers). Warnings by default; hard
+#     failures with STRICT_HEADERS=1, which dast.yaml sets:
 #
 #         STRICT_HEADERS=1 ./scripts/tls-check.sh
-#
-#     and then the same flag goes in dast.yaml, in the same commit.
 #
 # Deliberately dependency-free (curl + openssl) so it runs on a stock CI
 # runner and locally on macOS. dast.yaml keeps its output off the public log.
@@ -139,7 +135,19 @@ for h in "${HOSTS[@]}"; do
   # order of the ambient locale, and header names are matched case-insensitively
   # below, so a locale where the range does not cover plain ASCII would silently
   # stop finding Strict-Transport-Security.
-  hdrs=$(curl -sSI -m 15 "https://$h/" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+  # The page `/` lands on: up to 3 redirects, on the same host only (an app's
+  # login redirect to Keycloak would otherwise check Keycloak's headers).
+  url="https://$h/"
+  for _ in 1 2 3; do
+    raw=$(curl -sSI -m 15 "$url" 2>/dev/null | tr -d '\r')
+    hdrs=$(printf '%s\n' "$raw" | tr '[:upper:]' '[:lower:]')
+    loc=$(printf '%s\n' "$raw" | grep -i '^location:' | head -n 1 | sed 's/^[^:]*: *//')
+    case "$loc" in
+      "https://$h/"* | "https://$h:443/"*) url=$loc ;;
+      /[!/]*) url="https://$h$loc" ;;
+      *) break ;;
+    esac
+  done
   for want in "${WANT_HEADERS[@]}"; do
     if printf '%s' "$hdrs" | grep -q "^${want}:"; then
       green "  $want present"
@@ -155,9 +163,8 @@ done
 
 echo
 if [ "$warned" -eq 1 ] && [ "$STRICT_HEADERS" != "1" ]; then
-  yellow "security headers are missing on at least one host. The Gateway sets no"
-  yellow "response headers yet -- add a ResponseHeaderModifier filter in"
-  yellow "infrastructure/gateway, then flip STRICT_HEADERS=1 here and in dast.yaml."
+  yellow "security headers are missing on at least one host: add them to the"
+  yellow "route's ResponseHeaderModifier filter (docs/networking.md, Security headers)."
   echo
 fi
 if [ "$fail" -eq 0 ]; then

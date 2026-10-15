@@ -152,6 +152,27 @@ def test_wildcard_route_needs_controller_none(tmp_path):
     assert policy(tmp_path / "b", renders=[("gateway", "2+3", "infrastructure", "gateway", [route])]).returncode == 0
 
 
+def test_https_route_needs_security_headers(tmp_path):
+    hdrs = {"type": "ResponseHeaderModifier", "responseHeaderModifier": {"set": [
+        {"name": "Strict-Transport-Security", "value": "max-age=31536000"},
+        {"name": "X-Content-Type-Options", "value": "nosniff"}]}}
+    route = {"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute",
+             "metadata": {"name": "app", "namespace": "app"},
+             "spec": {"parentRefs": [{"name": "shared", "sectionName": "https"}], "hostnames": ["app.example.org"],
+                      "rules": [{"filters": [hdrs]}, {"backendRefs": []}]}}
+    r = policy(tmp_path, renders=[("app", "2+3", "apps", "app", [route])])
+    assert [f for f in fails(r) if "route-security-headers" in f] == [
+        "FAIL route-security-headers: app: HTTPRoute app/app rule 1 does not set "
+        "strict-transport-security, x-content-type-options (ResponseHeaderModifier set)"]
+    route["spec"]["rules"][1]["filters"] = [hdrs]
+    assert policy(tmp_path / "b", renders=[("app", "2+3", "apps", "app", [route])]).returncode == 0
+    # The :80 redirect route is exempt.
+    redirect = {"apiVersion": "gateway.networking.k8s.io/v1", "kind": "HTTPRoute",
+                "metadata": {"name": "r", "namespace": "gateway"},
+                "spec": {"parentRefs": [{"name": "shared", "sectionName": "http"}], "rules": [{}]}}
+    assert policy(tmp_path / "c", renders=[("gw", "2+3", "infrastructure", "gateway", [redirect])]).returncode == 0
+
+
 GUARD_FILES = {"ci/non-backup-cronjobs.txt": "theater/recyclarr\n",
                "ci/guard-modes.txt": "backup-verify/backup-verify-files s3-creds\n"}
 

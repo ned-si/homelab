@@ -4,7 +4,8 @@
 usage: zap_sarif.py --rules .zap/rules.tsv --out zap.sarif <report-dir | report.json>...
 
 Reads every `*.json` ZAP report (scripts/dast-zap.sh writes one per host),
-drops alerts whose rule ID is IGNORE in the rules file, and writes a single
+drops alerts that an unexpired IGNORE row matches (by rule ID, or rule ID and
+host), and writes a single
 SARIF 2.1.0 run. The output on stdout is counts only, never a finding: the
 logs of a public repository's workflows are public, code scanning alerts are
 not.
@@ -21,6 +22,7 @@ Exit 0 when the SARIF was written, 1 when there was nothing to read or a report
 was not valid JSON, 64 on usage errors.
 """
 import argparse
+import datetime
 import html
 import json
 import os
@@ -43,14 +45,24 @@ def text(value):
     return " ".join(html.unescape(TAG.sub(" ", value or "")).split())
 
 
-def ignored_rules(rules_file):
+def ignored_rules(rules_file, today=None):
+    """IGNORE keys: `<ruleId>` (every host) or `<ruleId>@<host>`.
+
+    An optional 4th column `expires=YYYY-MM-DD` ends the row: from that day on
+    the alert counts again, so an accepted finding is reviewed, not forgotten.
+    """
+    today = today or datetime.date.today()
     ignored = set()
     for line in Path(rules_file).read_text().splitlines():
         if not line or line.startswith("#"):
             continue
         fields = line.split("\t")
-        if len(fields) >= 2 and fields[1].strip() == "IGNORE":
-            ignored.add(fields[0].strip())
+        if len(fields) < 2 or fields[1].strip() != "IGNORE":
+            continue
+        expires = [f.strip()[len("expires="):] for f in fields[3:] if f.strip().startswith("expires=")]
+        if expires and datetime.date.fromisoformat(expires[0]) <= today:
+            continue
+        ignored.add(fields[0].strip())
     return ignored
 
 
@@ -74,7 +86,7 @@ def convert(reports, ignored, rules_uri):
             host = site.get("@host") or site.get("@name", "")
             for alert in site.get("alerts", []):
                 plugin = str(alert.get("pluginid", ""))
-                if not plugin or plugin in ignored:
+                if not plugin or plugin in ignored or f"{plugin}@{host}" in ignored:
                     continue
                 ref = str(alert.get("alertRef") or plugin)
                 risk = int(alert.get("riskcode", 0))

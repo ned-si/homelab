@@ -22,8 +22,8 @@
 #        .zap/rules.tsv, so every HIGH that reaches the gate is new. Medium and
 #        below are reported only.
 #   tls  scripts/tls-check.sh hard-fails on reachability, a missing
-#        http -> https redirect and certificate expiry. Its header checks are
-#        warnings until STRICT_HEADERS=1 (see .zap/rules.tsv).
+#        http -> https redirect, certificate expiry and, with
+#        STRICT_HEADERS=1, a missing security header.
 #
 # The targets sit behind Keycloak, so an unauthenticated baseline scan mostly
 # checks headers, TLS and error handling: exactly what regresses silently when
@@ -121,14 +121,16 @@ jobs:
 
       # Its output names hosts and missing headers, so it goes to a file and
       # only the counts are printed. Run it locally for the details.
-      - name: TLS, redirect and certificate expiry (gate)
+      - name: TLS, redirect, certificate expiry and headers (gate)
         if: ${{ !cancelled() }}
+        env:
+          STRICT_HEADERS: "1"
         run: |
           # No -e: the exit code and the zero-match greps are handled below.
           set +e -u
           scripts/tls-check.sh >"$RUNNER_TEMP/tls.log" 2>&1
           rc=$?
-          hard=$(grep -cE 'UNREACHABLE|redirect missing|cert expires in|could not (read|parse)' "$RUNNER_TEMP/tls.log")
+          hard=$(grep -cE 'UNREACHABLE|redirect missing|cert expires in|could not (read|parse)| MISSING([^ (]|$)' "$RUNNER_TEMP/tls.log")
           warn=$(grep -c 'MISSING (warning' "$RUNNER_TEMP/tls.log")
           echo "tls-check: exit $rc, $hard hard failure(s), $warn header warning(s)"
           if [ "$rc" -ne 0 ]; then

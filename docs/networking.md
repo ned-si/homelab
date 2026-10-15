@@ -128,6 +128,44 @@ router 80/443 -> 192.168.1.254 = Service gateway/cilium-gateway-shared
   no size limit.
 - The redirect's `Location` carries `:443` (`https://<host>:443/`), because
   Cilium sets the port explicitly. Browsers treat it as the same URL.
+- Every rule of every route on the `https` listener sets security headers (see
+  below); CI rule `route-security-headers` requires at least HSTS and
+  `X-Content-Type-Options`.
+
+### Security headers
+
+Each rule carries a `ResponseHeaderModifier` filter with `set`, which
+replaces the header the app sends. A header the app already sets with an equal
+or stricter value is left out, so the app's value stays.
+
+| Header | Value |
+| --- | --- |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+| `X-Content-Type-Options` | `nosniff` |
+| `Permissions-Policy` | `camera=(), microphone=(), payment=(), usb=()` |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `X-Frame-Options` | `SAMEORIGIN` |
+| `Content-Security-Policy` | `frame-ancestors 'self'; base-uri 'self'; object-src 'none'` |
+
+The CSP only restricts framing, `<base>` and plugins, so it cannot break an
+app's scripts or styles. Per host, what the app keeps:
+
+| Host | Left to the app |
+| --- | --- |
+| `argo`, `ebooks` | CSP, `X-Frame-Options` |
+| `audiobooks` | CSP, Referrer-Policy |
+| `archive` | Referrer-Policy (`same-origin`), `X-Frame-Options` |
+| `auth` | CSP, `X-Frame-Options`, Referrer-Policy: Keycloak sets them per page, and its `login-status-iframe` must stay frameable |
+| `grafana` | `X-Frame-Options` (`deny`); the CSP has `frame-ancestors 'none'` |
+| `home` | Referrer-Policy, `X-Frame-Options`, Permissions-Policy (Assist uses the microphone) |
+| `syncthing` | `X-Frame-Options` |
+| `theater` `/arr/qbittorrent` | CSP, Referrer-Policy |
+
+```sh
+STRICT_HEADERS=1 scripts/tls-check.sh
+```
+
+Expected: `tls-check passed`. The weekly `dast` workflow runs the same check.
 
 There is no ingress controller and no `Ingress` object in the cluster.
 

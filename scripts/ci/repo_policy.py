@@ -25,6 +25,10 @@ objects and rule ids only; values are never printed.
                         annotation in v0.15.0) appears in no non-doc file or render
   wildcard-route-dns    every HTTPRoute with a `*` hostname carries
                         external-dns.alpha.kubernetes.io/controller: none
+  route-security-headers  every rule of an HTTPRoute attached to the `https`
+                        listener has a ResponseHeaderModifier that sets
+                        Strict-Transport-Security and X-Content-Type-Options
+                        (docs/networking.md, Security headers)
   cronjob-suspended / cronjob-guard / guard-modes / cronjob-active
                         new-layout CronJobs rendered from the apps and platform
                         layers are suspended, unless listed in
@@ -105,6 +109,8 @@ VARIANT_WORDS = {"alpine", "slim", "distroless", "bookworm", "bullseye", "buster
 LIGHT_VARIANTS = {"alpine", "slim", "distroless", "minimal"}
 CODENAMES = {"bookworm", "bullseye", "buster", "trixie", "noble", "jammy", "focal"}
 BULKY_IMAGES = {"python", "node", "golang", "ubuntu", "debian"}
+# Set by the Gateway on every rule of an HTTPRoute on the https listener.
+ROUTE_HEADERS = {"strict-transport-security", "x-content-type-options"}
 
 
 class Policy:
@@ -304,6 +310,27 @@ class Policy:
                     if ann != "none":
                         self.fail("wildcard-route-dns",
                                   f"{e['app']}: HTTPRoute {self.ns_of(d, e)}/{self.name_of(d)} has a wildcard hostname without {CONTROLLER_ANN}: none")
+
+    def rule_route_headers(self) -> None:
+        rule = "route-security-headers"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") != "HTTPRoute":
+                    continue
+                spec = d.get("spec") or {}
+                if not any(p.get("sectionName") == "https" for p in spec.get("parentRefs") or []):
+                    continue
+                self.on(rule)
+                for i, r in enumerate(spec.get("rules") or []):
+                    names = set()
+                    for f in r.get("filters") or []:
+                        if f.get("type") == "ResponseHeaderModifier":
+                            names |= {str(h.get("name", "")).lower()
+                                      for h in (f.get("responseHeaderModifier") or {}).get("set") or []}
+                    missing = sorted(ROUTE_HEADERS - names)
+                    if missing:
+                        self.fail(rule, f"{e['app']}: HTTPRoute {self.ns_of(d, e)}/{self.name_of(d)} rule {i} "
+                                        f"does not set {', '.join(missing)} (ResponseHeaderModifier set)")
 
     def rule_cronjobs(self) -> None:
         non_backup = self.read_list("ci/non-backup-cronjobs.txt")
@@ -566,7 +593,8 @@ class Policy:
 
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
-                     self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_cronjobs,
+                     self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
+                     self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_expected_ingresses, self.rule_k8s_version, self.rule_image_bulky,
                      self.rule_image_variant):

@@ -11,7 +11,8 @@
 # public repository's workflows are public. scripts/zap_sarif.py turns the
 # reports into SARIF and prints counts.
 #
-# .zap/rules.tsv is passed to ZAP as its rule configuration.
+# .zap/rules.tsv, without its host-scoped rows, is passed to ZAP as its rule
+# configuration.
 #
 # Exit 0 when every scan produced a report, 1 when at least one did not (the
 # other hosts are still scanned), 64 on usage errors.
@@ -28,7 +29,9 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$out"
 # ZAP runs as its own non-root user in the container and writes into the mount.
 chmod 777 "$out"
-cp .zap/rules.tsv "$out/rules.tsv"
+# ZAP's -c file takes exactly <id>\t<action>\t<comment>: host-scoped rows
+# (<id>@<host>) and the expiry column are for zap_sarif.py only.
+grep -v -E '^[^#[:space:]]+@' .zap/rules.tsv | cut -f1-3 >"$out/rules.tsv"
 
 if [ "$FULL_SCAN" = "true" ]; then
   scan=(zap-full-scan.py -a -j)

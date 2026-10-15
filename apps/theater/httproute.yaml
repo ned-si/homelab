@@ -31,6 +31,22 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/radarr
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -43,6 +59,22 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/sonarr
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -55,6 +87,22 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/prowlarr
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -67,6 +115,22 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/lidarr
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -79,6 +143,22 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/lazylibrarian
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -91,6 +171,22 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/bazarr
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -103,6 +199,18 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/qbittorrent
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
       backendRefs:
         - group: ""
           kind: Service
@@ -115,6 +223,22 @@ spec:
         - path:
             type: PathPrefix
             value: /oauth2
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -127,6 +251,22 @@ spec:
         - path:
             type: PathPrefix
             value: /arr/bazarr
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -139,6 +279,22 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
@@ -169,6 +325,22 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
       backendRefs:
         - group: ""
           kind: Service
