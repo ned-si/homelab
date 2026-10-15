@@ -116,10 +116,10 @@
     },
     {
       customType: 'regex',
-      description: 'Annotated `image:`/`imageName:` reference carrying a full repo:tag. Captures only the tag. `imageName` is what CloudNativePG Clusters use.',
+      description: 'Annotated `image:`/`imageName:`/`reference:` carrying a full repo:tag. Captures only the tag. `imageName` is what CloudNativePG Clusters use, `reference` what image volumes use.',
       managerFilePatterns: ['/\\.ya?ml$/'],
       matchStrings: [
-        '#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?[^\\n]*\\n\\s*-?\\s*(?:image|imageName):\\s*[\'"]?[^\\s:\'"]+:(?<currentValue>[^\'"\\s@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\'"]?',
+        '#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?[^\\n]*\\n\\s*-?\\s*(?:image|imageName|reference):\\s*[\'"]?[^\\s:\'"]+:(?<currentValue>[^\'"\\s@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\'"]?',
       ],
       datasourceTemplate: 'docker',
       // `docker` versioning keeps the tag's suffix (-alpine3.24, -slim, ...)

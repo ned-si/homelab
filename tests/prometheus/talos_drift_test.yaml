@@ -1,0 +1,56 @@
+# promtool unit tests for platform/talos-drift/rules.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - talos-drift.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # cp-2 differs from main, cp-1 matches; the last push is recent.
+  - interval: 1m
+    input_series:
+      - series: 'talos_config_drift{job="talos-drift", node="homelab-cp-1"}'
+        values: '0x30'
+      - series: 'talos_config_drift{job="talos-drift", node="homelab-cp-2"}'
+        values: '1x30'
+      - series: 'talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TalosConfigDrift
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: TalosConfigDrift
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              node: homelab-cp-2
+            exp_annotations:
+              summary: "Talos config on homelab-cp-2 differs from main"
+              description: >-
+                The running machine config of homelab-cp-2 is not the one
+                talos/talconfig.yaml on main renders. From an up-to-date main,
+                preview with `task talos:apply -- homelab-cp-2` in dry-run
+                (docs/talos.md), then apply; if the node is right and main is
+                wrong, fix main instead.
+      - eval_time: 20m
+        alertname: TalosDriftCheckStale
+        exp_alerts: []
+
+  # The last push is 3 days old at minute 0 of the test, and never again.
+  - interval: 1h
+    input_series:
+      - series: 'talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}'
+        values: '-259200x2'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: TalosDriftCheckStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "No Talos drift check in 2 days"
+              description: >-
+                The talos-drift CronJob has not pushed a result for 2 days. Check
+                kubectl -n system-upgrade get cronjob,jobs -l app.kubernetes.io/name=talos-drift
+                and the last Job's log.

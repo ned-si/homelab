@@ -1,0 +1,233 @@
+---
+# OpenTofu GitOps for the AWS modules under bootstrap/, with drift detection.
+#
+#   pull request  plan every module with the plan role and post one summary
+#                 comment (addresses and actions; the full plan text is in a
+#                 collapsed block, sensitive values masked by tofu, the account
+#                 ID replaced).
+#   push to main  plan, then apply bootstrap/aws-backup with the apply role.
+#   daily         the same plan: changes on main mean drift. bootstrap/aws-backup
+#                 is corrected by the apply and the drift posted to ntfy.
+#
+# Guards:
+#   - a plan that deletes, replaces or forgets a resource is never applied:
+#     ntfy and a failed run; apply it by hand with scripts/tofu.sh;
+#   - bootstrap/github-oidc (these roles) and bootstrap/tofu-state (the state
+#     bucket) are plan-only: pending changes there are posted to ntfy and fail
+#     the run until applied by hand.
+#
+# AWS access is GitHub OIDC (bootstrap/github-oidc), no stored keys. Secrets:
+# AWS_PLAN_ROLE_ARN, AWS_APPLY_ROLE_ARN (secrets so the account ID is masked),
+# TOFU_STATE_PASSPHRASE, NTFY_TOPIC. No cluster credentials: the Kubernetes
+# side is Argo CD, the Talos side platform/talos-drift (docs/decisions.md
+# "Drift detection without cluster credentials in GitHub").
+name: tofu
+
+on:
+  pull_request:
+    paths:
+      - bootstrap/aws-backup/**
+      - bootstrap/github-oidc/**
+      - bootstrap/tofu-state/**
+      - .github/workflows/tofu.yaml
+      - scripts/ci/tofu-run.sh
+      - scripts/ci/tofu_plan_summary.py
+  push:
+    branches: [main]
+    paths:
+      - bootstrap/aws-backup/**
+      - bootstrap/github-oidc/**
+      - bootstrap/tofu-state/**
+      - .github/workflows/tofu.yaml
+      - scripts/ci/tofu-run.sh
+      - scripts/ci/tofu_plan_summary.py
+  schedule:
+    # 05:17 UTC daily.
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: tofu-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Same pin as ci.yaml.
+  TOFU_VERSION: 1.12.6
+  TOFU_SHA256: 50a6106fa4de523d09c87af85f3db1dd47535fc005727fdca6852146476b88ec
+  AWS_REGION: eu-central-1
+
+jobs:
+  plan:
+    # Pull requests from forks get no OIDC token and no secrets.
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    outputs:
+      aws_backup: ${{ steps.plan.outputs.aws_backup }}
+      plan_only: ${{ steps.plan.outputs.plan_only }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install tofu
+        run: scripts/ci/install-tool.sh tofu
+
+      - name: AWS credentials (plan role)
+        id: aws
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
+          role-session-name: tofu-plan-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: tofu plan
+        id: plan
+        env:
+          TF_VAR_state_passphrase: ${{ secrets.TOFU_STATE_PASSPHRASE }}
+          AWS_ACCOUNT_ID: ${{ steps.aws.outputs.aws-account-id }}
+        run: |
+          set -euo pipefail
+          fail=0
+          for m in bootstrap/aws-backup bootstrap/github-oidc bootstrap/tofu-state; do
+            echo "::group::$m"
+            scripts/ci/tofu-run.sh plan "$m" || fail=1
+            echo "::endgroup::"
+          done
+          dir="$RUNNER_TEMP/tofu"
+          echo "aws_backup=$(cat "$dir/bootstrap-aws-backup.status")" >> "$GITHUB_OUTPUT"
+          pending=""
+          for n in bootstrap-github-oidc bootstrap-tofu-state; do
+            [ "$(cat "$dir/$n.status")" = no-changes ] || pending="$pending ${n#bootstrap-}"
+          done
+          echo "plan_only=${pending# }" >> "$GITHUB_OUTPUT"
+          { echo "## tofu plan"; for f in "$dir"/*.md; do cat "$f"; echo; done; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$fail"
+
+      - name: Comment on the pull request
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/tofu"
+          body="$RUNNER_TEMP/comment.md"
+          {
+            echo "<!-- tofu-plan -->"
+            echo "### tofu plan for ${SHA:0:7}"
+            echo
+            echo "On merge, CI applies bootstrap/aws-backup unless the plan deletes, replaces or forgets a resource."
+            echo "bootstrap/github-oidc and bootstrap/tofu-state are applied by hand (scripts/tofu.sh)."
+            for f in "$dir"/*.md; do
+              n=$(basename "$f" .md)
+              echo; cat "$f"
+              if [ -s "$dir/$n.txt" ]; then
+                echo; echo "<details><summary>$n plan</summary>"; echo; echo '```text'
+                head -c 15000 "$dir/$n.txt"; echo; echo '```'; echo "</details>"
+              fi
+            done
+          } > "$body"
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- tofu-plan -->"))) | .id' | head -n 1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -F "body=@$body" > /dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -F "body=@$body" > /dev/null
+          fi
+
+      - name: Plan-only modules have pending changes
+        if: ${{ github.event_name != 'pull_request' && steps.plan.outputs.plan_only != '' }}
+        env:
+          PENDING: ${{ steps.plan.outputs.plan_only }}
+        run: |
+          echo "::error::plan-only module(s) with pending changes: $PENDING; apply by hand with scripts/tofu.sh"
+          exit 1
+
+      - name: Notify ntfy on failure
+        if: ${{ failure() && github.event_name != 'pull_request' }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PENDING: ${{ steps.plan.outputs.plan_only }}
+        run: |
+          curl -fsS -m 10 -o /dev/null \
+            -H "Title: tofu plan failed or drifted" -H "Priority: high" -H "Tags: warning" \
+            -H "Click: $RUN_URL" \
+            -d "tofu plan on main failed or a plan-only module has changes (${PENDING:-none}); see $RUN_URL" \
+            "https://ntfy.sh/$NTFY_TOPIC"
+
+  apply:
+    needs: plan
+    if: ${{ github.event_name != 'pull_request' && needs.plan.outputs.aws_backup != 'no-changes' && needs.plan.outputs.aws_backup != '' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install tofu
+        run: scripts/ci/install-tool.sh tofu
+
+      - name: AWS credentials (apply role)
+        id: aws
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+          role-session-name: tofu-apply-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: tofu apply bootstrap/aws-backup
+        id: apply
+        env:
+          TF_VAR_state_passphrase: ${{ secrets.TOFU_STATE_PASSPHRASE }}
+          AWS_ACCOUNT_ID: ${{ steps.aws.outputs.aws-account-id }}
+        run: |
+          set -euo pipefail
+          rc=0
+          scripts/ci/tofu-run.sh apply bootstrap/aws-backup || rc=$?
+          echo "status=$(cat "$RUNNER_TEMP/tofu/bootstrap-aws-backup.status")" >> "$GITHUB_OUTPUT"
+          { echo "## tofu apply"; cat "$RUNNER_TEMP/tofu/bootstrap-aws-backup.md"; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
+
+      # A scheduled run that applied something corrected drift: say what.
+      - name: Notify ntfy of corrected drift
+        if: ${{ success() && github.event_name == 'schedule' && steps.apply.outputs.status == 'changes' }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # Address and action per line, without the Markdown (\140 is a backtick).
+          grep '^- ' "$RUNNER_TEMP/tofu/bootstrap-aws-backup.md" | tr -d '\140' | cut -c3- | head -n 20 > "$RUNNER_TEMP/drift.txt"
+          curl -fsS -m 10 -o /dev/null \
+            -H "Title: tofu drift corrected (aws-backup)" -H "Tags: wrench" \
+            -H "Click: $RUN_URL" \
+            --data-binary "@$RUNNER_TEMP/drift.txt" \
+            "https://ntfy.sh/$NTFY_TOPIC"
+
+      - name: Notify ntfy on failure or a refused destroy
+        if: ${{ failure() }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STATUS: ${{ steps.apply.outputs.status }}
+        run: |
+          curl -fsS -m 10 -o /dev/null \
+            -H "Title: tofu apply failed (aws-backup)" -H "Priority: high" -H "Tags: warning" \
+            -H "Click: $RUN_URL" \
+            -d "tofu apply of bootstrap/aws-backup did not run or failed (plan: ${STATUS:-error}); a destructive plan needs a hand apply. $RUN_URL" \
+            "https://ntfy.sh/$NTFY_TOPIC"

@@ -1,0 +1,47 @@
+# Talos machine config drift, from the talos-drift push (check.sh).
+#
+#   TalosConfigDrift       a node's running config differs from the render of
+#                          main: a change merged without `task talos:apply`,
+#                          or an apply that did not come from main.
+#   TalosDriftCheckStale   no successful check in 2 days: drift would go
+#                          unnoticed.
+#
+# Both are warnings (Grafana only, docs/sre.md "Paging").
+# Tests: tests/prometheus/talos_drift_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: talos-drift
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: talos.drift
+      rules:
+        - alert: TalosConfigDrift
+          expr: max by (node) (talos_config_drift{job="talos-drift"}) == 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Talos config on {{ $labels.node }} differs from main"
+            description: >-
+              The running machine config of {{ $labels.node }} is not the one
+              talos/talconfig.yaml on main renders. From an up-to-date main,
+              preview with `task talos:apply -- {{ $labels.node }}` in dry-run
+              (docs/talos.md), then apply; if the node is right and main is
+              wrong, fix main instead.
+        - alert: TalosDriftCheckStale
+          expr: |
+            time() - max(max_over_time(talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}[3d])) > 2 * 86400
+            or absent_over_time(talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}[3d])
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "No Talos drift check in 2 days"
+            description: >-
+              The talos-drift CronJob has not pushed a result for 2 days. Check
+              kubectl -n system-upgrade get cronjob,jobs -l app.kubernetes.io/name=talos-drift
+              and the last Job's log.

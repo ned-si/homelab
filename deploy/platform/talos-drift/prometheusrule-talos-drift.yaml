@@ -1,0 +1,44 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/talos-drift
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/talos-drift and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: talos-drift
+  namespace: system-upgrade
+spec:
+  groups:
+  - name: talos.drift
+    rules:
+    - alert: TalosConfigDrift
+      annotations:
+        description: The running machine config of {{ $labels.node }} is not the one
+          talos/talconfig.yaml on main renders. From an up-to-date main, preview with
+          `task talos:apply -- {{ $labels.node }}` in dry-run (docs/talos.md), then
+          apply; if the node is right and main is wrong, fix main instead.
+        summary: Talos config on {{ $labels.node }} differs from main
+      expr: max by (node) (talos_config_drift{job="talos-drift"}) == 1
+      for: 10m
+      labels:
+        severity: warning
+    - alert: TalosDriftCheckStale
+      annotations:
+        description: The talos-drift CronJob has not pushed a result for 2 days. Check
+          kubectl -n system-upgrade get cronjob,jobs -l app.kubernetes.io/name=talos-drift
+          and the last Job's log.
+        summary: No Talos drift check in 2 days
+      expr: |
+        time() - max(max_over_time(talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}[3d])) > 2 * 86400
+        or absent_over_time(talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}[3d])
+      for: 1h
+      labels:
+        severity: warning
