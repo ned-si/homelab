@@ -114,14 +114,17 @@ Expected: one `auto tag kids-fr` line each for sonarr and radarr, then
 
 ## Indexers
 
-Prowlarr syncs its indexers to Sonarr and Radarr (full sync). Policy: nothing
-is grabbed automatically from a private or semi-private tracker, because
-automatic grabs break their ratio and hit-and-run rules.
+Prowlarr syncs its indexers to Sonarr and Radarr (full sync). Policy: a
+private or semi-private tracker is used automatically only for freeleech
+releases, because other automatic grabs break its ratio rules.
 
-- Private and semi-private indexers use the Prowlarr app profile
-  `Manual only` (RSS off, automatic search off, interactive search on). Sonarr
-  and Radarr receive them with RSS and automatic search off, so they are only
-  used from Interactive Search.
+- A private or semi-private indexer whose definition has a freeleech-only
+  option (IPTorrents `freeLeechOnly`, Sharewood `freeleech`) has it on and uses
+  the profile `Standard`: RSS and automatic search see freeleech releases only.
+- One without that option (C411) uses the app profile `Manual only` (RSS off,
+  automatic search off, interactive search on). Sonarr and Radarr receive it
+  with RSS and automatic search off, so it is only used from Interactive
+  Search.
 - Public indexers use the profile `Standard` (everything on). They also carry
   the tag `books`, which is what Prowlarr's `LazyLibrarian` application syncs;
   a non-public indexer must never get it.
@@ -136,8 +139,10 @@ scripts/check-indexers.sh
 ```
 
 Expected: one `ok` line per indexer, exit 0. A `FAIL` line names an enabled
-private or semi-private indexer on an automatic profile or with the `books` tag; fix it in Prowlarr
-(Indexers, edit, Sync Profile `Manual only`).
+private or semi-private indexer that is automatic without freeleech-only on,
+or carries the `books` tag. Fix it in Prowlarr (Indexers, edit): turn the
+freeleech-only option on, or set Sync Profile `Manual only` if the definition
+has none. `WARN` (freeleech-only on, manual profile) does not fail.
 
 qBittorrent has no global ratio or seeding-time limit and the categories
 inherit that, so torrents seed until removed. Queueing is on with 10 active
@@ -160,5 +165,7 @@ torrents: beyond that, seeds are queued and stop uploading.
   Bazarr stores profiles in its database. SQLite, not CloudNativePG: the
   database holds nothing that is not rebuilt from git and from Sonarr and
   Radarr, apart from the download history.
-- Private trackers are manual only: their rules punish automatic grabs.
-  Public indexers carry the automatic search.
+- Private trackers are automatic for freeleech only: a freeleech download does
+  not count against the ratio, any other automatic grab can. Without a
+  freeleech filter the tracker stays manual. Public indexers carry the rest of
+  the automatic search.
