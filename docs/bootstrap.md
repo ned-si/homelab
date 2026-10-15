@@ -88,8 +88,10 @@ talosctl apply-config --insecure -n <dhcp-ip> -f talos/clusterconfig/homelab-hom
 Repeat the `apply-config` line for every node in maintenance mode, each with
 its own file (`homelab-<hostname>.yaml`). A node that already runs Talos from
 another cluster (a test node) goes back to maintenance mode first:
-`talosctl -e <ip> -n <ip> --talosconfig <its-old-talosconfig> reset --graceful=false --reboot`.
-Expected: the last line of
+`talosctl -e <ip> -n <ip> --talosconfig <its-old-talosconfig> reset --graceful=false --reboot --system-labels-to-wipe STATE --system-labels-to-wipe EPHEMERAL`.
+Without the labels, `reset` wipes the whole eMMC, including the boot
+partitions of the flashed image, and the node stays dark until it is flashed
+again. Expected: the last line of
 `genconfig` is `talos-genconfig: 4 machine config(s) in <repo>/talos/clusterconfig`;
 each `apply-config` exits 0 and the node reboots onto its static address.
 

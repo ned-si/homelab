@@ -152,7 +152,7 @@ To replace one:
 | `talosctl -n <ip> get machineconfig -o yaml` | The config the node runs. Holds secrets: never paste it | |
 | `talosctl -n <ip> support --no-encryption -O support.zip` | Logs and state in one archive. Without `--no-encryption` only Sidero Labs can open it | |
 | `talosctl -n <ip> reboot` | Reboot; `--drain` evicts pods first | Back in `services` within minutes |
-| `talosctl -n <ip> reset --reboot` | Leaves etcd, wipes config and data, reboots into maintenance mode | |
+| `talosctl -n <ip> reset --reboot --system-labels-to-wipe STATE --system-labels-to-wipe EPHEMERAL` | Leaves etcd, wipes config and data, reboots into maintenance mode | Without the labels it wipes the whole eMMC, boot partitions included: flash the node again |
 
 Outside the API:
 
