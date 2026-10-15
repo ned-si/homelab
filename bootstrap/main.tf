@@ -39,7 +39,7 @@ resource "helm_release" "cilium" {
   repository = "https://helm.cilium.io"
   chart      = "cilium"
   # Must match ci/helm-releases.yaml (the bootstrap version) and
-  # clusters/homelab/infrastructure/cilium.yaml; CI checks the latter.
+  # clusters/homelab/infrastructure/cilium.yaml; CI checks both.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
   version   = "1.20.2"
   namespace = "kube-system"
@@ -107,7 +107,7 @@ resource "helm_release" "argocd" {
   name       = "argocd"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argo-cd"
-  # Must match the argocd entry of ci/helm-releases.yaml.
+  # Must match the argocd entry of ci/helm-releases.yaml; CI checks it.
   # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
   version   = "10.10.3"
   namespace = kubernetes_namespace_v1.argocd.metadata[0].name
