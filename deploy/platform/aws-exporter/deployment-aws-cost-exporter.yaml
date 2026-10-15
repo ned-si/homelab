@@ -93,5 +93,5 @@ spec:
       serviceAccountName: aws-cost-exporter
       volumes:
       - configMap:
-          name: aws-cost-exporter-c99mmk8c77
+          name: aws-cost-exporter-thgd4477tk
         name: app

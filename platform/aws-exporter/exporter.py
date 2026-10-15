@@ -103,18 +103,18 @@ def ce(target: str, payload: dict) -> dict:
 def list_bucket() -> list[tuple[str, int, str]]:
     host = f"{BUCKET}.s3.{REGION}.amazonaws.com"
     ns = "{http://s3.amazonaws.com/doc/2006-03-01/}"
-    objs, token = [], None
+    objs, cont = [], None
     while True:
         q = {"list-type": "2", "max-keys": "1000"}
-        if token:
-            q["continuation-token"] = token
+        if cont:
+            q["continuation-token"] = cont
         root = ET.fromstring(request("GET", host, "/", q, {}, b"", REGION, "s3"))
         for c in root.iter(f"{ns}Contents"):
             objs.append((c.findtext(f"{ns}Key"), int(c.findtext(f"{ns}Size") or 0),
                          c.findtext(f"{ns}StorageClass") or "STANDARD"))
         if root.findtext(f"{ns}IsTruncated") != "true":
             return objs
-        token = root.findtext(f"{ns}NextContinuationToken")
+        cont = root.findtext(f"{ns}NextContinuationToken")
 
 
 def esc(v) -> str:
