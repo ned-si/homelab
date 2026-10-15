@@ -271,15 +271,18 @@ alertmanager:
         target_matchers:
           - severity = "info"
         equal: [namespace, alertname]
+      # The pod, workload and Argo CD alerts: KubePod*, KubeContainerWaiting,
+      # KubeDeployment*, KubeStatefulSet*, KubePdbNotEnoughHealthyPods,
+      # KubeJobFailed, Pod* (routes/alerts.yaml) and ArgoCD*.
+      - source_matchers:
+          - alertname =~ "SLOErrorBudgetBurnFast|ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica"
+        target_matchers:
+          - alertname =~ "(Kube(Pod|ContainerWaiting|Deployment|StatefulSet|PdbNotEnoughHealthyPods|JobFailed)|Pod|ArgoCD).*"
+        equal: [namespace]
       - source_matchers:
           - alertname = "SLOErrorBudgetBurnFast"
         target_matchers:
-          - alertname =~ "ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica|KubePod.*|KubeContainerWaiting|KubeDeployment.*|KubeStatefulSet.*|KubePdbNotEnoughHealthyPods|KubeJobFailed|Pod.*|ArgoCD.*"
-        equal: [namespace]
-      - source_matchers:
           - alertname =~ "ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica"
-        target_matchers:
-          - alertname =~ "KubePod.*|KubeContainerWaiting|KubeDeployment.*|KubeStatefulSet.*|KubePdbNotEnoughHealthyPods|KubeJobFailed|Pod.*|ArgoCD.*"
         equal: [namespace]
       - source_matchers:
           - alertname = "HomelabNodeNotReady"
@@ -289,7 +292,11 @@ alertmanager:
       - source_matchers:
           - alertname = "HomelabNASUnreachable"
         target_matchers:
-          - alertname =~ "SLOErrorBudgetBurn.*|ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica|KubePod.*|KubeContainerWaiting|KubeDeployment.*|KubeStatefulSet.*|KubePdbNotEnoughHealthyPods|KubeJobFailed|KubePersistentVolumeErrors|Pod.*|ArgoCD.*|CNPG.*|BackupVerify.*|NASExporter.*"
+          - alertname =~ "(Kube(Pod|ContainerWaiting|Deployment|StatefulSet|PdbNotEnoughHealthyPods|JobFailed)|Pod|ArgoCD).*"
+      - source_matchers:
+          - alertname = "HomelabNASUnreachable"
+        target_matchers:
+          - alertname =~ "SLOErrorBudgetBurn.*|ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica|KubePersistentVolumeErrors|(CNPG|BackupVerify|NASExporter).*"
     receivers:
       - name: "null"
       - name: heartbeat
