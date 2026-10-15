@@ -103,6 +103,8 @@ spec:
           readOnly: true
         - mountPath: /auth
           name: auth
+        - mountPath: /tmp
+          name: tmp
       securityContext:
         runAsGroup: 1883
         runAsNonRoot: true
@@ -120,3 +122,7 @@ spec:
           medium: Memory
           sizeLimit: 1Mi
         name: auth
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
+        name: tmp
