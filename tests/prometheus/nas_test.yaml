@@ -1,0 +1,121 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/nas-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-nas.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # The pool degrades at minute 5 and a cache device drops out.
+  - interval: 1m
+    input_series:
+      - series: 'truenas_pool_healthy{pool="homelab"}'
+        values: '1x4 0x20'
+      - series: 'truenas_pool_device_online{pool="homelab", role="cache", disk="nvd0"}'
+        values: '1x4 0x20'
+      - series: 'truenas_pool_device_errors{pool="homelab", role="data", disk="ada0", type="checksum"}'
+        values: '0x4 3x20'
+      - series: 'truenas_up'
+        values: '1x25'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: NASPoolUnhealthy
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: NASPoolUnhealthy
+        exp_alerts:
+          - exp_labels:
+              pool: homelab
+              severity: critical
+            exp_annotations:
+              summary: NAS pool homelab is not healthy
+              description: >-
+                ZFS reports homelab unhealthy (DEGRADED, FAULTED or
+                errors). Another disk failure in a RAIDZ1 loses the pool. Read
+                `zpool status -v homelab` on the NAS and replace the
+                failed device before anything else.
+      - eval_time: 16m
+        alertname: NASPoolDeviceNotOnline
+        exp_alerts:
+          - exp_labels:
+              pool: homelab
+              role: cache
+              disk: nvd0
+              severity: warning
+            exp_annotations:
+              summary: NAS homelab cache device nvd0 is not ONLINE
+              description: >-
+                A cache or log device going away slows the pool; a data device
+                going away degrades it (NASPoolUnhealthy fires too). Check the
+                device in the TrueNAS UI under Storage -> Pools -> Status.
+      - eval_time: 21m
+        alertname: NASPoolDeviceErrors
+        exp_alerts:
+          - exp_labels:
+              pool: homelab
+              role: data
+              disk: ada0
+              type: checksum
+              severity: warning
+            exp_annotations:
+              summary: NAS device ada0 has 3 checksum errors
+              description: >-
+                ZFS counted checksum errors on ada0 in
+                pool homelab. A few after a cable or power event can be
+                cleared with `zpool clear`; errors that come back mean a failing
+                disk or cable.
+      - eval_time: 21m
+        alertname: NASExporterAbsent
+        exp_alerts: []
+
+  # Exporter: API failing for 20m while the NAS ports answer, then the NAS
+  # goes down (quiet: HomelabNASUnreachable covers it).
+  - interval: 1m
+    input_series:
+      - series: 'truenas_up{job="truenas-exporter"}'
+        values: '1x4 0x40'
+      - series: 'probe_success{job="blackbox-internal", instance="192.168.1.228:3260"}'
+        values: '1x29 0x15'
+      - series: 'probe_success{job="blackbox-internal", instance="192.168.1.228:2049"}'
+        values: '1x44'
+    alert_rule_test:
+      - eval_time: 21m
+        alertname: NASExporterFailing
+        exp_alerts:
+          - exp_labels:
+              job: truenas-exporter
+              severity: warning
+            exp_annotations:
+              summary: truenas-exporter cannot read the TrueNAS API
+              description: >-
+                Every NAS alert is inert while this fires. Read
+                `kubectl -n democratic-csi logs deploy/truenas-exporter`: an
+                `HTTPError` 401 means the API key in the democratic-csi Secret was
+                rotated or revoked.
+      - eval_time: 32m
+        alertname: NASExporterFailing
+        exp_alerts: []
+
+  # Scrub: the last one ended 40 days before t=0 (-3456000 s), another
+  # 39 days before (-3369600 s, not yet overdue).
+  - interval: 1m
+    input_series:
+      - series: 'truenas_pool_scrub_end_timestamp_seconds{pool="homelab"}'
+        values: '-3456000x120'
+      - series: 'truenas_pool_scrub_end_timestamp_seconds{pool="boot-pool"}'
+        values: '-3369600x120'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NASScrubOverdue
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: NASScrubOverdue
+        exp_alerts:
+          - exp_labels:
+              pool: homelab
+              severity: warning
+            exp_annotations:
+              summary: NAS pool homelab has not finished a scrub in 40 days
+              description: >-
+                TrueNAS scrubs every 35 days by default. Check the scrub task under
+                Tasks -> Scrub Tasks.

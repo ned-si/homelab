@@ -1,0 +1,138 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-nas
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.nas.recording
+    rules:
+    - expr: |
+        truenas_dataset_used_bytes{dataset=~"[^/]+"}
+        / (truenas_dataset_used_bytes{dataset=~"[^/]+"} + truenas_dataset_available_bytes{dataset=~"[^/]+"})
+      record: nas:pool_used:ratio
+    - expr: |
+        truenas_dataset_available_bytes{dataset=~"[^/]+"}
+        / -(deriv(truenas_dataset_available_bytes{dataset=~"[^/]+"}[7d]) < 0)
+        / 86400
+      record: nas:pool_days_until_full
+  - name: homelab.nas
+    rules:
+    - alert: NASPoolUnhealthy
+      annotations:
+        description: ZFS reports {{ $labels.pool }} unhealthy (DEGRADED, FAULTED or
+          errors). Another disk failure in a RAIDZ1 loses the pool. Read `zpool status
+          -v {{ $labels.pool }}` on the NAS and replace the failed device before anything
+          else.
+        summary: NAS pool {{ $labels.pool }} is not healthy
+      expr: truenas_pool_healthy == 0
+      for: 5m
+      labels:
+        severity: critical
+    - alert: NASPoolDeviceNotOnline
+      annotations:
+        description: A cache or log device going away slows the pool; a data device
+          going away degrades it (NASPoolUnhealthy fires too). Check the device in
+          the TrueNAS UI under Storage -> Pools -> Status.
+        summary: NAS {{ $labels.pool }} {{ $labels.role }} device {{ $labels.disk
+          }} is not ONLINE
+      expr: truenas_pool_device_online == 0
+      for: 10m
+      labels:
+        severity: warning
+    - alert: NASPoolDeviceErrors
+      annotations:
+        description: ZFS counted {{ $labels.type }} errors on {{ $labels.disk }} in
+          pool {{ $labels.pool }}. A few after a cable or power event can be cleared
+          with `zpool clear`; errors that come back mean a failing disk or cable.
+        summary: NAS device {{ $labels.disk }} has {{ $value }} {{ $labels.type }}
+          errors
+      expr: truenas_pool_device_errors > 0
+      for: 15m
+      labels:
+        severity: warning
+    - alert: NASSmartTestFailed
+      annotations:
+        description: The newest {{ $labels.test }} self-test on {{ $labels.disk }}
+          did not pass. Plan a replacement; read the SMART log in the TrueNAS UI.
+        summary: NAS disk {{ $labels.disk }} failed its SMART self-test
+      expr: truenas_disk_smart_last_test_success == 0
+      for: 5m
+      labels:
+        severity: warning
+    - alert: NASDiskHot
+      annotations:
+        description: Above 65 C for 30 minutes. Check the case airflow and fans.
+        summary: NAS disk {{ $labels.disk }} is at {{ $value }} C
+      expr: truenas_disk_temperature_celsius > 65
+      for: 30m
+      labels:
+        severity: warning
+    - alert: NASPoolNearlyFull
+      annotations:
+        summary: NAS pool {{ $labels.pool }} is over 80% used
+      expr: nas:pool_used:ratio > 0.80
+      for: 1h
+      labels:
+        severity: warning
+    - alert: NASPoolCriticallyFull
+      annotations:
+        description: Every iSCSI volume and the media library are on this pool. Free
+          space or add capacity now; a full pool stops every write.
+        summary: NAS pool {{ $labels.pool }} is over 90% used
+      expr: nas:pool_used:ratio > 0.90
+      for: 15m
+      labels:
+        severity: critical
+    - alert: NASPoolFillingUp
+      annotations:
+        summary: NAS pool {{ $labels.pool }} is full in {{ $value | humanize }} days
+          at the current trend
+      expr: nas:pool_days_until_full < 30
+      for: 6h
+      labels:
+        severity: warning
+    - alert: NASScrubOverdue
+      annotations:
+        description: TrueNAS scrubs every 35 days by default. Check the scrub task
+          under Tasks -> Scrub Tasks.
+        summary: NAS pool {{ $labels.pool }} has not finished a scrub in 40 days
+      expr: time() - truenas_pool_scrub_end_timestamp_seconds > 40 * 86400
+      for: 1h
+      labels:
+        severity: warning
+    - alert: NASExporterFailing
+      annotations:
+        description: 'Every NAS alert is inert while this fires. Read `kubectl -n
+          democratic-csi logs deploy/truenas-exporter`: an `HTTPError` 401 means the
+          API key in the democratic-csi Secret was rotated or revoked.'
+        summary: truenas-exporter cannot read the TrueNAS API
+      expr: |
+        (truenas_up == 0 or up{job="truenas-exporter"} == 0)
+        unless on () (
+          min(probe_success{job="blackbox-internal", instance=~"192\\.168\\.1\\.228:(3260|2049)"}) == 0
+        )
+      for: 15m
+      labels:
+        severity: warning
+    - alert: NASExporterAbsent
+      annotations:
+        description: No NAS health alert can fire. Check the truenas-exporter Application
+          and `kubectl -n democratic-csi get servicemonitor truenas-exporter --show-labels`.
+        summary: truenas-exporter is not being scraped
+      expr: absent(truenas_up)
+      for: 15m
+      labels:
+        severity: warning

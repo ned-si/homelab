@@ -1,0 +1,36 @@
+# truenas-exporter: NAS pools, disks, SMART, temperatures and capacity as
+# metrics (platform/truenas-exporter, docs/observability.md).
+#
+# Destination `democratic-csi`: the exporter reads the CSI driver's existing
+# Secret for the TrueNAS API key.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: truenas-exporter
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10): the ServiceMonitor CRD comes with that chart.
+    argocd.argoproj.io/sync-wave: "15"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/platform/truenas-exporter
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: democratic-csi
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

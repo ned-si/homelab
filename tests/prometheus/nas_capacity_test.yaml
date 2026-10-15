@@ -1,0 +1,63 @@
+# promtool unit tests for the capacity rules in
+# platform/kube-prometheus-stack/routes/nas-alerts.yaml. Hourly evaluation:
+# the trend needs days of data, and minute steps over 8 days take minutes.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-nas.yaml
+
+evaluation_interval: 1h
+
+tests:
+  # 10 TB pool, 7 TB used, growing 10 GB an hour (240 GB a day). After 8
+  # days 1.08 TB is left: 4.5 days to full, 89% used. The child dataset is
+  # not a pool and is ignored.
+  - interval: 1h
+    input_series:
+      - series: 'truenas_dataset_used_bytes{pool="homelab", dataset="homelab"}'
+        values: '7e12+1e10x200'
+      - series: 'truenas_dataset_available_bytes{pool="homelab", dataset="homelab"}'
+        values: '3e12-1e10x200'
+      - series: 'truenas_dataset_used_bytes{pool="homelab", dataset="homelab/k8s"}'
+        values: '5e12+1e10x200'
+      - series: 'truenas_dataset_available_bytes{pool="homelab", dataset="homelab/k8s"}'
+        values: '3e12-1e10x200'
+    promql_expr_test:
+      - expr: round(nas:pool_days_until_full, 0.1)
+        eval_time: 8d
+        exp_samples:
+          - labels: '{pool="homelab", dataset="homelab"}'
+            value: 4.5
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: NASPoolFillingUp
+        exp_alerts:
+          - exp_labels:
+              pool: homelab
+              dataset: homelab
+              severity: warning
+            exp_annotations:
+              summary: NAS pool homelab is full in 4.5 days at the current trend
+      - eval_time: 8d
+        alertname: NASPoolNearlyFull
+        exp_alerts:
+          - exp_labels:
+              pool: homelab
+              dataset: homelab
+              severity: warning
+            exp_annotations:
+              summary: NAS pool homelab is over 80% used
+      - eval_time: 8d
+        alertname: NASPoolCriticallyFull
+        exp_alerts: []
+
+  # Shrinking usage: no projection, no alert.
+  - interval: 1h
+    input_series:
+      - series: 'truenas_dataset_used_bytes{pool="homelab", dataset="homelab"}'
+        values: '7e12-1e9x100'
+      - series: 'truenas_dataset_available_bytes{pool="homelab", dataset="homelab"}'
+        values: '3e12+1e9x100'
+    promql_expr_test:
+      - expr: nas:pool_days_until_full
+        eval_time: 3d
+        exp_samples: []
