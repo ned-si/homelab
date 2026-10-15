@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-lan
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.lan
+    rules:
+    - alert: LANDeviceUnreachable
+      annotations:
+        description: No ICMP reply for 10 minutes. For the router, the cluster has
+          no internet and this may only arrive once it is back. For the BMC, check
+          whether its DHCP lease moved (`turingpi.local` from the Mac) and update
+          platform/blackbox-exporter/probes/lan.yaml.
+        summary: LAN device {{ $labels.device }} ({{ $labels.instance }}) does not
+          answer a ping
+      expr: probe_success{job="blackbox-lan", device=~"router|bmc"} == 0
+      for: 10m
+      labels:
+        severity: warning

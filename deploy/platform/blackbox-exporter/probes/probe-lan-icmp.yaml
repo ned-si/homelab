@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/blackbox-exporter/probes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/blackbox-exporter/probes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: lan-icmp
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: blackbox-lan
+  module: icmp
+  prober:
+    path: /probe
+    url: blackbox-exporter.monitoring.svc:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      labels:
+        probe: lan
+      relabelingConfigs:
+      - action: replace
+        regex: 192\.168\.1\.1
+        replacement: router
+        sourceLabels:
+        - __param_target
+        targetLabel: device
+      - action: replace
+        regex: 192\.168\.1\.228
+        replacement: nas
+        sourceLabels:
+        - __param_target
+        targetLabel: device
+      - action: replace
+        regex: 192\.168\.1\.247
+        replacement: homelab-cp-1
+        sourceLabels:
+        - __param_target
+        targetLabel: device
+      - action: replace
+        regex: 192\.168\.1\.238
+        replacement: homelab-cp-2
+        sourceLabels:
+        - __param_target
+        targetLabel: device
+      - action: replace
+        regex: 192\.168\.1\.239
+        replacement: homelab-cp-3
+        sourceLabels:
+        - __param_target
+        targetLabel: device
+      - action: replace
+        regex: 192\.168\.1\.240
+        replacement: homelab-w-1
+        sourceLabels:
+        - __param_target
+        targetLabel: device
+      - action: replace
+        regex: 192\.168\.1\.194
+        replacement: bmc
+        sourceLabels:
+        - __param_target
+        targetLabel: device
+      static:
+      - 192.168.1.1
+      - 192.168.1.228
+      - 192.168.1.247
+      - 192.168.1.238
+      - 192.168.1.239
+      - 192.168.1.240
+      - 192.168.1.194

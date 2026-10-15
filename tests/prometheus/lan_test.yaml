@@ -1,0 +1,37 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/lan-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-lan.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # The BMC stops answering at minute 5; a node that stops answering is not
+  # this rule's business.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-lan", device="bmc", instance="192.168.1.194"}'
+        values: '1x4 0x20'
+      - series: 'probe_success{job="blackbox-lan", device="router", instance="192.168.1.1"}'
+        values: '1x25'
+      - series: 'probe_success{job="blackbox-lan", device="homelab-w-1", instance="192.168.1.240"}'
+        values: '0x25'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: LANDeviceUnreachable
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: LANDeviceUnreachable
+        exp_alerts:
+          - exp_labels:
+              job: blackbox-lan
+              device: bmc
+              instance: 192.168.1.194
+              severity: warning
+            exp_annotations:
+              summary: LAN device bmc (192.168.1.194) does not answer a ping
+              description: >-
+                No ICMP reply for 10 minutes. For the router, the cluster has
+                no internet and this may only arrive once it is back. For the
+                BMC, check whether its DHCP lease moved (`turingpi.local` from
+                the Mac) and update platform/blackbox-exporter/probes/lan.yaml.

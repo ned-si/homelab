@@ -4,3 +4,4 @@ namespace: monitoring
 
 resources:
   - probes.yaml
+  - lan.yaml

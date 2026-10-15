@@ -13,9 +13,17 @@
 #   tcp_connect   something listens on the port.
 #   dns_public    the resolver returns an A record for a public hostname.
 #   dns_cluster   CoreDNS resolves the API Service.
+#   icmp          the LAN device answers a ping (probes/lan.yaml).
 #
-# No ICMP module: it needs NET_RAW, and every target here has a TCP port.
+# ICMP without NET_RAW: the pod sysctl net.ipv4.ping_group_range lets the
+# exporter's group open unprivileged ICMP sockets, which blackbox-exporter
+# uses when it is not root.
 fullnameOverride: blackbox-exporter
+
+podSecurityContext:
+  sysctls:
+    - name: net.ipv4.ping_group_range
+      value: "1000 1000"
 
 resources:
   requests:
@@ -70,6 +78,12 @@ config:
         ip_protocol_fallback: false
         validate_answer_rrs:
           fail_if_not_matches_regexp: ['.*\tIN\tA\t.*']
+    icmp:
+      prober: icmp
+      timeout: 5s
+      icmp:
+        preferred_ip_protocol: ip4
+        ip_protocol_fallback: false
     dns_cluster:
       prober: dns
       timeout: 5s
