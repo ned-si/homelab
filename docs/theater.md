@@ -168,7 +168,25 @@ qBittorrent has no global ratio or seeding-time limit and the categories
 inherit that, so torrents seed until removed. Queueing is on with 10 active
 torrents: beyond that, seeds are queued and stop uploading.
 
+Private-tracker torrents are exempt. Add a manual grab from a private tracker
+with the category `private` (saved under `torrents/private`). Every 10 minutes
+the CronJob `qbittorrent-private-seed` (`apps/theater/qbittorrent-private.yaml`)
+force-starts every torrent in `private` and every torrent qBittorrent flags as
+private, including the *arr freeleech grabs. A forced torrent ignores the queue
+and seeds until it is removed, so remove it only once the tracker's seeding
+rule is met. Check the last run (read-only):
+
+```sh
+kubectl -n theater logs -l app.kubernetes.io/name=qbittorrent-private-seed --tail=1
+```
+
+Expected: `category private ok; <n> private torrent(s), <m> newly force-started`.
+
 ## Why it is like this
+
+- Private torrents are force-started by a CronJob because qBittorrent has no
+  per-category queue limit. The alternative, raising or removing the global
+  queue, would also keep every public seed active.
 
 - TRaSH profiles by `trash_id`, not hand-built: the guides maintain the release
   group tiers and scores, and recyclarr re-applies them nightly. The alternative,

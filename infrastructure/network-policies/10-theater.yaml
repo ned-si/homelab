@@ -59,12 +59,13 @@ spec:
             - port: "8080"
               protocol: TCP
 
-    # The *arr apps poll the WebUI API (download client).
+    # The *arr apps poll the WebUI API (download client); the
+    # `qbittorrent-private-seed` CronJob force-starts private torrents.
     - fromEndpoints:
         - matchExpressions:
             - key: app.kubernetes.io/name
               operator: In
-              values: [sonarr, radarr, lidarr]
+              values: [sonarr, radarr, lidarr, qbittorrent-private-seed]
       toPorts:
         - ports:
             - port: "8080"
@@ -491,6 +492,47 @@ spec:
       toPorts:
         - ports:
             - port: "7878"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# qbittorrent-private-seed
+#
+# A CronJob (apps/theater/qbittorrent-private.yaml): egress to the qBittorrent
+# WebUI API only. No ingress.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: qbittorrent-private-seed
+  namespace: theater
+spec:
+  description: >-
+    qbittorrent-private-seed job: egress to the qBittorrent WebUI API. No
+    ingress.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: qbittorrent-private-seed
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: qbittorrent
+      toPorts:
+        - ports:
+            - port: "8080"
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
