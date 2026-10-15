@@ -22,12 +22,14 @@ spec:
   podMetricsEndpoints:
   - port: prometheus
     relabelings:
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - __meta_kubernetes_pod_node_name
       targetLabel: node
   - port: hubble-metrics
     relabelings:
-    - sourceLabels:
+    - action: replace
+      sourceLabels:
       - __meta_kubernetes_pod_node_name
       targetLabel: node
   selector:

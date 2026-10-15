@@ -8,7 +8,8 @@
 #   cilium-envoy     port envoy-metrics (9964): envoy_* of the Gateway
 #
 # The agent and Envoy run in the host network, so the pod IP is the node IP;
-# the `node` label names the node.
+# the `node` label names the node. `action: replace` is the CRD default,
+# written out so Argo CD's diff matches the stored object.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -28,10 +29,12 @@ spec:
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
+          action: replace
     - port: hubble-metrics
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
+          action: replace
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
@@ -67,3 +70,4 @@ spec:
       relabelings:
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
+          action: replace
