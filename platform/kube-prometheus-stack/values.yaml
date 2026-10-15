@@ -296,7 +296,7 @@ alertmanager:
       - source_matchers:
           - alertname = "HomelabNASUnreachable"
         target_matchers:
-          - alertname =~ "SLOErrorBudgetBurn.*|ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica|KubePersistentVolumeErrors|(CNPG|BackupVerify|NASExporter).*"
+          - alertname =~ "(SLOErrorBudgetBurn|(ServiceHas|StatefulSetHas)NoReady|KubePersistentVolumeErrors|CNPG|BackupVerify|NASExporter).*"
     receivers:
       - name: "null"
       - name: heartbeat
