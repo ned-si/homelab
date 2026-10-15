@@ -21,6 +21,7 @@ version change is rolled out by tuppr ([Upgrades](#upgrades)).
 | [`scripts/ci/talos-validate.sh`](../scripts/ci/talos-validate.sh) | The `talos` CI job |
 | [`scripts/ci/talos-upgrade-rehearsal.sh`](../scripts/ci/talos-upgrade-rehearsal.sh) | The `talos-upgrade` CI job: a version change rehearsed on a throwaway cluster |
 | [`platform/tuppr/`](../platform/tuppr) | tuppr values and the `TalosUpgrade` / `KubernetesUpgrade` resources with the target versions |
+| [`platform/talos-drift/`](../platform/talos-drift) | The daily [drift check](#drift-check) and its alerts |
 
 ## Nodes
 
@@ -159,6 +160,37 @@ upgrade with tuppr suspended. Keep `TALOSCTL_VERSION` in
 `.github/workflows/ci.yaml` on `talosVersion`: bump it with its sha256 after
 Renovate's pull request has merged.
 
+## Drift check
+
+The CronJob `talos-drift` (namespace `system-upgrade`, daily 05:40 UTC,
+[`platform/talos-drift/`](../platform/talos-drift)) compares each node's
+running machine config with the one `main` renders:
+
+1. It downloads `main` at one commit from GitHub (public, no credentials).
+2. It reads every node's config over the Talos API, rebuilds the cluster
+   secrets from a control plane's config (`talosctl gen secrets
+   --from-controlplane-config`) and runs `scripts/talos-genconfig.sh` with
+   them. The age key never enters the cluster.
+3. It compares sha256 per node and pushes `talos_config_drift{node}` (1 =
+   differs) to the backup-verify Pushgateway.
+
+`TalosConfigDrift` (warning) fires for a node that differs: a merged change
+not yet applied with `task talos:apply`, or an apply that did not come from
+`main`. `TalosDriftCheckStale` (warning) fires after 2 days without a result.
+The configs and the rebuilt secrets stay in a memory-backed volume; the log
+shows node names, `matches main` or `DRIFT`, and hash prefixes.
+
+Run it now and read the result:
+
+```sh
+kubectl -n system-upgrade create job --from=cronjob/talos-drift talos-drift-manual
+kubectl -n system-upgrade logs -f job/talos-drift-manual
+kubectl -n system-upgrade delete job talos-drift-manual
+```
+
+Expected: one `homelab-<node> (<ip>) matches main (<hash>)` line per node,
+then `talos-drift: 0 node(s) differ from main`.
+
 ## Validation
 
 The `talos` CI job runs [`scripts/ci/talos-validate.sh`](../scripts/ci/talos-validate.sh)
@@ -195,6 +227,11 @@ Expected: `ok` lines only, the last one `ok  git-ignore rules`, exit 0.
   Images share EPHEMERAL with everything else, so the default start at 85%
   coincides with the default eviction threshold: GC only ran once the node was
   already under DiskPressure and evicting pods.
+- The drift check holds an `os:admin` Talos certificate, like tuppr. Machine
+  configs are a sensitive resource that `os:reader` and `os:operator` cannot
+  read, and a check that compares anything less (derived resources, redacted
+  fields) misses changes. It runs in the cluster because GitHub holds no
+  cluster credentials ([decisions.md](decisions.md#drift-detection-without-cluster-credentials-in-github)).
 - Workload isolation off. iSCSI volumes, including the photo library, must
   mount, and with isolation on they do not. Revisit when democratic-csi can
   reach `iscsid` from inside the sandbox.

@@ -1,0 +1,33 @@
+# talos-drift: daily check of every node's Talos machine config against the
+# render of main, and its alerts (platform/talos-drift).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: talos-drift
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10): the PrometheusRule CRD.
+    argocd.argoproj.io/sync-wave: "21"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/platform/talos-drift
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: system-upgrade
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

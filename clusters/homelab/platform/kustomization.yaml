@@ -18,3 +18,4 @@ resources:
   - aws-exporter.yaml
   - backup-verify.yaml
   - vuln-enrich.yaml
+  - talos-drift.yaml

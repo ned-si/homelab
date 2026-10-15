@@ -261,3 +261,22 @@ It also replaced the vendor 5.10 kernel, which held Cilium below 1.18 and
 Gateway API below 1.3.
 
 Rejected: an in-place conversion, which does not exist.
+
+## Drift detection without cluster credentials in GitHub
+
+Each layer is reconciled where its credentials already live. Kubernetes
+objects: Argo CD `selfHeal`. The AWS modules under `bootstrap/`: the `tofu`
+workflow, with short-lived AWS credentials from GitHub OIDC, plans on pull
+requests, applies on merge and corrects drift daily; it never applies a
+destroy, and never applies the modules that grant its own access
+([bootstrap.md](bootstrap.md#drift-detection)). Talos machine configs: a
+daily CronJob in the cluster compares every node with the render of `main`
+and alerts ([talos.md](talos.md#drift-check)).
+
+Why: GitHub holds no kubeconfig or talosconfig, so a leaked workflow token or
+a compromised action cannot reach the cluster. AWS through OIDC is a role
+scoped to named resources, not a stored key.
+
+Rejected: a self-hosted runner in the cluster with Kubernetes and Talos
+credentials, and applying Talos config drift automatically (a config change
+can reboot a node; the alert asks for `task talos:apply`).

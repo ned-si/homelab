@@ -1,0 +1,112 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/talos-drift
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/talos-drift and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/name: talos-drift
+  name: talos-drift
+  namespace: system-upgrade
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 900
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: talos-drift
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - command:
+            - bash
+            - /app/check.sh
+            env:
+            - name: PATH
+              value: /opt/talosctl:/opt/talhelper/bin:/usr/local/bin:/usr/bin:/bin
+            - name: HOME
+              value: /work
+            - name: WORK_DIR
+              value: /work
+            - name: TALOSCONFIG
+              value: /var/run/secrets/talos.dev/config
+            - name: PUSHGATEWAY
+              value: http://pushgateway.backup-verify.svc:9091
+            image: bash:5.3.20-alpine3.24
+            name: check
+            resources:
+              limits:
+                memory: 256Mi
+              requests:
+                cpu: 50m
+                memory: 64Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /app
+              name: app
+              readOnly: true
+            - mountPath: /work
+              name: work
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /var/run/secrets/talos.dev
+              name: talos-secrets
+              readOnly: true
+            - mountPath: /opt/talosctl
+              name: talosctl
+              readOnly: true
+            - mountPath: /opt/talhelper
+              name: talhelper
+              readOnly: true
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 65534
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: talos-drift-check
+          volumes:
+          - configMap:
+              name: talos-drift-f9bgkh6gh8
+            name: app
+          - emptyDir:
+              medium: Memory
+              sizeLimit: 64Mi
+            name: work
+          - emptyDir:
+              medium: Memory
+              sizeLimit: 16Mi
+            name: tmp
+          - name: talos-secrets
+            secret:
+              secretName: talos-drift
+          - image:
+              pullPolicy: IfNotPresent
+              reference: ghcr.io/siderolabs/talosctl:v1.14.2
+            name: talosctl
+          - image:
+              pullPolicy: IfNotPresent
+              reference: ghcr.io/budimanjojo/talhelper:v3.1.17
+            name: talhelper
+  schedule: 40 5 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  suspend: false

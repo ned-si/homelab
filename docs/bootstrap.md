@@ -316,6 +316,7 @@ Every root module under `bootstrap/` keeps its state in the S3 bucket
 |---|---|
 | `bootstrap/tofu-state` | the state bucket itself |
 | `bootstrap/aws-backup` | backup bucket, both IAM users and their secret keys |
+| `bootstrap/github-oidc` | the GitHub OIDC provider and the plan and apply roles |
 | `bootstrap` | once applied, the age key and the Git token |
 
 - **Client-side encryption.** The `encryption` block in each `providers.tf`
@@ -338,8 +339,59 @@ scripts/tofu.sh bootstrap/aws-backup plan
 `scripts/tofu.sh <module> <tofu args>` exports the login session as environment
 credentials, passes `TOFU_STATE_PASSPHRASE` from `secrets.local.env` as
 `TF_VAR_state_passphrase`, prints neither, and runs `tofu` in the module.
-`task bootstrap:plan` and `task bootstrap:apply` use it. CI only runs
-`tofu fmt -check` and `tofu init -backend=false && tofu validate`.
+`task bootstrap:plan` and `task bootstrap:apply` use it. The `ci` workflow
+runs `tofu fmt -check` and `tofu init -backend=false && tofu validate`; the
+AWS modules are planned and applied by the `tofu` workflow
+([Drift detection](#drift-detection)).
+
+## Drift detection
+
+`.github/workflows/tofu.yaml` runs the AWS modules as GitOps, with AWS access
+through GitHub OIDC (no stored keys):
+
+| Event | Does |
+|---|---|
+| pull request touching `bootstrap/{aws-backup,github-oidc,tofu-state}/` | `tofu plan` of all three with the plan role; one comment with the changed addresses and the plan text (sensitive values masked, account ID replaced) |
+| push to `main` | the same plan, then `tofu apply` of `bootstrap/aws-backup` with the apply role |
+| daily 05:17 UTC | the same: any change on `main` is drift; `bootstrap/aws-backup` is corrected and the drift posted to ntfy |
+
+Guards:
+
+- A plan that deletes, replaces or forgets a resource is never applied by CI:
+  the run fails and posts to ntfy. Apply it by hand with `scripts/tofu.sh`.
+- `bootstrap/github-oidc` (the roles) and `bootstrap/tofu-state` (the state
+  bucket) are plan-only. Pending changes there fail the run and post to ntfy
+  until applied by hand. The apply role cannot change its own permissions.
+- `bootstrap` (Argo CD) is not planned in CI: it needs cluster credentials.
+
+| Role (`bootstrap/github-oidc`) | Trusted `sub` | Can |
+|---|---|---|
+| `homelab-github-tofu-plan` | `repo:ned-si/homelab:pull_request`, `repo:ned-si/homelab:ref:refs/heads/main` | read the buckets' configuration (not the backup objects), the managed IAM users and roles, and the three states |
+| `homelab-github-tofu-apply` | `repo:ned-si/homelab:ref:refs/heads/main` | create and update the `bootstrap/aws-backup` resources, read and write its state; no delete |
+
+Repository secrets: `AWS_PLAN_ROLE_ARN`, `AWS_APPLY_ROLE_ARN` (secrets so
+Actions masks the account ID), `TOFU_STATE_PASSPHRASE`, `NTFY_TOPIC`. A pull
+request run can read the encrypted states and has the passphrase, so the IAM
+secret keys in the `bootstrap/aws-backup` state are as safe as write access to
+this repository.
+
+Setting it up (fresh account), with an `aws login` session:
+
+```sh
+scripts/tofu.sh bootstrap/github-oidc init
+scripts/tofu.sh bootstrap/github-oidc apply
+scripts/tofu.sh bootstrap/github-oidc output -raw plan_role_arn | gh secret set AWS_PLAN_ROLE_ARN
+scripts/tofu.sh bootstrap/github-oidc output -raw apply_role_arn | gh secret set AWS_APPLY_ROLE_ARN
+gh secret set TOFU_STATE_PASSPHRASE   # paste the value from the password manager
+gh workflow run tofu.yaml
+```
+
+Expected: `Apply complete! Resources: 5 added`, then a green `tofu` run whose
+summary shows `no-changes` for all three modules.
+
+Talos machine configs have their own in-cluster check
+([talos.md](talos.md#drift-check)); Kubernetes objects are Argo CD's
+`selfHeal`.
 
 **Creating the state bucket (fresh account only).** `bootstrap/tofu-state`
 stores its state in the bucket it creates, so apply it first with local
