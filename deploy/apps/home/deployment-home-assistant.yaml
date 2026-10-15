@@ -47,6 +47,8 @@ spec:
           value: /tmp
         - name: UV_CACHE_DIR
           value: /tmp/uv-cache
+        - name: PYTHONPATH
+          value: /config/deps
         image: ghcr.io/home-assistant/home-assistant:2026.10.1
         imagePullPolicy: IfNotPresent
         livenessProbe:
@@ -122,6 +124,57 @@ spec:
         - mountPath: /git
           name: git-config
           readOnly: true
+      - args:
+        - |
+          # renovate: datasource=github-releases depName=christiaangoossens/hass-oidc-auth
+          OIDC_VERSION=v1.2.1
+          # renovate: datasource=pypi depName=joserfc
+          JOSERFC_VERSION=1.7.5
+          cc=/config/custom_components
+          mkdir -p "$cc"
+          if [ "$(cat "$cc/auth_oidc/.version" 2>/dev/null)" != "$OIDC_VERSION" ]; then
+            rm -rf /tmp/auth_oidc /tmp/auth_oidc.zip
+            curl -fsSL --retry 3 -m 120 -o /tmp/auth_oidc.zip \
+              "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/$OIDC_VERSION/hass-oidc-auth.zip"
+            python3 -m zipfile -e /tmp/auth_oidc.zip /tmp/auth_oidc
+            test -f /tmp/auth_oidc/manifest.json
+            echo "$OIDC_VERSION" > /tmp/auth_oidc/.version
+            rm -rf "$cc/auth_oidc"
+            cp -r /tmp/auth_oidc "$cc/auth_oidc"
+          fi
+          if [ "$(cat /config/deps/.joserfc 2>/dev/null)" != "$JOSERFC_VERSION" ]; then
+            rm -rf /config/deps
+            uv pip install --quiet --no-deps --python "$(command -v python3)" \
+              --target /config/deps "joserfc==$JOSERFC_VERSION"
+            echo "$JOSERFC_VERSION" > /config/deps/.joserfc
+          fi
+          echo "ok: auth_oidc $OIDC_VERSION, joserfc $JOSERFC_VERSION"
+        command:
+        - /bin/sh
+        - -euc
+        env:
+        - name: UV_CACHE_DIR
+          value: /tmp/uv-cache
+        image: ghcr.io/home-assistant/home-assistant:2026.10.1
+        imagePullPolicy: IfNotPresent
+        name: custom-components
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /config
+          name: config
+        - mountPath: /tmp
+          name: tmp
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
@@ -135,7 +188,7 @@ spec:
         persistentVolumeClaim:
           claimName: home-assistant-config
       - configMap:
-          name: home-assistant-config-758ggcm2m7
+          name: home-assistant-config-6c586b6ggf
         name: git-config
       - emptyDir:
           sizeLimit: 1Gi

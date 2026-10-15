@@ -342,6 +342,10 @@ data:
     calibre-web.redirectUris=https://ebooks.lilalala.com/login/generic/authorized
     calibre-web.webOrigins=https://ebooks.lilalala.com
 
+    # hass-oidc-auth (apps/home/config/configuration.yaml), public client + PKCE.
+    home-assistant.redirectUris=https://home.lilalala.com/auth/oidc/callback
+    home-assistant.webOrigins=https://home.lilalala.com
+
     mealie.redirectUris=https://cook.lilalala.com/login https://cook.lilalala.com/login?direct=1
     mealie.webOrigins=https://cook.lilalala.com
 
@@ -412,5 +416,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-922bg6dftb
+  name: keycloak-realm-settings-8g4hd7gmf6
   namespace: keycloak
