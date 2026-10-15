@@ -1,0 +1,114 @@
+# trivy-operator chart values: in-cluster CVE reports for every running image
+# (VulnerabilityReports), exported as Prometheus metrics for the Security
+# dashboard (docs/observability.md).
+#
+# Resource-light on purpose:
+#   - one scan Job at a time (scanJobsConcurrentLimit: 1);
+#   - ClientServer mode with the built-in Trivy server: the vulnerability DB is
+#     downloaded once into the server's emptyDir (no PVC), not by every Job;
+#   - only vulnerability scanning. Config audit, RBAC, infra assessment
+#     (node-collector needs hostPath), exposed secrets, SBOMs and compliance
+#     reports are off; CI already covers manifests (Trivy gate, kube-linter,
+#     Kyverno CLI).
+#   - reports live 24 h, then the image is scanned again with a fresh DB.
+#
+# Every pod passes Pod Security `restricted` (namespace trivy-system).
+operator:
+  scanJobsConcurrentLimit: 1
+  scanJobTimeout: 10m
+  scannerReportTTL: 24h
+  vulnerabilityScannerEnabled: true
+  vulnerabilityScannerScanOnlyCurrentRevisions: true
+  sbomGenerationEnabled: false
+  configAuditScannerEnabled: false
+  rbacAssessmentScannerEnabled: false
+  infraAssessmentScannerEnabled: false
+  clusterComplianceEnabled: false
+  exposedSecretScannerEnabled: false
+  builtInTrivyServer: true
+  metricsFindingsEnabled: true
+  metricsVulnIdEnabled: false
+
+# Kubernetes system images are scanned too; nothing is excluded.
+excludeNamespaces: ""
+
+compliance:
+  specs: []
+
+serviceMonitor:
+  enabled: true
+  interval: 5m
+  labels:
+    release: kube-prometheus-stack
+
+trivyOperator:
+  scanJobPodTemplatePodSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    runAsGroup: 65534
+    seccompProfile:
+      type: RuntimeDefault
+  scanJobPodTemplateContainerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    privileged: false
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+
+trivy:
+  # Unfixed CVEs are not actionable here: images move only with upstream.
+  ignoreUnfixed: true
+  severity: MEDIUM,HIGH,CRITICAL
+  slow: true
+  storageClassEnabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  server:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+    podSecurityContext:
+      runAsUser: 65534
+      runAsGroup: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+      seccompProfile:
+        type: RuntimeDefault
+    securityContext:
+      privileged: false
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10000
+  runAsGroup: 10000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 128Mi
+  limits:
+    memory: 512Mi

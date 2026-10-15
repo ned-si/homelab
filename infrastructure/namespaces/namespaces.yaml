@@ -125,6 +125,19 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
+# trivy-operator (platform/trivy-operator): the operator, its Trivy server and
+# the scan Jobs. Every pod sets a restricted security context.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trivy-system
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
 # The CNPG operator also runs here (release `cnpg`), next to the Immich
 # database. Moving it to its own namespace is a separate, later change.
 apiVersion: v1

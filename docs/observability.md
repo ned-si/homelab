@@ -14,6 +14,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents; relay, UI and metrics not enabled ([networking.md](networking.md#debugging)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`) |
+| trivy-operator | Application `trivy-operator` in `trivy-system` (`platform/trivy-operator/values.yaml`): a VulnerabilityReport per running workload, fixable MEDIUM and above, rescanned every 24 h; one scan Job at a time against the built-in Trivy server (DB in an emptyDir); metric `trivy_image_vulnerabilities`. CVEs show in Grafana only, they do not page |
 
 Manual checks: the smoke suite
 ([runbooks/cold-start.md](runbooks/cold-start.md#step-8-smoke-suite)), the
@@ -45,7 +46,7 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 | Dashboard (uid) | Shows |
 | --- | --- |
 | Homelab / Overview (`homelab-overview`) | 30-day availability and error budget per app, 1h burn rate, probe status and duration, nodes Ready, internal endpoints, eMMC and PVC usage, pods not Ready and restarts, running image tags, certificate expiry as served, hours since each backup CronJob last succeeded |
-| Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Secret age (names only), images without a pinned tag |
+| Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
 
 Not shown, and what each would need:
 
@@ -53,7 +54,6 @@ Not shown, and what each would need:
 | --- | --- |
 | CI and Renovate status | a GitHub exporter with a token, or a JSON datasource plugin |
 | NAS pool usage | a TrueNAS exporter (PVC usage is shown) |
-| Trivy findings, image CVE counts | trivy-operator |
 | Keycloak failed logins | `KC_EVENT_METRICS_USER_ENABLED=true` and a ServiceMonitor on port 9000 |
 | Gateway auth errors per route | Cilium Envoy or Hubble HTTP metrics, scraped |
 | cert-manager metrics | its ServiceMonitor carries no `release: kube-prometheus-stack` label, so Prometheus ignores it |

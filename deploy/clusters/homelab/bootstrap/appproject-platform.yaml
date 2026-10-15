@@ -43,3 +43,4 @@ spec:
   - https://cloudnative-pg.github.io/charts
   - https://prometheus-community.github.io/helm-charts
   - ghcr.io/home-operations/charts
+  - https://aquasecurity.github.io/helm-charts/
