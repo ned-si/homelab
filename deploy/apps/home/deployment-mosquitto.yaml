@@ -78,7 +78,10 @@ spec:
             printf '%s:%s\n' "$(basename "$f")" "$(cat "$f")" >> /auth/passwd
           done
           mosquitto_passwd -U /auth/passwd
-          echo "ok: $(wc -l < /auth/passwd) user(s)"
+          # Mosquitto 2.1 refuses an ACL file that is not owned by its
+          # user or is readable by others: ConfigMap files are both.
+          cat /config/acl > /auth/acl
+          echo "ok: $(wc -l < /auth/passwd) user(s), acl"
         command:
         - /bin/sh
         - -euc
@@ -103,6 +106,9 @@ spec:
           readOnly: true
         - mountPath: /auth
           name: auth
+        - mountPath: /config
+          name: config
+          readOnly: true
         - mountPath: /tmp
           name: tmp
       securityContext:
@@ -113,7 +119,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: mosquitto-config-95kc6tt656
+          name: mosquitto-config-c856t8hkk8
         name: config
       - name: users
         secret:

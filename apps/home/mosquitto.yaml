@@ -6,7 +6,9 @@
 # Secret `mosquitto-users` (apps/secrets/mosquitto-users.sops.yaml), one key
 # per user. The `passwd` init container hashes them into the password file
 # (mosquitto_passwd -U), so only hashes reach the broker. The ACL limits each
-# user to its topics (config/mosquitto/acl).
+# user to its topics (config/mosquitto/acl); the same init container copies it
+# next to the password file, mode 600, because Mosquitto 2.1 refuses one that
+# others can read.
 #
 # No persistence: Zigbee2MQTT republishes state and discovery when Home
 # Assistant comes online (its birth message), so retained messages are
@@ -53,7 +55,10 @@ spec:
                 printf '%s:%s\n' "$(basename "$f")" "$(cat "$f")" >> /auth/passwd
               done
               mosquitto_passwd -U /auth/passwd
-              echo "ok: $(wc -l < /auth/passwd) user(s)"
+              # Mosquitto 2.1 refuses an ACL file that is not owned by its
+              # user or is readable by others: ConfigMap files are both.
+              cat /config/acl > /auth/acl
+              echo "ok: $(wc -l < /auth/passwd) user(s), acl"
           resources:
             requests:
               cpu: 10m
@@ -71,6 +76,9 @@ spec:
               readOnly: true
             - name: auth
               mountPath: /auth
+            - name: config
+              mountPath: /config
+              readOnly: true
             # mosquitto_passwd -U writes its temporary file to /tmp.
             - name: tmp
               mountPath: /tmp
