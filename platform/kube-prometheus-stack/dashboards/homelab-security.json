@@ -716,7 +716,349 @@
     },
     {
       "type": "stat",
-      "title": "CVEs in running images",
+      "title": "Act now",
+      "description": "Findings to fix first: the CVE is in CISA KEV or has an EPSS above 0.1, a fixed version exists, and the image runs in a namespace an HTTPRoute exposes (vuln:act_now:epss, platform/vuln-enrich). The table below lists them.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(vuln:act_now:epss) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "id": 20,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 36
+      }
+    },
+    {
+      "type": "stat",
+      "title": "CVEs in CISA KEV",
+      "description": "Distinct CVEs in running images that CISA lists as exploited in the wild (vuln_kev), exposed or not.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(max by (vuln_id) (vuln_kev)) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "id": 21,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 36
+      }
+    },
+    {
+      "type": "stat",
+      "title": "CVEs with EPSS above 0.1",
+      "description": "Distinct CVEs in running images with a FIRST EPSS score above 0.1: at least a 10% chance of exploitation activity in the next 30 days.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "count(vuln:epss:score > 0.1) or vector(0)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "id": 22,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 36
+      }
+    },
+    {
+      "type": "stat",
+      "title": "KEV/EPSS data age",
+      "description": "Time since the last vuln-enrich push (daily CronJob). VulnEnrichmentStale fires after 3 days.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "time() - max(vuln_enrich_last_success_timestamp_seconds)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 129600
+              },
+              {
+                "color": "red",
+                "value": 259200
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "id": 23,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 36
+      }
+    },
+    {
+      "type": "table",
+      "title": "Act now: exposed, fixable, exploited or likely to be",
+      "description": "One row per finding: KEV = in the CISA Known Exploited list, EPSS = FIRST probability of exploitation in 30 days. Fix: move the image to a tag that ships the fixed version (Renovate usually has the PR), or record an accepted risk.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(vuln:act_now:epss)",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "EPSS"
+            },
+            "properties": [
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "EPSS",
+            "desc": true
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "image_registry": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "image_repository": 1,
+              "image_tag": 2,
+              "resource": 3,
+              "installed_version": 4,
+              "fixed_version": 5,
+              "vuln_id": 6,
+              "severity": 7,
+              "kev": 8,
+              "Value": 9
+            },
+            "renameByName": {
+              "image_repository": "image",
+              "image_tag": "tag",
+              "resource": "package",
+              "installed_version": "installed",
+              "fixed_version": "fixed in",
+              "vuln_id": "CVE",
+              "kev": "KEV",
+              "Value": "EPSS"
+            }
+          }
+        }
+      ],
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Fixable CVEs in running images",
       "description": "trivy_image_vulnerabilities from the VulnerabilityReports, one count per distinct image (an image shared by several workloads counts once). Fixable CVEs only, MEDIUM and above.",
       "datasource": {
         "type": "prometheus",
@@ -822,7 +1164,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 36
+        "y": 48
       }
     },
     {
@@ -880,7 +1222,7 @@
         "h": 6,
         "w": 4,
         "x": 8,
-        "y": 36
+        "y": 48
       }
     },
     {
@@ -946,7 +1288,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 36
+        "y": 48
       }
     },
     {
@@ -1004,7 +1346,7 @@
         "h": 8,
         "w": 24,
         "x": 0,
-        "y": 42
+        "y": 54
       }
     },
     {
@@ -1016,7 +1358,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 62
       },
       "panels": []
     },
@@ -1032,7 +1374,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 63
       }
     }
   ]

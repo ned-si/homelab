@@ -481,8 +481,8 @@
     },
     {
       "type": "stat",
-      "title": "Critical CVEs",
-      "description": "Critical vulnerabilities in running images (trivy-operator). Details: Security dashboard.",
+      "title": "Critical CVEs (fixable)",
+      "description": "Critical vulnerabilities with a fixed version in running images, one count per distinct image (trivy-operator, ignoreUnfixed). What to fix first: Security dashboard, Act now.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
