@@ -1,0 +1,11 @@
+# Mosquitto ACL, from git (apps/home/config/mosquitto/). One block per user
+# of the Secret `mosquitto-users`; a user without a block can do nothing.
+
+# Home Assistant: the MQTT integration reads and commands everything.
+user homeassistant
+topic readwrite #
+
+# Zigbee2MQTT: its own tree, Home Assistant discovery, and HA's birth message.
+user zigbee2mqtt
+topic readwrite zigbee2mqtt/#
+topic readwrite homeassistant/#
