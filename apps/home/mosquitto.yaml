@@ -71,9 +71,6 @@ spec:
               readOnly: true
             - name: auth
               mountPath: /auth
-            # mosquitto_passwd -U writes its temporary file to /tmp.
-            - name: tmp
-              mountPath: /tmp
       containers:
         - name: mosquitto
           # renovate: datasource=docker depName=eclipse-mosquitto
@@ -120,10 +117,6 @@ spec:
           secret:
             secretName: mosquitto-users
         - name: auth
-          emptyDir:
-            medium: Memory
-            sizeLimit: 1Mi
-        - name: tmp
           emptyDir:
             medium: Memory
             sizeLimit: 1Mi
