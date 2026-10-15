@@ -47,3 +47,6 @@ configMapGenerator:
   - name: grafana-dashboard-homelab-aws
     files:
       - homelab-aws.json
+  - name: grafana-dashboard-homelab-data-protection
+    files:
+      - homelab-data-protection.json

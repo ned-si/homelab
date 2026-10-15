@@ -872,8 +872,10 @@ an hour. The restic and MariaDB tests use only emptyDirs (4 Gi and 1 Gi at most)
 
 ### Reading the results
 
-Each check pushes its result to the Pushgateway in `backup-verify`, which
-Prometheus scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
+Grafana dashboard Homelab / Data protection (`/d/homelab-data-protection`)
+shows the last result of every check next to the backup freshness. Each check
+pushes its result to the Pushgateway in `backup-verify`, which Prometheus
+scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
 `mariadb`) and `target` (the tag, repository or cluster).
 
 | Metric | Meaning |
