@@ -1,0 +1,162 @@
+# promtool unit tests for platform/barman-cloud-plugin/monitoring.yaml
+# (PrometheusRule cnpg-backups). CNPGBackupFailed and CNPGWALArchivingFailing
+# notify (docs/sre.md "Paging").
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - cnpg-backups.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # immich-db-1: a base backup fails at minute 10 after a good one at 0.
+  # mealie-postgresql-1: the last backup is the good one.
+  # keycloak-db-1: never backed up (timestamp 0).
+  - interval: 1m
+    input_series:
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1"}'
+        values: '0x60'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="immich", pod="immich-db-1"}'
+        values: '-1x9 600x50'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1"}'
+        values: '600x60'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1"}'
+        values: '300x60'
+      - series: 'cnpg_collector_up{namespace="immich", pod="immich-db-1"}'
+        values: '1x60'
+      - series: 'cnpg_collector_up{namespace="mealie", pod="mealie-postgresql-1"}'
+        values: '1x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: CNPGBackupFailed
+        exp_alerts: []
+      - eval_time: 26m
+        alertname: CNPGBackupFailed
+        exp_alerts:
+          - exp_labels:
+              namespace: immich
+              pod: immich-db-1
+              severity: critical
+            exp_annotations:
+              summary: Last base backup of immich/immich-db-1 failed
+              description: >-
+                The newest Barman Cloud base backup failed after the last good one.
+                Check: kubectl -n immich get backups.postgresql.cnpg.io.
+                See docs/backups.md.
+      - eval_time: 30m
+        alertname: CNPGBackupMetricsMissing
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: CNPGMetricsAbsent
+        exp_alerts: []
+
+  # At minute 60 one base backup is 28 h old (too old), another 24 h old.
+  - interval: 1m
+    input_series:
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="keycloak", pod="keycloak-db-1"}'
+        values: '-97200x90'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="mealie", pod="mealie-postgresql-1"}'
+        values: '-82800x90'
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: CNPGBaseBackupTooOld
+        exp_alerts:
+          - exp_labels:
+              namespace: keycloak
+              pod: keycloak-db-1
+              severity: critical
+            exp_annotations:
+              summary: No base backup of keycloak/keycloak-db-1 in 26 h
+              description: >-
+                The daily ScheduledBackup did not produce a base backup.
+                Check: kubectl -n keycloak get scheduledbackups,backups.postgresql.cnpg.io.
+                See docs/backups.md.
+
+  # theater-sonarr-postgresql-1 runs without the plugin sidecar.
+  - interval: 5m
+    input_series:
+      - series: 'cnpg_collector_up{namespace="theater", pod="sonarr-postgresql-1"}'
+        values: '1x20'
+      - series: 'cnpg_collector_up{namespace="immich", pod="immich-db-1"}'
+        values: '1x20'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: CNPGBackupMetricsMissing
+        exp_alerts:
+          - exp_labels:
+              namespace: theater
+              pod: sonarr-postgresql-1
+              severity: warning
+            exp_annotations:
+              summary: theater/sonarr-postgresql-1 reports no Barman Cloud metrics
+              description: >-
+                The pod has no plugin-barman-cloud sidecar or the plugin is down.
+                Check: kubectl -n theater get pod sonarr-postgresql-1 -o jsonpath='{.spec.initContainers[*].name}'.
+                See docs/backups.md.
+
+  # keycloak-db-1: archiving fails from minute 5 (the failed time passes the
+  # archived time) and recovers at minute 30. 8 segments wait from minute 5.
+  - interval: 1m
+    input_series:
+      - series: 'cnpg_pg_stat_archiver_last_archived_time{namespace="keycloak", pod="keycloak-db-1"}'
+        values: '100x29 2000x30'
+      - series: 'cnpg_pg_stat_archiver_last_failed_time{namespace="keycloak", pod="keycloak-db-1"}'
+        values: '50x4 300x55'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="keycloak", pod="keycloak-db-1", value="ready"}'
+        values: '0x4 8x55'
+      - series: 'cnpg_collector_pg_wal_archive_status{namespace="keycloak", pod="keycloak-db-1", value="done"}'
+        values: '40x60'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: CNPGWALArchivingFailing
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: CNPGWALArchivingFailing
+        exp_alerts:
+          - exp_labels:
+              namespace: keycloak
+              pod: keycloak-db-1
+              severity: critical
+            exp_annotations:
+              summary: WAL archiving of keycloak/keycloak-db-1 is failing
+              description: >-
+                The last WAL archive attempt failed and none has succeeded since.
+                Check: kubectl -n keycloak logs keycloak-db-1 -c plugin-barman-cloud.
+                See docs/backups.md.
+      - eval_time: 40m
+        alertname: CNPGWALArchivingFailing
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: CNPGWALArchiveLag
+        exp_alerts:
+          - exp_labels:
+              namespace: keycloak
+              pod: keycloak-db-1
+              value: ready
+              severity: critical
+            exp_annotations:
+              summary: 8 WAL segments of keycloak/keycloak-db-1 wait for archiving
+              description: >-
+                WAL is produced faster than it is archived, or archiving stalls.
+                The pg_wal volume fills up if this continues.
+                Check: kubectl -n keycloak logs keycloak-db-1 -c plugin-barman-cloud.
+                See docs/backups.md.
+
+  # No CNPG instance is scraped.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="kubelet"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: CNPGMetricsAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: No CNPG instance metrics at all
+              description: >-
+                Prometheus scrapes no CNPG instance, so none of the backup alerts can fire.
+                Check: kubectl -n immich get podmonitor cnpg-instances.
+                See docs/backups.md.

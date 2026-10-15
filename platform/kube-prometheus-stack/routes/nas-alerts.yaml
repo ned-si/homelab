@@ -20,7 +20,7 @@
 # Recording rule nas:pool_days_until_full: days until the pool's root dataset
 # has no space left at the 7-day linear trend; absent while usage shrinks.
 #
-# Tests: tests/prometheus/nas_test.yaml.
+# Tests: tests/prometheus/nas_test.yaml, nas_capacity_test.yaml, nas_disk_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
