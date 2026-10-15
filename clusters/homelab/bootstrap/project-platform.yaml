@@ -33,6 +33,8 @@ spec:
     - https://github.com/ned-si/homelab.git
     - https://cloudnative-pg.github.io/charts
     - https://prometheus-community.github.io/helm-charts
+    # tuppr chart (OCI; Argo CD takes the registry path without oci://).
+    - ghcr.io/home-operations/charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -46,7 +48,11 @@ spec:
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration # cnpg, prometheus-operator
     - group: admissionregistration.k8s.io
-      kind: ValidatingWebhookConfiguration # cnpg, prometheus-operator
+      kind: ValidatingWebhookConfiguration # cnpg, prometheus-operator, tuppr
+    - group: tuppr.home-operations.com
+      kind: TalosUpgrade # tuppr: the target Talos version (platform/tuppr)
+    - group: tuppr.home-operations.com
+      kind: KubernetesUpgrade # tuppr: the target Kubernetes version
   # Deliberately NOT here:
   #   Namespace       -- every namespace in the cluster is declared once, in the
   #                      infrastructure layer (infrastructure/namespaces/), so

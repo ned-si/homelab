@@ -1,0 +1,6 @@
+# CI rehearsal only (scripts/ci/talos-upgrade-rehearsal.sh): `talosctl cluster
+# create` adds Flannel; the cluster runs Cilium, like cniConfig `none` in
+# talos/talconfig.yaml.
+apiVersion: v1alpha1
+kind: KubeFlannelCNIConfig
+$patch: delete

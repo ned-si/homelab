@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The target versions tuppr rolls out (docs/talos-cheatsheet.md, Upgrades).
+# Both equal the versions in talos/talconfig.yaml: Renovate bumps each pair in
+# one pull request (same depName), and scripts/ci/talos-validate.sh fails if
+# they differ.
+resources:
+  - talos-upgrade.yaml
+  - kubernetes-upgrade.yaml

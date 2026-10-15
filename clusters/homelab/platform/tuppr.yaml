@@ -1,0 +1,62 @@
+# tuppr: Talos and Kubernetes upgrades from the Kubernetes API
+# (https://github.com/home-operations/tuppr, docs/talos-cheatsheet.md).
+#
+# Multi-source: the chart (OCI, ghcr.io), its values from this repo, and the
+# TalosUpgrade and KubernetesUpgrade resources that hold the target versions
+# (deploy/platform/tuppr/upgrades). A merge that changes a version starts the
+# rollout; the CI rehearsal of the same change ran first
+# (scripts/ci/talos-upgrade-rehearsal.sh).
+#
+# The upgrade resources sync one wave after the controller, so its admission
+# webhook is up when they are applied.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tuppr
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10): the ServiceMonitor and PrometheusRule
+    # CRDs come with that chart.
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  sources:
+    - repoURL: ghcr.io/home-operations/charts
+      chart: tuppr
+      # renovate: datasource=docker depName=ghcr.io/home-operations/charts/tuppr
+      targetRevision: 0.5.7
+      helm:
+        releaseName: tuppr
+        valueFiles:
+          - $values/platform/tuppr/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/tuppr/upgrades
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: system-upgrade
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false # ships CRDs: pruning one deletes every upgrade resource
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    # The controller issues its webhook certificate itself and injects the CA.
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[]?.clientConfig.caBundle

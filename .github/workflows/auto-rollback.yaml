@@ -6,7 +6,7 @@
 # fails or its health turns Degraded, with the Application name and the
 # revision of its last sync. `decide` checks the guard rails
 # (scripts/ci/auto-rollback-decide.sh: newest commit on main, merged under
-# 1 h ago, changes that app, not cilium or democratic-csi, never two automatic
+# 1 h ago, changes that app, not cilium, democratic-csi or tuppr, never two automatic
 # reverts in a row) and the outage guard (scripts/ci/auto-rollback-guard.sh:
 # not 3+ apps failing within 10 minutes, no node NotReady, NAS reachable).
 # `act` runs only for a revert: an auto-merged revert pull request with label

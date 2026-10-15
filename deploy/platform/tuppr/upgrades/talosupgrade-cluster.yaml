@@ -1,0 +1,33 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/tuppr/upgrades
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/tuppr/upgrades and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: TalosUpgrade
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  name: cluster
+spec:
+  healthChecks:
+  - apiVersion: v1
+    description: every node Ready
+    expr: status.conditions.filter(c, c.type == "Ready").all(c, c.status == "True")
+    kind: Node
+    timeout: 15m
+  - apiVersion: argoproj.io/v1alpha1
+    description: every Argo CD Application Healthy
+    expr: status.health.status == "Healthy"
+    kind: Application
+    namespace: argo
+    timeout: 15m
+  policy:
+    nodrain: true
+  talos:
+    version: v1.14.2

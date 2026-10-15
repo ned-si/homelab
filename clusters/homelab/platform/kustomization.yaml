@@ -11,3 +11,4 @@ resources:
   - blackbox-exporter.yaml
   - keycloak.yaml
   - agent-access.yaml
+  - tuppr.yaml

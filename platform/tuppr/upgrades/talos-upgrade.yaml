@@ -1,0 +1,40 @@
+# The Talos version every node runs. tuppr upgrades one node at a time, never
+# from the node it runs on: health checks, `talosctl upgrade` to the node's
+# own installer image (the RK1 Image Factory schematic) at this version,
+# reboot, wait for the node to be Ready on it, then the next node. A failure
+# stops the run (phase Failed, alert TalosUpgradeFailed); a node that does not
+# boot the new image falls back to the previous one (Talos A/B).
+#
+# Before each node, besides tuppr's own etcd health and membership check:
+# every node Ready and every Argo CD Application Healthy.
+---
+apiVersion: tuppr.home-operations.com/v1alpha1
+kind: TalosUpgrade
+metadata:
+  name: cluster
+  annotations:
+    # After the controller and its webhook (clusters/homelab/platform/tuppr.yaml).
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  talos:
+    # Equal to talosVersion in talos/talconfig.yaml (CI checks).
+    # renovate: datasource=docker depName=ghcr.io/siderolabs/talos
+    version: v1.14.2
+  policy:
+    # No drain: each CloudNativePG cluster has one instance and a PDB that
+    # allows no eviction, so a drain could never finish. Talos stops the pods
+    # during its shutdown, as on every reboot, and they start again on the
+    # same node.
+    nodrain: true
+  healthChecks:
+    - apiVersion: v1
+      kind: Node
+      description: every node Ready
+      expr: status.conditions.filter(c, c.type == "Ready").all(c, c.status == "True")
+      timeout: 15m
+    - apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      namespace: argo
+      description: every Argo CD Application Healthy
+      expr: status.health.status == "Healthy"
+      timeout: 15m

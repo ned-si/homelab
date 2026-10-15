@@ -10,6 +10,8 @@
 #        - the installer image is the pinned RK1 schematic at talosVersion
 #        - VIP 192.168.1.11 on the control planes only
 #        - kube-proxy disabled, no Flannel, SecurityProfileConfig present
+#        - Talos API access from system-upgrade (tuppr) on the control planes
+#        - tuppr's target versions equal talosVersion and kubernetesVersion
 #        - WORKLOAD_ISOLATION=true switches workload isolation on
 #        - talos/clusterconfig/ and plaintext talsecret files are git-ignored
 #
@@ -95,6 +97,9 @@ for f in "$tmp"/default/*.yaml "$tmp"/isolated/*.yaml; do
       doc_of "$k" "$f" | grep -qE '^ +bind-address: 0\.0\.0\.0$' || bad "$name: $k does not bind metrics on 0.0.0.0"
     done
     grep -qE '^ +listen-metrics-urls: http://0\.0\.0\.0:2381$' "$f" || bad "$name: etcd metrics not on 0.0.0.0:2381"
+    # tuppr (platform/tuppr) upgrades the nodes from this namespace.
+    doc_of KubeTalosAPIAccessConfig "$f" | grep -qE '^ +- system-upgrade$' \
+      || bad "$name: KubeTalosAPIAccessConfig does not allow system-upgrade"
   elif grep -qE '^ +type: worker$' "$f"; then
     workers=$((workers + 1))
     if grep -q '^kind: Layer2VIPConfig$' "$f"; then bad "$name: worker carries the API VIP"; fi
@@ -104,6 +109,17 @@ for f in "$tmp"/default/*.yaml "$tmp"/isolated/*.yaml; do
 done
 [ "$cps" -eq 3 ] && [ "$workers" -eq 1 ] || bad "expected 3 control planes and 1 worker, got $cps and $workers"
 ok "invariants checked ($cps control planes, $workers worker)"
+
+# tuppr rolls out the versions in its upgrade resources: they must be the ones
+# in talconfig.yaml, which the machine configs are generated with.
+k8s_version=$(sed -n 's/^kubernetesVersion:[[:space:]]*//p' talos/talconfig.yaml)
+tuppr_talos=$(sed -n 's/^    version:[[:space:]]*//p' platform/tuppr/upgrades/talos-upgrade.yaml)
+tuppr_k8s=$(sed -n 's/^    version:[[:space:]]*//p' platform/tuppr/upgrades/kubernetes-upgrade.yaml)
+[ "$tuppr_talos" = "$talos_version" ] \
+  || bad "platform/tuppr/upgrades/talos-upgrade.yaml version '$tuppr_talos' is not talosVersion '$talos_version'"
+[ "$tuppr_k8s" = "$k8s_version" ] \
+  || bad "platform/tuppr/upgrades/kubernetes-upgrade.yaml version '$tuppr_k8s' is not kubernetesVersion '$k8s_version'"
+ok "tuppr versions equal talconfig.yaml ($talos_version, $k8s_version)"
 
 # Generated configs and plaintext secrets must never be committable.
 for p in talos/clusterconfig/homelab-homelab-cp-1.yaml talos/clusterconfig/talosconfig \

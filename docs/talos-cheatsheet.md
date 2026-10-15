@@ -96,14 +96,77 @@ talosctl -n 192.168.1.240 apply-config -f talos/clusterconfig/homelab-homelab-w-
 
 ### Talos and Kubernetes upgrades
 
-- Renovate opens a PR when `talosVersion` or `kubernetesVersion` in
-  `talconfig.yaml` moves; it automerges on green CI. CI validates the
-  rendered configs; it does not boot Talos.
-- A merge changes no node. Run `task talos:upgrade` (one node at a time, A/B
-  fallback on a failed boot) or `task talos:upgrade-k8s` (rolls the control
-  plane and kubelets through cp-1). Both take `-- <node>`.
-- Planned, not built: tuppr in the cluster, so a merge triggers the upgrade
-  with health checks and stops on failure.
+How it works, with no step for you:
+
+1. Renovate opens a PR that bumps `talosVersion` or `kubernetesVersion` in
+   `talconfig.yaml` and the same version in `platform/tuppr/upgrades/`.
+2. CI job `talos-upgrade` rehearses it on a throwaway QEMU Talos cluster:
+   main's versions, upgrade node by node and `upgrade-k8s`, then nodes,
+   Cilium and a smoke workload are checked
+   ([talos.md](talos.md#upgrades)). Green CI automerges the PR.
+3. Argo CD syncs the version into `TalosUpgrade/cluster` or
+   `KubernetesUpgrade/kubernetes`. [tuppr](https://tuppr.home-operations.com/)
+   (namespace `system-upgrade`) rolls it out, one at a time, never both at
+   once. Before each node: etcd healthy, every node Ready, every Argo CD
+   Application Healthy; the run waits while one fails (each check has a
+   15 min timeout). Talos: `talosctl upgrade` from
+   a Job on another node, reboot, wait Ready on the new version, next node.
+   Kubernetes: `talosctl upgrade-k8s`, no reboot.
+4. A failure stops the run in phase `Failed` and fires `TalosUpgradeFailed`
+   or `KubernetesUpgradeFailed` to ntfy. A stuck run fires
+   `TalosUpgradeStuck` (1 h), a parked one `TupprUpgradeBlocked` (30 min).
+
+No drain: every CloudNativePG cluster has one instance and a PDB that
+allows no eviction. Talos stops the pods during the reboot and they start
+again on the same node.
+
+Watch it:
+
+```sh
+kubectl get talosupgrade,kubernetesupgrade
+kubectl describe talosupgrade cluster
+kubectl -n system-upgrade logs deploy/tuppr -f
+kubectl get nodes -o wide
+```
+
+Expected when idle: `PHASE` `Completed` (or `Pending` before the first run),
+and every node on the target in `OS-IMAGE` and `VERSION`.
+
+Pause or stop:
+
+```sh
+# Pause one kind (also the way to upgrade by hand without tuppr interfering)
+kubectl annotate talosupgrade cluster tuppr.home-operations.com/suspend="true"
+kubectl annotate kubernetesupgrade kubernetes tuppr.home-operations.com/suspend="true"
+# Resume
+kubectl annotate talosupgrade cluster tuppr.home-operations.com/suspend-
+# Emergency stop: no new node is touched; Argo CD scales it back within minutes
+kubectl -n system-upgrade scale deploy/tuppr --replicas=0
+```
+
+A Job already running finishes its node. To keep the controller down,
+suspend the resources instead of scaling: Argo CD self-heals the replica
+count.
+
+Recovery:
+
+- `Failed` is terminal. Fix the cause, then retry from scratch:
+  `kubectl annotate talosupgrade cluster tuppr.home-operations.com/reset="$(date)"`
+  (`kubernetesupgrade kubernetes` likewise).
+- A node that does not boot the new Talos falls back to the previous image
+  (A/B). If it booted but misbehaves: suspend, then
+  `talosctl -n <ip> rollback`, and revert the version PR so git matches.
+- Kubernetes cannot go back a minor. Fix forward: a PR with the fix (or the
+  next patch), with the `TalosUpgrade`/`KubernetesUpgrade` suspended if the
+  rollout must wait. Auto-rollback never reverts the `tuppr` app.
+- By hand, with tuppr suspended: `task talos:upgrade -- <node>` and
+  `task talos:upgrade-k8s`.
+- The Image Factory must serve the RK1 installer at the new version; if not,
+  the run parks (`PrePullFailed`) before touching any node, and retries.
+
+Talos needs one minor at a time (Renovate opens one PR per minor). Bump
+`TALOSCTL_VERSION` and its sha256 in `.github/workflows/ci.yaml` by hand
+after a Talos bump.
 
 ### etcd snapshots
 
@@ -173,6 +236,7 @@ Outside the API:
 3. UART shows a kernel oops or stops mid-boot: power-cycle the slot.
 4. UART shows maintenance mode on a DHCP address: the config is gone. Apply
    it with `--insecure` (section 3).
-5. It broke right after `task talos:upgrade`: wait for the A/B fallback to
-   boot the old image, or `talosctl -n <ip> rollback` if it is reachable.
+5. It broke right after an upgrade (tuppr or `task talos:upgrade`): suspend
+   tuppr, then wait for the A/B fallback to boot the old image, or
+   `talosctl -n <ip> rollback` if it is reachable.
 6. Still dead after a power-cycle: replace it (section 3, reflash and apply).

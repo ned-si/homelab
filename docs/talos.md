@@ -4,9 +4,9 @@ The cluster runs Talos Linux and Kubernetes at the versions pinned in
 [`talos/talconfig.yaml`](../talos/talconfig.yaml), on four Turing RK1 nodes:
 three control planes with etcd, one worker. The machine configs are generated
 from [`talos/`](../talos) with
-[talhelper](https://budimanjojo.github.io/talhelper/). A merge in `talos/`
-changes no node: a config only reaches a node through the `task talos:*`
-commands below.
+[talhelper](https://budimanjojo.github.io/talhelper/). A merged config change
+reaches a node only through the `task talos:*` commands below. A merged
+version change is rolled out by tuppr ([Upgrades](#upgrades)).
 
 ## Layout
 
@@ -14,11 +14,13 @@ commands below.
 | --- | --- |
 | [`talos/talconfig.yaml`](../talos/talconfig.yaml) | Cluster, versions, Image Factory schematic, the four nodes |
 | [`talos/patches/`](../talos/patches) | Patches talhelper applies: `sysctls.yaml` (every node), `kube-proxy.yaml` and `controlplane-metrics.yaml` (control planes) |
-| [`talos/patches/talosctl/`](../talos/patches/talosctl) | Documents talhelper 3.1.17 cannot parse yet (`SecurityProfileConfig`); `scripts/talos-genconfig.sh` applies them with `talosctl machineconfig patch` |
+| [`talos/patches/talosctl/`](../talos/patches/talosctl) | Documents talhelper 3.1.17 cannot parse yet (`SecurityProfileConfig`; in `controlplane/`, `KubeTalosAPIAccessConfig` for tuppr); `scripts/talos-genconfig.sh` applies them with `talosctl machineconfig patch` |
 | `talos/talsecret.sops.yaml` | Cluster CAs, keys and tokens, SOPS-encrypted (created once, [below](#cluster-secrets-once)) |
 | `talos/clusterconfig/` | Generated machine configs and `talosconfig`. Git-ignored: they hold the keys in plaintext |
 | [`scripts/talos-genconfig.sh`](../scripts/talos-genconfig.sh) | `task talos:genconfig`: talhelper, then the talosctl patches |
 | [`scripts/ci/talos-validate.sh`](../scripts/ci/talos-validate.sh) | The `talos` CI job |
+| [`scripts/ci/talos-upgrade-rehearsal.sh`](../scripts/ci/talos-upgrade-rehearsal.sh) | The `talos-upgrade` CI job: a version change rehearsed on a throwaway cluster |
+| [`platform/tuppr/`](../platform/tuppr) | tuppr values and the `TalosUpgrade` / `KubernetesUpgrade` resources with the target versions |
 
 ## Nodes
 
@@ -132,12 +134,30 @@ password manager; `genconfig` recreates the same file from the sealed secrets.
 
 ## Upgrades
 
-Renovate tracks `talosVersion` (`ghcr.io/siderolabs/installer`) and
-`kubernetesVersion` (`ghcr.io/siderolabs/kubelet`) in `talconfig.yaml`, with
-no cap and no approval gate: the bumps automerge on green CI. Merging a bump
-changes no node yet: run `task talos:upgrade` or `task talos:upgrade-k8s`
-afterwards. Keep `TALOSCTL_VERSION` in
-`.github/workflows/ci.yaml` on `talosVersion`.
+Automated end to end; operating it is in
+[talos-cheatsheet.md](talos-cheatsheet.md#talos-and-kubernetes-upgrades).
+
+1. Renovate tracks `talosVersion` (`ghcr.io/siderolabs/talos`; Talos 1.14
+   publishes no `installer` image) and `kubernetesVersion`
+   (`ghcr.io/siderolabs/kubelet`). The same depNames annotate the versions in
+   [`platform/tuppr/upgrades/`](../platform/tuppr/upgrades), so one pull
+   request bumps both places; `talos-validate.sh` fails if they differ. Each
+   Talos or Kubernetes minor is its own pull request.
+2. The `talos-upgrade` CI job rehearses the change: a QEMU cluster (one
+   control plane, one worker) at main's versions, with the patches from
+   `talos/patches/`, no kube-proxy and Cilium from
+   [`ci/helm-releases.yaml`](../ci/helm-releases.yaml); a smoke workload;
+   `talosctl upgrade` node by node and `talosctl upgrade-k8s` to the new
+   versions; then nodes Ready on them, Cilium OK, the workload answering.
+   It is part of `ci`, so a failure blocks the automerge.
+3. After the merge, Argo CD syncs the new version into the `TalosUpgrade` or
+   `KubernetesUpgrade`, and tuppr rolls it out one node at a time, health
+   checks before each node.
+
+`task talos:upgrade` and `task talos:upgrade-k8s` remain for a manual
+upgrade with tuppr suspended. Keep `TALOSCTL_VERSION` in
+`.github/workflows/ci.yaml` on `talosVersion`: bump it with its sha256 after
+Renovate's pull request has merged.
 
 ## Validation
 

@@ -12,12 +12,17 @@
 #                kube-linter)
 #   security     gitleaks, Trivy waiver hygiene, Trivy gate
 #   talos        talhelper genconfig with throwaway secrets, talosctl validate
-#                --mode metal, config invariants (scripts/ci/talos-validate.sh)
+#                --mode metal, config invariants (scripts/ci/talos-validate.sh),
+#                and the plan for talos-upgrade
+#   talos-upgrade  only when a Talos or Kubernetes version changes: a QEMU
+#                Talos cluster upgraded from main's versions to the pull
+#                request's (scripts/ci/talos-upgrade-rehearsal.sh)
 #   pr-metadata  PR title and commits (pull requests only, skipped on push)
 #   preprod      ephemeral kind cluster: CRDs, server-side dry-run of deploy/,
 #                stateless workloads booted and checked for readiness
 #   ci           needs all of them, runs always, and fails unless every one
-#                succeeded (pr-metadata may be skipped outside a pull request).
+#                succeeded (pr-metadata may be skipped outside a pull request,
+#                talos-upgrade when no rehearsal is planned).
 # Inside a job every check runs even when an earlier one failed
 # (`!cancelled()`), and any failed step fails the job. `ci` is the only check
 # name scripts/pr-merge.sh and branch protection require.
@@ -40,6 +45,17 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    # A manual run always runs talos-upgrade: from main's versions (or these)
+    # to the dispatched ref's.
+    inputs:
+      from_talos:
+        description: Talos version to start the upgrade rehearsal from (default main's)
+        type: string
+        default: ""
+      from_kubernetes:
+        description: Kubernetes version to start the upgrade rehearsal from (default main's)
+        type: string
+        default: ""
 
 permissions: {}
 
@@ -92,8 +108,9 @@ env:
   PROMTOOL_SHA256: 2a542df32eac02ee17b9d844fb2aa1de00dafa5476579ba8a3ba862e9d572ea0
   TALHELPER_VERSION: v3.1.17
   TALHELPER_SHA256: dff9162569004637b6a842c4020d909b0ffbc7fbbe2fca23a754708db95be204
-  # talosctl validates the generated configs: keep it on talosVersion in
-  # talos/talconfig.yaml.
+  # talosctl validates the generated configs and runs the upgrade rehearsal:
+  # keep it on talosVersion in talos/talconfig.yaml (by hand, with the sha256,
+  # after Renovate's bump has merged).
   TALOSCTL_VERSION: v1.14.2
   TALOSCTL_SHA256: c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4
   # One checkout serves every step of a job: keep it free of bytecode and
@@ -294,6 +311,13 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
+    outputs:
+      rehearse: ${{ steps.plan.outputs.rehearse }}
+      force_talos: ${{ steps.plan.outputs.force_talos }}
+      from_talos: ${{ steps.plan.outputs.from_talos }}
+      from_kubernetes: ${{ steps.plan.outputs.from_kubernetes }}
+      to_talos: ${{ steps.plan.outputs.to_talos }}
+      to_kubernetes: ${{ steps.plan.outputs.to_kubernetes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -304,6 +328,70 @@ jobs:
 
       - name: talhelper genconfig + talosctl validate --mode metal
         run: scripts/ci/talos-validate.sh
+
+      # Whether talos-upgrade runs, and between which versions.
+      - name: Plan the upgrade rehearsal
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha || 'main' }}
+          INPUT_FROM_TALOS: ${{ inputs.from_talos }}
+          INPUT_FROM_KUBERNETES: ${{ inputs.from_kubernetes }}
+        run: scripts/ci/talos-upgrade-rehearsal.sh plan
+
+  # Rehearsal of a Talos or Kubernetes version change
+  # (scripts/ci/talos-upgrade-rehearsal.sh): a QEMU cluster at main's versions
+  # with the repo's patches and Cilium, a smoke workload, `talosctl upgrade`
+  # node by node and `talosctl upgrade-k8s` to the pull request's versions,
+  # then nodes, Cilium and the workload are checked. Runs only when `talos`
+  # plans it (a version or the rehearsal changes, or a manual run); `ci`
+  # accepts it skipped otherwise. No secrets, no cluster credentials.
+  talos-upgrade:
+    needs: talos
+    if: ${{ needs.talos.outputs.rehearse == 'true' }}
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      FROM_TALOS: ${{ needs.talos.outputs.from_talos }}
+      FROM_KUBERNETES: ${{ needs.talos.outputs.from_kubernetes }}
+      TO_TALOS: ${{ needs.talos.outputs.to_talos }}
+      TO_KUBERNETES: ${{ needs.talos.outputs.to_kubernetes }}
+      FORCE_TALOS: ${{ needs.talos.outputs.force_talos }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools and QEMU
+        run: |
+          set -euo pipefail
+          scripts/ci/install-tool.sh talosctl kubectl helm
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils ovmf > /dev/null
+          sudo mkdir -p /var/run/netns
+          test -c /dev/kvm
+
+      - name: Create the cluster at the current versions, install Cilium
+        run: scripts/ci/talos-upgrade-rehearsal.sh create
+
+      - name: Smoke workload
+        run: scripts/ci/talos-upgrade-rehearsal.sh smoke
+
+      - name: Upgrade Talos node by node, then Kubernetes
+        run: scripts/ci/talos-upgrade-rehearsal.sh upgrade
+
+      - name: Nodes Ready, Cilium OK, workload answers
+        run: scripts/ci/talos-upgrade-rehearsal.sh verify
+
+      - name: Cluster state
+        if: ${{ failure() }}
+        run: scripts/ci/talos-upgrade-rehearsal.sh logs
+
+      - name: Destroy the cluster
+        if: ${{ always() }}
+        run: scripts/ci/talos-upgrade-rehearsal.sh destroy
 
   pr-metadata:
     if: ${{ github.event_name == 'pull_request' }}
@@ -400,10 +488,11 @@ jobs:
 
   # The one required check. `always()` so it reports even when a job above
   # failed; it fails unless every job succeeded, except pr-metadata, which may
-  # be skipped outside a pull request.
+  # be skipped outside a pull request, and talos-upgrade, which may be skipped
+  # when `talos` did not plan a rehearsal.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, security, talos, pr-metadata, preprod]
+    needs: [lint, render, security, talos, talos-upgrade, pr-metadata, preprod]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -412,15 +501,18 @@ jobs:
         env:
           NEEDS: ${{ toJSON(needs) }}
           EVENT: ${{ github.event_name }}
+          REHEARSE: ${{ needs.talos.outputs.rehearse }}
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render security talos pr-metadata preprod; do
+          for j in lint render security talos talos-upgrade pr-metadata preprod; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"
             elif [ "$result" = "skipped" ] && [ "$j" = "pr-metadata" ] && [ "$EVENT" != "pull_request" ]; then
               echo "skipped $j (not a pull request)"
+            elif [ "$result" = "skipped" ] && [ "$j" = "talos-upgrade" ] && [ "$REHEARSE" != "true" ]; then
+              echo "skipped $j (no Talos or Kubernetes version change)"
             else
               echo "::error::$j: $result"
               rc=1
