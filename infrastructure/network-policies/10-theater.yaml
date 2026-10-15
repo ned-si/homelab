@@ -193,14 +193,15 @@ spec:
               protocol: TCP
 
     # Recyclarr (`recyclarr-sync` CronJob) writes quality profiles into both
-    # APIs, and the `bazarr-settings` Job the `kids-fr` auto tag. Selected by
-    # their own labels: the broad job-name selector would also grant the
-    # backup jobs these ports. No 8686: neither touches Lidarr.
+    # APIs, the `bazarr-settings` Job the `kids-fr` auto tag and the
+    # `arr-import-lists` Job the Plex Watchlist lists. Selected by their own
+    # labels: the broad job-name selector would also grant the backup jobs
+    # these ports. No 8686: none touches Lidarr.
     - fromEndpoints:
         - matchExpressions:
             - key: app.kubernetes.io/name
               operator: In
-              values: [recyclarr-sync, bazarr-settings]
+              values: [recyclarr-sync, bazarr-settings, arr-import-lists]
       toPorts:
         - ports:
             - port: "8989"
@@ -443,6 +444,53 @@ spec:
             - port: "443"
               protocol: TCP
             - port: "80"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# arr-import-lists
+#
+# The PostSync Job that writes the Plex Watchlist import lists
+# (apps/theater/arr-import-lists.yaml). Nothing connects to it.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: arr-import-lists
+  namespace: theater
+spec:
+  description: >-
+    arr-import-lists Job: egress to the Sonarr and Radarr APIs. No ingress.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: arr-import-lists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: sonarr
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: radarr
+      toPorts:
+        - ports:
+            - port: "7878"
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------

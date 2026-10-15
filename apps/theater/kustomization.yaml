@@ -12,6 +12,8 @@ resources:
   - prowlarr.yaml
   - qbittorrent.yaml
   - recyclarr.yaml
+  # Plex Watchlist import lists in Sonarr and Radarr (docs/theater.md).
+  - arr-import-lists.yaml
   - plex.yaml
   - jellyfin.yaml
   # Book acquisition for the books namespace (docs/books.md).

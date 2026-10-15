@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  import-lists.py: |
+    # Idempotent; standard library only.
+    import json, os, urllib.request
+
+    NAME = "Plex Watchlist"
+    PROFILE = "HD-Original"
+    APPS = {
+        "sonarr": ("http://sonarr.theater.svc.cluster.local:8989/arr/sonarr", "SONARR_API_KEY",
+                   {"enableAutomaticAdd": True, "searchForMissingEpisodes": True,
+                    "shouldMonitor": "all", "monitorNewItems": "all",
+                    "seriesType": "standard", "seasonFolder": True}),
+        "radarr": ("http://radarr.theater.svc.cluster.local:7878/arr/radarr", "RADARR_API_KEY",
+                   {"enabled": True, "enableAuto": True, "monitor": "movieOnly",
+                    "searchOnAdd": True, "minimumAvailability": "released"}),
+    }
+
+    def call(method, url, key, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(url, data=data, method=method,
+                                     headers={"X-Api-Key": key, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+
+    for app, (base, env, settings) in APPS.items():
+        key = os.environ[env]
+        api = f"{base}/api/v3"
+        schema = next(s for s in call("GET", f"{api}/importlist/schema", key)
+                      if s["implementation"] == "PlexImport")
+        profile = next(p["id"] for p in call("GET", f"{api}/qualityprofile", key) if p["name"] == PROFILE)
+        root = call("GET", f"{api}/rootfolder", key)[0]["path"]
+        for f in schema["fields"]:
+            if f["name"] == "accessToken":
+                f["value"] = os.environ["PLEX_TOKEN"]
+        item = dict(schema, name=NAME, qualityProfileId=profile, rootFolderPath=root, **settings)
+        for k in ("presets", "message", "infoLink"):
+            item.pop(k, None)
+        old = next((i for i in call("GET", f"{api}/importlist", key) if i["name"] == NAME), None)
+        if old is None:
+            call("POST", f"{api}/importlist", key, item)
+        else:
+            item["id"] = old["id"]
+            call("PUT", f"{api}/importlist/{old['id']}", key, item)
+        print(f"{app}: import list '{NAME}' -> {PROFILE}, {root}")
+kind: ConfigMap
+metadata:
+  name: arr-import-lists
+  namespace: theater

@@ -123,6 +123,7 @@ spec:
         values:
         - recyclarr-sync
         - bazarr-settings
+        - arr-import-lists
     toPorts:
     - ports:
       - port: "8989"

@@ -112,6 +112,26 @@ kubectl -n theater logs job/bazarr-settings
 Expected: one `auto tag kids-fr` line each for sonarr and radarr, then
 `bazarr: settings applied`. See also [subtitles](runbooks/subtitles.md).
 
+## Plex watchlist
+
+Sonarr and Radarr each have the import list `Plex Watchlist`: a series or
+movie added to the Plex watchlist is added with the profile `HD-Original`,
+monitored and searched for. The lists refresh every 6 hours. Change a title's
+profile afterwards to `HD-Kids-FR` if needed.
+
+The PostSync Job `arr-import-lists` (`apps/theater/arr-import-lists.yaml`)
+writes both lists through the APIs on every Argo CD sync of `theater`; UI
+changes to them are overwritten then. They read the watchlist with the Plex
+account token in `apps/secrets/plex-token.sops.yaml` (key `PLEX_TOKEN`), the
+server's `PlexOnlineToken`; reseal it if the server is claimed again. Check the
+last run (read-only):
+
+```sh
+kubectl -n theater logs job/arr-import-lists
+```
+
+Expected: one `import list 'Plex Watchlist'` line each for sonarr and radarr.
+
 ## Indexers
 
 Prowlarr syncs its indexers to Sonarr and Radarr (full sync). Policy: a
