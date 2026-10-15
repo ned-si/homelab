@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/usage-exporter
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/usage-exporter and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: usage-exporter
+    release: kube-prometheus-stack
+  name: usage-exporter
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 1m
+    port: metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: usage-exporter

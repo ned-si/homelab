@@ -122,6 +122,7 @@ apps/secrets/theater-sso|PUT_THE_KEYCLOAK_THEATER_SSO_CLIENT_SECRET_HERE=THEATER
 platform/secrets/alertmanager-notify|PUT_THE_NTFY_TOPIC_HERE=NTFY_TOPIC,PUT_THE_HEARTBEAT_PING_URL_HERE=HEARTBEAT_URL
 platform/secrets/argocd-notifications|PUT_THE_AUTO_ROLLBACK_GITHUB_TOKEN_HERE=AUTO_ROLLBACK_GITHUB_TOKEN
 platform/secrets/cnpg-backup-s3|PUT_THE_CNPG_S3_ACCESS_KEY_HERE=CNPG_S3_ACCESS_KEY_ID,PUT_THE_CNPG_S3_SECRET_KEY_HERE=CNPG_S3_SECRET_ACCESS_KEY
+platform/secrets/usage-exporter|PUT_THE_IMMICH_API_KEY_HERE=USAGE_IMMICH_API_KEY,PUT_THE_JELLYFIN_API_KEY_HERE=USAGE_JELLYFIN_API_KEY
 "
 
 # Files allowed to seal with `__PENDING__` values. See the block at the top.
@@ -132,6 +133,7 @@ platform/secrets/alertmanager-notify
 platform/secrets/argocd-notifications
 apps/secrets/recyclarr-api-keys
 apps/secrets/theater-sso
+platform/secrets/usage-exporter
 "
 
 # Substitute one placeholder in a file, handling multi-line values.

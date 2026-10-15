@@ -38,3 +38,6 @@ configMapGenerator:
   - name: grafana-dashboard-homelab-cicd
     files:
       - homelab-cicd.json
+  - name: grafana-dashboard-homelab-usage
+    files:
+      - homelab-usage.json

@@ -1,0 +1,14 @@
+# usage-exporter: Immich and Jellyfin figures for the Homelab / Usage dashboard
+# (docs/observability.md). exporter.py is stdlib Python; the ConfigMap name
+# carries a content hash, so a change to the script rolls the pod.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+
+resources:
+  - deployment.yaml
+
+configMapGenerator:
+  - name: usage-exporter
+    files:
+      - exporter.py

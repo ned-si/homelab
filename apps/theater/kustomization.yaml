@@ -25,6 +25,8 @@ resources:
   - backup.yaml
   # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
   - cnpg-backup.yaml
+  # PodMonitor for the exportarr sidecars (Usage dashboard).
+  - metrics.yaml
 
 # Before every sync: the database backup, unless one is < 24 h old.
 # After every sync: every Service answers on its health endpoint

@@ -42,6 +42,7 @@ resources:
   # Allow-lists. Load-bearing only once the matching namespace is switched on in
   # 90-enforcement.yaml.
   - 10-theater.yaml
+  - 15-theater-metrics.yaml
   - 20-immich.yaml
   - 30-paperless.yaml
   - 40-seafile.yaml
