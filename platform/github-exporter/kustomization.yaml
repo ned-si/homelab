@@ -1,0 +1,15 @@
+# github-exporter: CI/CD data for the Homelab / CI-CD dashboard
+# (docs/observability.md). exporter.py is stdlib Python, read from the public
+# GitHub API without a token; the ConfigMap name carries a content hash, so a
+# change to the script rolls the pod.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+
+resources:
+  - deployment.yaml
+
+configMapGenerator:
+  - name: github-exporter
+    files:
+      - exporter.py

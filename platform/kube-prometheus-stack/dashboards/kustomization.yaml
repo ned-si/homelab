@@ -35,3 +35,6 @@ configMapGenerator:
   - name: grafana-dashboard-homelab-network
     files:
       - homelab-network.json
+  - name: grafana-dashboard-homelab-cicd
+    files:
+      - homelab-cicd.json

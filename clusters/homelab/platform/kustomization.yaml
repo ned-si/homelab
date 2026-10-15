@@ -15,3 +15,4 @@ resources:
   - agent-access.yaml
   - tuppr.yaml
   - trivy-operator.yaml
+  - github-exporter.yaml

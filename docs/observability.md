@@ -15,6 +15,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Hubble | on in the Cilium agents with flow, drop, TCP, ICMP and HTTP metrics, scraped with the Cilium agent, operator and Envoy metrics ([networking.md](networking.md#metrics)); relay and UI not enabled |
 | truenas-exporter | Application `truenas-exporter` in `democratic-csi` ([NAS metrics](#nas-metrics)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`); a ping to the router, the NAS, the four nodes and the BMC (job `blackbox-lan`, label `device`; module `icmp` through the unprivileged-ICMP sysctl `net.ipv4.ping_group_range`, no NET_RAW). `LANDeviceUnreachable` (warning) fires when the router or the BMC does not answer for 10m (PrometheusRule `homelab-lan`) |
+| github-exporter | Application `github-exporter` in `monitoring` (`platform/github-exporter/exporter.py`, stdlib Python): every 15 minutes reads the workflows and their last 30 runs, open and recently closed pull requests and Renovate's Dependency Dashboard from the public GitHub API, unauthenticated (about 11 requests per cycle, ETag-cached, quota 60/hour per IP); metrics `github_*` |
 | trivy-operator | Application `trivy-operator` in `trivy-system` (`platform/trivy-operator/values.yaml`): a VulnerabilityReport per running workload, fixable MEDIUM and above, rescanned every 24 h; one scan Job at a time against the built-in Trivy server (DB in an emptyDir); metric `trivy_image_vulnerabilities`. CVEs show in Grafana only, they do not page |
 
 Manual checks: the smoke suite
@@ -48,6 +49,7 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 | --- | --- |
 | Homelab / Overview (`homelab-overview`) | 30-day availability and error budget per app, 1h burn rate, probe status and duration, nodes Ready, internal endpoints, eMMC and PVC usage, pods not Ready and restarts, running image tags, certificate expiry as served, hours since each backup CronJob last succeeded |
 | Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Keycloak failed logins and lockouts (`keycloak_user_events_total`, ServiceMonitor `keycloak/keycloak` on the management port), Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
+| Homelab / CI-CD (`homelab-cicd`) | latest run on main and success rate per GitHub workflow, run durations, open pull requests by age, Renovate automerge rate and lead time, Dependency Dashboard sections, auto-rollback pull requests, Argo CD applications not Synced/Healthy, time since each application's last successful sync |
 | Homelab / Nodes (`homelab-nodes`) | per node: Talos, kernel, Kubernetes and containerd versions, Ready, uptime; saturation (CPU, memory, PSI, eMMC busy), latency (eMMC and iSCSI per operation), traffic (NIC, eMMC, iSCSI, eMMC bytes written per day), errors (NIC errors and drops, link flaps, OOM kills); SoC temperature, eMMC wear; etcd leader, database size, WAL fsync and commit p99, failed proposals, peer round trip |
 | Homelab / Storage (`homelab-storage`) | NAS pools healthy, exporter up, days since the last scrub and its errors; pool used, "full in N days" at the 7-day trend, free space, used with a 30-day projection, used per dataset; disk temperatures, pool devices ONLINE, device errors, newest SMART self-test, disk models and sizes, the NAS's own alerts; iSCSI PVC usage ([NAS metrics](#nas-metrics)) |
 | Homelab / LAN (`homelab-lan`) | ping status and round trip of the static devices; devices on the LAN now, randomised MACs, MACs first seen in the last 7 days, age of the last ARP scan, every MAC and IP that answered, device count over time ([LAN inventory](#lan-inventory)) |
@@ -66,7 +68,6 @@ Not shown, and what each would need:
 
 | Missing | Needs |
 | --- | --- |
-| CI and Renovate status | a GitHub exporter with a token, or a JSON datasource plugin |
 | cert-manager metrics | its ServiceMonitor carries no `release: kube-prometheus-stack` label, so Prometheus ignores it |
 
 ## NAS metrics
