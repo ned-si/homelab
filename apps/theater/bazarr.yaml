@@ -56,7 +56,8 @@ data:
     KIDS_PROFILE = "HD-Kids-FR"
     PROVIDERS = ["podnapisi", "gestdown", "tvsubtitles", "yifysubtitles", "soustitreseu", "subsynchro"]
     LANG = lambda i, code, forced: {"id": i, "language": code, "forced": forced,
-                                   "hi": "False", "audio_exclude": "False"}
+                                   "hi": "False", "audio_exclude": "False",
+                                   "audio_only_include": "False"}
     PROFILES = [
         {"profileId": 1, "name": "EN", "cutoff": None, "tag": None,
          "items": [LANG(1, "en", "False")],
