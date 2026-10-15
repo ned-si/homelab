@@ -23,3 +23,6 @@ configMapGenerator:
   - name: grafana-dashboard-homelab-security
     files:
       - homelab-security.json
+  - name: grafana-dashboard-homelab-nodes
+    files:
+      - homelab-nodes.json

@@ -18,6 +18,89 @@
 kubeProxy:
   enabled: false
 
+# etcd is a Talos service, not a pod, so the chart's default selector
+# (component=etcd) finds nothing. The Service gets the control-plane IPs as
+# endpoints instead; etcd serves metrics there over HTTP on 2381
+# (talos/patches/controlplane-metrics.yaml).
+kubeEtcd:
+  endpoints:
+    - 192.168.1.247
+    - 192.168.1.238
+    - 192.168.1.239
+
+# eMMC wear. Talos exposes the eMMC's life_time and pre_eol_info only in
+# sysfs (no metric, and its Read API is admin-only), so a sidecar reads them
+# from node-exporter's read-only /host/sys mount every 5 minutes and writes a
+# .prom file that the textfile collector serves:
+#
+#   node_emmc_life_time_estimate{device, type="a"|"b"}  1..11, each step 10%
+#                                                       of rated wear used;
+#                                                       11 = exceeded
+#   node_emmc_pre_eol_info{device}                      1 normal, 2 warning
+#                                                       (80% of reserved
+#                                                       blocks used), 3 urgent
+#
+# extraArgs replaces the chart's list, so its two filesystem filters are
+# repeated here.
+prometheus-node-exporter:
+  extraArgs:
+    - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+    - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|erofs)$
+    - --collector.textfile.directory=/run/textfile
+  sidecarVolumeMount:
+    - name: textfile
+      mountPath: /run/textfile
+      readOnly: false
+  sidecars:
+    - name: emmc-wear
+      # renovate: datasource=docker depName=busybox
+      image: busybox:1.37.0
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          trap 'exit 0' TERM
+          out=/run/textfile/emmc.prom
+          while true; do
+            tmp=$out.tmp
+            : > "$tmp"
+            for d in /host/sys/bus/mmc/devices/*; do
+              [ -r "$d/life_time" ] || continue
+              dev=${d##*/}
+              set -- $(cat "$d/life_time")
+              printf 'node_emmc_life_time_estimate{device="%s",type="a"} %d\n' "$dev" "$1" >> "$tmp"
+              printf 'node_emmc_life_time_estimate{device="%s",type="b"} %d\n' "$dev" "$2" >> "$tmp"
+              printf 'node_emmc_pre_eol_info{device="%s"} %d\n' "$dev" "$(cat "$d/pre_eol_info")" >> "$tmp"
+            done
+            if [ -s "$tmp" ]; then
+              mv "$tmp" "$out"
+            else
+              echo 'level=error msg="no eMMC life_time in /host/sys/bus/mmc/devices"'
+            fi
+            sleep 300 &
+            wait $!
+          done
+      volumeMounts:
+        - name: sys
+          mountPath: /host/sys
+          readOnly: true
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 1m
+          memory: 4Mi
+        limits:
+          memory: 16Mi
+      # Healthy while the file is less than 15 minutes old.
+      livenessProbe:
+        exec:
+          command: ["/bin/sh", "-c", "find /run/textfile/emmc.prom -mmin -15 | grep -q ."]
+        initialDelaySeconds: 60
+        periodSeconds: 300
+
 # The claim of the TSDB is pre-created in infrastructure/iscsi-volumes/ and
 # bound to the existing volume; the template below must keep its name (the
 # chart derives it from the release name) and its size.

@@ -391,6 +391,73 @@ tests:
         alertname: NodeExporterAbsent
         exp_alerts: []
 
+  # -------------------------------------------------------------- eMMC wear
+  # cp-1 is at 30-40% (healthy), cp-2 at 80-90% on type b, w-1's reserved
+  # blocks are urgent (pre_eol 3).
+  - interval: 1m
+    input_series:
+      - series: 'node_emmc_life_time_estimate{instance="cp-1", device="mmc0:0001", type="a"}'
+        values: '4x90'
+      - series: 'node_emmc_life_time_estimate{instance="cp-1", device="mmc0:0001", type="b"}'
+        values: '4x90'
+      - series: 'node_emmc_pre_eol_info{instance="cp-1", device="mmc0:0001"}'
+        values: '1x90'
+      - series: 'node_emmc_life_time_estimate{instance="cp-2", device="mmc0:0001", type="a"}'
+        values: '3x90'
+      - series: 'node_emmc_life_time_estimate{instance="cp-2", device="mmc0:0001", type="b"}'
+        values: '9x90'
+      - series: 'node_emmc_pre_eol_info{instance="cp-2", device="mmc0:0001"}'
+        values: '1x90'
+      - series: 'node_emmc_life_time_estimate{instance="w-1", device="mmc0:0001", type="a"}'
+        values: '2x90'
+      - series: 'node_emmc_life_time_estimate{instance="w-1", device="mmc0:0001", type="b"}'
+        values: '2x90'
+      - series: 'node_emmc_pre_eol_info{instance="w-1", device="mmc0:0001"}'
+        values: '3x90'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: NodeEmmcWearHigh
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: NodeEmmcWearHigh
+        exp_alerts:
+          - exp_labels:
+              instance: cp-2
+              device: "mmc0:0001"
+              severity: warning
+            exp_annotations:
+              summary: "cp-2 eMMC mmc0:0001 is wearing out"
+              description: >-
+                The eMMC reports 80% or more of its rated wear or of its reserved
+                blocks used. Plan the module replacement
+                (docs/runbooks/node-replacement.md) and check what writes most
+                with the Homelab / Nodes dashboard.
+          - exp_labels:
+              instance: w-1
+              device: "mmc0:0001"
+              severity: warning
+            exp_annotations:
+              summary: "w-1 eMMC mmc0:0001 is wearing out"
+              description: >-
+                The eMMC reports 80% or more of its rated wear or of its reserved
+                blocks used. Plan the module replacement
+                (docs/runbooks/node-replacement.md) and check what writes most
+                with the Homelab / Nodes dashboard.
+      - eval_time: 15m
+        alertname: NodeEmmcEndOfLife
+        exp_alerts:
+          - exp_labels:
+              instance: w-1
+              device: "mmc0:0001"
+              severity: critical
+            exp_annotations:
+              summary: "w-1 eMMC mmc0:0001 is at end of life"
+              description: >-
+                The eMMC reports its rated wear exceeded or its reserved blocks
+                nearly gone. Replace the module (docs/runbooks/node-replacement.md);
+                on a control plane, take an etcd snapshot first
+                (`task talos:etcd-snapshot`).
+
   # ------------------------------------------------------------ certificates
   # wildcard expires in 10 days, auth in 3 days, fresh in 60 days; auth is
   # also not Ready.
