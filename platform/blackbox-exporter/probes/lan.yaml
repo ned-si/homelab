@@ -1,0 +1,74 @@
+# Static LAN devices answer a ping (module icmp), job `blackbox-lan`. The
+# `device` label names each address; the table is docs/networking.md.
+#
+# The BMC takes a DHCP lease (reachable as turingpi.local, which cluster DNS
+# cannot resolve); its current lease is probed. If the lease moves, update the
+# address here.
+#
+# Alerts: platform/kube-prometheus-stack/routes/lan-alerts.yaml. Nodes and the
+# NAS are on the dashboard only: HomelabNodeNotReady and HomelabNASUnreachable
+# already page for them.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: lan-icmp
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: blackbox-lan
+  interval: 30s
+  scrapeTimeout: 10s
+  module: icmp
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
+  targets:
+    staticConfig:
+      labels:
+        probe: lan
+      static:
+        - 192.168.1.1
+        - 192.168.1.228
+        - 192.168.1.247
+        - 192.168.1.238
+        - 192.168.1.239
+        - 192.168.1.240
+        - 192.168.1.194
+      relabelingConfigs:
+        - action: replace
+          sourceLabels: [__param_target]
+          regex: "192\\.168\\.1\\.1"
+          targetLabel: device
+          replacement: router
+        - action: replace
+          sourceLabels: [__param_target]
+          regex: "192\\.168\\.1\\.228"
+          targetLabel: device
+          replacement: nas
+        - action: replace
+          sourceLabels: [__param_target]
+          regex: "192\\.168\\.1\\.247"
+          targetLabel: device
+          replacement: homelab-cp-1
+        - action: replace
+          sourceLabels: [__param_target]
+          regex: "192\\.168\\.1\\.238"
+          targetLabel: device
+          replacement: homelab-cp-2
+        - action: replace
+          sourceLabels: [__param_target]
+          regex: "192\\.168\\.1\\.239"
+          targetLabel: device
+          replacement: homelab-cp-3
+        - action: replace
+          sourceLabels: [__param_target]
+          regex: "192\\.168\\.1\\.240"
+          targetLabel: device
+          replacement: homelab-w-1
+        - action: replace
+          sourceLabels: [__param_target]
+          regex: "192\\.168\\.1\\.194"
+          targetLabel: device
+          replacement: bmc

@@ -15,3 +15,4 @@ resources:
   - cilium-monitors.yaml
   - etcd-scrape.yaml
   - nas-alerts.yaml
+  - lan-alerts.yaml

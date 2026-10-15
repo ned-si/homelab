@@ -38,7 +38,9 @@ two other forwarded ports. The address table is in the README's
 
   Expected: the same address twice. If they differ, follow
   [wan-ip-change.md](runbooks/wan-ip-change.md).
-- The Turing Pi 2 BMC takes a DHCP address; reach it as `turingpi.local`. Its
+- The Turing Pi 2 BMC takes a DHCP address (currently `192.168.1.194`, the
+  address the `lan-icmp` Probe pings in
+  `platform/blackbox-exporter/probes/lan.yaml`); reach it as `turingpi.local`. Its
   slots Node 1 to Node 4 hold `homelab-cp-1`, `homelab-cp-2`, `homelab-cp-3`
   and `homelab-w-1`, in that order
   ([node-power-cycle.md](runbooks/node-power-cycle.md)).
