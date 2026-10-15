@@ -1,0 +1,12 @@
+# Image garbage collection well before eviction. Each node has one 29 GB
+# eMMC: images, container data and logs share the EPHEMERAL filesystem, so
+# the kubelet's default image GC start (85% used) is the same point as its
+# default eviction threshold (imagefs.available < 15%). Unused images then
+# pile up until the node goes DiskPressure and evicts pods while GC catches
+# up (homelab-cp-3, 2026-10-15). Start GC at 70% and clean down to 60%; the
+# eviction thresholds stay at the defaults.
+machine:
+  kubelet:
+    extraConfig:
+      imageGCHighThresholdPercent: 70
+      imageGCLowThresholdPercent: 60
