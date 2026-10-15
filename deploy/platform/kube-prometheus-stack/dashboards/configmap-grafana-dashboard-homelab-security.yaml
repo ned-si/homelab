@@ -14,7 +14,7 @@ data:
     {
       "uid": "homelab-security",
       "title": "Homelab / Security",
-      "description": "TLS as served, authentication errors at the API server and the public endpoints, Secret age, image hygiene and CVEs in running images.",
+      "description": "TLS as served, authentication errors at the API server, the public endpoints and Keycloak, Secret age, image hygiene and CVEs in running images.",
       "tags": [
         "homelab",
         "security"
@@ -320,6 +320,193 @@ data:
           }
         },
         {
+          "type": "timeseries",
+          "title": "Keycloak failed logins",
+          "description": "keycloak_user_events_total for login events with an error (wrong password, unknown user, ...), per realm, client and error, in 15-minute buckets.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (realm, client_id, error) (increase(keycloak_user_events_total{event=\"login\",error!=\"\"}[15m]))",
+              "refId": "A",
+              "legendFormat": "{{realm}} {{client_id}} {{error}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "custom": {
+                "drawStyle": "bars",
+                "fillOpacity": 60,
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right",
+              "calcs": [
+                "sum",
+                "max"
+              ]
+            },
+            "tooltip": {
+              "mode": "multi"
+            }
+          },
+          "id": 18,
+          "gridPos": {
+            "h": 6,
+            "w": 16,
+            "x": 0,
+            "y": 18
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Keycloak, last 24 h",
+          "description": "Failed logins, successful logins and brute-force lockouts (user_disabled_by_*) over 24 hours.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(increase(keycloak_user_events_total{event=\"login\",error!=\"\"}[24h])) or vector(0)",
+              "refId": "A",
+              "legendFormat": "failed logins",
+              "instant": true,
+              "range": false
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(increase(keycloak_user_events_total{event=\"login\",error=\"\"}[24h])) or vector(0)",
+              "refId": "B",
+              "legendFormat": "logins",
+              "instant": true,
+              "range": false
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(increase(keycloak_user_events_total{event=~\"user_disabled_by_.*\"}[24h])) or vector(0)",
+              "refId": "C",
+              "legendFormat": "lockouts",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "failed logins"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "orange",
+                          "value": 10
+                        },
+                        {
+                          "color": "red",
+                          "value": 50
+                        }
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "lockouts"
+                },
+                "properties": [
+                  {
+                    "id": "thresholds",
+                    "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {
+                          "color": "green",
+                          "value": null
+                        },
+                        {
+                          "color": "red",
+                          "value": 1
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 19,
+          "gridPos": {
+            "h": 6,
+            "w": 8,
+            "x": 16,
+            "y": 18
+          }
+        },
+        {
           "id": 7,
           "type": "row",
           "title": "Secrets and images",
@@ -328,7 +515,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 18
+            "y": 24
           },
           "panels": []
         },
@@ -413,7 +600,7 @@ data:
             "h": 10,
             "w": 12,
             "x": 0,
-            "y": 19
+            "y": 25
           }
         },
         {
@@ -466,7 +653,7 @@ data:
             "h": 5,
             "w": 12,
             "x": 12,
-            "y": 19
+            "y": 25
           }
         },
         {
@@ -524,7 +711,7 @@ data:
             "h": 5,
             "w": 12,
             "x": 12,
-            "y": 24
+            "y": 30
           }
         },
         {
@@ -536,7 +723,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 29
+            "y": 35
           },
           "panels": []
         },
@@ -648,7 +835,7 @@ data:
             "h": 6,
             "w": 8,
             "x": 0,
-            "y": 30
+            "y": 36
           }
         },
         {
@@ -706,7 +893,7 @@ data:
             "h": 6,
             "w": 4,
             "x": 8,
-            "y": 30
+            "y": 36
           }
         },
         {
@@ -772,7 +959,7 @@ data:
             "h": 6,
             "w": 12,
             "x": 12,
-            "y": 30
+            "y": 36
           }
         },
         {
@@ -830,7 +1017,7 @@ data:
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 36
+            "y": 42
           }
         },
         {
@@ -842,7 +1029,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 44
+            "y": 50
           },
           "panels": []
         },
@@ -851,14 +1038,14 @@ data:
           "title": "Data sources this dashboard does not have",
           "options": {
             "mode": "markdown",
-            "content": "- **Keycloak failed logins**: Keycloak runs with `KC_METRICS_ENABLED=true` but without event metrics (`KC_EVENT_METRICS_USER_ENABLED`) and nothing scrapes its management port (9000).\n- **Auth errors at the Gateway**: Cilium's Envoy and Hubble HTTP metrics are not enabled or scraped, so per-route 401/403/5xx rates are not in Prometheus.\n\nSee docs/observability.md for what each needs."
+            "content": "- **Auth errors at the Gateway**: Cilium's Envoy and Hubble HTTP metrics are not enabled or scraped, so per-route 401/403/5xx rates are not in Prometheus.\n\nSee docs/observability.md for what each needs."
           },
           "id": 12,
           "gridPos": {
             "h": 6,
             "w": 24,
             "x": 0,
-            "y": 45
+            "y": 51
           }
         }
       ]

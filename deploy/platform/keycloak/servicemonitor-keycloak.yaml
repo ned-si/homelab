@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/keycloak
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/keycloak and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: keycloak
+    release: kube-prometheus-stack
+  name: keycloak
+  namespace: keycloak
+spec:
+  endpoints:
+  - interval: 1m
+    path: /metrics
+    port: mgmt
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
