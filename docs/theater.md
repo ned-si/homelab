@@ -36,7 +36,15 @@ kubectl -n theater port-forward svc/sonarr 8989:8989
 
 then open http://localhost:8989/arr/sonarr. Plex (`/`) and Jellyfin
 (cinema.lilalala.com) are not behind the proxy: their TV apps cannot complete
-an OIDC login. API calls between the apps go pod to pod and never pass it.
+an OIDC login. API calls between the apps (Prowlarr, Bazarr, Recyclarr,
+LazyLibrarian, exportarr, the import lists, the *arr apps to qBittorrent) use
+the in-cluster Services and never pass it.
+
+`/arr/<app>/api/...` of the *arr apps, Bazarr and LazyLibrarian, and the
+Sonarr and Radarr calendar feeds (`/arr/<app>/feed/...`) skip the Keycloak
+login (`--skip-auth-route`), so mobile clients such as nzb360 or LunaSea work
+with the app's API key, which each app still requires. qBittorrent's API is
+not skipped: it takes a session login, not a key.
 
 ## Quality profiles
 

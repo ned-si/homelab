@@ -130,6 +130,12 @@ spec:
             - --cookie-samesite=lax
             - --cookie-expire=8760h
             - --cookie-refresh=1h
+            # API and calendar-feed paths skip the Keycloak login, for mobile
+            # clients (nzb360, LunaSea) and calendar subscriptions: each app
+            # still requires its own API key there. Not qBittorrent, whose
+            # API takes a session login rather than a key.
+            - --skip-auth-route=^/arr/(sonarr|radarr|lidarr|prowlarr|bazarr|lazylibrarian)/api(/.*)?$
+            - --skip-auth-route=^/arr/(sonarr|radarr)/feed/
             # Post-login redirects stay on this host.
             - --whitelist-domain=theater.lilalala.com
             - --skip-provider-button=true
