@@ -127,7 +127,7 @@ spec:
             - name: talosctl
               image:
                 # renovate: datasource=docker depName=ghcr.io/siderolabs/talosctl
-                reference: ghcr.io/siderolabs/talosctl:v1.14.2
+                reference: ghcr.io/siderolabs/talosctl:v1.14.3
                 pullPolicy: IfNotPresent
             - name: talhelper
               image:
