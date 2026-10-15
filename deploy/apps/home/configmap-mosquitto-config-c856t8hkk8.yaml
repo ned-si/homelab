@@ -29,7 +29,8 @@ data:
 
     allow_anonymous false
     password_file /mosquitto/auth/passwd
-    acl_file /mosquitto/config/acl
+    # Copied from config/mosquitto/acl by the `passwd` init container (mode 600).
+    acl_file /mosquitto/auth/acl
 
     # Zigbee2MQTT republishes state when Home Assistant comes online.
     persistence false
@@ -42,5 +43,5 @@ data:
     log_timestamp_format %Y-%m-%dT%H:%M:%S
 kind: ConfigMap
 metadata:
-  name: mosquitto-config-95kc6tt656
+  name: mosquitto-config-c856t8hkk8
   namespace: home
