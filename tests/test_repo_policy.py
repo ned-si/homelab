@@ -398,6 +398,82 @@ def test_k8s_version_mismatch_fails(tmp_path, kw, key):
     assert any(f.startswith("FAIL k8s-version-match: .github/workflows/ci.yaml: env " + key) for f in fails(r)), r.stdout
 
 
+def deployment(image, comment=""):
+    return f"spec:\n  containers:\n    - name: app\n      image: {image}{comment}\n"
+
+
+@pytest.mark.parametrize("image,bad", [
+    ("docker.io/library/python:3.15.0", True),
+    ("python:3.15.0-alpine3.24", False),
+    ("node:24", True),
+    ("node:24-alpine", False),
+    ("golang:1.26-bookworm", True),
+    ("ubuntu:26.04", True),
+    ("debian:trixie-slim", False),
+    ("gcr.io/distroless/python3-debian13:nonroot", False),
+    ("ghcr.io/example/python:3.15.0", False),
+])
+def test_image_bulky_base(tmp_path, image, bad):
+    r = policy(tmp_path, files={"platform/x/deployment.yaml": deployment(image), "docs/x.yaml": deployment("node:24")})
+    got = [f for f in fails(r) if "image-bulky-base" in f]
+    assert bool(got) == bad, r.stdout
+    if bad:
+        assert got[0].startswith("FAIL image-bulky-base: platform/x/deployment.yaml:4: ")
+
+
+def test_image_bulky_base_allow_comment(tmp_path):
+    files = {"apps/x/d.yaml": deployment("python:3.15.0", "  # image-policy: allow needs glibc wheels")}
+    assert policy(tmp_path, files=files).returncode == 0
+    files = {"apps/x/d.yaml": deployment("python:3.15.0", "  # image-policy: allow")}
+    assert any("image-bulky-base" in f for f in fails(policy(tmp_path / "b", files=files)))
+
+
+def variant_policy(tmp_path, before, after):
+    """Commit `before` as the base, write `after` over it, run with --base HEAD."""
+    root = tmp_path / "repo"
+    r = policy(tmp_path, files=before)
+    assert r.returncode == 0, r.stdout
+    subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@example.org",
+                    "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base"], check=True)
+    for rel, text in after.items():
+        write(root, rel, text)
+    out = tmp_path / "render"
+    return subprocess.run([sys.executable, str(SCRIPTS / "repo_policy.py"), "--render", str(out),
+                           "--repo-root", str(root), "--base", "HEAD"], capture_output=True, text=True)
+
+
+@pytest.mark.parametrize("old,new,bad", [
+    ("python:3.14.8-alpine3.24", "python:3.15.0-alpine3.24", False),
+    ("python:3.14.8-alpine3.24", "python:3.15.0-alpine3.25", False),
+    ("docker.io/library/python:3.14.8-alpine3.24", "docker.io/library/python:3.15.0", True),
+    ("debian:bookworm-slim", "debian:trixie-slim", True),
+    ("memcached:1.6.45", "memcached:1.6.45-alpine", False),
+    ("postgres:18-bookworm", "postgres:18-bookworm-slim", False),
+    ("example/app:1.0-alpine", "example/app:1.1-slim", True),
+    ("plexinc/pms-docker:1.43.4.10903-e5521bd8c", "plexinc/pms-docker:1.43.5.11000-0abc1234d", False),
+])
+def test_image_variant(tmp_path, old, new, bad):
+    r = variant_policy(tmp_path, {"apps/x/d.yaml": deployment(old)}, {"apps/x/d.yaml": deployment(new)})
+    got = [f for f in fails(r) if "image-variant" in f]
+    assert bool(got) == bad, r.stdout
+    assert "image-variant" in r.stdout
+
+
+def test_image_variant_allow_and_new_image(tmp_path):
+    before = {"apps/x/d.yaml": deployment("example/app:1.0-alpine")}
+    after = {"apps/x/d.yaml": deployment("example/app:1.1", "  # image-policy: allow upstream dropped alpine"),
+             "apps/y/d.yaml": deployment("other/app:2.0")}
+    assert variant_policy(tmp_path, before, after).returncode == 0
+
+
+def test_image_variant_unknown_base(tmp_path):
+    r = policy(tmp_path, files={"apps/x/d.yaml": deployment("example/app:1.0")})
+    out = tmp_path / "render"
+    r = subprocess.run([sys.executable, str(SCRIPTS / "repo_policy.py"), "--render", str(out),
+                        "--repo-root", str(tmp_path / "repo"), "--base", "0" * 40], capture_output=True, text=True)
+    assert fails(r) == [f"FAIL image-variant: base {'0' * 40} is not in the checkout"], r.stdout
+
+
 def test_k8s_version_missing_in_talconfig_fails(tmp_path):
     files = k8s_tree()
     files["talos/talconfig.yaml"] = "clusterName: x\n"

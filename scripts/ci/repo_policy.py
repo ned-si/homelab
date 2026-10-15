@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Repository invariants checked over the checkout and the render_apps.py output.
 
-Usage: repo_policy.py --render <render_apps output dir> [--repo-root .]
+Usage: repo_policy.py --render <render_apps output dir> [--repo-root .] [--base <rev>]
 
 Every rule is active only when the paths it is about exist, so on a tree with
 only the legacy layout the new-layout rules are vacuous. "Non-doc files" are the
@@ -51,6 +51,16 @@ objects and rule ids only; values are never printed.
   k8s-version-match     K8S_VERSION and the KIND_NODE_IMAGE tag in
                         .github/workflows/ci.yaml are on the Kubernetes minor of
                         kubernetesVersion in talos/talconfig.yaml
+  image-bulky-base      no `image:`/`imageName:` line under apps/, platform/,
+                        infrastructure/, bootstrap/, clusters/ or talos/ runs a
+                        full python, node, golang, ubuntu or debian image (no
+                        alpine, slim or distroless variant)
+  image-variant         (--base only) no such line moves an image to a tag
+                        variant (alpine, slim, distroless, a Debian or Ubuntu
+                        codename) that the base tree does not use for that
+                        image; only adding alpine, slim or distroless is free
+
+Either image rule accepts a line that carries `# image-policy: allow <reason>`.
 """
 from __future__ import annotations
 
@@ -82,12 +92,21 @@ DEFAULT_TARGETS = re.compile(r"--default-targets=(\d{1,3}(?:\.\d{1,3}){3})(?![0-
 CI_WORKFLOW = ".github/workflows/ci.yaml"
 TALCONFIG = "talos/talconfig.yaml"
 K8S_MINOR = re.compile(r"^v?(\d+)\.(\d+)(?:\.\d+)?$")
+IMAGE_DIRS = ("apps/", "platform/", "infrastructure/", "bootstrap/", "clusters/", "talos/")
+IMAGE_LINE = re.compile(r"^\s*-?\s*(?:image|imageName):\s*['\"]?(?P<ref>[^\s'\"#]+)['\"]?\s*(?:#(?P<comment>.*))?$")
+IMAGE_ALLOW = re.compile(r"image-policy:\s*allow\s+\S")
+# Tag tokens (digits stripped) that name an image variant.
+VARIANT_WORDS = {"alpine", "slim", "distroless", "bookworm", "bullseye", "buster", "trixie",
+                 "noble", "jammy", "focal", "ubi", "musl", "minimal"}
+LIGHT_VARIANTS = {"alpine", "slim", "distroless"}
+BULKY_IMAGES = {"python", "node", "golang", "ubuntu", "debian"}
 
 
 class Policy:
-    def __init__(self, root: Path, render: Path):
+    def __init__(self, root: Path, render: Path, base: str | None = None):
         self.root = root
         self.render = render
+        self.base = base
         self.fails: list[str] = []
         self.active: list[str] = []
         self.index = json.loads((render / "index.json").read_text())
@@ -479,11 +498,68 @@ class Policy:
                 self.fail(rule, f"{CI_WORKFLOW}: env {key} is on minor {'.'.join(got) if got else '?'}, "
                                 f"{TALCONFIG} kubernetesVersion on {'.'.join(want)}")
 
+    def image_refs(self, rev: str | None = None) -> list[tuple[str, int, str, str, bool]]:
+        """(file, line, repo, tag, allowed) per image reference under IMAGE_DIRS, in the checkout or at `rev`."""
+        hits: list[tuple[str, int, str]] = []
+        if rev is None:
+            for rel in self.tracked():
+                if rel.startswith(IMAGE_DIRS) and rel.endswith((".yaml", ".yml")):
+                    hits.extend((rel, n, line) for n, line in self.lines(rel))
+        else:
+            out = subprocess.run(["git", "-C", str(self.root), "grep", "-z", "-n", "-I", "-E",
+                                  r"(image|imageName):", rev, "--", *IMAGE_DIRS], capture_output=True)
+            if out.returncode > 1:
+                raise ValueError(rev)
+            for rec in out.stdout.decode(errors="replace").splitlines():
+                path, n, line = rec.split("\0", 2)
+                rel = path[len(rev) + 1:]
+                if rel.endswith((".yaml", ".yml")):
+                    hits.append((rel, int(n), line))
+        refs = []
+        for rel, n, line in hits:
+            m = IMAGE_LINE.match(line)
+            parsed = parse_image(m.group("ref")) if m else None
+            if parsed:
+                refs.append((rel, n, parsed[0], parsed[1], bool(IMAGE_ALLOW.search(m.group("comment") or ""))))
+        return refs
+
+    def rule_image_bulky(self) -> None:
+        rule = "image-bulky-base"
+        self.on(rule)
+        for rel, n, repo, tag, allowed in self.image_refs():
+            if repo in BULKY_IMAGES and not image_variant(tag) & LIGHT_VARIANTS and not allowed:
+                self.fail(rule, f"{rel}:{n}: {repo}:{tag} is a full image; use its alpine, slim or distroless "
+                                "variant or add `# image-policy: allow <reason>`")
+
+    def rule_image_variant(self) -> None:
+        rule = "image-variant"
+        if not self.base:
+            return
+        self.on(rule)
+        try:
+            before = self.image_refs(self.base)
+        except ValueError:
+            self.fail(rule, f"base {self.base} is not in the checkout")
+            return
+        known: dict[str, set[frozenset]] = {}
+        for _, _, repo, tag, _ in before:
+            known.setdefault(repo, set()).add(image_variant(tag))
+        for rel, n, repo, tag, allowed in self.image_refs():
+            v = image_variant(tag)
+            if repo not in known or v in known[repo] or allowed:
+                continue
+            if any(b <= v and (v - b) <= LIGHT_VARIANTS for b in known[repo]):
+                continue
+            was = " or ".join(sorted("-".join(sorted(b)) or "none" for b in known[repo]))
+            self.fail(rule, f"{rel}:{n}: {repo} changes tag variant to {'-'.join(sorted(v)) or 'none'} "
+                            f"(base: {was}); keep it or add `# image-policy: allow <reason>`")
+
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
-                     self.rule_expected_ingresses, self.rule_k8s_version):
+                     self.rule_expected_ingresses, self.rule_k8s_version, self.rule_image_bulky,
+                     self.rule_image_variant):
             rule()
         for f in self.fails:
             print(f)
@@ -527,6 +603,28 @@ def check_guard(cj: dict, mode: str | None) -> list[str]:
     return problems
 
 
+def parse_image(ref: str) -> tuple[str, str] | None:
+    """(repository, tag) of an image reference, Docker Hub names without docker.io/ and library/; None if untagged."""
+    ref = ref.split("@", 1)[0]
+    head, _, last = ref.rpartition("/")
+    if ":" not in last:
+        return None
+    name, tag = last.split(":", 1)
+    repo = f"{head}/{name}" if head else name
+    for prefix in ("docker.io/", "index.docker.io/"):
+        if repo.startswith(prefix):
+            repo = repo[len(prefix):]
+    if repo.startswith("library/"):
+        repo = repo[len("library/"):]
+    return repo, tag
+
+
+def image_variant(tag: str) -> frozenset:
+    """Variant words in a tag: python:3.14.8-alpine3.24 -> {alpine}, debian:bookworm-slim -> {bookworm, slim}."""
+    return frozenset(w for w in (re.sub(r"\d+", "", t) for t in re.split(r"[-_.]", tag.lower()))
+                     if w in VARIANT_WORDS)
+
+
 def k8s_minor(version: str) -> tuple[str, str] | None:
     """('1', '37') for 1.37, 1.37.1 or v1.37.1; None for anything else."""
     m = K8S_MINOR.match(version.strip())
@@ -558,8 +656,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="repository policy")
     ap.add_argument("--render", required=True, help="render_apps.py output directory")
     ap.add_argument("--repo-root", default=".")
+    ap.add_argument("--base", help="git revision the image-variant rule compares against (the PR base)")
     args = ap.parse_args(argv)
-    return Policy(Path(args.repo_root).resolve(), Path(args.render).resolve()).run()
+    return Policy(Path(args.repo_root).resolve(), Path(args.render).resolve(), args.base).run()
 
 
 if __name__ == "__main__":
