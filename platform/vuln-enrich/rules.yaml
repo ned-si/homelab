@@ -1,0 +1,65 @@
+# What to fix first, from the trivy-operator findings and the vuln-enrich
+# push (enrich.py). Every finding is fixable: trivy-operator runs with
+# ignoreUnfixed (platform/trivy-operator/values.yaml).
+#
+#   vuln:epss:score       per CVE in a running image: EPSS, 0 when FIRST has
+#                         no score yet
+#   vuln:act_now_cve:epss per CVE that is in CISA KEV (kev="yes") or has
+#                         EPSS above 0.1 (kev="no"); value EPSS
+#   vuln:act_now:epss     per finding (namespace, image, package, CVE) of such
+#                         a CVE in a namespace an HTTPRoute exposes, with the
+#                         fixed version; value EPSS. The Security dashboard's
+#                         "Act now" table.
+#
+# VulnEnrichmentStale (warning, Grafana only) fires when the daily push is
+# missing for 3 days: the act-now list is then out of date, not empty.
+#
+# Tests: tests/prometheus/vuln_enrich_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vuln-enrich
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: vuln.priority
+      rules:
+        - record: vuln:epss:score
+          expr: max by (vuln_id) (vuln_epss_score) or max by (vuln_id) (vuln_kev) * 0
+        - record: vuln:act_now_cve:epss
+          expr: |
+            label_replace(
+              vuln:epss:score and on (vuln_id) (max by (vuln_id) (vuln_kev) == 1),
+              "kev", "yes", "", ""
+            )
+            or
+            label_replace(
+              (vuln:epss:score > 0.1) unless on (vuln_id) (max by (vuln_id) (vuln_kev) == 1),
+              "kev", "no", "", ""
+            )
+        - record: vuln:act_now:epss
+          expr: |
+            max by (namespace, image_registry, image_repository, image_tag, resource, installed_version, fixed_version, vuln_id, severity) (
+              trivy_vulnerability_id{fixed_version!=""}
+            )
+            * on (vuln_id) group_left (kev) vuln:act_now_cve:epss
+            and on (namespace) (max by (namespace) (vuln_namespace_exposed) == 1)
+
+    - name: vuln.enrich
+      rules:
+        - alert: VulnEnrichmentStale
+          expr: |
+            time() - max(max_over_time(vuln_enrich_last_success_timestamp_seconds[4d])) > 3 * 86400
+            or absent_over_time(vuln_enrich_last_success_timestamp_seconds[4d])
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "No KEV/EPSS enrichment in 3 days"
+            description: >-
+              The vuln-enrich CronJob has not pushed for 3 days, so the
+              Security dashboard's "Act now" list is out of date. Check
+              kubectl -n monitoring get cronjob,jobs -l app.kubernetes.io/name=vuln-enrich
+              and the last Job's log.

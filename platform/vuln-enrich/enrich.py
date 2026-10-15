@@ -1,0 +1,144 @@
+"""Enrich the trivy-operator findings with CISA KEV, FIRST EPSS and exposure.
+
+Run daily by the vuln-enrich CronJob. Reads the CVE IDs found in running
+images from Prometheus (`trivy_vulnerability_id`), the namespaces an HTTPRoute
+sends traffic to from the Kubernetes API, and the two public feeds, then
+replaces the job's metrics on the Pushgateway:
+
+  vuln_kev{vuln_id}                    1: in the CISA Known Exploited list
+  vuln_epss_score{vuln_id}             EPSS probability of exploitation, 0-1
+  vuln_epss_percentile{vuln_id}        EPSS percentile, 0-1
+  vuln_namespace_exposed{namespace}    1: an HTTPRoute backend runs there
+  vuln_enrich_cves                     CVE IDs looked up
+  vuln_enrich_last_success_timestamp_seconds
+
+Only CVEs present in the cluster are written, so the series count follows the
+findings, not the feeds. Any failure exits 1 before the push; the previous
+push stays. Stdlib only.
+"""
+from __future__ import annotations
+
+import csv
+import gzip
+import io
+import json
+import os
+import ssl
+import sys
+import time
+import urllib.parse
+import urllib.request
+
+KEV_URL = os.environ.get(
+    "KEV_URL", "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json")
+EPSS_URL = os.environ.get("EPSS_URL", "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz")
+PROM_URL = os.environ.get("PROM_URL", "http://kube-prometheus-stack-prometheus.monitoring.svc:9090")
+PUSH_URL = os.environ.get("PUSH_URL", "http://pushgateway.backup-verify.svc:9091/metrics/job/vuln-enrich")
+K8S_URL = "https://kubernetes.default.svc"
+SA = "/var/run/secrets/kubernetes.io/serviceaccount"
+TIMEOUT = 60
+
+
+def log(msg: str, **kv) -> None:
+    print(json.dumps({"msg": msg, **kv}), flush=True)
+
+
+def get(url: str, headers: dict | None = None, context: ssl.SSLContext | None = None) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "homelab-vuln-enrich", **(headers or {})})
+    with urllib.request.urlopen(req, timeout=TIMEOUT, context=context) as r:
+        return r.read()
+
+
+def our_cves(prom_json: dict) -> set[str]:
+    """CVE IDs from a Prometheus query result of `count by (vuln_id) (...)`."""
+    if prom_json.get("status") != "success":
+        raise ValueError("Prometheus query failed")
+    return {r["metric"]["vuln_id"] for r in prom_json["data"]["result"] if r["metric"].get("vuln_id")}
+
+
+def parse_kev(raw: bytes) -> set[str]:
+    data = json.loads(raw)
+    ids = {v["cveID"] for v in data["vulnerabilities"]}
+    if not ids:
+        raise ValueError("empty KEV catalog")
+    return ids
+
+
+def parse_epss(raw_gz: bytes, wanted: set[str]) -> dict[str, tuple[float, float]]:
+    """{cve: (score, percentile)} for the wanted CVEs. The file starts with a
+    `#model_version:...` comment line, then `cve,epss,percentile`."""
+    text = io.TextIOWrapper(gzip.GzipFile(fileobj=io.BytesIO(raw_gz)), encoding="utf-8")
+    rows = csv.reader(line for line in text if not line.startswith("#"))
+    header = next(rows)
+    if header[:3] != ["cve", "epss", "percentile"]:
+        raise ValueError(f"unexpected EPSS header {header}")
+    out, n = {}, 0
+    for cve, score, pct, *_ in rows:
+        n += 1
+        if cve in wanted:
+            out[cve] = (float(score), float(pct))
+    if n < 1000:
+        raise ValueError(f"EPSS file has only {n} rows")
+    return out
+
+
+def exposed_namespaces(routes: dict) -> set[str]:
+    """Namespaces that receive traffic from an HTTPRoute: each backendRef's
+    namespace, the route's own when the ref names none."""
+    out = set()
+    for r in routes.get("items", []):
+        own = r["metadata"]["namespace"]
+        for rule in r.get("spec", {}).get("rules", []) or []:
+            for ref in rule.get("backendRefs", []) or []:
+                out.add(ref.get("namespace") or own)
+    return out
+
+
+def render(cves: set[str], kev: set[str], epss: dict[str, tuple[float, float]],
+           exposed: set[str], now: float) -> str:
+    lines = [
+        "# TYPE vuln_kev gauge",
+        *(f'vuln_kev{{vuln_id="{c}"}} 1' for c in sorted(cves & kev)),
+        "# TYPE vuln_epss_score gauge",
+        *(f'vuln_epss_score{{vuln_id="{c}"}} {s}' for c, (s, _) in sorted(epss.items())),
+        "# TYPE vuln_epss_percentile gauge",
+        *(f'vuln_epss_percentile{{vuln_id="{c}"}} {p}' for c, (_, p) in sorted(epss.items())),
+        "# TYPE vuln_namespace_exposed gauge",
+        *(f'vuln_namespace_exposed{{namespace="{n}"}} 1' for n in sorted(exposed)),
+        "# TYPE vuln_enrich_cves gauge",
+        f"vuln_enrich_cves {len(cves)}",
+        "# TYPE vuln_enrich_last_success_timestamp_seconds gauge",
+        f"vuln_enrich_last_success_timestamp_seconds {int(now)}",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    try:
+        q = urllib.parse.urlencode({"query": "count by (vuln_id) (trivy_vulnerability_id)"})
+        cves = our_cves(json.loads(get(f"{PROM_URL}/api/v1/query?{q}")))
+        if not cves:
+            raise ValueError("no trivy_vulnerability_id series: metricsVulnIdEnabled off or no reports yet")
+        kev = parse_kev(get(KEV_URL))
+        epss = parse_epss(get(EPSS_URL), cves)
+        token = open(f"{SA}/token").read().strip()
+        ctx = ssl.create_default_context(cafile=f"{SA}/ca.crt")
+        routes = json.loads(get(f"{K8S_URL}/apis/gateway.networking.k8s.io/v1/httproutes",
+                                {"Authorization": f"Bearer {token}"}, ctx))
+        exposed = exposed_namespaces(routes)
+        body = render(cves, kev, epss, exposed, time.time()).encode()
+        req = urllib.request.Request(PUSH_URL, data=body, method="PUT",
+                                     headers={"Content-Type": "text/plain; version=0.0.4"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            if r.status // 100 != 2:
+                raise ValueError(f"push answered {r.status}")
+    except Exception as e:  # one line, then exit 1: the Job fails and the old push stays
+        log("failed", error=f"{type(e).__name__}: {e}")
+        return 1
+    log("pushed", cves=len(cves), kev=len(cves & kev), epss=len(epss),
+        epss_over_0_1=sum(1 for s, _ in epss.values() if s > 0.1), exposed=sorted(exposed))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

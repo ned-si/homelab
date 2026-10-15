@@ -10,7 +10,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards |
 | Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); SLO burn rates, infrastructure criticals, backup failures and critical security alerts go to the hosted ntfy.sh topic ([Notifications](#notifications), policy in [sre.md](sre.md#paging)); everything else goes to `null` and is visible in Grafana only |
-| Custom alert rules | `backup-verify` (group `backup.verify`, the restore tests, in `platform/backup-verify/alerts.yaml`; [backups.md](backups.md#verification)); `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)) |
+| Custom alert rules | `backup-verify` (group `backup.verify`, the restore tests, in `platform/backup-verify/alerts.yaml`; [backups.md](backups.md#verification)); `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)); `vuln-enrich` ([Vulnerability priority](#vulnerability-priority)) |
 | Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents with flow, drop, TCP, ICMP and HTTP metrics, scraped with the Cilium agent, operator and Envoy metrics ([networking.md](networking.md#metrics)); relay and UI not enabled |
 | truenas-exporter | Application `truenas-exporter` in `democratic-csi` ([NAS metrics](#nas-metrics)) |
@@ -18,7 +18,8 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | github-exporter | Application `github-exporter` in `monitoring` (`platform/github-exporter/exporter.py`, stdlib Python): every 15 minutes reads the workflows and their last 30 runs, open and recently closed pull requests and Renovate's Dependency Dashboard from the public GitHub API, unauthenticated (about 11 requests per cycle, ETag-cached, quota 60/hour per IP); metrics `github_*` |
 | usage-exporter | Application `usage-exporter` in `monitoring` (`platform/usage-exporter/exporter.py`, stdlib Python): every 5 minutes Immich `/api/server/statistics` (totals and per user) and Jellyfin `/Items/Counts` and `/Sessions`; API keys in Secret `monitoring/usage-exporter` (keys `IMMICH_API_KEY`, `JELLYFIN_API_KEY`, sealed as PENDING until created, see its template); metrics `immich_*`, `jellyfin_*`, `usage_source_*` |
 | exportarr | a sidecar in Sonarr, Radarr, Lidarr and Prowlarr (port `metrics`, 9707), API key read from the app's `config.xml` by an init container; PodMonitor `theater/exportarr` every 5 minutes |
-| trivy-operator | Application `trivy-operator` in `trivy-system` (`platform/trivy-operator/values.yaml`): a VulnerabilityReport per running workload, fixable MEDIUM and above, rescanned every 24 h; one scan Job at a time against the built-in Trivy server (DB in an emptyDir); metric `trivy_image_vulnerabilities`. CVEs show in Grafana only, they do not page |
+| trivy-operator | Application `trivy-operator` in `trivy-system` (`platform/trivy-operator/values.yaml`): a VulnerabilityReport per running workload, fixable MEDIUM and above, rescanned every 24 h; one scan Job at a time against the built-in Trivy server (DB in an emptyDir); metrics `trivy_image_vulnerabilities` (counts) and `trivy_vulnerability_id` (one series per finding with its fixed version; findings without a severity are dropped at the scrape). CVEs show in Grafana only, they do not page |
+| vuln-enrich | Application `vuln-enrich` in `monitoring` (`platform/vuln-enrich/`): a daily CronJob (06:20 UTC, `enrich.py`, stdlib Python) that looks up every CVE of `trivy_vulnerability_id` in the [CISA KEV catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) and the [FIRST EPSS](https://www.first.org/epss/) scores, lists the namespaces an HTTPRoute sends traffic to, and pushes `vuln_kev`, `vuln_epss_score`, `vuln_epss_percentile`, `vuln_namespace_exposed` to the backup-verify Pushgateway; recording rules `vuln:*` ([Vulnerability priority](#vulnerability-priority)) |
 
 Manual checks: the smoke suite
 ([runbooks/cold-start.md](runbooks/cold-start.md#step-8-smoke-suite)), the
@@ -49,8 +50,8 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 
 | Dashboard (uid) | Shows |
 | --- | --- |
-| Homelab / Overview (`homelab-overview`) | the start page: links to every dashboard (a text row, plus the `homelab` tag dropdown); now: nodes Ready, alerts firing, Argo CD apps not Synced/Healthy, public probes down, stale backups, NAS pool used, critical CVEs, AWS month-end estimate; 30-day availability and error budget per app with the share of the 30 days that has SLI data, 1h burn rate, probe status; hours since the last Postgres base backup and backup CronJob success; one or two figures per area (node CPU and memory, Gateway 5xx share, drops, NAS full in, LAN devices down, CI on main, open PRs, new LAN MACs, soonest certificate expiry, Immich assets, Jellyfin streams); internal endpoints, pods not Ready, restarts, certificate expiry, running image tags. Small stat panels come first so the page reads top to bottom on a phone |
-| Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Keycloak failed logins and lockouts (`keycloak_user_events_total`, ServiceMonitor `keycloak/keycloak` on the management port), Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
+| Homelab / Overview (`homelab-overview`) | the start page: links to every dashboard (a text row, plus the `homelab` tag dropdown); now: nodes Ready, alerts firing, Argo CD apps not Synced/Healthy, public probes down, stale backups, NAS pool used, fixable critical CVEs, AWS month-end estimate; 30-day availability and error budget per app with the share of the 30 days that has SLI data, 1h burn rate, probe status; hours since the last Postgres base backup and backup CronJob success; one or two figures per area (node CPU and memory, Gateway 5xx share, drops, NAS full in, LAN devices down, CI on main, open PRs, new LAN MACs, soonest certificate expiry, Immich assets, Jellyfin streams); internal endpoints, pods not Ready, restarts, certificate expiry, running image tags. Small stat panels come first so the page reads top to bottom on a phone |
+| Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Keycloak failed logins and lockouts (`keycloak_user_events_total`, ServiceMonitor `keycloak/keycloak` on the management port), Secret age (names only), images without a pinned tag; the act-now findings with their fixed version, CVEs in CISA KEV and with EPSS above 0.1, the enrichment's age; fixable CVEs in running images by severity, namespace and image (trivy-operator) |
 | Homelab / Usage (`homelab-usage`) | Immich photos, videos and storage, in total and per user; Sonarr/Radarr/Lidarr series, episodes, movies, music, missing and wanted, library size on disk, download queues, Prowlarr grabs per indexer; Jellyfin items per type, streams now, hours watched per user and day; which sources report. Plex, Audiobookshelf and Calibre are not covered (no stats without another app or a token) |
 | Homelab / CI-CD (`homelab-cicd`) | latest run on main and success rate per GitHub workflow, run durations, open pull requests by age, Renovate automerge rate and lead time, Dependency Dashboard sections, auto-rollback pull requests, Argo CD applications not Synced/Healthy, time since each application's last successful sync |
 | Homelab / Nodes (`homelab-nodes`) | per node: Talos, kernel, Kubernetes and containerd versions, Ready, uptime; saturation (CPU, memory, PSI, eMMC busy), latency (eMMC and iSCSI per operation), traffic (NIC, eMMC, iSCSI, eMMC bytes written per day), errors (NIC errors and drops, link flaps, OOM kills); SoC temperature, eMMC wear; etcd leader, database size, WAL fsync and commit p99, failed proposals, peer round trip |
@@ -282,6 +283,37 @@ repository's config, counting the notifications it sends.
 `Watchdog` always fires, by design: the heartbeat provider alerts when it stops
 arriving, which is the only way to learn that the cluster, Alertmanager or the
 house's internet is down. Never silence it.
+
+## Vulnerability priority
+
+trivy-operator reports every fixable CVE (thousands); most are never
+exploited. The Security dashboard ranks them deterministically, from public
+data, no judgement:
+
+| Signal | Source | Meaning |
+| --- | --- | --- |
+| fixable | trivy-operator `ignoreUnfixed`; every finding has a `fixed_version` | an image tag can remove it |
+| KEV | CISA Known Exploited Vulnerabilities, `vuln_kev` | exploited in the wild |
+| EPSS | FIRST EPSS, `vuln_epss_score` | probability of exploitation activity in the next 30 days |
+| exposed | an HTTPRoute backend in the namespace, `vuln_namespace_exposed` | reachable from the internet through the Gateway |
+
+`vuln:act_now:epss` (PrometheusRule `vuln-enrich`, `platform/vuln-enrich/rules.yaml`)
+is one series per finding that is fixable, exposed, and KEV or EPSS above 0.1,
+with the image, package, installed and fixed version, CVE and `kev` as labels
+and EPSS as the value: the "Act now" table. The headline counts (overview,
+"Fixable CVEs in running images") stay the full fixable set.
+
+The data refreshes once a day. `VulnEnrichmentStale` (warning, Grafana only)
+fires when no push succeeded for 3 days. Run it now:
+
+```sh
+kubectl -n monitoring create job --from=cronjob/vuln-enrich vuln-enrich-manual
+kubectl -n monitoring logs -f job/vuln-enrich-manual
+# expected: {"msg": "pushed", "cves": <n>, "kev": <n>, ...}
+kubectl -n monitoring delete job vuln-enrich-manual
+```
+
+Tests: `tests/test_vuln_enrich.py`, `tests/prometheus/vuln_enrich_test.yaml`.
 
 ## Argo CD alerts
 

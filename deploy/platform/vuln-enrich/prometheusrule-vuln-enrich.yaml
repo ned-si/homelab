@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/vuln-enrich
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/vuln-enrich and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: vuln-enrich
+  namespace: monitoring
+spec:
+  groups:
+  - name: vuln.priority
+    rules:
+    - expr: max by (vuln_id) (vuln_epss_score) or max by (vuln_id) (vuln_kev) * 0
+      record: vuln:epss:score
+    - expr: |
+        label_replace(
+          vuln:epss:score and on (vuln_id) (max by (vuln_id) (vuln_kev) == 1),
+          "kev", "yes", "", ""
+        )
+        or
+        label_replace(
+          (vuln:epss:score > 0.1) unless on (vuln_id) (max by (vuln_id) (vuln_kev) == 1),
+          "kev", "no", "", ""
+        )
+      record: vuln:act_now_cve:epss
+    - expr: |
+        max by (namespace, image_registry, image_repository, image_tag, resource, installed_version, fixed_version, vuln_id, severity) (
+          trivy_vulnerability_id{fixed_version!=""}
+        )
+        * on (vuln_id) group_left (kev) vuln:act_now_cve:epss
+        and on (namespace) (max by (namespace) (vuln_namespace_exposed) == 1)
+      record: vuln:act_now:epss
+  - name: vuln.enrich
+    rules:
+    - alert: VulnEnrichmentStale
+      annotations:
+        description: The vuln-enrich CronJob has not pushed for 3 days, so the Security
+          dashboard's "Act now" list is out of date. Check kubectl -n monitoring get
+          cronjob,jobs -l app.kubernetes.io/name=vuln-enrich and the last Job's log.
+        summary: No KEV/EPSS enrichment in 3 days
+      expr: |
+        time() - max(max_over_time(vuln_enrich_last_success_timestamp_seconds[4d])) > 3 * 86400
+        or absent_over_time(vuln_enrich_last_success_timestamp_seconds[4d])
+      for: 1h
+      labels:
+        severity: warning

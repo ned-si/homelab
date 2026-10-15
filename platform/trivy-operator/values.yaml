@@ -27,7 +27,11 @@ operator:
   exposedSecretScannerEnabled: false
   builtInTrivyServer: true
   metricsFindingsEnabled: true
-  metricsVulnIdEnabled: false
+  # trivy_vulnerability_id: one series per finding with the CVE and the fixed
+  # version, which platform/vuln-enrich joins with KEV and EPSS. Findings
+  # without a severity are dropped at the scrape (serviceMonitor below):
+  # about 8,700 of 13,700, not actionable.
+  metricsVulnIdEnabled: true
 
 # Kubernetes system images are scanned too; nothing is excluded.
 excludeNamespaces: ""
@@ -40,6 +44,11 @@ serviceMonitor:
   interval: 5m
   labels:
     release: kube-prometheus-stack
+  endpointAdditionalProperties:
+    metricRelabelings:
+      - sourceLabels: [__name__, severity]
+        regex: "trivy_vulnerability_id;(Unknown|Low)"
+        action: drop
 
 trivyOperator:
   scanJobPodTemplatePodSecurityContext:

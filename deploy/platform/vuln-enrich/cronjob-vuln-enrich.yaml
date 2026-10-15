@@ -1,0 +1,69 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/vuln-enrich
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/vuln-enrich and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/name: vuln-enrich
+  name: vuln-enrich
+  namespace: monitoring
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 900
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: vuln-enrich
+        spec:
+          automountServiceAccountToken: true
+          containers:
+          - command:
+            - python3
+            - -u
+            - /app/enrich.py
+            image: python:3.15.0-alpine3.24
+            name: enrich
+            resources:
+              limits:
+                memory: 192Mi
+              requests:
+                cpu: 50m
+                memory: 64Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /app
+              name: app
+              readOnly: true
+          restartPolicy: Never
+          securityContext:
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: vuln-enrich
+          volumes:
+          - configMap:
+              name: vuln-enrich-dk2b9d5f6f
+            name: app
+  schedule: 20 6 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  suspend: false

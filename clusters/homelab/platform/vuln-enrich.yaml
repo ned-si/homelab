@@ -1,0 +1,34 @@
+# vuln-enrich: KEV, EPSS and exposure for the trivy-operator findings, and
+# the act-now rules of the Security dashboard (platform/vuln-enrich).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vuln-enrich
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10) and trivy-operator (20): the
+    # PrometheusRule CRD, and the findings it reads.
+    argocd.argoproj.io/sync-wave: "21"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/platform/vuln-enrich
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -149,6 +149,18 @@ misconfigurations:
       credential is present in the ConfigMap.
     expired_at: 2027-03-01
 
+  # vuln-enrich's enrich.py reads the pod's service-account token from its
+  # file at run time and sends it as `Authorization: Bearer`; the ConfigMap
+  # holds the code, not the token.
+  - id: AVD-KSV-0109
+    paths:
+      - "deploy/platform/vuln-enrich/configmap-vuln-enrich-*.yaml"
+    statement: >-
+      False positive, verified by grep. The flagged text is the Python that
+      reads /var/run/secrets/kubernetes.io/serviceaccount/token at run time.
+      No credential is present in the ConfigMap.
+    expired_at: 2027-03-01
+
   # =========================================================================
   # BY DESIGN -- the LAN inventory's ARP scan
   # =========================================================================
