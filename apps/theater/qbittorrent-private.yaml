@@ -34,8 +34,9 @@ data:
         except urllib.error.HTTPError as e:
             return e.code, e.read().decode()
 
-    status, body = post("auth/login", username=os.environ["QBITTORRENT_USER"],
-                        password=os.environ["QBITTORRENT_PASS"])
+    login = {"username": os.environ["QBITTORRENT_USER"],
+             "password": os.environ["QBITTORRENT_PASS"]}
+    status, body = post("auth/login", **login)
     if status != 200 or body.strip() != "Ok.":
         sys.exit(f"login failed: HTTP {status}")
 
