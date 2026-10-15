@@ -1,0 +1,122 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/home
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/home and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: mosquitto
+  name: mosquitto
+  namespace: home
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mosquitto
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mosquitto
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - command:
+        - mosquitto
+        - -c
+        - /mosquitto/config/mosquitto.conf
+        image: eclipse-mosquitto:2.1.2-alpine
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          tcpSocket:
+            port: mqtt
+        name: mosquitto
+        ports:
+        - containerPort: 1883
+          name: mqtt
+          protocol: TCP
+        readinessProbe:
+          periodSeconds: 10
+          tcpSocket:
+            port: mqtt
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /mosquitto/config
+          name: config
+          readOnly: true
+        - mountPath: /mosquitto/auth
+          name: auth
+          readOnly: true
+      initContainers:
+      - args:
+        - |
+          umask 077
+          : > /auth/passwd
+          for f in /users/*; do
+            printf '%s:%s\n' "$(basename "$f")" "$(cat "$f")" >> /auth/passwd
+          done
+          mosquitto_passwd -U /auth/passwd
+          echo "ok: $(wc -l < /auth/passwd) user(s)"
+        command:
+        - /bin/sh
+        - -euc
+        image: eclipse-mosquitto:2.1.2-alpine
+        imagePullPolicy: IfNotPresent
+        name: passwd
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /users
+          name: users
+          readOnly: true
+        - mountPath: /auth
+          name: auth
+      securityContext:
+        runAsGroup: 1883
+        runAsNonRoot: true
+        runAsUser: 1883
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - configMap:
+          name: mosquitto-config-95kc6tt656
+        name: config
+      - name: users
+        secret:
+          secretName: mosquitto-users
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
+        name: auth

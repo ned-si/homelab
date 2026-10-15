@@ -1,0 +1,139 @@
+# Mosquitto: the MQTT broker for Zigbee2MQTT (zigbee2mqtt.yaml) and, later,
+# MQTT devices such as ESPHome nodes. In-cluster only (Service
+# mosquitto.home:1883); docs/home-automation.md.
+#
+# Auth: no anonymous clients. One user per client, passwords in the SOPS
+# Secret `mosquitto-users` (apps/secrets/mosquitto-users.sops.yaml), one key
+# per user. The `passwd` init container hashes them into the password file
+# (mosquitto_passwd -U), so only hashes reach the broker. The ACL limits each
+# user to its topics (config/mosquitto/acl).
+#
+# No persistence: Zigbee2MQTT republishes state and discovery when Home
+# Assistant comes online (its birth message), so retained messages are
+# rebuilt after a restart. Nothing to back up: config in git, users in SOPS.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: mosquitto
+  name: mosquitto
+  namespace: home
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mosquitto
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mosquitto
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # The image's `mosquitto` user.
+        runAsUser: 1883
+        runAsGroup: 1883
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: passwd
+          # renovate: datasource=docker depName=eclipse-mosquitto
+          image: eclipse-mosquitto:2.1.2-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-euc"]
+          args:
+            - |
+              umask 077
+              : > /auth/passwd
+              for f in /users/*; do
+                printf '%s:%s\n' "$(basename "$f")" "$(cat "$f")" >> /auth/passwd
+              done
+              mosquitto_passwd -U /auth/passwd
+              echo "ok: $(wc -l < /auth/passwd) user(s)"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: users
+              mountPath: /users
+              readOnly: true
+            - name: auth
+              mountPath: /auth
+      containers:
+        - name: mosquitto
+          # renovate: datasource=docker depName=eclipse-mosquitto
+          image: eclipse-mosquitto:2.1.2-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["mosquitto", "-c", "/mosquitto/config/mosquitto.conf"]
+          ports:
+            - name: mqtt
+              containerPort: 1883
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: mqtt
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: mqtt
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /mosquitto/config
+              readOnly: true
+            - name: auth
+              mountPath: /mosquitto/auth
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: mosquitto-config
+        - name: users
+          secret:
+            secretName: mosquitto-users
+        - name: auth
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: mosquitto
+  name: mosquitto
+  namespace: home
+spec:
+  type: ClusterIP
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: mqtt
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: mosquitto

@@ -10,13 +10,18 @@ resources:
   - cnpg-backup.yaml
   # restic: recorder dump and config volume, plus the monthly prune.
   - backup.yaml
+  # MQTT broker for Zigbee2MQTT and MQTT devices.
+  - mosquitto.yaml
 
-# configuration.yaml from git. The hash suffix restarts Home Assistant when
-# the file changes.
+# Config files from git. The hash suffix restarts the pod when one changes.
 configMapGenerator:
   - name: home-assistant-config
     files:
       - config/configuration.yaml
+  - name: mosquitto-config
+    files:
+      - config/mosquitto/mosquitto.conf
+      - config/mosquitto/acl
 
 # Before every sync: the backup, unless one is < 24 h old.
 # After every sync: the Service answers on the health endpoint.

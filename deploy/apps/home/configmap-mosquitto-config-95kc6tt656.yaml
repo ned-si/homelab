@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/home
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/home and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  acl: |
+    # Mosquitto ACL, from git (apps/home/config/mosquitto/). One block per user
+    # of the Secret `mosquitto-users`; a user without a block can do nothing.
+
+    # Home Assistant: the MQTT integration reads and commands everything.
+    user homeassistant
+    topic readwrite #
+
+    # Zigbee2MQTT: its own tree, Home Assistant discovery, and HA's birth message.
+    user zigbee2mqtt
+    topic readwrite zigbee2mqtt/#
+    topic readwrite homeassistant/#
+  mosquitto.conf: |
+    # Mosquitto broker configuration, from git (apps/home/config/mosquitto/).
+    listener 1883
+    protocol mqtt
+
+    allow_anonymous false
+    password_file /mosquitto/auth/passwd
+    acl_file /mosquitto/config/acl
+
+    # Zigbee2MQTT republishes state when Home Assistant comes online.
+    persistence false
+
+    log_dest stdout
+    log_type error
+    log_type warning
+    log_type notice
+    log_type information
+    log_timestamp_format %Y-%m-%dT%H:%M:%S
+kind: ConfigMap
+metadata:
+  name: mosquitto-config-95kc6tt656
+  namespace: home
