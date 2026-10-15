@@ -133,6 +133,21 @@ Rejected: Dependency Dashboard approval for database and Immich majors, which
 left updates pending indefinitely; required self-reviews or a bot approver,
 which raise the score without anyone reviewing.
 
+## Deterministic first
+
+Deterministic first; AI only where determinism isn't possible, and for
+summaries, pull requests and text. Tests, CI checks, alert rules, thresholds,
+backup verification and automatic rollback are scripts and rules with fixed
+inputs and outputs. AI may draft commit messages, pull request descriptions,
+docs and incident summaries; a deterministic check still gates what merges.
+
+Why: a gate that answers differently on the same input cannot be trusted,
+tested or debugged at 3 a.m. Drafting text is where AI saves time without
+deciding anything.
+
+Rejected: AI in the decision path (an AI judging whether to alert, merge or
+revert).
+
 ## Database majors fix forward
 
 A database image bump (CloudNativePG Postgres, Seafile's MariaDB) automerges
