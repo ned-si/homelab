@@ -30,7 +30,7 @@ spec:
       parameters:
         barmanObjectName: cnpg-backup
         serverName: keycloak-db
-  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-minimal-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11
   instances: 1
   plugins:
   - enabled: true
