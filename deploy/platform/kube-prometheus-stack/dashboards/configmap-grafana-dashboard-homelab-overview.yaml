@@ -91,7 +91,7 @@ data:
           "title": "Dashboards",
           "options": {
             "mode": "markdown",
-            "content": "[Nodes](/d/homelab-nodes) \u00b7 [Network](/d/homelab-network) \u00b7 [Storage](/d/homelab-storage) \u00b7 [LAN](/d/homelab-lan) \u00b7 [CI-CD](/d/homelab-cicd) \u00b7 [Security](/d/homelab-security) \u00b7 [Data protection](/d/homelab-data-protection) \u00b7 [Usage](/d/homelab-usage) \u00b7 [AWS](/d/homelab-aws) \u00b7 [Home](/d/home)"
+            "content": "[Nodes](/d/homelab-nodes) \u00b7 [Network](/d/homelab-network) \u00b7 [Storage](/d/homelab-storage) \u00b7 [LAN](/d/homelab-lan) \u00b7 [CI-CD](/d/homelab-cicd) \u00b7 [Security](/d/homelab-security) \u00b7 [Usage](/d/homelab-usage) \u00b7 [AWS](/d/homelab-aws) \u00b7 [Home](/d/home)"
           },
           "id": 1,
           "gridPos": {
