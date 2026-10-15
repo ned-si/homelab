@@ -85,6 +85,18 @@ misconfigurations:
       without patching an upstream release bundle and breaking Postgres backups.
       Re-read on the next plugin bump.
     expired_at: 2026-12-01
+  # The restore tests read each source database as its owner, so they `get` the
+  # CNPG -app Secrets (and Seafile's database Secret) by name: resourceNames
+  # lists nine Secrets, verb `get` only, no list or watch.
+  - id: AVD-KSV-0041
+    paths:
+      - "platform/backup-verify/rbac.yaml"
+      - "deploy/platform/backup-verify/clusterrole-backup-verify-sources.yaml"
+    statement: >-
+      get on nine named Secrets (the source databases' credentials), no list,
+      watch or write. The restore tests count the source rows read-only to
+      compare them with the restore. Re-read when a target is added.
+    expired_at: 2027-04-01
   - id: AVD-KSV-0050
     paths:
       - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"
@@ -116,15 +128,12 @@ misconfigurations:
   # without anyone noticing.
   - id: AVD-KSV-0109
     paths:
-      - "platform/backup-verify/restore-files.yaml"
-      - "platform/backup-verify/restore-postgres.yaml"
-      - "deploy/platform/backup-verify/configmap-backup-verify-files-scripts.yaml"
-      - "deploy/platform/backup-verify/configmap-backup-verify-scripts.yaml"
+      - "deploy/platform/backup-verify/configmap-backup-verify-scripts-*.yaml"
     statement: >-
-      False positive, verified by grep. The flagged value is the shell string
-      'echo "PASS' from the drills' PASS/FAIL output, matched as the prefix of
-      PASSWORD. No credential is present; both read from the s3-backup Secret via
-      envFrom.
+      False positive, verified by grep. The flagged values are shell lines of the
+      restore-test scripts (PASS/FAIL output, the printf that writes a MariaDB
+      option file from a Secret at run time). No credential is present; they
+      come from Secrets at run time.
     expired_at: 2027-03-01
 
   # Bazarr's first-start seed script writes `password: $hash` and
@@ -177,7 +186,7 @@ misconfigurations:
   # backup-verify holds only the drills and the ephemeral clusters they create.
   - id: AVD-KSV-0053
     paths:
-      - "platform/backup-verify/restore-postgres.yaml"
+      - "platform/backup-verify/rbac.yaml"
       - "deploy/platform/backup-verify/role-backup-verify.yaml"
     statement: >-
       Namespaced Role, not cluster-wide. pods/exec is how the weekly drill runs

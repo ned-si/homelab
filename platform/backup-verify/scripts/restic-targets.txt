@@ -1,0 +1,27 @@
+# Weekly sample restores (verify-files.sh). One line per snapshot tag:
+# <target>|<repository>|<tag>|<required files, ;-separated, as in the snapshot>
+# <repository> is s3:<prefix in ned-si-homelab-backups> or local:<path>.
+# Required files are the identity and database files a restore cannot do
+# without; a sample of other files is added every run.
+immich-library|s3:immich/library|immich-library|
+nas-immich-library|local:/backups/immich/library|immich-library|
+mealie-files|s3:mealie/data|mealie-files|/data/.secret
+mealie-postgres|s3:mealie/data|mealie-postgres|/dumps/pg-mealie-mealie-postgresql.dump
+paperless-media|s3:paperless/media|paperless-media|
+paperless-data|s3:paperless/media|paperless-data|/data/db.sqlite3
+seafile-data|s3:seafile/shared|seafile-data|/shared/seafile/conf/seafile.conf;/shared/seafile/conf/ccnet.conf
+seafile-mariadb|s3:seafile/shared|seafile-mariadb|/dumps/seafile-mariadb.sql.gz
+syncthing-identity|s3:syncthing/data|syncthing-identity|/data/config/cert.pem;/data/config/key.pem;/data/config/config.xml
+theater-postgres|s3:theater/configs|theater-postgres|/dumps/pg-sonarr.dump;/dumps/pg-radarr.dump;/dumps/pg-lidarr.dump;/dumps/pg-prowlarr.dump
+sonarr|s3:theater/configs|sonarr|/config/config.xml
+radarr|s3:theater/configs|radarr|/config/config.xml
+lidarr|s3:theater/configs|lidarr|/config/config.xml
+prowlarr|s3:theater/configs|prowlarr|/config/config.xml
+plex|s3:theater/configs|plex|/config/Library/Application Support/Plex Media Server/Preferences.xml
+jellyfin-config|s3:theater/configs|jellyfin-config|/config/config/system.xml
+lazylibrarian|s3:theater/configs|lazylibrarian|/config/config.ini
+audiobookshelf|s3:books/configs|audiobookshelf|/data/config/absdatabase.sqlite
+calibre-web|s3:books/configs|calibre-web|/config/app.db
+calibre-library|s3:books/configs|calibre-library|/library/metadata.db
+home-assistant-config|s3:home/configs|home-assistant-config|/config/configuration.yaml;/config/.storage/core.config_entries
+home-assistant-postgres|s3:home/configs|home-assistant-postgres|/dumps/pg-home-home-assistant-postgresql.dump

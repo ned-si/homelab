@@ -1,0 +1,26 @@
+# The Barman Cloud archive the restore Clusters read from. The credentials are
+# the read-only verifier key (Secret s3-backup in this namespace). No
+# retentionPolicy: this ObjectStore never manages backups, it is only read.
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: verify-source
+spec:
+  configuration:
+    destinationPath: s3://ned-si-homelab-backups/cnpg
+    endpointURL: https://s3.eu-central-1.amazonaws.com
+    s3Credentials:
+      accessKeyId:
+        name: s3-backup
+        key: ACCESS_KEY_ID
+      secretAccessKey:
+        name: s3-backup
+        key: ACCESS_SECRET_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  instanceSidecarConfiguration:
+    env:
+      - name: AWS_DEFAULT_REGION
+        value: eu-central-1

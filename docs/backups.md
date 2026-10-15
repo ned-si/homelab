@@ -5,14 +5,14 @@ backed up nightly with restic to one S3 bucket (`ned-si-homelab-backups`,
 `eu-central-1`). The
 Immich photo library also has a second, independent restic repository on the NAS.
 Every CloudNativePG cluster archives its WAL continuously and takes a daily base
-backup to the same bucket (`cnpg/<cluster>/`) through the Barman Cloud plugin,
+backup to the same bucket (`cnpg/<serverName>/`) through the Barman Cloud plugin,
 kept 30 days, so each Postgres database can be recovered to any point in that
 window. MariaDB and the Mealie and *arr Postgres databases are also captured as
 logical dumps inside the restic repositories.
 
-Restores have been rehearsed from S3 with the read-only key for `mealie/data` (files
-and Postgres dump), for a sample of 50 Immich originals, and for all seven Postgres
-clusters from their Barman Cloud backups. The steps are in
+Every week, `backup-verify` restores a sample of every restic repository, every
+CNPG cluster and the Seafile MariaDB dump, compares them with the source and
+reports to Prometheus ([Verification](#verification)). The manual steps are in
 [How to restore](#how-to-restore).
 
 ## What is backed up where
@@ -58,10 +58,10 @@ upgrades, not against losing the NAS.
 
 | Database | Captured by | Into | Consistency |
 |---|---|---|---|
-| `immich/immich-db` | Barman Cloud plugin: WAL + `immich-db-daily` | `cnpg/immich-db/` | point-in-time, 30 days |
-| `keycloak/keycloak-db` | Barman Cloud plugin: WAL + `keycloak-db-daily` | `cnpg/keycloak-db/` | point-in-time, 30 days |
-| `mealie/mealie-postgresql` | Barman Cloud plugin: WAL + `mealie-postgresql-daily`; `pg_dump` in `mealie-backup` | `cnpg/mealie-postgresql/`; `mealie/data` | point-in-time, 30 days; dump consistent, one transaction |
-| `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | Barman Cloud plugin: WAL + `<cluster>-daily`; `pg_dump` in `theater-postgres-backup` | `cnpg/<cluster>/`; `theater/configs` | point-in-time, 30 days; dump consistent, one transaction |
+| `immich/immich-db` | Barman Cloud plugin: WAL + `immich-db-daily` | `cnpg/immich-db-t1/` | point-in-time, 30 days |
+| `keycloak/keycloak-db` | Barman Cloud plugin: WAL + `keycloak-db-daily` | `cnpg/keycloak-db-t1/` | point-in-time, 30 days |
+| `mealie/mealie-postgresql` | Barman Cloud plugin: WAL + `mealie-postgresql-daily`; `pg_dump` in `mealie-backup` | `cnpg/mealie-postgresql-t1/`; `mealie/data` | point-in-time, 30 days; dump consistent, one transaction |
+| `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | Barman Cloud plugin: WAL + `<cluster>-daily`; `pg_dump` in `theater-postgres-backup` | `cnpg/<cluster>-t1/`; `theater/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | `home/home-assistant-postgresql` | Barman Cloud plugin: WAL + `home-assistant-postgresql-daily`; `pg_dump` in `home-assistant-backup` | `cnpg/home-assistant-postgresql/`; `home/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | Seafile MariaDB | `mariadb-dump --single-transaction` (client `mariadb:10.11`, same as the server) in `seafile-backup` | `seafile/shared` | consistent, no table locks |
 | Paperless SQLite | file copy of `db.sqlite3` inside `/data` | `paperless/media` | may be torn: the restic image has no `sqlite3`, so `.backup` is skipped and the job logs a warning |
@@ -72,8 +72,10 @@ Each Cluster lists the plugin in `spec.plugins` with `isWALArchiver: true` and
 `platform/keycloak/backup.yaml`, `apps/immich/resources/backup.yaml`). The plugin
 runs as a sidecar (`plugin-barman-cloud`) in each instance pod, so the Postgres
 image needs no barman tools; that is why the pgvecto.rs image of `immich-db` works
-unchanged. With no `serverName` set, objects land under `cnpg/<cluster>/base/` and
-`cnpg/<cluster>/wals/`. A WAL segment is archived when it fills or after
+unchanged. Objects land under `cnpg/<serverName>/base/` and
+`cnpg/<serverName>/wals/`. `serverName` is `<cluster>-t1` (new archives since the
+Talos cutover), except `home-assistant-postgresql`, whose archive carries its own
+name. A WAL segment is archived when it fills or after
 `archive_timeout` (5 minutes) if it holds any WAL. Check one cluster:
 
 ```sh
@@ -119,19 +121,22 @@ held by a Renovate rule until a major bump also moves the plugin's `serverName`
 RPO is the most data you can lose. RTO here is what a rehearsed restore took; where
 nothing was rehearsed, the column says so.
 
-| Data | Copies | RPO | Restore rehearsed | RTO |
+"Weekly sample" means the required files of each tag plus five sampled files,
+restored and size-checked every week ([Verification](#verification)).
+
+| Data | Copies | RPO | Restore tested | RTO |
 |---|---|---|---|---|
-| Immich originals | S3 + NAS | 24 h | from S3, 50-file sample, 2026-10-06 | 410 MiB in 8 s. Full library (256 GiB) not rehearsed; at the sample's rate about 1.5 h, plus about $30 of retrieval and egress |
-| Immich originals, NAS copy | NAS | 24 h | no | — |
-| Postgres databases (all seven CNPG clusters) | S3 (Barman Cloud) | about 5 min (`archive_timeout`) | from S3, every cluster, 2026-10-13 | 2 to 5 min per cluster into a new cluster (table in [Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3)) |
-| Mealie files + database dump | S3 | 24 h | from S3, full, 2026-10-06 | restore 24 s; dump restored into a throwaway Postgres, row counts equal to live |
-| Paperless documents + SQLite | S3 | 24 h | no | — |
-| Seafile blobs + MariaDB | S3 | 24 h | no | — |
-| Syncthing identity + config | S3 | 24 h | no | — |
-| *arr, Plex, Jellyfin config and *arr databases | S3 | 24 h | no | — |
-| Audiobookshelf config and database backups | S3 | 24 h | no | — |
-| Home Assistant config | S3 | 24 h | no | — |
-| Ebook library and Calibre-Web config | S3 | 24 h | no | — |
+| Immich originals | S3 + NAS | 24 h | weekly sample; 50-file sample by hand 2026-10-06 | 410 MiB in 8 s. Full library (256 GiB) not rehearsed; at the sample's rate about 1.5 h, plus about $30 of retrieval and egress |
+| Immich originals, NAS copy | NAS | 24 h | weekly sample | — |
+| Postgres databases (all eight CNPG clusters) | S3 (Barman Cloud) | about 5 min (`archive_timeout`) | weekly, every cluster into a new cluster, row counts equal to the source | 2 to 5 min per cluster into a new cluster (table in [Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3)) |
+| Mealie files + database dump | S3 | 24 h | weekly sample; full by hand 2026-10-06 | restore 24 s; dump restored into a throwaway Postgres, row counts equal to live |
+| Paperless documents + SQLite | S3 | 24 h | weekly sample | — |
+| Seafile blobs + MariaDB | S3 | 24 h | weekly sample; dump loaded into a scratch MariaDB and compared weekly | — |
+| Syncthing identity + config | S3 | 24 h | weekly sample (`cert.pem`, `key.pem`, `config.xml`) | — |
+| *arr, Plex, Jellyfin config and *arr databases | S3 | 24 h | weekly sample (Bazarr from its first snapshot on) | — |
+| Audiobookshelf config and database backups | S3 | 24 h | weekly sample | — |
+| Home Assistant config | S3 | 24 h | weekly sample | — |
+| Ebook library and Calibre-Web config | S3 | 24 h | weekly sample | — |
 | Media library | none | everything | — | — |
 | Cluster state | git, plus etcd snapshots by hand | last merged commit | no | rebuild, see [bootstrap.md](bootstrap.md) and [runbooks/cold-start.md](runbooks/cold-start.md) |
 
@@ -166,19 +171,21 @@ The theater jobs share one repository and restic takes an exclusive lock for
 `restic check`. The running set is listed in `ci/active-cronjobs.txt`; CI fails any
 other rendered CronJob that is not suspended.
 
+The restore tests run on weekend evenings, outside this window and one at a
+time: `backup-verify-mariadb` Saturday 21:00, `backup-verify-files` Saturday
+22:00, `backup-verify-postgres` Sunday 21:00 ([Verification](#verification)).
+
 A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack.
 For Postgres, PrometheusRule `cnpg-backups` (group `cnpg.backups`, in
 `platform/barman-cloud-plugin/monitoring.yaml`, scraped by PodMonitor
 `cnpg-instances`) fires `CNPGBackupFailed`, `CNPGBaseBackupTooOld` (no base backup
 in 26 h, or never), `CNPGBackupMetricsMissing` (an instance without the plugin
 sidecar), `CNPGWALArchivingFailing`, `CNPGWALArchiveLag` (more than 5 segments
-waiting for 30 min) and `CNPGMetricsAbsent`. Alertmanager has only the `null`
-receiver, so nobody is notified: check the alerts page and the Jobs by hand
-([observability.md](observability.md)). The file-backup alerts in
-`platform/backup-verify/alerts.yaml` are not deployed.
+waiting for 30 min) and `CNPGMetricsAbsent`. Warning and critical alerts go to
+ntfy ([observability.md](observability.md#notifications)).
 
 ```sh
-kubectl get cronjobs -A | grep -E 'backup|prune'   # 19 lines, SUSPEND False
+kubectl get cronjobs -A | grep -E 'backup|prune'   # 29 lines, SUSPEND False
 kubectl get jobs -A | grep -E 'backup|prune'       # after 05:30 UTC: every job Complete
 ```
 
@@ -585,7 +592,7 @@ spec:
         name: barman-cloud.cloudnative-pg.io
         parameters:
           barmanObjectName: cnpg-restore
-          serverName: immich-db   # the SOURCE cluster's name
+          serverName: immich-db-t1   # the SOURCE cluster's serverName
 ```
 
 Expected: `kubectl -n restore-test wait --for=condition=Ready cluster/immich-db-restored --timeout=45m`
@@ -666,7 +673,7 @@ Versioning on, public access blocked, SSE-S3.
 |---|---|---|
 | `<repository>/data/` | restic pack files | Glacier Instant Retrieval after 1 day |
 | `<repository>/` everything else | restic `config`, `keys/`, `index/`, `snapshots/`, `locks/` | Standard: read on every restic operation |
-| `cnpg/<cluster>/base/`, `cnpg/<cluster>/wals/` | Barman Cloud base backups and WAL of each CNPG cluster; the plugin deletes what falls out of its 30-day retention | Standard |
+| `cnpg/<serverName>/base/`, `cnpg/<serverName>/wals/` | Barman Cloud base backups and WAL of each CNPG cluster; the plugin deletes what falls out of its 30-day retention | Standard |
 
 The lifecycle rule is generated per repository from `local.restic_repos` in
 `bootstrap/aws-backup/main.tf`, because S3 prefix filters have no wildcards. A
@@ -840,19 +847,95 @@ For a new bucket or a rebuilt cluster, in order.
 
 ## Verification
 
-What runs: every nightly job ends with `restic check` (structure: snapshots, trees
-and blob index, not the pack contents), and a failed Job fires `KubeJobFailed` in
-Prometheus, which reaches no one until Alertmanager has a receiver.
+Every nightly job ends with `restic check` (structure: snapshots, trees and blob
+index, not the pack contents). On top of that, the Application `backup-verify`
+(`platform/backup-verify/`, namespace `backup-verify`) restores every backup on a
+schedule and compares the result. It only reads: S3 through the read-only verifier
+key in `backup-verify/s3-backup`, the NAS repository mounted read-only, restic
+with `--no-lock`, and the production databases through read-only transactions.
 
-What is written but not running: `platform/backup-verify/` (staged in
-`clusters/homelab/staged/`, namespace absent). Weekly, it would restore a sample of
-files from each repository, read a rotating 1/52 of the packs
-(`--read-data-subset=n/52`), alert when the newest snapshot is older than three
-days, and recover each of the seven CNPG clusters into a throwaway cluster from
-its Barman Cloud backups (`restore-postgres.yaml`). Its `alerts.yaml` holds the
-file-backup alerts. It needs its namespace and `s3-backup` copy. Until it runs,
-`task backup:verify-barman` is the Postgres restore test
-([Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3)).
+| CronJob (UTC) | What it proves | Pass when |
+| --- | --- | --- |
+| `backup-verify-mariadb`, Saturday 21:00 | the newest `seafile-mariadb` dump loads into a scratch MariaDB (same image as the server, on an emptyDir) | the table sets of `ccnet_db`, `seafile_db` and `seahub_db` equal the live server's, and every table not written since the dump has the live row count |
+| `backup-verify-files`, Saturday 22:00 | per tag in `scripts/restic-targets.txt`: the newest snapshot restores, with `restic restore --verify`, into an emptyDir | the snapshot is at most 72 h old, every required file (identity, keys, configs, dumps) is in it and non-empty, and the required files plus five sampled files of up to 64 MiB (a different sample every ISO week) restore with the size the snapshot records |
+| the same job, first Saturday of the month | `restic check --read-data-subset=<n>/<slices>` on every repository in `scripts/restic-data-targets.txt` | no errors; the slice rotates monthly, so every pack is read once every 12 months (S3 `immich/library`: 1/120 a month, about 2.3 GiB) |
+| `backup-verify-postgres`, Sunday 21:00 | each CNPG cluster in `scripts/postgres-targets.txt`, one at a time, recovers from its Barman Cloud archive into a new Cluster `bv-<cluster>` | the restored database has the same tables and, in every table, the same row count as the source at the recovery target (its LSN); `immich-db` also holds at least 49,032 images and 2,377 videos |
+
+The Postgres test reads the source's image, preload libraries, volume size and
+`serverName` (`<cluster>-t1` since the Talos cutover, `home-assistant-postgresql`
+for Home Assistant) from its Cluster, counts its rows as the database owner, waits
+up to 7.5 minutes for the WAL of that moment to be archived, and recovers to that
+LSN through ObjectStore `verify-source`. The restore has no `spec.plugins`, so it
+cannot write to the bucket, and runs on an `iscsi` volume the size of the source's
+(5 Gi), deleted with the Cluster before the next one starts. The run takes about
+an hour. The restic and MariaDB tests use only emptyDirs (4 Gi and 1 Gi at most).
+
+### Reading the results
+
+Each check pushes its result to the Pushgateway in `backup-verify`, which
+Prometheus scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
+`mariadb`) and `target` (the tag, repository or cluster).
+
+| Metric | Meaning |
+| --- | --- |
+| `backup_verify_success` | 1 if the last run passed, 0 if it failed |
+| `backup_verify_last_success_timestamp_seconds` | end of the last passing run |
+| `backup_verify_last_run_timestamp_seconds`, `backup_verify_duration_seconds` | end and length of the last run |
+| `backup_verify_snapshot_timestamp_seconds` | time of the backup that was tested |
+| `backup_verify_rows`, `backup_verify_tables` | rows and tables restored and compared (Postgres, MariaDB) |
+| `backup_verify_files`, `backup_verify_bytes` | files and bytes restored (restic) |
+| `backup_verify_restore_seconds` | time to a Ready restored cluster (Postgres) |
+
+Alerts (PrometheusRule `backup-verify`, group `backup.verify`, all `warning`, to
+ntfy): `BackupVerifyFailed` (a check's last run failed), `BackupVerifyStale` (no
+pass in 8 days), `BackupVerifyDataStale` (no monthly pack read in 36 days) and
+`BackupVerifyMissing` (no passing result of a check at all). A Job that crashes
+before pushing also fires the stock `KubeJobFailed`.
+
+```sh
+kubectl -n backup-verify get cronjobs,jobs
+kubectl -n backup-verify logs job/<job> --all-containers | grep -E 'PASS|FAIL|changed'
+```
+
+Expected: one `PASS <target>` line per target and a final `ALL ... PASSED`. Run a
+test now, for example after changing a backup job:
+
+```sh
+kubectl -n backup-verify create job --from=cronjob/backup-verify-postgres verify-now
+```
+
+### When a restore test fails
+
+1. Read the `FAIL` lines of the Job (above). They name the target and the
+   reason: no or stale snapshot, a missing or empty required file, a size
+   mismatch, a restore that did not become Ready, a table or row count that
+   differs, Immich below its floor.
+2. A stale snapshot or a missing file is a backup problem: check that app's
+   backup CronJob and its last Job log ([Schedule](#schedule)).
+3. A failed restore or a count mismatch is a restore problem: restore the same
+   backup by hand ([How to restore](#how-to-restore),
+   [Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3))
+   and compare. Treat it as data at risk until a restore passes.
+4. A one-row mismatch on a busy table (an *arr history or command table) can
+   come from a commit between the count and the WAL position read in the
+   same statement; it is not a backup fault if the next run passes.
+5. Leftovers: a `bv-<cluster>` Cluster in `backup-verify` is removed by the next
+   run; delete it by hand with
+   `kubectl -n backup-verify delete cluster.postgresql.cnpg.io bv-<cluster>`.
+
+To add a target, add a line to the matching file in
+`platform/backup-verify/scripts/`; a new Postgres cluster also needs its Cluster
+and `-app` Secret names in ClusterRole `backup-verify-sources` (`rbac.yaml`). A
+removed target keeps its last result in the Pushgateway and goes stale after 8
+days; delete its group:
+
+```sh
+kubectl -n backup-verify port-forward svc/pushgateway 9091:9091 &
+curl -m 10 -X DELETE http://localhost:9091/metrics/job/backup-verify/check/<check>/target/<target>
+kill %1
+```
+
+Expected: no output; the group is gone from `http://localhost:9091`.
 
 **Annual full read.** Reading every pack is the only check that proves the whole
 backup, and S3 to EC2 in the same region has no egress charge. On a small instance
@@ -871,16 +954,14 @@ repository can be read in full for free from inside the cluster.
 
 ## Known gaps
 
-- `platform/backup-verify/` is not running: no weekly sample restore, no
-  `--read-data`, no staleness alert. The Postgres restore test runs by hand.
+- The weekly file tests restore a sample, not whole repositories; full reads
+  are monthly slices (yearly for the NAS copy, ten years for S3
+  `immich/library`) plus the [annual full read](#verification) by hand.
 - Postgres majors are held by Renovate until a major bump also moves the plugin's
   `serverName` to `<cluster>-pg<major>`.
-- No alert reaches anyone: a failed backup Job is visible only in `kubectl get jobs`
-  and the Prometheus alerts page.
-- File restores are rehearsed only for `mealie/data` and an Immich sample.
-  Paperless, Seafile, Syncthing, theater and the NAS repository are backed up and
-  checked, not restored. (All seven Postgres clusters are restored from S3, see
-  above.)
+- SQLite files in restic (Paperless, Audiobookshelf, Calibre) are restored and
+  size-checked, not opened: a torn copy passes. `jellyfin-db-besteffort` is
+  not tested.
 - Paperless' SQLite copy may be torn.
 - The Syncthing excludes do not match the volume layout (see
   [Consistency, per tag](#consistency-per-tag)).
@@ -895,6 +976,14 @@ repository can be read in full for free from inside the cluster.
   in full for free. Rejected: VolSync, which does snapshot-then-backup but is
   another controller to run, and buys little for write-once files. It is the upgrade
   path for data that is changed in place.
+- **Restore tests in the cluster, results through a Pushgateway.** A restore
+  that runs on a schedule and alerts is the only kind that keeps being done.
+  Batch jobs cannot be scraped, so they push; the alerts read Prometheus'
+  history, so a restarted Pushgateway changes nothing. The Postgres test
+  recovers to the LSN of its source count, so every table must match exactly
+  rather than within a tolerance. Rejected: restoring whole restic repositories
+  weekly, which would cost more in Glacier IR retrieval and egress than the
+  storage itself.
 - **Backup CronJobs run only once reviewed.** A job runs unsuspended only when it
   is listed in `ci/active-cronjobs.txt`, which happens once its credentials are
   real and its first run has been seen to work. Every other CronJob ships suspended

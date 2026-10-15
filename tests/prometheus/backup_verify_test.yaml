@@ -1,0 +1,143 @@
+# promtool unit tests for platform/backup-verify/alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - backup-verify.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # keycloak-db fails from minute 5; mealie-postgresql keeps passing.
+  - interval: 1m
+    input_series:
+      - series: 'backup_verify_success{check="postgres", target="keycloak-db"}'
+        values: '1x4 0x10'
+      - series: 'backup_verify_success{check="postgres", target="mealie-postgresql"}'
+        values: '1x15'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: BackupVerifyFailed
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: BackupVerifyFailed
+        exp_alerts:
+          - exp_labels:
+              check: postgres
+              target: keycloak-db
+              severity: warning
+            exp_annotations:
+              summary: "Backup restore test failed: postgres/keycloak-db"
+              description: >-
+                The last postgres restore test of keycloak-db
+                failed, so that backup may not restore. The FAIL lines are in the
+                log of the last Job: kubectl -n backup-verify get jobs, then
+                kubectl -n backup-verify logs job/<job> --all-containers.
+                Runbook: docs/backups.md#when-a-restore-test-fails
+
+  # Last successes stay at t=0. The weekly check goes stale after 8 days, the
+  # monthly pack read only after 36.
+  - interval: 1h
+    input_series:
+      - series: 'backup_verify_last_success_timestamp_seconds{check="restic", target="plex"}'
+        values: '0x900'
+      - series: 'backup_verify_last_success_timestamp_seconds{check="restic-data", target="theater"}'
+        values: '0x900'
+      - series: 'backup_verify_last_success_timestamp_seconds{check="postgres", target="immich-db"}'
+        values: '0x900'
+      - series: 'backup_verify_last_success_timestamp_seconds{check="mariadb", target="seafile"}'
+        values: '0x900'
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: BackupVerifyStale
+        exp_alerts: []
+      - eval_time: 8d2h
+        alertname: BackupVerifyStale
+        exp_alerts:
+          - exp_labels:
+              check: restic
+              target: plex
+              severity: warning
+            exp_annotations:
+              summary: "No passing restore test in 8 days: restic/plex"
+              description: >-
+                restic/plex last passed
+                8d 2h 0m 0s ago. Either its CronJob did not
+                run or every run failed: kubectl -n backup-verify get cronjobs,jobs.
+                Runbook: docs/backups.md#when-a-restore-test-fails
+          - exp_labels:
+              check: postgres
+              target: immich-db
+              severity: warning
+            exp_annotations:
+              summary: "No passing restore test in 8 days: postgres/immich-db"
+              description: >-
+                postgres/immich-db last passed
+                8d 2h 0m 0s ago. Either its CronJob did not
+                run or every run failed: kubectl -n backup-verify get cronjobs,jobs.
+                Runbook: docs/backups.md#when-a-restore-test-fails
+          - exp_labels:
+              check: mariadb
+              target: seafile
+              severity: warning
+            exp_annotations:
+              summary: "No passing restore test in 8 days: mariadb/seafile"
+              description: >-
+                mariadb/seafile last passed
+                8d 2h 0m 0s ago. Either its CronJob did not
+                run or every run failed: kubectl -n backup-verify get cronjobs,jobs.
+                Runbook: docs/backups.md#when-a-restore-test-fails
+      - eval_time: 36d
+        alertname: BackupVerifyDataStale
+        exp_alerts: []
+      - eval_time: 36d2h
+        alertname: BackupVerifyDataStale
+        exp_alerts:
+          - exp_labels:
+              check: restic-data
+              target: theater
+              severity: warning
+            exp_annotations:
+              summary: "No passing pack read in 36 days: theater"
+              description: >-
+                The monthly restic check --read-data-subset of theater
+                last passed 36d 2h 0m 0s ago.
+                Runbook: docs/backups.md#when-a-restore-test-fails
+      - eval_time: 2h
+        alertname: BackupVerifyMissing
+        exp_alerts: []
+
+  # Only restic and mariadb results exist: postgres and restic-data are missing.
+  - interval: 1h
+    input_series:
+      - series: 'backup_verify_last_success_timestamp_seconds{check="restic", target="plex"}'
+        values: '0x5'
+      - series: 'backup_verify_last_success_timestamp_seconds{check="mariadb", target="seafile"}'
+        values: '0x5'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: BackupVerifyMissing
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: BackupVerifyMissing
+        exp_alerts:
+          - exp_labels:
+              check: postgres
+              severity: warning
+            exp_annotations:
+              summary: "No passing postgres restore test on record"
+              description: >-
+                Prometheus has no passing postgres result in its
+                window (9 days, 30 for restic-data). Check the CronJobs
+                (kubectl -n backup-verify get cronjobs,jobs) and the Pushgateway
+                target on the Prometheus targets page.
+                Runbook: docs/backups.md#when-a-restore-test-fails
+          - exp_labels:
+              check: restic-data
+              severity: warning
+            exp_annotations:
+              summary: "No passing restic-data restore test on record"
+              description: >-
+                Prometheus has no passing restic-data result in its
+                window (9 days, 30 for restic-data). Check the CronJobs
+                (kubectl -n backup-verify get cronjobs,jobs) and the Pushgateway
+                target on the Prometheus targets page.
+                Runbook: docs/backups.md#when-a-restore-test-fails

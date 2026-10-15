@@ -77,8 +77,7 @@ retry policy on every Application (5 tries, 5 s doubling to 3 min) absorbs it.
 Written but not in any layer yet (each is a behaviour change with its own pull
 request): `infrastructure/snapshot-controller`, `infrastructure/nfs-storage`,
 `infrastructure/network-policies` (Application files in
-`clusters/homelab/infrastructure/`, not listed in its `kustomization.yaml`),
-and `clusters/homelab/staged/backup-verify.yaml`.
+`clusters/homelab/infrastructure/`, not listed in its `kustomization.yaml`).
 
 ### Sync policy
 

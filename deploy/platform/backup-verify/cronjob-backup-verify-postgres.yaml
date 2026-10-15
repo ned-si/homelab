@@ -15,7 +15,7 @@ metadata:
   namespace: backup-verify
 spec:
   concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 8
+  failedJobsHistoryLimit: 2
   jobTemplate:
     spec:
       activeDeadlineSeconds: 10800
@@ -25,33 +25,69 @@ spec:
           containers:
           - command:
             - /bin/sh
-            - /scripts/run-all.sh
+            - /scripts/verify-postgres.sh
             env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: IMMICH_FLOOR_IMAGES
+              value: "49032"
+            - name: IMMICH_FLOOR_VIDEOS
+              value: "2377"
+            - name: WORK
+              value: /tmp/work
             - name: HOME
               value: /tmp
-            - name: KUBECACHEDIR
-              value: /tmp/.kube/cache
             image: alpine/kubectl:1.37.1
             name: verify
             resources:
               limits:
-                memory: 512Mi
+                ephemeral-storage: 256Mi
+                memory: 256Mi
               requests:
                 cpu: 50m
-                memory: 128Mi
+                ephemeral-storage: 64Mi
+                memory: 64Mi
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
                 drop:
                 - ALL
+              readOnlyRootFilesystem: true
             volumeMounts:
             - mountPath: /scripts
               name: scripts
             - mountPath: /tmp
               name: tmp
+          initContainers:
+          - command:
+            - sleep
+            - infinity
+            env:
+            - name: HOME
+              value: /tmp
+            image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie
+            name: psql
+            resources:
+              limits:
+                ephemeral-storage: 64Mi
+                memory: 128Mi
+              requests:
+                cpu: 10m
+                ephemeral-storage: 16Mi
+                memory: 32Mi
+            restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
           restartPolicy: Never
           securityContext:
             fsGroup: 1000
+            runAsGroup: 1000
             runAsNonRoot: true
             runAsUser: 1000
             seccompProfile:
@@ -59,11 +95,12 @@ spec:
           serviceAccountName: backup-verify
           volumes:
           - configMap:
-              defaultMode: 493
-              name: backup-verify-scripts
+              name: backup-verify-scripts-fgh8bc667k
             name: scripts
           - emptyDir:
-              sizeLimit: 64Mi
+              sizeLimit: 128Mi
             name: tmp
-  schedule: 0 5 * * 0
-  successfulJobsHistoryLimit: 4
+  schedule: 0 21 * * 0
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  suspend: false

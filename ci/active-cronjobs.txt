@@ -30,3 +30,6 @@ books/books-configs-prune
 home/home-assistant-backup
 home/home-prune
 theater/qbittorrent-private-seed
+backup-verify/backup-verify-files
+backup-verify/backup-verify-postgres
+backup-verify/backup-verify-mariadb

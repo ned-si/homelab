@@ -1,397 +1,78 @@
-# Automated restore verification for PostgreSQL.
-#
-# ###########################################################################
-# # A BACKUP THAT HAS NEVER BEEN RESTORED IS NOT A BACKUP.
-# #
-# # This CronJob proves, weekly and without human involvement, that the S3
-# # backups can actually be turned back into a working database.
-# #
-# # IT NEVER TOUCHES A LIVE CLUSTER. It creates a brand-new, throwaway
-# # CloudNativePG Cluster in the `backup-verify` namespace, bootstrapped by
-# # RECOVERY from the object store, runs assertions against it, records the
-# # result, and deletes it.
-# #
-# # The object store is referenced read-only: the restored cluster reads its
-# # source through the Barman Cloud plugin in `externalClusters` (an ObjectStore
-# # in this namespace, with the read-only verifier key) and declares no
-# # `spec.plugins`, so it does NOT archive WAL and cannot write to or corrupt
-# # the backup it was restored from. The same restore, run by hand, is
-# # scripts/verify-barman-restore.sh (docs/backups.md).
-# ###########################################################################
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: backup-verify
-  namespace: backup-verify
----
-# Scoped to exactly what the verifier needs, in its own namespace only. It
-# deliberately cannot touch immich/, keycloak/ or any other namespace.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: backup-verify
-  namespace: backup-verify
-rules:
-  - apiGroups: ["postgresql.cnpg.io"]
-    resources: ["clusters"]
-    verbs: ["create", "get", "list", "watch", "delete"]
-  - apiGroups: ["barmancloud.cnpg.io"]
-    resources: ["objectstores"]
-    verbs: ["create", "get", "delete"]
-  - apiGroups: [""]
-    resources: ["pods", "pods/exec", "secrets", "persistentvolumeclaims", "configmaps"]
-    verbs: ["get", "list", "watch", "create", "delete"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: backup-verify
-  namespace: backup-verify
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: backup-verify
-subjects:
-  - kind: ServiceAccount
-    name: backup-verify
-    namespace: backup-verify
----
-# ###########################################################################
-# # THE ONE CROSS-NAMESPACE READ THIS JOB NEEDS, AND NOTHING ELSE.
-# #
-# # verify.sh has to know which PostgreSQL image the SOURCE cluster runs, or
-# # the restored cluster gets a different major version and the recovery fails
-# # for a reason that looks like backup corruption. That read is
-# # `get cluster <name> -n <source-ns>`, and the namespaced Role above cannot
-# # authorise it -- it is scoped to `backup-verify`. Before this ClusterRole
-# # existed the call was a 403 buried inside a heredoc, `imageName:` rendered
-# # EMPTY, and the job sat in a 30-minute `kubectl wait` before blaming the
-# # backup.
-# #
-# # WHY A ClusterRole AND NOT A Role IN EACH SOURCE NAMESPACE.
-# #
-# # kustomization.yaml in this directory pins `namespace: backup-verify`, and
-# # kustomize's namespace transformer rewrites metadata.namespace on EVERY
-# # namespaced resource. A Role declaring `namespace: immich` here would be
-# # silently relocated to `backup-verify` and grant nothing -- the exact
-# # failure mode this fix exists to remove. Exempting it needs either a
-# # transformer configuration or a patch, which is more machinery than the
-# # grant is worth.
-# #
-# # SO THE SCOPING IS DONE WITH `resourceNames` INSTEAD, which is tighter than
-# # per-namespace anyway: it names exactly the Clusters that the LIST in
-# # run-all.sh enables.
-# #
-# # `get` only, no `list`: RBAC cannot restrict `list` by resourceName (a LIST
-# # request names nothing), so granting it would silently widen this to every
-# # Cluster in the cluster. verify.sh only ever does a named get.
-# #
-# # ENABLING ANOTHER CLUSTER IS TWO ONE-LINE EDITS, IN THIS ORDER:
-# #   1. uncomment its line in the LIST at the bottom of run-all.sh
-# #   2. add its name to resourceNames below
-# # Forgetting step 2 now fails LOUDLY and immediately, naming this object.
-# ###########################################################################
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: backup-verify-source-clusters
-rules:
-  - apiGroups: ["postgresql.cnpg.io"]
-    resources: ["clusters"]
-    verbs: ["get"]
-    resourceNames:
-      - immich-db
-      - keycloak-db
-      - mealie-postgresql
-      - sonarr-postgresql
-      - radarr-postgresql
-      - lidarr-postgresql
-      - prowlarr-postgresql
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: backup-verify-source-clusters
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: backup-verify-source-clusters
-subjects:
-  - kind: ServiceAccount
-    name: backup-verify
-    namespace: backup-verify
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: backup-verify-scripts
-  namespace: backup-verify
-data:
-  verify.sh: |
-    #!/bin/sh
-    # POSIX sh: the alpine/kubectl image has BusyBox ash and no bash.
-    # Restore one database from S3 into a throwaway cluster and assert it works.
-    #
-    # Usage: verify.sh <source-cluster> <objectstore-namespace> <min-expected-tables>
-    set -euo pipefail
-
-    SRC="$1"
-    SRC_NS="$2"
-    MIN_TABLES="${3:-1}"
-    STAMP="$(date +%s)"
-    TARGET="verify-${SRC}-${STAMP}"
-    # Truncate: Kubernetes names cap at 63 chars and CNPG appends suffixes.
-    TARGET="$(printf '%.40s' "$TARGET")"
-
-    cleanup() {
-      echo "--- cleaning up $TARGET ---"
-      kubectl -n backup-verify delete cluster "$TARGET" --ignore-not-found --wait=false
-      kubectl -n backup-verify delete objectstore "$TARGET" --ignore-not-found
-    }
-    trap cleanup EXIT
-
-    echo "=== verifying backup of $SRC (from $SRC_NS) ==="
-
-    # HOISTED OUT OF THE HEREDOC BELOW, AND THAT IS THE WHOLE POINT.
-    #
-    # This used to be `imageName: $(kubectl -n "$SRC_NS" get cluster ...)`
-    # inline in the manifest. A command substitution inside a heredoc is
-    # invisible to `set -e`: the read failed with a 403 (the namespaced Role in
-    # this file cannot read another namespace), the heredoc still rendered,
-    # `imageName:` came out EMPTY, CNPG accepted the Cluster, and the job then
-    # spent thirty minutes in `kubectl wait` before reporting "restored cluster
-    # never became ready" -- blaming the backup for an RBAC error.
-    #
-    # Assigned to a variable so the exit status is checkable, and checked twice:
-    # once for the call failing, once for it succeeding with nothing.
-    if ! SRC_IMAGE="$(kubectl -n "$SRC_NS" get cluster "$SRC" \
-                      -o jsonpath='{.spec.imageName}')"; then
-      echo "FAIL: cannot read cluster/$SRC in namespace $SRC_NS."
-      echo "      Almost always RBAC. The ServiceAccount needs '$SRC' listed in"
-      echo "      resourceNames on the backup-verify-source-clusters ClusterRole"
-      echo "      in this file. Confirm with:"
-      echo "        kubectl auth can-i get cluster/$SRC -n $SRC_NS \\"
-      echo "          --as=system:serviceaccount:backup-verify:backup-verify"
-      exit 1
-    fi
-    if [ -z "$SRC_IMAGE" ]; then
-      echo "FAIL: cluster/$SRC in $SRC_NS has no .spec.imageName set."
-      echo "      Refusing to render an empty imageName: CNPG accepts it and the"
-      echo "      failure then surfaces 30 minutes later as a recovery timeout."
-      exit 1
-    fi
-    echo "    source image: $SRC_IMAGE"
-    # immich-db preloads vectors.so; a restore without it cannot start.
-    SRC_PRELOAD="$(kubectl -n "$SRC_NS" get cluster "$SRC" \
-                   -o jsonpath='{.spec.postgresql.shared_preload_libraries}')"
-    SRC_PRELOAD="${SRC_PRELOAD:-[]}"
-
-    # The throwaway cluster.
-    #
-    # Single instance, small volume, and -- critically -- NO `spec.plugins`.
-    # Without it the restored cluster has nowhere to archive WAL, so it
-    # physically cannot write into the object store it was restored from. That
-    # is what makes running this against production backups safe.
-    #
-    # `serverName` in the plugin parameters selects WHICH backup inside
-    # destinationPath to read: cnpg/<source cluster>/. The `s3-backup` Secret in
-    # this namespace holds the read-only verifier key.
-    kubectl apply -f - <<EOF
-    apiVersion: barmancloud.cnpg.io/v1
-    kind: ObjectStore
-    metadata:
-      name: $TARGET
-      namespace: backup-verify
-    spec:
-      configuration:
-        destinationPath: s3://ned-si-homelab-backups/cnpg
-        endpointURL: https://s3.eu-central-1.amazonaws.com
-        s3Credentials:
-          accessKeyId:
-            name: s3-backup
-            key: ACCESS_KEY_ID
-          secretAccessKey:
-            name: s3-backup
-            key: ACCESS_SECRET_KEY
-        wal:
-          compression: gzip
-      instanceSidecarConfiguration:
-        env:
-          - name: AWS_DEFAULT_REGION
-            value: eu-central-1
-    ---
-    apiVersion: postgresql.cnpg.io/v1
-    kind: Cluster
-    metadata:
-      name: $TARGET
-      namespace: backup-verify
-      labels:
-        homelab.lilalala.com/ephemeral: "true"
-    spec:
-      instances: 1
-      imageName: $SRC_IMAGE
-      postgresql:
-        shared_preload_libraries: $SRC_PRELOAD
-      storage:
-        size: 20Gi
-        storageClass: iscsi
-      bootstrap:
-        recovery:
-          source: src
-      externalClusters:
-        - name: src
-          plugin:
-            name: barman-cloud.cloudnative-pg.io
-            parameters:
-              barmanObjectName: $TARGET
-              serverName: $SRC
-      resources:
-        requests:
-          cpu: 100m
-          memory: 256Mi
-        limits:
-          memory: 1Gi
-    EOF
-
-    echo "--- waiting for restore (up to 30m) ---"
-    if ! kubectl -n backup-verify wait --for=condition=Ready \
-         "cluster/$TARGET" --timeout=30m; then
-      echo "FAIL: restored cluster never became ready"
-      kubectl -n backup-verify describe cluster "$TARGET" | tail -40
-      kubectl -n backup-verify logs "job/${TARGET}-1-full-recovery" --tail=60 2>/dev/null || true
-      exit 1
-    fi
-
-    POD="${TARGET}-1"
-
-    echo "--- assertion 1: server answers queries ---"
-    kubectl -n backup-verify exec "$POD" -- psql -U postgres -d app -tAc 'SELECT 1' | grep -q 1
-
-    echo "--- assertion 2: schema is populated (>= $MIN_TABLES tables) ---"
-    tables=$(kubectl -n backup-verify exec "$POD" -- psql -U postgres -d app -tAc \
-      "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
-    echo "    tables found: $tables"
-    [ "$tables" -ge "$MIN_TABLES" ] || {
-      echo "FAIL: expected >= $MIN_TABLES tables, found $tables."
-      echo "      A restore that yields an EMPTY schema is the classic silent"
-      echo "      backup failure -- the restore 'succeeds' with no data."
-      exit 1
-    }
-
-    echo "--- assertion 3: no relation is unreadable (catches corruption) ---"
-    kubectl -n backup-verify exec "$POD" -- psql -U postgres -d app -tAc \
-      "DO \$\$ DECLARE r record; n bigint; BEGIN
-         FOR r IN SELECT schemaname, tablename FROM pg_tables
-                  WHERE schemaname='public' LIMIT 50 LOOP
-           EXECUTE format('SELECT count(*) FROM %I.%I', r.schemaname, r.tablename) INTO n;
-         END LOOP;
-       END \$\$;"
-
-    # Informational, not asserted: Immich needs its vector extension
-    # (pgvecto.rs today, VectorChord after the migration) to boot. Printing the
-    # list makes an extension regression visible in the job log.
-    echo "--- assertion 4: extensions present ---"
-    kubectl -n backup-verify exec "$POD" -- psql -U postgres -d app -tAc \
-      'SELECT extname FROM pg_extension' | sort | sed 's/^/    /'
-
-    echo
-    echo "PASS: $SRC restored and verified"
-  run-all.sh: |
-    #!/bin/sh
-    # Verify every database. Keeps going after a failure so one broken backup
-    # does not hide the state of the others.
-    set -uo pipefail
-    rc=0
-    # cluster            namespace   min-tables
-    # min-tables is a floor, not an exact count: it only has to be high enough
-    # that an empty or half-restored schema fails.
-    while read -r cluster ns min; do
-      [ -z "${cluster:-}" ] && continue
-      case "$cluster" in '#'*) continue ;; esac
-      if ! /scripts/verify.sh "$cluster" "$ns" "$min"; then
-        echo "::FAILED:: $cluster"
-        rc=1
-      fi
-    done <<'LIST'
-    # Every cluster archives WAL and takes daily base backups through the
-    # Barman Cloud plugin. Enabling another cluster takes two edits: a line
-    # here AND its name in `resourceNames` on the backup-verify-source-clusters
-    # ClusterRole at the top of this file (verify.sh reads the source Cluster).
-    immich-db           immich      40
-    keycloak-db         keycloak    50
-    mealie-postgresql   mealie      10
-    sonarr-postgresql   theater     10
-    radarr-postgresql   theater     10
-    lidarr-postgresql   theater     10
-    prowlarr-postgresql theater     10
-    LIST
-    echo
-    [ $rc -eq 0 ] && echo "ALL BACKUPS VERIFIED" || echo "ONE OR MORE BACKUPS FAILED VERIFICATION"
-    exit $rc
----
+# Weekly CNPG restore tests, one cluster at a time
+# (scripts/verify-postgres.sh). Each restore is a new Cluster bv-<source> in
+# this namespace on an iscsi volume the size of the source's, deleted with its
+# volume before the next one starts.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: backup-verify-postgres
-  namespace: backup-verify
 spec:
-  # Sunday 05:00, after Saturday night's backups and before anyone is awake to
-  # be affected by the extra iSCSI load.
-  schedule: "0 5 * * 0"
+  # Sunday 21:00 UTC; eight clusters take about an hour and the deadline ends
+  # the run before the 00:00 base backups.
+  schedule: "0 21 * * 0"
+  suspend: false
   concurrencyPolicy: Forbid
-  successfulJobsHistoryLimit: 4
-  failedJobsHistoryLimit: 8
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
   jobTemplate:
     spec:
-      backoffLimit: 0        # a failed verification must be looked at, not retried
+      backoffLimit: 0
       activeDeadlineSeconds: 10800
       template:
         spec:
           restartPolicy: Never
           serviceAccountName: backup-verify
-          # Matches ./restore-files.yaml exactly. It was ABSENT here, and that was
-          # a real gap rather than a considered choice: this pod ran with the
-          # default security context -- i.e. permitted to run as root -- while its
-          # sibling in the same namespace did not.
-          #
-          # It went unnoticed because .trivyignore carried a blanket
-          # `AVD-KSV-0118` waiver written for the linuxserver/hotio images, whose
-          # entrypoints genuinely need root. A rule-ID waiver with no path scope
-          # silenced this file too. That is the whole reason this PR moves to
-          # path-scoped waivers.
-          #
-          # `readOnlyRootFilesystem` is deliberately NOT set, matching
-          # restore-files.yaml and covered by the AVD-KSV-0014 waiver. This is the
-          # weekly job that proves backups restore; its failure IS the alarm, so
-          # adding an untestable hardening flag to it trades a real signal for a
-          # theoretical gain. Tracked as a follow-up instead.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
+            runAsGroup: 1000
             fsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
-          containers:
-            - name: verify
-              # Needs kubectl only: psql is exec'd *inside* the restored pod,
-              # which already has the matching client. Pinned to the cluster's
-              # minor (talos/talconfig.yaml) so `kubectl wait` and CRD handling
-              # stay inside the supported one-minor skew window. Alpine-based:
-              # the scripts need a shell, date, grep, sed and sort, which the
-              # distroless registry.k8s.io/kubectl image lacks.
-              # renovate: datasource=docker depName=alpine/kubectl
-              image: alpine/kubectl:1.37.1
-              command: ["/bin/sh", "/scripts/run-all.sh"]
+          initContainers:
+            # psql for the source queries; a native sidecar, stopped when the
+            # verify container ends.
+            - name: psql
+              # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
+              image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie
+              restartPolicy: Always
+              command: ["sleep", "infinity"]
               env:
-                # The image runs as root with HOME=/root, which runAsUser 1000
-                # cannot write.
-                # kubectl writes a discovery cache on every invocation and dies on
-                # EACCES, so both are redirected to a writable emptyDir.
                 - name: HOME
                   value: /tmp
-                - name: KUBECACHEDIR
-                  value: /tmp/.kube/cache
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                  ephemeral-storage: 16Mi
+                limits:
+                  memory: 128Mi
+                  ephemeral-storage: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          containers:
+            - name: verify
+              # renovate: datasource=docker depName=alpine/kubectl
+              image: alpine/kubectl:1.37.1
+              command: ["/bin/sh", "/scripts/verify-postgres.sh"]
+              env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: IMMICH_FLOOR_IMAGES
+                  value: "49032"
+                - name: IMMICH_FLOOR_VIDEOS
+                  value: "2377"
+                - name: WORK
+                  value: /tmp/work
+                # kubectl writes its discovery cache under HOME.
+                - name: HOME
+                  value: /tmp
               volumeMounts:
                 - name: scripts
                   mountPath: /scripts
@@ -400,18 +81,20 @@ spec:
               resources:
                 requests:
                   cpu: 50m
-                  memory: 128Mi
+                  memory: 64Mi
+                  ephemeral-storage: 64Mi
                 limits:
-                  memory: 512Mi
+                  memory: 256Mi
+                  ephemeral-storage: 256Mi
               securityContext:
                 allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
                 capabilities:
                   drop: ["ALL"]
           volumes:
             - name: scripts
               configMap:
                 name: backup-verify-scripts
-                defaultMode: 0755
             - name: tmp
               emptyDir:
-                sizeLimit: 64Mi
+                sizeLimit: 128Mi

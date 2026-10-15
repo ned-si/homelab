@@ -1,0 +1,15 @@
+# Monthly pack reads (verify-files.sh, DATA_CHECK). One line per repository:
+# <target>|<repository>|<slices>
+# Each run reads slice <month mod slices + 1> of <slices>, so every pack is
+# read once every <slices> months. immich/library on S3 is about 270 GiB in
+# Glacier IR: 1/120 a month (about 2.3 GiB of retrieval and egress); its NAS
+# copy is read in full every year at no cost.
+immich-library|s3:immich/library|120
+nas-immich-library|local:/backups/immich/library|12
+mealie|s3:mealie/data|12
+paperless|s3:paperless/media|12
+seafile|s3:seafile/shared|12
+syncthing|s3:syncthing/data|12
+theater|s3:theater/configs|12
+books|s3:books/configs|12
+home|s3:home/configs|12

@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: backup-verify
+  namespace: backup-verify
+spec:
+  groups:
+  - name: backup.verify
+    rules:
+    - alert: BackupVerifyFailed
+      annotations:
+        description: 'The last {{ $labels.check }} restore test of {{ $labels.target
+          }} failed, so that backup may not restore. The FAIL lines are in the log
+          of the last Job: kubectl -n backup-verify get jobs, then kubectl -n backup-verify
+          logs job/<job> --all-containers. Runbook: docs/backups.md#when-a-restore-test-fails'
+        summary: 'Backup restore test failed: {{ $labels.check }}/{{ $labels.target
+          }}'
+      expr: backup_verify_success == 0
+      for: 5m
+      labels:
+        severity: warning
+    - alert: BackupVerifyStale
+      annotations:
+        description: '{{ $labels.check }}/{{ $labels.target }} last passed {{ $value
+          | humanizeDuration }} ago. Either its CronJob did not run or every run failed:
+          kubectl -n backup-verify get cronjobs,jobs. Runbook: docs/backups.md#when-a-restore-test-fails'
+        summary: 'No passing restore test in 8 days: {{ $labels.check }}/{{ $labels.target
+          }}'
+      expr: |
+        time() - max by (check, target) (
+          max_over_time(backup_verify_last_success_timestamp_seconds{check!="restic-data"}[9d])
+        ) > 8 * 86400
+      for: 1h
+      labels:
+        severity: warning
+    - alert: BackupVerifyDataStale
+      annotations:
+        description: 'The monthly restic check --read-data-subset of {{ $labels.target
+          }} last passed {{ $value | humanizeDuration }} ago. Runbook: docs/backups.md#when-a-restore-test-fails'
+        summary: 'No passing pack read in 36 days: {{ $labels.target }}'
+      expr: |
+        time() - max by (check, target) (
+          max_over_time(backup_verify_last_success_timestamp_seconds{check="restic-data"}[30d])
+        ) > 36 * 86400
+      for: 1h
+      labels:
+        severity: warning
+    - alert: BackupVerifyMissing
+      annotations:
+        description: 'Prometheus has no passing {{ $labels.check }} result in its
+          window (9 days, 30 for restic-data). Check the CronJobs (kubectl -n backup-verify
+          get cronjobs,jobs) and the Pushgateway target on the Prometheus targets
+          page. Runbook: docs/backups.md#when-a-restore-test-fails'
+        summary: No passing {{ $labels.check }} restore test on record
+      expr: |
+        absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic"}[9d])
+        or absent_over_time(backup_verify_last_success_timestamp_seconds{check="postgres"}[9d])
+        or absent_over_time(backup_verify_last_success_timestamp_seconds{check="mariadb"}[9d])
+        or absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic-data"}[30d])
+      for: 1h
+      labels:
+        severity: warning

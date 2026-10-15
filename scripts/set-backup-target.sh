@@ -101,8 +101,7 @@ echo
 #     apps/mealie/cnpg-backup.yaml                   mealie-postgresql
 #     apps/home/cnpg-backup.yaml                     home-assistant-postgresql
 #     apps/theater/cnpg-backup.yaml                  the four *arr clusters
-#     platform/backup-verify/restore-postgres.yaml   the throwaway recovery
-#                                                    cluster's ObjectStore
+#     platform/backup-verify/object-store.yaml       the restore tests' ObjectStore
 #
 #   restic `RESTIC_REPOSITORY`
 #     apps/immich/resources/backup-files.yaml        immich/library (S3 job only;
@@ -118,8 +117,8 @@ echo
 #     apps/home/backup.yaml                          home/configs
 #     platform/kube-prometheus-stack/routes/grafana-backup.yaml
 #                                                    grafana/data
-#     platform/backup-verify/restore-files.yaml      the verifier's repository
-#                                                    prefix
+#     platform/backup-verify/scripts/verify-files.sh the restore tests' repository
+#     platform/backup-verify/scripts/verify-mariadb.sh prefix
 FILES="
 apps/immich/resources/backup.yaml
 apps/immich/resources/backup-files.yaml
@@ -135,8 +134,9 @@ apps/home/cnpg-backup.yaml
 apps/home/backup.yaml
 platform/keycloak/backup.yaml
 platform/kube-prometheus-stack/routes/grafana-backup.yaml
-platform/backup-verify/restore-postgres.yaml
-platform/backup-verify/restore-files.yaml
+platform/backup-verify/object-store.yaml
+platform/backup-verify/scripts/verify-files.sh
+platform/backup-verify/scripts/verify-mariadb.sh
 "
 
 # Portable in-place edit. See defect 1 in the header: `sed -i ''` is BSD-only
@@ -173,8 +173,7 @@ for f in $FILES; do
   # look plausible.
   #
   #   1. barman: destinationPath: s3://<bucket>/<path>
-  #      Preserves whatever path follows the bucket, including the ${SRC_NS}
-  #      templating in restore-postgres.yaml.
+  #      Preserves whatever path follows the bucket.
   #   2. barman: endpointURL
   #   3. restic: s3:<endpoint>/<bucket>/<path>, in both `value:` fields and
   #      shell `export` lines.
@@ -254,9 +253,7 @@ echo "### discovery check: every manifest that names a bucket or repository"
 #                NFS job -- a filesystem path with no bucket and no endpoint,
 #                deliberately so, because a local job has no business holding S3
 #                credentials. Checking that line against the bucket would fail
-#                on a file that is correct. platform/backup-verify/
-#                restore-files.yaml has the same shape in an `echo` that prints
-#                the variable.
+#                on a file that is correct.
 #
 #   ENDPOINT_RE  lines that MUST contain the endpoint host. Same reasoning.
 DISCOVER_RE='destinationPath:[[:space:]]*s3://|endpointURL:[[:space:]]*http|RESTIC_REPOSITORY|s3:https?://'

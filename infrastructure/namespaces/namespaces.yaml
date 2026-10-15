@@ -150,6 +150,18 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
+# Restore tests (platform/backup-verify). baseline: the restic test mounts
+# the NAS repository as an NFS volume, which restricted does not allow.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backup-verify
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline
+---
 apiVersion: v1
 kind: Namespace
 metadata:
