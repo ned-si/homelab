@@ -127,6 +127,19 @@ misconfigurations:
       envFrom.
     expired_at: 2027-03-01
 
+  # Bazarr's first-start seed script writes `password: $hash` and
+  # `apikey: $API_KEY` into config.yaml. Both are shell variables filled at run
+  # time from the `bazarr` Secret (envFrom); the ConfigMap holds no value.
+  - id: AVD-KSV-0109
+    paths:
+      - "apps/theater/bazarr.yaml"
+      - "deploy/apps/theater/configmap-bazarr-config.yaml"
+    statement: >-
+      False positive, verified by grep. The flagged lines are config.yaml keys
+      whose values are shell variables from the bazarr Secret via envFrom. No
+      credential is present in the ConfigMap.
+    expired_at: 2027-03-01
+
   # =========================================================================
   # BY DESIGN -- the LAN inventory's ARP scan
   # =========================================================================
