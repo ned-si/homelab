@@ -112,6 +112,25 @@ tests:
           - labels: 'slo:availability:ratio_rate30d{app="auth"}'
             value: 1
 
+  # One day of probes every 30s: 1/30 of the window has data. theater has two
+  # targets and the same coverage.
+  - interval: 30s
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="auth"}'
+        values: '1x2879'
+      - series: 'probe_success{job="blackbox-public", app="theater", instance="a"}'
+        values: '1x2879'
+      - series: 'probe_success{job="blackbox-public", app="theater", instance="b"}'
+        values: '0x2879'
+    promql_expr_test:
+      - expr: slo:sli_coverage:ratio_rate30d
+        eval_time: 1440m
+        exp_samples:
+          - labels: 'slo:sli_coverage:ratio_rate30d{app="auth"}'
+            value: 0.03333333333333333
+          - labels: 'slo:sli_coverage:ratio_rate30d{app="theater"}'
+            value: 0.03333333333333333
+
   # Every SLO target but media reports: only media's absent() alert fires.
   - interval: 1m
     input_series:

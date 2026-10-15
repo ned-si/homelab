@@ -69,6 +69,18 @@ spec:
         # 1 = the whole budget is left, 0 = spent, negative = SLO missed.
         - record: slo:error_budget_remaining:ratio_rate30d
           expr: 1 - slo:probe_error:ratio_rate30d / 0.005
+        # The share of the 30-day window with probe results: samples per
+        # target over the 2880 a day of a 30s probe interval
+        # (platform/blackbox-exporter/probes). Below 1 the 30-day figures
+        # cover a shorter window.
+        - record: slo:sli_coverage:ratio_rate30d
+          expr: |
+            clamp_max(
+              avg by (app) (
+                count_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[30d])
+              ) / (30 * 2880),
+              1
+            )
 
     # The namespace each app runs in. The burn alerts carry it, so that an app
     # outage inhibits the pod, workload and Argo CD alerts of the same

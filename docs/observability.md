@@ -49,7 +49,7 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 
 | Dashboard (uid) | Shows |
 | --- | --- |
-| Homelab / Overview (`homelab-overview`) | the start page: links to every dashboard (a text row, plus the `homelab` tag dropdown); now: nodes Ready, alerts firing, Argo CD apps not Synced/Healthy, public probes down, stale backups, NAS pool used, critical CVEs, AWS month-end estimate; 30-day availability and error budget per app, 1h burn rate, probe status; hours since the last Postgres base backup and backup CronJob success; one or two figures per area (node CPU and memory, Gateway 5xx share, drops, NAS full in, LAN devices down, CI on main, open PRs, new LAN MACs, soonest certificate expiry, Immich assets, Jellyfin streams); internal endpoints, pods not Ready, restarts, certificate expiry, running image tags. Small stat panels come first so the page reads top to bottom on a phone |
+| Homelab / Overview (`homelab-overview`) | the start page: links to every dashboard (a text row, plus the `homelab` tag dropdown); now: nodes Ready, alerts firing, Argo CD apps not Synced/Healthy, public probes down, stale backups, NAS pool used, critical CVEs, AWS month-end estimate; 30-day availability and error budget per app with the share of the 30 days that has SLI data, 1h burn rate, probe status; hours since the last Postgres base backup and backup CronJob success; one or two figures per area (node CPU and memory, Gateway 5xx share, drops, NAS full in, LAN devices down, CI on main, open PRs, new LAN MACs, soonest certificate expiry, Immich assets, Jellyfin streams); internal endpoints, pods not Ready, restarts, certificate expiry, running image tags. Small stat panels come first so the page reads top to bottom on a phone |
 | Homelab / Security (`homelab-security`) | certificate expiry, TLS version and HTTP status per hostname, Kubernetes API 401/403 rate, public endpoints answering 401/403, Keycloak failed logins and lockouts (`keycloak_user_events_total`, ServiceMonitor `keycloak/keycloak` on the management port), Secret age (names only), images without a pinned tag, CVEs in running images by severity, namespace and image (trivy-operator) |
 | Homelab / Usage (`homelab-usage`) | Immich photos, videos and storage, in total and per user; Sonarr/Radarr/Lidarr series, episodes, movies, music, missing and wanted, library size on disk, download queues, Prowlarr grabs per indexer; Jellyfin items per type, streams now, hours watched per user and day; which sources report. Plex, Audiobookshelf and Calibre are not covered (no stats without another app or a token) |
 | Homelab / CI-CD (`homelab-cicd`) | latest run on main and success rate per GitHub workflow, run durations, open pull requests by age, Renovate automerge rate and lead time, Dependency Dashboard sections, auto-rollback pull requests, Argo CD applications not Synced/Healthy, time since each application's last successful sync |
@@ -313,7 +313,10 @@ has one availability SLO: 99.5% of its public blackbox probes succeed over 30
 days, an error budget of about 3.6 hours a month. Plain recording rules, no
 SLO generator: `slo:probe_error:ratio_rate<window>`,
 `slo:availability:ratio_rate30d` and `slo:error_budget_remaining:ratio_rate30d`,
-all by `app`.
+all by `app`. `slo:sli_coverage:ratio_rate30d` is the share of the 30 days
+that has probe results (samples over the 2,880 a day of the 30s probes):
+until it reaches 100%, the 30-day figures cover a shorter window and one
+outage weighs more. The overview shows it next to availability and budget.
 
 | Alert | Fires when | Severity |
 | --- | --- | --- |
