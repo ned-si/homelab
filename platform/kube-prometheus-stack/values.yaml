@@ -13,20 +13,15 @@
 # Talos: there is no kube-proxy (Cilium replaces it), so its ServiceMonitor
 # would only ever show a target down. The controller-manager, scheduler and
 # etcd metrics endpoints are reachable because talos/talconfig.yaml binds them
-# to 0.0.0.0; the chart defaults (10257, 10259 over HTTPS, etcd 2381 over HTTP)
-# match.
+# to 0.0.0.0; the chart defaults (10257, 10259 over HTTPS) match.
+#
+# etcd is a Talos service, not a pod, so the chart's etcd Service selects
+# nothing. `kubeEtcd.endpoints` does not help under Argo CD, which excludes
+# Endpoints and EndpointSlices from sync. etcd is scraped by the ScrapeConfig
+# in routes/etcd-scrape.yaml instead; `kubeEtcd` stays enabled for the
+# chart's etcd rules.
 kubeProxy:
   enabled: false
-
-# etcd is a Talos service, not a pod, so the chart's default selector
-# (component=etcd) finds nothing. The Service gets the control-plane IPs as
-# endpoints instead; etcd serves metrics there over HTTP on 2381
-# (talos/patches/controlplane-metrics.yaml).
-kubeEtcd:
-  endpoints:
-    - 192.168.1.247
-    - 192.168.1.238
-    - 192.168.1.239
 
 # eMMC wear. Talos exposes the eMMC's life_time and pre_eol_info only in
 # sysfs (no metric, and its Read API is admin-only), so a sidecar reads them

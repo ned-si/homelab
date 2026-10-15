@@ -1491,7 +1491,7 @@ data:
               },
               "expr": "etcd_mvcc_db_total_size_in_bytes",
               "refId": "A",
-              "legendFormat": "{{instance}} allocated"
+              "legendFormat": "{{node}} allocated"
             },
             {
               "datasource": {
@@ -1500,7 +1500,7 @@ data:
               },
               "expr": "etcd_mvcc_db_total_size_in_use_in_bytes",
               "refId": "B",
-              "legendFormat": "{{instance}} in use"
+              "legendFormat": "{{node}} in use"
             }
           ],
           "fieldConfig": {
@@ -1547,9 +1547,9 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])))",
+              "expr": "histogram_quantile(0.99, sum by (node, le) (rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])))",
               "refId": "A",
-              "legendFormat": "{{instance}}"
+              "legendFormat": "{{node}}"
             }
           ],
           "fieldConfig": {
@@ -1596,9 +1596,9 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "histogram_quantile(0.99, sum by (instance, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[5m])))",
+              "expr": "histogram_quantile(0.99, sum by (node, le) (rate(etcd_disk_backend_commit_duration_seconds_bucket[5m])))",
               "refId": "A",
-              "legendFormat": "{{instance}}"
+              "legendFormat": "{{node}}"
             }
           ],
           "fieldConfig": {
@@ -1645,9 +1645,9 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "rate(etcd_server_proposals_failed_total[5m])",
+              "expr": "sum by (node) (rate(etcd_server_proposals_failed_total[5m]))",
               "refId": "A",
-              "legendFormat": "{{instance}}"
+              "legendFormat": "{{node}}"
             }
           ],
           "fieldConfig": {
@@ -1694,9 +1694,9 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "histogram_quantile(0.99, sum by (instance, To, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[5m])))",
+              "expr": "histogram_quantile(0.99, sum by (node, To, le) (rate(etcd_network_peer_round_trip_time_seconds_bucket[5m])))",
               "refId": "A",
-              "legendFormat": "{{instance}} to {{To}}"
+              "legendFormat": "{{node}} to {{To}}"
             }
           ],
           "fieldConfig": {

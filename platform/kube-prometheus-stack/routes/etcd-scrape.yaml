@@ -1,0 +1,30 @@
+# Scrape etcd on the control planes. etcd runs as a Talos service and serves
+# metrics over HTTP on 2381 on every address
+# (talos/patches/controlplane-metrics.yaml). Static targets: the chart's
+# Service-based ServiceMonitor needs pods or Endpoints, and Argo CD does not
+# sync Endpoints (../values.yaml).
+#
+# Job `kube-etcd`, which the chart's etcd rules match (`job=~".*etcd.*"`).
+# The `node` label names the member's node.
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: ScrapeConfig
+metadata:
+  name: kube-etcd
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  jobName: kube-etcd
+  scheme: HTTP
+  metricsPath: /metrics
+  staticConfigs:
+    - targets: ["192.168.1.247:2381"]
+      labels:
+        node: homelab-cp-1
+    - targets: ["192.168.1.238:2381"]
+      labels:
+        node: homelab-cp-2
+    - targets: ["192.168.1.239:2381"]
+      labels:
+        node: homelab-cp-3
