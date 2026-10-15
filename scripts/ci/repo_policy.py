@@ -59,7 +59,10 @@ objects and rule ids only; values are never printed.
                         variant (alpine, slim, distroless, a Debian or Ubuntu
                         codename) that the base tree does not use for that
                         image; adding a light variant (alpine, slim, distroless,
-                        minimal), with or without a distro codename, is free
+                        minimal), with or without a distro codename, is free.
+                        Reverts are exempt (--pr-title starting with
+                        `revert`, or --pr-branch under auto-revert/): a revert
+                        restores what ran before.
 
 Either image rule accepts a line that carries `# image-policy: allow <reason>`.
 """
@@ -105,10 +108,12 @@ BULKY_IMAGES = {"python", "node", "golang", "ubuntu", "debian"}
 
 
 class Policy:
-    def __init__(self, root: Path, render: Path, base: str | None = None):
+    def __init__(self, root: Path, render: Path, base: str | None = None, pr_title: str = "", pr_branch: str = ""):
         self.root = root
         self.render = render
         self.base = base
+        self.pr_title = pr_title
+        self.pr_branch = pr_branch
         self.fails: list[str] = []
         self.active: list[str] = []
         self.index = json.loads((render / "index.json").read_text())
@@ -537,6 +542,9 @@ class Policy:
         rule = "image-variant"
         if not self.base:
             return
+        if self.pr_title.lower().startswith("revert") or self.pr_branch.startswith("auto-revert/"):
+            print(f"{rule}: skipped, the pull request is a revert")
+            return
         self.on(rule)
         try:
             before = self.image_refs(self.base)
@@ -664,8 +672,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--render", required=True, help="render_apps.py output directory")
     ap.add_argument("--repo-root", default=".")
     ap.add_argument("--base", help="git revision the image-variant rule compares against (the PR base)")
+    ap.add_argument("--pr-title", default="", help="pull request title; a revert skips image-variant")
+    ap.add_argument("--pr-branch", default="", help="pull request head branch; auto-revert/* skips image-variant")
     args = ap.parse_args(argv)
-    return Policy(Path(args.repo_root).resolve(), Path(args.render).resolve(), args.base).run()
+    return Policy(Path(args.repo_root).resolve(), Path(args.render).resolve(), args.base,
+                  args.pr_title, args.pr_branch).run()
 
 
 if __name__ == "__main__":

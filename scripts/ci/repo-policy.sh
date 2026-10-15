@@ -44,7 +44,7 @@ base_args=()
 if [ -n "${IMAGE_POLICY_BASE:-}" ]; then
   git cat-file -e "${IMAGE_POLICY_BASE}^{commit}" 2>/dev/null \
     || git fetch -q --depth=1 origin "$IMAGE_POLICY_BASE" || true
-  base_args=(--base "$IMAGE_POLICY_BASE")
+  base_args=(--base "$IMAGE_POLICY_BASE" --pr-title "${PR_TITLE:-}" --pr-branch "${PR_BRANCH:-}")
 fi
 if [ -f "$render/index.json" ]; then
   step repo_policy.py python3 scripts/ci/repo_policy.py --render "$render" --repo-root . ${base_args[@]+"${base_args[@]}"}
