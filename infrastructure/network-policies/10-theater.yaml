@@ -193,12 +193,14 @@ spec:
               protocol: TCP
 
     # Recyclarr (`recyclarr-sync` CronJob) writes quality profiles into both
-    # APIs. Selected by its own label: the broad job-name selector would also
-    # grant the backup jobs these ports. No 8686: Lidarr is not in
-    # recyclarr.yml.
+    # APIs, and the `bazarr-settings` Job the `kids-fr` auto tag. Selected by
+    # their own labels: the broad job-name selector would also grant the
+    # backup jobs these ports. No 8686: neither touches Lidarr.
     - fromEndpoints:
-        - matchLabels:
-            app.kubernetes.io/name: recyclarr-sync
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [recyclarr-sync, bazarr-settings]
       toPorts:
         - ports:
             - port: "8989"
@@ -375,8 +377,8 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    Bazarr: UI from the Gateway, egress to its own Postgres, to the Sonarr and
-    Radarr APIs, and to subtitle providers on the internet.
+    Bazarr: UI from the Gateway, egress to the Sonarr and Radarr APIs and to
+    subtitle providers on the internet.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: bazarr
@@ -384,11 +386,20 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # bazarr.lilalala.com (HTTPRoute `bazarr` -> :6767).
+    # theater.lilalala.com/arr/bazarr (HTTPRoute `theater` -> :6767).
     - fromEntities:
         - ingress
         - host
         - remote-node
+      toPorts:
+        - ports:
+            - port: "6767"
+              protocol: TCP
+
+    # The `bazarr-settings` PostSync Job (apps/theater/bazarr.yaml).
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: bazarr-settings
       toPorts:
         - ports:
             - port: "6767"
@@ -404,15 +415,6 @@ spec:
             - port: "53"
               protocol: UDP
             - port: "53"
-              protocol: TCP
-
-    # Its own CloudNativePG cluster (`bazarr-postgresql-app`).
-    - toEndpoints:
-        - matchLabels:
-            cnpg.io/cluster: bazarr-postgresql
-      toPorts:
-        - ports:
-            - port: "5432"
               protocol: TCP
 
     # Sonarr and Radarr; the matching ingress rule is on `arr-apps`.
@@ -499,6 +501,60 @@ spec:
       toPorts:
         - ports:
             - port: "443"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# bazarr-settings
+#
+# The PostSync Job that applies Bazarr's settings. Nothing connects to it.
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: bazarr-settings
+  namespace: theater
+spec:
+  description: >-
+    bazarr-settings Job: egress to the Bazarr, Sonarr and Radarr APIs. No
+    ingress.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr-settings
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: bazarr
+      toPorts:
+        - ports:
+            - port: "6767"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: sonarr
+      toPorts:
+        - ports:
+            - port: "8989"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: radarr
+      toPorts:
+        - ports:
+            - port: "7878"
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------

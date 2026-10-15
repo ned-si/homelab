@@ -14,8 +14,8 @@ metadata:
   name: bazarr
   namespace: theater
 spec:
-  description: 'Bazarr: UI from the Gateway, egress to its own Postgres, to the Sonarr
-    and Radarr APIs, and to subtitle providers on the internet.'
+  description: 'Bazarr: UI from the Gateway, egress to the Sonarr and Radarr APIs
+    and to subtitle providers on the internet.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -26,13 +26,6 @@ spec:
       - port: "53"
         protocol: UDP
       - port: "53"
-        protocol: TCP
-  - toEndpoints:
-    - matchLabels:
-        cnpg.io/cluster: bazarr-postgresql
-    toPorts:
-    - ports:
-      - port: "5432"
         protocol: TCP
   - toEndpoints:
     - matchLabels:
@@ -67,6 +60,13 @@ spec:
     - ingress
     - host
     - remote-node
+    toPorts:
+    - ports:
+      - port: "6767"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: bazarr-settings
     toPorts:
     - ports:
       - port: "6767"

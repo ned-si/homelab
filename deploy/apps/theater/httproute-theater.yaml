@@ -86,6 +86,18 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
+      name: bazarr
+      port: 6767
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /arr/bazarr
+    timeouts:
+      request: 0s
+  - backendRefs:
+    - group: ""
+      kind: Service
       name: plex
       port: 32400
       weight: 1

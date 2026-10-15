@@ -1,0 +1,138 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  seed.sh: |
+    # First start only: Bazarr fills every other key with its defaults.
+    set -eu
+    f=/config/config/config.yaml
+    if [ -s "$f" ]; then
+      echo "config.yaml exists, left to the settings Job"
+      exit 0
+    fi
+    mkdir -p /config/config
+    hash=$(printf '%s' "$ADMIN_PASSWORD" | md5sum | cut -d' ' -f1)
+    cat > "$f" <<EOF
+    general:
+      base_url: /arr/bazarr
+    auth:
+      type: form
+      username: admin
+      password: $hash
+      apikey: $API_KEY
+    EOF
+    echo "config.yaml seeded"
+  settings.py: |
+    # Idempotent: apply the managed Bazarr settings and the `kids-fr` auto
+    # tag in Sonarr and Radarr. Standard library only.
+    import json, os, time, urllib.parse, urllib.request
+
+    TAG = "kids-fr"
+    KIDS_PROFILE = "HD-Kids-FR"
+    PROVIDERS = ["gestdown", "tvsubtitles", "yifysubtitles", "soustitreseu", "subsynchro"]
+    LANG = lambda i, code, forced: {"id": i, "language": code, "forced": forced,
+                                   "hi": "False", "audio_exclude": "False"}
+    PROFILES = [
+        {"profileId": 1, "name": "EN", "cutoff": None, "tag": None,
+         "items": [LANG(1, "en", "False")],
+         "mustContain": [], "mustNotContain": [], "originalFormat": 0},
+        {"profileId": 2, "name": "FR", "cutoff": None, "tag": TAG,
+         "items": [LANG(1, "fr", "False"), LANG(2, "fr", "True")],
+         "mustContain": [], "mustNotContain": [], "originalFormat": 0},
+    ]
+
+    def call(method, url, key_header, key, body=None, form=None):
+        headers = {key_header: key}
+        data = None
+        if body is not None:
+            data = json.dumps(body).encode()
+            headers["Content-Type"] = "application/json"
+        if form is not None:
+            data = urllib.parse.urlencode(form, doseq=True).encode()
+            headers["Content-Type"] = "application/x-www-form-urlencoded"
+        req = urllib.request.Request(url, data=data, method=method, headers=headers)
+        with urllib.request.urlopen(req, timeout=60) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+
+    def wait(url):
+        for _ in range(60):
+            try:
+                urllib.request.urlopen(url, timeout=10)
+                return
+            except Exception:
+                time.sleep(10)
+        raise SystemExit(f"not answering: {url}")
+
+    def auto_tag(name, base, key):
+        h = "X-Api-Key"
+        profiles = call("GET", f"{base}/api/v3/qualityprofile", h, key)
+        pid = next(p["id"] for p in profiles if p["name"] == KIDS_PROFILE)
+        tags = call("GET", f"{base}/api/v3/tag", h, key)
+        tid = next((t["id"] for t in tags if t["label"] == TAG), None)
+        if tid is None:
+            tid = call("POST", f"{base}/api/v3/tag", h, key, {"label": TAG})["id"]
+        rule = {"name": f"{TAG} (Bazarr FR)", "removeTagsAutomatically": True,
+                "tags": [tid],
+                "specifications": [{"name": KIDS_PROFILE, "implementation": "QualityProfileSpecification",
+                                    "negate": False, "required": True,
+                                    "fields": [{"name": "value", "value": pid}]}]}
+        rules = call("GET", f"{base}/api/v3/autotagging", h, key)
+        old = next((r for r in rules if r["name"] == rule["name"]), None)
+        if old is None:
+            call("POST", f"{base}/api/v3/autotagging", h, key, rule)
+        else:
+            call("PUT", f"{base}/api/v3/autotagging/{old['id']}", h, key, dict(rule, id=old["id"]))
+        print(f"{name}: auto tag {TAG} -> profile {KIDS_PROFILE} ({pid})")
+
+    sonarr = "http://sonarr.theater.svc.cluster.local:8989/arr/sonarr"
+    radarr = "http://radarr.theater.svc.cluster.local:7878/arr/radarr"
+    bazarr = "http://bazarr.theater.svc.cluster.local:6767/arr/bazarr"
+    auto_tag("sonarr", sonarr, os.environ["SONARR_API_KEY"])
+    auto_tag("radarr", radarr, os.environ["RADARR_API_KEY"])
+
+    wait(f"{bazarr}/api/system/ping")
+    form = {
+        "languages-enabled": ["en", "fr"],
+        "languages-profiles": json.dumps(PROFILES),
+        "settings-general-base_url": "/arr/bazarr",
+        "settings-general-use_sonarr": "true",
+        "settings-general-use_radarr": "true",
+        "settings-sonarr-ip": "sonarr.theater.svc.cluster.local",
+        "settings-sonarr-port": "8989",
+        "settings-sonarr-base_url": "/arr/sonarr",
+        "settings-sonarr-ssl": "false",
+        "settings-sonarr-apikey": os.environ["SONARR_API_KEY"],
+        "settings-radarr-ip": "radarr.theater.svc.cluster.local",
+        "settings-radarr-port": "7878",
+        "settings-radarr-base_url": "/arr/radarr",
+        "settings-radarr-ssl": "false",
+        "settings-radarr-apikey": os.environ["RADARR_API_KEY"],
+        "settings-general-serie_default_enabled": "true",
+        "settings-general-serie_default_profile": "1",
+        "settings-general-movie_default_enabled": "true",
+        "settings-general-movie_default_profile": "1",
+        "settings-general-serie_tag_enabled": "true",
+        "settings-general-movie_tag_enabled": "true",
+        "settings-general-enabled_providers": PROVIDERS,
+        # External files next to the video, named <video>.<lang>[.forced].srt.
+        "settings-general-subfolder": "current",
+        "settings-general-utf8_encode": "true",
+        "settings-auth-type": "form",
+        "settings-auth-username": "admin",
+        "settings-auth-password": os.environ["ADMIN_PASSWORD"],
+    }
+    call("POST", f"{bazarr}/api/system/settings", "X-API-KEY", os.environ["API_KEY"], form=form)
+    print(f"bazarr: settings applied, profiles EN (default) and FR (tag {TAG}), providers {', '.join(PROVIDERS)}")
+kind: ConfigMap
+metadata:
+  name: bazarr-config
+  namespace: theater

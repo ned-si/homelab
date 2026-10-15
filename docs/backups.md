@@ -153,6 +153,7 @@ the NAS:
 | 03:30 | `immich/immich-library-backup` (S3) |
 | 03:40 | `theater/theater-postgres-backup` |
 | 04:00–04:40 | `theater/theater-config-backup-{sonarr,radarr,lidarr,prowlarr,plex}`, ten minutes apart |
+| 04:50 | `theater/theater-config-backup-bazarr` |
 | 05:00 | `theater/theater-config-backup-jellyfin` |
 | 05:10 | `books/books-config-backup-audiobookshelf` |
 | 05:20 | `books/books-config-backup-calibre-web` |
@@ -160,8 +161,8 @@ the NAS:
 | 05:40 | `home/home-assistant-backup` |
 | 1st of the month, 12:00–13:45 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, books 13:15, immich 13:30, home 13:45 |
 
-The six theater jobs share one repository and restic takes an exclusive lock for
-`backup`, hence the spacing; 04:50 is kept for bazarr. Each nightly job ends with
+The theater jobs share one repository and restic takes an exclusive lock for
+`backup`, hence the spacing. Each nightly job ends with
 `restic check`. The running set is listed in `ci/active-cronjobs.txt`; CI fails any
 other rendered CronJob that is not suspended.
 
