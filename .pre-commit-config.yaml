@@ -52,6 +52,8 @@ repos:
             .*\.sops\.yaml
             |bootstrap/charts/.*/templates/.*
             |Taskfile\.yml
+            # Home Assistant YAML: custom tags (!include, !env_var, !secret).
+            |apps/home/config/.*
           )$
       - id: check-added-large-files
         args: [--maxkb=512]

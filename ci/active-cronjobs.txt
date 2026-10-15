@@ -26,3 +26,5 @@ theater/theater-config-backup-lazylibrarian
 books/books-config-backup-audiobookshelf
 books/books-config-backup-calibre-web
 books/books-configs-prune
+home/home-assistant-backup
+home/home-prune

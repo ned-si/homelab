@@ -10,3 +10,4 @@ resources:
   - seafile.yaml
   - syncthing.yaml
   - books.yaml
+  - home.yaml

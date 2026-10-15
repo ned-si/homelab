@@ -1,0 +1,49 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: home
+
+# Home automation (docs/home-automation.md).
+resources:
+  - home-assistant.yaml
+  - database.yaml
+  # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
+  - cnpg-backup.yaml
+  # restic: recorder dump and config volume, plus the monthly prune.
+  - backup.yaml
+
+# configuration.yaml from git. The hash suffix restarts Home Assistant when
+# the file changes.
+configMapGenerator:
+  - name: home-assistant-config
+    files:
+      - config/configuration.yaml
+
+# Before every sync: the backup, unless one is < 24 h old.
+# After every sync: the Service answers on the health endpoint.
+components:
+  - ../../components/presync-backup
+  - ../../components/postsync-smoke
+replacements:
+  - source: { kind: Cluster, name: home-assistant-postgresql, fieldPath: spec.imageName }
+    targets:
+      - select: { kind: ConfigMap, name: presync-backup-desired }
+        fieldPaths: [data.home-assistant-postgresql]
+        options: { create: true }
+patches:
+  - target: { kind: Job, name: presync-backup }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: MODE, value: cronjob }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CRONJOB, value: home-assistant-backup }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: IMAGE_CHECKS, value: clusters.postgresql.cnpg.io/home-assistant-postgresql }
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://home-assistant:8123/manifest.json
