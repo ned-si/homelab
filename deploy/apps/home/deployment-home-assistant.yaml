@@ -96,10 +96,13 @@ spec:
       - args:
         - |
           cp /git/configuration.yaml /config/configuration.yaml
+          # HTTP settings (reverse proxy, IP ban) live only in this store.
+          mkdir -p /config/.storage
+          cp /git/http-store.json /config/.storage/http
           for f in automations.yaml scripts.yaml scenes.yaml; do
             [ -f "/config/$f" ] || echo '[]' > "/config/$f"
           done
-          echo "ok: configuration.yaml from git"
+          echo "ok: configuration.yaml and .storage/http from git"
         command:
         - /bin/sh
         - -euc
@@ -188,7 +191,7 @@ spec:
         persistentVolumeClaim:
           claimName: home-assistant-config
       - configMap:
-          name: home-assistant-config-6c586b6ggf
+          name: home-assistant-config-5d7dh97298
         name: git-config
       - emptyDir:
           sizeLimit: 1Gi

@@ -20,6 +20,7 @@ configMapGenerator:
   - name: home-assistant-config
     files:
       - config/configuration.yaml
+      - http-store.json=config/http-store.json
   - name: mosquitto-config
     files:
       - config/mosquitto/mosquitto.conf

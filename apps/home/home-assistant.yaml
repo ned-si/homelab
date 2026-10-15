@@ -63,10 +63,13 @@ spec:
           args:
             - |
               cp /git/configuration.yaml /config/configuration.yaml
+              # HTTP settings (reverse proxy, IP ban) live only in this store.
+              mkdir -p /config/.storage
+              cp /git/http-store.json /config/.storage/http
               for f in automations.yaml scripts.yaml scenes.yaml; do
                 [ -f "/config/$f" ] || echo '[]' > "/config/$f"
               done
-              echo "ok: configuration.yaml from git"
+              echo "ok: configuration.yaml and .storage/http from git"
           resources:
             requests:
               cpu: 10m
