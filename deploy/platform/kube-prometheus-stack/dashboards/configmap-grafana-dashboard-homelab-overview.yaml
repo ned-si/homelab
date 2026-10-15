@@ -14,7 +14,7 @@ data:
     {
       "uid": "homelab-overview",
       "title": "Homelab / Overview",
-      "description": "SLOs and burn rates, node and NAS usage, versions, certificates and backup freshness. Not shown: CI and Renovate status (needs a GitHub exporter with a token or a JSON datasource plugin; not worth it at this size).",
+      "description": "Start here. Health now, SLOs and error budgets, backup freshness, one or two key figures per area, and links to every dashboard.",
       "tags": [
         "homelab",
         "slo"
@@ -28,6 +28,19 @@ data:
         "from": "now-24h",
         "to": "now"
       },
+      "links": [
+        {
+          "title": "Homelab",
+          "type": "dashboards",
+          "tags": [
+            "homelab"
+          ],
+          "asDropdown": true,
+          "includeVars": false,
+          "keepTime": true,
+          "icon": "external link"
+        }
+      ],
       "templating": {
         "list": [
           {
@@ -74,7 +87,546 @@ data:
       },
       "panels": [
         {
+          "type": "text",
+          "title": "Dashboards",
+          "options": {
+            "mode": "markdown",
+            "content": "[Nodes](/d/homelab-nodes) \u00b7 [Network](/d/homelab-network) \u00b7 [Storage](/d/homelab-storage) \u00b7 [LAN](/d/homelab-lan) \u00b7 [CI-CD](/d/homelab-cicd) \u00b7 [Security](/d/homelab-security) \u00b7 [Data protection](/d/homelab-data-protection) \u00b7 [Usage](/d/homelab-usage) \u00b7 [AWS](/d/homelab-aws) \u00b7 [Home](/d/home)"
+          },
           "id": 1,
+          "gridPos": {
+            "h": 2,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "id": 2,
+          "type": "row",
+          "title": "Now",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 2
+          },
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Nodes Ready",
+          "description": "Ready nodes / all nodes (kube_node_status_condition).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(kube_node_status_condition{condition=\"Ready\", status=\"true\"}) / count(kube_node_info)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 3,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 3
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Alerts firing",
+          "description": "warning and critical alerts firing now, Watchdog excluded. Details in Alertmanager.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(ALERTS{alertstate=\"firing\", severity=~\"warning|critical\", alertname!=\"Watchdog\"}) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 4,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 3
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Argo CD apps not Synced/Healthy",
+          "description": "argocd_app_info. Details: CI-CD dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(argocd_app_info{sync_status!=\"Synced\"} or argocd_app_info{health_status!=\"Healthy\"}) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 5,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 3
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Public probes down",
+          "description": "probe_success == 0 of the public hostnames (blackbox-public).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(probe_success{job=\"blackbox-public\"} == 0) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 6,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 3
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Stale backups",
+          "description": "Backup CronJobs without a success for 26 h, plus Postgres clusters without a base backup for 26 h.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(count((time() - kube_cronjob_status_last_successful_time{cronjob=~\".*backup.*\"}) > 26 * 3600) or vector(0)) + (count((time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) > 26 * 3600) or vector(0))",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 7,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 7
+          }
+        },
+        {
+          "type": "stat",
+          "title": "NAS pool used",
+          "description": "nas:pool_used:ratio of the data pool. Details: Storage dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(nas:pool_used:ratio{pool!=\"boot-pool\"})",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.75
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.85
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 8,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 7
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Critical CVEs",
+          "description": "Critical vulnerabilities in running images (trivy-operator). Details: Security dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(max by (image_registry, image_repository, image_tag) (trivy_image_vulnerabilities{severity=\"Critical\"})) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 10
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 9,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 7
+          }
+        },
+        {
+          "type": "stat",
+          "title": "AWS month-end estimate",
+          "description": "aws_cost_month_forecast_usd. Details: AWS dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(aws_cost_month_forecast_usd)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "currencyUSD",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 5
+                  },
+                  {
+                    "color": "red",
+                    "value": 10
+                  }
+                ]
+              },
+              "decimals": 2
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 10,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 7
+          }
+        },
+        {
+          "id": 11,
           "type": "row",
           "title": "Service levels (SLO 99.5% over 30 days)",
           "collapsed": false,
@@ -82,7 +634,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 0
+            "y": 11
           },
           "panels": []
         },
@@ -145,12 +697,12 @@ data:
             "displayMode": "gradient",
             "showUnfilled": true
           },
-          "id": 2,
+          "id": 12,
           "gridPos": {
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 1
+            "y": 12
           }
         },
         {
@@ -212,12 +764,12 @@ data:
             "displayMode": "gradient",
             "showUnfilled": true
           },
-          "id": 3,
+          "id": 13,
           "gridPos": {
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 1
+            "y": 12
           }
         },
         {
@@ -289,12 +841,12 @@ data:
             "justifyMode": "auto",
             "orientation": "auto"
           },
-          "id": 4,
+          "id": 14,
           "gridPos": {
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 1
+            "y": 12
           }
         },
         {
@@ -346,381 +898,39 @@ data:
           },
           "options": {
             "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
+              "displayMode": "list",
+              "placement": "bottom",
+              "calcs": []
             },
             "tooltip": {
               "mode": "multi"
             }
           },
-          "id": 5,
+          "id": 15,
           "gridPos": {
             "h": 8,
-            "w": 12,
+            "w": 24,
             "x": 0,
-            "y": 9
+            "y": 20
           }
         },
         {
-          "type": "timeseries",
-          "title": "Probe duration",
-          "description": "probe_duration_seconds of the public probes (DNS + TLS + response).",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "probe_duration_seconds{job=\"blackbox-public\"}",
-              "refId": "A",
-              "legendFormat": "{{app}}"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "custom": {
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "legend": {
-              "displayMode": "table",
-              "placement": "right",
-              "calcs": [
-                "lastNotNull",
-                "max"
-              ]
-            },
-            "tooltip": {
-              "mode": "multi"
-            }
-          },
-          "id": 6,
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 9
-          }
-        },
-        {
-          "id": 7,
+          "id": 16,
           "type": "row",
-          "title": "Cluster",
+          "title": "Backups",
           "collapsed": false,
           "gridPos": {
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 17
+            "y": 28
           },
           "panels": []
         },
         {
-          "type": "stat",
-          "title": "Nodes Ready",
-          "description": "kube_node_status_condition Ready=true.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "kube_node_status_condition{condition=\"Ready\", status=\"true\"}",
-              "refId": "A",
-              "legendFormat": "{{node}}",
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "green",
-                    "value": 1
-                  }
-                ]
-              },
-              "mappings": [
-                {
-                  "type": "value",
-                  "options": {
-                    "0": {
-                      "text": "NOT READY",
-                      "color": "red"
-                    },
-                    "1": {
-                      "text": "Ready",
-                      "color": "green"
-                    }
-                  }
-                }
-              ]
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "background",
-            "graphMode": "none",
-            "textMode": "value_and_name",
-            "justifyMode": "auto",
-            "orientation": "auto"
-          },
-          "id": 8,
-          "gridPos": {
-            "h": 5,
-            "w": 8,
-            "x": 0,
-            "y": 18
-          }
-        },
-        {
-          "type": "stat",
-          "title": "Internal endpoints",
-          "description": "blackbox-internal: API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS, CoreDNS.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "probe_success{job=\"blackbox-internal\"}",
-              "refId": "A",
-              "legendFormat": "{{instance}}",
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "none",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "green",
-                    "value": 1
-                  }
-                ]
-              },
-              "mappings": [
-                {
-                  "type": "value",
-                  "options": {
-                    "0": {
-                      "text": "DOWN",
-                      "color": "red"
-                    },
-                    "1": {
-                      "text": "UP",
-                      "color": "green"
-                    }
-                  }
-                }
-              ]
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "colorMode": "background",
-            "graphMode": "none",
-            "textMode": "value_and_name",
-            "justifyMode": "auto",
-            "orientation": "auto"
-          },
-          "id": 9,
-          "gridPos": {
-            "h": 5,
-            "w": 16,
-            "x": 8,
-            "y": 18
-          }
-        },
-        {
-          "type": "bargauge",
-          "title": "Node eMMC (/) used",
-          "description": "node_filesystem on / of each node (29 GB eMMC holding kubelet and containerd).",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "1 - node_filesystem_avail_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\", fstype!~\"tmpfs|overlay\"}",
-              "refId": "A",
-              "legendFormat": "{{instance}}",
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percentunit",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 0.75
-                  },
-                  {
-                    "color": "red",
-                    "value": 0.85
-                  }
-                ]
-              },
-              "min": 0,
-              "max": 1,
-              "decimals": 0
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "orientation": "horizontal",
-            "displayMode": "gradient",
-            "showUnfilled": true
-          },
-          "id": 10,
-          "gridPos": {
-            "h": 6,
-            "w": 8,
-            "x": 0,
-            "y": 23
-          }
-        },
-        {
-          "type": "bargauge",
-          "title": "NAS volumes used (iSCSI PVCs)",
-          "description": "kubelet_volume_stats for every mounted PVC (all on the NAS). Pool-level usage needs a TrueNAS exporter, which is not deployed.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes",
-              "refId": "A",
-              "legendFormat": "{{namespace}}/{{persistentvolumeclaim}}",
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percentunit",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 0.75
-                  },
-                  {
-                    "color": "red",
-                    "value": 0.85
-                  }
-                ]
-              },
-              "min": 0,
-              "max": 1,
-              "decimals": 0
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "orientation": "horizontal",
-            "displayMode": "gradient",
-            "showUnfilled": true
-          },
-          "id": 11,
-          "gridPos": {
-            "h": 6,
-            "w": 16,
-            "x": 8,
-            "y": 23
-          }
-        },
-        {
           "type": "table",
-          "title": "Pods not Ready",
-          "description": "Running pods whose Ready condition is false, and restarts in the last 24h.",
+          "title": "Postgres: hours since the last base backup",
+          "description": "Barman Cloud plugin, per cluster. Red after 26 h (CNPGBaseBackupTooOld).",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
@@ -731,60 +941,7 @@ data:
                 "type": "prometheus",
                 "uid": "${datasource}"
               },
-              "expr": "sum by (namespace, pod) (kube_pod_status_ready{condition=\"false\"}) * on (namespace, pod) group_left () (max by (namespace, pod) (kube_pod_status_phase{phase=\"Running\"}) == 1) > 0",
-              "refId": "A",
-              "legendFormat": "",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm"
-          },
-          "transformations": [
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true,
-                  "Value": true
-                }
-              }
-            }
-          ],
-          "id": 12,
-          "gridPos": {
-            "h": 6,
-            "w": 12,
-            "x": 0,
-            "y": 29
-          }
-        },
-        {
-          "type": "table",
-          "title": "Restarts, last 24h",
-          "description": "Containers restarted in the last 24 hours.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "sort_desc(sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total[24h])) > 0)",
+              "expr": "sort_desc(max by (namespace, pod) ((time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) / 3600))",
               "refId": "A",
               "legendFormat": "",
               "instant": true,
@@ -800,7 +957,7 @@ data:
                   "type": "color-background"
                 }
               },
-              "unit": "none",
+              "unit": "h",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
@@ -810,11 +967,11 @@ data:
                   },
                   {
                     "color": "orange",
-                    "value": 1
+                    "value": 24
                   },
                   {
                     "color": "red",
-                    "value": 5
+                    "value": 26
                   }
                 ]
               }
@@ -833,150 +990,17 @@ data:
                   "Time": true
                 },
                 "renameByName": {
-                  "Value": "restarts"
+                  "Value": "hours"
                 }
               }
             }
           ],
-          "id": 13,
+          "id": 17,
           "gridPos": {
-            "h": 6,
+            "h": 8,
             "w": 12,
-            "x": 12,
+            "x": 0,
             "y": 29
-          }
-        },
-        {
-          "id": 14,
-          "type": "row",
-          "title": "Versions, certificates, backups",
-          "collapsed": false,
-          "gridPos": {
-            "h": 1,
-            "w": 24,
-            "x": 0,
-            "y": 35
-          },
-          "panels": []
-        },
-        {
-          "type": "table",
-          "title": "App versions (running image tags)",
-          "description": "kube_pod_container_info: one row per distinct image.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "count by (namespace, container, image) (kube_pod_container_info{namespace=~\"argo|keycloak|monitoring|immich|theater|mealie|paperless|seafile|syncthing|cert-manager|external-dns|gateway|democratic-csi|kube-system\"})",
-              "refId": "A",
-              "legendFormat": "",
-              "instant": true,
-              "range": false,
-              "format": "table"
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "custom": {
-                "align": "auto"
-              }
-            },
-            "overrides": []
-          },
-          "options": {
-            "showHeader": true,
-            "cellHeight": "sm"
-          },
-          "transformations": [
-            {
-              "id": "organize",
-              "options": {
-                "excludeByName": {
-                  "Time": true,
-                  "Value": true
-                }
-              }
-            }
-          ],
-          "id": 15,
-          "gridPos": {
-            "h": 10,
-            "w": 12,
-            "x": 0,
-            "y": 36
-          }
-        },
-        {
-          "type": "bargauge",
-          "title": "Certificate expiry (as served)",
-          "description": "probe_ssl_earliest_cert_expiry of each public hostname, in days. cert-manager renews at 30 days left.",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${datasource}"
-              },
-              "expr": "(min by (app) (probe_ssl_earliest_cert_expiry{job=\"blackbox-public\"}) - time()) / 86400",
-              "refId": "A",
-              "legendFormat": "{{app}}",
-              "instant": true,
-              "range": false
-            }
-          ],
-          "fieldConfig": {
-            "defaults": {
-              "unit": "d",
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "red",
-                    "value": null
-                  },
-                  {
-                    "color": "orange",
-                    "value": 14
-                  },
-                  {
-                    "color": "green",
-                    "value": 21
-                  }
-                ]
-              },
-              "min": 0,
-              "max": 90,
-              "decimals": 0
-            },
-            "overrides": []
-          },
-          "options": {
-            "reduceOptions": {
-              "calcs": [
-                "lastNotNull"
-              ],
-              "fields": "",
-              "values": false
-            },
-            "orientation": "horizontal",
-            "displayMode": "gradient",
-            "showUnfilled": true
-          },
-          "id": 16,
-          "gridPos": {
-            "h": 10,
-            "w": 12,
-            "x": 12,
-            "y": 36
           }
         },
         {
@@ -1054,12 +1078,1226 @@ data:
               }
             }
           ],
-          "id": 17,
+          "id": 18,
           "gridPos": {
-            "h": 9,
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 29
+          }
+        },
+        {
+          "id": 19,
+          "type": "row",
+          "title": "Key panels per area",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
             "w": 24,
             "x": 0,
+            "y": 37
+          },
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Nodes: CPU busy",
+          "description": "Per node, 5 min average. Details: Nodes dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))) * on (instance) group_left (nodename) node_uname_info",
+              "refId": "A",
+              "legendFormat": "{{nodename}}",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.7
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.9
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 20,
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 0,
+            "y": 38
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Nodes: memory used",
+          "description": "Per node. Details: Nodes dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * on (instance) group_left (nodename) node_uname_info",
+              "refId": "A",
+              "legendFormat": "{{nodename}}",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.8
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.9
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 21,
+          "gridPos": {
+            "h": 4,
+            "w": 12,
+            "x": 12,
+            "y": 38
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Gateway 5xx share",
+          "description": "Envoy downstream 5xx / all, 5 min. Details: Network dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(sum(rate(envoy_http_downstream_rq_xx{envoy_http_conn_manager_prefix=~\"listener-secure|listener-insecure\", envoy_response_code_class=\"5\"}[5m])) / sum(rate(envoy_http_downstream_rq_xx{envoy_http_conn_manager_prefix=~\"listener-secure|listener-insecure\"}[5m]))) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.01
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.05
+                  }
+                ]
+              },
+              "decimals": 2
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 22,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 42
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Network drops/s",
+          "description": "Hubble drops, all reasons. Details: Network dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(rate(hubble_drop_total[5m])) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 10
+                  }
+                ]
+              },
+              "decimals": 1
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 23,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 42
+          }
+        },
+        {
+          "type": "stat",
+          "title": "NAS full in",
+          "description": "nas:pool_days_until_full at the 7-day trend. Details: Storage dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "min(nas:pool_days_until_full)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 90
+                  },
+                  {
+                    "color": "green",
+                    "value": 180
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 24,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 42
+          }
+        },
+        {
+          "type": "stat",
+          "title": "LAN static devices down",
+          "description": "blackbox-lan ICMP. Details: LAN dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(probe_success{job=\"blackbox-lan\"} == 0) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 25,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 42
+          }
+        },
+        {
+          "type": "stat",
+          "title": "CI on main",
+          "description": "Latest run of each workflow on main. Details: CI-CD dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "min(github_workflow_last_success{scope=\"main\"})",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "FAILING",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "green",
+                      "color": "green"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 26,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
             "y": 46
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Open pull requests",
+          "description": "github_pull_requests_open. Details: CI-CD dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(github_pull_requests_open)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 10
+                  },
+                  {
+                    "color": "red",
+                    "value": 25
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 27,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 46
+          }
+        },
+        {
+          "type": "stat",
+          "title": "New LAN MACs, 7 days",
+          "description": "MACs first seen in the last 7 days. Details: LAN dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count(max by (mac) (max_over_time(lan:device_present:max_by_mac[7d])) unless on (mac) max_over_time(lan:device_present:max_by_mac[23d] offset 7d)) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 28,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 12,
+            "y": 46
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Soonest certificate expiry",
+          "description": "Days left on the public certificate that expires first. Details: Security dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(min(probe_ssl_earliest_cert_expiry{job=\"blackbox-public\"}) - time()) / 86400",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 14
+                  },
+                  {
+                    "color": "green",
+                    "value": 21
+                  }
+                ]
+              },
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 29,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 18,
+            "y": 46
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Immich assets",
+          "description": "Photos and videos. Details: Usage dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(immich_assets)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 30,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 0,
+            "y": 50
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Jellyfin streams now",
+          "description": "Details: Usage dashboard.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum(jellyfin_streams) or vector(0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 31,
+          "gridPos": {
+            "h": 4,
+            "w": 6,
+            "x": 6,
+            "y": 50
+          }
+        },
+        {
+          "id": 32,
+          "type": "row",
+          "title": "Cluster",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 54
+          },
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Nodes Ready",
+          "description": "kube_node_status_condition Ready=true.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "kube_node_status_condition{condition=\"Ready\", status=\"true\"}",
+              "refId": "A",
+              "legendFormat": "{{node}}",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "NOT READY",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "Ready",
+                      "color": "green"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 33,
+          "gridPos": {
+            "h": 5,
+            "w": 8,
+            "x": 0,
+            "y": 55
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Internal endpoints",
+          "description": "blackbox-internal: API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS, CoreDNS.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "probe_success{job=\"blackbox-internal\"}",
+              "refId": "A",
+              "legendFormat": "{{instance}}",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "DOWN",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "UP",
+                      "color": "green"
+                    }
+                  }
+                }
+              ]
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 34,
+          "gridPos": {
+            "h": 5,
+            "w": 16,
+            "x": 8,
+            "y": 55
+          }
+        },
+        {
+          "type": "table",
+          "title": "Pods not Ready",
+          "description": "Running pods whose Ready condition is false, and restarts in the last 24h.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sum by (namespace, pod) (kube_pod_status_ready{condition=\"false\"}) * on (namespace, pod) group_left () (max by (namespace, pod) (kube_pod_status_phase{phase=\"Running\"}) == 1) > 0",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true
+                }
+              }
+            }
+          ],
+          "id": 35,
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 0,
+            "y": 60
+          }
+        },
+        {
+          "type": "table",
+          "title": "Restarts, last 24h",
+          "description": "Containers restarted in the last 24 hours.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "sort_desc(sum by (namespace, pod, container) (increase(kube_pod_container_status_restarts_total[24h])) > 0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "color-background"
+                }
+              },
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 1
+                  },
+                  {
+                    "color": "red",
+                    "value": 5
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "Value": "restarts"
+                }
+              }
+            }
+          ],
+          "id": 36,
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 12,
+            "y": 60
+          }
+        },
+        {
+          "type": "bargauge",
+          "title": "Certificate expiry (as served)",
+          "description": "probe_ssl_earliest_cert_expiry of each public hostname, in days. cert-manager renews at 30 days left.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "(min by (app) (probe_ssl_earliest_cert_expiry{job=\"blackbox-public\"}) - time()) / 86400",
+              "refId": "A",
+              "legendFormat": "{{app}}",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "d",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 14
+                  },
+                  {
+                    "color": "green",
+                    "value": 21
+                  }
+                ]
+              },
+              "min": 0,
+              "max": 90,
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "orientation": "horizontal",
+            "displayMode": "gradient",
+            "showUnfilled": true
+          },
+          "id": 37,
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 0,
+            "y": 66
+          }
+        },
+        {
+          "type": "table",
+          "title": "App versions (running image tags)",
+          "description": "kube_pod_container_info: one row per distinct image.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "count by (namespace, container, image) (kube_pod_container_info{namespace=~\"argo|keycloak|monitoring|immich|theater|mealie|paperless|seafile|syncthing|cert-manager|external-dns|gateway|democratic-csi|kube-system\"})",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm"
+          },
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true,
+                  "Value": true
+                }
+              }
+            }
+          ],
+          "id": 38,
+          "gridPos": {
+            "h": 10,
+            "w": 12,
+            "x": 12,
+            "y": 66
           }
         }
       ]
