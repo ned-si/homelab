@@ -333,19 +333,39 @@ rules` on every rendered PrometheusRule and `promtool test rules` on
 ## Silencing
 
 Silences are imperative, expire on their own, and are the tool for planned
-work:
+work. Before a planned disruptive change (a database image, a node reboot, a
+cutover), silence what it will break, then start:
+
+```sh
+scripts/maintenance-silence.sh keycloak 30m "PR 123: keycloak-db image"
+# expected: silenced namespace=keycloak for 30m: <silence id>
+scripts/maintenance-silence.sh --expire <silence id>   # when done early
+# expected: expired <silence id>
+```
+
+| Target | Silences |
+| --- | --- |
+| `<namespace>` | every alert with that `namespace`: its pods and workloads, its Argo CD Application, the app's SLO burns |
+| `node/<node>` | every alert with that `node`: `HomelabNodeNotReady`, `KubeNodeNotReady`, the pod rules of `routes/alerts.yaml` |
+| `cluster` | every alert except `Watchdog`, which keeps the heartbeat alive |
+
+The script runs `amtool silence add` inside
+`alertmanager-kube-prometheus-stack-alertmanager-0` (so it needs `pods/exec`
+in `monitoring`, the admin kubeconfig, not the agent's read-only one), with a
+duration of 1 minute to 12 hours and the reason as the comment. The
+Alertmanager UI shows and edits the same silences:
 
 ```sh
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093
-# http://localhost:9093 -> Silences -> New
+# http://localhost:9093 -> Silences
 ```
 
 - Always set a duration; an indefinite silence is a deleted alert nobody
   remembers deleting.
-- Match the narrowest set that works (`alertname` plus `namespace`).
-- Before an OS or Kubernetes upgrade, silence `PodNotReady`,
-  `PodPendingTooLong` and `KubeNodeNotReady` for the window: each node is
-  drained in turn.
+- Match the narrowest target that works; `cluster` only for work that takes
+  everything down (power, the switch, the NAS).
+- A Talos or Kubernetes upgrade reboots one node at a time: one
+  `node/<node>` silence per node, as each starts.
 
 ## When something looks healthy and is not
 
