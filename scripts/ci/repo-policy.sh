@@ -38,8 +38,16 @@ if [ -z "$render" ]; then
   render="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/render-policy"
   step render python3 scripts/ci/render_apps.py --out "$render"
 fi
+# IMAGE_POLICY_BASE (the PR base SHA in CI) turns on the image-variant rule.
+# A shallow checkout lacks it, so fetch that one commit (public repository).
+base_args=()
+if [ -n "${IMAGE_POLICY_BASE:-}" ]; then
+  git cat-file -e "${IMAGE_POLICY_BASE}^{commit}" 2>/dev/null \
+    || git fetch -q --depth=1 origin "$IMAGE_POLICY_BASE" || true
+  base_args=(--base "$IMAGE_POLICY_BASE")
+fi
 if [ -f "$render/index.json" ]; then
-  step repo_policy.py python3 scripts/ci/repo_policy.py --render "$render" --repo-root .
+  step repo_policy.py python3 scripts/ci/repo_policy.py --render "$render" --repo-root . ${base_args[@]+"${base_args[@]}"}
 else
   summary+=("| repo_policy.py | FAIL (no render index) |")
   rc=1
