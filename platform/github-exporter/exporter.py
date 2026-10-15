@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""GitHub CI/CD exporter for one repository (stdlib only).
+
+Every INTERVAL seconds it reads, from the public GitHub REST API: the
+workflows and the last 30 runs of each, open pull requests, the 100 most
+recently updated closed pull requests, and Renovate's Dependency Dashboard
+issue; then serves the derived gauges on :PORT/metrics. About 11 requests per
+cycle; conditional requests (ETag, a 304 is free) keep that well inside the
+unauthenticated quota of 60 requests/hour per IP. A GITHUB_TOKEN in the
+environment is used when present.
+
+Logs are JSON lines on stdout.
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+REPO = os.environ.get("REPO", "ned-si/homelab")
+INTERVAL = int(os.environ.get("INTERVAL", "900"))
+PORT = int(os.environ.get("PORT", "9171"))
+TOKEN = os.environ.get("GITHUB_TOKEN", "").strip()
+API = "https://api.github.com"
+RENOVATE = "renovate[bot]"
+WINDOW = 30 * 86400
+
+_etags: dict[str, tuple[str, object]] = {}
+_metrics = "# no data yet\n"
+_lock = threading.Lock()
+
+
+def log(level: str, msg: str, **kw) -> None:
+    rec = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "level": level, "msg": msg}
+    rec.update(kw)
+    print(json.dumps(rec), flush=True)
+
+
+def get(path: str):
+    """GET with ETag caching; returns (json, rate-limit headers)."""
+    req = urllib.request.Request(API + path, headers={
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "homelab-github-exporter",
+    })
+    if TOKEN:
+        req.add_header("Authorization", f"Bearer {TOKEN}")
+    cached = _etags.get(path)
+    if cached:
+        req.add_header("If-None-Match", cached[0])
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            body = json.load(r)
+            if r.headers.get("ETag"):
+                _etags[path] = (r.headers["ETag"], body)
+            return body, r.headers
+    except urllib.error.HTTPError as e:
+        if e.code == 304 and cached:
+            return cached[1], e.headers
+        raise
+
+
+def ts(s: str | None) -> float:
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() if s else 0.0
+
+
+def esc(v: str) -> str:
+    return str(v).replace("\\", "\\\\").replace("\n", " ").replace('"', '\\"')
+
+
+class Out:
+    """Gauges grouped per metric family, as the text format requires."""
+
+    def __init__(self):
+        self.families: dict[str, list[str]] = {}
+
+    def g(self, name: str, help_: str, value: float, **labels) -> None:
+        fam = self.families.setdefault(name, [f"# HELP {name} {help_}", f"# TYPE {name} gauge"])
+        lab = ",".join(f'{k}="{esc(v)}"' for k, v in sorted(labels.items()))
+        fam.append(f"{name}{{{lab}}} {value}" if lab else f"{name} {value}")
+
+    def text(self) -> str:
+        return "\n".join(line for fam in self.families.values() for line in fam) + "\n"
+
+
+def started(r: dict) -> float:
+    return ts(r.get("run_started_at") or r.get("created_at"))
+
+
+def collect() -> str:
+    now = time.time()
+    o = Out()
+    workflows, hdr = get(f"/repos/{REPO}/actions/workflows?per_page=50")
+    for w in workflows.get("workflows", []):
+        if w.get("state") != "active" or not w.get("path", "").startswith(".github/workflows/"):
+            continue
+        runs, hdr = get(f"/repos/{REPO}/actions/workflows/{w['id']}/runs?per_page=30")
+        done = [r for r in runs.get("workflow_runs", [])
+                if r.get("status") == "completed" and now - started(r) <= WINDOW]
+        if not done:
+            continue
+        wf = w["name"]
+        counts: dict[str, int] = {}
+        for r in done:
+            c = r.get("conclusion") or "unknown"
+            counts[c] = counts.get(c, 0) + 1
+        for c, n in sorted(counts.items()):
+            o.g("github_workflow_runs", "Completed runs among the last 30 (30 days), by conclusion.", n,
+                workflow=wf, conclusion=c)
+        ok = [ts(r["updated_at"]) - started(r) for r in done if r.get("conclusion") == "success"]
+        if ok:
+            o.g("github_workflow_success_duration_seconds_avg", "Mean duration of those runs that succeeded.",
+                round(sum(ok) / len(ok), 1), workflow=wf)
+        for scope, pool in (("any", done), ("main", [r for r in done if r.get("head_branch") == "main"])):
+            if not pool:
+                continue
+            r = max(pool, key=started)
+            concl = r.get("conclusion") or "unknown"
+            o.g("github_workflow_last_success", "1 if the latest completed run succeeded (scope any or main).",
+                1 if concl == "success" else 0, workflow=wf, scope=scope, conclusion=concl, event=r.get("event", ""))
+            o.g("github_workflow_last_run_timestamp_seconds", "Start of the latest completed run.",
+                started(r), workflow=wf, scope=scope)
+            o.g("github_workflow_last_run_duration_seconds", "Duration of the latest completed run.",
+                max(0.0, ts(r["updated_at"]) - started(r)), workflow=wf, scope=scope)
+
+    open_prs, _ = get(f"/repos/{REPO}/pulls?state=open&per_page=100")
+    by_author: dict[str, int] = {}
+    for p in open_prs:
+        author = "renovate" if p["user"]["login"] == RENOVATE else "other"
+        by_author[author] = by_author.get(author, 0) + 1
+        o.g("github_pull_request_open_age_seconds", "Age of each open pull request.",
+            round(now - ts(p["created_at"])), number=str(p["number"]), branch=p["head"]["ref"], author=author,
+            draft=str(bool(p.get("draft"))).lower())
+    for author in ("renovate", "other"):
+        o.g("github_pull_requests_open", "Open pull requests.", by_author.get(author, 0), author=author)
+
+    closed, _ = get(f"/repos/{REPO}/pulls?state=closed&sort=updated&direction=desc&per_page=100")
+    agg = {"merged": {}, "closed": {}}
+    lead: list[float] = []
+    rollbacks = 0
+    for p in closed:
+        if not p.get("closed_at") or now - ts(p["closed_at"]) > WINDOW:
+            continue
+        author = "renovate" if p["user"]["login"] == RENOVATE else "other"
+        state = "merged" if p.get("merged_at") else "closed"
+        agg[state][author] = agg[state].get(author, 0) + 1
+        if state == "merged" and author == "renovate":
+            lead.append(ts(p["merged_at"]) - ts(p["created_at"]))
+        if any(lb["name"] == "auto-rollback" for lb in p.get("labels", [])):
+            rollbacks += 1
+    for state in ("merged", "closed"):
+        for author in ("renovate", "other"):
+            o.g("github_pull_requests_closed_30d",
+                "Pull requests closed in the last 30 days (of the 100 most recently updated), merged or not.",
+                agg[state].get(author, 0), state=state, author=author)
+    o.g("github_auto_rollback_pull_requests_30d", "Pull requests labelled auto-rollback closed in the last 30 days.",
+        rollbacks)
+    o.g("github_auto_rollback_pull_requests_open", "Open pull requests labelled auto-rollback.",
+        sum(1 for p in open_prs if any(lb["name"] == "auto-rollback" for lb in p.get("labels", []))))
+    if lead:
+        o.g("github_renovate_merge_lead_time_seconds_avg_30d", "Mean time from opening to merge of Renovate PRs.",
+            round(sum(lead) / len(lead)))
+
+    issues, _ = get(f"/repos/{REPO}/issues?state=open&creator={urllib.request.quote(RENOVATE)}&per_page=20")
+    dash = next((i for i in issues if i.get("title") == "Dependency Dashboard"), None)
+    if dash:
+        section = "none"
+        sections: dict[str, int] = {}
+        for line in (dash.get("body") or "").splitlines():
+            m = re.match(r"^##\s+(.+?)\s*$", line)
+            if m:
+                section = m.group(1)
+                continue
+            if re.match(r"^\s*- \[[ x]\] ", line) and "manual job" not in line:
+                sections[section] = sections.get(section, 0) + 1
+        for name, n in sorted(sections.items()):
+            o.g("github_renovate_dashboard_entries", "Entries per section of Renovate's Dependency Dashboard.",
+                n, section=name)
+
+    o.g("github_ratelimit_remaining", "GitHub API requests left in the current window.",
+        float(hdr.get("X-RateLimit-Remaining", "-1")))
+    return o.text()
+
+
+def loop() -> None:
+    global _metrics
+    last_ok = 0.0
+    while True:
+        started = time.time()
+        try:
+            body = collect()
+            last_ok = time.time()
+            up = 1
+            log("info", "collected", repo=REPO, seconds=round(last_ok - started, 2))
+        except Exception as e:  # keep serving the previous data
+            body = None
+            up = 0
+            log("error", "collect failed", repo=REPO, error=f"{type(e).__name__}: {e}")
+        tail = (f"# TYPE github_exporter_up gauge\ngithub_exporter_up {up}\n"
+                f"# TYPE github_exporter_last_success_timestamp_seconds gauge\n"
+                f"github_exporter_last_success_timestamp_seconds {last_ok}\n")
+        with _lock:
+            if body is not None:
+                _metrics = body
+            _metrics = re.sub(r"(?s)# TYPE github_exporter_up.*\Z", "", _metrics) + tail
+        time.sleep(max(60, INTERVAL - (time.time() - started)))
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):  # noqa: N802
+        if self.path == "/metrics":
+            with _lock:
+                data = _metrics.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; version=0.0.4")
+        elif self.path == "/healthz":
+            data = b"ok\n"
+            self.send_response(200)
+        else:
+            data = b"not found\n"
+            self.send_response(404)
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, fmt, *args):  # scrapes are not logged
+        pass
+
+
+if __name__ == "__main__":
+    log("info", "starting", repo=REPO, interval=INTERVAL, port=PORT, authenticated=bool(TOKEN))
+    threading.Thread(target=loop, daemon=True).start()
+    ThreadingHTTPServer(("", PORT), Handler).serve_forever()
