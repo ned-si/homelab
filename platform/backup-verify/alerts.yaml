@@ -1,177 +1,80 @@
-# Alerts on the backup pipeline, including the verifier itself: a backup that
-# succeeds while producing unrestorable data is the case that loses data.
-#
-# Check every rule against three mistakes:
-#
-#   1. A counter treated as a gauge: `x_total > 0` latches after the first
-#      event and never resolves. Use rate()/increase() over a window.
-#   2. No data in the failure case: `time() - max(completion_time)` cannot
-#      fire when nothing ever completed. Add a separate absent() alert.
-#   3. An aggregate that hides a member: `max()` over two CronJobs lets a
-#      fresh one mask a stale one. Keep a `by` clause on what you would fix.
-#
-# Metric sources:
-#
-#   kube_job_*, kube_cronjob_*   kube-state-metrics (chart ServiceMonitor).
-#
-# CNPG WAL archiving and base backups are alerted on by PrometheusRule
-# cnpg-backups (platform/barman-cloud-plugin/monitoring.yaml).
-# ---------------------------------------------------------------------------
----
+# Alerts on the restore tests (metrics from the Pushgateway, see
+# scripts/common.sh). max_over_time and absent_over_time read Prometheus'
+# history, so a restarted Pushgateway neither hides nor fakes a result.
+# Tests: tests/prometheus/backup_verify_test.yaml.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  name: backup-health
-  namespace: backup-verify
+  name: backup-verify
   labels:
-    # Picked up by the kube-prometheus-stack Prometheus, which is configured
-    # with ruleSelectorNilUsesHelmValues: false so it watches all namespaces.
     release: kube-prometheus-stack
 spec:
   groups:
-    - name: backup.verification.rules
+    - name: backup.verify
       rules:
-        # --- verification ---------------------------------------------------
-        - alert: BackupVerificationFailed
-          # `kube_job_failed{condition="true"}`, set only when the Job gives up.
-          # `kube_job_status_failed` counts failed pods, so a Job that failed
-          # once and then succeeded on retry would alert for as long as the Job
-          # object exists.
-          expr: |
-            max by (namespace, job_name) (kube_job_failed{namespace="backup-verify", condition="true"}) > 0
-          for: 15m
+        - alert: BackupVerifyFailed
+          expr: backup_verify_success == 0
+          for: 5m
           labels:
-            severity: critical
+            severity: warning
           annotations:
-            summary: "Backup restore verification FAILED ({{ $labels.job_name }})"
+            summary: "Backup restore test failed: {{ $labels.check }}/{{ $labels.target }}"
             description: >-
-              A weekly restore test failed. This means a backup may not be
-              restorable. Treat as data-loss risk, not as a flaky job.
-              Runbook: docs/backups.md#when-verification-fails
+              The last {{ $labels.check }} restore test of {{ $labels.target }}
+              failed, so that backup may not restore. The FAIL lines are in the
+              log of the last Job: kubectl -n backup-verify get jobs, then
+              kubectl -n backup-verify logs job/<job> --all-containers.
+              Runbook: docs/backups.md#when-a-restore-test-fails
 
-        - alert: BackupVerificationStale
-          # Per CronJob, via kube_job_owner (Job names are <cronjob>-<timestamp>,
-          # so the CronJob is not a label of its own).
-          #
-          # completion_time exists only while the Job object exists: with
-          # successfulJobsHistoryLimit: 4 on a weekly schedule that is about 4
-          # weeks, so 14 days is measurable. Lowering the history limit breaks
-          # this rule silently. BackupVerificationNeverRan covers "never
-          # completed".
+        - alert: BackupVerifyStale
+          # Weekly checks: no pass in 8 days, the schedule plus a day.
           expr: |
-            time() - max by (owner_name) (
-              kube_job_status_completion_time{namespace="backup-verify"}
-              * on (namespace, job_name) group_left (owner_name)
-                kube_job_owner{namespace="backup-verify", owner_kind="CronJob"}
-            ) > 14 * 24 * 3600
+            time() - max by (check, target) (
+              max_over_time(backup_verify_last_success_timestamp_seconds{check!="restic-data"}[9d])
+            ) > 8 * 86400
           for: 1h
           labels:
-            severity: critical
-          annotations:
-            summary: "No successful backup verification in 14 days ({{ $labels.owner_name }})"
-            description: >-
-              The {{ $labels.owner_name }} CronJob has not completed
-              successfully for two weeks. Either it is not running, or every run
-              is failing. Check: kubectl -n backup-verify get jobs
-
-        - alert: BackupVerificationNeverRan
-          # absent() companion: fires when the CronJob has never completed a Job,
-          # so there is no completion_time series for the rule above.
-          #
-          # `for: 6h`: long enough not to page during a deploy, far shorter than
-          # the weekly schedule.
-          expr: |
-            absent(kube_job_status_completion_time{namespace="backup-verify"})
-          for: 6h
-          labels:
-            severity: critical
-          annotations:
-            summary: "Backup verification has NEVER completed successfully"
-            description: >-
-              No Job in the backup-verify namespace has ever reached completion.
-              Every backup in this cluster is therefore an untested hypothesis.
-              Most likely: the S3 bucket and credentials do not exist yet
-              (docs/backups.md, 'Setup, start to finish'), or the `s3-backup`
-              Secret is missing from the backup-verify namespace.
-
-        - alert: BackupVerificationCronJobSuspended
-          # A suspended CronJob produces no failures and no Jobs, so no other
-          # rule here sees it.
-          expr: |
-            kube_cronjob_spec_suspend{namespace="backup-verify"} == 1
-          for: 30m
-          labels:
             severity: warning
           annotations:
-            summary: "Backup verification CronJob is SUSPENDED ({{ $labels.cronjob }})"
+            summary: "No passing restore test in 8 days: {{ $labels.check }}/{{ $labels.target }}"
             description: >-
-              Someone suspended it, probably temporarily. Nothing else in this
-              rule group can tell you that verification has stopped, because a
-              suspended CronJob creates no Jobs to fail.
+              {{ $labels.check }}/{{ $labels.target }} last passed
+              {{ $value | humanizeDuration }} ago. Either its CronJob did not
+              run or every run failed: kubectl -n backup-verify get cronjobs,jobs.
+              Runbook: docs/backups.md#when-a-restore-test-fails
 
-    - name: backup.files.rules
-      rules:
-        - alert: FileBackupJobFailed
-          # `kube_job_failed{condition="true"}` for the same reason as
-          # BackupVerificationFailed; these Jobs use backoffLimit: 2, so a retry
-          # that succeeds is normal on a flaky uplink. The selector matches
-          # `backup` anywhere in the Job name; `backup-verify` has its own rule.
+        - alert: BackupVerifyDataStale
+          # Monthly pack reads run on the first Saturday: at most 35 days apart.
           expr: |
-            max by (namespace, job_name) (
-              kube_job_failed{namespace!="backup-verify", job_name=~".*backup.*", condition="true"}
-            ) > 0
-          for: 30m
-          labels:
-            severity: warning
-          annotations:
-            summary: "File backup job failing: {{ $labels.namespace }}/{{ $labels.job_name }}"
-            description: >-
-              A restic CronJob gave up after its retries. Check the log:
-              kubectl -n {{ $labels.namespace }} logs job/{{ $labels.job_name }}
-
-        - alert: FileBackupNotRunRecently
-          # "Not running" rather than "failing": a deleted CronJob, a lost
-          # controller lease or a missed startingDeadlineSeconds produces no
-          # failed Job. last_schedule_time is set when the controller creates a
-          # Job. 36h allows one missed night on a daily schedule.
-          #
-          # backup-verify is excluded: its CronJobs are weekly and have their own
-          # 14-day rule.
-          expr: |
-            time() - kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"} > 36 * 3600
+            time() - max by (check, target) (
+              max_over_time(backup_verify_last_success_timestamp_seconds{check="restic-data"}[30d])
+            ) > 36 * 86400
           for: 1h
           labels:
-            severity: critical
+            severity: warning
           annotations:
-            summary: "Backup CronJob has not been scheduled in 36h ({{ $labels.namespace }}/{{ $labels.cronjob }})"
+            summary: "No passing pack read in 36 days: {{ $labels.target }}"
             description: >-
-              The CronJob controller has not created a Job for this schedule.
-              Nothing failed -- nothing ran. Check
-              kubectl -n {{ $labels.namespace }} describe cronjob {{ $labels.cronjob }}
-              for a missed startingDeadlineSeconds or concurrencyPolicy: Forbid
-              blocking on a wedged previous run.
+              The monthly restic check --read-data-subset of {{ $labels.target }}
+              last passed {{ $value | humanizeDuration }} ago.
+              Runbook: docs/backups.md#when-a-restore-test-fails
 
-        - alert: FileBackupCronJobSuspended
+        - alert: BackupVerifyMissing
+          # No result at all: the jobs never ran, or the Pushgateway is not
+          # scraped. Covers the case the two rules above cannot see.
           expr: |
-            kube_cronjob_spec_suspend{namespace!="backup-verify", cronjob=~".*backup.*"} == 1
-          for: 30m
+            absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic"}[9d])
+            or absent_over_time(backup_verify_last_success_timestamp_seconds{check="postgres"}[9d])
+            or absent_over_time(backup_verify_last_success_timestamp_seconds{check="mariadb"}[9d])
+            or absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic-data"}[30d])
+          for: 1h
           labels:
             severity: warning
           annotations:
-            summary: "Backup CronJob is SUSPENDED ({{ $labels.namespace }}/{{ $labels.cronjob }})"
-
-        - alert: FileBackupCronJobsAbsent
-          # absent() companion for this group: without the CronJobs (Application
-          # out of sync, resource line lost) every rule above says nothing.
-          expr: |
-            absent(kube_cronjob_status_last_schedule_time{namespace!="backup-verify", cronjob=~".*backup.*"})
-          for: 2h
-          labels:
-            severity: critical
-          annotations:
-            summary: "No backup CronJobs exist in this cluster"
+            summary: "No passing {{ $labels.check }} restore test on record"
             description: >-
-              kube-state-metrics reports no CronJob whose name contains
-              'backup'. Either nothing is backing anything up, or
-              kube-state-metrics is not being scraped -- both are worth
-              interrupting whatever you were doing.
+              Prometheus has no passing {{ $labels.check }} result in its
+              window (9 days, 30 for restic-data). Check the CronJobs
+              (kubectl -n backup-verify get cronjobs,jobs) and the Pushgateway
+              target on the Prometheus targets page.
+              Runbook: docs/backups.md#when-a-restore-test-fails

@@ -1,0 +1,724 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  common.sh: |
+    #!/bin/sh
+    # Sourced by the verify scripts: logging and the Pushgateway push.
+    #
+    # Metrics, one group per check and target
+    # (/metrics/job/backup-verify/check/<check>/target/<target>):
+    #   backup_verify_success                         1 pass, 0 fail (last run)
+    #   backup_verify_last_run_timestamp_seconds      end of the last run
+    #   backup_verify_last_success_timestamp_seconds  end of the last passing run;
+    #                                                 not pushed on a failure, so
+    #                                                 the previous value stays
+    #   backup_verify_duration_seconds                length of the last run
+    #   plus the check's own figures (rows, tables, files, bytes, snapshot time).
+
+    PUSHGATEWAY="${PUSHGATEWAY:-http://pushgateway.backup-verify.svc:9091}"
+
+    log() { echo "$(date -u +%H:%M:%S) $*"; }
+
+    # push <check> <target> <ok: 1|0> <start epoch> [metric lines...]
+    push_result() {
+      _check=$1 _target=$2 _ok=$3 _start=$4
+      shift 4
+      _now=$(date -u +%s)
+      _body=$(mktemp)
+      {
+        echo "backup_verify_success $_ok"
+        echo "backup_verify_last_run_timestamp_seconds $_now"
+        echo "backup_verify_duration_seconds $((_now - _start))"
+        [ "$_ok" = 1 ] && echo "backup_verify_last_success_timestamp_seconds $_now"
+        for _m in "$@"; do echo "$_m"; done
+      } > "$_body"
+      if wget -q -T 20 -O /dev/null --post-file="$_body" \
+          "$PUSHGATEWAY/metrics/job/backup-verify/check/$_check/target/$_target"; then
+        _rc=0
+      else
+        log "ERROR: push of $_check/$_target to $PUSHGATEWAY failed"
+        _rc=1
+      fi
+      rm -f "$_body"
+      return "$_rc"
+    }
+  postgres-targets.txt: |
+    # Weekly CNPG restores (verify-postgres.sh), one at a time: <namespace> <cluster>.
+    # A new line also needs the cluster's name in both resourceNames lists of
+    # ClusterRole backup-verify-sources (rbac.yaml).
+    immich immich-db
+    keycloak keycloak-db
+    mealie mealie-postgresql
+    home home-assistant-postgresql
+    theater sonarr-postgresql
+    theater radarr-postgresql
+    theater lidarr-postgresql
+    theater prowlarr-postgresql
+  restic-data-targets.txt: |
+    # Monthly pack reads (verify-files.sh, DATA_CHECK). One line per repository:
+    # <target>|<repository>|<slices>
+    # Each run reads slice <month mod slices + 1> of <slices>, so every pack is
+    # read once every <slices> months. immich/library on S3 is about 270 GiB in
+    # Glacier IR: 1/120 a month (about 2.3 GiB of retrieval and egress); its NAS
+    # copy is read in full every year at no cost.
+    immich-library|s3:immich/library|120
+    nas-immich-library|local:/backups/immich/library|12
+    mealie|s3:mealie/data|12
+    paperless|s3:paperless/media|12
+    seafile|s3:seafile/shared|12
+    syncthing|s3:syncthing/data|12
+    theater|s3:theater/configs|12
+    books|s3:books/configs|12
+    home|s3:home/configs|12
+  restic-targets.txt: |
+    # Weekly sample restores (verify-files.sh). One line per snapshot tag:
+    # <target>|<repository>|<tag>|<required files, ;-separated, as in the snapshot>
+    # <repository> is s3:<prefix in ned-si-homelab-backups> or local:<path>.
+    # Required files are the identity and database files a restore cannot do
+    # without; a sample of other files is added every run.
+    immich-library|s3:immich/library|immich-library|
+    nas-immich-library|local:/backups/immich/library|immich-library|
+    mealie-files|s3:mealie/data|mealie-files|/data/.secret
+    mealie-postgres|s3:mealie/data|mealie-postgres|/dumps/pg-mealie-mealie-postgresql.dump
+    paperless-media|s3:paperless/media|paperless-media|
+    paperless-data|s3:paperless/media|paperless-data|/data/db.sqlite3
+    seafile-data|s3:seafile/shared|seafile-data|/shared/seafile/conf/seafile.conf;/shared/seafile/conf/ccnet.conf
+    seafile-mariadb|s3:seafile/shared|seafile-mariadb|/dumps/seafile-mariadb.sql.gz
+    syncthing-identity|s3:syncthing/data|syncthing-identity|/data/config/cert.pem;/data/config/key.pem;/data/config/config.xml
+    theater-postgres|s3:theater/configs|theater-postgres|/dumps/pg-sonarr.dump;/dumps/pg-radarr.dump;/dumps/pg-lidarr.dump;/dumps/pg-prowlarr.dump
+    sonarr|s3:theater/configs|sonarr|/config/config.xml
+    radarr|s3:theater/configs|radarr|/config/config.xml
+    lidarr|s3:theater/configs|lidarr|/config/config.xml
+    prowlarr|s3:theater/configs|prowlarr|/config/config.xml
+    plex|s3:theater/configs|plex|/config/Library/Application Support/Plex Media Server/Preferences.xml
+    jellyfin-config|s3:theater/configs|jellyfin-config|/config/config/system.xml
+    lazylibrarian|s3:theater/configs|lazylibrarian|/config/config.ini
+    audiobookshelf|s3:books/configs|audiobookshelf|/data/config/absdatabase.sqlite
+    calibre-web|s3:books/configs|calibre-web|/config/app.db
+    calibre-library|s3:books/configs|calibre-library|/library/metadata.db
+    home-assistant-config|s3:home/configs|home-assistant-config|/config/configuration.yaml;/config/.storage/core.config_entries
+    home-assistant-postgres|s3:home/configs|home-assistant-postgres|/dumps/pg-home-home-assistant-postgresql.dump
+  verify-files.sh: |
+    #!/bin/sh
+    # Weekly restic restore test, run by CronJob backup-verify-files (restic image).
+    #
+    # For every line of restic-targets.txt: the newest snapshot with that tag must
+    # be at most MAX_AGE_HOURS old; its required files and a sample of up to
+    # SAMPLE_FILES other files (each at most SAMPLE_MAX_BYTES, a different set every
+    # ISO week) are restored into an emptyDir with `restic restore --verify`, and
+    # each restored file must exist with exactly the size the snapshot records.
+    # Required files must also be non-empty.
+    #
+    # DATA_CHECK=auto (first Saturday of the month: day <= 7), always or never: also
+    # run `restic check --read-data-subset=<slice>/<slices>` on every repository in
+    # restic-data-targets.txt. The slice rotates by month, so <slices> months read
+    # every pack once.
+    #
+    # Read-only: no backup, forget or prune, no lock files. The S3 key is the
+    # verifier key; the NAS repository is mounted read-only.
+    set -eu
+    set -f
+
+    # shellcheck source=platform/backup-verify/scripts/common.sh
+    . /scripts/common.sh
+
+    S3_BASE="s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups"
+    MAX_AGE_HOURS="${MAX_AGE_HOURS:-72}"
+    SAMPLE_FILES="${SAMPLE_FILES:-5}"
+    SAMPLE_MAX_BYTES="${SAMPLE_MAX_BYTES:-67108864}"
+    DATA_CHECK="${DATA_CHECK:-auto}"
+    WORK="${WORK:-/work}"
+    TAB=$(printf '\t')
+
+    # Every restic call passes --no-lock: `check` would otherwise take an exclusive
+    # lock, and a lock left by a killed run blocks the nightly backups.
+    LOCK="--no-lock"
+
+    # repo_args <repository spec>: sets RESTIC_REPOSITORY for s3:<prefix> or
+    # local:<path>.
+    repo_args() {
+      case "$1" in
+        s3:*) RESTIC_REPOSITORY="$S3_BASE/${1#s3:}" ;;
+        local:*) RESTIC_REPOSITORY="${1#local:}" ;;
+        *) log "unknown repository spec $1"; return 1 ;;
+      esac
+      export RESTIC_REPOSITORY
+    }
+
+    # Epoch of the newest snapshot time in a `restic snapshots --json` file.
+    snapshot_epoch() {
+      jq -r '[.[].time] | max
+        | capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[0-9]{2})$")
+        | ((.d + "Z") | fromdateiso8601)
+          - (if .z == "Z" then 0
+             else ((.z[1:3] | tonumber) * 3600 + (.z[4:6] | tonumber) * 60)
+                  * (if .z[0:1] == "-" then -1 else 1 end) end)' "$1"
+    }
+
+    # verify_sample <target> <repository spec> <tag> <required paths, ;-separated>
+    verify_sample() {
+      target=$1 tag=$3 required=$4
+      start=$(date -u +%s)
+      dir="$WORK/$target"
+      rm -rf "$dir" && mkdir -p "$dir/restore"
+      repo_args "$2" || return 1
+      log "=== $target: $RESTIC_REPOSITORY tag $tag"
+
+      # shellcheck disable=SC2086 # $LOCK is one flag
+      if ! restic $LOCK snapshots --json --tag "$tag" --latest 1 > "$dir/snap.json" \
+          || [ "$(jq length "$dir/snap.json")" -eq 0 ]; then
+        log "FAIL $target: no snapshot with tag $tag, or the repository cannot be read"
+        return 1
+      fi
+      snap_ts=$(snapshot_epoch "$dir/snap.json")
+      age_h=$(( ($(date -u +%s) - snap_ts) / 3600 ))
+      log "newest snapshot: $(jq -r '[.[].time] | max' "$dir/snap.json") (${age_h} h old)"
+      if [ "$age_h" -gt "$MAX_AGE_HOURS" ]; then
+        log "FAIL $target: newest snapshot is ${age_h} h old (max $MAX_AGE_HOURS h)"
+        return 1
+      fi
+
+      # shellcheck disable=SC2086
+      restic $LOCK ls --json --tag "$tag" latest > "$dir/ls.json" \
+        || { log "FAIL $target: cannot list the snapshot"; return 1; }
+      # size<TAB>path of every regular file. @tsv escapes tabs, newlines and
+      # backslashes in names; those entries are left out of the sample.
+      jq -r 'select(.struct_type == "node" and .type == "file") | [.size, .path] | @tsv' \
+        "$dir/ls.json" > "$dir/files.tsv"
+      rm -f "$dir/ls.json"
+      total=$(wc -l < "$dir/files.tsv" | tr -d ' ')
+      [ "$total" -gt 0 ] || { log "FAIL $target: the snapshot holds no regular file"; return 1; }
+
+      : > "$dir/pick.tsv"
+      missing=0
+      old_ifs=$IFS
+      IFS=';'
+      for req in $required; do
+        IFS=$old_ifs
+        [ -n "$req" ] || continue
+        line=$(awk -F "$TAB" -v p="$req" '$2 == p { print; exit }' "$dir/files.tsv")
+        if [ -z "$line" ]; then
+          log "FAIL $target: required file $req is not in the snapshot"
+          missing=1
+        elif [ "${line%%"$TAB"*}" -eq 0 ]; then
+          log "FAIL $target: required file $req is empty in the snapshot"
+          missing=1
+        else
+          printf '%s\n' "$line" >> "$dir/pick.tsv"
+        fi
+      done
+      IFS=$old_ifs
+      [ "$missing" -eq 0 ] || return 1
+
+      # The sample: non-empty files up to SAMPLE_MAX_BYTES with no glob characters
+      # (restore --include takes patterns), spread over the list and moved every
+      # ISO week.
+      week=$(( $(date -u +%G) * 53 + $(date -u +%V | sed 's/^0//') ))
+      awk -F "$TAB" -v max="$SAMPLE_MAX_BYTES" '$1 > 0 && $1 <= max && $2 !~ /[][*?\\]/' \
+        "$dir/files.tsv" > "$dir/cand.tsv"
+      awk -v n="$(wc -l < "$dir/cand.tsv" | tr -d ' ')" -v k="$SAMPLE_FILES" -v w="$week" '
+        BEGIN {
+          if (k > n) k = n
+          if (k == 0) exit
+          stride = int(n / k); off = (w * 7919) % n
+          for (i = 0; i < k; i++) pick[((off + i * stride) % n) + 1] = 1
+        }
+        pick[FNR]' "$dir/cand.tsv" >> "$dir/pick.tsv"
+      sort -u "$dir/pick.tsv" -o "$dir/pick.tsv"
+
+      set --
+      while IFS= read -r line; do
+        set -- "$@" --include "${line#*"$TAB"}"
+      done < "$dir/pick.tsv"
+      # shellcheck disable=SC2086
+      if ! restic $LOCK restore latest --tag "$tag" --target "$dir/restore" --verify "$@" > "$dir/restore.log" 2>&1; then
+        tail -20 "$dir/restore.log"
+        log "FAIL $target: restic restore failed"
+        return 1
+      fi
+      tail -2 "$dir/restore.log"
+
+      files=0 bytes=0 bad=0
+      while IFS="$TAB" read -r size path; do
+        f="$dir/restore$path"
+        if [ ! -f "$f" ]; then
+          log "FAIL $target: $path was not restored"
+          bad=1
+          continue
+        fi
+        got=$(stat -c %s "$f")
+        if [ "$got" != "$size" ]; then
+          log "FAIL $target: $path restored with $got bytes, snapshot says $size"
+          bad=1
+          continue
+        fi
+        files=$((files + 1)) bytes=$((bytes + size))
+      done < "$dir/pick.tsv"
+      rm -rf "$dir"
+      [ "$bad" -eq 0 ] || return 1
+
+      log "PASS $target: $files of $total files restored, $bytes bytes, sizes match"
+      VERIFY_METRICS="backup_verify_files $files
+    backup_verify_bytes $bytes
+    backup_verify_snapshot_timestamp_seconds $snap_ts"
+      VERIFY_START=$start
+    }
+
+    # verify_data <target> <repository spec> <slices>
+    verify_data() {
+      target=$1 slices=$3
+      repo_args "$2" || return 1
+      month=$(( $(date -u +%Y) * 12 + $(date -u +%m | sed 's/^0//') - 1 ))
+      slice=$(( month % slices + 1 ))
+      log "=== $target: restic check --read-data-subset=$slice/$slices"
+      # shellcheck disable=SC2086
+      restic $LOCK check --read-data-subset="$slice/$slices"
+    }
+
+    rc=0
+    while IFS='|' read -r target repo tag required <&3; do
+      case "$target" in ''|'#'*) continue ;; esac
+      VERIFY_METRICS="" VERIFY_START=$(date -u +%s)
+      if verify_sample "$target" "$repo" "$tag" "$required"; then ok=1; else ok=0; rc=1; fi
+      rm -rf "${WORK:?}/$target"
+      old_ifs=$IFS
+      IFS='
+    '
+      # shellcheck disable=SC2086 # one metric per line
+      set -- $VERIFY_METRICS
+      IFS=$old_ifs
+      push_result restic "$target" "$ok" "$VERIFY_START" "$@" || rc=1
+    done 3< /scripts/restic-targets.txt
+
+    case "$DATA_CHECK" in
+      always) run_data=1 ;;
+      never) run_data=0 ;;
+      *) [ "$(date -u +%d | sed 's/^0//')" -le 7 ] && run_data=1 || run_data=0 ;;
+    esac
+    if [ "$run_data" -eq 1 ]; then
+      while IFS='|' read -r target repo slices <&3; do
+        case "$target" in ''|'#'*) continue ;; esac
+        start=$(date -u +%s)
+        if verify_data "$target" "$repo" "$slices"; then
+          log "PASS $target: data subset readable"
+          ok=1
+        else
+          log "FAIL $target: restic check --read-data-subset reported errors"
+          ok=0 rc=1
+        fi
+        push_result restic-data "$target" "$ok" "$start" || rc=1
+      done 3< /scripts/restic-data-targets.txt
+    fi
+
+    if [ "$rc" -eq 0 ]; then log "ALL RESTIC CHECKS PASSED"; else log "ONE OR MORE RESTIC CHECKS FAILED"; fi
+    exit "$rc"
+  verify-mariadb.sh: |
+    #!/bin/sh
+    # Weekly restore test of Seafile's MariaDB dump, run by CronJob
+    # backup-verify-mariadb. One script, one phase per container, sharing /work:
+    #
+    #   fetch        (restic)   restore seafile-mariadb.sql.gz from the newest
+    #                           `seafile-mariadb` snapshot (restore --verify)
+    #   credentials  (kubectl)  write the source's root password to an option file
+    #   compare      (mariadb)  load the dump into a scratch server on the emptyDir,
+    #                           count the rows of every table in both databases and
+    #                           compare them
+    #   report       (kubectl)  push the result to the Pushgateway; exit 1 on FAIL
+    #
+    # Compare rule: the table sets must be identical. A source table that has not
+    # been written since the dump was taken (UPDATE_TIME older than the dump file,
+    # server up since before the dump) must have exactly the restored row count.
+    # A table written since then is listed with both counts and not compared.
+    # The source is only read, in one READ ONLY transaction.
+    set -eu
+    set -f
+
+    PHASE=${1:?usage: verify-mariadb.sh fetch|credentials|compare|report}
+    WORK=${WORK:-/work}
+    DBS="ccnet_db seafile_db seahub_db"
+    DUMP="$WORK/dump/dumps/seafile-mariadb.sql.gz"
+    SRC_HOST=${SRC_HOST:-mariadb.seafile.svc.cluster.local}
+    TAB=$(printf '\t')
+
+    log() { echo "$(date -u +%H:%M:%S) $*"; }
+    fail() { log "FAIL: $*"; echo "$*" >> "$WORK/FAILED"; exit 0; }
+
+    phase_fetch() {
+      date -u +%s > "$WORK/start"
+      export RESTIC_REPOSITORY="s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/seafile/shared"
+      restic --no-lock snapshots --json --tag seafile-mariadb --latest 1 > "$WORK/snap.json" \
+        || fail "cannot list seafile-mariadb snapshots"
+      [ "$(jq length "$WORK/snap.json")" -gt 0 ] || fail "no seafile-mariadb snapshot"
+      jq -r '.[0].time' "$WORK/snap.json"
+      restic --no-lock restore latest --tag seafile-mariadb --target "$WORK/dump" --verify \
+        --include /dumps/seafile-mariadb.sql.gz || fail "restic restore failed"
+      [ -s "$DUMP" ] || fail "the restored dump is missing or empty"
+      log "dump restored: $(wc -c < "$DUMP" | tr -d ' ') bytes"
+    }
+
+    phase_credentials() {
+      [ -f "$WORK/FAILED" ] && exit 0
+      pw=$(kubectl -n seafile get secret seafile-db -o jsonpath='{.data.root-password}' | base64 -d) \
+        || fail "cannot read Secret seafile/seafile-db"
+      [ -n "$pw" ] || fail "Secret seafile/seafile-db has no root-password"
+      umask 077
+      esc=$(printf '%s' "$pw" | sed 's/\\/\\\\/g; s/"/\\"/g')
+      printf '[client]\nuser=root\npassword="%s"\n' "$esc" > "$WORK/source.cnf"
+      unset pw esc
+    }
+
+    # counts <mariadb client args...>: "schema.table<TAB>rows<TAB>updated epoch"
+    # for every base table, in one READ ONLY transaction.
+    counts() {
+      list="SELECT CONCAT('SELECT ''', TABLE_SCHEMA, '.', TABLE_NAME, ''', COUNT(*), ',
+        COALESCE(UNIX_TIMESTAMP(UPDATE_TIME), 0), ' FROM \`', TABLE_SCHEMA, '\`.\`', TABLE_NAME, '\`;')
+        FROM information_schema.TABLES
+        WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_SCHEMA IN ('ccnet_db', 'seafile_db', 'seahub_db')
+        ORDER BY TABLE_SCHEMA, TABLE_NAME"
+      mariadb "$@" -N -B -e "$list" > "$WORK/count.sql" || return 1
+      [ -s "$WORK/count.sql" ] || return 1
+      {
+        echo "SET SESSION TRANSACTION READ ONLY;"
+        echo "START TRANSACTION WITH CONSISTENT SNAPSHOT;"
+        cat "$WORK/count.sql"
+        echo "COMMIT;"
+      } | mariadb "$@" -N -B > "$WORK/count.out" || return 1
+      sort "$WORK/count.out"
+    }
+
+    phase_compare() {
+      [ -f "$WORK/FAILED" ] && exit 0
+      export TMPDIR="$WORK/tmp"
+      mkdir -p "$WORK/db" "$TMPDIR"
+      sock="$WORK/mysqld.sock"
+      mariadb-install-db --datadir="$WORK/db" --auth-root-authentication-method=normal \
+        --skip-test-db --skip-name-resolve > "$WORK/install.log" 2>&1 \
+        || { tail -20 "$WORK/install.log"; fail "mariadb-install-db failed"; }
+      mariadbd --datadir="$WORK/db" --socket="$sock" --skip-networking --skip-log-bin \
+        --pid-file="$WORK/mysqld.pid" --tmpdir="$TMPDIR" --log-error="$WORK/mysqld.log" \
+        --innodb-buffer-pool-size=128M &
+      i=0
+      until mariadb-admin -S "$sock" -u root ping > /dev/null 2>&1; do
+        i=$((i + 1))
+        [ "$i" -le 60 ] || { tail -20 "$WORK/mysqld.log"; fail "scratch MariaDB did not start"; }
+        sleep 1
+      done
+      local_db() { mariadb -S "$sock" -u root "$@"; }
+
+      t0=$(date -u +%s)
+      gzip -dc "$DUMP" | local_db || fail "loading the dump failed"
+      log "dump loaded in $(( $(date -u +%s) - t0 )) s"
+      dump_ts=$(stat -c %Y "$DUMP")
+      for db in $DBS; do
+        [ -n "$(local_db -N -B -e "SHOW DATABASES LIKE '$db'")" ] || fail "database $db is not in the dump"
+      done
+
+      counts -S "$sock" -u root > "$WORK/restored.tsv" || fail "counting the restored tables failed"
+      src() { mariadb --defaults-extra-file="$WORK/source.cnf" -h "$SRC_HOST" --connect-timeout=10 "$@"; }
+      src_started=$(src -N -B -e "SELECT UNIX_TIMESTAMP() - VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS
+        WHERE VARIABLE_NAME = 'UPTIME'") || fail "cannot reach the source MariaDB"
+      counts --defaults-extra-file="$WORK/source.cnf" -h "$SRC_HOST" --connect-timeout=10 \
+        > "$WORK/source.tsv" || fail "counting the source tables failed"
+      rm -f "$WORK/source.cnf"
+      mariadb-admin -S "$sock" -u root shutdown || true
+
+      # A table written after (dump time - 5 min) may differ; the margin covers
+      # the time between the start of the dump transaction and the file's mtime.
+      cutoff=$((dump_ts - 300))
+      awk -F "$TAB" -v cutoff="$cutoff" -v started="$src_started" -v out="$WORK/result.env" '
+        FNR == NR { r[$1] = $2; next }
+        { s[$1] = $2; u[$1] = $3 }
+        END {
+          bad = 0; changed = 0; exact = 0; rows = 0; n = 0
+          for (t in r) { n++; rows += r[t]; if (!(t in s)) { print "FAIL " t ": only in the restore"; bad++ } }
+          for (t in s) {
+            if (!(t in r)) { print "FAIL " t ": only in the source"; bad++; continue }
+            stable = (started > 0 && started < cutoff && u[t] < cutoff)
+            if (!stable) { changed++; print "changed " t ": restored=" r[t] " source=" s[t]; continue }
+            exact++
+            if (r[t] != s[t]) { print "FAIL " t ": restored=" r[t] " source=" s[t]; bad++ }
+          }
+          printf "tables=%d rows=%d exact=%d changed=%d failing=%d\n", n, rows, exact, changed, bad
+          printf "TABLES=%d\nROWS=%d\nEXACT=%d\nBAD=%d\n", n, rows, exact, bad > out
+          exit (bad > 0)
+        }' "$WORK/restored.tsv" "$WORK/source.tsv" || fail "row counts differ from the source"
+      echo "DUMP_TS=$dump_ts" >> "$WORK/result.env"
+    }
+
+    phase_report() {
+      # shellcheck source=platform/backup-verify/scripts/common.sh
+      . /scripts/common.sh
+      start=$(cat "$WORK/start" 2>/dev/null || date -u +%s)
+      if [ -f "$WORK/FAILED" ] || [ ! -f "$WORK/result.env" ]; then
+        [ -f "$WORK/FAILED" ] && sed 's/^/FAIL: /' "$WORK/FAILED"
+        push_result mariadb seafile 0 "$start"
+        exit 1
+      fi
+      # shellcheck disable=SC1091
+      . "$WORK/result.env"
+      # shellcheck disable=SC2153 # set by result.env
+      push_result mariadb seafile 1 "$start" \
+        "backup_verify_tables $TABLES" "backup_verify_rows $ROWS" \
+        "backup_verify_snapshot_timestamp_seconds $DUMP_TS"
+      log "PASS seafile: $TABLES tables, $ROWS rows, $EXACT compared exactly"
+    }
+
+    case "$PHASE" in
+      fetch) phase_fetch ;;
+      credentials) phase_credentials ;;
+      compare) phase_compare ;;
+      report) phase_report ;;
+      *) echo "unknown phase $PHASE" >&2; exit 64 ;;
+    esac
+  verify-postgres.sh: |
+    #!/bin/sh
+    # Weekly CNPG restore test, run by CronJob backup-verify-postgres (kubectl
+    # image, with a psql sidecar in the same pod).
+    #
+    # For each line of postgres-targets.txt, one cluster at a time:
+    #   1. L1: the row count of every table of the source database, read as its
+    #      owner in a read-only transaction, with the WAL position (LSN) and WAL
+    #      file of that moment.
+    #   2. Wait up to 7.5 min for that WAL file to be archived. If it is not, it
+    #      held no WAL at L1 (archive_timeout is 5 min and switches only a segment
+    #      with WAL in it), so a full replay recovers exactly the L1 state.
+    #   3. Create Cluster bv-<source> in backup-verify, bootstrapped by recovery
+    #      from the source's Barman Cloud archive (ObjectStore verify-source,
+    #      serverName from the source's plugin parameters), to the L1 LSN, with the
+    #      source's image, preload libraries and volume size. It has no
+    #      spec.plugins, so it never writes to the bucket.
+    #   4. R: the same counts on the restore, as the same role. PASS when the table
+    #      sets are identical and every table has R = L1. immich-db must also hold
+    #      at least IMMICH_FLOOR_IMAGES images and IMMICH_FLOOR_VIDEOS videos.
+    #   5. Delete the Cluster and wait for its volumes to go.
+    # Production clusters are only read: a `get` of the Cluster and of its -app
+    # Secret, and SELECTs through its -rw Service.
+    set -eu
+    set -f
+
+    # shellcheck source=platform/backup-verify/scripts/common.sh
+    . /scripts/common.sh
+
+    NS=backup-verify
+    SELF=${POD_NAME:?}
+    RESTORE_TIMEOUT=${RESTORE_TIMEOUT:-30m}
+    FLOOR_IMAGES=${IMMICH_FLOOR_IMAGES:-0}
+    FLOOR_VIDEOS=${IMMICH_FLOOR_VIDEOS:-0}
+    WORK=${WORK:-/tmp/work}
+    LABEL=homelab.lilalala.com/backup-verify
+
+    k() { kubectl --request-timeout=60s "$@"; }
+
+    COUNT_SQL="select table_schema || '.' || table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text from information_schema.tables where table_type = 'BASE TABLE' and table_schema not in ('pg_catalog', 'information_schema') order by 1"
+    MARK_SQL="select '~ts', extract(epoch from now())::bigint::text union all select '~lsn', pg_current_wal_lsn()::text union all select '~wal', pg_walfile_name(pg_current_wal_lsn()) union all ($COUNT_SQL)"
+
+    # src_sql <sql>: on the source primary, as the database owner, read-only. psql
+    # runs in the sidecar; the password goes over stdin, never into an argument.
+    src_sql() {
+      # shellcheck disable=SC2016 # expanded by the sidecar's shell
+      printf '%s\n' "$SRC_PW" | kubectl --request-timeout=600s -n "$NS" exec -i "$SELF" -c psql -- \
+        sh -c 'IFS= read -r PGPASSWORD; export PGPASSWORD; exec psql -X -q -At -F "|" -v ON_ERROR_STOP=1 "$1" -c "$2"' \
+        sh "host=$SRC_HOST port=5432 dbname=$SRC_DB user=$SRC_USER sslmode=require connect_timeout=10 options='-c default_transaction_read_only=on'" "$1"
+    }
+
+    # dst_sql <sql>: on the restored primary, as the same owner role.
+    dst_sql() {
+      kubectl --request-timeout=600s -n "$NS" exec "$DST_POD" -c postgres -- \
+        psql -X -q -At -F '|' -v ON_ERROR_STOP=1 -d "$SRC_DB" -c "SET ROLE \"$SRC_USER\"" -c "$1"
+    }
+
+    # delete_restore <cluster>: delete a restore Cluster and wait for its PVCs.
+    delete_restore() {
+      k -n "$NS" delete cluster.postgresql.cnpg.io "$1" --ignore-not-found --wait=true --timeout=5m > /dev/null || true
+      i=0
+      while [ -n "$(k -n "$NS" get pvc -l "cnpg.io/cluster=$1" -o name)" ]; do
+        i=$((i + 1))
+        [ "$i" -le 30 ] || { log "ERROR: PVCs of $1 still exist after 5 min"; return 1; }
+        sleep 10
+      done
+    }
+
+    b64() { printf '%s' "$1" | base64 -d; }
+
+    # verify_cluster <namespace> <cluster>; sets VERIFY_METRICS on success.
+    verify_cluster() {
+      src_ns=$1 src=$2
+      dst="bv-$src"
+      dir="$WORK/$src"
+      rm -rf "$dir" && mkdir -p "$dir"
+      log "=== $src_ns/$src"
+
+      k -n "$src_ns" get cluster.postgresql.cnpg.io "$src" -o jsonpath='{.spec.imageName}{"\n"}{.spec.storage.size}{"\n"}{.spec.postgresql.shared_preload_libraries}{"\n"}{range .spec.plugins[?(@.isWALArchiver==true)]}{.parameters.serverName}{end}{"\n"}' \
+        > "$dir/src.txt" || { log "FAIL $src: cannot read Cluster $src_ns/$src"; return 1; }
+      image=$(sed -n 1p "$dir/src.txt")
+      size=$(sed -n 2p "$dir/src.txt")
+      preload=$(sed -n 3p "$dir/src.txt")
+      server=$(sed -n 4p "$dir/src.txt")
+      [ -n "$preload" ] || preload="[]"
+      [ -n "$server" ] || server=$src
+      [ -n "$image" ] && [ -n "$size" ] || { log "FAIL $src: no imageName or storage size on the source"; return 1; }
+
+      app=$(k -n "$src_ns" get secret "$src-app" -o jsonpath='{.data.dbname} {.data.username} {.data.password}') \
+        || { log "FAIL $src: cannot read Secret $src_ns/$src-app"; return 1; }
+      SRC_DB=$(b64 "${app%% *}")
+      app=${app#* }
+      SRC_USER=$(b64 "${app%% *}")
+      SRC_PW=$(b64 "${app#* }")
+      unset app
+      [ -n "$SRC_DB" ] && [ -n "$SRC_USER" ] && [ -n "$SRC_PW" ] \
+        || { log "FAIL $src: Secret $src_ns/$src-app lacks dbname, username or password"; return 1; }
+      SRC_HOST="$src-rw.$src_ns.svc"
+      log "source: image=$image size=$size preload=$preload serverName=$server db=$SRC_DB"
+
+      src_sql "$MARK_SQL" > "$dir/l1m" || { log "FAIL $src: cannot query the source"; return 1; }
+      ts=$(awk -F'|' '$1 == "~ts" { print $2 }' "$dir/l1m")
+      lsn=$(awk -F'|' '$1 == "~lsn" { print $2 }' "$dir/l1m")
+      wal=$(awk -F'|' '$1 == "~wal" { print $2 }' "$dir/l1m")
+      grep -v '^~' "$dir/l1m" > "$dir/l1"
+      [ -n "$ts" ] && [ -n "$lsn" ] && [ -n "$wal" ] || { log "FAIL $src: no LSN marker in the source query"; return 1; }
+      log "L1: LSN $lsn, WAL $wal, $(wc -l < "$dir/l1" | tr -d ' ') tables, $(awk -F'|' '{ s += $2 } END { print s + 0 }' "$dir/l1") rows"
+
+      target=""
+      i=0
+      while [ "$i" -lt 30 ]; do
+        last=$(src_sql "select coalesce(last_archived_wal, '') from pg_stat_archiver" | cut -c1-24)
+        if [ -n "$last" ] && awk -v a="$last" -v b="$wal" 'BEGIN { exit !(a "" >= b "") }'; then
+          target="      recoveryTarget:
+            targetLSN: \"$lsn\""
+          break
+        fi
+        i=$((i + 1))
+        sleep 15
+      done
+      if [ -n "$target" ]; then
+        log "WAL $wal archived (last $last): recovery to LSN $lsn"
+      else
+        log "WAL $wal not archived after 7.5 min: it held no WAL at L1, full replay"
+      fi
+
+      delete_restore "$dst" || return 1
+      cat > "$dir/restore.yaml" <<EOF
+    apiVersion: postgresql.cnpg.io/v1
+    kind: Cluster
+    metadata:
+      name: $dst
+      namespace: $NS
+      labels:
+        $LABEL: "true"
+    spec:
+      instances: 1
+      imageName: $image
+      postgresql:
+        shared_preload_libraries: $preload
+      storage:
+        storageClass: iscsi
+        size: $size
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+          ephemeral-storage: 256Mi
+        limits:
+          memory: 2Gi
+          ephemeral-storage: 1Gi
+      bootstrap:
+        recovery:
+          source: origin
+          database: $SRC_DB
+          owner: $SRC_USER
+    $target
+      externalClusters:
+        - name: origin
+          plugin:
+            name: barman-cloud.cloudnative-pg.io
+            parameters:
+              barmanObjectName: verify-source
+              serverName: $server
+    EOF
+      k apply -f "$dir/restore.yaml" > /dev/null || { log "FAIL $src: cannot create Cluster $dst"; return 1; }
+      t0=$(date -u +%s)
+      if ! kubectl -n "$NS" wait --for=condition=Ready "cluster.postgresql.cnpg.io/$dst" --timeout="$RESTORE_TIMEOUT" > /dev/null; then
+        k -n "$NS" get cluster.postgresql.cnpg.io,pods -l "cnpg.io/cluster=$dst" 2>&1 | tail -10
+        k -n "$NS" logs -l "cnpg.io/cluster=$dst" --all-containers --tail=200 2>/dev/null \
+          | grep -E 'FATAL|PANIC|ERROR|recovery' | cut -c1-300 | tail -10
+        log "FAIL $src: the restore did not become Ready within $RESTORE_TIMEOUT"
+        return 1
+      fi
+      restore_s=$(( $(date -u +%s) - t0 ))
+      DST_POD=$(k -n "$NS" get cluster.postgresql.cnpg.io "$dst" -o jsonpath='{.status.currentPrimary}')
+      log "restore Ready after $restore_s s ($DST_POD)"
+
+      dst_sql "$COUNT_SQL" > "$dir/r" || { log "FAIL $src: cannot query the restore"; return 1; }
+      awk -F'|' -v out="$dir/sum" '
+        FNR == NR { l1[$1] = $2; next }
+        { r[$1] = $2 }
+        END {
+          bad = 0; rows = 0; n = 0
+          for (t in l1) if (!(t in r)) { print "FAIL " t ": only in the source"; bad++ }
+          for (t in r) {
+            n++; rows += r[t]
+            if (!(t in l1)) { print "FAIL " t ": only in the restore"; bad++ }
+            else if (r[t] != l1[t]) { print "FAIL " t ": source=" l1[t] " restored=" r[t]; bad++ }
+          }
+          printf "%d %d %d\n", n, rows, bad > out
+          exit (bad > 0)
+        }' "$dir/l1" "$dir/r" || { log "FAIL $src: row counts differ from the source"; return 1; }
+      read -r tables rows _ < "$dir/sum"
+
+      if [ "$src" = immich-db ]; then
+        assets=$(dst_sql "select type, count(*) from asset where \"deletedAt\" is null group by type order by 1")
+        img=$(echo "$assets" | awk -F'|' '$1 == "IMAGE" { print $2 }')
+        vid=$(echo "$assets" | awk -F'|' '$1 == "VIDEO" { print $2 }')
+        log "restored Immich assets: ${img:-0} images, ${vid:-0} videos (floor $FLOOR_IMAGES / $FLOOR_VIDEOS)"
+        if [ "${img:-0}" -lt "$FLOOR_IMAGES" ] || [ "${vid:-0}" -lt "$FLOOR_VIDEOS" ]; then
+          log "FAIL $src: restored Immich is below the floor"
+          return 1
+        fi
+      fi
+
+      log "PASS $src: $tables tables, $rows rows, equal to the source"
+      VERIFY_METRICS="backup_verify_tables $tables
+    backup_verify_rows $rows
+    backup_verify_restore_seconds $restore_s
+    backup_verify_snapshot_timestamp_seconds $ts"
+    }
+
+    mkdir -p "$WORK"
+    for c in $(k -n "$NS" get cluster.postgresql.cnpg.io -l "$LABEL=true" -o name); do
+      log "removing leftover $c"
+      delete_restore "${c#*/}" || true
+    done
+
+    rc=0
+    while read -r src_ns src <&3; do
+      case "$src_ns" in ''|'#'*) continue ;; esac
+      start=$(date -u +%s)
+      VERIFY_METRICS=""
+      if verify_cluster "$src_ns" "$src"; then ok=1; else ok=0; rc=1; fi
+      unset SRC_PW
+      delete_restore "bv-$src" || rc=1
+      rm -rf "${WORK:?}/$src"
+      old_ifs=$IFS
+      IFS='
+    '
+      # shellcheck disable=SC2086 # one metric per line
+      set -- $VERIFY_METRICS
+      IFS=$old_ifs
+      push_result postgres "$src" "$ok" "$start" "$@" || rc=1
+    done 3< /scripts/postgres-targets.txt
+
+    if [ "$rc" -eq 0 ]; then log "ALL POSTGRES RESTORES PASSED"; else log "ONE OR MORE POSTGRES RESTORES FAILED"; fi
+    exit "$rc"
+kind: ConfigMap
+metadata:
+  name: backup-verify-scripts-fgh8bc667k
+  namespace: backup-verify

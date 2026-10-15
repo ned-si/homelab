@@ -1,0 +1,162 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-mariadb
+  namespace: backup-verify
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 2700
+      backoffLimit: 0
+      template:
+        spec:
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/verify-mariadb.sh
+            - report
+            image: alpine/kubectl:1.37.1
+            name: report
+            resources:
+              limits:
+                ephemeral-storage: 64Mi
+                memory: 64Mi
+              requests:
+                cpu: 10m
+                ephemeral-storage: 16Mi
+                memory: 16Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          initContainers:
+          - command:
+            - /bin/sh
+            - /scripts/verify-mariadb.sh
+            - fetch
+            env:
+            - name: RESTIC_CACHE_DIR
+              value: /work/.cache
+            - name: TMPDIR
+              value: /work/.cache
+            - name: HOME
+              value: /work
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.1
+            name: fetch
+            resources:
+              limits:
+                ephemeral-storage: 1Gi
+                memory: 512Mi
+              requests:
+                cpu: 50m
+                ephemeral-storage: 256Mi
+                memory: 128Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          - command:
+            - /bin/sh
+            - /scripts/verify-mariadb.sh
+            - credentials
+            env:
+            - name: HOME
+              value: /work
+            image: alpine/kubectl:1.37.1
+            name: credentials
+            resources:
+              limits:
+                ephemeral-storage: 64Mi
+                memory: 128Mi
+              requests:
+                cpu: 10m
+                ephemeral-storage: 16Mi
+                memory: 32Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          - command:
+            - /bin/sh
+            - /scripts/verify-mariadb.sh
+            - compare
+            env:
+            - name: HOME
+              value: /work
+            image: mariadb:10.11.19
+            name: compare
+            resources:
+              limits:
+                ephemeral-storage: 1Gi
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                ephemeral-storage: 512Mi
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: backup-verify
+          volumes:
+          - configMap:
+              name: backup-verify-scripts-fgh8bc667k
+            name: scripts
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: work
+  schedule: 0 21 * * 6
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  suspend: false

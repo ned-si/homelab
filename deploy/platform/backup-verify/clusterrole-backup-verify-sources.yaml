@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-verify-sources
+rules:
+- apiGroups:
+  - postgresql.cnpg.io
+  resourceNames:
+  - immich-db
+  - keycloak-db
+  - mealie-postgresql
+  - home-assistant-postgresql
+  - sonarr-postgresql
+  - radarr-postgresql
+  - lidarr-postgresql
+  - prowlarr-postgresql
+  resources:
+  - clusters
+  verbs:
+  - get
+- apiGroups:
+  - ""
+  resourceNames:
+  - immich-db-app
+  - keycloak-db-app
+  - mealie-postgresql-app
+  - home-assistant-postgresql-app
+  - sonarr-postgresql-app
+  - radarr-postgresql-app
+  - lidarr-postgresql-app
+  - prowlarr-postgresql-app
+  - seafile-db
+  resources:
+  - secrets
+  verbs:
+  - get

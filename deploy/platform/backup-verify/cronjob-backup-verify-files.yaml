@@ -15,22 +15,29 @@ metadata:
   namespace: backup-verify
 spec:
   concurrencyPolicy: Forbid
-  failedJobsHistoryLimit: 8
+  failedJobsHistoryLimit: 2
   jobTemplate:
     spec:
-      activeDeadlineSeconds: 10800
+      activeDeadlineSeconds: 9000
       backoffLimit: 0
       template:
         spec:
+          automountServiceAccountToken: false
           containers:
           - command:
             - /bin/sh
-            - /scripts/run-all-files.sh
+            - /scripts/verify-files.sh
             env:
+            - name: DATA_CHECK
+              value: auto
+            - name: WORK
+              value: /work
             - name: RESTIC_CACHE_DIR
-              value: /scratch/.cache
+              value: /work/.cache
             - name: TMPDIR
-              value: /scratch/.cache
+              value: /work/.cache
+            - name: HOME
+              value: /work
             envFrom:
             - secretRef:
                 name: s3-backup
@@ -38,34 +45,47 @@ spec:
             name: verify
             resources:
               limits:
+                ephemeral-storage: 4Gi
                 memory: 2Gi
               requests:
                 cpu: 100m
+                ephemeral-storage: 2Gi
                 memory: 256Mi
             securityContext:
               allowPrivilegeEscalation: false
               capabilities:
                 drop:
                 - ALL
+              readOnlyRootFilesystem: true
             volumeMounts:
             - mountPath: /scripts
               name: scripts
-            - mountPath: /scratch
-              name: scratch
+            - mountPath: /work
+              name: work
+            - mountPath: /backups
+              name: backups
+              readOnly: true
           restartPolicy: Never
           securityContext:
             fsGroup: 1000
+            runAsGroup: 1000
             runAsNonRoot: true
             runAsUser: 1000
             seccompProfile:
               type: RuntimeDefault
           volumes:
           - configMap:
-              defaultMode: 493
-              name: backup-verify-files-scripts
+              name: backup-verify-scripts-fgh8bc667k
             name: scripts
-          - name: scratch
-            persistentVolumeClaim:
-              claimName: backup-verify-scratch
-  schedule: 0 7 * * 0
-  successfulJobsHistoryLimit: 4
+          - emptyDir:
+              sizeLimit: 4Gi
+            name: work
+          - name: backups
+            nfs:
+              path: /mnt/homelab/k8s/backups
+              readOnly: true
+              server: 192.168.1.228
+  schedule: 0 22 * * 6
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  suspend: false

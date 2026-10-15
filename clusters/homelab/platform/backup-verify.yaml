@@ -1,0 +1,36 @@
+# backup-verify: scheduled restore tests of the restic, CNPG and MariaDB
+# backups, with their results in Prometheus (platform/backup-verify,
+# docs/backups.md#verification). The restore Clusters it creates at run time
+# carry no Argo CD tracking, so Argo neither shows nor prunes them.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backup-verify
+  namespace: argo
+  annotations:
+    # After the CNPG operator, the Barman Cloud plugin and kube-prometheus-stack
+    # (their CRDs: ObjectStore, ServiceMonitor, PrometheusRule).
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/platform/backup-verify
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: backup-verify
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,11 @@
+# Weekly CNPG restores (verify-postgres.sh), one at a time: <namespace> <cluster>.
+# A new line also needs the cluster's name in both resourceNames lists of
+# ClusterRole backup-verify-sources (rbac.yaml).
+immich immich-db
+keycloak keycloak-db
+mealie mealie-postgresql
+home home-assistant-postgresql
+theater sonarr-postgresql
+theater radarr-postgresql
+theater lidarr-postgresql
+theater prowlarr-postgresql

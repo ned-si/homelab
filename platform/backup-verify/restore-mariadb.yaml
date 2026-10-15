@@ -1,0 +1,144 @@
+# Weekly restore test of Seafile's MariaDB dump into a scratch MariaDB on an
+# emptyDir (scripts/verify-mariadb.sh, one phase per container).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-mariadb
+spec:
+  # Saturday 21:00 UTC; takes about a minute.
+  schedule: "0 21 * * 6"
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 2700
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: backup-verify
+          securityContext:
+            runAsNonRoot: true
+            # The mysql user of the mariadb image.
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: fetch
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1
+              command: ["/bin/sh", "/scripts/verify-mariadb.sh", "fetch"]
+              envFrom:
+                - secretRef:
+                    name: s3-backup
+              env:
+                - name: RESTIC_CACHE_DIR
+                  value: /work/.cache
+                - name: TMPDIR
+                  value: /work/.cache
+                - name: HOME
+                  value: /work
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 128Mi
+                  ephemeral-storage: 256Mi
+                limits:
+                  memory: 512Mi
+                  ephemeral-storage: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+            - name: credentials
+              # renovate: datasource=docker depName=alpine/kubectl
+              image: alpine/kubectl:1.37.1
+              command: ["/bin/sh", "/scripts/verify-mariadb.sh", "credentials"]
+              env:
+                - name: HOME
+                  value: /work
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                  ephemeral-storage: 16Mi
+                limits:
+                  memory: 128Mi
+                  ephemeral-storage: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+            - name: compare
+              # Same tag as the server (apps/seafile/mariadb.yaml).
+              # renovate: datasource=docker depName=mariadb
+              image: mariadb:10.11.19
+              command: ["/bin/sh", "/scripts/verify-mariadb.sh", "compare"]
+              env:
+                - name: HOME
+                  value: /work
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                  ephemeral-storage: 512Mi
+                limits:
+                  memory: 1Gi
+                  ephemeral-storage: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          containers:
+            - name: report
+              # renovate: datasource=docker depName=alpine/kubectl
+              image: alpine/kubectl:1.37.1
+              command: ["/bin/sh", "/scripts/verify-mariadb.sh", "report"]
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                  ephemeral-storage: 16Mi
+                limits:
+                  memory: 64Mi
+                  ephemeral-storage: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: backup-verify-scripts
+            - name: work
+              emptyDir:
+                sizeLimit: 1Gi

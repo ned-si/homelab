@@ -1,0 +1,84 @@
+# backup-verify-postgres creates and deletes its restore Clusters in this
+# namespace only. Outside it, it can read the source Clusters and their -app
+# Secrets (and Seafile's database Secret, for backup-verify-mariadb) by name,
+# nothing else.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: backup-verify
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-verify
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["create", "get", "list", "watch", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "persistentvolumeclaims"]
+    verbs: ["get", "list", "watch"]
+  # psql runs in the job's own sidecar and in the restored primary.
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-verify
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-verify
+subjects:
+  - kind: ServiceAccount
+    name: backup-verify
+    namespace: backup-verify
+---
+# resourceNames, not one Role per source namespace: `get` on these names only.
+# A cluster added to scripts/postgres-targets.txt needs its name in both lists.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backup-verify-sources
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]
+    resourceNames:
+      - immich-db
+      - keycloak-db
+      - mealie-postgresql
+      - home-assistant-postgresql
+      - sonarr-postgresql
+      - radarr-postgresql
+      - lidarr-postgresql
+      - prowlarr-postgresql
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - immich-db-app
+      - keycloak-db-app
+      - mealie-postgresql-app
+      - home-assistant-postgresql-app
+      - sonarr-postgresql-app
+      - radarr-postgresql-app
+      - lidarr-postgresql-app
+      - prowlarr-postgresql-app
+      - seafile-db
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backup-verify-sources
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backup-verify-sources
+subjects:
+  - kind: ServiceAccount
+    name: backup-verify
+    namespace: backup-verify

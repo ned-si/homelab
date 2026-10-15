@@ -364,7 +364,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "(count((time() - kube_cronjob_status_last_successful_time{cronjob=~\".*backup.*\"}) > 26 * 3600) or vector(0)) + (count((time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) > 26 * 3600) or vector(0))",
+          "expr": "(count((time() - kube_cronjob_status_last_successful_time{cronjob=~\".*backup.*\", namespace!=\"backup-verify\"}) > 26 * 3600) or vector(0)) + (count((time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp) > 26 * 3600) or vector(0))",
           "refId": "A",
           "legendFormat": "",
           "instant": true,
@@ -1004,7 +1004,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sort_desc((time() - kube_cronjob_status_last_successful_time{cronjob=~\".*backup.*\"}) / 3600)",
+          "expr": "sort_desc((time() - kube_cronjob_status_last_successful_time{cronjob=~\".*backup.*\", namespace!=\"backup-verify\"}) / 3600)",
           "refId": "A",
           "legendFormat": "",
           "instant": true,

@@ -1,22 +1,19 @@
 # ---------------------------------------------------------------------------
 # GENERATED FILE -- DO NOT EDIT.
 #
-# Source:     platform/backup-verify
+# Source:     infrastructure/namespaces
 # Regenerate: task render     (scripts/render-deploy.sh)
 #
-# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# Edit the kustomization in infrastructure/namespaces and re-render. Editing this file
 # directly will be reverted by the next render and rejected by CI.
 # ---------------------------------------------------------------------------
 ---
 apiVersion: v1
-kind: PersistentVolumeClaim
+kind: Namespace
 metadata:
-  name: backup-verify-scratch
-  namespace: backup-verify
-spec:
-  accessModes:
-  - ReadWriteOnce
-  resources:
-    requests:
-      storage: 30Gi
-  storageClassName: iscsi
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  name: backup-verify

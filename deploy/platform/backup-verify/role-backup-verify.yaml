@@ -23,26 +23,21 @@ rules:
   - get
   - list
   - watch
-  - delete
-- apiGroups:
-  - barmancloud.cnpg.io
-  resources:
-  - objectstores
-  verbs:
-  - create
-  - get
+  - patch
   - delete
 - apiGroups:
   - ""
   resources:
   - pods
-  - pods/exec
-  - secrets
+  - pods/log
   - persistentvolumeclaims
-  - configmaps
   verbs:
   - get
   - list
   - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/exec
+  verbs:
   - create
-  - delete

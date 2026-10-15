@@ -21,7 +21,6 @@ own pull request with its own diff, test and rollback
 - Automatic Postgres majors: a Renovate major bump also moves the Barman Cloud
   `serverName` to `<cluster>-pg<major>`, CI checks they agree, then the Renovate
   cap on CNPG Postgres majors goes ([backups.md](backups.md#why-it-is-like-this)).
-- Enable the weekly restore tests (`clusters/homelab/staged/backup-verify.yaml`).
 - Snapshot-then-backup for the two best-effort SQLite databases (Jellyfin,
   Grafana) and a consistent Paperless SQLite copy.
 
