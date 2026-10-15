@@ -100,7 +100,7 @@ spec:
               secretName: talos-drift
           - image:
               pullPolicy: IfNotPresent
-              reference: ghcr.io/siderolabs/talosctl:v1.14.2
+              reference: ghcr.io/siderolabs/talosctl:v1.14.3
             name: talosctl
           - image:
               pullPolicy: IfNotPresent
