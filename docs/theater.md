@@ -180,8 +180,8 @@ private or semi-private tracker is used automatically only for freeleech
 releases, because other automatic grabs break its ratio rules.
 
 - A private or semi-private indexer whose definition has a freeleech-only
-  option (IPTorrents `freeLeechOnly`, Sharewood `freeleech`) has it on and uses
-  the profile `Standard`: RSS and automatic search see freeleech releases only.
+  option (Sharewood `freeleech`) has it on and uses the profile `Standard`:
+  RSS and automatic search see freeleech releases only.
 - One without that option (C411) uses the app profile `Manual only` (RSS off,
   automatic search off, interactive search on). Sonarr and Radarr receive it
   with RSS and automatic search off, so it is only used from Interactive
@@ -191,6 +191,10 @@ releases, because other automatic grabs break its ratio rules.
   a non-public indexer must never get it.
 - YGG stays disabled. Its definition is no longer shipped by Prowlarr, so it
   cannot be edited until it is re-added.
+- IPTorrents is disabled: the tracker has locked the account, and any use,
+  freeleech included, stays off until it restores access. Then enable it with
+  `freeLeechOnly` on and the profile `Standard`, and remove it from
+  `MUST_BE_DISABLED` in `scripts/check-indexers.sh`.
 
 Prowlarr keeps this in its database, not in git. Check it after adding an
 indexer (read-only):
@@ -201,7 +205,8 @@ scripts/check-indexers.sh
 
 Expected: one `ok` line per indexer, exit 0. A `FAIL` line names an enabled
 private or semi-private indexer that is automatic without freeleech-only on,
-or carries the `books` tag. Fix it in Prowlarr (Indexers, edit): turn the
+carries the `books` tag, or is enabled while listed as one that must stay
+disabled (IPTorrents). Fix it in Prowlarr (Indexers, edit): turn the
 freeleech-only option on, or set Sync Profile `Manual only` if the definition
 has none. `WARN` (freeleech-only on, manual profile) does not fail.
 
