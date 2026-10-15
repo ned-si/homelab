@@ -1,0 +1,77 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: qbittorrent-private-seed
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: qbittorrent-private-seed
+        spec:
+          containers:
+          - command:
+            - python3
+            - /scripts/private-seed.py
+            env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: QBITTORRENT_USER
+              valueFrom:
+                secretKeyRef:
+                  key: QBITTORRENT_USER
+                  name: lazylibrarian
+            - name: QBITTORRENT_PASS
+              valueFrom:
+                secretKeyRef:
+                  key: QBITTORRENT_PASS
+                  name: lazylibrarian
+            image: python:3.15.0-alpine3.24
+            imagePullPolicy: IfNotPresent
+            name: seed
+            resources:
+              limits:
+                memory: 128Mi
+              requests:
+                cpu: 10m
+                memory: 32Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+              readOnly: true
+          restartPolicy: Never
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              name: qbittorrent-private
+            name: scripts
+  schedule: '*/10 * * * *'
+  successfulJobsHistoryLimit: 1
+  suspend: false

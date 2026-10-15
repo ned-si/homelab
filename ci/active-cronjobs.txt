@@ -29,3 +29,4 @@ books/books-config-backup-calibre-web
 books/books-configs-prune
 home/home-assistant-backup
 home/home-prune
+theater/qbittorrent-private-seed

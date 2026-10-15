@@ -65,6 +65,7 @@ spec:
         - sonarr
         - radarr
         - lidarr
+        - qbittorrent-private-seed
     toPorts:
     - ports:
       - port: "8080"

@@ -11,6 +11,8 @@ resources:
   - lidarr.yaml
   - prowlarr.yaml
   - qbittorrent.yaml
+  # Keeps private-tracker torrents seeding past the queue (docs/theater.md).
+  - qbittorrent-private.yaml
   - recyclarr.yaml
   # Plex Watchlist import lists in Sonarr and Radarr (docs/theater.md).
   - arr-import-lists.yaml
