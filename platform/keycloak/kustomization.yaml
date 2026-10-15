@@ -6,8 +6,6 @@ resources:
   - database.yaml
   # WAL archiving and daily base backups to S3 (Barman Cloud plugin).
   - backup.yaml
-  # Takes a base backup before every sync (presync-backup.yaml).
-  - presync-backup.yaml
   - deployment.yaml
   - httproute.yaml
   - realm-settings.yaml
@@ -22,10 +20,30 @@ configMapGenerator:
       - realm/clients.conf
       - realm/apply.sh
 
-# After every sync: the management port reports ready.
+# Before every sync: a base backup, unless WAL archiving works and the last
+# base backup is < 24 h old. After every sync: the management port reports
+# ready.
 components:
+  - ../../components/presync-backup
   - ../../components/postsync-smoke
+replacements:
+  - source: { kind: Cluster, name: keycloak-db, fieldPath: spec.imageName }
+    targets:
+      - select: { kind: ConfigMap, name: presync-backup-desired }
+        fieldPaths: [data.keycloak-db]
+        options: { create: true }
 patches:
+  - target: { kind: Job, name: presync-backup }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: MODE, value: cnpg }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: CLUSTERS, value: keycloak-db }
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: IMAGE_CHECKS, value: clusters.postgresql.cnpg.io/keycloak-db }
   - target: { kind: Job, name: postsync-smoke }
     patch: |-
       - op: replace

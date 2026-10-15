@@ -200,6 +200,12 @@ A data claim bound to any other PV is on a new, empty volume: scale its
 workload to 0 and stop. Compare row counts and file counts with the values
 recorded before the old cluster stopped.
 
+The PreSync backup hooks of `mealie`, `seafile`, `theater`, `keycloak` and
+`immich` do nothing on this first sync: their CronJob or CNPG Cluster does not
+exist yet. From the next sync on they follow the backup freshness rule in
+[backups.md](backups.md). Expected in each hook's log (`kubectl -n <app> logs
+job/presync-backup`): `presync-backup: <object> not found (fresh cluster): no-op`.
+
 Anything not `Synced` and `Healthy` 30 minutes after the last layer appeared is
 a real problem: `kubectl -n argo get application <name> -o yaml` and read
 `status.conditions` and `status.operationState`. `immich` is the exception: it

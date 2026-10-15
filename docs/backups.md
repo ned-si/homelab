@@ -85,12 +85,22 @@ Expected: `True`; a `firstRecoverabilityPoint` and `lastSuccessfulBackupTime` fo
 `mealie-postgresql`; a `mealie-postgresql-daily-<timestamp>` Backup in phase
 `completed` from the last night.
 
-Before every sync of `mealie`, `seafile` and `theater`, an Argo CD PreSync hook
-(`presync-backup.yaml` in each app) runs that app's database backup CronJob
-once and waits for it to complete. Before every sync of `keycloak` and `immich`,
-the hook creates a Barman Cloud base backup (`Backup` `presync-<cluster>`) and
-waits for it. A failed backup fails the sync, so no image change, including a
-database major, is applied without a fresh, verified backup. Postgres majors are
+Before every sync of `mealie`, `seafile`, `theater`, `keycloak` and `immich`,
+including selfHeal syncs, an Argo CD PreSync hook
+(`components/presync-backup`) decides whether a backup is needed:
+
+| Case | Hook does |
+|---|---|
+| The CronJob or CNPG Cluster does not exist yet (fresh cluster) | nothing |
+| The database image changes major version, or the app is `immich` | backs up |
+| `mealie`, `seafile`, `theater`: the backup CronJob last succeeded < 24 h ago | nothing |
+| `keycloak`: WAL archiving works and the last base backup is < 24 h old | nothing |
+| Otherwise | backs up |
+
+A backup is the app's backup CronJob run once (`mealie`, `seafile`,
+`theater`) or a Barman Cloud base backup (`Backup` `presync-<cluster>`). The
+hook waits for it; a failed backup fails the sync, so no database major is
+applied without a fresh, verified backup. Postgres majors are
 held by a Renovate rule until a major bump also moves the plugin's `serverName`
 ([Why it is like this](#why-it-is-like-this)).
 

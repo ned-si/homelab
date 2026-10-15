@@ -10,23 +10,12 @@
 ---
 apiVersion: v1
 data:
-  backup.yaml: |
-    apiVersion: postgresql.cnpg.io/v1
-    kind: Backup
-    metadata:
-      name: presync-keycloak-db
-      namespace: keycloak
-    spec:
-      cluster:
-        name: keycloak-db
-      method: plugin
-      pluginConfiguration:
-        name: barman-cloud.cloudnative-pg.io
+  keycloak-db: ghcr.io/cloudnative-pg/postgresql:17.11
 kind: ConfigMap
 metadata:
   annotations:
     argocd.argoproj.io/hook: PreSync
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
     argocd.argoproj.io/sync-wave: "-1"
-  name: presync-backup
+  name: presync-backup-desired
   namespace: keycloak

@@ -27,16 +27,23 @@ spec:
         app.kubernetes.io/name: presync-backup
     spec:
       containers:
-      - args:
-        - wait
-        - --for=condition=complete
-        - job/presync-theater-postgres-backup
-        - --timeout=45m
+      - command:
+        - /bin/sh
+        - /scripts/presync-backup.sh
         env:
         - name: HOME
           value: /tmp
-        image: registry.k8s.io/kubectl:v1.37.1
-        name: wait
+        - name: MAX_AGE_HOURS
+          value: "24"
+        - name: MODE
+          value: cronjob
+        - name: CRONJOB
+          value: theater-postgres-backup
+        - name: IMAGE_CHECKS
+          value: clusters.postgresql.cnpg.io/sonarr-postgresql clusters.postgresql.cnpg.io/radarr-postgresql
+            clusters.postgresql.cnpg.io/lidarr-postgresql clusters.postgresql.cnpg.io/prowlarr-postgresql
+        image: alpine/kubectl:1.37.1
+        name: backup
         resources:
           limits:
             memory: 128Mi
@@ -52,58 +59,12 @@ spec:
         volumeMounts:
         - mountPath: /tmp
           name: tmp
-      initContainers:
-      - args:
-        - delete
-        - job
-        - presync-theater-postgres-backup
-        - --ignore-not-found
-        - --wait=true
-        env:
-        - name: HOME
-          value: /tmp
-        image: registry.k8s.io/kubectl:v1.37.1
-        name: clean
-        resources:
-          limits:
-            memory: 128Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp
-      - args:
-        - create
-        - job
-        - presync-theater-postgres-backup
-        - --from=cronjob/theater-postgres-backup
-        env:
-        - name: HOME
-          value: /tmp
-        image: registry.k8s.io/kubectl:v1.37.1
-        name: start
-        resources:
-          limits:
-            memory: 128Mi
-          requests:
-            cpu: 10m
-            memory: 32Mi
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          readOnlyRootFilesystem: true
-        volumeMounts:
-        - mountPath: /tmp
-          name: tmp
+        - mountPath: /scripts
+          name: scripts
+          readOnly: true
+        - mountPath: /desired
+          name: desired
+          readOnly: true
       restartPolicy: Never
       securityContext:
         runAsGroup: 65532
@@ -115,3 +76,9 @@ spec:
       volumes:
       - emptyDir: {}
         name: tmp
+      - configMap:
+          name: presync-backup-script
+        name: scripts
+      - configMap:
+          name: presync-backup-desired
+        name: desired
