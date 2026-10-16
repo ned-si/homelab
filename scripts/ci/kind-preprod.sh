@@ -77,8 +77,18 @@ load() {
   if [ -f "$tar" ]; then
     echo "images: from cache"
   else
-    for i in "${imgs[@]}"; do docker pull -q --platform "linux/$arch" "$i"; done
-    docker save -o "$tar" "${imgs[@]}"
+    # Pulled by the pinned digest, saved under the tag alone: the pull keeps
+    # only the runner's platform, so the multi-arch index the digest names is
+    # incomplete in the node and a digest reference fails with
+    # CreateContainerError. boot() applies the workloads with the digest
+    # stripped to match.
+    local tags=()
+    for i in "${imgs[@]}"; do
+      docker pull -q --platform "linux/$arch" "$i"
+      if [ "${i%@sha256:*}" != "$i" ]; then docker tag "$i" "${i%@sha256:*}"; fi
+      tags+=("${i%@sha256:*}")
+    done
+    docker save -o "$tar" "${tags[@]}"
   fi
   # Not `kind load docker-image`: it imports with --all-platforms, which fails
   # ("content digest ... not found") when Docker's containerd image store
@@ -136,7 +146,10 @@ dry_run() {
 boot() {
   local f ns name img rc=0 i ready
   workload_files > "$work/files"
-  while IFS= read -r f; do kubectl apply --server-side -f "$f" > /dev/null; done < "$work/files"
+  # Digests stripped: the images were loaded under their tags (see load()).
+  while IFS= read -r f; do
+    sed -E 's/@sha256:[0-9a-f]{64}//' "$f" | kubectl apply --server-side -f - > /dev/null
+  done < "$work/files"
   # One "<kind> <namespace> <name>" line per object (plain `yq`, not
   # `yq ea`: eval-all would join every document into one line).
   # shellcheck disable=SC2046
