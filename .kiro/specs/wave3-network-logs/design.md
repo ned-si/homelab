@@ -5,14 +5,14 @@
 Three parts, in this order:
 
 1. **Hubble relay and UI**: Cilium chart values (infrastructure layer), plus a small
-   platform app `hubble-access` with the oauth2-proxy, the Tailscale Ingress and the
-   CiliumNetworkPolicies, on the Headlamp pattern.
+   platform app `hubble-access` with the oauth2-proxy, the HTTPRoute on the shared Gateway
+   and the CiliumNetworkPolicies.
 2. **Network policy audit**: the `network-policies` Application joins the infrastructure
    layer with every switch false; allow-lists are regenerated from observed flows for every
    namespace; would-be drops are measured from Cilium's own policy evaluation and shown on
    the Network dashboard.
 3. **Logs**: a Vector DaemonSet collects pod and Talos logs, parses them, and ships OTLP to
-   SigNoz (ClickHouse), whose UI is on the tailnet behind Keycloak. A 14-day trial with
+   SigNoz (ClickHouse), whose UI is on the shared Gateway behind Keycloak. A 14-day trial with
    fixed thresholds decides whether SigNoz stays.
 
 ```mermaid
@@ -26,10 +26,10 @@ flowchart LR
   end
   AG --> REL[hubble-relay]
   REL --> UI[hubble-ui]
-  UI --> HS[hubble-sso, oauth2-proxy] --> TS1[Tailscale Ingress hubble]
+  UI --> HS[hubble-sso, oauth2-proxy] --> GW1[HTTPRoute hubble.lilalala.com]
   V -- OTLP --> COL[SigNoz OTel collector] --> CH[(ClickHouse, iscsi)]
   SZ[SigNoz] --> CH
-  SZ --> SS[signoz-sso, oauth2-proxy] --> TS2[Tailscale Ingress signoz]
+  SZ --> SS[signoz-sso, oauth2-proxy] --> GW2[HTTPRoute signoz.lilalala.com]
   V -- metrics --> PROM[Prometheus]
   AG -- policy verdict metrics --> PROM
   PROM --> NET[Homelab / Network dashboard: would-be drops]
@@ -41,8 +41,8 @@ flowchart LR
 | Decision | Choice | Alternatives rejected |
 | --- | --- | --- |
 | Relay and UI | `hubble.relay.enabled` and `hubble.ui.enabled` in `infrastructure/cilium/values.yaml`, resources set, chart image digests kept (`useDigest`) | A separate Hubble UI chart: the Cilium chart already ships it, versioned with the agent |
-| Relay certificates | Keep the chart's helm-generated certificates and add the relay client certificate Secret to the Cilium Application's `ignoreDifferences`, as `hubble-server-certs` is | `certgen` CronJob: changes how the existing server certificates are issued, for no gain here |
-| UI access | Namespace `hubble` (PSA restricted): oauth2-proxy `hubble-sso` (upstream `http://hubble-ui.kube-system.svc:80`), Ingress class `tailscale` host `hubble`, CNPs as Headlamp's; Keycloak client `hubble` in `proxy_clients` (`hubble:admins`), `platform_clients`, `access.conf` | Ingress in `kube-system`: a Tailscale Ingress needs its backend in its own namespace, and kube-system is exempt from PSA |
+| Relay certificates | The chart's certgen (`hubble.tls.auto.method: cronJob`), reusing `cilium-ca`; the one-shot Job as an Argo CD PostSync hook, the CronJob every four months (task 2b) | The helm method with `ignoreDifferences` (first choice, #515): Argo renders without `lookup`, so a new Secret is signed by a throw-away CA; cert-manager: Cilium is installed before its CRDs |
+| UI access | Namespace `hubble` (PSA restricted): oauth2-proxy `hubble-sso` (upstream `http://hubble-ui.kube-system.svc:80`), HTTPRoute `hubble.lilalala.com` on the shared Gateway with the #465 headers, CNP ingress from `reserved:ingress` only; Keycloak client `hubble` in `proxy_clients` (`hubble:admins`), `platform_clients`, `access.conf`. First shipped as a Tailscale Ingress (#519); moved by the operator decision of 2026-10-16 (every UI public behind Keycloak) | A tailnet-only Ingress: no more secure than SSO plus group gating, and a second way in to maintain |
 | Relay exposure | CNP in `kube-system` selecting only `hubble-relay` (ingress from `hubble-ui`, and Vector if it reads flows from the relay) and `hubble-ui` (ingress from `hubble-sso`), default-deny ingress on those two pods only, shipped by `hubble-access` | No policy: anyone in the cluster could read every flow |
 | Policy delivery | Existing `network-policies` Application, infrastructure layer, sync wave 30, `prune: true`, `selfHeal: false` (unchanged, see its header); switches false | Shipping allow-lists with each app: reverting a policy would revert the app |
 | Scope | Every namespace with workloads except `kube-system` and `democratic-csi`; new files per namespace (`70-keycloak.yaml`, `75-monitoring.yaml`, `80-backup-verify.yaml`, ...), `90-enforcement.yaml` gets a switch pair per namespace | The six application namespaces only: Keycloak and monitoring carry the most valuable flows |
@@ -57,7 +57,7 @@ flowchart LR
 | Sink | Vector `opentelemetry` sink, OTLP/HTTP to `signoz-otel-collector.signoz.svc:4318`, memory buffer 64 MiB, `when_full: block` for pods (kubelet keeps the files) and `drop_newest` for Talos (counted) | A disk buffer: eMMC writes |
 | SigNoz install | Official `signoz` chart, namespace `signoz`, platform layer; ClickHouse single replica (limit 6 GiB), Keeper/ZooKeeper single replica (0.5 GiB), collector (1 GiB), SigNoz (1 GiB); chart and images digest-pinned in values with Renovate comments | Docker Compose or a hand-written manifest set: no upgrade path |
 | ClickHouse volume | 50 GiB on `iscsi` (reclaim Delete): the data is disposable by decision, so a removed trial leaves no orphan zvol | `iscsi-retain`: keeps a volume no one restores |
-| UI access | oauth2-proxy `signoz-sso` (Keycloak client `signoz`, group `admins`, platform client), Tailscale Ingress host `signoz`; SigNoz's own login behind it (one admin, password in SOPS, copy in the password manager); no `skip_auth_routes` | A public HTTPRoute with oauth2-proxy: the operator's rule puts admin UIs on the tailnet only; SigNoz SSO: Enterprise only |
+| UI access | oauth2-proxy `signoz-sso` (Keycloak client `signoz`, group `admins`, platform client), HTTPRoute `signoz.lilalala.com` on the shared Gateway with the #465 headers; SigNoz's own login behind it (one admin, password in SOPS, copy in the password manager); no `skip_auth_routes` | A tailnet-only Ingress: superseded by the operator decision of 2026-10-16; SigNoz SSO: Enterprise only |
 | Metadata backup | Nightly restic CronJob of the SigNoz metadata volume to the S3 repository, guarded like `routes/grafana-backup.yaml` (best-effort copy of a live SQLite file unless SigNoz offers a consistent export, open question 6) | ClickHouse `BACKUP ... TO S3`: backs up the disposable part |
 | Paging | Only "logs went blind": `LogPipelineDiscarding` (Vector `component_discarded_events_total` rising for 1 h) and `SigNozCollectorAbsent` (no collector target for 1 h), `action: human`, warning | SigNoz alert rules: a second paging path with no promtool tests |
 | Trial evaluation | Recording rules `signoz_trial:clickhouse_memory_p95_bytes`, `:clickhouse_restarts`, `:volume_growth_bytes_per_day`, `:volume_projection_ratio`, `:parse_failed_ratio`, `:discarded_events`, `:sources_present`, and `signoz_trial:pass` (1 when all hold); a panel on Homelab / Nodes or Storage | A judgement at the end: not deterministic |
@@ -90,7 +90,7 @@ flowchart LR
 - `clusters/homelab/bootstrap/project-platform.yaml`: the Vector and SigNoz chart repos.
 - `.github/renovate.json5`: annotated chart versions and image digests (existing managers).
 - Docs: `docs/networking.md` (Hubble, policy audit, would-be drops, ready to enforce),
-  `docs/remote-access.md` (two new tailnet UIs), `docs/observability.md` (Logs section,
+  the Gateway route table (two new admin UIs), `docs/observability.md` (Logs section,
   trial dates and thresholds), `docs/backups.md`, `docs/talos.md` (logging patch),
   `docs/runbooks/alerts.md` sections.
 
@@ -101,7 +101,7 @@ flowchart LR
   Alertmanager routes, `talos-validate.sh` for the patches, the bash test of
   `netpol-observe.sh`.
 - Live, read-only, after each merge: relay `hubble status` healthy through a port-forward;
-  the UI loads at `https://hubble.<tailnet>.ts.net` after a Keycloak login as a member of
+  the UI loads at `https://hubble.lilalala.com` after a Keycloak login as a member of
   `admins`, and is refused for a non-member; `cilium-dbg endpoint list` shows policy
   enforcement `Disabled` for every allow-listed endpoint (nothing enforced by the new
   files); Headlamp's policies still enforced; would-be-drop series present per namespace;
@@ -190,6 +190,20 @@ flowchart LR
    `tcp:443`, and every Ingress proxy carries `tag:k8s`; no policy change is needed.
 9. Yes, #505 merged and `40-seafile.yaml` is gone. `90-enforcement.yaml` still has a
    `seafile` switch: task 4 removes it (the namespace has no workloads left).
+5. Yes. `clickhouse/clickhouse-server:25.12.5` (the image of SigNoz chart 0.146.0,
+   ClickHouse subchart 24.1.18 with the Altinity operator 0.21.2) ran `clickhouse local`
+   on homelab-w-1 as uid 101 with every capability dropped: version `25.12.5.44`, a
+   10-million-row aggregate correct, exit 0.
+6. SQLite: the `signoz` StatefulSet keeps users, dashboards, saved views and alert rules in
+   `/var/lib/signoz/` on its own 1 GiB PVC (`signoz-db`); the PostgreSQL subchart is off by
+   default. No consistent export is documented: the backup copies the file with SQLite's
+   online backup (`sqlite3 .backup`) in the backup Job, not the live file.
+7. None by default: the chart sets no pod or container security context on SigNoz, the
+   collector, ClickHouse, ZooKeeper or the operator. Each needs values (non-root uid,
+   dropped capabilities, seccomp, no privilege escalation) before `restricted` can be
+   enforced; task 10 checks it with a server-side dry run and falls back to `baseline`
+   per component with the reason in `namespaces.yaml`. The chart also ships a fixed
+   default ClickHouse password: override it from SOPS.
 10. Yes: Connector `home-exit` (two StatefulSet replicas, `tailscale.com/parent-resource:
     home-exit`, `parent-resource-type: connector`) in `tailscale`. Egress: the tailnet
     control plane and DERP (`world` 443, UDP 3478, UDP 41641) and, as an exit node, any

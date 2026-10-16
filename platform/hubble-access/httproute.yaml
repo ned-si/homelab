@@ -1,0 +1,52 @@
+# Hubble UI on the shared Gateway: https://hubble.lilalala.com, behind the
+# oauth2-proxy `hubble-sso` (Keycloak, group admins). Canonical route shape:
+# platform/kube-prometheus-stack/routes/grafana.yaml. external-dns publishes
+# the hostname.
+#
+# Security headers (docs/networking.md, Security headers): the full set; the
+# UI is never framed, so `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hubble
+  namespace: hubble
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - hubble.lilalala.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "DENY"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: hubble-sso
+          port: 4180
+          weight: 1
+      # The flow stream (gRPC-web) is a long-lived request.
+      timeouts:
+        request: 0s

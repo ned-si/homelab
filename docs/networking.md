@@ -119,6 +119,7 @@ router 80/443 -> 192.168.1.254 = Service gateway/cilium-gateway-shared
 | `archive` | `paperless/paperless` | Paperless-ngx |
 | `cook` | `mealie/mealie` | Mealie |
 | `syncthing` | `syncthing/syncthing` | Syncthing UI |
+| `hubble` | `hubble/hubble` | `hubble-sso` (oauth2-proxy, Keycloak group `admins`) → Hubble UI |
 
 - Every route sets `parentRefs` with `sectionName: https`. Without it the route
   also answers on plain HTTP and skips the redirect.
@@ -291,6 +292,22 @@ Hubble runs inside each Cilium agent. Hubble relay (`hubble-relay` in
 `kube-system`) merges the flows of every node; the Hubble UI reads them from
 the relay. Both come with the `cilium` release (`hubble.relay`, `hubble.ui` in
 `infrastructure/cilium/values.yaml`).
+
+The UI is at `https://hubble.lilalala.com` (`platform/hubble-access`, Argo
+CD app `hubble-access`, namespace `hubble`):
+
+```text
+Gateway --> hubble-sso (oauth2-proxy) --> hubble-ui (kube-system) --> hubble-relay
+```
+
+- Login: the oauth2-proxy `hubble-sso` with the Keycloak client `hubble`
+  (`proxy_clients`, `platform_clients`, `access.conf`), group `admins` only,
+  a fresh login after 12 hours. The UI itself has no login.
+- Network: CiliumNetworkPolicies with default-deny ingress
+  (`platform/hubble-access/network-policy.yaml`). Only the Gateway reaches
+  `hubble-sso`, only `hubble-sso` reaches `hubble-ui`, and only `hubble-ui`
+  (and Prometheus, for metrics) reaches `hubble-relay`.
+- When Keycloak is down, use the hubble CLI below.
 
 Flows of the whole cluster, from the Mac (`brew install hubble`):
 

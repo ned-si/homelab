@@ -14,11 +14,8 @@ operator and its proxies dial out to Tailscale.
 | Tailnet host | What | Who |
 | --- | --- | --- |
 | `tailscale-operator` | Kubernetes API server proxy (`kubectl`, k9s) | owner and admins of the tailnet, as `tailnet-admins` (cluster-admin) |
-| `hubble` | Hubble UI, live network flows of every namespace | tailnet members, then Keycloak group `admins` |
 | `home-exit-0`, `home-exit-1` | exit nodes: internet through the home connection | tailnet members |
 | `talos-cp-1` … `talos-cp-3`, `talos-w-1` | the Talos API of each node (`talosctl`), port 50000 | owner and admins of the tailnet, then the `talosconfig` client certificate |
-
-The Hubble UI is still on the tailnet; it moves to the Gateway the same way.
 
 ## How it works
 
@@ -72,26 +69,6 @@ browser --443--> Gateway (HTTPRoute headlamp) --> headlamp-sso (oauth2-proxy) --
   (`insecureAllowUnverifiedEmail`): users are created by hand without email
   verification, and access is the group, never the email.
 - When Keycloak is down, Headlamp is unavailable; use `kubectl`.
-
-## Hubble UI
-
-`platform/hubble-access` (Argo CD app `hubble-access`, namespace `hubble`):
-the access path to the Hubble UI, which runs with the `cilium` release in
-`kube-system` ([networking.md](networking.md#hubble)). Tailnet only.
-
-```text
-phone --tailnet--> Ingress proxy (tailscale) --> hubble-sso (oauth2-proxy) --> hubble-ui --> hubble-relay
-```
-
-- Login: the oauth2-proxy `hubble-sso` with the Keycloak client `hubble`
-  (`proxy_clients`, `platform_clients`, `access.conf`), group `admins` only,
-  a fresh login after 12 hours. The UI itself has no login.
-- Network: CiliumNetworkPolicies with default-deny ingress
-  (`platform/hubble-access/network-policy.yaml`). Only the Ingress proxies
-  reach `hubble-sso`, only `hubble-sso` reaches `hubble-ui`, and only
-  `hubble-ui` reaches `hubble-relay`.
-- When Keycloak is down, use the hubble CLI through a port-forward to the
-  relay ([networking.md](networking.md#hubble)).
 
 ## Exit node
 
