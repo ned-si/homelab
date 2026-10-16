@@ -155,7 +155,7 @@ row_named() { # rows displayName field -> the first row whose <field> is display
     fi
   done <<< "$1"
 }
-set_reqs() { # flow; stdin: <displayName>=<requirement> lines
+set_reqs() { # flow; stdin: <displayName>|<requirement> lines
   # One listing, then one update per execution. Send the execution's priority
   # back unchanged: Keycloak 25+ applies the priority of this request, and a
   # missing one would reorder the flow.
@@ -163,10 +163,10 @@ set_reqs() { # flow; stdin: <displayName>=<requirement> lines
   pairs=$(cat)
   rows=$(execs "$1" id,displayName,priority)
   while IFS= read -r kv; do
-    row=$(row_named "$rows" "${kv%=*}" 2)
+    row=$(row_named "$rows" "${kv%|*}" 2)
     id=${row%%,*}
     prio=${row##*,}
-    body="{\"id\":\"$id\",\"requirement\":\"${kv##*=}\""
+    body="{\"id\":\"$id\",\"requirement\":\"${kv##*|}\""
     if [[ "$prio" =~ ^[0-9]+$ ]]; then body="$body,\"priority\":$prio"; fi
     kc update "authentication/flows/$1/executions" -r "$REALM" -b "$body}" < /dev/null
   done <<< "$pairs"
@@ -205,10 +205,10 @@ login_steps() { # parent prefix
   step "$2-otp" auth-otp-form
 }
 login_reqs() { # prefix
-  printf '%s\n' "Cookie=ALTERNATIVE" "Identity Provider Redirector=ALTERNATIVE" \
-    "$1-forms=ALTERNATIVE" "$1-level-1=CONDITIONAL" \
-    "Condition - Level of Authentication=REQUIRED" "Username Password Form=REQUIRED" \
-    "$1-otp=CONDITIONAL" "Condition - user configured=REQUIRED" "OTP Form=REQUIRED"
+  printf '%s\n' "Cookie|ALTERNATIVE" "Identity Provider Redirector|ALTERNATIVE" \
+    "$1-forms|ALTERNATIVE" "$1-level-1|CONDITIONAL" \
+    "Condition - Level of Authentication|REQUIRED" "Username Password Form|REQUIRED" \
+    "$1-otp|CONDITIONAL" "Condition - user configured|REQUIRED" "OTP Form|REQUIRED"
 }
 # Expected rows of login_steps at <level> (0 when directly in the top flow).
 login_rows() { # prefix level
@@ -502,9 +502,9 @@ for c in $access_clients; do
     step "$bf-gate" conditional-user-role
     step "$bf-gate" deny-access-authenticator
     {
-      echo "$bf-login=REQUIRED"
+      echo "$bf-login|REQUIRED"
       login_reqs "$bf"
-      printf '%s\n' "$bf-gate=CONDITIONAL" "Condition - user role=REQUIRED" "Deny access=REQUIRED"
+      printf '%s\n' "$bf-gate|CONDITIONAL" "Condition - user role|REQUIRED" "Deny access|REQUIRED"
     } | set_reqs "$bf"
     bid=$(flow_id "$bf")
     rows_b=$(flow_rows "$bf")
@@ -519,9 +519,9 @@ for c in $access_clients; do
     sub "$df" "$df-gate"
     step "$df-gate" conditional-user-role
     step "$df-gate" deny-access-authenticator
-    printf '%s\n' "Username Validation=REQUIRED" "Password=REQUIRED" "$df-otp=CONDITIONAL" \
-      "Condition - user configured=REQUIRED" "OTP=REQUIRED" "$df-gate=CONDITIONAL" \
-      "Condition - user role=REQUIRED" "Deny access=REQUIRED" | set_reqs "$df"
+    printf '%s\n' "Username Validation|REQUIRED" "Password|REQUIRED" "$df-otp|CONDITIONAL" \
+      "Condition - user configured|REQUIRED" "OTP|REQUIRED" "$df-gate|CONDITIONAL" \
+      "Condition - user role|REQUIRED" "Deny access|REQUIRED" | set_reqs "$df"
     did=$(flow_id "$df")
     rows_d=$(flow_rows "$df")
   fi
