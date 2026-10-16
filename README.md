@@ -75,6 +75,8 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 - Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
 - Operating Talos nodes: [docs/talos-cheatsheet.md](docs/talos-cheatsheet.md).
 - App runbooks: [docs/runbooks/](docs/runbooks).
+- How this repo is built: specs and steering in [.kiro/specs/](.kiro/specs)
+  and [.kiro/steering/](.kiro/steering).
 
 ## Services
 
