@@ -26,7 +26,7 @@ spec:
       labels:
         app.kubernetes.io/name: github-exporter
     spec:
-      automountServiceAccountToken: false
+      automountServiceAccountToken: true
       containers:
       - command:
         - python3
@@ -39,6 +39,8 @@ spec:
           value: "900"
         - name: PORT
           value: "9171"
+        - name: ALERTMANAGER_URL
+          value: http://kube-prometheus-stack-alertmanager.monitoring:9093
         image: python:3.15.0-alpine3.24@sha256:ff4d3c9b1a48f646eedd93182aaea385c7a5452f4c8a8cd7cef686babacf4928
         livenessProbe:
           failureThreshold: 3
@@ -81,5 +83,5 @@ spec:
       serviceAccountName: github-exporter
       volumes:
       - configMap:
-          name: github-exporter-tmb86fbkb7
+          name: github-exporter-tgfkbkg65d
         name: app

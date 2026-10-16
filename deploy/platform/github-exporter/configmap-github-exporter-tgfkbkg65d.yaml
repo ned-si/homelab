@@ -11,7 +11,7 @@
 apiVersion: v1
 data:
   exporter.py: |
-    """GitHub CI/CD exporter for one repository (stdlib only).
+    """GitHub CI/CD and automation-history exporter for one repository (stdlib only).
 
     Every INTERVAL seconds it reads, from the public GitHub REST API: the
     workflows and the last 30 runs of each, open pull requests, the 100 most
@@ -19,7 +19,17 @@ data:
     issue; then serves the derived gauges on :PORT/metrics. About 11 requests per
     cycle; conditional requests (ETag, a 304 is free) keep that well inside the
     unauthenticated quota of 60 requests/hour per IP. The repository is public,
-    so no credential is used.
+    so no credential is used. The jobs of a completed auto-rollback or tofu run
+    are read once and kept.
+
+    For the Homelab / Automation dashboard it also writes one series per event of
+    the last EVENT_DAYS days, automation_event_timestamp_seconds{source, kind,
+    app, what, result, url} with the time of the event as the value: merged pull
+    requests, auto-rollback and tofu runs from GitHub; from inside the cluster,
+    the Argo CD syncs (Application status: history and the last operation, read
+    with the pod's ServiceAccount, list only) and the Alertmanager silences
+    (ALERTMANAGER_URL, no authentication). A source that fails is skipped and
+    reported in automation_source_up.
 
     Logs are JSON lines on stdout.
     """
@@ -28,6 +38,7 @@ data:
     import json
     import os
     import re
+    import ssl
     import threading
     import time
     import urllib.error
@@ -41,8 +52,20 @@ data:
     API = "https://api.github.com"
     RENOVATE = "renovate[bot]"
     WINDOW = 30 * 86400
+    EVENT_WINDOW = int(os.environ.get("EVENT_DAYS", "7")) * 86400
+    # Workflows whose runs are automation events, and how many runs of each.
+    TIMELINE_WORKFLOWS = ("auto-rollback", "tofu")
+    TIMELINE_RUNS = 15
+    ALERTMANAGER_URL = os.environ.get("ALERTMANAGER_URL", "")
+    ARGO_NAMESPACE = os.environ.get("ARGO_NAMESPACE", "argo")
+    ARGO_URL = os.environ.get("ARGO_URL", "https://argo.lilalala.com")
+    KUBE_API = os.environ.get("KUBE_API", "https://kubernetes.default.svc")
+    SA_DIR = "/var/run/secrets/kubernetes.io/serviceaccount"
+    # Syncs per Application on the timeline.
+    ARGO_HISTORY = 3
 
     _etags: dict[str, tuple[str, object]] = {}
+    _jobs: dict[int, list] = {}
     _metrics = "# no data yet\n"
     _lock = threading.Lock()
 
@@ -84,22 +107,134 @@ data:
 
 
     class Out:
-        """Gauges grouped per metric family, as the text format requires."""
+        """Gauges grouped per metric family, as the text format requires. A
+        series written twice (two syncs of the same revision) keeps the larger
+        value: a scrape must not repeat a series."""
 
         def __init__(self):
-            self.families: dict[str, list[str]] = {}
+            self.families: dict[str, tuple[str, dict[str, float]]] = {}
 
         def g(self, name: str, help_: str, value: float, **labels) -> None:
-            fam = self.families.setdefault(name, [f"# HELP {name} {help_}", f"# TYPE {name} gauge"])
+            series = self.families.setdefault(name, (help_, {}))[1]
             lab = ",".join(f'{k}="{esc(v)}"' for k, v in sorted(labels.items()))
-            fam.append(f"{name}{{{lab}}} {value}" if lab else f"{name} {value}")
+            key = f"{name}{{{lab}}}" if lab else name
+            series[key] = max(value, series.get(key, value))
 
         def text(self) -> str:
-            return "\n".join(line for fam in self.families.values() for line in fam) + "\n"
+            lines = []
+            for name, (help_, series) in self.families.items():
+                lines += [f"# HELP {name} {help_}", f"# TYPE {name} gauge"]
+                lines += [f"{key} {value}" for key, value in series.items()]
+            return "\n".join(lines) + "\n"
 
 
     def started(r: dict) -> float:
         return ts(r.get("run_started_at") or r.get("created_at"))
+
+
+    def ts_any(s: str | None) -> float:
+        """RFC 3339 with or without fractional seconds; 0 when missing."""
+        if not s:
+            return 0.0
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).timestamp()
+
+
+    def event(o: Out, when: float, source: str, kind: str, app: str, what: str, result: str, url: str) -> None:
+        o.g("automation_event_timestamp_seconds",
+            "One automation event of the last days (Homelab / Automation dashboard); the value is when it happened.",
+            when, source=source, kind=kind, app=app, what=what[:120], result=result, url=url)
+
+
+    def title_scope(title: str) -> str:
+        """The Conventional Commits scope of a title: `feat(backups): x` -> backups."""
+        m = re.match(r"^(?:revert: )?\w+\(([^)]+)\)!?:", title or "")
+        return m.group(1) if m else ""
+
+
+    def run_jobs(run_id: int) -> list:
+        """The jobs of a completed run; they never change, so each run is read once."""
+        if run_id not in _jobs:
+            body, _ = get(f"/repos/{REPO}/actions/runs/{run_id}/jobs?per_page=20")
+            _jobs[run_id] = body.get("jobs", [])
+        return _jobs[run_id]
+
+
+    def run_result(workflow: str, r: dict) -> tuple[str, str, str]:
+        """(kind, app, result) of an auto-rollback or tofu run."""
+        jobs = {j.get("name"): j for j in run_jobs(r["id"])}
+        concl = r.get("conclusion") or "unknown"
+        if workflow == "auto-rollback":
+            app = (r.get("display_title") or "").removeprefix("auto-rollback ").strip()
+            act = (jobs.get("act") or {}).get("conclusion")
+            if concl != "success":
+                result = "failed"
+            elif act == "success":
+                result = "reverted"
+            elif act == "failure":
+                result = "revert failed"
+            else:
+                result = "not reverted"
+            if r.get("event") == "workflow_dispatch":
+                result = "manual: " + result
+            return "auto-rollback", app, result
+        kind = {"schedule": "tofu-drift", "push": "tofu-apply"}.get(r.get("event", ""), "tofu-manual")
+        steps = {s.get("name"): s.get("conclusion") for j in jobs.values() for s in j.get("steps", [])}
+        if concl != "success":
+            result = "failed"
+        elif steps.get("Drift corrected") == "success":
+            result = "drift corrected"
+        elif (jobs.get("apply") or {}).get("conclusion") == "success":
+            result = "applied"
+        else:
+            result = "no changes"
+        return kind, "aws", result
+
+
+    def kube_get(path: str):
+        with open(f"{SA_DIR}/token") as f:
+            token = f.read().strip()
+        ctx = ssl.create_default_context(cafile=f"{SA_DIR}/ca.crt")
+        req = urllib.request.Request(KUBE_API + path, headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=20, context=ctx) as r:
+            return json.load(r)
+
+
+    def homelab_revision(revs: list) -> str:
+        """The first full commit SHA among an Application's revisions (a chart version is not one)."""
+        return next((r for r in revs if re.fullmatch(r"[0-9a-f]{40}", r or "")), "")
+
+
+    def argocd_events(o: Out, apps: dict, now: float) -> None:
+        for a in apps.get("items", []):
+            name = a["metadata"]["name"]
+            status = a.get("status", {})
+            app_url = f"{ARGO_URL}/applications/{ARGO_NAMESPACE}/{name}"
+            for h in (status.get("history") or [])[-ARGO_HISTORY:]:
+                when = ts_any(h.get("deployedAt"))
+                if now - when > EVENT_WINDOW:
+                    continue
+                rev = homelab_revision([h.get("revision", "")] + (h.get("revisions") or []))
+                manual = not (h.get("initiatedBy") or {}).get("automated")
+                event(o, when, "argocd", "sync", name, f"sync {rev[:7] or 'chart'}" + (" (manual)" if manual else ""),
+                      "deployed", f"https://github.com/{REPO}/commit/{rev}" if rev else app_url)
+            op = status.get("operationState") or {}
+            when = ts_any(op.get("finishedAt"))
+            if op.get("phase") in ("Failed", "Error") and now - when <= EVENT_WINDOW:
+                res = op.get("syncResult") or {}
+                rev = homelab_revision([res.get("revision", "")] + (res.get("revisions") or []))
+                event(o, when, "argocd", "sync", name, f"sync {rev[:7] or 'chart'}", op["phase"].lower(), app_url)
+
+
+    def silence_events(o: Out, silences: list, now: float) -> None:
+        for s in silences:
+            when = ts_any(s.get("startsAt"))
+            if now - when > EVENT_WINDOW:
+                continue
+            m = {x.get("name"): x.get("value") for x in s.get("matchers", []) if x.get("isEqual", True)}
+            target = m.get("namespace") or (f"node/{m['node']}" if m.get("node") else "cluster")
+            hours = max(0.0, ts_any(s.get("endsAt")) - when) / 3600
+            event(o, when, "alertmanager", "silence", target, f"{s.get('comment', '')} ({hours:.1f} h)",
+                  (s.get("status") or {}).get("state", "unknown"), "")
 
 
     def collect() -> str:
@@ -137,6 +272,13 @@ data:
                     started(r), workflow=wf, scope=scope)
                 o.g("github_workflow_last_run_duration_seconds", "Duration of the latest completed run.",
                     max(0.0, ts(r["updated_at"]) - started(r)), workflow=wf, scope=scope)
+            if wf in TIMELINE_WORKFLOWS:
+                recent = [r for r in sorted(done, key=started, reverse=True)
+                          if now - started(r) <= EVENT_WINDOW and r.get("event") != "pull_request"]
+                for r in recent[:TIMELINE_RUNS]:
+                    kind, app, result = run_result(wf, r)
+                    event(o, ts(r["updated_at"]), "github", kind, app, r.get("display_title") or wf, result,
+                          r.get("html_url", ""))
 
         open_prs, _ = get(f"/repos/{REPO}/pulls?state=open&per_page=100")
         by_author: dict[str, int] = {}
@@ -161,8 +303,14 @@ data:
             agg[state][author] = agg[state].get(author, 0) + 1
             if state == "merged" and author == "renovate":
                 lead.append(ts(p["merged_at"]) - ts(p["created_at"]))
-            if any(lb["name"] == "auto-rollback" for lb in p.get("labels", [])):
+            revert = any(lb["name"] == "auto-rollback" for lb in p.get("labels", []))
+            if revert:
                 rollbacks += 1
+            if state == "merged" and now - ts(p["merged_at"]) <= EVENT_WINDOW:
+                title = p.get("title") or f"#{p['number']}"
+                event(o, ts(p["merged_at"]), "github",
+                      "auto-rollback" if revert else ("renovate" if author == "renovate" else "pull-request"),
+                      title_scope(title), f"#{p['number']} {title}", "merged", p.get("html_url", ""))
         for state in ("merged", "closed"):
             for author in ("renovate", "other"):
                 o.g("github_pull_requests_closed_30d",
@@ -194,7 +342,30 @@ data:
 
         o.g("github_ratelimit_remaining", "GitHub API requests left in the current window.",
             float(hdr.get("X-RateLimit-Remaining", "-1")))
+
+        # In-cluster sources: each optional, one failing does not hide the rest.
+        sources = []
+        if os.path.exists(f"{SA_DIR}/token"):
+            sources.append(("argocd", lambda: argocd_events(
+                o, kube_get(f"/apis/argoproj.io/v1alpha1/namespaces/{ARGO_NAMESPACE}/applications"), now)))
+        if ALERTMANAGER_URL:
+            sources.append(("alertmanager", lambda: silence_events(o, http_json(f"{ALERTMANAGER_URL}/api/v2/silences"), now)))
+        for name, fn in sources:
+            try:
+                fn()
+                up = 1
+            except Exception as e:  # noqa: BLE001 -- reported, the rest still collects
+                up = 0
+                log("error", "source failed", source=name, error=f"{type(e).__name__}: {e}")
+            o.g("automation_source_up", "1 if the in-cluster event source answered in the last collection.", up,
+                source=name)
         return o.text()
+
+
+    def http_json(url: str):
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"Accept": "application/json"}),
+                                    timeout=20) as r:
+            return json.load(r)
 
 
     def loop() -> None:
@@ -248,5 +419,5 @@ data:
         ThreadingHTTPServer(("", PORT), Handler).serve_forever()
 kind: ConfigMap
 metadata:
-  name: github-exporter-tmb86fbkb7
+  name: github-exporter-tgfkbkg65d
   namespace: monitoring

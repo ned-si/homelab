@@ -90,6 +90,99 @@ def test_collect():
     assert m["github_ratelimit_remaining"] == 42
 
 
+def wf_run(name, run_id, age, event, title, branch="main", conclusion="success"):
+    return dict(run(name, conclusion, branch, age, 60), id=run_id, event=event, display_title=title,
+                html_url=f"https://github.com/o/r/actions/runs/{run_id}")
+
+
+EVENTS = {
+    "/workflows?": {"workflows": [
+        {"id": 3, "name": "auto-rollback", "state": "active", "path": ".github/workflows/auto-rollback.yaml"},
+        {"id": 4, "name": "tofu", "state": "active", "path": ".github/workflows/tofu.yaml"}]},
+    "/workflows/3/runs": {"workflow_runs": [
+        wf_run("auto-rollback", 11, 600, "repository_dispatch", "auto-rollback home"),
+        wf_run("auto-rollback", 12, 700, "repository_dispatch", "auto-rollback mealie"),
+        wf_run("auto-rollback", 13, 10 * 86400, "repository_dispatch", "auto-rollback old")]},
+    "/workflows/4/runs": {"workflow_runs": [
+        wf_run("tofu", 21, 900, "schedule", "tofu"),
+        wf_run("tofu", 22, 300, "pull_request", "tofu", branch="feat"),
+        wf_run("tofu", 23, 1200, "push", "tofu", conclusion="failure")]},
+    "/runs/11/jobs": {"jobs": [{"name": "decide", "conclusion": "success"}, {"name": "act", "conclusion": "success"}]},
+    "/runs/12/jobs": {"jobs": [{"name": "decide", "conclusion": "success"}, {"name": "act", "conclusion": "skipped"}]},
+    "/runs/21/jobs": {"jobs": [{"name": "plan", "conclusion": "success", "steps": []},
+                               {"name": "apply", "conclusion": "success",
+                                "steps": [{"name": "Drift corrected", "conclusion": "success"}]}]},
+    "/runs/23/jobs": {"jobs": [{"name": "plan", "conclusion": "failure", "steps": []}]},
+    "/issues": [],
+    "state=open": [],
+    "state=closed": [
+        dict(pr(9, "renovate[bot]", 7200, 3600, merged=True), title="chore(deps): update x", html_url="https://github.com/o/r/pull/9"),
+        dict(pr(10, "someone", 7200, 600, merged=True, labels=("auto-rollback",)),
+             title="revert: feat(home): y (auto)", html_url="https://github.com/o/r/pull/10"),
+        dict(pr(8, "someone", 30 * 86400, 20 * 86400, merged=True), title="feat(old): z", html_url="https://github.com/o/r/pull/8")],
+}
+
+
+def events_get(path):
+    for key in sorted(EVENTS, key=lambda k: k != "/issues"):
+        if key in path:
+            return EVENTS[key], {"X-RateLimit-Remaining": "40"}
+    raise AssertionError(path)
+
+
+def event_labels(text: str) -> list[dict[str, str]]:
+    out = []
+    for line in text.splitlines():
+        if line.startswith("automation_event_timestamp_seconds{"):
+            out.append(dict(re.findall(r'(\w+)="((?:[^"\\]|\\.)*)"', line)))
+    return out
+
+
+def test_automation_events_from_github(tmp_path):
+    mod = load()
+    mod.get = events_get
+    mod.SA_DIR = str(tmp_path / "none")
+    ev = {(e["kind"], e["app"], e["result"]): e for e in event_labels(mod.collect())}
+    assert ev[("renovate", "deps", "merged")]["what"] == "#9 chore(deps): update x"
+    assert ev[("renovate", "deps", "merged")]["url"] == "https://github.com/o/r/pull/9"
+    assert ("auto-rollback", "home", "merged") in ev
+    assert ev[("auto-rollback", "home", "reverted")]["url"] == "https://github.com/o/r/actions/runs/11"
+    assert ("auto-rollback", "mealie", "not reverted") in ev
+    assert ("tofu-drift", "aws", "drift corrected") in ev
+    assert ("tofu-apply", "aws", "failed") in ev
+    # Older than the window, or a pull request's plan: not on the timeline.
+    assert not any(e["app"] in ("old",) for e in ev.values())
+    assert sum(1 for k in ev if k[0].startswith("tofu")) == 2
+
+
+def test_argocd_and_silence_events():
+    mod = load()
+    now = time.time()
+    o = mod.Out()
+    mod.argocd_events(o, {"items": [{"metadata": {"name": "mealie"}, "status": {
+        "history": [{"deployedAt": iso(600), "revision": "a" * 40, "initiatedBy": {"automated": True}},
+                    {"deployedAt": iso(400), "revisions": ["92.9.0", "c" * 40], "initiatedBy": {}},
+                    # The same revision synced again: one series, not two.
+                    {"deployedAt": iso(300), "revision": "a" * 40, "initiatedBy": {"automated": True}}],
+        "operationState": {"phase": "Failed", "finishedAt": iso(60),
+                           "syncResult": {"revisions": ["92.9.0", "b" * 40]}}}}]}, now)
+    mod.silence_events(o, [{"startsAt": "2000-01-01T00:00:00.000Z", "endsAt": "2000-01-01T01:00:00.000Z",
+                            "comment": "too old", "matchers": [], "status": {"state": "expired"}},
+                           {"startsAt": iso(3600).replace("Z", ".276Z"), "endsAt": iso(0),
+                            "comment": "maintenance: restart, PR #1",
+                            "matchers": [{"name": "namespace", "value": "immich", "isEqual": True}],
+                            "status": {"state": "expired"}}], now)
+    ev = event_labels(o.text())
+    assert {"source": "argocd", "kind": "sync", "app": "mealie", "what": "sync aaaaaaa", "result": "deployed",
+            "url": "https://github.com/ned-si/homelab/commit/" + "a" * 40} in ev
+    assert any(e["what"] == "sync ccccccc (manual)" for e in ev)
+    assert {"source": "argocd", "kind": "sync", "app": "mealie", "what": "sync bbbbbbb", "result": "failed",
+            "url": "https://argo.lilalala.com/applications/argo/mealie"} in ev
+    assert {"source": "alertmanager", "kind": "silence", "app": "immich", "what": "maintenance: restart, PR #1 (1.0 h)",
+            "result": "expired", "url": ""} in ev
+    assert len(ev) == 4
+
+
 def test_families_are_contiguous():
     mod = load()
     mod.get = fake_get

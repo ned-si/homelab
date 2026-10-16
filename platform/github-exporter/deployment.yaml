@@ -1,5 +1,9 @@
 # One replica, no state: the exporter keeps the last good collection in memory
 # and re-reads GitHub every 15 minutes. A restart costs one collection.
+#
+# In the cluster it reads the Argo CD Applications (ClusterRole below, list
+# only; they hold no secrets) and the Alertmanager silences (no
+# authentication), for the Homelab / Automation dashboard.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -8,6 +12,32 @@ metadata:
   labels:
     app.kubernetes.io/name: github-exporter
 automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: github-exporter
+  labels:
+    app.kubernetes.io/name: github-exporter
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: github-exporter
+  labels:
+    app.kubernetes.io/name: github-exporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: github-exporter
+subjects:
+  - kind: ServiceAccount
+    name: github-exporter
+    namespace: monitoring
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -27,7 +57,8 @@ spec:
         app.kubernetes.io/name: github-exporter
     spec:
       serviceAccountName: github-exporter
-      automountServiceAccountToken: false
+      # The token lists Argo CD Applications and nothing else (ClusterRole above).
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
@@ -46,6 +77,8 @@ spec:
               value: "900"
             - name: PORT
               value: "9171"
+            - name: ALERTMANAGER_URL
+              value: http://kube-prometheus-stack-alertmanager.monitoring:9093
           ports:
             - name: metrics
               containerPort: 9171
