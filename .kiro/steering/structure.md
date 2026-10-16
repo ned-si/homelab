@@ -29,7 +29,9 @@ Layout and reasons: [docs/architecture.md](../../docs/architecture.md).
 ## Specs
 
 One spec per area, as-is behaviour plus open tasks. New work starts by
-updating or adding a spec; tasks are ticked with their PR numbers.
+updating or adding a spec; tasks are ticked with their PR numbers. How specs,
+steering, skills, hooks and MCP servers fit together:
+[docs/spec-driven-development.md](../../docs/spec-driven-development.md).
 
 - [`platform-talos`](../specs/platform-talos/): nodes, Talos config as code, tuppr upgrades, the CI rehearsal, drift check, eMMC monitoring.
 - [`gitops-delivery`](../specs/gitops-delivery/): Argo CD layers, render in PR, CI gate, Renovate automerge, image pinning and variants, auto-rollback.
