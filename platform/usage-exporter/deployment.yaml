@@ -26,9 +26,10 @@ spec:
       labels:
         app.kubernetes.io/name: usage-exporter
       annotations:
-        # Bumped when platform/secrets/usage-exporter changes: the keys are
-        # read at start.
-        kubectl.kubernetes.io/restartedAt: "2026-10-16T00:00:00Z"
+        # Bumped after platform/secrets/usage-exporter changed and the Secret
+        # is live (Application secrets-platform synced): the keys are read at
+        # start, and in the same pull request the pod can restart first.
+        kubectl.kubernetes.io/restartedAt: "2026-10-16T07:45:00Z"
     spec:
       serviceAccountName: usage-exporter
       automountServiceAccountToken: false
