@@ -31,12 +31,14 @@ securityContext:
   capabilities:
     drop: ["ALL"]
 
+# 256Mi was OOM-killed on start, while the pods source catches up on every
+# existing file under /var/log/pods; steady state is 70-100Mi.
 resources:
   requests:
     cpu: 20m
-    memory: 96Mi
+    memory: 128Mi
   limits:
-    memory: 256Mi
+    memory: 512Mi
 
 tolerations:
   # Logs of the control planes too.
