@@ -8,8 +8,18 @@
 # Runs as uid 0 with every capability dropped and a read-only root: the log
 # files are root-owned 0640, which root reads as their owner. Kubernetes sets
 # no ambient capabilities, so a non-root user with DAC_READ_SEARCH could not.
-# The hostPath volumes are why the namespace enforces `privileged`.
+# The hostPath volumes and the host network are why the namespace enforces
+# `privileged`.
+#
+# Host network: Talos sends its service and kernel logs to 127.0.0.1 on each
+# node (talos/patches/logging.yaml, talos/patches/talosctl/kmsg-log.yaml), so
+# the listeners must be in the node's network namespace. They bind 127.0.0.1
+# only; the API (probes) too. The metrics port (9598) listens on the node's
+# addresses, like the Cilium agent's.
 role: Agent
+
+podHostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
 
 image:
   repository: docker.io/timberio/vector
@@ -52,24 +62,24 @@ service:
   enabled: false
 
 containerPorts:
-  - name: api
-    containerPort: 8686
-    protocol: TCP
   - name: prom-exporter
     containerPort: 9598
     protocol: TCP
 
+# The kubelet probes 127.0.0.1 in the node's namespace, where the API listens.
 livenessProbe:
   httpGet:
+    host: 127.0.0.1
     path: /health
-    port: api
+    port: 8686
   initialDelaySeconds: 10
   periodSeconds: 30
   failureThreshold: 5
 readinessProbe:
   httpGet:
+    host: 127.0.0.1
     path: /health
-    port: api
+    port: 8686
   periodSeconds: 10
 
 customConfig:
@@ -77,11 +87,29 @@ customConfig:
   # /health for the probes.
   api:
     enabled: true
-    address: 0.0.0.0:8686
+    address: 127.0.0.1:8686
   sources:
     pods:
       type: kubernetes_logs
       glob_minimum_cooldown_ms: 5000
+    # Talos service logs (machine.logging, json_lines).
+    talos_services:
+      type: socket
+      mode: tcp
+      address: 127.0.0.1:6050
+      decoding:
+        codec: json
+      framing:
+        method: newline_delimited
+    # Talos kernel logs (KmsgLogConfig).
+    talos_kernel:
+      type: socket
+      mode: tcp
+      address: 127.0.0.1:6051
+      decoding:
+        codec: json
+      framing:
+        method: newline_delimited
     vector_metrics:
       type: internal_metrics
   transforms:
@@ -92,6 +120,7 @@ customConfig:
       type: remap
       inputs: [pods]
       source: |
+        .log_source = "pods"
         .parse_failed = false
         msg = string(.message) ?? ""
         parsed, err = parse_json(msg)
@@ -107,11 +136,36 @@ customConfig:
         } else {
           .parse_failed = true
         }
+    # Talos fields: msg, talos-level, talos-service (services), facility and
+    # priority (kernel). Mapped to the same shape as the pod events.
+    talos_parsed:
+      type: remap
+      inputs: [talos_services, talos_kernel]
+      source: |
+        raw = .
+        .log_source = if exists(raw.facility) { "talos-kernel" } else { "talos-service" }
+        default_service = if .log_source == "talos-kernel" { "kernel" } else { "talos" }
+        .service = string(raw."talos-service") ?? default_service
+        .message = string(raw.msg) ?? ""
+        .attributes = {
+          "level": string(raw."talos-level") ?? string(raw.priority) ?? "",
+          "facility": string(raw.facility) ?? ""
+        }
+        .host = get_env_var("VECTOR_SELF_NODE_NAME") ?? ""
+        .parse_failed = false
+        del(.msg)
+        del(."talos-level")
+        del(."talos-service")
+        del(."talos-time")
+        del(.facility)
+        del(.priority)
+        del(.clock)
+        del(.seq)
     # Events per namespace and how many did not parse: the trial's parse
     # ratio (vector_log_events_total{namespace, parse_failed}).
     parse_metrics:
       type: log_to_metric
-      inputs: [parsed]
+      inputs: [parsed, talos_parsed]
       metrics:
         - type: counter
           field: message
@@ -121,12 +175,13 @@ customConfig:
           # escapes render as Vector's own `{{ field }}` templates.
           tags:
             namespace: '{{ "{{" }} kubernetes.pod_namespace {{ "}}" }}'
+            source: '{{ "{{" }} log_source {{ "}}" }}'
             parse_failed: '{{ "{{" }} parse_failed {{ "}}" }}'
   sinks:
     # Until SigNoz takes the stream.
     discard:
       type: blackhole
-      inputs: [parsed]
+      inputs: [parsed, talos_parsed]
       print_interval_secs: 0
     prometheus:
       type: prometheus_exporter

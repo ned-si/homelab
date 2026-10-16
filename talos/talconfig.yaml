@@ -44,6 +44,8 @@ patches:
   - "@./patches/kubelet-image-gc.yaml"
   - "@./patches/node-ip.yaml"
   - "@./patches/kubelet-serving-certs.yaml"
+  # Service logs as JSON to the Vector pod on the node (docs/observability.md, "Logs").
+  - "@./patches/logging.yaml"
 
 controlPlane:
   patches:
