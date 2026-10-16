@@ -6,11 +6,16 @@ rule_files:
 evaluation_interval: 1m
 
 tests:
-  # Four agents Ready; the relay loses one peer at minute 10.
+  # Four agents Ready. Two peers IDLE (connected, no stream) and two READY,
+  # then one READY peer is lost at minute 10.
   - interval: 1m
     input_series:
       - series: 'hubble_relay_pool_peer_connection_status{status="READY", pod="hubble-relay-0"}'
-        values: '4x9 3x60'
+        values: '2x9 1x60'
+      - series: 'hubble_relay_pool_peer_connection_status{status="IDLE", pod="hubble-relay-0"}'
+        values: '2x70'
+      - series: 'hubble_relay_pool_peer_connection_status{status="TRANSIENT_FAILURE", pod="hubble-relay-0"}'
+        values: '0x9 1x60'
       - series: 'kube_daemonset_status_number_ready{namespace="kube-system", daemonset="cilium"}'
         values: '4x70'
     alert_rule_test:
