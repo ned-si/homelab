@@ -320,9 +320,9 @@ misconfigurations:
     paths:
       - "policies/kyverno/tests/resources.yaml"
     statement: >-
-      Kyverno policy test fixture: the privileged Pods are the cases
-      disallow-privileged must reject (and allow in democratic-csi). Never
-      applied; no Application syncs policies/.
+      Kyverno policy test fixture: the privileged Pod and Deployment are the
+      cases disallow-privileged-containers must reject. Never applied; no
+      Application syncs policies/.
     expired_at: 2027-04-01
   - id: AVD-KSV-0118
     paths:

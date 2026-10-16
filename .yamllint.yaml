@@ -12,6 +12,8 @@ ignore: |
   # holding upstream CRD bundles to this repo's formatting rules. Neither is a
   # goal. Correctness of deploy/ is covered by kubeconform in CI instead.
   deploy/
+  # Upstream Kyverno policies, kept byte for byte (scripts/kyverno-vendor.sh).
+  policies/kyverno/upstream/
 
 rules:
   # Kubernetes manifests routinely exceed 80 columns, and Helm values with long

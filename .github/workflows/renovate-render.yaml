@@ -63,6 +63,11 @@ jobs:
           export KUBECTL_VERSION KUBECTL_SHA256
           scripts/ci/install-tool.sh kubectl
 
+      # Renovate moves the commit in policies/kyverno/upstream/SOURCE; the
+      # files and their sha256 lines follow it here.
+      - name: Re-vendor the upstream Kyverno policies
+        run: scripts/kyverno-vendor.sh
+
       - name: Render deploy/
         run: scripts/render-deploy.sh
 
