@@ -21,6 +21,8 @@ resources:
   # Subtitles for Sonarr and Radarr (docs/theater.md, "Subtitles").
   - bazarr.yaml
   - backup-bazarr.yaml
+  # Subtitle coverage per language for the Usage dashboard.
+  - subtitle-exporter.yaml
   # Keycloak login in front of the /arr/* UIs (docs/theater.md, "Login").
   - sso.yaml
   - httproute.yaml

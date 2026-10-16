@@ -1,0 +1,113 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  exporter.py: |
+    # Standard library only. Logs are JSON lines on stdout.
+    import json, os, threading, time, urllib.request
+    from collections import Counter
+    from datetime import datetime, timezone
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    INTERVAL = int(os.environ.get("INTERVAL", "900"))
+    PORT = int(os.environ.get("PORT", "9173"))
+    BAZARR = os.environ.get("BAZARR_URL", "http://bazarr.theater.svc.cluster.local:6767/arr/bazarr")
+    KEY = os.environ["API_KEY"]
+    _metrics, _lock = "# no data yet\n", threading.Lock()
+
+    def log(level, msg, **kw):
+        print(json.dumps({"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                          "level": level, "msg": msg, **kw}), flush=True)
+
+    def get(path):
+        req = urllib.request.Request(f"{BAZARR}/api/{path}", headers={"X-API-KEY": KEY})
+        with urllib.request.urlopen(req, timeout=120) as r:
+            return json.load(r)
+
+    def lang(item):
+        return item["code2"], "true" if str(item.get("forced")).lower() == "true" else "false"
+
+    def collect():
+        langs = {p["profileId"]: [lang({"code2": i["language"], "forced": i["forced"]}) for i in p["items"]]
+                 for p in get("system/languages/profiles")}
+        required, missing = Counter(), Counter()
+        for s in get("series?length=-1")["data"]:
+            for key in langs.get(s["profileId"], []):
+                required[("episode",) + key] += s.get("episodeFileCount") or 0
+        for e in get("episodes/wanted?length=-1")["data"]:
+            for m in e.get("missing_subtitles") or []:
+                missing[("episode",) + lang(m)] += 1
+        for mv in get("movies?length=-1")["data"]:
+            for key in langs.get(mv["profileId"], []):
+                required[("movie",) + key] += 1
+            for m in mv.get("missing_subtitles") or []:
+                missing[("movie",) + lang(m)] += 1
+        throttled = {p["name"]: 0 if p.get("status") == "Good" else 1 for p in get("providers")["data"]}
+        out = []
+        for name, help_, data in (
+                ("subtitles_required", "Titles whose Bazarr language profile asks for the language.", required),
+                ("subtitles_missing", "Titles still missing the subtitle in Bazarr.", missing)):
+            out += [f"# HELP {name} {help_}", f"# TYPE {name} gauge"]
+            for (kind, code, forced) in sorted(set(required) | set(missing)):
+                out.append(f'{name}{{kind="{kind}",language="{code}",forced="{forced}"}} '
+                           f"{data[(kind, code, forced)]}")
+        out += ["# HELP subtitles_provider_throttled 1 while Bazarr pauses the provider.",
+                "# TYPE subtitles_provider_throttled gauge"]
+        out += [f'subtitles_provider_throttled{{provider="{p}"}} {v}' for p, v in sorted(throttled.items())]
+        return out
+
+    def loop():
+        global _metrics
+        while True:
+            started = time.time()
+            try:
+                lines, up = collect(), 1
+            except Exception as e:
+                lines, up = [], 0
+                log("error", "collect failed", error=f"{type(e).__name__}: {e}")
+            lines += ["# HELP subtitles_source_up 1 if the last read of Bazarr succeeded.",
+                      "# TYPE subtitles_source_up gauge", f"subtitles_source_up {up}",
+                      "# HELP subtitles_exporter_last_run_timestamp_seconds End of the last collection.",
+                      "# TYPE subtitles_exporter_last_run_timestamp_seconds gauge",
+                      f"subtitles_exporter_last_run_timestamp_seconds {round(time.time())}"]
+            with _lock:
+                _metrics = "\n".join(lines) + "\n"
+            log("info", "collected", seconds=round(time.time() - started, 2), up=up)
+            time.sleep(max(60, INTERVAL - (time.time() - started)))
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            if self.path == "/metrics":
+                with _lock:
+                    data = _metrics.encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4")
+            elif self.path == "/healthz":
+                data = b"ok\n"
+                self.send_response(200)
+            else:
+                data = b"not found\n"
+                self.send_response(404)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, fmt, *args):  # scrapes are not logged
+            pass
+
+    if __name__ == "__main__":
+        log("info", "starting", interval=INTERVAL, port=PORT)
+        threading.Thread(target=loop, daemon=True).start()
+        ThreadingHTTPServer(("", PORT), Handler).serve_forever()
+kind: ConfigMap
+metadata:
+  name: subtitle-exporter
+  namespace: theater

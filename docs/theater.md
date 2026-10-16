@@ -173,6 +173,11 @@ for movies; `bazarr-nightly` the two `profiles set` lines and
 `bazarr: wanted searches started (series, movies)`. See also
 [subtitles](runbooks/subtitles.md).
 
+Coverage per language (movies and episodes) is on the Homelab / Usage
+dashboard, row "Subtitles (Bazarr)", from the Deployment `subtitle-exporter`
+([observability](observability.md)). It does not page: the nightly search is
+the remediation.
+
 ## Plex watchlist
 
 Sonarr and Radarr each have the import list `Plex Watchlist`: a series or
