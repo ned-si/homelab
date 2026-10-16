@@ -22,9 +22,8 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 13. Read-only Headlamp on the tailnet and its SSO fixes. [4.3] (#492, #494, #498)
 - [x] 14. Remote access docs for the Mac and the phone. (#501)
 - [x] 15. Exit nodes on the home connection. [4.4] (#503)
-- [ ] 24. Talos API on the tailnet: `tag:talos` owned by the operator's
-      client, owner and admins to `tag:talos:50000` only. [4.5]
-      (platform-talos task 17)
+- [x] 24. Talos API on the tailnet: `tag:talos` owned by the operator's
+      client, owner and admins to `tag:talos:50000` only. [4.5] (#527)
 - [x] 25. ExposedSecretReports out of `view`: an admission policy strips the
       reader aggregation labels the trivy chart sets. [5.5] (#523)
 

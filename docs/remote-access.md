@@ -263,11 +263,19 @@ yq -i '.contexts["homelab-ts"] = .contexts["homelab"] |
   .contexts["homelab-ts"].endpoints = ["talos-cp-1.tail32a1fc.ts.net",
     "talos-cp-2.tail32a1fc.ts.net", "talos-cp-3.tail32a1fc.ts.net"]' "$f"
 talosctl --talosconfig "$f" --context homelab-ts -n talos-w-1 version
-talosctl --talosconfig "$f" --context homelab-ts -n talos-cp-3 health
+talosctl --talosconfig "$f" --context homelab-ts -n talos-cp-3 health \
+  --control-plane-nodes 192.168.1.247,192.168.1.238,192.168.1.239 \
+  --worker-nodes 192.168.1.240
 ```
 
 Expected: a `Server` block on `talosVersion`, and every health check `OK`
 (`health` runs on the node, so it needs no Kubernetes access from the Mac).
+Give `health` the LAN addresses: without them it takes each node's first
+discovered address, which can be its tailnet one, and nodes do not reach
+each other over the tailnet (`tag:talos` has no grant), so it times out.
+For the same reason KubePrism lists the tailnet addresses as API endpoints
+and skips them as unreachable; the LAN ones serve
+([platform-talos](../.kiro/specs/platform-talos/tasks.md), task 20).
 A node down: point `-e` and `-n` at a live one. With Tailscale itself down
 on a node, use the LAN context or the BMC (`docs/runbooks/node-power-cycle.md`).
 
