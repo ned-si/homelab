@@ -55,7 +55,7 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       guard, `ci/active-cronjobs.txt`, `ci/guard-modes.txt`, `docs/backups.md` (metadata
       backed up, ClickHouse disposable); rehearse one restore into a scratch namespace and
       write it down. [6.1, 6.2, 6.3, 6.4]
-- [x] 14. (#TRIALPR) PR `feat(observability): SigNoz trial gate`: `platform/signoz/rules.yaml` (trial
+- [x] 14. (#564) PR `feat(observability): SigNoz trial gate`: `platform/signoz/rules.yaml` (trial
       recording rules, `signoz_trial:pass`, `LogPipelineDiscarding`,
       `SigNozCollectorAbsent`) with promtool tests, runbook sections, `routes.txt` lines,
       the dashboard panel, start and end dates and thresholds in
