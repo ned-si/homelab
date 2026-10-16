@@ -1,0 +1,7 @@
+      image: ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236
+      - image: "docker.io/library/python:3.14.8-alpine3.24@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    imageName: 'ghcr.io/cloudnative-pg/postgresql:18.0-minimal-trixie' # image-policy: allow seed
+  reference: registry.example:5000/team/app:1.2.3-slim-bookworm
+image: debian:bookworm-slim
+image: busybox
+image: library/node:24

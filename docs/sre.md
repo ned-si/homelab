@@ -151,7 +151,8 @@ Automation dashboard marks them as annotations.
 GitHub Actions post to ntfy directly only for a person's action: a failed or
 refused `tofu` plan or apply (a destroy, a plan-only module with changes), a
 `dast` regression, a failed `renovate-render`, a secret past its rotation
-period (`secret-age`). A corrected drift posts nothing.
+period (`secret-age`), a nightly `fuzz` finding. A corrected drift posts
+nothing.
 
 ### Quiet hours
 
@@ -165,7 +166,7 @@ What quiet hours do not cover:
 
 - healthchecks.io posts to ntfy directly when the heartbeat stops, so a dead
   cluster or a dead house internet still notifies at night.
-- The GitHub Actions failure posts (`dast`, `renovate-render`, `secret-age`) go to ntfy
+- The GitHub Actions failure posts (`dast`, `renovate-render`, `secret-age`, `fuzz`) go to ntfy
   directly, at priority low. In quiet hours they carry a `Delay` until 08:00
   Zurich (`scripts/ci/ntfy-quiet-delay.sh`), so ntfy delivers them then.
 - `HomelabNodeNotReady` and `HomelabNASUnreachable` also go, unmuted, to a

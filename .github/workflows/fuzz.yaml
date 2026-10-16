@@ -1,0 +1,77 @@
+---
+# fuzz: coverage-guided fuzzing (Atheris, libFuzzer) of the parsers in
+# scripts/ci/repo_policy.py that gate every merge: image references, the
+# Kubernetes version, the HCL of the backup bucket policy. Targets and their
+# properties: tests/fuzz/targets.py; seeds and past findings:
+# tests/fuzz/corpus/ (replayed by the unit tests in `ci`).
+#
+# Pull requests that touch a fuzzed parser or the fuzzing itself: 60 s per
+# target. Nightly and on demand: 10 min per target, and a finding posts to
+# ntfy. Not part of the required `ci` check: a finding is a parser bug to fix
+# forward, not a gate on unrelated changes. No secrets, no cluster access, no
+# image build.
+name: fuzz
+
+on:
+  pull_request:
+    paths:
+      - scripts/ci/repo_policy.py
+      - scripts/ci/app_profiles.py
+      - scripts/ci/fuzz.sh
+      - scripts/ci/setup-python-deps.sh
+      - tests/fuzz/**
+      - ci/requirements-fuzz.txt
+      - .github/workflows/fuzz.yaml
+  schedule:
+    # Every day 02:15 UTC.
+    - cron: "15 2 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: fuzz-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fuzz:
+    name: Fuzz
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Atheris (pinned by hash)
+        run: scripts/ci/setup-python-deps.sh ci/requirements-fuzz.txt
+
+      - name: Fuzz every target
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            scripts/ci/fuzz.sh 60
+          else
+            scripts/ci/fuzz.sh 600
+          fi
+
+      # Same channel as every other scheduled failure. The topic is the
+      # secret, so it is never printed. In quiet hours ntfy holds it until
+      # 08:00 Zurich (docs/sre.md).
+      - name: Notify ntfy on failure
+        if: ${{ failure() && github.event_name == 'schedule' }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          delay=$(scripts/ci/ntfy-quiet-delay.sh)
+          curl -fsS -m 10 -o /dev/null ${delay:+-H "Delay: ${delay}m"} \
+            -H "Title: fuzzing found a parser bug" -H "Priority: low" -H "Tags: bug" \
+            -H "Click: $RUN_URL" \
+            -d "A repo-policy parser failed a fuzz property; the run summary has the input. $RUN_URL" \
+            "https://ntfy.sh/$NTFY_TOPIC"
