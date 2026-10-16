@@ -23,8 +23,9 @@ spec:
       annotations:
         description: 'Prowlarr reports indexers that have failed for more than 6 hours
           or have no definition any more: usually an expired login or cookie, or a
-          site that is gone. Prowlarr -> System -> Status names them; update the credentials,
-          or disable or remove the indexer (docs/theater.md "Indexers").'
+          site that is gone. Prowlarr -> System -> Status names them; update the credentials
+          or disable the indexer, and remove one that has no definition (docs/theater.md
+          "Indexers").'
         summary: 'Prowlarr: indexers need attention ({{ $labels.source }})'
       expr: |
         max by (namespace, source) (
