@@ -192,6 +192,20 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
+# The log agent Vector (platform/vector). privileged: its DaemonSet mounts the
+# node's /var/log and /var/lib/vector (hostPath), which baseline rejects. The
+# container runs with every capability dropped and a read-only root.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: logging
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: baseline
+    pod-security.kubernetes.io/audit: baseline
+---
 # The oauth2-proxy in front of the Hubble UI (platform/hubble-access). The UI
 # and the relay themselves run in kube-system with the cilium release.
 apiVersion: v1

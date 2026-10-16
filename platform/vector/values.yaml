@@ -1,0 +1,129 @@
+# Helm values for the `vector` release (namespace `logging`), the log agent
+# (clusters/homelab/platform/vector.yaml, docs/observability.md "Logs").
+#
+# One DaemonSet pod per node reads /var/log/pods (kubelet's container logs,
+# Talos keeps them on the EPHEMERAL partition), parses each line and, for now,
+# drops it in a blackhole: the store (SigNoz, OTLP) is the next change.
+#
+# Runs as uid 0 with every capability dropped and a read-only root: the log
+# files are root-owned 0640, which root reads as their owner. Kubernetes sets
+# no ambient capabilities, so a non-root user with DAC_READ_SEARCH could not.
+# The hostPath volumes are why the namespace enforces `privileged`.
+role: Agent
+
+image:
+  repository: docker.io/timberio/vector
+  # renovate: datasource=docker depName=docker.io/timberio/vector
+  tag: 0.59.0-distroless-libc@sha256:54a7c01056e98305fce80545ace22779035747af9e89114508330fe94f829831
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  runAsUser: 0
+  runAsGroup: 0
+  runAsNonRoot: false
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 96Mi
+  limits:
+    memory: 256Mi
+
+tolerations:
+  # Logs of the control planes too.
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+# Checkpoints of kubernetes_logs (a few KiB per file) in the chart's hostPath
+# /var/lib/vector. No disk buffer: sinks buffer in memory.
+service:
+  enabled: false
+
+containerPorts:
+  - name: api
+    containerPort: 8686
+    protocol: TCP
+  - name: prom-exporter
+    containerPort: 9598
+    protocol: TCP
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: api
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  failureThreshold: 5
+readinessProbe:
+  httpGet:
+    path: /health
+    port: api
+  periodSeconds: 10
+
+customConfig:
+  data_dir: /vector-data-dir
+  # /health for the probes.
+  api:
+    enabled: true
+    address: 0.0.0.0:8686
+  sources:
+    pods:
+      type: kubernetes_logs
+      glob_minimum_cooldown_ms: 5000
+    vector_metrics:
+      type: internal_metrics
+  transforms:
+    # JSON first, then logfmt (a line that starts with key=value), else the
+    # line stays a plain message with parse_failed=true. Parsed fields go
+    # under `attributes`; Kubernetes metadata stays under `kubernetes`.
+    parsed:
+      type: remap
+      inputs: [pods]
+      source: |
+        .parse_failed = false
+        msg = string(.message) ?? ""
+        parsed, err = parse_json(msg)
+        if err == null && is_object(parsed) {
+          .attributes = parsed
+        } else if match(msg, r'^[A-Za-z_][A-Za-z0-9_.-]*=') {
+          parsed, err = parse_logfmt(msg)
+          if err == null {
+            .attributes = parsed
+          } else {
+            .parse_failed = true
+          }
+        } else {
+          .parse_failed = true
+        }
+    # Events per namespace and how many did not parse: the trial's parse
+    # ratio (vector_log_events_total{namespace, parse_failed}).
+    parse_metrics:
+      type: log_to_metric
+      inputs: [parsed]
+      metrics:
+        - type: counter
+          field: message
+          name: log_events_total
+          namespace: vector
+          # The chart passes customConfig through Helm's `tpl`: the
+          # escapes render as Vector's own `{{ field }}` templates.
+          tags:
+            namespace: '{{ "{{" }} kubernetes.pod_namespace {{ "}}" }}'
+            parse_failed: '{{ "{{" }} parse_failed {{ "}}" }}'
+  sinks:
+    # Until SigNoz takes the stream.
+    discard:
+      type: blackhole
+      inputs: [parsed]
+      print_interval_secs: 0
+    prometheus:
+      type: prometheus_exporter
+      inputs: [vector_metrics, parse_metrics]
+      address: 0.0.0.0:9598

@@ -21,4 +21,5 @@ resources:
   - talos-drift.yaml
   - tailscale-operator.yaml
   - headlamp.yaml
+  - vector.yaml
   - hubble-access.yaml
