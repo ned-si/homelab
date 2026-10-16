@@ -53,3 +53,7 @@ Wave 3 puts Kyverno in the cluster in Audit mode: `.kiro/specs/wave3-*`.
 - [ ] 23. Weekly agent pass: check the docs against the repo and the live
       cluster, and review whether each area is still on the right solution;
       output is pull requests.
+- [ ] 24. Serialise local merges: `pr-merge.sh` takes a lock in the git
+      common dir, rebases, waits for `ci` and merges inside it, retrying
+      when `main` moves (no merge queue on a user-owned repository). [2.3]
+      (`tests/bash/test_pr_merge_lock.sh`)

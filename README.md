@@ -217,6 +217,12 @@ Every action is pinned to a commit SHA and every tool to a version and checksum.
 3. Squash-merge with `scripts/pr-merge.sh <pr-number>`. It refuses unless
    every required check is green, the title and commits pass, every commit is
    verified, the branch is up to date with `main` and no merge freeze is set.
+   Merges from this machine are serialised by a lock in the git common dir
+   (`.git/pr-merge.lock`): inside it the script rebases a branch that is
+   behind `main`, pushes it with `--force-with-lease`, waits for `ci` and
+   merges, retrying up to 3 times if `main` moves again. A waiting run logs
+   the holder once a minute and gives up after 60 minutes; a lock whose
+   process is gone, or that was not refreshed for 30 minutes, is broken.
 4. That is the deployment. Every Application tracks `main`, so Argo CD
    applies the merge within its sync interval (3 minutes), Argo CD's own
    release included. Rollback is a revert pull request, opened automatically
