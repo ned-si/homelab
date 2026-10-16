@@ -259,7 +259,13 @@ alertmanager:
               mute_time_intervals: [quiet-hours]
         - receiver: ntfy
           matchers:
-            - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable|etcdInsufficientMembers|etcdNoLeader|NASPoolUnhealthy|NodeFilesystemReadOnly|TalosUpgradeFailed|AlertmanagerNotificationsFailing"
+            - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable|etcdInsufficientMembers|etcdNoLeader|NASPoolUnhealthy"
+          group_by: [alertname]
+          repeat_interval: 4h
+          mute_time_intervals: [quiet-hours]
+        - receiver: ntfy
+          matchers:
+            - alertname =~ "NodeFilesystemReadOnly|TalosUpgradeFailed|AlertmanagerNotificationsFailing"
           group_by: [alertname]
           repeat_interval: 4h
           mute_time_intervals: [quiet-hours]
