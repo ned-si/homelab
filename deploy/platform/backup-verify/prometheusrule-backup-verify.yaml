@@ -41,7 +41,7 @@ spec:
           }}'
       expr: |
         time() - max by (check, target) (
-          max_over_time(backup_verify_last_success_timestamp_seconds{check!="restic-data"}[9d])
+          max_over_time(backup_verify_last_success_timestamp_seconds{check!="restic-data", target!~"seafile|seafile-data|seafile-mariadb"}[9d])
         ) > 8 * 86400
       for: 1h
       labels:

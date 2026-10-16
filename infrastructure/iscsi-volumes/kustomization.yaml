@@ -13,8 +13,10 @@ kind: Kustomization
 # claim sets `volumeName` to its PV and keeps `storageClassName: iscsi`, so
 # the class never provisions a new volume for it.
 #
-# Claims are defined where they were: apps/{mealie,paperless,seafile,syncthing,
-# theater}/. Prometheus's claim is here (monitoring-prometheus-db.yaml).
+# Claims are defined where they were: apps/{mealie,paperless,syncthing,
+# theater}/. Prometheus's claim is here (monitoring-prometheus-db.yaml). The
+# two seafile claims are no longer in git: their Application is gone and they
+# stay in the cluster (Delete=false) until the volumes are deleted.
 #
 # NOT RENDERED, on purpose:
 #   operator/immich-data.yaml  the photo library PV and PVC. Applied by hand on

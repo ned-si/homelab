@@ -7,7 +7,6 @@ resources:
   - immich.yaml
   - mealie.yaml
   - paperless.yaml
-  - seafile.yaml
   - syncthing.yaml
   - books.yaml
   - home.yaml
