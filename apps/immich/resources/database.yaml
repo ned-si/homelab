@@ -15,10 +15,16 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   instances: 1
-  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0  # image-policy: allow frozen until the VectorChord migration
-  # Created from its Barman Cloud backup, a physical copy, so the `vectors`,
-  # `cube` and `earthdistance` extensions and the search_path come with the
-  # data. The image above must stay the one the backup was taken with.
+  # PostgreSQL 16 with VectorChord (`vchord`) and pgvector, the extensions
+  # Immich 3 requires. Renovate never updates it: a VectorChord update needs
+  # `ALTER EXTENSION vchord UPDATE` and a reindex
+  # (docs/runbooks/immich-upgrade.md).
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236
+  # Created from its Barman Cloud backup, a physical copy, so the extensions
+  # (`vchord`, `vector`, `cube`, `earthdistance`) and the search_path come with
+  # the data. A recovery needs an image with the same extensions; a backup from
+  # before 2026-10-16 still holds pgvecto.rs (`vectors`) and needs the old
+  # image, cloudnative-pgvecto.rs:16.5-v0.3.0.
   # Archives under a new server name (CNPG refuses a non-empty path; the old one
   # stays readable). docs/bootstrap.md
   #
@@ -38,7 +44,7 @@ spec:
           serverName: immich-db
   postgresql:
     shared_preload_libraries:
-      - "vectors.so"
+      - "vchord.so"
   storage:
     size: 5Gi
   # WAL archiving and base backups to S3 (backup.yaml).

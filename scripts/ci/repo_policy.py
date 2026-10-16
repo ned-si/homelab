@@ -14,7 +14,7 @@ objects and rule ids only; values are never printed.
                         value is set exactly once and its IPv4 literal appears in
                         no other non-doc line of that layout
   immich-db-image       every rendered CNPG Cluster immich-db runs the pinned
-                        pgvecto.rs image; one must exist while immich is in the tree
+                        VectorChord image; one must exist while immich is in the tree
   no-resources-finalizer  no Application (in git or rendered) carries Argo's
                         resources-finalizer
   pvc-sync-options      new-layout renders: no PVC immich/immich-data; every other
@@ -97,7 +97,8 @@ LAN_GONE = "192.168." + "2."
 EXCLUDE_ANN = "external-dns.alpha.kubernetes.io/" + "exclude"
 CONTROLLER_ANN = "external-dns.alpha.kubernetes.io/controller"
 SYNC_OPTS_ANN = "argocd.argoproj.io/sync-options"
-IMMICH_DB_IMAGE = "ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0"
+IMMICH_DB_IMAGE = ("ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1"
+                   "@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236")
 CNPG_PLUGIN = "barman-cloud.cloudnative-pg.io"
 # Applications that adopt a release the bootstrap installs with the helm CLI: name -> chart.
 BOOTSTRAP_CHARTS = {"cilium": "cilium", "argocd": "argo-cd"}
