@@ -151,6 +151,27 @@ grafana:
   # (routes/grafana.yaml). ingress-nginx is removed (ADR 0011).
   ingress:
     enabled: false
+  # grafana.db (SQLite) on a volume, so what is not provisioned survives a
+  # restart: the service account `agent-readonly` and its token
+  # (docs/secrets.md), annotations, stars. Dashboards and datasources stay
+  # provisioned from git. PVC `kube-prometheus-stack-grafana`, the name
+  # routes/grafana-backup.yaml backs up. ReadWriteOnce, so Recreate: a rolling
+  # update would start the new pod while the old one holds the volume.
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: iscsi-retain
+    accessModes:
+      - ReadWriteOnce
+    size: 1Gi
+    annotations:
+      argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  deploymentStrategy:
+    type: Recreate
+  # fsGroup 472 (the chart default) already gives Grafana the new volume; the
+  # chown init container would run as root.
+  initChownData:
+    enabled: false
 
 # Alertmanager routes: the paging policy of docs/sre.md "Paging". Only the
 # alerts below notify; every other alert is visible in Grafana and
