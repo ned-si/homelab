@@ -12,6 +12,8 @@ kind: Kustomization
 #     0  cert-manager      its CRDs must be established before issuers appear
 #     5  cert-manager-issuers
 #    10  external-dns      publishes the public hostnames
+#    12  kubelet-serving-cert-approver  approves the kubelet serving certificates
+#    14  metrics-server    metrics.k8s.io for `kubectl top` and Headlamp
 #    15  gateway           the shared Gateway on .254 (ADR 0007)
 #    20  democratic-csi    iSCSI CSI driver + StorageClasses; auto-sync, no prune
 #    25  iscsi-volumes     static PVs of the existing data zvols; no prune
@@ -34,6 +36,8 @@ resources:
   - cert-manager.yaml
   - cert-manager-issuers.yaml
   - external-dns.yaml
+  - kubelet-serving-cert-approver.yaml
+  - metrics-server.yaml
   - gateway.yaml
   - democratic-csi.yaml
   - iscsi-volumes.yaml

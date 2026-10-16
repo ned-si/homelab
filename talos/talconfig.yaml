@@ -43,6 +43,7 @@ patches:
   - "@./patches/sysctls.yaml"
   - "@./patches/kubelet-image-gc.yaml"
   - "@./patches/node-ip.yaml"
+  - "@./patches/kubelet-serving-certs.yaml"
 
 controlPlane:
   patches:

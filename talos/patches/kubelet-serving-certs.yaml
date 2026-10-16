@@ -1,0 +1,14 @@
+# Kubelet serving certificates signed by the cluster CA, so metrics-server
+# (infrastructure/metrics-server) verifies every kubelet instead of running
+# with --kubelet-insecure-tls. The kubelet requests its serving certificate
+# with a CertificateSigningRequest (signer kubernetes.io/kubelet-serving) that
+# names the node's hostname and IPs, and renews it before expiry.
+# kubelet-serving-cert-approver (infrastructure/kubelet-serving-cert-approver)
+# approves those requests; it must run before this patch reaches a node, or
+# the kubelet has no serving certificate and `kubectl logs`/`exec` fail there.
+# The Talos-documented way:
+# https://docs.siderolabs.com/kubernetes-guides/monitoring-and-observability/deploy-metrics-server
+machine:
+  kubelet:
+    extraConfig:
+      serverTLSBootstrap: true

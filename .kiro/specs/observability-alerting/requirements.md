@@ -110,3 +110,22 @@ what automation did, from my phone.
    `tests/test_github_exporter.py`)
 4. THE `grafana.db` SHALL persist on a volume, so service accounts survive
    restarts. (PVC `monitoring/kube-prometheus-stack-grafana`)
+
+### Requirement 6: Resource metrics API
+
+**User story:** As the operator, I want `kubectl top` and Headlamp's CPU and
+memory views to work, without trusting unverified kubelets.
+
+#### Acceptance criteria
+
+1. THE cluster SHALL serve `metrics.k8s.io` from metrics-server, so
+   `kubectl top nodes` and `kubectl top pods -A` return data.
+   (`infrastructure/metrics-server/`)
+2. metrics-server SHALL verify every kubelet's serving certificate against
+   the cluster CA; `--kubelet-insecure-tls` SHALL NOT be set. The kubelets
+   SHALL request their serving certificates by CSR, and only
+   kubelet-serving-cert-approver SHALL approve them.
+   (`talos/patches/kubelet-serving-certs.yaml`,
+   `infrastructure/kubelet-serving-cert-approver/`)
+3. THE API server SHALL verify metrics-server through the CA bundle on the
+   APIService, not `insecureSkipTLSVerify`.

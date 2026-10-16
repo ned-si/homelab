@@ -29,6 +29,10 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 
 ## Open
 
+- [ ] 22. metrics-server with verified kubelet TLS: kubelet serving
+      certificates by CSR and kubelet-serving-cert-approver, applied one node
+      at a time after the approver runs. [6.1-6.3]
+
 Wave 3 is specced in `.kiro/specs/wave3-*`: a runbook for every alert,
 latency and backup-freshness SLOs, Hubble relay and UI, Tetragon in observe
 mode, and a log store trial. Not repeated here.

@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kubelet-serving-cert-approver
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kubelet-serving-cert-approver and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: events:kubelet-serving-cert-approver
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch

@@ -70,6 +70,30 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
+# infrastructure/kubelet-serving-cert-approver.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubelet-serving-cert-approver
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+# infrastructure/metrics-server.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: metrics-server
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
 apiVersion: v1
 kind: Namespace
 metadata:

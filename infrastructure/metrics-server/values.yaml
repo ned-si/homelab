@@ -1,0 +1,49 @@
+# metrics-server chart values (clusters/homelab/infrastructure/metrics-server.yaml).
+# Serves the metrics.k8s.io API: `kubectl top` and Headlamp's CPU and memory
+# views. Prometheus does not use it.
+#
+# TLS is verified both ways:
+#   - to the kubelets: no --kubelet-insecure-tls. The kubelet serving
+#     certificates are signed by the cluster CA
+#     (talos/patches/kubelet-serving-certs.yaml, approved by
+#     infrastructure/kubelet-serving-cert-approver), which metrics-server
+#     already trusts through its ServiceAccount CA bundle;
+#   - from the API server: a cert-manager certificate (self-signed Issuer in
+#     the namespace) and cainjector writes its CA into the APIService, so the
+#     APIService does not set insecureSkipTLSVerify.
+image:
+  repository: registry.k8s.io/metrics-server/metrics-server
+  # renovate: datasource=docker depName=registry.k8s.io/metrics-server/metrics-server
+  tag: v0.9.0@sha256:d9862115e7c7881280d3d75ca26bda8ffc0fc213315979575bf23ce9826205c0
+  pullPolicy: IfNotPresent
+
+apiService:
+  insecureSkipTLSVerify: false
+
+tls:
+  type: cert-manager
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: RuntimeDefault
+  capabilities:
+    drop: ["ALL"]
+
+# Four nodes: a fraction of the chart's 100m / 200Mi default.
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    memory: 256Mi

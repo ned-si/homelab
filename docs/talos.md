@@ -232,6 +232,14 @@ Expected: `ok` lines only, the last one `ok  git-ignore rules`, exit 0.
   Images share EPHEMERAL with everything else, so the default start at 85%
   coincides with the default eviction threshold: GC only ran once the node was
   already under DiskPressure and evicting pods.
+- Kubelet serving certificates from the cluster CA
+  (`patches/kubelet-serving-certs.yaml`, `serverTLSBootstrap`), approved by
+  `kubelet-serving-cert-approver`, the way the Talos docs describe for
+  metrics-server. The alternative, `--kubelet-insecure-tls`, would let
+  metrics-server talk to anything that answers on a node's port 10250. The
+  approver must be running before the patch reaches a node: without an
+  approved certificate the kubelet serves nothing, and `kubectl logs` and
+  `exec` fail on that node.
 - The drift check holds an `os:admin` Talos certificate, like tuppr. Machine
   configs are a sensitive resource that `os:reader` and `os:operator` cannot
   read, and a check that compares anything less (derived resources, redacted
