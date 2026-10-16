@@ -38,9 +38,8 @@ metadata:
   namespace: apps
 spec:
   containers:
-    # A registry port is not a tag.
     - name: app
-      image: registry.example:5000/app
+      image: ghcr.io/example/app
 ---
 apiVersion: v1
 kind: Pod
@@ -54,17 +53,23 @@ spec:
       securityContext:
         privileged: true
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: privileged-allowed
-  namespace: democratic-csi
+  name: privileged-deploy
+  namespace: apps
 spec:
-  containers:
-    - name: node
-      image: ghcr.io/example/csi:1.2.3
-      securityContext:
-        privileged: true
+  selector:
+    matchLabels: { app: privileged-deploy }
+  template:
+    metadata:
+      labels: { app: privileged-deploy }
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/example/app:1.2.3
+          securityContext:
+            privileged: true
 ---
 apiVersion: v1
 kind: Pod

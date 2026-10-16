@@ -59,8 +59,9 @@ for (const mgr of cfg.customManagers) {
           file: f,
           line,
           datasource: g.datasource || mgr.datasourceTemplate,
-          depName: g.depName || '(none)',
-          currentValue: g.currentValue,
+          // Templates fill what the regex does not capture, as in Renovate.
+          depName: g.depName || mgr.depNameTemplate || '(none)',
+          currentValue: g.currentValue || mgr.currentValueTemplate,
         });
       }
     }

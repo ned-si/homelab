@@ -50,9 +50,9 @@ Expected: every hook `Passed` (or `Skipped` when no file matches).
     `tests/smoke/`: auto-rollback decisions, pins, merge script, PostSync hook
     script)
   - render every Application, kubeconform against pinned schemas
-  - `scripts/ci/kyverno.sh`: the policy unit tests in
-    `policies/kyverno/tests/`, then the policies in `policies/kyverno/` over
-    every file in `deploy/`
+  - `scripts/ci/kyverno.sh`: the vendor check, the policy unit tests in
+    `policies/kyverno/tests/`, then the policies in `policies/kyverno/` and
+    `policies/kyverno/upstream/` over every file in `deploy/`
   - `scripts/ci/repo-policy.sh`: pins, repository invariants, `deploy/`
     matches its sources, kube-linter
 - `security`: gitleaks on the new commits, the Trivy gate (CRITICAL on
@@ -62,15 +62,25 @@ Expected: every hook `Passed` (or `Skipped` when no file matches).
 
 Kyverno policies:
 
-| Policy | Action |
-|---|---|
-| `disallow-latest-tag` | Deny: blocks CI |
-| `disallow-privileged` (allowlist: `kube-system`, `democratic-csi`) | Deny: blocks CI |
-| `require-resources` | Audit: reported in the step summary |
-| `require-probes` (Deployments) | Audit: reported in the step summary |
+The policies are the upstream `kyverno/policies` Pod Security Standards
+(baseline and restricted) and a subset of its best practices, vendored
+unchanged in `policies/kyverno/upstream/` at the commit in its `SOURCE` (which
+also lists what is left out and why), plus the homelab `require-probes`.
+`scripts/kyverno-vendor.sh` re-vendors them; `--check` (run first by
+`kyverno.sh`) fails when a file differs from its recorded sha256. Renovate
+moves the commit and the `renovate-render` workflow re-vendors.
 
-An Audit policy moves to Deny once `deploy/` passes it. The same files are the
-baseline for the in-cluster Kyverno gates.
+| Policy | CI |
+|---|---|
+| `disallow-latest-tag` | blocks |
+| `disallow-privileged-containers` | blocks |
+| every other policy | reported in the step summary |
+
+What blocks is the `BLOCKING` list in `scripts/ci/kyverno.sh`, by policy name;
+the vendored files keep upstream's `validationActions`. An evaluation error
+blocks too, except the CLI gaps listed in the script (fields the API server
+defaults, such as a Service's `spec.type`). A policy joins `BLOCKING` once
+`deploy/` passes it.
 
 ## 3. Pre-production (kind)
 

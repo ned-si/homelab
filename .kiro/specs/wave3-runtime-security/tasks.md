@@ -1,0 +1,42 @@
+# Tasks: wave 3 runtime security (Kyverno audit, Tetragon observe)
+
+Each task is one PR or one recorded check. Requirement numbers in brackets. One topic per
+PR; CI is the gate; merge with `scripts/pr-merge.sh`. Before a change that restarts node
+agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR #>"`.
+
+- [x] 1. Answer the design's open questions in `design.md` (read-only: upstream repos and
+      docs, `kyverno apply` locally over `deploy/`, the live cluster). [1.6, 2.1, 4.2, 6.4]
+- [x] 2. (#563) PR `feat(policy): vendor the upstream Kyverno policies`: `scripts/kyverno-vendor.sh`,
+      `policies/kyverno/upstream/` with `SOURCE`, Renovate regex manager, `renovate-render`
+      hook, `scripts/ci/kyverno.sh` blocking list by name, replace the four homelab
+      duplicates after the side-by-side comparison, updated CLI tests. CI only, nothing in
+      the cluster yet. [1.2, 1.3, 1.4, 1.5]
+- [ ] 3. PR `feat(policy): map each policy to CIS, NIST and NSA/CISA`:
+      `policies/kyverno/upstream/controls.yaml`, `tests/test_security_controls.py`, the
+      controls section of `docs/threat-model.md` (with the wave 4 baseline counts). [3.1,
+      3.3, 3.4]
+- [ ] 4. PR `feat(policy): Kyverno admission in Audit mode`: namespace `kyverno`, the
+      Application (infrastructure layer), values (two controllers, `failurePolicy: Ignore`,
+      timeout, exclusions, JSON logs, digests, resources, probes), AppProject kinds,
+      `policies/kyverno/exceptions/`, the kind preprod cold-start check. Watch the first
+      sync and the background scan. [1.1, 1.3, 1.6, 1.7, 2.1, 2.2]
+- [ ] 5. PR `feat(observability): Kyverno reports on the Security dashboard`:
+      kube-state-metrics `customResourceState`, Kyverno scrape, dashboard rows,
+      `KyvernoReportsStale` (human, warning) with promtool tests, runbook section,
+      `routes.txt` line. [2.3, 2.4, 2.5, 5.3, 5.4]
+- [ ] 6. PR `feat(security): Tetragon in observe mode`: namespace `tetragon` (privileged,
+      reason), Application, values (export allowlist on tmpfs, metric label filter,
+      resources, digests, JSON), vendored library policies with `SOURCE` and
+      `controls.yaml`, the enforcement-action check, Renovate manager. Silence `tetragon`
+      for the first rollout. [3.2, 3.3, 4.1, 4.2, 4.3, 4.4, 4.5]
+- [ ] 7. PR `feat(security): page on critical runtime detections`: `platform/tetragon/rules.yaml`
+      (the four technique alerts with allowlists, `TetragonAgentMissing`), promtool tests
+      with allowlisted negatives, runbook sections, `routes.txt` lines, the Security
+      dashboard runtime row, `docs/sre.md` PAGE table. [4.6, 5.1, 5.2, 5.3, 5.4, 5.5]
+- [ ] 8. Observe 24 h, read-only: no runtime alert on known-good actors, Tetragon CPU and
+      memory within limits, reports fresh. Record the result here. [4.1, 5.1]
+- [ ] 9. PR `feat(keycloak): brute-force protection and OTP for platform clients`:
+      `platform.conf`, `apply.sh`, `access.conf` (`hubble`, `signoz` gated to `admins`
+      when spec `wave3-network-logs` adds them, or here first), direct grants off with the
+      PostSync read-back, bash tests, `docs/architecture.md`. [6.1, 6.2, 6.3, 6.4, 6.5]
+- [ ] 10. Tick this file and record the PR numbers. [all]

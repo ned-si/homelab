@@ -1,14 +1,21 @@
 #!/bin/bash
 # kyverno.sh -- policy-as-code over deploy/ with the Kyverno CLI.
 #
-#   1. kyverno test policies/kyverno/tests    the policies' own unit tests
-#   2. kyverno apply policies/kyverno/*.yaml  against every file in deploy/
+#   1. scripts/kyverno-vendor.sh --check  the upstream files are unchanged
+#   2. kyverno test policies/kyverno/tests the policies' own unit tests
+#   3. kyverno apply                       policies/kyverno/*.yaml and the
+#                                          vendored policies/kyverno/upstream
+#                                          over every file in deploy/
 #
-# A policy with `validationActions: [Deny]` fails the check on any violation;
-# an `[Audit]` policy only reports, with per-policy counts and the violating
-# objects in the log and the step summary. These are the baseline for the
-# in-cluster Kyverno gates: a policy moves from Audit to Deny once deploy/
-# passes it.
+# What blocks is decided here by policy name (BLOCKING), not by the files'
+# validationActions: the vendored files stay as upstream wrote them, and the
+# cluster runs every policy in Audit. A violation of a BLOCKING policy fails
+# the check; every other finding is reported, with per-policy counts and the
+# violating objects in the log and the step summary.
+#
+# An evaluation error fails the check, except the CLI gaps in CLI_GAPS: the
+# CLI evaluates the manifests as written, without the API server's defaulting,
+# so a policy that reads a defaulted field errors here and not in the cluster.
 #
 # A run that checks zero resources fails: an empty deploy/ or a policy
 # selector that matches nothing would otherwise pass silently.
@@ -24,24 +31,44 @@ rc=0
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 
+# The policies whose violations fail CI (Deny in CI before the upstream set
+# replaced the homelab copies).
+BLOCKING="disallow-latest-tag disallow-privileged-containers"
+# One `policy|error message` per line: errors that come from the missing API
+# defaulting (a Service without spec.type is a ClusterIP once stored).
+CLI_GAPS="restrict-nodeport|error: no such key: type"
+
+echo "== scripts/kyverno-vendor.sh --check"
+scripts/kyverno-vendor.sh --check || rc=1
+
 echo "== kyverno test policies/kyverno/tests"
 kyverno test policies/kyverno/tests --remove-color || rc=1
 
-policies=(policies/kyverno/*.yaml)
-enforced=()
-for p in "${policies[@]}"; do
-  if [ "$(yq '.spec.validationActions // [] | contains(["Deny"])' "$p")" = "true" ]; then
-    enforced+=("$(yq '.metadata.name' "$p")")
-  fi
+policies=()
+for p in policies/kyverno/*.yaml; do policies+=("$p"); done
+while IFS= read -r p; do policies+=("$p"); done \
+  < <(find policies/kyverno/upstream -name '*.yaml' -type f ! -name controls.yaml | sort)
+names=" $(for p in "${policies[@]}"; do yq '.metadata.name' "$p"; done | tr '\n' ' ') "
+for b in $BLOCKING; do
+  [[ "$names" == *" $b "* ]] || { echo "kyverno: BLOCKING policy $b is not in the policy set" >&2; exit 1; }
 done
 # `--resource <dir>` does not recurse: pass every file.
 resources=()
 while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -name '*.yaml' -type f | sort)
 [ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in deploy/; refusing to pass" >&2; exit 1; }
+# The CLI has no API server to look Namespaces up in: hand it every namespace
+# deploy/ uses, so policies that read namespaceObject can evaluate.
+{
+  printf 'apiVersion: cli.kyverno.io/v1alpha1\nkind: Value\nmetadata:\n  name: values\nnamespaces:\n'
+  { echo default; find deploy -name '*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ; } \
+    | grep -v '^$' | sort -u | while IFS= read -r ns; do
+      printf -- '- apiVersion: v1\n  kind: Namespace\n  metadata:\n    name: %s\n' "$ns"
+    done
+} > "$out/values.yaml"
 echo "== kyverno apply: ${#policies[@]} policies over $((${#resources[@]} / 2)) files in deploy/"
-echo "enforced (Deny): ${enforced[*]:-none}"
-kyverno apply "${policies[@]}" "${resources[@]}" --audit-warn --policy-report \
-  --remove-color > "$out/report.yaml" 2> "$out/apply.err"
+echo "blocking: $BLOCKING"
+kyverno apply "${policies[@]}" "${resources[@]}" --values-file "$out/values.yaml" \
+  --audit-warn --policy-report --remove-color > "$out/report.yaml" 2> "$out/apply.err"
 if [ "$(yq '.kind' "$out/report.yaml" 2>/dev/null)" != "ClusterReport" ]; then
   echo "kyverno apply produced no report:" >&2
   head -n 20 "$out/apply.err" "$out/report.yaml" >&2
@@ -62,20 +89,24 @@ table=$(yq -N '.results[] | .policy + " " + .result' "$out/report.yaml" | sort |
 printf '| policy | result | count |\n|---|---|---|\n%s\n' "$table"
 
 findings=$(yq -N '.results[] | select(.result != "pass" and .result != "skip")
-  | .policy + " " + .result + " " + (.resources[0].namespace // "-") + "/" + .resources[0].kind + "/" + .resources[0].name' \
+  | .policy + " " + .result + " " + (.resources[0].namespace // "-") + "/" + .resources[0].kind + "/" + .resources[0].name
+  + " " + ((.message // "") | split("\n") | .[0])' \
   "$out/report.yaml" | sort -u)
 blocking=""
 while IFS= read -r line; do
   [ -n "$line" ] || continue
-  pol=${line%% *}
+  pol=$(cut -d' ' -f1 <<<"$line")
   res=$(cut -d' ' -f2 <<<"$line")
-  if [ "$res" = "error" ] || [[ " ${enforced[*]} " == *" $pol "* ]]; then
+  msg=$(cut -d' ' -f4- <<<"$line")
+  if [ "$res" = "error" ]; then
+    grep -qxF "$pol|$msg" <<<"$CLI_GAPS" || blocking+="$line"$'\n'
+  elif [[ " $BLOCKING " == *" $pol "* ]]; then
     blocking+="$line"$'\n'
   fi
 done <<<"$findings"
 
 if [ -n "$findings" ]; then
-  echo "== findings (Audit policies report only)"
+  echo "== findings (only BLOCKING policies and evaluation errors fail the check)"
   echo "$findings"
 fi
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
@@ -85,7 +116,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   } >> "$GITHUB_STEP_SUMMARY"
 fi
 if [ -n "$blocking" ]; then
-  echo "== BLOCKING: violations of enforced policies, or evaluation errors" >&2
+  echo "== BLOCKING: violations of blocking policies, or evaluation errors" >&2
   printf '%s' "$blocking" >&2
   rc=1
 fi

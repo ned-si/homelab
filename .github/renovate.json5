@@ -179,6 +179,19 @@
       ],
       datasourceTemplate: 'github-releases',
     },
+    {
+      customType: 'regex',
+      // kyverno/policies has no tags or releases: the vendored files follow
+      // the head of main at one commit. The renovate-render workflow runs
+      // scripts/kyverno-vendor.sh, so the files move with the commit.
+      description: 'Vendored kyverno/policies commit (policies/kyverno/upstream/SOURCE)',
+      managerFilePatterns: ['/(^|/)policies/kyverno/upstream/SOURCE$/'],
+      matchStrings: ['\\ncommit:\\s*(?<currentDigest>[a-f0-9]{40})\\n'],
+      depNameTemplate: 'kyverno/policies',
+      packageNameTemplate: 'https://github.com/kyverno/policies',
+      currentValueTemplate: 'main',
+      datasourceTemplate: 'git-refs',
+    },
   ],
 
   packageRules: [

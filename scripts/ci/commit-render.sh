@@ -1,6 +1,7 @@
 #!/bin/bash
-# commit-render.sh -- commit the re-rendered deploy/ to a pull request branch
-# through the GitHub REST API, then approve the pull_request runs it triggers.
+# commit-render.sh -- commit the re-rendered deploy/ (and the re-vendored
+# policies/kyverno/upstream/) to a pull request branch through the GitHub REST
+# API, then approve the pull_request runs it triggers.
 #
 # Run from the checkout scripts/render-deploy.sh just rendered. Does nothing
 # when deploy/ is already up to date.
@@ -22,13 +23,16 @@ set -euo pipefail
 [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "commit-render: bad HEAD_SHA" >&2; exit 1; }
 [ "$(git rev-parse HEAD)" = "$HEAD_SHA" ] || { echo "commit-render: checkout is not $HEAD_SHA" >&2; exit 1; }
 
-git add -A -- deploy
-changes=$(git diff --cached --name-status --no-renames -- deploy)
+# deploy/, and the vendored Kyverno policies (scripts/kyverno-vendor.sh).
+paths=(deploy)
+[ -e policies/kyverno/upstream ] && paths+=(policies/kyverno/upstream)
+git add -A -- "${paths[@]}"
+changes=$(git diff --cached --name-status --no-renames -- "${paths[@]}")
 if [ -z "$changes" ]; then
   echo "commit-render: deploy/ is up to date"
   exit 0
 fi
-echo "commit-render: $(wc -l <<<"$changes" | tr -d ' ') file(s) changed under deploy/"
+echo "commit-render: $(wc -l <<<"$changes" | tr -d ' ') file(s) changed under ${paths[*]}"
 
 entries='[]'
 while IFS=$'\t' read -r status path; do

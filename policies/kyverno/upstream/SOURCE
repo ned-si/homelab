@@ -1,0 +1,52 @@
+# Upstream Kyverno ValidatingPolicies, vendored unchanged at one commit.
+# Re-vendor with scripts/kyverno-vendor.sh; CI checks the sha256 lines.
+# Renovate moves `commit:` (git-refs on main: the repo has no tags) and the
+# renovate-render workflow re-vendors in the same pull request.
+#
+# The files keep upstream's validationActions. CI decides what blocks by
+# policy name (scripts/ci/kyverno.sh); the cluster runs every policy in Audit.
+#
+# Not vendored, from best-practices-vpol:
+#   require-labels             needs site configuration (the label set)
+#   restrict-image-registries  needs site configuration (the registry list)
+#   disallow-helm-tiller       no Tiller (Helm 2) anywhere
+#   disallow-empty-ingress-host  the Tailscale Ingresses use defaultBackend by design
+#   require-probes             errors on every CronJob (it matches cronjobs and
+#                              reads object.spec.template) and accepts one probe
+#                              of three; policies/kyverno/require-probes.yaml
+#                              (readiness and liveness) stays instead
+#
+# Replaced homelab copies (same findings over deploy/ on 2026-10-16):
+#   disallow-latest-tag  -> best-practices-vpol/disallow-latest-tag (it checks
+#                           `containers` only; the image-digest rule of
+#                           scripts/ci/repo_policy.py pins every image line)
+#   disallow-privileged  -> pod-security-vpol/baseline/disallow-privileged-containers
+#   require-resources    -> best-practices-vpol/require-pod-requests-limits
+repo: https://github.com/kyverno/policies
+commit: ec478cb5996376c0d2f09520675805a8e33297c9
+cef822fab4d4eac557af5184d924889ee99f99b72c644480913c76de03cc9122  pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
+9cc6c218c0ac3b984809a1e72cb4f708eb864e0a4e6ca02eba93e0d10f88cd84  pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
+2d87b3fea1aa7d4fc7160a3ec4c31bb6dbc86485f318a55cccb5d7d28f7d99d2  pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
+860d61b669f11518aee5406a6a2d8071c0d2c249b3bb8dc4927d82bcd584d4e5  pod-security-vpol/baseline/disallow-host-ports/disallow-host-ports.yaml
+a81ea633d5a3cbdbc96645108d99397a530cdcaa2c37c1099a16935fd21d66ed  pod-security-vpol/baseline/disallow-host-process/disallow-host-process.yaml
+cc7246f60220ca668cef9e1b2e9bc67e92185e5765ed9a8d7caed3fb71908e52  pod-security-vpol/baseline/disallow-privileged-containers/disallow-privileged-containers.yaml
+f23d7c55e4727e2846ea770d1f474fd986a44a3919b08a835300e0f2fe953444  pod-security-vpol/baseline/disallow-proc-mount/disallow-proc-mount.yaml
+dfc9fc1b9df62bde03388d7cb80b3d5624943cf130d3e71a11f66db8489226a6  pod-security-vpol/baseline/disallow-selinux/disallow-selinux.yaml
+de869805d9d4858c4fd4c126a267224127f0fa27b1b6be10285b1627b2f9e2f0  pod-security-vpol/baseline/restrict-seccomp/restrict-seccomp.yaml
+bca0762de469053a1404601102d4452830c50277528cced58c0dcfcc4a8b86b4  pod-security-vpol/baseline/restrict-sysctls/restrict-sysctls.yaml
+59f73232b267d0239869ee20537e55695f31034fa6a7da4ff9fe239516f6e69e  pod-security-vpol/restricted/disallow-capabilities-strict/disallow-capabilities-strict.yaml
+472536c045db34e54d761902da061116b0f69c0705f4ab61959dfabbe3db55ef  pod-security-vpol/restricted/disallow-privilege-escalation/disallow-privilege-escalation.yaml
+2486acf56ec159257b47beffff851642f83432ad1c1f900133a25ac268495b82  pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
+61b7c5142a719b5c9a0cb8bb99eabcc428e636bbb72386008cb4f09057e985f6  pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
+1373741a65c13b3e6f3c6fd4fca0edcd2ee059d70c4202a1eab51a36c7489264  pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
+36e9017d197f837f03f41d7240fb0d336f553c85b004ae999f9191ade205534c  pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
+66a4262e06e72826b312ed0f7162bea5910249a4337dc81be09264f9bd848477  best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
+3d67c209681634471671c3954d7ca4bd7bc79ba31f039b3c6a29d7b75e0d813b  best-practices-vpol/disallow-cri-sock-mount/disallow-cri-sock-mount.yaml
+77119e0fb24b15a295d4051eadb9a533a8a4cffe9baddc8c42a7fc82a42a0106  best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
+fc49a94817297938131fb05f4237aaa3107171a7c4a110aad0b0deca1b7ecba2  best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
+72cdada10a0e984c3cdc3820ef496c67d6990872d3a7505d4e2101fa425881d0  best-practices-vpol/require-drop-all/require-drop-all.yaml
+8c97c4bd2ccabcfb57bf2e4c054ac3930feab0a4fcfc9db6f1be69a3554b3e66  best-practices-vpol/require-drop-cap-net-raw/require-drop-cap-net-raw.yaml
+8a5bb51311d3cbf6d6fc69aa37b60e7aa64454f942c550dd7fd2a3df290c5c31  best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
+ca9f26b646a34279fb6428630489e6c6569047476cd5a15b687dd6f1473f021e  best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
+e284b24983335628bbce4e736fade7265cec3fcb7978c56f1f5bda144e4feb38  best-practices-vpol/restrict-node-port/restrict-node-port.yaml
+720a019bb32f7d12e1efac8b6cd3694852f5a9d4a2ae566ad40eb56b5cb11c66  best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml
