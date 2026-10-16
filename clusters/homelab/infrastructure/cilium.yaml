@@ -75,3 +75,13 @@ spec:
       namespace: kube-system
       jsonPointers:
         - /data
+    # Hubble relay's client certificate for the agents. On a cluster that
+    # already runs, Argo's render (no `lookup`) would sign it with a throw-away
+    # CA; it is seeded once from a server-side render, which signs it with the
+    # live `cilium-ca` (docs/networking.md, "Hubble"), and kept from then on.
+    - group: ""
+      kind: Secret
+      name: hubble-relay-client-certs
+      namespace: kube-system
+      jsonPointers:
+        - /data

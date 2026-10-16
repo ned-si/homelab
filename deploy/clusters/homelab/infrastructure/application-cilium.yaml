@@ -37,6 +37,12 @@ spec:
     kind: Secret
     name: hubble-server-certs
     namespace: kube-system
+  - group: ""
+    jsonPointers:
+    - /data
+    kind: Secret
+    name: hubble-relay-client-certs
+    namespace: kube-system
   project: infrastructure
   revisionHistoryLimit: 10
   sources:

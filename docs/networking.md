@@ -250,8 +250,47 @@ operator replica.
 
 ## Debugging
 
-Hubble runs inside each Cilium agent; the relay is not deployed. Read flows on
-the node that runs the pod:
+### Hubble
+
+Hubble runs inside each Cilium agent. Hubble relay (`hubble-relay` in
+`kube-system`) merges the flows of every node; the Hubble UI reads them from
+the relay. Both come with the `cilium` release (`hubble.relay`, `hubble.ui` in
+`infrastructure/cilium/values.yaml`).
+
+Flows of the whole cluster, from the Mac (`brew install hubble`):
+
+```sh
+kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
+hubble observe --server localhost:4245 --namespace theater --last 50
+hubble status --server localhost:4245
+kill %1
+```
+
+Expected from `hubble status`: `Connected Nodes: 4/4`.
+
+The relay authenticates to each agent with the client certificate in the
+Secret `kube-system/hubble-relay-client-certs`, signed by `cilium-ca`. A
+bootstrap install creates it with the release. On a running cluster where it
+is missing or signed by another CA (relay logs `certificate signed by unknown
+authority`, `hubble status` shows fewer than 4 nodes), seed it from a
+server-side render, which signs it with the live `cilium-ca`
+(`--take-ownership` only lets the dry run read objects Argo CD owns); Argo CD keeps
+the live data from then on (`ignoreDifferences` in
+`clusters/homelab/infrastructure/cilium.yaml`):
+
+```sh
+helm template cilium cilium --repo https://helm.cilium.io --version <chart-version> \
+  -n kube-system -f infrastructure/cilium/values.yaml --dry-run=server --take-ownership \
+  --show-only templates/hubble/tls-helm/relay-client-secret.yaml > /tmp/relay-client.yaml
+kubectl apply --server-side --field-manager=argocd-controller -f /tmp/relay-client.yaml
+rm /tmp/relay-client.yaml
+kubectl -n kube-system rollout restart deploy/hubble-relay
+```
+
+`<chart-version>` is `targetRevision` in `clusters/homelab/infrastructure/cilium.yaml`.
+The file holds a private key: never print it.
+
+Without the relay, read flows on the node that runs the pod:
 
 ```sh
 kubectl -n kube-system get pods -l k8s-app=cilium -o wide
