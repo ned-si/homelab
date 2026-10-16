@@ -125,7 +125,9 @@ Accepted gap: OpenSSF Scorecard's Code-Review check (and the review part of
 Branch-Protection) stays low. Every change is merged without a second reviewer,
 because there is no second person. The compensating controls are signed
 commits, the required `ci` check on a protected `main` with linear history,
-CodeQL and secret scanning on every push, and automatic rollback.
+CodeQL and secret scanning on every push, and automatic rollback. Scorecard's
+Contributors check stays at 0 for the same reason: one maintainer, no
+organisation behind the repository.
 
 Rejected: Dependency Dashboard approval for database and Immich majors, which
 left updates pending indefinitely; required self-reviews or a bot approver,
