@@ -59,8 +59,9 @@ for (const mgr of cfg.customManagers) {
           file: f,
           line,
           datasource: g.datasource || mgr.datasourceTemplate,
-          depName: g.depName || '(none)',
-          currentValue: g.currentValue,
+          // A manager without an annotation sets them as fixed templates.
+          depName: g.depName || mgr.depNameTemplate || '(none)',
+          currentValue: g.currentValue || mgr.currentValueTemplate,
         });
       }
     }
