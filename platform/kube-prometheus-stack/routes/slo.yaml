@@ -21,8 +21,14 @@
 #   SLOErrorBudgetBurnSlow    3x          1d / 2h               10% in 1d
 #                             1x          3d / 6h               10% in 3d
 #
-# Both notify (docs/sre.md "Paging"): fast is critical, slow is warning. The
-# slow burn stays quiet for a day after a fast burn of the same app, so one
+# Neither notifies (`action: auto`, docs/sre.md "Paging"): most burns end when
+# a pod restarts or auto-rollback reverts a deploy. Their persistent versions
+# page (`action: human`):
+#
+#   SLOErrorBudgetBurnFastPersistent   the 1h / 5m pair still true after 30m
+#   SLOErrorBudgetBurnSlowPersistent   the slow burn firing for a day
+#
+# The slow burn stays quiet for a day after a fast burn of the same app, so one
 # outage notifies once.
 #
 # The 30-day figures need 30 days of data: `retention: 30d` in ../values.yaml.
@@ -133,6 +139,7 @@ spec:
           for: 2m
           labels:
             severity: critical
+            action: auto
           annotations:
             summary: "{{ $labels.app }} is burning its 30-day error budget fast"
             description: >-
@@ -161,6 +168,7 @@ spec:
           for: 15m
           labels:
             severity: warning
+            action: auto
           annotations:
             summary: "{{ $labels.app }} is slowly burning its 30-day error budget"
             description: >-
@@ -168,6 +176,45 @@ spec:
               allows, over a day or more. Usually intermittent: look for
               restarts, slow responses (probe_duration_seconds) or a flapping
               node.
+        # The pages. The burns above fire within minutes and are visible in
+        # Grafana; a restart, a reschedule or auto-rollback usually ends the
+        # outage first. Fast: the 1h / 5m pair of the fast burn still true
+        # after 30 minutes, so the app is still failing now (an outage of
+        # about 30 minutes or more). Not the 6h / 30m pair: its 30-minute
+        # window keeps it true for half an hour after the app recovers.
+        - alert: SLOErrorBudgetBurnFastPersistent
+          expr: |
+            (
+              slo:probe_error:ratio_rate1h > (14.4 * 0.005)
+              and
+              slo:probe_error:ratio_rate5m > (14.4 * 0.005)
+            )
+            * on (app) group_left (namespace) slo:app:info
+          for: 30m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            summary: "{{ $labels.app }} has been failing for 30 minutes"
+            description: >-
+              The public probes of {{ $labels.app }} have failed for half an
+              hour and nothing automatic has fixed it. Check
+              https://{{ $labels.app }}.lilalala.com, the Homelab overview
+              dashboard, and the Homelab / Automation dashboard for a rollback
+              that was refused or failed.
+        - alert: SLOErrorBudgetBurnSlowPersistent
+          expr: max by (app, namespace) (ALERTS{alertname="SLOErrorBudgetBurnSlow", alertstate="firing"})
+          for: 1d
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            summary: "{{ $labels.app }} has been burning its error budget for a day"
+            description: >-
+              SLOErrorBudgetBurnSlow has fired for {{ $labels.app }} for 24
+              hours: an intermittent fault that does not go away on its own.
+              Look for restarts, slow responses (probe_duration_seconds) or a
+              flapping node.
         - alert: SLOProbesAbsent
           # Without probe_success every SLO rule above evaluates to nothing and
           # cannot fire. TargetDown does not see a Probe object that was
@@ -176,6 +223,7 @@ spec:
           for: 15m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "No public blackbox probe results: the SLO alerts are blind"
             description: >-
@@ -193,6 +241,7 @@ spec:
           labels:
             app: auth
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
@@ -205,6 +254,7 @@ spec:
           labels:
             app: cinema
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
@@ -217,6 +267,7 @@ spec:
           labels:
             app: theater
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
@@ -229,6 +280,7 @@ spec:
           labels:
             app: media
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
@@ -241,6 +293,7 @@ spec:
           labels:
             app: archive
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
@@ -253,6 +306,7 @@ spec:
           labels:
             app: cook
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
@@ -265,6 +319,7 @@ spec:
           labels:
             app: drive
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
@@ -277,6 +332,7 @@ spec:
           labels:
             app: syncthing
             severity: warning
+            action: human
           annotations:
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-

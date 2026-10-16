@@ -26,6 +26,7 @@ tests:
               name: immich
               namespace: immich
               severity: critical
+              action: auto
             exp_annotations:
               summary: immich is Degraded
               description: >-
@@ -53,6 +54,7 @@ tests:
               name: seafile
               namespace: seafile
               severity: warning
+              action: auto
             exp_annotations:
               summary: seafile is OutOfSync for 30 minutes
               description: >-
@@ -88,6 +90,7 @@ tests:
               name: mealie
               namespace: mealie
               severity: warning
+              action: auto
             exp_annotations:
               summary: "mealie: sync failed"
               description: >-
@@ -98,6 +101,7 @@ tests:
               name: theater
               namespace: theater
               severity: warning
+              action: auto
             exp_annotations:
               summary: "theater: sync failed"
               description: >-
@@ -126,6 +130,99 @@ tests:
         alertname: ArgoCDSyncFailed
         exp_alerts: []
 
+  # keycloak is Degraded from minute 10 to 25 and auto-rollback fixes it:
+  # no page. home is Degraded from minute 10 and stays so: the page at 40.
+  - interval: 1m
+    input_series:
+      - series: 'argocd_app_info{name="keycloak", dest_namespace="keycloak", health_status="Degraded", sync_status="Synced"}'
+        values: '_x9 1x15 _x40'
+      - series: 'argocd_app_info{name="keycloak", dest_namespace="keycloak", health_status="Healthy", sync_status="Synced"}'
+        values: '1x9 _x15 1x40'
+      - series: 'argocd_app_info{name="home", dest_namespace="home", health_status="Degraded", sync_status="Synced"}'
+        values: '_x9 1x55'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ArgoCDAppDegraded
+        exp_alerts:
+          - exp_labels:
+              name: home
+              namespace: home
+              severity: critical
+              action: auto
+            exp_annotations:
+              summary: home is Degraded
+              description: >-
+                Argo CD reports the Application home as Degraded
+                for 5 minutes. If the newest merge deployed it, auto-rollback
+                opens a revert pull request. Check
+                https://argo.lilalala.com/applications/argo/home.
+          - exp_labels:
+              name: keycloak
+              namespace: keycloak
+              severity: critical
+              action: auto
+            exp_annotations:
+              summary: keycloak is Degraded
+              description: >-
+                Argo CD reports the Application keycloak as Degraded
+                for 5 minutes. If the newest merge deployed it, auto-rollback
+                opens a revert pull request. Check
+                https://argo.lilalala.com/applications/argo/keycloak.
+      - eval_time: 38m
+        alertname: ArgoCDAppStillDegraded
+        exp_alerts: []
+      - eval_time: 42m
+        alertname: ArgoCDAppStillDegraded
+        exp_alerts:
+          - exp_labels:
+              name: home
+              namespace: home
+              severity: critical
+              action: human
+            exp_annotations:
+              summary: home has been Degraded for 30 minutes
+              description: >-
+                Nothing automatic has fixed home: check the
+                auto-rollback run on the Homelab / Automation dashboard, then
+                https://argo.lilalala.com/applications/argo/home.
+
+  # books: its first sync failure at minute 20 leaves it OutOfSync: the page
+  # at 50. mealie: a failure at minute 20, reverted and Synced at 30: no page.
+  - interval: 1m
+    input_series:
+      - series: 'argocd_app_info{name="books", dest_namespace="books", health_status="Healthy", sync_status="Synced"}'
+        values: '1x19 _x60'
+      - series: 'argocd_app_info{name="books", dest_namespace="books", health_status="Healthy", sync_status="OutOfSync"}'
+        values: '_x19 1x60'
+      - series: 'argocd_app_sync_total{name="books", phase="Error"}'
+        values: '_x19 1x60'
+      - series: 'argocd_app_info{name="mealie", dest_namespace="mealie", health_status="Healthy", sync_status="Synced"}'
+        values: '1x19 _x10 1x50'
+      - series: 'argocd_app_info{name="mealie", dest_namespace="mealie", health_status="Healthy", sync_status="OutOfSync"}'
+        values: '_x19 1x10 _x50'
+      - series: 'argocd_app_sync_total{name="mealie", phase="Failed"}'
+        values: '1x19 2x60'
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: ArgoCDSyncStuck
+        exp_alerts: []
+      - eval_time: 55m
+        alertname: ArgoCDSyncStuck
+        exp_alerts:
+          - exp_labels:
+              name: books
+              namespace: books
+              severity: warning
+              action: human
+            exp_annotations:
+              summary: "books: sync failed and still OutOfSync after 30 minutes"
+              description: >-
+                A sync of books failed and nothing automatic has
+                replaced it: the cluster still runs the previous revision.
+                Check the auto-rollback run on the Homelab / Automation
+                dashboard, then
+                https://argo.lilalala.com/applications/argo/books.
+
   # No Argo CD metrics at all.
   - interval: 1m
     input_series:
@@ -137,6 +234,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              action: human
             exp_annotations:
               summary: Argo CD application metrics are missing
               description: >-

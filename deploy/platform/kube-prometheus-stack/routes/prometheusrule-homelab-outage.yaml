@@ -29,6 +29,18 @@ spec:
         == 0
       for: 2m
       labels:
+        action: auto
+        severity: critical
+    - alert: HomelabNodeDown
+      annotations:
+        description: '{{ $labels.node }} did not come back on its own. Check `talosctl
+          -n <node IP> dmesg`, then power-cycle it from the BMC (docs/runbooks/node-power-cycle.md).'
+        summary: Node {{ $labels.node }} has been NotReady for 15 minutes
+      expr: max by (node) (kube_node_status_condition{condition="Ready", status="true"})
+        == 0
+      for: 15m
+      labels:
+        action: human
         severity: critical
     - alert: HomelabNASUnreachable
       annotations:
@@ -42,4 +54,19 @@ spec:
         ) == 0
       for: 2m
       labels:
+        action: auto
+        severity: critical
+    - alert: HomelabNASDown
+      annotations:
+        description: 'The NAS does not power on by itself after a power loss: press
+          its power button. Otherwise check the basement switch and the NAS network
+          link.'
+        summary: NAS port {{ $labels.instance }} has been unreachable for 10 minutes
+      expr: |
+        max by (instance) (
+          probe_success{job="blackbox-internal", instance=~"192\\.168\\.1\\.228:(3260|2049)"}
+        ) == 0
+      for: 10m
+      labels:
+        action: human
         severity: critical

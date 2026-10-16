@@ -1,0 +1,18 @@
+{
+  "description": "The same Keycloak outage past the remediation window (it lasted an hour): one notification, the persistent fast burn of auth. ArgoCDAppStillDegraded fires too and is inhibited by the burn.",
+  "alerts": [
+    {"alertname": "SLOErrorBudgetBurnFastPersistent", "severity": "critical", "app": "auth", "namespace": "keycloak"},
+    {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "auth", "namespace": "keycloak"},
+    {"alertname": "ServiceHasNoReadyBackend", "severity": "critical", "namespace": "keycloak", "deployment": "keycloak"},
+    {"alertname": "KubePodNotReady", "severity": "warning", "namespace": "keycloak", "pod": "keycloak-0"},
+    {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "keycloak", "pod": "keycloak-db-1", "container": "postgres"},
+    {"alertname": "KubeDeploymentReplicasMismatch", "severity": "warning", "namespace": "keycloak", "deployment": "keycloak"},
+    {"alertname": "KubePdbNotEnoughHealthyPods", "severity": "warning", "namespace": "keycloak", "poddisruptionbudget": "keycloak-db"},
+    {"alertname": "PodNotReady", "severity": "warning", "namespace": "keycloak", "pod": "keycloak-0", "node": "homelab-cp-1"},
+    {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "keycloak", "namespace": "keycloak"},
+    {"alertname": "ArgoCDAppStillDegraded", "severity": "critical", "name": "keycloak", "namespace": "keycloak"},
+    {"alertname": "ArgoCDSyncFailed", "severity": "warning", "name": "keycloak", "namespace": "keycloak"}
+  ],
+  "notifications": ["ntfy SLOErrorBudgetBurnFastPersistent"],
+  "uninhibited": ["SLOErrorBudgetBurnFast", "SLOErrorBudgetBurnFastPersistent"]
+}

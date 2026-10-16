@@ -1,0 +1,12 @@
+{
+  "description": "The same break where auto-rollback refused or failed: home is still Degraded after 30 minutes. One notification, ArgoCDAppStillDegraded; a missing backend does not hide it.",
+  "alerts": [
+    {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "home", "namespace": "home"},
+    {"alertname": "ArgoCDAppStillDegraded", "severity": "critical", "name": "home", "namespace": "home"},
+    {"alertname": "ArgoCDSyncFailed", "severity": "warning", "name": "home", "namespace": "home"},
+    {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "home", "pod": "home-assistant-0"},
+    {"alertname": "ServiceHasNoReadyBackend", "severity": "critical", "namespace": "home", "deployment": "home-assistant"}
+  ],
+  "notifications": ["ntfy ArgoCDAppStillDegraded"],
+  "uninhibited": ["ArgoCDAppStillDegraded", "ServiceHasNoReadyBackend"]
+}

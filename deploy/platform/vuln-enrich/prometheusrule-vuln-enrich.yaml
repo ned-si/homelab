@@ -52,4 +52,5 @@ spec:
         or absent_over_time(vuln_enrich_last_success_timestamp_seconds[4d])
       for: 1h
       labels:
+        action: human
         severity: warning

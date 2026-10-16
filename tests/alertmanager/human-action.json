@@ -1,0 +1,14 @@
+{
+  "description": "Things only a person can fix, one of each kind: a certificate renewal that failed, no restore test on record, a new device on the LAN, a failing disk, indexers with an expired login, a stalled Talos upgrade. One notification per alert name; the milder alert of the same certificate is inhibited.",
+  "alerts": [
+    {"alertname": "CertificateExpiringVerySoon", "severity": "critical", "namespace": "gateway", "name": "wildcard"},
+    {"alertname": "CertificateExpiringSoon", "severity": "warning", "namespace": "gateway", "name": "wildcard"},
+    {"alertname": "BackupVerifyMissing", "severity": "warning", "check": "mariadb"},
+    {"alertname": "LANNewDeviceSeen", "severity": "warning", "mac": "00:11:22:33:44:55"},
+    {"alertname": "NASSmartTestFailed", "severity": "warning", "disk": "ada3", "test": "SHORT"},
+    {"alertname": "ArrIndexersFailing", "severity": "warning", "namespace": "theater", "source": "IndexerLongTermStatusCheck"},
+    {"alertname": "TalosUpgradeStuck", "severity": "warning", "name": "cluster"}
+  ],
+  "notifications": ["ntfy ArrIndexersFailing", "ntfy BackupVerifyMissing", "ntfy CertificateExpiringVerySoon", "ntfy LANNewDeviceSeen", "ntfy NASSmartTestFailed", "ntfy TalosUpgradeStuck"],
+  "uninhibited": ["ArrIndexersFailing", "BackupVerifyMissing", "CertificateExpiringVerySoon", "LANNewDeviceSeen", "NASSmartTestFailed", "TalosUpgradeStuck"]
+}

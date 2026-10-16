@@ -118,6 +118,7 @@ spec:
         * on (app) group_left (namespace) slo:app:info
       for: 2m
       labels:
+        action: auto
         severity: critical
     - alert: SLOErrorBudgetBurnSlow
       annotations:
@@ -143,6 +144,36 @@ spec:
         unless on (app) max_over_time(ALERTS{alertname="SLOErrorBudgetBurnFast", alertstate="firing"}[1d])
       for: 15m
       labels:
+        action: auto
+        severity: warning
+    - alert: SLOErrorBudgetBurnFastPersistent
+      annotations:
+        description: The public probes of {{ $labels.app }} have failed for half an
+          hour and nothing automatic has fixed it. Check https://{{ $labels.app }}.lilalala.com,
+          the Homelab overview dashboard, and the Homelab / Automation dashboard for
+          a rollback that was refused or failed.
+        summary: '{{ $labels.app }} has been failing for 30 minutes'
+      expr: |
+        (
+          slo:probe_error:ratio_rate1h > (14.4 * 0.005)
+          and
+          slo:probe_error:ratio_rate5m > (14.4 * 0.005)
+        )
+        * on (app) group_left (namespace) slo:app:info
+      for: 30m
+      labels:
+        action: human
+        severity: critical
+    - alert: SLOErrorBudgetBurnSlowPersistent
+      annotations:
+        description: 'SLOErrorBudgetBurnSlow has fired for {{ $labels.app }} for 24
+          hours: an intermittent fault that does not go away on its own. Look for
+          restarts, slow responses (probe_duration_seconds) or a flapping node.'
+        summary: '{{ $labels.app }} has been burning its error budget for a day'
+      expr: max by (app, namespace) (ALERTS{alertname="SLOErrorBudgetBurnSlow", alertstate="firing"})
+      for: 1d
+      labels:
+        action: human
         severity: warning
     - alert: SLOProbesAbsent
       annotations:
@@ -151,6 +182,7 @@ spec:
       expr: absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         severity: warning
   - name: homelab.slo.targets
     rules:
@@ -162,6 +194,7 @@ spec:
       expr: absent(probe_success{job="blackbox-public", app="auth"}) unless on() absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: auth
         severity: warning
     - alert: SLOTargetProbeAbsent
@@ -173,6 +206,7 @@ spec:
         absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: cinema
         severity: warning
     - alert: SLOTargetProbeAbsent
@@ -184,6 +218,7 @@ spec:
         absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: theater
         severity: warning
     - alert: SLOTargetProbeAbsent
@@ -195,6 +230,7 @@ spec:
         absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: media
         severity: warning
     - alert: SLOTargetProbeAbsent
@@ -206,6 +242,7 @@ spec:
         absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: archive
         severity: warning
     - alert: SLOTargetProbeAbsent
@@ -216,6 +253,7 @@ spec:
       expr: absent(probe_success{job="blackbox-public", app="cook"}) unless on() absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: cook
         severity: warning
     - alert: SLOTargetProbeAbsent
@@ -227,6 +265,7 @@ spec:
         absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: drive
         severity: warning
     - alert: SLOTargetProbeAbsent
@@ -238,5 +277,6 @@ spec:
         absent(probe_success{job="blackbox-public"})
       for: 15m
       labels:
+        action: human
         app: syncthing
         severity: warning

@@ -1,0 +1,41 @@
+# Prowlarr indexers that need a person: an expired login or cookie, a locked
+# account, or a site that is gone. From the health checks Prowlarr reports
+# through its exportarr sidecar (apps/theater/metrics.yaml).
+#
+#   ArrIndexersFailing   Prowlarr reports indexers failing for more than 6
+#                        hours, or indexers without a definition, for 1h   warning  human
+#
+# Prowlarr retries a failing indexer with a backoff, so a short outage of a
+# tracker never reaches the 6-hour check. The message names the indexers; it
+# is not a label of the alert, so a change in the list does not notify again.
+#
+# Tests: tests/prometheus/arr_test.yaml (promtool test rules).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-arr
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.arr
+      rules:
+        - alert: ArrIndexersFailing
+          expr: |
+            max by (namespace, source) (
+              prowlarr_system_health_issues{source=~"IndexerLongTermStatusCheck|IndexerNoDefinitionCheck"}
+            ) == 1
+          for: 1h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            summary: "Prowlarr: indexers need attention ({{ $labels.source }})"
+            description: >-
+              Prowlarr reports indexers that have failed for more than 6 hours
+              or have no definition any more: usually an expired login or
+              cookie, or a site that is gone. Prowlarr -> System -> Status
+              names them; update the credentials, or disable or remove the
+              indexer (docs/theater.md "Indexers").

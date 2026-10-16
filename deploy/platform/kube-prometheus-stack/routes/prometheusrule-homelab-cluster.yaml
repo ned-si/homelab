@@ -36,6 +36,7 @@ spec:
         ) > 0
       for: 15m
       labels:
+        action: auto
         severity: warning
     - alert: PodStuckNotRunningLongTerm
       annotations:
@@ -50,6 +51,7 @@ spec:
         ) > 0
       for: 6h
       labels:
+        action: human
         severity: critical
     - alert: PodPendingTooLong
       annotations:
@@ -61,6 +63,7 @@ spec:
         max by (namespace, pod) (kube_pod_status_phase{phase=~"Pending|Unknown"}) > 0
       for: 30m
       labels:
+        action: auto
         severity: warning
     - alert: PodNotReady
       annotations:
@@ -79,6 +82,7 @@ spec:
         )
       for: 20m
       labels:
+        action: auto
         severity: warning
     - alert: ServiceHasNoReadyBackend
       annotations:
@@ -93,6 +97,7 @@ spec:
         and on (namespace, deployment) (kube_deployment_spec_replicas > 0)
       for: 15m
       labels:
+        action: auto
         severity: critical
     - alert: StatefulSetHasNoReadyReplica
       annotations:
@@ -102,6 +107,7 @@ spec:
         and on (namespace, statefulset) (kube_statefulset_replicas > 0)
       for: 15m
       labels:
+        action: auto
         severity: critical
   - name: homelab.storage.rules
     rules:
@@ -121,6 +127,7 @@ spec:
         ) < 0.15
       for: 30m
       labels:
+        action: human
         severity: warning
     - alert: PersistentVolumeCriticallyFull
       annotations:
@@ -133,6 +140,7 @@ spec:
         ) < 0.05
       for: 10m
       labels:
+        action: human
         severity: critical
     - alert: PersistentVolumeFillingUp
       annotations:
@@ -150,6 +158,7 @@ spec:
         predict_linear(kubelet_volume_stats_available_bytes[6h], 24 * 3600) < 0
       for: 1h
       labels:
+        action: human
         severity: warning
     - alert: PrometheusTsdbVolumeNearlyFull
       annotations:
@@ -165,6 +174,7 @@ spec:
         ) < 0.12
       for: 15m
       labels:
+        action: human
         severity: critical
     - alert: NodeFilesystemNearlyFull
       annotations:
@@ -183,6 +193,7 @@ spec:
         )
       for: 30m
       labels:
+        action: human
         severity: warning
     - alert: NodeFilesystemCriticallyFull
       annotations:
@@ -194,6 +205,7 @@ spec:
         ) < 0.08
       for: 10m
       labels:
+        action: human
         severity: critical
     - alert: NodeFilesystemReadOnly
       annotations:
@@ -205,6 +217,7 @@ spec:
         node_filesystem_readonly{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
       for: 5m
       labels:
+        action: human
         severity: critical
     - alert: NodeFilesystemInodesNearlyFull
       annotations:
@@ -219,6 +232,7 @@ spec:
         ) < 0.10
       for: 30m
       labels:
+        action: human
         severity: warning
     - alert: NodeEmmcWearHigh
       annotations:
@@ -232,6 +246,7 @@ spec:
         max by (instance, device) (node_emmc_pre_eol_info) >= 2
       for: 1h
       labels:
+        action: human
         severity: warning
     - alert: NodeEmmcEndOfLife
       annotations:
@@ -245,6 +260,7 @@ spec:
         max by (instance, device) (node_emmc_pre_eol_info) >= 3
       for: 10m
       labels:
+        action: human
         severity: critical
   - name: homelab.certificates.rules
     rules:
@@ -260,6 +276,7 @@ spec:
         certmanager_certificate_expiration_timestamp_seconds - time() < 21 * 24 * 3600
       for: 1h
       labels:
+        action: human
         severity: warning
     - alert: CertificateExpiringVerySoon
       annotations:
@@ -272,6 +289,7 @@ spec:
         certmanager_certificate_expiration_timestamp_seconds - time() < 7 * 24 * 3600
       for: 1h
       labels:
+        action: human
         severity: critical
     - alert: CertificateNotReady
       annotations:
@@ -283,6 +301,7 @@ spec:
         certmanager_certificate_ready_status{condition=~"True|true"} == 0
       for: 1h
       labels:
+        action: human
         severity: warning
     - alert: CertManagerMetricsAbsent
       annotations:
@@ -295,6 +314,7 @@ spec:
         absent(certmanager_certificate_expiration_timestamp_seconds)
       for: 1h
       labels:
+        action: human
         severity: critical
   - name: homelab.meta.rules
     rules:
@@ -309,6 +329,7 @@ spec:
         rate(alertmanager_notifications_failed_total[15m]) > 0
       for: 15m
       labels:
+        action: human
         severity: critical
     - alert: AlertmanagerHasNoReceiverConfigured
       annotations:
@@ -324,6 +345,7 @@ spec:
         or absent(alertmanager_notifications_total)
       for: 1h
       labels:
+        action: human
         severity: critical
     - alert: KubeStateMetricsAbsent
       annotations:
@@ -334,6 +356,7 @@ spec:
         absent(kube_pod_info)
       for: 15m
       labels:
+        action: human
         severity: critical
     - alert: NodeExporterAbsent
       annotations:
@@ -344,4 +367,5 @@ spec:
         absent(node_filesystem_avail_bytes)
       for: 15m
       labels:
+        action: human
         severity: critical

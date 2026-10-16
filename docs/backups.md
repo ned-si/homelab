@@ -184,9 +184,9 @@ For Postgres, PrometheusRule `cnpg-backups` (group `cnpg.backups`, in
 `cnpg-instances`) fires `CNPGBackupFailed`, `CNPGBaseBackupTooOld` (no base backup
 in 26 h, or never), `CNPGBackupMetricsMissing` (an instance without the plugin
 sidecar), `CNPGWALArchivingFailing`, `CNPGWALArchiveLag` (more than 5 segments
-waiting for 30 min) and `CNPGMetricsAbsent`. `CNPGBackupFailed` and
-`CNPGWALArchivingFailing` notify on ntfy, as does a failed `*-backup-*` Job
-(`KubeJobFailed`); the others are in Grafana ([sre.md](sre.md#paging)).
+waiting for 30 min) and `CNPGMetricsAbsent`. All of them notify on ntfy
+(`action: human`), as does a failed `*-backup-*` Job (`KubeJobFailed`)
+([sre.md](sre.md#paging)).
 
 ```sh
 kubectl get cronjobs -A | grep -E 'backup|prune'   # 29 lines, SUSPEND False
@@ -953,8 +953,8 @@ scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
 | `backup_verify_lock_ok` | lock test (`check="lock"`): 1 the version delete was refused by the bucket policy, 0 it succeeded or the deny is gone; not pushed by an inconclusive run |
 | `backup_verify_lock_last_success_timestamp_seconds`, `backup_verify_lock_last_run_timestamp_seconds` | end of the last passing and of the last lock test |
 
-Alerts (PrometheusRule `backup-verify`, group `backup.verify`, all `warning`;
-only `BackupVerifyFailed` notifies on ntfy, [sre.md](sre.md#paging)):
+Alerts (PrometheusRule `backup-verify`, group `backup.verify`, all `warning`
+and all notify on ntfy, [sre.md](sre.md#paging)):
 `BackupVerifyFailed` (a check's last run failed), `BackupVerifyStale` (no
 pass in 8 days), `BackupVerifyDataStale` (no monthly pack read in 36 days) and
 `BackupVerifyMissing` (no passing result of a check at all). A Job that crashes

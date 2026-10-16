@@ -26,6 +26,7 @@ tests:
               app: media
               namespace: immich
               severity: critical
+              action: auto
             exp_annotations:
               summary: media is burning its 30-day error budget fast
               description: >-
@@ -58,6 +59,7 @@ tests:
               app: drive
               namespace: seafile
               severity: critical
+              action: auto
             exp_annotations:
               summary: drive is burning its 30-day error budget fast
               description: >-
@@ -88,6 +90,7 @@ tests:
               app: cook
               namespace: mealie
               severity: warning
+              action: auto
             exp_annotations:
               summary: cook is slowly burning its 30-day error budget
               description: >-
@@ -156,6 +159,7 @@ tests:
               job: blackbox-public
               app: media
               severity: warning
+              action: human
             exp_annotations:
               summary: "No probe results for media: its SLO alerts are blind"
               description: >-
@@ -182,8 +186,106 @@ tests:
           - exp_labels:
               job: blackbox-public
               severity: warning
+              action: human
             exp_annotations:
               summary: "No public blackbox probe results: the SLO alerts are blind"
               description: >-
                 Check the blackbox-exporter Application and the Probes in
                 platform/blackbox-exporter/probes.
+
+  # The remediation window. media is down for 20 minutes from minute 60:
+  # the fast burn fires and resolves, nothing pages. cook is down from minute
+  # 60 and stays down: the page after about 30 minutes.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="media"}'
+        values: '1x59 0x19 1x60'
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '1x59 0x80'
+    alert_rule_test:
+      - eval_time: 75m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              app: media
+              namespace: immich
+              severity: critical
+              action: auto
+            exp_annotations:
+              summary: media is burning its 30-day error budget fast
+              description: >-
+                At this rate the 99.5% availability budget of media is gone
+                within days. Check https://media.lilalala.com, then the Homelab
+                overview dashboard (probe status and duration).
+          - exp_labels:
+              app: cook
+              namespace: mealie
+              severity: critical
+              action: auto
+            exp_annotations:
+              summary: cook is burning its 30-day error budget fast
+              description: >-
+                At this rate the 99.5% availability budget of cook is gone
+                within days. Check https://cook.lilalala.com, then the Homelab
+                overview dashboard (probe status and duration).
+      - eval_time: 90m
+        alertname: SLOErrorBudgetBurnFastPersistent
+        exp_alerts: []
+      - eval_time: 100m
+        alertname: SLOErrorBudgetBurnFastPersistent
+        exp_alerts:
+          - exp_labels:
+              app: cook
+              namespace: mealie
+              severity: critical
+              action: human
+            exp_annotations:
+              summary: cook has been failing for 30 minutes
+              description: >-
+                The public probes of cook have failed for half an hour and
+                nothing automatic has fixed it. Check
+                https://cook.lilalala.com, the Homelab overview dashboard, and
+                the Homelab / Automation dashboard for a rollback that was
+                refused or failed.
+      - eval_time: 130m
+        alertname: SLOErrorBudgetBurnFastPersistent
+        exp_alerts:
+          - exp_labels:
+              app: cook
+              namespace: mealie
+              severity: critical
+              action: human
+            exp_annotations:
+              summary: cook has been failing for 30 minutes
+              description: >-
+                The public probes of cook have failed for half an hour and
+                nothing automatic has fixed it. Check
+                https://cook.lilalala.com, the Homelab overview dashboard, and
+                the Homelab / Automation dashboard for a rollback that was
+                refused or failed.
+
+  # archive fails 2% of its probes for 26 hours: the slow burn fires within
+  # the hour and pages a day later.
+  - interval: 5m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="archive"}'
+        values: '0.98x312'
+    alert_rule_test:
+      - eval_time: 1380m
+        alertname: SLOErrorBudgetBurnSlowPersistent
+        exp_alerts: []
+      - eval_time: 1540m
+        alertname: SLOErrorBudgetBurnSlowPersistent
+        exp_alerts:
+          - exp_labels:
+              app: archive
+              namespace: paperless
+              severity: warning
+              action: human
+            exp_annotations:
+              summary: archive has been burning its error budget for a day
+              description: >-
+                SLOErrorBudgetBurnSlow has fired for archive for 24 hours: an
+                intermittent fault that does not go away on its own. Look for
+                restarts, slow responses (probe_duration_seconds) or a flapping
+                node.

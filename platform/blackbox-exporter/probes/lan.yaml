@@ -6,8 +6,8 @@
 # address here.
 #
 # Alerts: platform/kube-prometheus-stack/routes/lan-alerts.yaml. Nodes and the
-# NAS are on the dashboard only: HomelabNodeNotReady and HomelabNASUnreachable
-# already page for them.
+# NAS are on the dashboard only: HomelabNodeDown and HomelabNASDown already
+# page for them.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: Probe

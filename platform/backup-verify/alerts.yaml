@@ -17,6 +17,7 @@ spec:
           for: 5m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "Backup restore test failed: {{ $labels.check }}/{{ $labels.target }}"
             description: >-
@@ -35,6 +36,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "No passing restore test in 8 days: {{ $labels.check }}/{{ $labels.target }}"
             description: >-
@@ -52,6 +54,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "No passing pack read in 36 days: {{ $labels.target }}"
             description: >-
@@ -70,6 +73,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "No passing {{ $labels.check }} restore test on record"
             description: >-
@@ -87,6 +91,7 @@ spec:
           expr: backup_verify_lock_ok == 0
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "Backup versions can be deleted: {{ $labels.target }}"
             description: >-
@@ -104,6 +109,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "No passing backup lock test in 8 days"
             description: >-

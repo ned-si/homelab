@@ -4,12 +4,14 @@
 #
 #   LANDeviceUnreachable   the router or the BMC does not answer a ping for 10m   warning
 #   LANNewDeviceSeen       a fixed MAC not seen in the last 30 days answers ARP    warning
-#   LANNewRandomMACSeen    the same for a randomised MAC (Grafana only)           info
 #   LANInventoryFailing    no completed ARP scan for 30m                          warning
 #   LANInventoryAbsent     no lan_inventory_devices series for 30m                warning
 #
-# Nodes and the NAS are left to HomelabNodeNotReady and HomelabNASUnreachable
-# (outage-alerts.yaml), which page for them already.
+# All four need a person (`action: human`, docs/sre.md "Paging"). A new
+# randomised MAC has no alert: phones rotate those, and nobody can act on it;
+# the Homelab / LAN dashboard counts them.
+#
+# Nodes and the NAS are left to the alerts of outage-alerts.yaml.
 #
 # Tests: tests/prometheus/lan_test.yaml, tests/prometheus/lan_inventory_test.yaml.
 ---
@@ -29,6 +31,7 @@ spec:
           for: 10m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "LAN device {{ $labels.device }} ({{ $labels.instance }}) does not answer a ping"
             description: >-
@@ -59,6 +62,7 @@ spec:
             and on () (count(lan_inventory_devices offset 1d) > 0)
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}"
             description: >-
@@ -67,20 +71,6 @@ spec:
               this is new hardware, not a phone rotating its private address.
               If it is not yours, find it in the router's DHCP list and block it.
 
-        - alert: LANNewRandomMACSeen
-          # The same condition for randomised (locally administered) MACs.
-          # Phones and laptops can rotate those, and ARP carries no hostname
-          # to recognise the device by, so a rotation reads as a new device.
-          # Severity info: Alertmanager drops it, Grafana shows it.
-          expr: |
-            max by (mac, ip, random_mac) (lan_device_present{random_mac="true"})
-            unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
-            and on () (count(lan_inventory_devices offset 1d) > 0)
-          labels:
-            severity: info
-          annotations:
-            summary: "New randomised MAC on the LAN: {{ $labels.mac }} at {{ $labels.ip }}"
-
         - alert: LANInventoryFailing
           expr: |
             lan_inventory_scan_success == 0
@@ -88,6 +78,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "lan-inventory has not completed an ARP scan for 30 minutes"
             description: >-
@@ -99,6 +90,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "lan-inventory is not being scraped"
             description: >-

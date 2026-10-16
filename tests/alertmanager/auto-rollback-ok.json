@@ -1,0 +1,11 @@
+{
+  "description": "A merge breaks home (no SLO) and auto-rollback reverts it within the window: Degraded, a failed sync, a crash loop and no backend, all handled by automation. Zero notifications.",
+  "alerts": [
+    {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "home", "namespace": "home"},
+    {"alertname": "ArgoCDSyncFailed", "severity": "warning", "name": "home", "namespace": "home"},
+    {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "home", "pod": "home-assistant-0"},
+    {"alertname": "ServiceHasNoReadyBackend", "severity": "critical", "namespace": "home", "deployment": "home-assistant"}
+  ],
+  "notifications": [],
+  "uninhibited": ["ServiceHasNoReadyBackend"]
+}

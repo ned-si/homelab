@@ -1,0 +1,41 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/arr-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-arr.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # From minute 10 Prowlarr reports an indexer failing for over 6 hours; at
+  # minute 40 the list changes. A short-term failure and a Sonarr issue
+  # never page.
+  - interval: 1m
+    input_series:
+      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", message="6 hours: A"}'
+        values: '_x9 1x30 _x60'
+      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", message="6 hours: A, B"}'
+        values: '_x39 1x60'
+      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerStatusCheck", message="failures: C"}'
+        values: '1x100'
+      - series: 'sonarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", message="6 hours: A"}'
+        values: '1x100'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ArrIndexersFailing
+        exp_alerts: []
+      - eval_time: 75m
+        alertname: ArrIndexersFailing
+        exp_alerts:
+          - exp_labels:
+              namespace: theater
+              source: IndexerLongTermStatusCheck
+              severity: warning
+              action: human
+            exp_annotations:
+              summary: "Prowlarr: indexers need attention (IndexerLongTermStatusCheck)"
+              description: >-
+                Prowlarr reports indexers that have failed for more than 6 hours
+                or have no definition any more: usually an expired login or
+                cookie, or a site that is gone. Prowlarr -> System -> Status
+                names them; update the credentials, or disable or remove the
+                indexer (docs/theater.md "Indexers").

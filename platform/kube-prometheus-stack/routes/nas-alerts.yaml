@@ -50,6 +50,7 @@ spec:
           for: 5m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "NAS pool {{ $labels.pool }} is not healthy"
             description: >-
@@ -63,6 +64,7 @@ spec:
           for: 10m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "NAS {{ $labels.pool }} {{ $labels.role }} device {{ $labels.disk }} is not ONLINE"
             description: >-
@@ -75,6 +77,7 @@ spec:
           for: 15m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "NAS device {{ $labels.disk }} has {{ $value }} {{ $labels.type }} errors"
             description: >-
@@ -88,6 +91,7 @@ spec:
           for: 5m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "NAS disk {{ $labels.disk }} failed its SMART self-test"
             description: >-
@@ -100,6 +104,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "NAS disk {{ $labels.disk }} is at {{ $value }} C"
             description: >-
@@ -111,6 +116,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "NAS pool {{ $labels.pool }} is over 80% used"
 
@@ -119,6 +125,7 @@ spec:
           for: 15m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "NAS pool {{ $labels.pool }} is over 90% used"
             description: >-
@@ -130,6 +137,7 @@ spec:
           for: 6h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "NAS pool {{ $labels.pool }} is full in {{ $value | humanize }} days at the current trend"
 
@@ -138,6 +146,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "NAS pool {{ $labels.pool }} has not finished a scrub in 40 days"
             description: >-
@@ -154,6 +163,7 @@ spec:
           for: 15m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "truenas-exporter cannot read the TrueNAS API"
             description: >-
@@ -167,6 +177,7 @@ spec:
           for: 15m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "truenas-exporter is not being scraped"
             description: >-

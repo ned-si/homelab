@@ -1,15 +1,16 @@
 {
-  "description": "Everyday warnings and causes with no user impact: the Watchdog heartbeat only, no ntfy.",
+  "description": "Everyday alerts that automation handles: a failed non-backup Job, a crash loop, an Argo CD app Degraded or OutOfSync, a transient slow burn, CPU throttling. The Watchdog heartbeat only, no ntfy.",
   "alerts": [
     {"alertname": "Watchdog", "severity": "none"},
     {"alertname": "KubeJobFailed", "severity": "warning", "namespace": "theater", "job_name": "qbittorrent-private-seed-29868120"},
     {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "home", "pod": "mosquitto-0"},
     {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "home", "namespace": "home"},
+    {"alertname": "ArgoCDAppOutOfSync", "severity": "warning", "name": "seafile", "namespace": "seafile"},
+    {"alertname": "SLOErrorBudgetBurnSlow", "severity": "warning", "app": "drive", "namespace": "seafile"},
+    {"alertname": "PodNotReady", "severity": "warning", "namespace": "immich", "pod": "immich-ml-0", "node": "homelab-w-1"},
     {"alertname": "CPUThrottlingHigh", "severity": "info", "namespace": "immich", "pod": "immich-ml-0"},
-    {"alertname": "LANNewDeviceSeen", "severity": "warning", "mac": "00:11:22:33:44:55"},
-    {"alertname": "CertificateExpiringSoon", "severity": "warning", "namespace": "gateway", "name": "wildcard"},
-    {"alertname": "BackupVerifyMissing", "severity": "warning", "check": "mariadb"}
+    {"alertname": "TupprUpgradeBlocked", "severity": "warning", "name": "cluster"}
   ],
   "notifications": ["heartbeat Watchdog"],
-  "uninhibited": ["ArgoCDAppDegraded", "BackupVerifyMissing", "CPUThrottlingHigh", "CertificateExpiringSoon", "KubeJobFailed", "KubePodCrashLooping", "LANNewDeviceSeen", "Watchdog"]
+  "uninhibited": ["ArgoCDAppDegraded", "ArgoCDAppOutOfSync", "CPUThrottlingHigh", "KubeJobFailed", "KubePodCrashLooping", "PodNotReady", "SLOErrorBudgetBurnSlow", "TupprUpgradeBlocked", "Watchdog"]
 }

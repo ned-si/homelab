@@ -1,6 +1,7 @@
 {
-  "description": "w-1 goes NotReady: one notification, HomelabNodeNotReady. The node and pod alerts of w-1 are inhibited.",
+  "description": "w-1 stays NotReady past 15 minutes: one notification, HomelabNodeDown, plus the guard topic's copy of HomelabNodeNotReady. The node and pod alerts of w-1 are inhibited.",
   "alerts": [
+    {"alertname": "HomelabNodeDown", "severity": "critical", "node": "homelab-w-1"},
     {"alertname": "HomelabNodeNotReady", "severity": "critical", "node": "homelab-w-1"},
     {"alertname": "KubeNodeNotReady", "severity": "warning", "node": "homelab-w-1"},
     {"alertname": "KubeNodeUnreachable", "severity": "warning", "node": "homelab-w-1"},
@@ -10,6 +11,6 @@
     {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "theater", "namespace": "theater"},
     {"alertname": "TargetDown", "severity": "warning", "namespace": "kube-system", "job": "node-exporter"}
   ],
-  "notifications": ["ntfy HomelabNodeNotReady", "ntfy-guard HomelabNodeNotReady"],
-  "uninhibited": ["ArgoCDAppDegraded", "HomelabNodeNotReady", "KubePodNotReady", "TargetDown"]
+  "notifications": ["ntfy HomelabNodeDown", "ntfy-guard HomelabNodeNotReady"],
+  "uninhibited": ["ArgoCDAppDegraded", "HomelabNodeDown", "HomelabNodeNotReady", "KubePodNotReady", "TargetDown"]
 }

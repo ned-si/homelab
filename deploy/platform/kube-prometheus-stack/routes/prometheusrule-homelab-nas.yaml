@@ -40,6 +40,7 @@ spec:
       expr: truenas_pool_healthy == 0
       for: 5m
       labels:
+        action: human
         severity: critical
     - alert: NASPoolDeviceNotOnline
       annotations:
@@ -51,6 +52,7 @@ spec:
       expr: truenas_pool_device_online == 0
       for: 10m
       labels:
+        action: human
         severity: warning
     - alert: NASPoolDeviceErrors
       annotations:
@@ -62,6 +64,7 @@ spec:
       expr: truenas_pool_device_errors > 0
       for: 15m
       labels:
+        action: human
         severity: warning
     - alert: NASSmartTestFailed
       annotations:
@@ -71,6 +74,7 @@ spec:
       expr: truenas_disk_smart_last_test_success == 0
       for: 5m
       labels:
+        action: human
         severity: warning
     - alert: NASDiskHot
       annotations:
@@ -79,6 +83,7 @@ spec:
       expr: truenas_disk_temperature_celsius > 65
       for: 30m
       labels:
+        action: human
         severity: warning
     - alert: NASPoolNearlyFull
       annotations:
@@ -86,6 +91,7 @@ spec:
       expr: nas:pool_used:ratio > 0.80
       for: 1h
       labels:
+        action: human
         severity: warning
     - alert: NASPoolCriticallyFull
       annotations:
@@ -95,6 +101,7 @@ spec:
       expr: nas:pool_used:ratio > 0.90
       for: 15m
       labels:
+        action: human
         severity: critical
     - alert: NASPoolFillingUp
       annotations:
@@ -103,6 +110,7 @@ spec:
       expr: nas:pool_days_until_full < 30
       for: 6h
       labels:
+        action: human
         severity: warning
     - alert: NASScrubOverdue
       annotations:
@@ -112,6 +120,7 @@ spec:
       expr: time() - truenas_pool_scrub_end_timestamp_seconds > 40 * 86400
       for: 1h
       labels:
+        action: human
         severity: warning
     - alert: NASExporterFailing
       annotations:
@@ -126,6 +135,7 @@ spec:
         )
       for: 15m
       labels:
+        action: human
         severity: warning
     - alert: NASExporterAbsent
       annotations:
@@ -135,4 +145,5 @@ spec:
       expr: absent(truenas_up)
       for: 15m
       labels:
+        action: human
         severity: warning

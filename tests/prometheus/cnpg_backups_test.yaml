@@ -1,6 +1,6 @@
 # promtool unit tests for platform/barman-cloud-plugin/monitoring.yaml
-# (PrometheusRule cnpg-backups). CNPGBackupFailed and CNPGWALArchivingFailing
-# notify (docs/sre.md "Paging").
+# (PrometheusRule cnpg-backups). Every alert in it pages (docs/sre.md
+# "Paging").
 # Run: scripts/ci/promtool-check.sh (CI: render job).
 rule_files:
   - cnpg-backups.yaml
@@ -36,6 +36,7 @@ tests:
               namespace: immich
               pod: immich-db-1
               severity: critical
+              action: human
             exp_annotations:
               summary: Last base backup of immich/immich-db-1 failed
               description: >-
@@ -64,6 +65,7 @@ tests:
               namespace: keycloak
               pod: keycloak-db-1
               severity: critical
+              action: human
             exp_annotations:
               summary: No base backup of keycloak/keycloak-db-1 in 26 h
               description: >-
@@ -88,6 +90,7 @@ tests:
               namespace: theater
               pod: sonarr-postgresql-1
               severity: warning
+              action: human
             exp_annotations:
               summary: theater/sonarr-postgresql-1 reports no Barman Cloud metrics
               description: >-
@@ -118,6 +121,7 @@ tests:
               namespace: keycloak
               pod: keycloak-db-1
               severity: critical
+              action: human
             exp_annotations:
               summary: WAL archiving of keycloak/keycloak-db-1 is failing
               description: >-
@@ -135,6 +139,7 @@ tests:
               pod: keycloak-db-1
               value: ready
               severity: critical
+              action: human
             exp_annotations:
               summary: 8 WAL segments of keycloak/keycloak-db-1 wait for archiving
               description: >-
@@ -154,6 +159,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              action: human
             exp_annotations:
               summary: No CNPG instance metrics at all
               description: >-

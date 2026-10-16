@@ -1,0 +1,14 @@
+{
+  "description": "The NAS stays off after a power loss (someone has to press its button): one notification, HomelabNASDown, plus the guard topic's copy. Every storage consumer, the persistent burns included, is inhibited.",
+  "alerts": [
+    {"alertname": "HomelabNASDown", "severity": "critical", "instance": "192.168.1.228:3260"},
+    {"alertname": "HomelabNASUnreachable", "severity": "critical", "instance": "192.168.1.228:3260"},
+    {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "media", "namespace": "immich"},
+    {"alertname": "SLOErrorBudgetBurnFastPersistent", "severity": "critical", "app": "media", "namespace": "immich"},
+    {"alertname": "ArgoCDAppStillDegraded", "severity": "critical", "name": "immich", "namespace": "immich"},
+    {"alertname": "CNPGWALArchivingFailing", "severity": "critical", "namespace": "immich", "pod": "immich-db-1"},
+    {"alertname": "KubeJobFailed", "severity": "warning", "namespace": "mealie", "job_name": "mealie-backup-29868120"}
+  ],
+  "notifications": ["ntfy HomelabNASDown", "ntfy-guard HomelabNASUnreachable"],
+  "uninhibited": ["HomelabNASDown", "HomelabNASUnreachable"]
+}

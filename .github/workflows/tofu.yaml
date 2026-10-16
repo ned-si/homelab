@@ -7,9 +7,10 @@
 #                 ID replaced).
 #   push to main  plan, then apply bootstrap/aws-backup with the apply role.
 #   daily         the same plan: changes on main mean drift. bootstrap/aws-backup
-#                 is corrected by the apply and the drift posted to ntfy.
+#                 is corrected by the apply; no notification, the run shows
+#                 on the Homelab / Automation dashboard.
 #
-# Guards:
+# Guards, which need a person and so post to ntfy (docs/sre.md "Paging"):
 #   - a plan that deletes, replaces or forgets a resource is never applied:
 #     ntfy and a failed run; apply it by hand with scripts/tofu.sh;
 #   - bootstrap/github-oidc (these roles) and bootstrap/tofu-state (the state
@@ -204,20 +205,14 @@ jobs:
           { echo "## tofu apply"; cat "$RUNNER_TEMP/tofu/bootstrap-aws-backup.md"; } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
 
-      # A scheduled run that applied something corrected drift: say what.
-      - name: Notify ntfy of corrected drift
+      # A scheduled run that applied something corrected drift. Automation
+      # handled it, so no notification (docs/sre.md "Paging"): this step
+      # only runs, and the Homelab / Automation dashboard reads its result
+      # from the GitHub API (platform/github-exporter). Its name is that
+      # contract.
+      - name: Drift corrected
         if: ${{ success() && github.event_name == 'schedule' && steps.apply.outputs.status == 'changes' }}
-        env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          # Address and action per line, without the Markdown (\140 is a backtick).
-          grep '^- ' "$RUNNER_TEMP/tofu/bootstrap-aws-backup.md" | tr -d '\140' | cut -c3- | head -n 20 > "$RUNNER_TEMP/drift.txt"
-          curl -fsS -m 10 -o /dev/null \
-            -H "Title: tofu drift corrected (aws-backup)" -H "Tags: wrench" \
-            -H "Click: $RUN_URL" \
-            --data-binary "@$RUNNER_TEMP/drift.txt" \
-            "https://ntfy.sh/$NTFY_TOPIC"
+        run: echo "Drift in bootstrap/aws-backup corrected; the changes are in the tofu apply summary."
 
       - name: Notify ntfy on failure or a refused destroy
         if: ${{ failure() }}

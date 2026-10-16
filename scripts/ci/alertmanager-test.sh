@@ -2,7 +2,10 @@
 # alertmanager-test.sh -- test the Alertmanager routing, grouping and
 # inhibition in platform/kube-prometheus-stack/values.yaml.
 #
-#   1. `amtool check-config` on `.alertmanager.config`.
+#   1. `amtool check-config` on `.alertmanager.config`; every alert of the
+#      PrometheusRules under platform/ and apps/ has `action: human` or
+#      `action: auto`, one per alert name. Steps 2 to 4 add that label to
+#      their alerts (unless they set one), as the rules do.
 #   2. tests/alertmanager/routes.txt: one label set per line and the receiver
 #      it must reach (`amtool config routes test --verify.receivers`).
 #   3. tests/alertmanager/*.json: a scenario of firing alerts, the
@@ -11,7 +14,8 @@
 #      scenario starts a fresh Alertmanager with the real config, quiet
 #      hours off so the result does not depend on the clock.
 #   4. Quiet hours: every route to ntfy (and no other) mutes `quiet-hours`,
-#      which covers 02:00 and not 08:05 Europe/Zurich, every day. Then a
+#      which covers 02:00 and not 08:05 Europe/Zurich, every day; the
+#      Watchdog is the first route, to the heartbeat, never muted. Then a
 #      real Alertmanager with the interval moved to end within 2 minutes
 #      (amtool has no --time): node-down is muted while the Watchdog still
 #      reaches the heartbeat and the guard topic still gets it, and ntfy
@@ -60,6 +64,34 @@ if ! amtool check-config "$work/am.yaml" >/dev/null; then
 fi
 echo "ok    amtool check-config"
 
+# 1b. The class of every homelab alert: `action: human` (pages) or `action:
+# auto` (Grafana only), one per alert name, from the PrometheusRule sources.
+# Routes and scenarios get the label from here, so they test what the rules
+# really send.
+grep -rl '^kind: PrometheusRule' platform apps | sort | while read -r f; do
+  yq -o=json 'select(.kind == "PrometheusRule") | .spec.groups[].rules[] | select(has("alert")) | {"alert": .alert, "action": (.labels.action // "")}' "$f" |
+    jq -c --arg f "$f" '. + {file: $f}'
+done > "$work/classes.jsonl"
+if ! jq -s -e 'length > 0' "$work/classes.jsonl" >/dev/null; then
+  echo "FAIL  alert classes: no PrometheusRule found under platform/ or apps/"; exit 1
+fi
+bad=$(jq -s -r '
+  (.[] | select(.action != "human" and .action != "auto") | "\(.file): \(.alert) has action \"\(.action)\", want human or auto"),
+  (group_by(.alert)[] | select((map(.action) | unique | length) > 1) | "\(.[0].alert): more than one action")' "$work/classes.jsonl")
+if [ -n "$bad" ]; then
+  printf 'FAIL  alert classes: %s\n' "$bad"; rc=1
+else
+  echo "ok    alert classes: $(jq -s 'map(.alert) | unique | length' "$work/classes.jsonl") alerts, each action human or auto"
+fi
+jq -s 'map({(.alert): .action}) | add' "$work/classes.jsonl" > "$work/actions.json"
+
+# The label sets of a scenario or a route line, with the alert's action added
+# unless it sets one.
+with_action() { # JSON array of label sets on stdin
+  jq -c --slurpfile a "$work/actions.json" \
+    'map(if has("action") or ($a[0][.alertname] // "") == "" then . else . + {action: $a[0][.alertname]} end)'
+}
+
 # The scenarios run with quiet hours never active (year 2000).
 yq '(.time_intervals[] | select(.name == "quiet-hours") | .time_intervals) = [{"years": ["2000"]}]' \
   "$work/am.yaml" > "$work/am-scenarios.yaml"
@@ -67,6 +99,9 @@ yq '(.time_intervals[] | select(.name == "quiet-hours") | .time_intervals) = [{"
 # 2. Routes.
 while read -r want labels; do
   case "$want" in '' | '#'*) continue ;; esac
+  # shellcheck disable=SC2086 # one argument per label
+  labels=$(printf '%s\n' $labels | jq -R 'capture("(?<k>[^=]+)=(?<v>.*)") | {(.k): .v}' | jq -s 'add' |
+    jq -s '.' | with_action | jq -r '.[0] | to_entries | map("\(.key)=\(.value)") | join(" ")')
   # shellcheck disable=SC2086 # one argument per label
   if got=$(amtool config routes test --config.file="$work/am.yaml" --verify.receivers="$want" $labels 2>&1); then
     echo "ok    $want <- $labels"
@@ -123,7 +158,7 @@ stop_am() {
 }
 
 post_alerts() { # JSON array of label sets on stdin
-  jq -c '[.[] | {labels: .}]' |
+  with_action | jq -c '[.[] | {labels: .}]' |
     curl -fsS -m 5 -H 'Content-Type: application/json' --data-binary @- \
       "http://127.0.0.1:$AM_PORT/api/v2/alerts" >/dev/null
 }
@@ -171,6 +206,19 @@ def walk(route, receiver, path):
 walk(cfg["route"], None, "route")
 if rc == 0:
     print("ok    quiet hours: every ntfy route mutes quiet-hours, no other route does")
+
+# The dead-man path: the Watchdog reaches healthchecks.io first, unmuted,
+# at least every 5 minutes, through the heartbeat URL.
+first = cfg["route"]["routes"][0]
+hb = [r for r in cfg["receivers"] if r["name"] == "heartbeat"]
+if (first.get("receiver") == "heartbeat" and len(first.get("matchers", [])) == 1 and "Watchdog" in first["matchers"][0]
+        and not first.get("mute_time_intervals") and not first.get("continue")
+        and first.get("repeat_interval") in ("1m", "5m") and hb
+        and hb[0]["webhook_configs"][0]["url"].endswith("/heartbeat")):
+    print("ok    heartbeat: Watchdog is the first route, unmuted, every %s" % first["repeat_interval"])
+else:
+    print("FAIL  heartbeat: want Watchdog as the first route to heartbeat, unmuted, repeat 5m; got %s" % first)
+    rc = 1
 
 ivs = [t for n in cfg.get("time_intervals", []) if n["name"] == "quiet-hours" for t in n["time_intervals"]]
 if not ivs or any(set(t) != {"times", "location"} or t["location"] != "Europe/Zurich" for t in ivs):
@@ -225,10 +273,10 @@ if start_am "$work/am-quiet.yaml"; then
   fi
   sleep $((deadline - $(date +%s) + 12))
   got=$(LC_ALL=C sort "$work/sink" | tr '\n' ';')
-  if [ "$got" = "heartbeat Watchdog;ntfy HomelabNodeNotReady;ntfy-guard HomelabNodeNotReady;" ]; then
+  if [ "$got" = "heartbeat Watchdog;ntfy HomelabNodeDown;ntfy-guard HomelabNodeNotReady;" ]; then
     echo "ok    quiet hours: node-down notified once after $end UTC"
   else
-    echo "FAIL  quiet hours: after the end, want one HomelabNodeNotReady; got $got"; rc=1
+    echo "FAIL  quiet hours: after the end, want one HomelabNodeDown; got $got"; rc=1
   fi
   stop_am
 else

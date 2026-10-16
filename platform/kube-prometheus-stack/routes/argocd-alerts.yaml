@@ -1,13 +1,16 @@
 # Argo CD failures as alerts, from the application controller's metrics
 # (ServiceMonitor `argocd-application-controller`, bootstrap/argocd-values.yaml).
 #
-#   ArgoCDAppDegraded     health Degraded for 5m                    critical
-#   ArgoCDSyncFailed      a sync ended Failed or Error in the last 10m  warning
-#   ArgoCDAppOutOfSync    OutOfSync for 30m                         warning
-#   ArgoCDMetricsAbsent   no argocd_app_info for 15m, so the three above
-#                         cannot fire                               warning
+#   ArgoCDAppDegraded       health Degraded for 5m                      critical  auto
+#   ArgoCDSyncFailed        a sync ended Failed or Error in the last 10m  warning   auto
+#   ArgoCDAppOutOfSync      OutOfSync for 30m                           warning   auto
+#   ArgoCDAppStillDegraded  health Degraded for 30m                     critical  human
+#   ArgoCDSyncStuck         OutOfSync for 30m after a failed sync       warning   human
+#   ArgoCDMetricsAbsent     no argocd_app_info for 15m, so none of the
+#                           above can fire                              warning   human
 #
-# None of them notifies (docs/sre.md "Paging"). `namespace` is the
+# `action: auto` is what auto-rollback and self-heal handle: Grafana only.
+# `action: human` pages (docs/sre.md "Paging"). `namespace` is the
 # Application's destination namespace, so an app-level alert of that
 # namespace inhibits them (../values.yaml).
 #
@@ -36,6 +39,7 @@ spec:
           for: 5m
           labels:
             severity: critical
+            action: auto
           annotations:
             summary: "{{ $labels.name }} is Degraded"
             description: >-
@@ -69,6 +73,7 @@ spec:
             )
           labels:
             severity: warning
+            action: auto
           annotations:
             summary: "{{ $labels.name }}: sync failed"
             description: >-
@@ -84,6 +89,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: auto
           annotations:
             summary: "{{ $labels.name }} is OutOfSync for 30 minutes"
             description: >-
@@ -93,11 +99,56 @@ spec:
               apply. Check the diff in
               https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
 
+        # The pages: what auto-rollback did not fix within 30 minutes, because
+        # it refused (not the newest merge, a second revert in a row, an
+        # excluded app), the outage guard skipped it, or the revert failed.
+        # A revert merges and syncs in about 10 minutes.
+        - alert: ArgoCDAppStillDegraded
+          expr: |
+            max by (name, namespace) (
+              label_replace(argocd_app_info{health_status="Degraded"}, "namespace", "$1", "dest_namespace", "(.*)")
+            ) == 1
+          for: 30m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            summary: "{{ $labels.name }} has been Degraded for 30 minutes"
+            description: >-
+              Nothing automatic has fixed {{ $labels.name }}: check the
+              auto-rollback run on the Homelab / Automation dashboard, then
+              https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
+
+        # OutOfSync for 30 minutes after a failed sync: the merge never
+        # deployed and no revert replaced it. ArgoCDSyncFailed has the
+        # first-failure logic; its ALERTS series says a sync failed in the
+        # last 6 hours.
+        - alert: ArgoCDSyncStuck
+          expr: |
+            max by (name, namespace) (
+              label_replace(argocd_app_info{sync_status="OutOfSync"}, "namespace", "$1", "dest_namespace", "(.*)")
+            ) == 1
+            and on (name)
+            max by (name) (max_over_time(ALERTS{alertname="ArgoCDSyncFailed", alertstate="firing"}[6h]))
+          for: 30m
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            summary: "{{ $labels.name }}: sync failed and still OutOfSync after 30 minutes"
+            description: >-
+              A sync of {{ $labels.name }} failed and nothing automatic has
+              replaced it: the cluster still runs the previous revision.
+              Check the auto-rollback run on the Homelab / Automation
+              dashboard, then
+              https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
+
         - alert: ArgoCDMetricsAbsent
           expr: absent(argocd_app_info)
           for: 15m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: Argo CD application metrics are missing
             description: >-
