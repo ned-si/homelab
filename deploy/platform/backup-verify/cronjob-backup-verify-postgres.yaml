@@ -95,7 +95,7 @@ spec:
           serviceAccountName: backup-verify
           volumes:
           - configMap:
-              name: backup-verify-scripts-kc92dd9kbb
+              name: backup-verify-scripts-gmht44hmk9
             name: scripts
           - emptyDir:
               sizeLimit: 128Mi

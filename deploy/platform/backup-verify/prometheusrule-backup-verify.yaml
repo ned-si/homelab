@@ -72,3 +72,27 @@ spec:
       for: 1h
       labels:
         severity: warning
+  - name: backup.lock
+    rules:
+    - alert: BackupLockBroken
+      annotations:
+        description: 'The weekly lock test could delete an old object version in {{
+          $labels.target }}, or the bucket policy no longer denies s3:DeleteObjectVersion
+          to every principal. The reason is in the log: kubectl -n backup-verify logs
+          job/<job> -c report. Runbook: docs/backups.md#when-the-lock-test-fails'
+        summary: 'Backup versions can be deleted: {{ $labels.target }}'
+      expr: backup_verify_lock_ok == 0
+      labels:
+        severity: critical
+    - alert: BackupLockCheckStale
+      annotations:
+        description: 'The weekly lock test has not passed in 8 days: the CronJob did
+          not run or every run was inconclusive (kubectl -n backup-verify get cronjobs,jobs).
+          Runbook: docs/backups.md#when-the-lock-test-fails'
+        summary: No passing backup lock test in 8 days
+      expr: |
+        time() - max(max_over_time(backup_verify_lock_last_success_timestamp_seconds[9d])) > 8 * 86400
+        or absent_over_time(backup_verify_lock_last_success_timestamp_seconds[9d])
+      for: 1h
+      labels:
+        severity: warning

@@ -105,6 +105,75 @@ tests:
         alertname: BackupVerifyMissing
         exp_alerts: []
 
+  # The lock test passes, then finds the lock broken from minute 5.
+  - interval: 1m
+    input_series:
+      - series: 'backup_verify_lock_ok{check="lock", target="ned-si-homelab-backups"}'
+        values: '1x4 0x5'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: BackupLockBroken
+        exp_alerts: []
+      - eval_time: 5m
+        alertname: BackupLockBroken
+        exp_alerts:
+          - exp_labels:
+              check: lock
+              target: ned-si-homelab-backups
+              severity: critical
+            exp_annotations:
+              summary: "Backup versions can be deleted: ned-si-homelab-backups"
+              description: >-
+                The weekly lock test could delete an old object version in
+                ned-si-homelab-backups, or the bucket policy no longer denies
+                s3:DeleteObjectVersion to every principal. The reason is in the
+                log: kubectl -n backup-verify logs job/<job> -c report.
+                Runbook: docs/backups.md#when-the-lock-test-fails
+
+  # The last lock pass stays at t=0: stale after 8 days.
+  - interval: 1h
+    input_series:
+      - series: 'backup_verify_lock_last_success_timestamp_seconds{check="lock", target="ned-si-homelab-backups"}'
+        values: '0x300'
+    alert_rule_test:
+      - eval_time: 8d
+        alertname: BackupLockCheckStale
+        exp_alerts: []
+      - eval_time: 8d2h
+        alertname: BackupLockCheckStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "No passing backup lock test in 8 days"
+              description: >-
+                The weekly lock test has not passed in 8 days: the CronJob did
+                not run or every run was inconclusive
+                (kubectl -n backup-verify get cronjobs,jobs).
+                Runbook: docs/backups.md#when-the-lock-test-fails
+
+  # No lock result on record at all.
+  - interval: 1h
+    input_series:
+      - series: 'backup_verify_lock_last_run_timestamp_seconds{check="lock", target="ned-si-homelab-backups"}'
+        values: '0x5'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: BackupLockCheckStale
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: BackupLockCheckStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "No passing backup lock test in 8 days"
+              description: >-
+                The weekly lock test has not passed in 8 days: the CronJob did
+                not run or every run was inconclusive
+                (kubectl -n backup-verify get cronjobs,jobs).
+                Runbook: docs/backups.md#when-the-lock-test-fails
+
   # Only restic and mariadb results exist: postgres and restic-data are missing.
   - interval: 1h
     input_series:
