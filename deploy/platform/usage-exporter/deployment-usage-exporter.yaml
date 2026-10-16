@@ -23,6 +23,8 @@ spec:
       app.kubernetes.io/name: usage-exporter
   template:
     metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2026-10-16T00:00:00Z"
       labels:
         app.kubernetes.io/name: usage-exporter
     spec:

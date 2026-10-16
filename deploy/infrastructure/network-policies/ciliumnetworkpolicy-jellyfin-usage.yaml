@@ -24,6 +24,7 @@ spec:
   ingress:
   - fromEndpoints:
     - matchLabels:
+        app.kubernetes.io/name: usage-exporter
         io.kubernetes.pod.namespace: monitoring
     toPorts:
     - ports:
