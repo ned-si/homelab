@@ -271,7 +271,12 @@
       // for SigNoz, #559). Minors, patches and digests still automerge.
       description: 'No automerge for data-store majors',
       matchPackageNames: [
+        // ghcr.io/cloudnative-pg/postgresql (every CNPG cluster); the Immich
+        // image (ghcr.io/tensorchord/cloudnative-vectorchord, its major is
+        // the Postgres major) is also never updated, rule above.
         '/postgres/',
+        '/vectorchord/',
+        '/pgvecto/',
         '/clickhouse-server/',
         '/zookeeper/',
         '/valkey/',
