@@ -113,6 +113,25 @@ JSON editor instead.
 Tailnet settings this needs (admin console → DNS): MagicDNS on, HTTPS
 Certificates on.
 
+### Address range
+
+The policy's `nodeAttrs` `ipPool` keeps every device in 100.96.0.0–
+100.127.255.255 (minus the blocks Tailscale reserves). A corporate VPN client
+on a member's laptop routes 100.72.0.0–100.95.255.255 into its own tunnel, so
+a tailnet device in that range times out from that laptop while the others
+work. The pool applies to new devices; an existing device keeps its address
+until it is changed (admin console → Machines → the device → Edit IPv4, or
+the API `POST /api/v2/device/<id>/ip`).
+
+Check from the Mac that a tailnet address goes to Tailscale:
+
+```sh
+route -n get <tailnet-ip> | grep interface
+```
+
+Expected: the same `utunN` as `route -n get 100.100.100.100` (Tailscale's
+DNS address).
+
 ## Mac
 
 1. Install Tailscale and log in with the tailnet account: the app from
