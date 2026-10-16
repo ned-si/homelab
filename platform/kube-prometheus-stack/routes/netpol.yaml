@@ -57,12 +57,20 @@ spec:
         - record: netpol:would_drop:rate5m
           expr: |
             sum by (namespace, direction) (
-              label_replace(rate(hubble_policy_verdicts_total{match="all", direction="ingress", destination_namespace=~"immich|mealie|paperless|syncthing|theater"}[5m]),
+              label_replace(rate(hubble_policy_verdicts_total{
+                  match="all",
+                  direction="ingress",
+                  destination_namespace=~"immich|mealie|paperless|syncthing|theater"
+                }[5m]),
                 "namespace", "$1", "destination_namespace", "(.*)")
             )
             or
             sum by (namespace, direction) (
-              label_replace(rate(hubble_policy_verdicts_total{match="all", direction="egress", source_namespace=~"immich|mealie|paperless|syncthing|theater"}[5m]),
+              label_replace(rate(hubble_policy_verdicts_total{
+                  match="all",
+                  direction="egress",
+                  source_namespace=~"immich|mealie|paperless|syncthing|theater"
+                }[5m]),
                 "namespace", "$1", "source_namespace", "(.*)")
             )
     - name: netpol.ready
