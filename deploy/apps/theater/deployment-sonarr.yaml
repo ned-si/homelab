@@ -69,7 +69,7 @@ spec:
               name: sonarr-postgresql-app
         - name: SONARR__SERVER__URLBASE
           value: /arr/sonarr
-        image: ghcr.io/hotio/sonarr:release-4.0.20.3014
+        image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:afc94d6134d3e21162bc86b82afee332c7555bedf4a29b710edcd794c9c38e1d
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 6
@@ -111,7 +111,7 @@ spec:
           value: /run/exportarr/api-key
         - name: LOG_FORMAT
           value: json
-        image: ghcr.io/onedr0p/exportarr:v2.3.0
+        image: ghcr.io/onedr0p/exportarr:v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
         livenessProbe:
           failureThreshold: 3
           httpGet:
@@ -173,7 +173,7 @@ spec:
             secretKeyRef:
               key: dbname
               name: sonarr-postgresql-app
-        image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie
+        image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:c9be7f221a05b18fe65259d9136affbabe3b39ad91c3b68f8f2f990a45f35f38
         name: wait-for-db
         resources:
           limits:
@@ -195,7 +195,7 @@ spec:
         - -c
         - sed -n 's|.*<ApiKey>\(.*\)</ApiKey>.*|\1|p' /config/config.xml > /run/exportarr/api-key
           && test -s /run/exportarr/api-key
-        image: busybox:1.38.0
+        image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
         name: exportarr-key
         resources:
           limits:

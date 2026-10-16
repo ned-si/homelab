@@ -51,7 +51,7 @@ spec:
           value: drive.lilalala.com
         - name: FORCE_HTTPS_IN_CONF
           value: "true"
-        image: seafileltd/seafile-mc:11.0.13
+        image: seafileltd/seafile-mc:11.0.13@sha256:1239b087aa4bdf1b60a3802e80855f230736ac5d5fa3325a40b15d4c598f422c
         imagePullPolicy: Always
         name: seafile
         ports:
@@ -94,7 +94,7 @@ spec:
           # END sessions
           EOF
           grep -n -A3 '^# BEGIN sessions' "$f"
-        image: seafileltd/seafile-mc:11.0.13
+        image: seafileltd/seafile-mc:11.0.13@sha256:1239b087aa4bdf1b60a3802e80855f230736ac5d5fa3325a40b15d4c598f422c
         imagePullPolicy: IfNotPresent
         name: seahub-settings
         volumeMounts:

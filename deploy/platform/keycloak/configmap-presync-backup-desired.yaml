@@ -10,7 +10,7 @@
 ---
 apiVersion: v1
 data:
-  keycloak-db: ghcr.io/cloudnative-pg/postgresql:17.11
+  keycloak-db: ghcr.io/cloudnative-pg/postgresql:17.11@sha256:70664ebcfa1100361b5bdc28bbf06fdbe08db2dc4ad7bd14de33c5e05fe8ea8e
 kind: ConfigMap
 metadata:
   annotations:

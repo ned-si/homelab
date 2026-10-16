@@ -31,7 +31,7 @@ spec:
           initContainers:
             - name: fetch
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               command: ["/bin/sh", "/scripts/verify-mariadb.sh", "fetch"]
               envFrom:
                 - secretRef:
@@ -63,7 +63,7 @@ spec:
                   drop: ["ALL"]
             - name: credentials
               # renovate: datasource=docker depName=alpine/kubectl
-              image: alpine/kubectl:1.37.1
+              image: alpine/kubectl:1.37.1@sha256:b568e8beb6a79aee269c142343078a278b85e7710f1c0e7d8d6b21d1eb566a48
               command: ["/bin/sh", "/scripts/verify-mariadb.sh", "credentials"]
               env:
                 - name: HOME
@@ -89,7 +89,7 @@ spec:
             - name: compare
               # Same tag as the server (apps/seafile/mariadb.yaml).
               # renovate: datasource=docker depName=mariadb
-              image: mariadb:10.11.19
+              image: mariadb:10.11.19@sha256:7db29378d4fdab73f8123bbc2b48905c90d1a4b00cf848b028f1e81e623257f2
               command: ["/bin/sh", "/scripts/verify-mariadb.sh", "compare"]
               env:
                 - name: HOME
@@ -115,7 +115,7 @@ spec:
           containers:
             - name: report
               # renovate: datasource=docker depName=alpine/kubectl
-              image: alpine/kubectl:1.37.1
+              image: alpine/kubectl:1.37.1@sha256:b568e8beb6a79aee269c142343078a278b85e7710f1c0e7d8d6b21d1eb566a48
               command: ["/bin/sh", "/scripts/verify-mariadb.sh", "report"]
               volumeMounts:
                 - name: scripts

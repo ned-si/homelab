@@ -67,8 +67,13 @@ objects and rule ids only; values are never printed.
                         Reverts are exempt (--pr-title starting with
                         `revert`, or --pr-branch under auto-revert/): a revert
                         restores what ran before.
+  image-digest          every tagged `image:`/`imageName:`/`reference:` line
+                        under the same directories pins its tag by digest
+                        (repo:tag@sha256:<index digest>). Renovate's image
+                        manager captures the digest and moves tag and digest
+                        together; it cannot add a missing one.
 
-Either image rule accepts a line that carries `# image-policy: allow <reason>`.
+Every image rule accepts a line that carries `# image-policy: allow <reason>`.
 """
 from __future__ import annotations
 
@@ -101,7 +106,8 @@ CI_WORKFLOW = ".github/workflows/ci.yaml"
 TALCONFIG = "talos/talconfig.yaml"
 K8S_MINOR = re.compile(r"^v?(\d+)\.(\d+)(?:\.\d+)?$")
 IMAGE_DIRS = ("apps/", "platform/", "infrastructure/", "bootstrap/", "clusters/", "talos/")
-IMAGE_LINE = re.compile(r"^\s*-?\s*(?:image|imageName):\s*['\"]?(?P<ref>[^\s'\"#]+)['\"]?\s*(?:#(?P<comment>.*))?$")
+IMAGE_LINE = re.compile(r"^\s*-?\s*(?:image|imageName|reference):\s*['\"]?(?P<ref>[^\s'\"#]+)['\"]?\s*(?:#(?P<comment>.*))?$")
+DIGEST = re.compile(r"@sha256:[0-9a-f]{64}$")
 IMAGE_ALLOW = re.compile(r"image-policy:\s*allow\s+\S")
 # Tag tokens (digits stripped) that name an image variant.
 VARIANT_WORDS = {"alpine", "slim", "distroless", "bookworm", "bullseye", "buster", "trixie",
@@ -532,8 +538,8 @@ class Policy:
                 self.fail(rule, f"{CI_WORKFLOW}: env {key} is on minor {'.'.join(got) if got else '?'}, "
                                 f"{TALCONFIG} kubernetesVersion on {'.'.join(want)}")
 
-    def image_refs(self, rev: str | None = None) -> list[tuple[str, int, str, str, bool]]:
-        """(file, line, repo, tag, allowed) per image reference under IMAGE_DIRS, in the checkout or at `rev`."""
+    def image_refs(self, rev: str | None = None) -> list[tuple[str, int, str, str, bool, bool]]:
+        """(file, line, repo, tag, allowed, pinned) per image reference under IMAGE_DIRS, in the checkout or at `rev`."""
         hits: list[tuple[str, int, str]] = []
         if rev is None:
             for rel in self.tracked():
@@ -541,7 +547,7 @@ class Policy:
                     hits.extend((rel, n, line) for n, line in self.lines(rel))
         else:
             out = subprocess.run(["git", "-C", str(self.root), "grep", "-z", "-n", "-I", "-E",
-                                  r"(image|imageName):", rev, "--", *IMAGE_DIRS], capture_output=True)
+                                  r"(image|imageName|reference):", rev, "--", *IMAGE_DIRS], capture_output=True)
             if out.returncode > 1:
                 raise ValueError(rev)
             for rec in out.stdout.decode(errors="replace").splitlines():
@@ -554,13 +560,14 @@ class Policy:
             m = IMAGE_LINE.match(line)
             parsed = parse_image(m.group("ref")) if m else None
             if parsed:
-                refs.append((rel, n, parsed[0], parsed[1], bool(IMAGE_ALLOW.search(m.group("comment") or ""))))
+                refs.append((rel, n, parsed[0], parsed[1], bool(IMAGE_ALLOW.search(m.group("comment") or "")),
+                             bool(DIGEST.search(m.group("ref")))))
         return refs
 
     def rule_image_bulky(self) -> None:
         rule = "image-bulky-base"
         self.on(rule)
-        for rel, n, repo, tag, allowed in self.image_refs():
+        for rel, n, repo, tag, allowed, _ in self.image_refs():
             if repo in BULKY_IMAGES and not image_variant(tag) & LIGHT_VARIANTS and not allowed:
                 self.fail(rule, f"{rel}:{n}: {repo}:{tag} is a full image; use its alpine, slim or distroless "
                                 "variant or add `# image-policy: allow <reason>`")
@@ -579,9 +586,9 @@ class Policy:
             self.fail(rule, f"base {self.base} is not in the checkout")
             return
         known: dict[str, set[frozenset]] = {}
-        for _, _, repo, tag, _ in before:
+        for _, _, repo, tag, _, _ in before:
             known.setdefault(repo, set()).add(image_variant(tag))
-        for rel, n, repo, tag, allowed in self.image_refs():
+        for rel, n, repo, tag, allowed, _ in self.image_refs():
             v = image_variant(tag)
             if repo not in known or v in known[repo] or allowed:
                 continue
@@ -591,13 +598,22 @@ class Policy:
             self.fail(rule, f"{rel}:{n}: {repo} changes tag variant to {'-'.join(sorted(v)) or 'none'} "
                             f"(base: {was}); keep it or add `# image-policy: allow <reason>`")
 
+    def rule_image_digest(self) -> None:
+        rule = "image-digest"
+        self.on(rule)
+        for rel, n, repo, tag, allowed, pinned in self.image_refs():
+            if not pinned and not allowed:
+                self.fail(rule, f"{rel}:{n}: {repo}:{tag} has no digest; append @sha256:<index digest> "
+                                "(`docker buildx imagetools inspect <image>`, the Digest line) "
+                                "or add `# image-policy: allow <reason>`")
+
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
                      self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_expected_ingresses, self.rule_k8s_version, self.rule_image_bulky,
-                     self.rule_image_variant):
+                     self.rule_image_variant, self.rule_image_digest):
             rule()
         for f in self.fails:
             print(f)

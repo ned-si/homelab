@@ -36,7 +36,7 @@ spec:
             name: bazarr
         - secretRef:
             name: recyclarr-api-keys
-        image: ghcr.io/hotio/bazarr:release-1.6.2
+        image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:aab1002c1cf03178bfa318706047abbcabd9e6fea5dc2516bfaa44a94608930b
         imagePullPolicy: IfNotPresent
         name: settings
         resources:

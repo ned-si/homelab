@@ -42,7 +42,7 @@ spec:
       containers:
         - name: pushgateway
           # renovate: datasource=docker depName=prom/pushgateway
-          image: prom/pushgateway:v1.11.4-distroless
+          image: prom/pushgateway:v1.11.4-distroless@sha256:cb9a7a2f0f7351ea2e4b0f48510749492c483d0bba4c611f84a1249e2b9599a6
           args:
             - --persistence.file=/data/metrics
             - --persistence.interval=1m

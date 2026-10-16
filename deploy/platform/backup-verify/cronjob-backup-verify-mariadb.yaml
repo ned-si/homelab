@@ -27,7 +27,7 @@ spec:
             - /bin/sh
             - /scripts/verify-mariadb.sh
             - report
-            image: alpine/kubectl:1.37.1
+            image: alpine/kubectl:1.37.1@sha256:b568e8beb6a79aee269c142343078a278b85e7710f1c0e7d8d6b21d1eb566a48
             name: report
             resources:
               limits:
@@ -63,7 +63,7 @@ spec:
             envFrom:
             - secretRef:
                 name: s3-backup
-            image: restic/restic:0.19.1
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
             name: fetch
             resources:
               limits:
@@ -91,7 +91,7 @@ spec:
             env:
             - name: HOME
               value: /work
-            image: alpine/kubectl:1.37.1
+            image: alpine/kubectl:1.37.1@sha256:b568e8beb6a79aee269c142343078a278b85e7710f1c0e7d8d6b21d1eb566a48
             name: credentials
             resources:
               limits:
@@ -119,7 +119,7 @@ spec:
             env:
             - name: HOME
               value: /work
-            image: mariadb:10.11.19
+            image: mariadb:10.11.19@sha256:7db29378d4fdab73f8123bbc2b48905c90d1a4b00cf848b028f1e81e623257f2
             name: compare
             resources:
               limits:

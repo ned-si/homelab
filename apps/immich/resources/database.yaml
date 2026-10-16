@@ -15,7 +15,7 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   instances: 1
-  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
+  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0  # image-policy: allow frozen until the VectorChord migration; a digest edit restarts the database
   # Created from its Barman Cloud backup, a physical copy, so the `vectors`,
   # `cube` and `earthdistance` extensions and the search_path come with the
   # data. The image above must stay the one the backup was taken with.

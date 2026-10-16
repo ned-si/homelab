@@ -419,8 +419,31 @@ def test_k8s_version_mismatch_fails(tmp_path, kw, key):
     assert any(f.startswith("FAIL k8s-version-match: .github/workflows/ci.yaml: env " + key) for f in fails(r)), r.stdout
 
 
-def deployment(image, comment=""):
-    return f"spec:\n  containers:\n    - name: app\n      image: {image}{comment}\n"
+DIGEST = "@sha256:" + "0" * 64
+
+
+def deployment(image, comment="", digest=DIGEST):
+    return f"spec:\n  containers:\n    - name: app\n      image: {image}{digest}{comment}\n"
+
+
+@pytest.mark.parametrize("line,bad", [
+    ("image: example/app:1.0" + DIGEST, False),
+    ("image: 'example/app:1.0" + DIGEST + "'", False),
+    ("image: example/app:1.0", True),
+    ("imageName: ghcr.io/cloudnative-pg/postgresql:18.6", True),
+    ("reference: ghcr.io/siderolabs/talosctl:v1.14.3", True),
+    ("image: example/app:1.0@sha256:abc", True),
+    ("image: example/app:1.0  # image-policy: allow frozen", False),
+    ("image: siderolabs/sbc-rockchip", False),
+])
+def test_image_digest(tmp_path, line, bad):
+    files = {"apps/x/d.yaml": f"spec:\n  {line}\n", "docs/x.yaml": "image: example/app:1.0\n",
+             "tests/fixtures/apps/x.yaml": "image: example/app:1.0\n"}
+    r = policy(tmp_path, files=files)
+    got = [f for f in fails(r) if "image-digest" in f]
+    assert bool(got) == bad, r.stdout
+    if bad:
+        assert got[0].startswith("FAIL image-digest: apps/x/d.yaml:2: ")
 
 
 @pytest.mark.parametrize("image,bad", [

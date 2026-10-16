@@ -43,7 +43,7 @@ spec:
               value: /var/run/secrets/talos.dev/config
             - name: PUSHGATEWAY
               value: http://pushgateway.backup-verify.svc:9091
-            image: bash:5.3.20-alpine3.24
+            image: bash:5.3.20-alpine3.24@sha256:61962062d969cb46dfc2bad061d36342406fa485f64f246aa7e95693ca07df1f
             name: check
             resources:
               limits:
@@ -100,11 +100,11 @@ spec:
               secretName: talos-drift
           - image:
               pullPolicy: IfNotPresent
-              reference: ghcr.io/siderolabs/talosctl:v1.14.3
+              reference: ghcr.io/siderolabs/talosctl:v1.14.3@sha256:4d021d8951bc880667fa09e86c4c91ce69426d03f121d766c91736257d0edf38
             name: talosctl
           - image:
               pullPolicy: IfNotPresent
-              reference: ghcr.io/budimanjojo/talhelper:v3.1.17
+              reference: ghcr.io/budimanjojo/talhelper:v3.1.17@sha256:ca00310090f71bf32b2dca1e3884dc05f64e9012f8c3d3bca86fa0ce2cd750a5
             name: talhelper
   schedule: 40 5 * * *
   startingDeadlineSeconds: 3600

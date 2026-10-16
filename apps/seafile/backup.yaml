@@ -131,7 +131,7 @@ spec:
               # because the newer client requires TLS by default and this server
               # does not offer it.
               # renovate: datasource=docker depName=mariadb
-              image: mariadb:10.11.19
+              image: mariadb:10.11.19@sha256:7db29378d4fdab73f8123bbc2b48905c90d1a4b00cf848b028f1e81e623257f2
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "-c"]
               args:
@@ -203,7 +203,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-euo", "pipefail", "-c"]
               args:
@@ -328,7 +328,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "-euo", "pipefail", "-c"]
               args:

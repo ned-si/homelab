@@ -29,7 +29,7 @@ spec:
       containers:
         - name: plex
           # renovate: datasource=docker depName=plexinc/pms-docker
-          image: plexinc/pms-docker:1.43.4.10903-e5521bd8c
+          image: plexinc/pms-docker:1.43.4.10903-e5521bd8c@sha256:e0ab27395614a8e1a4fdf84c6bc60ac664915cfdde70c52d030c7728a1c48e14
           imagePullPolicy: Always
           env:
             - name: TZ

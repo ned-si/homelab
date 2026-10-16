@@ -39,7 +39,7 @@ spec:
               value: /tmp/work
             - name: HOME
               value: /tmp
-            image: alpine/kubectl:1.37.1
+            image: alpine/kubectl:1.37.1@sha256:b568e8beb6a79aee269c142343078a278b85e7710f1c0e7d8d6b21d1eb566a48
             name: verify
             resources:
               limits:
@@ -67,7 +67,7 @@ spec:
             env:
             - name: HOME
               value: /tmp
-            image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie
+            image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:c9be7f221a05b18fe65259d9136affbabe3b39ad91c3b68f8f2f990a45f35f38
             name: psql
             resources:
               limits:

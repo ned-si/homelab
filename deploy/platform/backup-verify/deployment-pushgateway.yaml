@@ -33,7 +33,7 @@ spec:
       - args:
         - --persistence.file=/data/metrics
         - --persistence.interval=1m
-        image: prom/pushgateway:v1.11.4-distroless
+        image: prom/pushgateway:v1.11.4-distroless@sha256:cb9a7a2f0f7351ea2e4b0f48510749492c483d0bba4c611f84a1249e2b9599a6
         livenessProbe:
           failureThreshold: 3
           httpGet:
