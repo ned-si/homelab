@@ -21,9 +21,8 @@ spec:
     matchLabels:
       app.kubernetes.io/name: hubble-sso
   ingress:
-  - fromEndpoints:
-    - matchLabels:
-        k8s:io.kubernetes.pod.namespace: tailscale
+  - fromEntities:
+    - ingress
     toPorts:
     - ports:
       - port: "4180"

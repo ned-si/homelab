@@ -1,7 +1,7 @@
 # Enforced from the start (default-deny ingress), unlike the allow-lists in
 # infrastructure/network-policies: the Hubble UI has no login and the relay
 # serves every flow of the cluster, so the path is closed hop by hop. Only the
-# Tailscale Ingress proxies reach hubble-sso, only hubble-sso reaches the UI,
+# shared Gateway reaches hubble-sso, only hubble-sso reaches the UI,
 # only the UI reaches the relay's API (and Prometheus its metrics). Egress
 # stays open.
 #
@@ -22,9 +22,9 @@ spec:
     ingress: true
     egress: false
   ingress:
-    - fromEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: tailscale
+    # The shared Gateway (Cilium's Envoy, identity `reserved:ingress`).
+    - fromEntities:
+        - ingress
       toPorts:
         - ports:
             - port: "4180"

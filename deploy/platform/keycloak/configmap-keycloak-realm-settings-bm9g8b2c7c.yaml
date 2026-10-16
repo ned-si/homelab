@@ -869,9 +869,9 @@ data:
     headlamp.redirectUris=https://headlamp.lilalala.com/oauth2/callback
     headlamp.webOrigins=https://headlamp.lilalala.com
 
-    # oauth2-proxy in front of the Hubble UI, on the tailnet (platform/hubble-access).
-    hubble.redirectUris=https://hubble.tail32a1fc.ts.net/oauth2/callback
-    hubble.webOrigins=https://hubble.tail32a1fc.ts.net
+    # oauth2-proxy in front of the Hubble UI (platform/hubble-access).
+    hubble.redirectUris=https://hubble.lilalala.com/oauth2/callback
+    hubble.webOrigins=https://hubble.lilalala.com
 
     mealie.redirectUris=https://cook.lilalala.com/login https://cook.lilalala.com/login?direct=1
     mealie.webOrigins=https://cook.lilalala.com
@@ -973,5 +973,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-gk7cctk4c9
+  name: keycloak-realm-settings-bm9g8b2c7c
   namespace: keycloak

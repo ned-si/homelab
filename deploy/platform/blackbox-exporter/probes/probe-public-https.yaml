@@ -46,3 +46,4 @@ spec:
       - https://audiobooks.lilalala.com/healthcheck
       - https://ebooks.lilalala.com/login
       - https://home.lilalala.com/manifest.json
+      - https://hubble.lilalala.com/ping

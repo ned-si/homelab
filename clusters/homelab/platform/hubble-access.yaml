@@ -1,12 +1,13 @@
-# Hubble UI on the tailnet only (https://hubble.<tailnet>.ts.net,
-# docs/remote-access.md). The relay and the UI come with the `cilium` release
-# in kube-system; this Application only adds the access path to them.
+# Hubble UI at https://hubble.lilalala.com, behind Keycloak (group admins),
+# like Argo CD and Grafana (docs/networking.md, "Hubble"). The relay and the
+# UI come with the `cilium` release in kube-system; this Application only adds
+# the access path to them.
 #
-#     tailnet --> Tailscale Ingress proxy --> hubble-sso (oauth2-proxy,
-#     Keycloak, group admins) --> hubble-ui (kube-system) --> hubble-relay
+#     shared Gateway --> hubble-sso (oauth2-proxy, Keycloak, group admins)
+#       --> hubble-ui (kube-system) --> hubble-relay
 #
 # Rendered from platform/hubble-access (deploy/platform/hubble-access): the
-# proxy, the Ingress and the CiliumNetworkPolicies in `hubble` and
+# proxy, the HTTPRoute and the CiliumNetworkPolicies in `hubble` and
 # `kube-system`.
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -15,7 +16,6 @@ metadata:
   name: hubble-access
   namespace: argo
   annotations:
-    # After tailscale-operator (20): the `tailscale` IngressClass.
     argocd.argoproj.io/sync-wave: "21"
 spec:
   project: platform

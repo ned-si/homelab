@@ -6,7 +6,7 @@ kind: Kustomization
 # kube-system, everything else in hubble; each file sets its own.
 resources:
   - sso.yaml
-  - ingress.yaml
+  - httproute.yaml
   - network-policy.yaml
 
 # oauth2-proxy config of hubble-sso (sso.yaml). The name hash makes a change

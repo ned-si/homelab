@@ -9,10 +9,10 @@ and were written from the repo rather than from observed traffic. Hubble runs in
 with metrics, but relay and UI are off, so flows can only be read from inside an agent.
 Logs exist only as container and Talos logs on each node.
 
-This feature turns on Hubble relay and UI on the tailnet only, writes allow-lists for every
+This feature turns on Hubble relay and UI behind Keycloak, writes allow-lists for every
 namespace from observed flows and shows, without enforcing anything, what each would drop.
 It also runs the 14-day SigNoz trial: Vector ships structured pod and Talos logs over OTLP
-to SigNoz, whose UI is tailnet-only, whose metadata is backed up and whose telemetry is
+to SigNoz, whose UI is behind Keycloak, whose metadata is backed up and whose telemetry is
 disposable. Wave 4 flips namespaces to default-deny one at a time, using the "ready to
 enforce" signal this feature produces.
 
@@ -33,25 +33,30 @@ Non-goals:
   allow-list allows; it would be dropped once the namespace is switched to default-deny.
 - **Ready to enforce**: a namespace and direction with zero would-be drops over 7 days.
 - **Trial**: 14 days from the day SigNoz first receives logs from every required source.
-- **Tailnet-only UI**: served only through a Tailscale Ingress (class `tailscale`), with no
-  HTTPRoute on the public Gateway and no LoadBalancer, as Headlamp (#492).
+- **Admin UI**: served by an HTTPRoute on the shared Gateway (`<name>.lilalala.com`, the
+  route security headers of #465), behind an oauth2-proxy with a Keycloak platform client
+  gated to the group `admins`, like Argo CD and Grafana. Operator decision 2026-10-16:
+  every UI is public behind Keycloak; only the Kubernetes API proxy and talosctl stay
+  tailnet-only ("behind a VPN is not more secure than SSO and group gating").
 
 ## Requirements
 
-### Requirement 1: Hubble relay and UI on the tailnet only
+### Requirement 1: Hubble relay and UI behind Keycloak
 
-**User story:** As the operator, I want to see live flows from the phone or the Mac
-without exposing them on the internet, so that I can debug traffic and policies anywhere.
+**User story:** As the operator, I want to see live flows from the phone or the Mac,
+behind the same login as the other admin UIs, so that I can debug traffic and policies
+anywhere.
 
 #### Acceptance criteria
 
 1. THE Cilium release SHALL run Hubble relay and Hubble UI, with requests, memory limits,
    probes and digest-pinned images.
-2. THE Hubble UI SHALL be reachable only at `https://hubble.<tailnet>.ts.net`.
+2. THE Hubble UI SHALL be reachable only at `https://hubble.lilalala.com`, an admin UI
+   (glossary), with no tailnet Ingress.
 3. ACCESS to the UI SHALL require a Keycloak login through an oauth2-proxy with the
    client `hubble`, a platform client gated to the group `admins`.
-4. CiliumNetworkPolicies with default-deny ingress SHALL allow only the Tailscale Ingress
-   proxies to reach the oauth2-proxy, only the oauth2-proxy to reach Hubble UI, and only
+4. CiliumNetworkPolicies with default-deny ingress SHALL allow only the shared Gateway
+   (`reserved:ingress`) to reach the oauth2-proxy, only the oauth2-proxy to reach Hubble UI, and only
    Hubble UI and the listed in-cluster consumers to reach Hubble relay.
 5. AN Argo CD sync of the Cilium Application SHALL NOT rotate Hubble certificates.
 6. IF enabling relay or UI restarts the Cilium agents, THEN the change SHALL be preceded by
@@ -123,18 +128,18 @@ in one place, so that I can ask questions across fields instead of grepping one 
 7. THE Tetragon events of spec `wave3-runtime-security` and the flow logs of Requirement 3
    (if used) SHALL use the same agent.
 
-### Requirement 5: SigNoz, tailnet only
+### Requirement 5: SigNoz behind Keycloak
 
 **User story:** As the operator, I want a log and trace store I can query from the phone,
-not exposed on the internet, so that the trial tests the real daily use.
+behind the same login as the other admin UIs, so that the trial tests the real daily use.
 
 #### Acceptance criteria
 
 1. THE cluster SHALL run SigNoz Community Edition with a single ClickHouse replica, a
    single Keeper or ZooKeeper replica and its OTel collector, each with requests, memory
    limits, probes and digest-pinned images tracked by Renovate.
-2. THE SigNoz UI SHALL be reachable only at `https://signoz.<tailnet>.ts.net`, behind an
-   oauth2-proxy with the client `signoz`, a platform client gated to the group `admins`,
+2. THE SigNoz UI SHALL be reachable only at `https://signoz.lilalala.com`, an admin UI
+   (glossary), behind an oauth2-proxy with the client `signoz`, a platform client gated to the group `admins`,
    and SigNoz's own admin login (credentials in SOPS).
 3. THE OTLP receiver SHALL accept traffic only from the Vector agents (CiliumNetworkPolicy
    with default-deny ingress).

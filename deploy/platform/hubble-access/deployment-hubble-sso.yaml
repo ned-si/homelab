@@ -35,8 +35,8 @@ spec:
         - --alpha-config=/config/alpha-config.yaml
         - --email-domain=*
         - --reverse-proxy=true
-        - --redirect-url=https://hubble.tail32a1fc.ts.net/oauth2/callback
-        - --whitelist-domain=hubble.tail32a1fc.ts.net
+        - --redirect-url=https://hubble.lilalala.com/oauth2/callback
+        - --whitelist-domain=hubble.lilalala.com
         - --cookie-secure=true
         - --cookie-samesite=lax
         - --cookie-expire=12h

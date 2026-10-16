@@ -1,6 +1,6 @@
 # Keycloak login in front of the Hubble UI: the oauth2-proxy `hubble-sso`.
 #
-#     Tailscale Ingress `hubble` --> hubble-sso:4180 --> hubble-ui.kube-system:80
+#     HTTPRoute `hubble` (shared Gateway) --> hubble-sso:4180 --> hubble-ui.kube-system:80
 #
 # Access needs membership of the Keycloak group `admins`, checked twice: the
 # client's own login flow denies anyone else (platform/keycloak/realm/access.conf)
@@ -49,10 +49,10 @@ spec:
             - --alpha-config=/config/alpha-config.yaml
             # Authorization is the group in the alpha config.
             - --email-domain=*
-            # Behind the Tailscale Ingress proxy (tailscale serve).
+            # Behind the shared Gateway (Envoy sets X-Forwarded-*).
             - --reverse-proxy=true
-            - --redirect-url=https://hubble.tail32a1fc.ts.net/oauth2/callback
-            - --whitelist-domain=hubble.tail32a1fc.ts.net
+            - --redirect-url=https://hubble.lilalala.com/oauth2/callback
+            - --whitelist-domain=hubble.lilalala.com
             - --cookie-secure=true
             - --cookie-samesite=lax
             # The platform-client session length (platform.conf loa_max_age).
