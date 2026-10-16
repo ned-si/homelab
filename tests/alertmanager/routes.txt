@@ -37,8 +37,11 @@ ntfy alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9
 ntfy alertname=NodeEmmcWearHigh severity=warning instance=192.168.1.240:9100 device=mmc0:0001
 ntfy alertname=PersistentVolumeNearlyFull severity=warning namespace=immich persistentvolumeclaim=immich-db-1
 ntfy alertname=LANDeviceUnreachable severity=warning device=bmc
+ntfy alertname=HubbleRelayPeersNotReady severity=warning
+ntfy alertname=HubbleRelayAbsent severity=warning
 # Expired credentials and accounts.
 ntfy alertname=CertificateExpiringSoon severity=warning namespace=gateway name=wildcard
+ntfy alertname=HubbleCertRenewalStale severity=warning
 ntfy alertname=CertificateNotReady severity=warning namespace=gateway name=wildcard
 ntfy alertname=ArrIndexersFailing severity=warning namespace=theater source=IndexerLongTermStatusCheck
 ntfy alertname=NASExporterFailing severity=warning

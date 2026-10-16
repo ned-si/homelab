@@ -169,12 +169,15 @@ flowchart LR
    on it (`rollOutCiliumPods: false`): that task restarts the DaemonSet once, silenced.
 3. The chart (helm method) generates `hubble-relay-client-certs`, signed by `cilium-ca`
    through `lookup`. Argo CD renders without `lookup`, so its copy would be signed by a
-   fresh throw-away CA and the relay could not talk to the agents. Task 2 therefore seeds
-   the Secret once from a server-side render (`helm template --dry-run=server
-   --take-ownership`, which runs `lookup` against the live `cilium-ca`; checked: the
-   rendered certificate verifies against the live CA) before the merge, and adds it to
-   `ignoreDifferences` so Argo keeps the live data. A bootstrap install (helm CLI) gets it
-   right by itself. Images are digest-pinned by default (`useDigest: true`): relay
+   fresh throw-away CA and the relay could not talk to the agents. Outcome: #515 seeded
+   the Secret before the merge, but Argo had not yet labelled it and created its own copy
+   (relay: `certificate signed by unknown authority`); a hand-signed replacement fixed
+   it live. Task 2b (#CERTPR) replaces the mechanism with the chart's own
+   `hubble.tls.auto.method: cronJob` (certgen reuses `cilium-ca`, re-issues both
+   certificates on every `cilium` sync as a PostSync hook and every four months; no
+   agent restart; no cert-manager, because the bootstrap installs Cilium before its CRDs
+   exist), with relay metrics and the alerts `HubbleRelayPeersNotReady`,
+   `HubbleRelayAbsent` and `HubbleCertRenewalStale`. Images are digest-pinned by default (`useDigest: true`): relay
    `quay.io/cilium/hubble-relay:v1.20.3@sha256:c6f8…`, UI `hubble-ui`/`hubble-ui-backend`
    `v0.13.6`. Relay has gRPC readiness, liveness and startup probes; the UI frontend has
    HTTP probes; neither sets resources (set in values).

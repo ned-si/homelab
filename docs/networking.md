@@ -282,27 +282,43 @@ kill %1
 
 Expected from `hubble status`: `Connected Nodes: 4/4`.
 
-The relay authenticates to each agent with the client certificate in the
-Secret `kube-system/hubble-relay-client-certs`, signed by `cilium-ca`. A
-bootstrap install creates it with the release. On a running cluster where it
-is missing or signed by another CA (relay logs `certificate signed by unknown
-authority`, `hubble status` shows fewer than 4 nodes), seed it from a
-server-side render, which signs it with the live `cilium-ca`
-(`--take-ownership` only lets the dry run read objects Argo CD owns); Argo CD keeps
-the live data from then on (`ignoreDifferences` in
-`clusters/homelab/infrastructure/cilium.yaml`):
+#### Hubble certificates
+
+The relay and the agents' Hubble servers authenticate each other with mTLS.
+The chart's certgen (`hubble.tls.auto.method: cronJob`) issues them from the
+CA in `kube-system/cilium-ca`, which it reuses (or creates on a new cluster):
+
+| Secret | Used by | Validity |
+| --- | --- | --- |
+| `cilium-ca` | the CA (`ca.crt`, `ca.key`) | until 2029-10-13 |
+| `hubble-server-certs` | the agents' Hubble servers on :4244 | 365 days from issue |
+| `hubble-relay-client-certs` | the relay, as client | 365 days from issue |
+
+certgen runs on every sync of the `cilium` Application (a PostSync hook Job)
+and every four months (CronJob `kube-system/hubble-generate-certs`, 03:00 on
+the 1st). Agents and relay reload the files without a restart. Argo CD does
+not track these Secrets: certgen replaces them, labels included.
+
+Re-issue now (the same run the CronJob makes):
 
 ```sh
-helm template cilium cilium --repo https://helm.cilium.io --version <chart-version> \
-  -n kube-system -f infrastructure/cilium/values.yaml --dry-run=server --take-ownership \
-  --show-only templates/hubble/tls-helm/relay-client-secret.yaml > /tmp/relay-client.yaml
-kubectl apply --server-side --field-manager=argocd-controller -f /tmp/relay-client.yaml
-rm /tmp/relay-client.yaml
-kubectl -n kube-system rollout restart deploy/hubble-relay
+kubectl -n kube-system create job --from=cronjob/hubble-generate-certs hubble-generate-certs-now
+kubectl -n kube-system wait --for=condition=complete job/hubble-generate-certs-now --timeout=120s
+kubectl -n kube-system delete job hubble-generate-certs-now
 ```
 
-`<chart-version>` is `targetRevision` in `clusters/homelab/infrastructure/cilium.yaml`.
-The file holds a private key: never print it.
+Expected: `job.batch/hubble-generate-certs-now condition met`, then the relay
+log shows `Connected` for each node within a minute.
+
+Alerts: `HubbleRelayPeersNotReady` (an expired or wrongly signed certificate
+shows here first), `HubbleRelayAbsent`, `HubbleCertRenewalStale` (no
+successful CronJob run for 130 days); a failed certgen Job also fires
+`KubeJobFailed` (`platform/kube-prometheus-stack/routes/hubble-alerts.yaml`).
+
+certgen refuses to issue a certificate that would outlive the CA, so from
+2028-10-13 its runs fail (`KubeJobFailed`). Rotate the CA before then: delete
+the Secret `cilium-ca` and re-issue as above. certgen creates a new CA and
+both certificates in one run.
 
 Without the relay, read flows on the node that runs the pod:
 

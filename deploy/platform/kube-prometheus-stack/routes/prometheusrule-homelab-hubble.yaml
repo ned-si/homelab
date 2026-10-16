@@ -1,0 +1,67 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-hubble
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.hubble
+    rules:
+    - alert: HubbleRelayPeersNotReady
+      annotations:
+        description: 'The relay cannot read the flows of every node: the Hubble UI
+          and `hubble observe` miss them. `kubectl -n kube-system logs deploy/hubble-relay`
+          names the cause; `certificate signed by unknown authority` or `expired`
+          means the certificates: re-issue them with `kubectl -n kube-system create
+          job --from=cronjob/hubble-generate-certs hubble-generate-certs-now` (docs/networking.md,
+          "Hubble certificates").'
+        summary: Hubble relay reaches {{ $value }} agents, fewer than are Ready
+      expr: |
+        max(hubble_relay_pool_peer_connection_status{status="READY"})
+        < max(kube_daemonset_status_number_ready{namespace="kube-system", daemonset="cilium"})
+      for: 30m
+      labels:
+        action: human
+        severity: warning
+    - alert: HubbleRelayAbsent
+      annotations:
+        description: HubbleRelayPeersNotReady is inert while this fires. Check `kubectl
+          -n kube-system get deploy hubble-relay` and the PodMonitor `monitoring/hubble-relay`.
+        summary: Hubble relay is not being scraped
+      expr: absent(hubble_relay_pool_peer_connection_status)
+      for: 30m
+      labels:
+        action: human
+        severity: warning
+    - alert: HubbleCertRenewalStale
+      annotations:
+        description: The CronJob kube-system/hubble-generate-certs has not succeeded
+          since its last four-monthly run. The certificates are valid 365 days from
+          their last issue. Read the logs of its last Job, fix, and re-issue them
+          (docs/networking.md, "Hubble certificates").
+        summary: The Hubble certificates have not been renewed for 130 days
+      expr: |
+        time() - max by (namespace, cronjob) (kube_cronjob_status_last_successful_time{namespace="kube-system", cronjob="hubble-generate-certs"})
+          > 130 * 86400
+        or
+        (
+          absent(kube_cronjob_status_last_successful_time{namespace="kube-system", cronjob="hubble-generate-certs"})
+          and on ()
+          time() - max(kube_cronjob_created{namespace="kube-system", cronjob="hubble-generate-certs"}) > 130 * 86400
+        )
+      for: 1h
+      labels:
+        action: human
+        severity: warning

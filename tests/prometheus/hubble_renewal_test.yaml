@@ -1,0 +1,59 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/hubble-alerts.yaml,
+# HubbleCertRenewalStale: hourly evaluation over ~130 days (kept apart from
+# hubble_test.yaml, which needs 1m evaluation).
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-hubble.yaml
+
+evaluation_interval: 1h
+
+tests:
+  # Renewal: the last success 129 days ago is fine; 131 days ago fires.
+  - interval: 1h
+    input_series:
+      - series: 'kube_cronjob_status_last_successful_time{namespace="kube-system", cronjob="hubble-generate-certs"}'
+        values: '0x3200'
+    alert_rule_test:
+      - eval_time: 3096h
+        alertname: HubbleCertRenewalStale
+        exp_alerts: []
+      - eval_time: 3144h
+        alertname: HubbleCertRenewalStale
+        exp_alerts:
+          - exp_labels:
+              namespace: kube-system
+              cronjob: hubble-generate-certs
+              severity: warning
+              action: human
+            exp_annotations:
+              summary: The Hubble certificates have not been renewed for 130 days
+              description: >-
+                The CronJob kube-system/hubble-generate-certs has not succeeded
+                since its last four-monthly run. The certificates are valid 365
+                days from their last issue. Read the logs of its last Job, fix,
+                and re-issue them (docs/networking.md, "Hubble certificates").
+
+  # Never succeeded, CronJob created 131 days ago.
+  - interval: 1h
+    input_series:
+      - series: 'kube_cronjob_created{namespace="kube-system", cronjob="hubble-generate-certs"}'
+        values: '0x3200'
+    alert_rule_test:
+      - eval_time: 3096h
+        alertname: HubbleCertRenewalStale
+        exp_alerts: []
+      - eval_time: 3144h
+        alertname: HubbleCertRenewalStale
+        exp_alerts:
+          - exp_labels:
+              namespace: kube-system
+              cronjob: hubble-generate-certs
+              severity: warning
+              action: human
+            exp_annotations:
+              summary: The Hubble certificates have not been renewed for 130 days
+              description: >-
+                The CronJob kube-system/hubble-generate-certs has not succeeded
+                since its last four-monthly run. The certificates are valid 365
+                days from their last issue. Read the logs of its last Job, fix,
+                and re-issue them (docs/networking.md, "Hubble certificates").

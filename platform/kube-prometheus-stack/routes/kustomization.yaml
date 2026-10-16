@@ -20,3 +20,5 @@ resources:
   - nas-alerts.yaml
   - lan-alerts.yaml
   - arr-alerts.yaml
+  # Hubble relay and its certificates.
+  - hubble-alerts.yaml

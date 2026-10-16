@@ -15,6 +15,9 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       `kube-system`), Keycloak client `hubble` (platform client, `admins`), SOPS Secret,
       `ci/expected-ingresses.txt`, `docs/remote-access.md`. Check the login matrix
       (member in, non-member out). [1.2, 1.3, 1.4]
+- [x] 2b. (#521) PR `feat(network): renew the Hubble certificates with certgen`:
+      `hubble.tls.auto.method: cronJob`, relay metrics and PodMonitor, alerts with
+      promtool tests and `routes.txt` lines, `docs/networking.md`. [1.5]
 - [x] 4. (#525) PR `feat(network): sync the Cilium policies, not enforced`: `network-policies`
       in the infrastructure layer as-is, switches false; check `cilium-dbg endpoint list`
       shows nothing enforced and Headlamp still is. [2.1, 2.5]
