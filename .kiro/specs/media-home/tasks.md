@@ -24,6 +24,13 @@ Requirement numbers in brackets. New work in this area adds a task here first.
       [5.5] (#417, #422)
 - [x] 13. Page when Prowlarr indexers fail for 6 hours. [2.3] (#484)
 - [x] 14. Remove the dead Prowlarr indexers from the expected set. [2.1] (#502)
+- [x] 21. Subtitle policy: profiles `en-fr`, `en-fr-es`, `kids-fr`,
+      `kids-fr-es`; auto tags `orig-es` and `kids-fr-es`; profiles set on
+      every existing title; text over image subtitles; free providers; the
+      nightly wanted search. [6.1-6.7] (#518)
+- [x] 22. Backfill: a full subtitle re-index, then one wanted search over the
+      whole library (`bazarr-nightly-backfill`). [6.4, 6.7]
+- [x] 23. Subtitle coverage per language on the Usage dashboard. [6.8] (#518)
 
 ## Open
 
@@ -40,10 +47,3 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [ ] 20. Paperless as the home for all documents: taxonomy, ingestion paths,
       OCR languages FR, EN, DE, then a bulk import. Its own spec in
       `.kiro/specs/`.
-- [ ] 21. Subtitle policy: profiles `en-fr`, `en-fr-es`, `kids-fr`,
-      `kids-fr-es`; auto tags `orig-es` and `kids-fr-es`; profiles set on
-      every existing title; text over image subtitles; free providers; the
-      nightly wanted search. [6.1-6.7]
-- [ ] 22. Backfill: one wanted search over the whole library; coverage per
-      language before and after. [6.4, 6.7]
-- [ ] 23. Subtitle coverage per language on the Usage dashboard. [6.8]
