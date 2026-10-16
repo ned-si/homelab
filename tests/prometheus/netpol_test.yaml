@@ -23,6 +23,11 @@ tests:
           hubble_policy_verdicts_total{direction="egress", match="l3-l4", action="forwarded",
           source="mealie", source_namespace="mealie", destination="kube-dns", destination_namespace="kube-system", pod="cilium-a"}
         values: '0+2x11600'
+      # argocd-server's chart policy allows every peer (match all): not policed.
+      - series: >-
+          hubble_policy_verdicts_total{direction="ingress", match="all", action="forwarded",
+          source="ingress", source_namespace="", destination="argocd-server", destination_namespace="argo", pod="cilium-a"}
+        values: '0+3x11600'
       - series: >-
           hubble_policy_verdicts_total{direction="ingress", match="l3-l4", action="forwarded",
           source="ingress", source_namespace="", destination="paperless", destination_namespace="paperless", pod="cilium-b"}

@@ -12,7 +12,12 @@
 # (kubelet probes) are not counted by Hubble.
 #
 # The policed namespace is the destination for ingress and the source for
-# egress.
+# egress. Only the namespaces with allow-lists count (immich|mealie|paperless|syncthing|theater, the
+# switches in infrastructure/network-policies/90-enforcement.yaml; add a
+# namespace here with its allow-list). Elsewhere `match="all"` is not a
+# would-be drop: Argo CD's chart NetworkPolicy for argocd-server allows
+# `ingress: [{}]` (every peer), and the enforced policies of headlamp,
+# hubble, signoz and kube-system are default-deny already.
 #
 #   netpol:verdicts:rate5m{namespace, direction}        every verdict
 #   netpol:would_drop:rate5m{namespace, direction}      match="all" only
@@ -41,23 +46,31 @@ spec:
         - record: netpol:verdicts:rate5m
           expr: |
             sum by (namespace, direction) (
-              label_replace(rate(hubble_policy_verdicts_total{direction="ingress", destination_namespace!=""}[5m]),
+              label_replace(rate(hubble_policy_verdicts_total{direction="ingress", destination_namespace=~"immich|mealie|paperless|syncthing|theater"}[5m]),
                 "namespace", "$1", "destination_namespace", "(.*)")
             )
             or
             sum by (namespace, direction) (
-              label_replace(rate(hubble_policy_verdicts_total{direction="egress", source_namespace!=""}[5m]),
+              label_replace(rate(hubble_policy_verdicts_total{direction="egress", source_namespace=~"immich|mealie|paperless|syncthing|theater"}[5m]),
                 "namespace", "$1", "source_namespace", "(.*)")
             )
         - record: netpol:would_drop:rate5m
           expr: |
             sum by (namespace, direction) (
-              label_replace(rate(hubble_policy_verdicts_total{match="all", direction="ingress", destination_namespace!=""}[5m]),
+              label_replace(rate(hubble_policy_verdicts_total{
+                  match="all",
+                  direction="ingress",
+                  destination_namespace=~"immich|mealie|paperless|syncthing|theater"
+                }[5m]),
                 "namespace", "$1", "destination_namespace", "(.*)")
             )
             or
             sum by (namespace, direction) (
-              label_replace(rate(hubble_policy_verdicts_total{match="all", direction="egress", source_namespace!=""}[5m]),
+              label_replace(rate(hubble_policy_verdicts_total{
+                  match="all",
+                  direction="egress",
+                  source_namespace=~"immich|mealie|paperless|syncthing|theater"
+                }[5m]),
                 "namespace", "$1", "source_namespace", "(.*)")
             )
     - name: netpol.ready
