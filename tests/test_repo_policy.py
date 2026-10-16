@@ -470,6 +470,27 @@ def test_expected_ingresses(tmp_path):
     assert fails(r) == ["FAIL expected-ingresses: Ingress mealie/mealie is not rendered by the new layout"]
 
 
+ALERT_RULES = ("apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata: {name: x}\nspec:\n"
+               "  groups:\n    - name: x\n      rules:\n"
+               "        - {record: 'x:up', expr: up}\n"
+               "        - {alert: Tested, expr: up == 0, labels: {action: human}}\n"
+               "        - {alert: Untested, expr: up == 0, labels: {action: auto}}\n"
+               "        - {alert: Untested, expr: up == 2, labels: {action: auto}}\n")
+ALERT_TESTS = ("rule_files: [x.yaml]\ntests:\n  - interval: 1m\n    input_series: []\n"
+               "    alert_rule_test:\n      - {eval_time: 1m, alertname: Tested, exp_alerts: []}\n")
+
+
+def test_alert_tests_every_alert_has_a_promtool_test(tmp_path):
+    files = {"platform/x/rules.yaml": ALERT_RULES, "tests/prometheus/x_test.yaml": ALERT_TESTS,
+             "docs/rules.yaml": ALERT_RULES.replace("Untested", "DocOnly")}
+    assert fails(policy(tmp_path, files=files)) == [
+        "FAIL alert-tests: platform/x/rules.yaml: Untested has no alert_rule_test in tests/prometheus/*_test.yaml"]
+    files["tests/prometheus/y_test.yaml"] = ALERT_TESTS.replace("Tested", "Untested")
+    r = policy(tmp_path / "b", files=files)
+    assert r.returncode == 0, r.stdout
+    assert "alert-tests" in r.stdout
+
+
 def k8s_tree(k8s="1.37.1", node="v1.37.0", talos="v1.37.1"):
     ci = (f"name: ci\nenv:\n  K8S_VERSION: \"{k8s}\"\n"
           f"  KIND_NODE_IMAGE: kindest/node:{node}@sha256:{'0' * 64}\n")
