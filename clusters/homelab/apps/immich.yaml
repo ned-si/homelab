@@ -27,10 +27,12 @@ metadata:
 spec:
   project: apps
   sources:
-    - repoURL: https://immich-app.github.io/immich-charts
+    # OCI chart (Argo CD takes the registry path without oci://); the HTTP
+    # repository is no longer published.
+    - repoURL: ghcr.io/immich-app/immich-charts
       chart: immich
-      # renovate: datasource=helm depName=immich registryUrl=https://immich-app.github.io/immich-charts
-      targetRevision: 0.9.3
+      # renovate: datasource=docker depName=ghcr.io/immich-app/immich-charts/immich
+      targetRevision: 0.13.4
       helm:
         releaseName: immich
         valueFiles:

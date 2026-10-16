@@ -1,35 +1,29 @@
-# Immich chart 0.9.x values.
+# Immich chart 0.13.x values (oci://ghcr.io/immich-app/immich-charts/immich,
+# bjw-s common library 5). Top-level `controllers` applies to every component;
+# `server` and `machine-learning` add their own.
 #
-# Renovate updates `image.tag` (server and machine learning) up to v2.x.
-# Immich 3.0 drops pgvecto.rs, so it moves together with the database image
-# (apps/immich/resources/database.yaml) and the chart's 0.10 values layout,
-# by hand: docs/runbooks/immich-upgrade.md.
+# Renovate updates `image.tag` (server and machine learning share it). The
+# database image is not here: apps/immich/resources/database.yaml.
 #
-# One intended difference from live: the runtime config file. Live renders it
-# from `immich.configuration` into the ConfigMap immich-immich-config, which
-# puts the OIDC client secret in a ConfigMap. Here `immich.configuration` is
-# unset and the same file (same bytes, sha256 checked) is mounted from the SOPS
-# Secret `immich-config` (apps/secrets/immich-config.sops.yaml) at /config.
-# Adopting this restarts the server pod once. The old ConfigMap is left in
-# place (prune is off) and deleted by hand after adoption.
-env:
-  REDIS_HOSTNAME: "valkey.immich.svc.cluster.local"
-  DB_URL:
-    valueFrom:
-      secretKeyRef:
-        name: immich-db-app
-        key: uri
-  TZ: Europe/Zurich
-
-postgres:
-  enabled: false
-
-redis:
-  enabled: false
-
-image:
-  # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
-  tag: v2.7.5
+# The runtime config file is not rendered by the chart: `immich.configuration`
+# is unset and the file is mounted from the SOPS Secret `immich-config`
+# (apps/secrets/immich-config.sops.yaml) at /config, so the OIDC client secret
+# never lands in a ConfigMap.
+controllers:
+  main:
+    containers:
+      main:
+        image:
+          # renovate: datasource=docker depName=ghcr.io/immich-app/immich-server
+          tag: v3.3.3
+        env:
+          REDIS_HOSTNAME: "valkey.immich.svc.cluster.local"
+          DB_URL:
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-app
+                key: uri
+          TZ: Europe/Zurich
 
 immich:
   metrics:
@@ -38,47 +32,59 @@ immich:
     library:
       # The photo library (2Ti). The PVC itself is not managed by this tree.
       existingClaim: immich-data
+  existingConfiguration: immich-config
+  configurationKind: Secret
 
 server:
   enabled: true
-  # The library PVC is ReadWriteOnce: a second server pod could not mount it.
-  # Chart 0.9.3 defaults to RollingUpdate; 0.9.0 used Recreate.
-  controller:
-    strategy: Recreate
-  image:
-    repository: ghcr.io/immich-app/immich-server
-    pullPolicy: IfNotPresent
-  env:
-    IMMICH_CONFIG_FILE: /config/immich-config.yaml
+  controllers:
+    main:
+      # The library PVC is ReadWriteOnce: a second server pod could not mount
+      # it. The chart defaults to RollingUpdate.
+      strategy: Recreate
+      # Chart 0.10 added app.kubernetes.io/controller to the (immutable)
+      # selector: delete and recreate once. Removed in the next change.
+      annotations:
+        argocd.argoproj.io/sync-options: Force=true,Replace=true
+      containers:
+        main:
+          env:
+            # Every asset path in the database starts with this. A different
+            # location makes the server rewrite all of them on start.
+            IMMICH_MEDIA_LOCATION: /usr/src/app/upload
   persistence:
-    config:
-      enabled: true
-      type: secret
-      name: immich-config
-      mountPath: /config
-      readOnly: true
+    # The chart's library volume (`immich.persistence.library`), mounted at
+    # the old path instead of the chart's /data.
+    data:
+      existingClaim: immich-data
+      globalMounts:
+        - path: /usr/src/app/upload
   # No Ingress: media.lilalala.com is served by the shared Gateway
-  # (resources/httproute.yaml). ingress-nginx is removed (ADR 0011).
+  # (resources/httproute.yaml).
   ingress:
     main:
       enabled: false
 
 machine-learning:
   enabled: true
-  # Its model cache PVC is ReadWriteOnce too.
-  controller:
-    strategy: Recreate
-  image:
-    repository: ghcr.io/immich-app/immich-machine-learning
-    pullPolicy: IfNotPresent
-  env:
-    TRANSFORMERS_CACHE: /cache
-    MACHINE_LEARNING_PRELOAD__CLIP: ViT-B-16-SigLIP-i18n-256__webli
+  controllers:
+    main:
+      # Its model cache PVC is ReadWriteOnce too.
+      strategy: Recreate
+      annotations:
+        argocd.argoproj.io/sync-options: Force=true,Replace=true
+      containers:
+        main:
+          env:
+            MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: ViT-B-16-SigLIP-i18n-256__webli
+            MACHINE_LEARNING_PRELOAD__CLIP__VISUAL: ViT-B-16-SigLIP-i18n-256__webli
   persistence:
     cache:
       enabled: true
+      # The name chart 0.9 gave it; the default would be a new, empty PVC.
+      forceRename: immich-machine-learning-cache
+      type: persistentVolumeClaim
       size: 10Gi
-      type: pvc
       accessMode: ReadWriteOnce
       storageClass: iscsi
       annotations:

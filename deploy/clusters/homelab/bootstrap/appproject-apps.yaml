@@ -41,3 +41,4 @@ spec:
   sourceRepos:
   - https://github.com/ned-si/homelab.git
   - https://immich-app.github.io/immich-charts
+  - ghcr.io/immich-app/immich-charts

@@ -16,6 +16,8 @@ spec:
   sourceRepos:
     - https://github.com/ned-si/homelab.git
     - https://immich-app.github.io/immich-charts
+    # Immich chart (OCI; Argo CD takes the registry path without oci://).
+    - ghcr.io/immich-app/immich-charts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: theater
