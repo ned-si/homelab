@@ -60,7 +60,7 @@ Wave 3 syncs the Cilium policies unenforced, with Hubble to see drops:
 - [x] 26. Headlamp public at `headlamp.lilalala.com` behind Keycloak; the
       tailnet Ingress removed; UIs public, cluster APIs tailnet-only as the
       rule. [4.3, 4.6] (#538)
-- [ ] 27. Argo CD client secret in its own sealed Secret, out of the
+- [x] 27. Argo CD client secret in its own sealed Secret, out of the
       chart-managed `argocd-secret` (an upgrade dropped the hand-added key
       and the login); smoke item 11 checks the SSO redirects and that
-      Keycloak accepts the secret. [5.6]
+      Keycloak accepts the secret. [5.6] (#562)
