@@ -70,3 +70,6 @@ spec:
         - record: slo:backup_target:info
           expr: vector(1)
           labels: {kind: restic, namespace: monitoring, cronjob: grafana-backup}
+        - record: slo:backup_target:info
+          expr: vector(1)
+          labels: {kind: restic, namespace: signoz, cronjob: signoz-backup}
