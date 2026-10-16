@@ -1,0 +1,89 @@
+---
+# tailscale-policy: bootstrap/tailscale/policy.hujson is the tailnet policy
+# (docs/remote-access.md). A pull request that changes it runs the policy
+# check against the tailnet (`test`: validate and run its tests, change
+# nothing); a merge to main applies it (`apply`). A change made by hand in
+# the admin console is overwritten on the next apply.
+#
+# Credential: a Tailscale OAuth client with the Policy File write scope
+# (admin console, Settings -> Trust credentials), in the repository secrets
+# TS_POLICY_OAUTH_CLIENT_ID and TS_POLICY_OAUTH_SECRET. It is not the
+# operator's client, which has no policy scope. Until both secrets exist the
+# job prints a notice and does nothing.
+name: tailscale-policy
+
+on:
+  pull_request:
+    paths:
+      - bootstrap/tailscale/policy.hujson
+      - .github/workflows/tailscale-policy.yaml
+  push:
+    branches: [main]
+    paths:
+      - bootstrap/tailscale/policy.hujson
+      - .github/workflows/tailscale-policy.yaml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: tailscale-policy-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  policy:
+    name: Tailnet policy
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      HAS_CREDENTIAL: ${{ secrets.TS_POLICY_OAUTH_CLIENT_ID != '' && secrets.TS_POLICY_OAUTH_SECRET != '' }}
+    steps:
+      - name: Credential present
+        id: cred
+        run: |
+          if [ "$HAS_CREDENTIAL" = true ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::TS_POLICY_OAUTH_CLIENT_ID / TS_POLICY_OAUTH_SECRET not set: skipping (docs/remote-access.md)"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: ${{ steps.cred.outputs.ok == 'true' }}
+        with:
+          persist-credentials: false
+
+      - name: Test the policy (pull request)
+        if: ${{ steps.cred.outputs.ok == 'true' && github.event_name == 'pull_request' }}
+        uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
+        with:
+          tailnet: ned-si.github
+          oauth-client-id: ${{ secrets.TS_POLICY_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_POLICY_OAUTH_SECRET }}
+          policy-file: bootstrap/tailscale/policy.hujson
+          action: test
+
+      - name: Apply the policy (main)
+        if: ${{ steps.cred.outputs.ok == 'true' && github.event_name != 'pull_request' }}
+        uses: tailscale/gitops-acl-action@5a4a17f5708e9bf96f4ee915a95e9f83c2eebe1a # v1.5.2
+        with:
+          tailnet: ned-si.github
+          oauth-client-id: ${{ secrets.TS_POLICY_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_POLICY_OAUTH_SECRET }}
+          policy-file: bootstrap/tailscale/policy.hujson
+          action: apply
+
+      # Same channel as every other scheduled failure; the topic is the
+      # secret and is never printed.
+      - name: Notify ntfy on failure
+        if: ${{ failure() && github.event_name != 'pull_request' }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          curl -fsS -m 10 -o /dev/null \
+            -H "Title: tailnet policy apply failed" -H "Priority: default" -H "Tags: lock" \
+            -H "Click: $RUN_URL" \
+            -d "bootstrap/tailscale/policy.hujson was not applied; the tailnet keeps its previous policy. $RUN_URL" \
+            "https://ntfy.sh/$NTFY_TOPIC"

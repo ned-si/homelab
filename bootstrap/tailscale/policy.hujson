@@ -1,7 +1,7 @@
-// Tailnet policy of `ned-si.github` (admin console, Access controls -> JSON
-// editor). The source of truth is this file: paste it whole after a change
-// (docs/remote-access.md, "Tailnet policy"). It replaces the default
-// allow-all policy.
+// Tailnet policy of `ned-si.github`. The source of truth is this file:
+// .github/workflows/tailscale-policy.yaml tests it on pull requests and
+// applies it on merge to main (docs/remote-access.md, "Tailnet policy").
+// It replaces the default allow-all policy.
 {
 	"tagOwners": {
 		// The operator's OAuth client carries this tag.

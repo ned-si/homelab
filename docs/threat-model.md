@@ -125,7 +125,9 @@ point, a credential or an admission path is added or removed.
   tailnet. The phone holds no cluster credential: the proxy maps the tailnet
   login to the group `tailnet-admins`. Removing the device in the admin
   console revokes it.
-- Planned: the tailnet policy applied from git by CI; a reduced talosconfig on the phone
+- The tailnet policy is applied from git by CI
+  (`.github/workflows/tailscale-policy.yaml`).
+- Planned: a reduced talosconfig on the phone
   (`os:operator`), never the `os:admin` one.
 
 ## Accepted, not planned
