@@ -73,7 +73,7 @@ green, so that nothing waits in a queue.
 
 1. THE Renovate config SHALL automerge every update type on green CI, except
    the technical caps it names with a reason (the Immich database image, CNPG
-   Postgres majors, MariaDB and Seafile caps, Paperless 3 only from 2.20).
+   Postgres majors, Paperless 3 only from 2.20).
    (`.github/renovate.json5`, `task lint:renovate`)
 2. EVERY container image SHALL be pinned by digest. (repo-policy `image-digest`)
 3. WHEN an update changes an image tag's variant (alpine, slim, distroless,

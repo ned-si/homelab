@@ -80,10 +80,10 @@ need it.
 
 #### Acceptance criteria
 
-1. THE `backup-verify` Application SHALL restore every restic tag (Saturday),
-   the MariaDB dump (Saturday) and every CNPG cluster into a new cluster with
-   row counts equal to the source (Sunday), and push results to its
-   Pushgateway. (`platform/backup-verify/`, Homelab / Data protection)
+1. THE `backup-verify` Application SHALL restore every restic tag (Saturday)
+   and every CNPG cluster into a new cluster with row counts equal to the
+   source (Sunday), and push results to its Pushgateway.
+   (`platform/backup-verify/`, Homelab / Data protection)
 2. THE monthly run SHALL read a rotating slice of every repository's packs.
    (`restic check --read-data-subset`,
    `platform/backup-verify/scripts/restic-data-targets.txt`)

@@ -61,7 +61,7 @@ the operator, I want platform tools to ask again every 12 hours.
    login is older than 12 h, THE realm SHALL ask for the password again.
    (`platform.conf`, flow `browser-loa`)
 3. THE user apps SHALL keep their own sessions for about a year (Mealie,
-   Paperless, Seafile, the theater proxy) or without expiry (Immich).
+   Paperless, the theater proxy) or without expiry (Immich).
    (table in [architecture.md](../../../docs/architecture.md#sessions))
 
 ### Requirement 4: Remote access without open ports

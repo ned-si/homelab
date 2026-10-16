@@ -30,7 +30,7 @@ The bucket policy sits above all of them and the account's admins.
 | `apps/*/cnpg-backup.yaml`, `platform/keycloak/backup.yaml` | ObjectStore `cnpg-backup` and ScheduledBackups |
 | `platform/barman-cloud-plugin/` | The plugin and PrometheusRule `cnpg-backups` |
 | `components/presync-backup/` | PreSync hook that applies the 24 h freshness rule |
-| `platform/backup-verify/` | Restore tests (`files`, `mariadb`, `postgres`), the lock test, Pushgateway, alerts |
+| `platform/backup-verify/` | Restore tests (`files`, `postgres`), the lock test, Pushgateway, alerts |
 | `bootstrap/aws-backup/` | Bucket, lifecycle per repository, bucket policy, IAM users (OpenTofu) |
 | `ci/active-cronjobs.txt` | Which CronJobs may run unsuspended |
 | `scripts/dump-databases.sh` (`task backup:dump`), `task talos:etcd-snapshot` | Local dumps and etcd snapshots on the operator's machine |
