@@ -52,10 +52,13 @@ TALOS_SECRET_FILE="$work/secrets.yaml" TALOS_OUT_DIR="$work/gen" \
   scripts/talos-genconfig.sh > /dev/null
 
 # The running config has a blank line before the first `---` that the rendered
-# one lacks; drop blank lines before a document separator on both sides.
+# one lacks; drop blank lines before a document separator on both sides. The
+# Tailscale auth key is sealed in talos/talenv.sops.yaml and renders as a
+# placeholder here: its value is masked on both sides.
 norm() {
-  awk '/^$/ { n++; next } { if ($0 != "---") for (; n > 0; n--) print ""; n = 0; print }
-       END { for (; n > 0; n--) print "" }' "$1" | sha256sum | cut -c1-64
+  sed 's/TS_AUTHKEY=.*/TS_AUTHKEY=-/' "$1" |
+    awk '/^$/ { n++; next } { if ($0 != "---") for (; n > 0; n--) print ""; n = 0; print }
+         END { for (; n > 0; n--) print "" }' | sha256sum | cut -c1-64
 }
 
 metrics="$work/metrics.txt"

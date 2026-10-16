@@ -20,7 +20,7 @@ machine config plus a flashed image. Command reference:
 | --- | --- |
 | Nodes | `homelab-cp-1` `192.168.1.247` (BMC slot 1), `homelab-cp-2` `.238` (slot 2), `homelab-cp-3` `.239` (slot 3): control planes with etcd, schedulable. `homelab-w-1` `.240` (slot 4): worker. The hostname is the node name and the etcd member name. |
 | Config | Every node is an entry under `nodes:` in [`talos/talconfig.yaml`](../../talos/talconfig.yaml): static address on the physical NIC, install disk `/dev/mmcblk0`, the VIP `.11` on the control planes. `task talos:genconfig` renders `talos/clusterconfig/homelab-<hostname>.yaml`. |
-| Image | The Image Factory disk image for the schematic in `talconfig.yaml` (RK1 overlay plus `iscsi-tools`), flashed to the eMMC by the BMC ([talos.md](../talos.md#image)). The flashed image is the install. |
+| Image | The Image Factory disk image for the schematic in `talconfig.yaml` (RK1 overlay, `iscsi-tools`, `tailscale`), flashed to the eMMC by the BMC ([talos.md](../talos.md#image)). The flashed image is the install. |
 | Hardware | Turing RK1 in a Turing Pi 2 slot. The 29 GB eMMC is on the module: a failed eMMC means a new module. |
 | iSCSI | Each node has its own initiator name (`iqn.2017-11.dev.talos:...`), generated on first boot. |
 

@@ -104,3 +104,28 @@ before they take a node down.
    `NodeFilesystemReadOnly`. (`routes/alerts.yaml`)
 5. WHEN a node is NotReady for 15 minutes, THE system SHALL page with
    `HomelabNodeDown`. (`tests/prometheus/outage_test.yaml`)
+
+### Requirement 5: The Talos API from anywhere, never public
+
+**User story:** As the operator, I want `talosctl` to reach every node over
+the tailnet, so that I can debug a node when Kubernetes itself is down and I
+am away from home.
+
+#### Acceptance criteria
+
+1. EVERY node SHALL run the `siderolabs/tailscale` extension from the pinned
+   Image Factory schematic and join the tailnet as `talos-<node>` with
+   `tag:talos`. (`talos-validate.sh`: schematic ID, ExtensionServiceConfig)
+2. THE auth key SHALL come from `talos/talenv.sops.yaml` and never appear in
+   git in plaintext; renders without the age key (CI, the drift check) SHALL
+   use a placeholder, and the drift check SHALL mask it on both sides.
+   (`scripts/talos-genconfig.sh`, `platform/talos-drift/check.sh`)
+3. apid's certificate SHALL carry `talos-<node>` and its tailnet name, and
+   every node SHALL resolve the tailnet names to the LAN addresses, so that
+   `talosctl --nodes talos-<node>` verifies through any endpoint.
+   (`certSANs`, `patches/talosctl/tailnet-hosts.yaml`)
+4. THE kubelet node IP and the etcd peer address SHALL stay on
+   `192.168.1.0/24`. (`patches/node-ip.yaml`, `patches/etcd-subnet.yaml`)
+5. THE tailnet policy SHALL admit only the owner and admins, on TCP 50000;
+   nothing SHALL publish port 50000 of a node on the internet.
+   (`bootstrap/tailscale/policy.hujson`; access-identity 4.5)

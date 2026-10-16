@@ -85,6 +85,9 @@ anywhere, with nothing new exposed on the router.
 4. THE exit nodes `home-exit-0` and `home-exit-1` SHALL route members'
    internet traffic only (`autogroup:internet`), not the LAN or the cluster.
    (`platform/tailscale-operator/resources/exit-node.yaml`, `policy.hujson`)
+5. THE Talos API SHALL be reachable over the tailnet by the owner and admins
+   only, on TCP 50000 to `tag:talos`, and never from the internet; `tag:talos`
+   SHALL reach nothing. (`policy.hujson`; platform-talos Requirement 5)
 
 ### Requirement 5: Secrets never in plaintext, never too old
 

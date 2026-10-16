@@ -21,9 +21,10 @@ merge, and the daily drift check pages until it is.
 
 | Path | Role |
 | --- | --- |
-| `talos/talconfig.yaml` | Cluster, pinned versions, Image Factory schematic (`turingrk1` overlay, `iscsi-tools`), the four nodes and their static IPs |
+| `talos/talconfig.yaml` | Cluster, pinned versions, Image Factory schematic (`turingrk1` overlay, `iscsi-tools`, `tailscale`), the four nodes, their static IPs and tailnet names |
 | `talos/patches/` | `sysctls.yaml`, `kube-proxy.yaml`, `controlplane-metrics.yaml`, `kubelet-image-gc.yaml`; `talosctl/` for documents talhelper cannot parse yet |
 | `talos/talsecret.sops.yaml` | Cluster CAs and tokens, SOPS-sealed, created once |
+| `talos/talenv.sops.yaml` | Variables talhelper substitutes: the Tailscale OAuth secret of the `tailscale` extension (placeholder without the age key) |
 | `scripts/talos-genconfig.sh` | `task talos:genconfig`: talhelper, then the talosctl patches |
 | `scripts/ci/talos-validate.sh` | CI job `talos`: offline validation and invariants |
 | `scripts/ci/talos-upgrade-rehearsal.sh` | CI job `talos-upgrade`: QEMU cluster upgraded from main's versions |

@@ -19,8 +19,9 @@ are the ones pinned in [`talos/talconfig.yaml`](../talos/talconfig.yaml).
   `talosctl rollback` does the same by hand.
 - Extra binaries come as system extensions, baked into the image by the
   [Image Factory](https://factory.talos.dev) from a schematic. Here: the RK1
-  board overlay and `siderolabs/iscsi-tools` (for democratic-csi), in
-  `talconfig.yaml` under `controlPlane.schematic`.
+  board overlay, `siderolabs/iscsi-tools` (for democratic-csi) and
+  `siderolabs/tailscale` (the Talos API on the tailnet), in `talconfig.yaml`
+  under `controlPlane.schematic`.
 
 ## 2. How this cluster is set up
 
@@ -54,8 +55,15 @@ are the ones pinned in [`talos/talconfig.yaml`](../talos/talconfig.yaml).
 - Split of ownership: Talos owns the OS, kubelet, etcd and the control plane
   static pods. Argo CD owns everything above that, from git.
 - Away from home: `kubectl` works over the tailnet through the Tailscale
-  operator's API server proxy ([remote-access.md](remote-access.md)). The
-  Talos API does not: `talosctl` needs the LAN.
+  operator's API server proxy, and `talosctl` through each node's own
+  Tailscale (`talos-cp-1` … `talos-w-1`, context `homelab-ts`), even with
+  Kubernetes down ([remote-access.md](remote-access.md#talos-api)):
+
+  ```sh
+  talosctl --context homelab-ts -n talos-cp-3 health
+  talosctl --context homelab-ts -n talos-w-1 services
+  talosctl --context homelab-ts -n talos-cp-1 get extensionstatus  # tailscale running
+  ```
 
 Point `talosctl` at the generated client config from the repository root.
 Its endpoints are the three control planes and it has no default node, so

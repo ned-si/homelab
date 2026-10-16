@@ -10,6 +10,7 @@ internet: the operator and its proxies dial out to Tailscale.
 | `headlamp` | Headlamp, read-only Kubernetes web UI | tailnet members, then Keycloak group `admins` |
 | `hubble` | Hubble UI, live network flows of every namespace | tailnet members, then Keycloak group `admins` |
 | `home-exit-0`, `home-exit-1` | exit nodes: internet through the home connection | tailnet members |
+| `talos-cp-1` … `talos-cp-3`, `talos-w-1` | the Talos API of each node (`talosctl`), port 50000 | owner and admins of the tailnet, then the `talosconfig` client certificate |
 
 The public hostnames (`*.lilalala.com`) stay as they are; which admin UIs
 become tailnet-only is a later decision.
@@ -123,7 +124,9 @@ default allow-all:
 - members use the exit nodes (`tag:exit`, auto-approved) for
   `autogroup:internet`;
 - the owner and admins reach `tag:k8s-operator` on 443, with the Kubernetes
-  capability `impersonate: groups: [tailnet-admins]`.
+  capability `impersonate: groups: [tailnet-admins]`;
+- the owner and admins reach `tag:talos` (the nodes) on TCP 50000 only;
+  `tag:talos` reaches nothing.
 
 Apply a change: edit the file in a pull request. The workflow
 `.github/workflows/tailscale-policy.yaml` tests it against the tailnet on the
@@ -213,7 +216,55 @@ DNS address).
 iPhone: the same with the App Store Tailscale app. There is no Termux; a
 kubeconfig-capable SSH or Kubernetes client app works the same way.
 
-`talosctl` needs the Talos API, which is LAN-only: at home only.
+`talosctl` over the tailnet needs a `talosconfig`, which holds the `os:admin`
+key: keep it off the phone until it has a reduced one
+([access-identity](../.kiro/specs/access-identity/tasks.md), task 21).
+
+## Talos API
+
+The debugging path when Kubernetes itself is down: `talosctl` reaches every
+node over the tailnet, from anywhere, with the same mTLS `talosconfig` as on
+the LAN. Never on the internet: no port forward, and the tailnet policy
+admits the owner and admins on TCP 50000 only.
+
+- Each node runs the official `siderolabs/tailscale` system extension, in the
+  Image Factory schematic of `talos/talconfig.yaml`. Its
+  `ExtensionServiceConfig` (`extensionServices` per node) logs in as
+  `talos-<node>` (`talos-cp-1`, `talos-cp-2`, `talos-cp-3`, `talos-w-1`) with
+  `tag:talos`, once; the node key then stays in the extension's state on the
+  EPHEMERAL partition. Nodes do not take MagicDNS or routes from the tailnet.
+- Auth key: the operator's OAuth client secret (it owns `tag:talos`), with
+  `?ephemeral=false&preauthorized=true`, sealed in `talos/talenv.sops.yaml`
+  (`TS_OAUTH_SECRET`). talhelper substitutes it at `task talos:genconfig`;
+  without the age key (CI, the drift check) a placeholder renders, and the
+  drift check masks the line. Rotating the OAuth client means both
+  `platform/secrets/tailscale-operator.sops.yaml` and this file; nodes already
+  logged in keep working.
+- apid's certificate carries `talos-<node>` and
+  `talos-<node>.tail32a1fc.ts.net` (`certSANs`), so `talosctl` verifies it.
+  Every node maps those names to the LAN addresses
+  (`talos/patches/talosctl/tailnet-hosts.yaml`): a request for another node
+  goes over the LAN from the endpoint.
+- Kubernetes and etcd stay on the LAN (`talos/patches/node-ip.yaml`,
+  `etcd-subnet.yaml`): the tailnet address never becomes a node or peer IP.
+
+Mac, once: a context `homelab-ts` next to the LAN one in the same
+`talosconfig`, with the tailnet names as endpoints (prints nothing secret):
+
+```sh
+f=~/homelab-backups/talos/talosconfig
+yq '.contexts | keys' "$f"          # the LAN context, e.g. homelab
+yq -i '.contexts["homelab-ts"] = .contexts["homelab"] |
+  .contexts["homelab-ts"].endpoints = ["talos-cp-1.tail32a1fc.ts.net",
+    "talos-cp-2.tail32a1fc.ts.net", "talos-cp-3.tail32a1fc.ts.net"]' "$f"
+talosctl --talosconfig "$f" --context homelab-ts -n talos-w-1 version
+talosctl --talosconfig "$f" --context homelab-ts -n talos-cp-3 health
+```
+
+Expected: a `Server` block on `talosVersion`, and every health check `OK`
+(`health` runs on the node, so it needs no Kubernetes access from the Mac).
+A node down: point `-e` and `-n` at a live one. With Tailscale itself down
+on a node, use the LAN context or the BMC (`docs/runbooks/node-power-cycle.md`).
 
 ## Revoke a device
 
@@ -235,3 +286,11 @@ it.
   URL and removing the HTTPRoute, one app at a time.
 - The policy job has its own OAuth client rather than a Policy File scope
   on the operator's: a leaked operator credential cannot rewrite the policy.
+- The Talos API on the tailnet rather than LAN-only: it is the way in when
+  Kubernetes, and with it the operator's proxies, is down. The extension is
+  on the host, independent of the cluster. Its exposure is the tailnet
+  policy plus mTLS with the `os:admin` certificate.
+- The OAuth client secret rather than a reusable auth key: no key that
+  expires every 90 days. The cost: every node's machine config holds a
+  secret that can mint `tag:k8s`, `tag:exit` and `tag:talos` keys, readable
+  by `os:admin` (which already holds the cluster CAs).

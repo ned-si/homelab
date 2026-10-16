@@ -1,0 +1,6 @@
+# etcd advertises its LAN address only, never the tailnet one
+# (patches/node-ip.yaml explains why).
+cluster:
+  etcd:
+    advertisedSubnets:
+      - 192.168.1.0/24
