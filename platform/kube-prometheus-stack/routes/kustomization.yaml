@@ -10,6 +10,9 @@ resources:
   - grafana-backup.yaml
   - grafana.yaml
   - slo.yaml
+  # The backup-freshness SLO and the CronJobs it watches.
+  - backup-slo.yaml
+  - backup-slo-targets.yaml
   # The automation history of the Homelab / Automation dashboard.
   - automation.yaml
   - alerts.yaml

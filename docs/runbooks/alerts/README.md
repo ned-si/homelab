@@ -55,6 +55,7 @@ is the query helper the pages use. When done: `kill "$PF"`.
 
 - [BackupLockBroken](BackupLockBroken.md): old backup versions can be deleted
 - [BackupLockCheckStale](BackupLockCheckStale.md): no passing lock test in 8 days
+- [BackupNotFresh](BackupNotFresh.md): a restic CronJob without a successful run in 26 hours
 - [BackupVerifyFailed](BackupVerifyFailed.md): a restore test failed
 - [BackupVerifyStale](BackupVerifyStale.md): no passing weekly restore test in 8 days
 - [BackupVerifyDataStale](BackupVerifyDataStale.md): no monthly pack read in 36 days

@@ -1,0 +1,117 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/backup-slo.yaml.
+# The targets (backup-slo-targets.yaml) are input series here.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-backup-slo.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # 27 hours. mealie succeeds every 5 minutes (fresh); paperless last
+  # succeeded at the start (stopped, or suspended); home never succeeded;
+  # syncthing is stale too but its last Job failed, so KubeJobFailed pages
+  # instead; immich-db has a base backup every 5 minutes.
+  - interval: 5m
+    input_series:
+      - series: 'slo:backup_target:info{kind="restic", namespace="mealie", cronjob="mealie-backup"}'
+        values: '1x330'
+      - series: 'slo:backup_target:info{kind="restic", namespace="paperless", cronjob="paperless-backup"}'
+        values: '1x330'
+      - series: 'slo:backup_target:info{kind="restic", namespace="home", cronjob="home-assistant-backup"}'
+        values: '1x330'
+      - series: 'slo:backup_target:info{kind="restic", namespace="syncthing", cronjob="syncthing-backup"}'
+        values: '1x330'
+      - series: 'kube_cronjob_status_last_successful_time{job="kube-state-metrics", namespace="mealie", cronjob="mealie-backup"}'
+        values: '0+300x330'
+      - series: 'kube_cronjob_status_last_successful_time{job="kube-state-metrics", namespace="paperless", cronjob="paperless-backup"}'
+        values: '0x330'
+      - series: 'kube_cronjob_status_last_successful_time{job="kube-state-metrics", namespace="syncthing", cronjob="syncthing-backup"}'
+        values: '0x330'
+      - series: 'kube_job_owner{job="kube-state-metrics", namespace="syncthing", job_name="syncthing-backup-29868120", owner_kind="CronJob", owner_name="syncthing-backup"}'
+        values: '1x330'
+      - series: 'kube_job_failed{job="kube-state-metrics", namespace="syncthing", job_name="syncthing-backup-29868120", condition="true"}'
+        values: '1x330'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1"}'
+        values: '0+300x330'
+    alert_rule_test:
+      # 25 hours: only the target that never succeeded.
+      - eval_time: 1500m
+        alertname: BackupNotFresh
+        exp_alerts:
+          - exp_labels:
+              kind: restic
+              namespace: home
+              target: home-assistant-backup
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupNotFresh.md
+              summary: No successful backup of home/home-assistant-backup in 26 h
+              description: >-
+                The restic CronJob home/home-assistant-backup has not completed
+                a run for 26 hours: suspended, not scheduled, deleted, or its
+                Jobs never finish. The 24 h RPO of its data is not met.
+      # 27 hours: paperless too; mealie is fresh, syncthing pages as KubeJobFailed.
+      - eval_time: 1620m
+        alertname: BackupNotFresh
+        exp_alerts:
+          - exp_labels:
+              kind: restic
+              namespace: home
+              target: home-assistant-backup
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupNotFresh.md
+              summary: No successful backup of home/home-assistant-backup in 26 h
+              description: >-
+                The restic CronJob home/home-assistant-backup has not completed
+                a run for 26 hours: suspended, not scheduled, deleted, or its
+                Jobs never finish. The 24 h RPO of its data is not met.
+          - exp_labels:
+              kind: restic
+              namespace: paperless
+              target: paperless-backup
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupNotFresh.md
+              summary: No successful backup of paperless/paperless-backup in 26 h
+              description: >-
+                The restic CronJob paperless/paperless-backup has not completed
+                a run for 26 hours: suspended, not scheduled, deleted, or its
+                Jobs never finish. The 24 h RPO of its data is not met.
+    promql_expr_test:
+      - expr: slo:backup_fresh
+        eval_time: 1620m
+        exp_samples:
+          - labels: 'slo:backup_fresh{kind="restic", namespace="mealie", target="mealie-backup"}'
+            value: 1
+          - labels: 'slo:backup_fresh{kind="restic", namespace="paperless", target="paperless-backup"}'
+            value: 0
+          - labels: 'slo:backup_fresh{kind="restic", namespace="home", target="home-assistant-backup"}'
+            value: 0
+          - labels: 'slo:backup_fresh{kind="restic", namespace="syncthing", target="syncthing-backup"}'
+            value: 0
+          - labels: 'slo:backup_fresh{kind="cnpg", namespace="immich", target="immich-db"}'
+            value: 1
+      - expr: slo:backup_freshness:ratio_rate30d{target=~"mealie-backup|immich-db|home-assistant-backup"}
+        eval_time: 1620m
+        exp_samples:
+          - labels: 'slo:backup_freshness:ratio_rate30d{kind="restic", namespace="mealie", target="mealie-backup"}'
+            value: 1
+          - labels: 'slo:backup_freshness:ratio_rate30d{kind="cnpg", namespace="immich", target="immich-db"}'
+            value: 1
+          - labels: 'slo:backup_freshness:ratio_rate30d{kind="restic", namespace="home", target="home-assistant-backup"}'
+            value: 0
+
+  # kube-state-metrics reports no CronJob at all: KubeStateMetricsAbsent pages,
+  # not one BackupNotFresh per target.
+  - interval: 5m
+    input_series:
+      - series: 'slo:backup_target:info{kind="restic", namespace="mealie", cronjob="mealie-backup"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: BackupNotFresh
+        exp_alerts: []

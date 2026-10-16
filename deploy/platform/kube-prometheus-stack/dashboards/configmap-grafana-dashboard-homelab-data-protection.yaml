@@ -1215,6 +1215,155 @@ data:
             "x": 0,
             "y": 36
           }
+        },
+        {
+          "id": 18,
+          "type": "row",
+          "title": "Backup freshness SLO (fresh 99% of 30 days)",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 48
+          },
+          "panels": []
+        },
+        {
+          "type": "bargauge",
+          "title": "Fresh, share of 30 days",
+          "description": "slo:backup_freshness:ratio_rate30d per target: the share of 30 days with a successful backup younger than 26 h. Red below the 99% objective (docs/backups.md, Freshness).",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "slo:backup_freshness:ratio_rate30d",
+              "refId": "A",
+              "legendFormat": "{{kind}} {{namespace}}/{{target}}",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 0.99
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "orientation": "horizontal",
+            "displayMode": "basic",
+            "showUnfilled": true,
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            }
+          },
+          "id": 19,
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 0,
+            "y": 49
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Fresh now",
+          "description": "slo:backup_fresh per target: FRESH when the last successful backup is younger than 26 h. A stale restic target pages BackupNotFresh.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "slo:backup_fresh",
+              "refId": "A",
+              "legendFormat": "{{kind}} {{namespace}}/{{target}}",
+              "instant": true
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "STALE",
+                      "color": "red"
+                    },
+                    "1": {
+                      "text": "FRESH",
+                      "color": "green"
+                    }
+                  }
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "value_and_name",
+            "orientation": "horizontal"
+          },
+          "id": 20,
+          "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 12,
+            "y": 49
+          }
         }
       ]
     }

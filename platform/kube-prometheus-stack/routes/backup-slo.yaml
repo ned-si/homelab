@@ -1,0 +1,91 @@
+# Backup-freshness SLO: the measure of the 24 h RPO (docs/sre.md, RPO).
+#
+# SLI per backup target: 1 while its last successful backup is younger than
+# 26 hours (a nightly schedule plus slack), else 0.
+#
+#   restic  the CronJobs of backup-slo-targets.yaml, by
+#           kube_cronjob_status_last_successful_time; no series (never
+#           succeeded, deleted) counts as stale
+#   cnpg    each CloudNativePG cluster, by the Barman Cloud plugin's
+#           last_available_backup_timestamp (0 = never)
+#
+# Objective: fresh 99% of the time over 30 days per target (about 7 hours of
+# staleness a month): slo:backup_freshness:ratio_rate30d{kind, namespace, target}.
+#
+# BackupNotFresh pages (`action: human`) for a restic target stale for 15
+# minutes, whatever the cause: failed, suspended, never scheduled or deleted.
+# Not while the chart's KubeJobFailed pages for the CronJob's failed Job (one
+# cause, one page), and not while kube-state-metrics reports no CronJob at
+# all (KubeStateMetricsAbsent pages for that). CNPG staleness pages as
+# CNPGBaseBackupTooOld (barman-cloud-plugin/monitoring.yaml).
+#
+# Tests: tests/prometheus/backup_slo_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-backup-slo
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.backup-slo
+      interval: 2m
+      rules:
+        - record: slo:backup_fresh
+          expr: |
+            max by (namespace, target) (
+              label_replace(
+                (
+                  slo:backup_target:info{kind="restic"}
+                  * on (namespace, cronjob)
+                  (time() - max by (namespace, cronjob) (kube_cronjob_status_last_successful_time) < bool 26 * 3600)
+                )
+                or on (namespace, cronjob)
+                slo:backup_target:info{kind="restic"} * 0,
+                "target", "$1", "cronjob", "(.+)"
+              )
+            )
+          labels:
+            kind: restic
+        - record: slo:backup_fresh
+          expr: |
+            max by (namespace, target) (
+              label_replace(
+                time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp < bool 26 * 3600,
+                "target", "$1", "pod", "(.+)-[0-9]+"
+              )
+            )
+          labels:
+            kind: cnpg
+        - record: slo:backup_freshness:ratio_rate30d
+          expr: avg_over_time(slo:backup_fresh[30d])
+
+    - name: homelab.backup-slo.alerts
+      rules:
+        - alert: BackupNotFresh
+          expr: |
+            slo:backup_fresh{kind="restic"} == 0
+            unless on (namespace, target)
+              label_replace(
+                max by (namespace, owner_name) (
+                  max by (namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob"})
+                  * on (namespace, job_name)
+                  (max by (namespace, job_name) (kube_job_failed) > 0)
+                ),
+                "target", "$1", "owner_name", "(.+)"
+              )
+            unless on () absent(kube_cronjob_status_last_successful_time)
+          for: 15m
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupNotFresh.md
+            summary: "No successful backup of {{ $labels.namespace }}/{{ $labels.target }} in 26 h"
+            description: >-
+              The restic CronJob {{ $labels.namespace }}/{{ $labels.target }}
+              has not completed a run for 26 hours: suspended, not scheduled,
+              deleted, or its Jobs never finish. The 24 h RPO of its data is
+              not met.
