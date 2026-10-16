@@ -6,8 +6,9 @@ recently updated closed pull requests, and Renovate's Dependency Dashboard
 issue; then serves the derived gauges on :PORT/metrics. About 11 requests per
 cycle; conditional requests (ETag, a 304 is free) keep that well inside the
 unauthenticated quota of 60 requests/hour per IP. The repository is public,
-so no credential is used. The jobs of a completed auto-rollback or tofu run
-are read once and kept.
+so no credential is used. For auto-rollback (also while it is disabled) and
+tofu it reads their last runs on main, and the jobs of each completed run
+once.
 
 For the Homelab / Automation dashboard it also writes one series per event of
 the last EVENT_DAYS days, automation_event_timestamp_seconds{source, kind,
@@ -229,7 +230,11 @@ def collect() -> str:
     o = Out()
     workflows, hdr = get(f"/repos/{REPO}/actions/workflows?per_page=50")
     for w in workflows.get("workflows", []):
-        if w.get("state") != "active" or not w.get("path", "").startswith(".github/workflows/"):
+        if not w.get("path", "").startswith(".github/workflows/"):
+            continue
+        # A timeline workflow keeps its history while disabled (auto-rollback
+        # is, during a planned window).
+        if w.get("state") != "active" and w.get("name") not in TIMELINE_WORKFLOWS:
             continue
         runs, hdr = get(f"/repos/{REPO}/actions/workflows/{w['id']}/runs?per_page=30")
         done = [r for r in runs.get("workflow_runs", [])
@@ -260,8 +265,12 @@ def collect() -> str:
             o.g("github_workflow_last_run_duration_seconds", "Duration of the latest completed run.",
                 max(0.0, ts(r["updated_at"]) - started(r)), workflow=wf, scope=scope)
         if wf in TIMELINE_WORKFLOWS:
-            recent = [r for r in sorted(done, key=started, reverse=True)
-                      if now - started(r) <= EVENT_WINDOW and r.get("event") != "pull_request"]
+            # The runs on main only: pull request plans would crowd the
+            # scheduled and merge runs out of the last 30.
+            main_runs, _ = get(f"/repos/{REPO}/actions/workflows/{w['id']}/runs?per_page={TIMELINE_RUNS}&branch=main")
+            recent = [r for r in sorted(main_runs.get("workflow_runs", []), key=started, reverse=True)
+                      if r.get("status") == "completed" and now - started(r) <= EVENT_WINDOW
+                      and r.get("event") != "pull_request"]
             for r in recent[:TIMELINE_RUNS]:
                 kind, app, result = run_result(wf, r)
                 event(o, ts(r["updated_at"]), "github", kind, app, r.get("display_title") or wf, result,
