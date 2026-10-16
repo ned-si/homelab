@@ -55,7 +55,7 @@ NOW=${NOW:-$(date +%s)}
 MAX_AGE=${MAX_AGE:-3600}
 LOOP_WINDOW=${LOOP_WINDOW:-86400}
 NO_REVERT_APPS=${NO_REVERT_APPS:-cilium democratic-csi tuppr}
-STATEFUL_APPS=${STATEFUL_APPS:-immich keycloak mealie paperless seafile theater}
+STATEFUL_APPS=${STATEFUL_APPS:-immich keycloak mealie paperless theater}
 OUTAGE_CHECK=${OUTAGE_CHECK:-}
 GUARD_WAIT=${GUARD_WAIT:-0}
 

@@ -45,7 +45,6 @@ resources:
   - 15-theater-metrics.yaml
   - 20-immich.yaml
   - 30-paperless.yaml
-  - 40-seafile.yaml
   - 50-mealie.yaml
   - 60-syncthing.yaml
   # The switch. Last on purpose: it is the file you edit.

@@ -111,14 +111,12 @@ echo
 #     apps/paperless/backup.yaml                     paperless/media
 #     apps/theater/backup.yaml                       theater/configs  (x7 jobs)
 #     apps/theater/backup-bazarr.yaml                theater/configs  (bazarr)
-#     apps/seafile/backup.yaml                       seafile/shared
 #     apps/syncthing/backup.yaml                     syncthing/data
 #     apps/mealie/backup.yaml                        mealie/data
 #     apps/home/backup.yaml                          home/configs
 #     platform/kube-prometheus-stack/routes/grafana-backup.yaml
 #                                                    grafana/data
 #     platform/backup-verify/scripts/verify-files.sh the restore tests' repository
-#     platform/backup-verify/scripts/verify-mariadb.sh prefix
 FILES="
 apps/immich/resources/backup.yaml
 apps/immich/resources/backup-files.yaml
@@ -127,7 +125,6 @@ apps/theater/cnpg-backup.yaml
 apps/paperless/backup.yaml
 apps/theater/backup.yaml
 apps/theater/backup-bazarr.yaml
-apps/seafile/backup.yaml
 apps/syncthing/backup.yaml
 apps/mealie/backup.yaml
 apps/home/cnpg-backup.yaml
@@ -136,7 +133,6 @@ platform/keycloak/backup.yaml
 platform/kube-prometheus-stack/routes/grafana-backup.yaml
 platform/backup-verify/object-store.yaml
 platform/backup-verify/scripts/verify-files.sh
-platform/backup-verify/scripts/verify-mariadb.sh
 "
 
 # Portable in-place edit. See defect 1 in the header: `sed -i ''` is BSD-only
@@ -381,7 +377,7 @@ echo "      task secrets:edit -- platform/secrets/s3-backup.sops.yaml"
 echo "  - bootstrap/aws-backup/main.tf: local.restic_repos must list EVERY"
 echo "    restic repository, or its pack files stay in S3 Standard at roughly"
 echo "    6x the price and nothing warns you. Currently expected:"
-echo "      immich/library  paperless/media  theater/configs  seafile/shared"
+echo "      immich/library  paperless/media  theater/configs"
 echo "      syncthing/data  mealie/data      grafana/data"
 
 echo

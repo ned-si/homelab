@@ -2,43 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: seafile
 
-# Parity with the running cluster (ADR 0002), plus the restic backup and its
-# monthly prune (backup.yaml, docs/backups.md).
+# Seafile is decommissioned (docs/decisions.md). Only the two claims are left,
+# so Argo CD prunes everything else; they carry Delete=false,Prune=false and
+# keep their data on the NAS until the volumes are deleted.
 resources:
   - pvc.yaml
-  - mariadb.yaml
-  - memcached.yaml
-  - deployment.yaml
-  - service.yaml
-  - httproute.yaml
-  - backup.yaml
-
-# Before every sync: the database backup, unless one is < 24 h old.
-# After every sync: the Service answers on the health endpoint.
-components:
-  - ../../components/presync-backup
-  - ../../components/postsync-smoke
-replacements:
-  - source: { kind: Deployment, name: mariadb, fieldPath: "spec.template.spec.containers.[name=mariadb].image" }
-    targets:
-      - select: { kind: ConfigMap, name: presync-backup-desired }
-        fieldPaths: [data.mariadb]
-        options: { create: true }
-patches:
-  - target: { kind: Job, name: presync-backup }
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value: { name: MODE, value: cronjob }
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value: { name: CRONJOB, value: seafile-backup }
-      - op: add
-        path: /spec/template/spec/containers/0/env/-
-        value: { name: IMAGE_CHECKS, value: deployment/mariadb }
-  - target: { kind: Job, name: postsync-smoke }
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/args
-        value:
-          - http://seafile/api2/ping/

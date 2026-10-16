@@ -9,8 +9,6 @@ mealie-files|s3:mealie/data|mealie-files|/data/.secret
 mealie-postgres|s3:mealie/data|mealie-postgres|/dumps/pg-mealie-mealie-postgresql.dump
 paperless-media|s3:paperless/media|paperless-media|
 paperless-data|s3:paperless/media|paperless-data|/data/db.sqlite3
-seafile-data|s3:seafile/shared|seafile-data|/shared/seafile/conf/seafile.conf;/shared/seafile/conf/ccnet.conf
-seafile-mariadb|s3:seafile/shared|seafile-mariadb|/dumps/seafile-mariadb.sql.gz
 syncthing-identity|s3:syncthing/data|syncthing-identity|/data/config/cert.pem;/data/config/key.pem;/data/config/config.xml
 theater-postgres|s3:theater/configs|theater-postgres|/dumps/pg-sonarr.dump;/dumps/pg-radarr.dump;/dumps/pg-lidarr.dump;/dumps/pg-prowlarr.dump
 sonarr|s3:theater/configs|sonarr|/config/config.xml

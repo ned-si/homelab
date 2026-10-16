@@ -12,7 +12,7 @@ point, a credential or an admission path is added or removed.
 | Asset | Where | Lost | Leaked | Protection |
 | --- | --- | --- | --- | --- |
 | Photos and videos (Immich originals) | PVC `immich-data` on the NAS | irreplaceable | private family data | restic to S3 and to the NAS, restore rehearsed ([backups.md](backups.md)); Keycloak login |
-| Documents (Paperless, Seafile, Syncthing) | iSCSI PVCs on the NAS | hard to replace | private, some official papers | nightly restic to S3; Keycloak login (Paperless, Seafile) |
+| Documents (Paperless, Syncthing) | iSCSI PVCs on the NAS | hard to replace | private, some official papers | nightly restic to S3; Keycloak login (Paperless) |
 | age private key | the Mac, the password manager, Secret `argo/sops-age` | every sealed secret must be recreated | every secret in git, including history, is readable | three copies only, mode 600 on the Mac ([secrets.md](secrets.md#the-key)) |
 | `talosconfig` | the Mac, the password manager | regenerated from `talos/talsecret.sops.yaml` | full control of every node: reset, upgrade, read machine configs and their keys | mTLS client certificate, role `os:admin`; Talos API reachable from the LAN only |
 | Admin kubeconfig | the Mac, the password manager | regenerated with `talosctl kubeconfig` | `cluster-admin` (group `system:masters`); cannot be revoked short of a CA rotation | client certificate; API VIP `192.168.1.11` reachable from the LAN only |
@@ -26,7 +26,7 @@ point, a credential or an admission path is added or removed.
 - Threats: S (credential stuffing on Keycloak), I (an app's own unauthenticated
   endpoints), D (floods), E (a vulnerable app).
 - Control: TLS with the Let's Encrypt wildcard; port 80 only redirects. Immich,
-  Mealie, Paperless, Seafile, Grafana and Argo CD log in through Keycloak.
+  Mealie, Paperless, Grafana and Argo CD log in through Keycloak.
   Plex and Jellyfin keep their own login (their TV apps cannot use SSO), and
   so do the *arr UIs under `theater.lilalala.com/arr/<app>`. PSA `restricted`
   on the `gateway` namespace. DAST (ZAP) runs against the public names.

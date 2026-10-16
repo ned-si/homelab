@@ -1,17 +1,17 @@
 # Backups
 
-The data of Immich, Mealie, Paperless, Seafile, Syncthing and the theater apps is
+The data of Immich, Mealie, Paperless, Syncthing and the theater apps is
 backed up nightly with restic to one S3 bucket (`ned-si-homelab-backups`,
 `eu-central-1`). The
 Immich photo library also has a second, independent restic repository on the NAS.
 Every CloudNativePG cluster archives its WAL continuously and takes a daily base
 backup to the same bucket (`cnpg/<serverName>/`) through the Barman Cloud plugin,
 kept 30 days, so each Postgres database can be recovered to any point in that
-window. MariaDB and the Mealie and *arr Postgres databases are also captured as
+window. The Mealie, Home Assistant and *arr Postgres databases are also captured as
 logical dumps inside the restic repositories.
 
 Every week, `backup-verify` restores a sample of every restic repository, every
-CNPG cluster and the Seafile MariaDB dump, compares them with the source and
+CNPG cluster, compares them with the source and
 reports to Prometheus ([Verification](#verification)). The manual steps are in
 [How to restore](#how-to-restore).
 
@@ -28,7 +28,7 @@ One restic repository per prefix. The restic URL is
 | `immich/library` | `immich` | `/data` → `immich-library` | PVC `immich-data` (read-only), minus `thumbs/`, `encoded-video/`, `.tmp` | 256 GiB, 50,822 files |
 | `mealie/data` | `mealie` | `/data` → `mealie-files`; `/dumps` → `mealie-postgres` | PVC `mealie-pvc`; `pg_dump` of `mealie-postgresql` | 1.5 MiB |
 | `paperless/media` | `paperless` | `/media` → `paperless-media`; `/data` → `paperless-data` | PVCs `paperless-media`, `paperless-data` (includes `db.sqlite3`) | 2.4 MiB |
-| `seafile/shared` | `seafile` | `/shared` → `seafile-data`; `/dumps` → `seafile-mariadb` | PVC `seafile-pvc`; `mariadb-dump` of Seafile's MariaDB | 0.7 MiB |
+| `seafile/shared` (retained) | `seafile` | `/shared` → `seafile-data`; `/dumps` → `seafile-mariadb` | none since Seafile was removed ([decisions.md](decisions.md#seafile-removed)) | 0.7 MiB |
 | `syncthing/data` | `syncthing` | `/data` → `syncthing-identity` | PVC `syncthing-pvc` | 8.2 MiB |
 | `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`, `lazylibrarian`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
 | `books/configs` | `books` | `/data` → `audiobookshelf`; `/library` → `calibre-library`; `/config` → `calibre-web` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs`; NFS `books/ebooks`; PVC `calibre-web-config`, minus `log` | not yet measured |
@@ -36,8 +36,15 @@ One restic repository per prefix. The restic URL is
 | `grafana/data` | `grafana` | `/data` → `grafana-config` (minus `grafana.db*`); `/data/grafana.db*` → `grafana-db-besteffort` | PVC `kube-prometheus-stack-grafana`: the service accounts and their tokens, preferences, annotations | not yet measured |
 
 Every snapshot in `theater/configs` also carries the tag `theater-configs`. The
-dumps are files named `pg-<app>.dump` (theater), `pg-mealie-mealie-postgresql.dump`
-and `seafile-mariadb.sql.gz` under `/dumps` in the snapshot.
+dumps are files named `pg-<app>.dump` (theater) and
+`pg-mealie-mealie-postgresql.dump` under `/dumps` in the snapshot.
+
+`seafile/shared` is retained: nothing writes to it or prunes it, and the bucket
+policy keeps its versions like any other prefix. Its last snapshots are
+`34f34ea0` (tag `seafile-mariadb`, the dump of `ccnet_db`, `seafile_db` and
+`seahub_db`, 161 tables) and `8838dac0` (tag `seafile-data`, `/shared` with
+`seafile/conf/`). Restore them with `restic restore <id>`; the dump loads into
+`mariadb:10.11`.
 
 The jobs run as uid 1000 with the source volumes mounted read-only. Credentials
 come from the Secret `s3-backup` (the writer key and `RESTIC_PASSWORD`), present in
@@ -63,7 +70,6 @@ upgrades, not against losing the NAS.
 | `mealie/mealie-postgresql` | Barman Cloud plugin: WAL + `mealie-postgresql-daily`; `pg_dump` in `mealie-backup` | `cnpg/mealie-postgresql-t1/`; `mealie/data` | point-in-time, 30 days; dump consistent, one transaction |
 | `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | Barman Cloud plugin: WAL + `<cluster>-daily`; `pg_dump` in `theater-postgres-backup` | `cnpg/<cluster>-t1/`; `theater/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | `home/home-assistant-postgresql` | Barman Cloud plugin: WAL + `home-assistant-postgresql-daily`; `pg_dump` in `home-assistant-backup` | `cnpg/home-assistant-postgresql/`; `home/configs` | point-in-time, 30 days; dump consistent, one transaction |
-| Seafile MariaDB | `mariadb-dump --single-transaction` (client `mariadb:10.11`, same as the server) in `seafile-backup` | `seafile/shared` | consistent, no table locks |
 | Paperless SQLite | file copy of `db.sqlite3` inside `/data` | `paperless/media` | may be torn: the restic image has no `sqlite3`, so `.backup` is skipped and the job logs a warning |
 | Grafana SQLite | file copy of `grafana.db` (and `-wal`/`-shm`) in `grafana-backup` | `grafana/data` | may be torn, tagged `grafana-db-besteffort`; dashboards and datasources are in git |
 
@@ -90,7 +96,7 @@ Expected: `True`; a `firstRecoverabilityPoint` and `lastSuccessfulBackupTime` fo
 `mealie-postgresql`; a `mealie-postgresql-daily-<timestamp>` Backup in phase
 `completed` from the last night.
 
-Before every sync of `mealie`, `seafile`, `theater`, `home`, `keycloak` and `immich`,
+Before every sync of `mealie`, `theater`, `home`, `keycloak` and `immich`,
 including selfHeal syncs, an Argo CD PreSync hook
 (`components/presync-backup`) decides whether a backup is needed:
 
@@ -98,11 +104,11 @@ including selfHeal syncs, an Argo CD PreSync hook
 |---|---|
 | The CronJob or CNPG Cluster does not exist yet (fresh cluster) | nothing |
 | The database image changes major version, or the app is `immich` | backs up |
-| `mealie`, `seafile`, `theater`, `home`: the backup CronJob last succeeded < 24 h ago | nothing |
+| `mealie`, `theater`, `home`: the backup CronJob last succeeded < 24 h ago | nothing |
 | `keycloak`: WAL archiving works and the last base backup is < 24 h old | nothing |
 | Otherwise | backs up |
 
-A backup is the app's backup CronJob run once (`mealie`, `seafile`,
+A backup is the app's backup CronJob run once (`mealie`,
 `theater`, `home`) or a Barman Cloud base backup (`Backup` `presync-<cluster>`). The
 hook waits for it; a failed backup fails the sync, so no database major is
 applied without a fresh, verified backup. Postgres majors are
@@ -113,7 +119,7 @@ held by a Renovate rule until a major bump also moves the plugin's `serverName`
 
 | What | Where | How |
 |---|---|---|
-| All nine databases (seven Postgres, Seafile MariaDB, Paperless SQLite) | `~/homelab-backups/<utc>/` on the machine that runs it | `task backup:dump`, by hand |
+| All eight databases (seven Postgres, Paperless SQLite) | `~/homelab-backups/<utc>/` on the machine that runs it | `task backup:dump`, by hand |
 | etcd | `~/homelab-backups/etcd/talos-<utc>.db` | `task talos:etcd-snapshot`, by hand before every upgrade or risky change, [runbooks/cold-start.md](runbooks/cold-start.md#etcd-snapshot-and-restore) |
 | Cluster configuration | this repository | every manifest is in git; see [bootstrap.md](bootstrap.md) |
 
@@ -132,7 +138,6 @@ restored and size-checked every week ([Verification](#verification)).
 | Postgres databases (all eight CNPG clusters) | S3 (Barman Cloud) | about 5 min (`archive_timeout`) | weekly, every cluster into a new cluster, row counts equal to the source | 2 to 5 min per cluster into a new cluster (table in [Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3)) |
 | Mealie files + database dump | S3 | 24 h | weekly sample; full by hand 2026-10-06 | restore 24 s; dump restored into a throwaway Postgres, row counts equal to live |
 | Paperless documents + SQLite | S3 | 24 h | weekly sample | — |
-| Seafile blobs + MariaDB | S3 | 24 h | weekly sample; dump loaded into a scratch MariaDB and compared weekly | — |
 | Syncthing identity + config | S3 | 24 h | weekly sample (`cert.pem`, `key.pem`, `config.xml`) | — |
 | *arr, Plex, Jellyfin config and *arr databases | S3 | 24 h | weekly sample (Bazarr from its first snapshot on) | — |
 | Audiobookshelf config and database backups | S3 | 24 h | weekly sample | — |
@@ -154,7 +159,6 @@ the NAS:
 | 01:30 | `immich/immich-library-backup-local` (NAS) |
 | 02:00 | `syncthing/syncthing-backup` |
 | 02:30 | `paperless/paperless-backup` |
-| 03:00 | `seafile/seafile-backup` |
 | 03:20 | `mealie/mealie-backup` |
 | 03:30 | `immich/immich-library-backup` (S3) |
 | 03:40 | `theater/theater-postgres-backup` |
@@ -166,7 +170,7 @@ the NAS:
 | 05:30 | `theater/theater-config-backup-lazylibrarian` |
 | 05:40 | `home/home-assistant-backup` |
 | 05:50 | `monitoring/grafana-backup` (keeps its own 7 daily / 4 weekly / 6 monthly; no prune job) |
-| 1st of the month, 12:00–13:45 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, seafile 12:45, theater 13:00, books 13:15, immich 13:30, home 13:45 |
+| 1st of the month, 12:00–13:45 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, theater 13:00, books 13:15, immich 13:30, home 13:45 |
 
 The theater jobs share one repository and restic takes an exclusive lock for
 `backup`, hence the spacing. Each nightly job ends with
@@ -174,8 +178,8 @@ The theater jobs share one repository and restic takes an exclusive lock for
 other rendered CronJob that is not suspended.
 
 The restore tests run on weekend evenings, outside this window and one at a
-time: `backup-verify-lock` Saturday 20:00, `backup-verify-mariadb` Saturday
-21:00, `backup-verify-files` Saturday 22:00, `backup-verify-postgres` Sunday
+time: `backup-verify-lock` Saturday 20:00, `backup-verify-files` Saturday
+22:00, `backup-verify-postgres` Sunday
 21:00 ([Verification](#verification)).
 
 A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack.
@@ -198,7 +202,7 @@ kubectl get jobs -A | grep -E 'backup|prune'       # after 05:30 UTC: every job 
 | Repository | Nightly job | Monthly `*-prune` job |
 |---|---|---|
 | `immich/library`, `mealie/data`, `theater/configs`, `home/configs` | backup + check | `forget --keep-within 3m --keep-monthly 12 --prune`, then check |
-| `paperless/media`, `seafile/shared`, `syncthing/data` | backup + check | `forget --keep-within 3m --keep-monthly 24 --prune`, then check |
+| `paperless/media`, `syncthing/data` | backup + check | `forget --keep-within 3m --keep-monthly 24 --prune`, then check |
 | NAS `immich/library` | backup + `forget --keep-daily 14 --keep-weekly 8 --keep-monthly 6 --prune` + check | — |
 
 `theater-configs-prune` uses `--group-by host,paths,tags`, so each app keeps its own
@@ -638,8 +642,8 @@ Nothing quiesces before a backup. Every Application except `immich` runs
 `selfHeal: true`, so Argo CD would revert `replicas: 0` within seconds and restart
 the app mid-backup.
 
-**Consistent.** The `pg_dump` and `mariadb-dump --single-transaction` snapshots.
-Content-addressed, write-once files: the Immich library, Seafile blobs, Mealie
+**Consistent.** The `pg_dump` snapshots.
+Content-addressed, write-once files: the Immich library, Mealie
 uploads; a live copy cannot be torn, and an upload caught in flight is picked up on
 the next run. XML configuration written by rename (the *arr `config.xml`,
 Jellyfin's `config/`).
@@ -667,10 +671,9 @@ Jellyfin's `config/`).
   identity check (`restic ls` must find all three files) passes. Restore only the
   three identity files; Syncthing rebuilds its index by rescanning.
 
-**Seafile needs both halves.** The blobs are hash-named files; the MariaDB dump is
-the index that maps them to files, libraries and owners. The job dumps the database
-first and the blobs second, so a file uploaded in between leaves an orphan blob
-rather than a database row with no blob. Restore both from the same night.
+**Seafile (retained repository) needs both halves.** The blobs are hash-named
+files; the MariaDB dump is the index that maps them to files, libraries and
+owners. Restore `34f34ea0` and `8838dac0` together.
 
 ## The bucket
 
@@ -817,13 +820,13 @@ deletes one when its manifest leaves git.
 ## Local dumps and pre-upgrade snapshots
 
 ```sh
-task backup:dump      # -> ~/homelab-backups/<utc>/, all nine databases, verified
+task backup:dump      # -> ~/homelab-backups/<utc>/, all eight databases, verified
 
 task backup:verify-restore -- immich immich-db \
   ~/homelab-backups/<utc>/pg-immich-immich-db.dump
 ```
 
-`backup:dump` dumps the seven Postgres clusters, Seafile's MariaDB and Paperless'
+`backup:dump` dumps the seven Postgres clusters and Paperless'
 SQLite to local disk and verifies each, including a sha256 taken at the source. It
 exits non-zero on any failure and never writes to the cluster. The checks are listed
 in the header of `scripts/dump-databases.sh`.
@@ -923,7 +926,6 @@ and the production databases through read-only transactions.
 | CronJob (UTC) | What it proves | Pass when |
 | --- | --- | --- |
 | `backup-verify-lock`, Saturday 20:00 | an old version in the bucket cannot be deleted ([Immutable versions](#immutable-versions)) | the delete of the older version of `_lock-test/weekly` is refused by the bucket policy, and the policy still denies `s3:DeleteObjectVersion` to every principal |
-| `backup-verify-mariadb`, Saturday 21:00 | the newest `seafile-mariadb` dump loads into a scratch MariaDB (same image as the server, on an emptyDir) | the table sets of `ccnet_db`, `seafile_db` and `seahub_db` equal the live server's, and every table not written since the dump has the live row count |
 | `backup-verify-files`, Saturday 22:00 | per tag in `scripts/restic-targets.txt`: the newest snapshot restores, with `restic restore --verify`, into an emptyDir | the snapshot is at most 72 h old, every required file (identity, keys, configs, dumps) is in it and non-empty, and the required files plus five sampled files of up to 64 MiB (a different sample every ISO week) restore with the size the snapshot records |
 | the same job, first Saturday of the month | `restic check --read-data-subset=<n>/<slices>` on every repository in `scripts/restic-data-targets.txt` | no errors; the slice rotates monthly, so every pack is read once every 12 months (S3 `immich/library`: 1/120 a month, about 2.3 GiB) |
 | `backup-verify-postgres`, Sunday 21:00 | each CNPG cluster in `scripts/postgres-targets.txt`, one at a time, recovers from its Barman Cloud archive into a new Cluster `bv-<cluster>` | the restored database has the same tables and, in every table, the same row count as the source at the recovery target (its LSN); `immich-db` also holds at least 49,032 images and 2,377 videos |
@@ -935,15 +937,15 @@ up to 7.5 minutes for the WAL of that moment to be archived, and recovers to tha
 LSN through ObjectStore `verify-source`. The restore has no `spec.plugins`, so it
 cannot write to the bucket, and runs on an `iscsi` volume the size of the source's
 (5 Gi), deleted with the Cluster before the next one starts. The run takes about
-an hour. The restic and MariaDB tests use only emptyDirs (4 Gi and 1 Gi at most).
+an hour. The restic test uses only emptyDirs (4 Gi at most).
 
 ### Reading the results
 
 Grafana dashboard Homelab / Data protection (`/d/homelab-data-protection`)
 shows the last result of every check next to the backup freshness. Each check
 pushes its result to the Pushgateway in `backup-verify`, which Prometheus
-scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
-`mariadb`) and `target` (the tag, repository or cluster).
+scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`)
+and `target` (the tag, repository or cluster).
 
 | Metric | Meaning |
 | --- | --- |
@@ -951,7 +953,7 @@ scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
 | `backup_verify_last_success_timestamp_seconds` | end of the last passing run |
 | `backup_verify_last_run_timestamp_seconds`, `backup_verify_duration_seconds` | end and length of the last run |
 | `backup_verify_snapshot_timestamp_seconds` | time of the backup that was tested |
-| `backup_verify_rows`, `backup_verify_tables` | rows and tables restored and compared (Postgres, MariaDB) |
+| `backup_verify_rows`, `backup_verify_tables` | rows and tables restored and compared (Postgres) |
 | `backup_verify_files`, `backup_verify_bytes` | files and bytes restored (restic) |
 | `backup_verify_restore_seconds` | time to a Ready restored cluster (Postgres) |
 | `backup_verify_lock_ok` | lock test (`check="lock"`): 1 the version delete was refused by the bucket policy, 0 it succeeded or the deny is gone; not pushed by an inconclusive run |

@@ -49,22 +49,22 @@ tests:
   # slow burn stays quiet because the fast burn already notified.
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox-public", app="drive"}'
+      - series: 'probe_success{job="blackbox-public", app="archive"}'
         values: '1x1379 0x29 1x100'
     alert_rule_test:
       - eval_time: 1400m
         alertname: SLOErrorBudgetBurnFast
         exp_alerts:
           - exp_labels:
-              app: drive
-              namespace: seafile
+              app: archive
+              namespace: paperless
               severity: critical
               action: auto
             exp_annotations:
-              summary: drive is burning its 30-day error budget fast
+              summary: archive is burning its 30-day error budget fast
               description: >-
-                At this rate the 99.5% availability budget of drive is gone
-                within days. Check https://drive.lilalala.com, then the Homelab
+                At this rate the 99.5% availability budget of archive is gone
+                within days. Check https://archive.lilalala.com, then the Homelab
                 overview dashboard (probe status and duration).
       - eval_time: 1450m
         alertname: SLOErrorBudgetBurnFast
@@ -146,8 +146,6 @@ tests:
       - series: 'probe_success{job="blackbox-public", app="archive"}'
         values: '1x30'
       - series: 'probe_success{job="blackbox-public", app="cook"}'
-        values: '1x30'
-      - series: 'probe_success{job="blackbox-public", app="drive"}'
         values: '1x30'
       - series: 'probe_success{job="blackbox-public", app="syncthing"}'
         values: '1x30'

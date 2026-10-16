@@ -70,7 +70,6 @@ spec:
       expr: |
         absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic"}[9d])
         or absent_over_time(backup_verify_last_success_timestamp_seconds{check="postgres"}[9d])
-        or absent_over_time(backup_verify_last_success_timestamp_seconds{check="mariadb"}[9d])
         or absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic-data"}[30d])
       for: 1h
       labels:

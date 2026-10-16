@@ -196,62 +196,7 @@ kubectl get clusters.postgresql.cnpg.io -A \
   done
 
 # ---------------------------------------------------------------------------
-# 2. MariaDB (Seafile). Not CloudNativePG, so no PITR and no generated
-#    credentials -- the root password comes from the Secret `seafile-db`.
-# ---------------------------------------------------------------------------
-if kubectl -n seafile get deploy mariadb >/dev/null 2>&1; then
-  f="$DEST/mariadb-seafile.sql.gz"
-
-  # --single-transaction keeps InnoDB consistent without locking the tables, so
-  # Seafile keeps working while this runs. --routines/--events/--triggers because
-  # the default omits them and their absence only shows up at restore time.
-  #
-  # The password is read from the Secret, not from the pod's
-  # MARIADB_ROOT_PASSWORD: a pod's environment is fixed when it starts, so after
-  # a rotation the running pod still holds the old value. It travels through a
-  # pipe into `read` in the pod and reaches mariadb-dump as MYSQL_PWD, so it is
-  # never on an argv here or in the pod (visible to `ps` and /proc).
-  # shellcheck disable=SC2016
-  sha=$(kubectl -n seafile get secret seafile-db -o jsonpath='{.data.root-password}' 2>/dev/null \
-        | base64 -d \
-        | kubectl -n seafile exec -i deploy/mariadb -- \
-          sh -c 'IFS= read -r MYSQL_PWD; export MYSQL_PWD; \
-                 mariadb-dump -u root \
-                   --single-transaction --routines --events --triggers \
-                   --databases ccnet_db seafile_db seahub_db \
-                 2>/tmp/m.err | gzip -c > /tmp/m.sql.gz \
-                 && sha256sum /tmp/m.sql.gz | cut -d" " -f1' 2>/dev/null | tr -d '\r')
-
-  if [ -n "$sha" ]; then
-    kubectl -n seafile exec deploy/mariadb -- cat /tmp/m.sql.gz > "$f" 2>/dev/null
-    kubectl -n seafile exec deploy/mariadb -- rm -f /tmp/m.sql.gz /tmp/m.err >/dev/null 2>&1
-
-    if verify_sha "$f" "$sha"; then
-      # mariadb-dump writes a completion marker as its last line. Its absence is
-      # how you detect a dump that died halfway.
-      if gzip -dc "$f" 2>/dev/null | tail -3 | grep -q 'Dump completed'; then
-        tbl=$(gzip -dc "$f" 2>/dev/null | grep -c '^CREATE TABLE')
-        printf '%-34s %-12s %-10s %s\n' "ok  sha+end-marker" \
-          "$(du -h "$f" | cut -f1)" "$tbl" "$(basename "$f")" | tee -a "$MANIFEST"
-        echo "    sha256  $sha" >> "$MANIFEST"
-        pass "$(basename "$f")"
-      else
-        printf '%-34s %-12s %-10s %s\n' "FAIL (truncated dump)" \
-          "$(du -h "$f" | cut -f1)" - "$(basename "$f")" | tee -a "$MANIFEST"
-        fail "$(basename "$f")"
-      fi
-    else
-      printf '%-34s %-12s %-10s %s\n' "FAIL (sha mismatch)" - - "$(basename "$f")" | tee -a "$MANIFEST"
-      fail "$(basename "$f")"
-    fi
-  else
-    printf '%-34s %-12s %-10s %s\n' "FAIL (mariadb-dump)" - - "$(basename "$f")" | tee -a "$MANIFEST"
-    fail "$(basename "$f")"
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# 3. Paperless SQLite
+# 2. Paperless SQLite
 #
 #    NOT a file copy. Copying a live SQLite file can capture a torn write.
 #    The image has no `sqlite3` binary -- checked -- but it does have Python,

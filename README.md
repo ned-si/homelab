@@ -87,7 +87,6 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Sonarr, Radarr, Lidarr, Prowlarr | Media management | `theater` | `theater` under `/arr/<app>` | No |
 | qBittorrent | Downloads | `theater` | none (LAN only; seeding port on `.200`) | No |
 | Jellyfin | Media server | `theater` | `cinema` | No |
-| Seafile | File sync and share | `seafile` | `drive` | No |
 | Paperless-ngx | Document archive | `paperless` | `archive` | Yes |
 | Mealie | Recipes | `mealie` | `cook` | Yes |
 | Home Assistant, Mosquitto, Zigbee2MQTT | Home automation ([docs/home-automation.md](docs/home-automation.md)) | `home` | `home` | Yes (Home Assistant) |
@@ -161,7 +160,7 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | [`clusters/homelab/`](clusters/homelab) | Argo CD objects only: `root.yaml` -> three layers (`infrastructure`, `platform`, `apps`) -> one Application per app |
 | [`infrastructure/`](infrastructure) | Namespaces, Cilium pools, cert-manager, external-dns, the shared Gateway, democratic-csi |
 | [`platform/`](platform) | CloudNativePG, kube-prometheus-stack, Keycloak |
-| [`apps/`](apps) | Immich, Mealie, Paperless, Seafile, Syncthing, the theater stack |
+| [`apps/`](apps) | Immich, Mealie, Paperless, Syncthing, the theater stack |
 | `*/secrets/` | SOPS-encrypted Secrets (age), decrypted by KSOPS in Argo CD |
 | [`deploy/`](deploy) | Rendered manifests Argo CD reads (`scripts/render-deploy.sh`; CI fails if stale) |
 | [`bootstrap/`](bootstrap) | `root-app.yaml` (the root Application, applied once by hand), values for the `argocd` Helm release, OpenTofu for a fresh install |

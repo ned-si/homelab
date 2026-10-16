@@ -75,7 +75,7 @@ updates the Cloudflare records on its next loop (one minute):
 kubectl -n external-dns get deploy external-dns \
   -o jsonpath='{.spec.template.spec.containers[0].args}' | tr ',' '\n' | grep default-targets
 kubectl -n external-dns logs deploy/external-dns --since=10m | grep -i 'UPDATE' | head
-for h in argo auth grafana theater cinema media archive cook drive syncthing; do
+for h in argo auth grafana theater cinema media archive cook syncthing; do
   printf '%-10s %-16s %s\n' "$h" "$(dig +short "$h.lilalala.com" @1.1.1.1 | tr '\n' ' ')" \
     "$(curl -s -o /dev/null -m 15 -w '%{http_code}' "https://$h.lilalala.com/")"
 done

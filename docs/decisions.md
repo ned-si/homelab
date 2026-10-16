@@ -115,8 +115,7 @@ Nothing waits for a person: Renovate automerges every update on green CI
 reverted automatically ([Automatic rollback](#automatic-rollback)). The only
 exclusions are technical caps with a stated reason and an upstream source: the
 Immich database image (a VectorChord update or a PostgreSQL major is one-way),
-and versions a consumer does not support yet
-(MariaDB for Seafile 11, Seafile 12). Policy gates, once they exist, are Kyverno
+and versions a consumer does not support yet. Policy gates, once they exist, are Kyverno
 policies, not approvals.
 
 Why: one operator, and the goal is a system that updates and heals at any time.
@@ -149,9 +148,9 @@ revert).
 
 ## Database majors fix forward
 
-A database image bump (CloudNativePG Postgres, Seafile's MariaDB) automerges
-like any update. Its server and backup client share one Renovate dependency, so
-`pg_dump` and `mariadb-dump` always match the server. Before every sync of an
+A database image bump (CloudNativePG Postgres) automerges like any update.
+Its server and backup client share one Renovate dependency, so `pg_dump`
+always matches the server. Before every sync of an
 app with a database, a PreSync hook runs its verified backup
 ([backups.md](backups.md#databases)); a failed backup fails the sync.
 
@@ -280,3 +279,20 @@ scoped to named resources, not a stored key.
 Rejected: a self-hosted runner in the cluster with Kubernetes and Talos
 credentials, and applying Talos config drift automatically (a config change
 can reboot a node; the alert asks for `task talos:apply`).
+
+## Seafile removed
+
+Seafile was removed on 2026-10-16. Nobody used it: shared documents live in
+Google Docs, files that must sync between devices in Syncthing, and paperwork
+belongs in Paperless. It was the most complex app here (its own MariaDB and
+memcached, its configuration inside the volume instead of git, a pinned
+MariaDB 10.11 and a manual port to Seafile 12 ahead).
+
+Kept as an archive: the restic repository `seafile/shared` (no new snapshots,
+no prune, under the bucket policy; the last snapshots are `34f34ea0`, the
+MariaDB dump, and `8838dac0`, the data and its configuration), and the two
+zvols behind the PVs `pvc-2b0f41c1-041d-47a5-81cc-16371f05ea21` and
+`pvc-2ed5ccbe-1e8d-4ab4-9ba1-8ac0bd74a126` with their claims in namespace
+`seafile`. Delete the volumes after 2026-11-16 if nobody asks for them.
+
+Rejected: upgrading to Seafile 12 to keep a file share no one opens.

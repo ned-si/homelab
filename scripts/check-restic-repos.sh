@@ -58,8 +58,17 @@ if [ -z "$tf_repos" ]; then
   exit 1
 fi
 
+# A repository kept for its snapshots after its app is gone has no writer: its
+# line in $TF carries the comment `# retained`.
+retained=$(sed -n '/restic_repos *= *\[/,/^  \]/p' "$TF" \
+  | grep '# retained' \
+  | grep -oE '"[a-z0-9-]+/[a-z0-9-]+"' \
+  | tr -d '"' \
+  | sort -u)
+
 missing=$(comm -23 <(printf '%s\n' "$manifest_repos") <(printf '%s\n' "$tf_repos"))
-extra=$(comm -13 <(printf '%s\n' "$manifest_repos") <(printf '%s\n' "$tf_repos"))
+extra=$(comm -13 <(printf '%s\n' "$manifest_repos") <(printf '%s\n' "$tf_repos") \
+  | comm -23 - <(printf '%s\n' "$retained"))
 
 printf 'restic repositories in manifests: %s\n' "$(printf '%s\n' "$manifest_repos" | wc -l | tr -d ' ')"
 printf 'covered by lifecycle rules:       %s\n' "$(printf '%s\n' "$tf_repos" | wc -l | tr -d ' ')"

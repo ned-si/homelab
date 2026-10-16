@@ -1,6 +1,6 @@
 # backup-verify-postgres creates and deletes its restore Clusters in this
 # namespace only. Outside it, it can read the source Clusters and their -app
-# Secrets (and Seafile's database Secret, for backup-verify-mariadb) by name,
+# Secrets by name,
 # nothing else.
 ---
 apiVersion: v1
@@ -68,7 +68,6 @@ rules:
       - radarr-postgresql-app
       - lidarr-postgresql-app
       - prowlarr-postgresql-app
-      - seafile-db
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

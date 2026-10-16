@@ -74,12 +74,6 @@ SNAP_CLASS="${SNAP_CLASS:-iscsi}"
 # ---------------------------------------------------------------------------
 #
 # NOT LISTED, deliberately:
-#   seafile-mariadb   a snapshot of a live MariaDB datadir is only
-#                     crash-consistent. Step 1 below takes a proper logical dump
-#                     with `mariadb-dump --single-transaction`, which is both
-#                     consistent AND restorable into a different MariaDB version
-#                     -- the thing a major upgrade actually needs. Same
-#                     reasoning as for the Postgres clusters.
 #   theater/*-config  backed up nightly and consistently by
 #                     apps/theater/backup.yaml, and reproducible.
 #
@@ -88,7 +82,6 @@ VOLUMES="
 immich     immich-data
 paperless  paperless-media
 paperless  paperless-data
-seafile    seafile-data
 mealie     mealie-data
 syncthing  syncthing-pvc
 "

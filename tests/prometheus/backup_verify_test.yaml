@@ -44,8 +44,6 @@ tests:
         values: '0x900'
       - series: 'backup_verify_last_success_timestamp_seconds{check="postgres", target="immich-db"}'
         values: '0x900'
-      - series: 'backup_verify_last_success_timestamp_seconds{check="mariadb", target="seafile"}'
-        values: '0x900'
     alert_rule_test:
       - eval_time: 8d
         alertname: BackupVerifyStale
@@ -74,18 +72,6 @@ tests:
               summary: "No passing restore test in 8 days: postgres/immich-db"
               description: >-
                 postgres/immich-db last passed
-                8d 2h 0m 0s ago. Either its CronJob did not
-                run or every run failed: kubectl -n backup-verify get cronjobs,jobs.
-                Runbook: docs/backups.md#when-a-restore-test-fails
-          - exp_labels:
-              check: mariadb
-              target: seafile
-              severity: warning
-              action: human
-            exp_annotations:
-              summary: "No passing restore test in 8 days: mariadb/seafile"
-              description: >-
-                mariadb/seafile last passed
                 8d 2h 0m 0s ago. Either its CronJob did not
                 run or every run failed: kubectl -n backup-verify get cronjobs,jobs.
                 Runbook: docs/backups.md#when-a-restore-test-fails
@@ -182,12 +168,10 @@ tests:
                 (kubectl -n backup-verify get cronjobs,jobs).
                 Runbook: docs/backups.md#when-the-lock-test-fails
 
-  # Only restic and mariadb results exist: postgres and restic-data are missing.
+  # Only restic results exist: postgres and restic-data are missing.
   - interval: 1h
     input_series:
       - series: 'backup_verify_last_success_timestamp_seconds{check="restic", target="plex"}'
-        values: '0x5'
-      - series: 'backup_verify_last_success_timestamp_seconds{check="mariadb", target="seafile"}'
         values: '0x5'
     alert_rule_test:
       - eval_time: 30m

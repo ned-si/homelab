@@ -118,7 +118,6 @@ router 80/443 -> 192.168.1.254 = Service gateway/cilium-gateway-shared
 | `cinema` | `theater/jellyfin` | Jellyfin |
 | `archive` | `paperless/paperless` | Paperless-ngx |
 | `cook` | `mealie/mealie` | Mealie |
-| `drive` | `seafile/seafile` | Seafile |
 | `syncthing` | `syncthing/syncthing` | Syncthing UI |
 
 - Every route sets `parentRefs` with `sectionName: https`. Without it the route

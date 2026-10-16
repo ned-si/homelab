@@ -22,8 +22,7 @@ metadata:
   name: mealie-backup
   namespace: mealie
 spec:
-  # 03:20. In the gap between Seafile (03:00) and Immich (03:30), so the uplink
-  # is not shared.
+  # 03:20. Before Immich (03:30), so the uplink is not shared.
   schedule: "20 3 * * *"
   suspend: false
   concurrencyPolicy: Forbid

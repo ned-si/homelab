@@ -125,10 +125,9 @@
 #      https://auth.lilalala.com; the rules assume that is the WAN address and
 #      therefore `reserved:world`. See the commented-out alternative in
 #      20-immich.yaml.
-#   2. Seafile's in-volume configuration, which git cannot see. See 40-seafile.yaml.
-#   3. A Prometheus target going quiet rather than erroring, because a scrape port
+#   2. A Prometheus target going quiet rather than erroring, because a scrape port
 #      moved in a chart upgrade.
-#   4. A private tracker on a non-standard port in Prowlarr.
+#   3. A private tracker on a non-standard port in Prowlarr.
 #
 #   None of these are recoverable by guessing. They are all visible in
 #   `hubble observe --verdict DROPPED`.

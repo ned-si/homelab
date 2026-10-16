@@ -1,5 +1,7 @@
 # seafile/mariadb-pvc: the existing TrueNAS zvol, bound statically on Talos.
 # Generated from the live PV; see kustomization.yaml in this directory.
+# Seafile is decommissioned: retained, delete after 2026-11-16 if nobody asks
+# (docs/decisions.md).
 ---
 apiVersion: v1
 kind: PersistentVolume

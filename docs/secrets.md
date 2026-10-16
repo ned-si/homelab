@@ -29,7 +29,7 @@ Expected: the same `age1...` public key three times, and nothing else.
 | --- | --- | --- |
 | `infrastructure/secrets/` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `democratic-csi-iscsi` | `secrets-infrastructure` (wave -25) |
 | `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso` | `secrets-platform` (wave -25) |
-| `apps/secrets/` | `immich-config`, `mealie-oidc`, `paperless-secrets`, `plex-claim`, `recyclarr-api-keys`, `seafile-admin`, `seafile-db`, `theater-sso` | `secrets-apps` (wave -25) |
+| `apps/secrets/` | `immich-config`, `mealie-oidc`, `paperless-secrets`, `plex-claim`, `recyclarr-api-keys`, `theater-sso` | `secrets-apps` (wave -25) |
 
 Each file is a Kubernetes Secret with its own `metadata.namespace`; only
 `data`/`stringData` values are encrypted (`.sops.yaml`), so names and namespaces
@@ -160,8 +160,6 @@ new value in the password manager.
 | OIDC client secrets (Grafana, Immich, Mealie, Paperless) | Keycloak, Clients, *client*, Credentials, Regenerate | `grafana-oidc`, `immich-config` (inside `immich-config.yaml`), `mealie-oidc`, `paperless-secrets` (`PAPERLESS_SOCIALACCOUNT_PROVIDERS`) | |
 | Argo CD OIDC client secret | Keycloak client `argocd` | not in git: `argo/argocd-secret`, `oidc.keycloak.clientSecret` | patch the Secret, restart `argocd-server` |
 | Paperless admin | `manage.py changepassword` in the pod | `paperless-secrets`, `PAPERLESS_ADMIN_PASSWORD` | |
-| Seafile admin | Seafile web UI or `reset-admin` | `seafile-admin`, `SEAFILE_ADMIN_PASSWORD` | |
-| Seafile MariaDB root | SQL: `ALTER USER 'root'@'%' ...` (dump first) | `seafile-db`, `root-password` | `MARIADB_ROOT_PASSWORD` only applies to an empty datadir; change SQL first ([runbook](runbooks/seafile-mariadb-upgrade.md#rotating-the-root-password)) |
 | TrueNAS API key | TrueNAS UI, API Keys | `democratic-csi-iscsi`, `apiKey` in `driver-config-file.yaml` | restart the democratic-csi controller and node pods, test a volume attach, then delete the old key |
 | TrueNAS SSH key | new keypair, public key on the NAS | `democratic-csi-iscsi`, `privateKey` | remove the old public key from the NAS afterwards |
 | Cloudflare tokens | Cloudflare dashboard: one token per consumer, Zone Read + DNS Edit on `lilalala.com` only | `cloudflare-cert-manager`, `cloudflare-external-dns`, `api-token` | check external-dns logs and a certificate renewal, then revoke the old token |

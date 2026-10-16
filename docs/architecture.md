@@ -50,7 +50,7 @@ and `clusters/homelab/root.yaml` are the same object; CI fails if they differ.
 | --- | --- | --- |
 | infrastructure | `namespaces`, `secrets-infrastructure`, `gateway-api`, `cilium`, `cilium-config`, `cert-manager`, `cert-manager-issuers`, `external-dns`, `gateway`, `democratic-csi` | nothing |
 | platform | `secrets-platform`, `cnpg`, `barman-cloud-plugin`, `kube-prometheus-stack`, `keycloak` | StorageClasses, certificates |
-| apps | `secrets-apps`, `immich`, `mealie`, `paperless`, `seafile`, `syncthing`, `theater` | databases, identity, routing |
+| apps | `secrets-apps`, `immich`, `mealie`, `paperless`, `seafile` (retained claims only, until 2026-11-16), `syncthing`, `theater` | databases, identity, routing |
 
 Sync waves inside `infrastructure`:
 
@@ -172,7 +172,7 @@ CLI from a merged commit, as described at the top of
 ## Sessions
 
 Long for user apps, short for platform tools. Keycloak holds one long SSO
-session per device. User apps (Immich, Mealie, Paperless, Seafile) log in
+session per device. User apps (Immich, Mealie, Paperless) log in
 through it once and stay logged in. Platform tools (Argo CD, Grafana, the
 `homelab` realm admin console) ask for the password again once the last
 password login is 12 hours old.
@@ -189,8 +189,7 @@ password login is 12 hours old.
 | Immich | built in: session tokens do not expire, cookies last 400 d; OAuth `autoLaunch` and `autoRegister` on; mobile redirect `app.immich:///oauth-callback` | none to set |
 | Mealie | `TOKEN_TIME` | 8760 h |
 | Paperless | `PAPERLESS_SESSION_COOKIE_AGE` | 365 d |
-| Seafile (web) | `SESSION_COOKIE_AGE`, `LOGIN_REMEMBER_DAYS` in `seahub_settings.py`, written by the init container `seahub-settings` | 365 d |
-| Seafile, Jellyfin, Plex clients | app tokens without expiry; Jellyfin Quick Connect is on; Plex sessions belong to the Plex account | none to set |
+| Jellyfin, Plex clients | app tokens without expiry; Jellyfin Quick Connect is on; Plex sessions belong to the Plex account | none to set |
 | Theater admin UIs (oauth2-proxy `theater-sso`) | `--cookie-expire`, `--cookie-refresh` | 365 d, refreshed hourly |
 | Grafana | `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`; no refresh token | 12 h / 24 h |
 | Argo CD | `oidc.config`: no refresh, no `offline_access` | Keycloak token lifetime |

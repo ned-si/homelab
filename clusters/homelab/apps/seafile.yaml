@@ -1,13 +1,6 @@
-# Seafile - file sync and share.
-#
-# CONSIDER RETIRING THIS. Seafile overlaps almost entirely with Syncthing (which
-# is also deployed here) and it is the most complex app in the cluster: it needs
-# its own MariaDB and memcached, its config lives inside a volume rather than in
-# git, and its container wants to run privileged setup on first boot.
-#
-# It is carried forward here because dropping a data store is your call, not a
-# refactor's. But if Syncthing covers the use case, deleting this Application
-# removes three workloads, a database and two secrets from the cluster.
+# Seafile, decommissioned (docs/decisions.md). The Application now holds only
+# the two retained claims, so its prune removes the workloads; it is deleted
+# once that is done (no Application carries the resources-finalizer).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

@@ -54,7 +54,7 @@ locals {
     "immich/library",  # apps/immich/resources/backup-files.yaml
     "mealie/data",     # apps/mealie/backup.yaml
     "paperless/media", # apps/paperless/backup.yaml
-    "seafile/shared",  # apps/seafile/backup.yaml
+    "seafile/shared",  # retained, no new snapshots: Seafile removed 2026-10-16
     "syncthing/data",  # apps/syncthing/backup.yaml
     "theater/configs", # apps/theater/backup.yaml (all six config jobs share it)
     "books/configs",   # apps/books/backup.yaml
