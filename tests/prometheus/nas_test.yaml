@@ -29,6 +29,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolUnhealthy.md
               summary: NAS pool homelab is not healthy
               description: >-
                 ZFS reports homelab unhealthy (DEGRADED, FAULTED or
@@ -45,6 +46,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolDeviceNotOnline.md
               summary: NAS homelab cache device nvd0 is not ONLINE
               description: >-
                 A cache or log device going away slows the pool; a data device
@@ -61,6 +63,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolDeviceErrors.md
               summary: NAS device ada0 has 3 checksum errors
               description: >-
                 ZFS counted checksum errors on ada0 in
@@ -90,6 +93,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASExporterFailing.md
               summary: truenas-exporter cannot read the TrueNAS API
               description: >-
                 Every NAS alert is inert while this fires. Read
@@ -120,6 +124,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASScrubOverdue.md
               summary: NAS pool homelab has not finished a scrub in 40 days
               description: >-
                 TrueNAS scrubs every 35 days by default. Check the scrub task under

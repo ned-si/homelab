@@ -24,6 +24,7 @@ spec:
         description: 'The newest Barman Cloud base backup failed after the last good
           one. Check: kubectl -n {{ $labels.namespace }} get backups.postgresql.cnpg.io.
           See docs/backups.md.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupFailed.md
         summary: Last base backup of {{ $labels.namespace }}/{{ $labels.pod }} failed
       expr: |
         barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp
@@ -37,6 +38,7 @@ spec:
         description: 'The daily ScheduledBackup did not produce a base backup. Check:
           kubectl -n {{ $labels.namespace }} get scheduledbackups,backups.postgresql.cnpg.io.
           See docs/backups.md.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBaseBackupTooOld.md
         summary: No base backup of {{ $labels.namespace }}/{{ $labels.pod }} in 26
           h
       expr: |
@@ -50,6 +52,7 @@ spec:
         description: 'The pod has no plugin-barman-cloud sidecar or the plugin is
           down. Check: kubectl -n {{ $labels.namespace }} get pod {{ $labels.pod }}
           -o jsonpath=''{.spec.initContainers[*].name}''. See docs/backups.md.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupMetricsMissing.md
         summary: '{{ $labels.namespace }}/{{ $labels.pod }} reports no Barman Cloud
           metrics'
       expr: |
@@ -64,6 +67,7 @@ spec:
         description: 'The last WAL archive attempt failed and none has succeeded since.
           Check: kubectl -n {{ $labels.namespace }} logs {{ $labels.pod }} -c plugin-barman-cloud.
           See docs/backups.md.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGWALArchivingFailing.md
         summary: WAL archiving of {{ $labels.namespace }}/{{ $labels.pod }} is failing
       expr: |
         cnpg_pg_stat_archiver_last_failed_time > cnpg_pg_stat_archiver_last_archived_time
@@ -76,6 +80,7 @@ spec:
         description: 'WAL is produced faster than it is archived, or archiving stalls.
           The pg_wal volume fills up if this continues. Check: kubectl -n {{ $labels.namespace
           }} logs {{ $labels.pod }} -c plugin-barman-cloud. See docs/backups.md.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGWALArchiveLag.md
         summary: '{{ $value }} WAL segments of {{ $labels.namespace }}/{{ $labels.pod
           }} wait for archiving'
       expr: |
@@ -88,6 +93,7 @@ spec:
       annotations:
         description: 'Prometheus scrapes no CNPG instance, so none of the backup alerts
           can fire. Check: kubectl -n immich get podmonitor cnpg-instances. See docs/backups.md.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGMetricsAbsent.md
         summary: No CNPG instance metrics at all
       expr: absent(cnpg_collector_up)
       for: 30m

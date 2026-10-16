@@ -27,6 +27,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASSmartTestFailed.md
               summary: NAS disk ada1 failed its SMART self-test
               description: >-
                 The newest short self-test on ada1 did
@@ -54,6 +55,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASDiskHot.md
               summary: NAS disk ada2 is at 70 C
               description: >-
                 Above 65 C for 30 minutes. Check the case airflow and fans.

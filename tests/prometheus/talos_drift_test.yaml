@@ -27,6 +27,7 @@ tests:
               node: homelab-cp-2
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosConfigDrift.md
               summary: "Talos config on homelab-cp-2 differs from main"
               description: >-
                 The running machine config of homelab-cp-2 is not the one
@@ -51,6 +52,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosDriftCheckStale.md
               summary: "No Talos drift check in 2 days"
               description: >-
                 The talos-drift CronJob has not pushed a result for 2 days. Check

@@ -38,6 +38,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArrIndexersFailing.md
             summary: "Prowlarr: indexers need attention ({{ $labels.source }})"
             description: >-
               Prowlarr reports indexers that have failed for more than 6 hours

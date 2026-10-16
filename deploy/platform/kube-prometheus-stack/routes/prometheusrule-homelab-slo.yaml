@@ -147,6 +147,7 @@ spec:
           hour and nothing automatic has fixed it. Check https://{{ $labels.app }}.lilalala.com,
           the Homelab overview dashboard, and the Homelab / Automation dashboard for
           a rollback that was refused or failed.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnFastPersistent.md
         summary: '{{ $labels.app }} has been failing for 30 minutes'
       expr: |
         (
@@ -164,6 +165,7 @@ spec:
         description: 'SLOErrorBudgetBurnSlow has fired for {{ $labels.app }} for 24
           hours: an intermittent fault that does not go away on its own. Look for
           restarts, slow responses (probe_duration_seconds) or a flapping node.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnSlowPersistent.md
         summary: '{{ $labels.app }} has been burning its error budget for a day'
       expr: max by (app, namespace) (ALERTS{alertname="SLOErrorBudgetBurnSlow", alertstate="firing"})
       for: 1d
@@ -173,6 +175,7 @@ spec:
     - alert: SLOProbesAbsent
       annotations:
         description: Check the blackbox-exporter Application and the Probes in platform/blackbox-exporter/probes.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOProbesAbsent.md
         summary: 'No public blackbox probe results: the SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public"})
       for: 15m
@@ -185,6 +188,7 @@ spec:
       annotations:
         description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
           or its `app` relabeling no longer matches.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
         summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public", app="auth"}) unless on() absent(probe_success{job="blackbox-public"})
       for: 15m
@@ -196,6 +200,7 @@ spec:
       annotations:
         description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
           or its `app` relabeling no longer matches.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
         summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public", app="cinema"}) unless on()
         absent(probe_success{job="blackbox-public"})
@@ -208,6 +213,7 @@ spec:
       annotations:
         description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
           or its `app` relabeling no longer matches.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
         summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public", app="theater"}) unless on()
         absent(probe_success{job="blackbox-public"})
@@ -220,6 +226,7 @@ spec:
       annotations:
         description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
           or its `app` relabeling no longer matches.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
         summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public", app="media"}) unless on()
         absent(probe_success{job="blackbox-public"})
@@ -232,6 +239,7 @@ spec:
       annotations:
         description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
           or its `app` relabeling no longer matches.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
         summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public", app="archive"}) unless on()
         absent(probe_success{job="blackbox-public"})
@@ -244,6 +252,7 @@ spec:
       annotations:
         description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
           or its `app` relabeling no longer matches.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
         summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public", app="cook"}) unless on() absent(probe_success{job="blackbox-public"})
       for: 15m
@@ -255,6 +264,7 @@ spec:
       annotations:
         description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
           or its `app` relabeling no longer matches.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
         summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
       expr: absent(probe_success{job="blackbox-public", app="syncthing"}) unless on()
         absent(probe_success{job="blackbox-public"})

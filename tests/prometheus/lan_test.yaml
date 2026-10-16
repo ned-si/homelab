@@ -30,6 +30,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANDeviceUnreachable.md
               summary: LAN device bmc (192.168.1.194) does not answer a ping
               description: >-
                 No ICMP reply for 10 minutes. For the router, the cluster has

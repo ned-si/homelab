@@ -473,7 +473,7 @@ def test_expected_ingresses(tmp_path):
 ALERT_RULES = ("apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata: {name: x}\nspec:\n"
                "  groups:\n    - name: x\n      rules:\n"
                "        - {record: 'x:up', expr: up}\n"
-               "        - {alert: Tested, expr: up == 0, labels: {action: human}}\n"
+               "        - {alert: Tested, expr: up == 0, labels: {action: auto}}\n"
                "        - {alert: Untested, expr: up == 0, labels: {action: auto}}\n"
                "        - {alert: Untested, expr: up == 2, labels: {action: auto}}\n")
 ALERT_TESTS = ("rule_files: [x.yaml]\ntests:\n  - interval: 1m\n    input_series: []\n"
@@ -635,3 +635,68 @@ def test_k8s_version_missing_in_talconfig_fails(tmp_path):
     files["talos/talconfig.yaml"] = "clusterName: x\n"
     r = policy(tmp_path, files=files)
     assert fails(r) == ["FAIL k8s-version-match: talos/talconfig.yaml: no kubernetesVersion of the form vX.Y.Z"]
+
+
+RUNBOOK = "https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/"
+
+
+def alert_tree(url=RUNBOOK + "DiskGone.md", runbook=True, index=True, extra=None):
+    ann = f"            runbook_url: {url}\n" if url else ""
+    files = {
+        "platform/x/rules.yaml": (
+            "apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata:\n  name: x\n"
+            "spec:\n  groups:\n    - name: x\n      rules:\n"
+            "        - alert: DiskGone\n          expr: up == 0\n"
+            "          labels:\n            action: human\n          annotations:\n" + ann +
+            "            summary: s\n"
+            "        - alert: DiskSlow\n          expr: up == 0\n"
+            "          labels:\n            action: auto\n          annotations:\n            summary: s\n"),
+    }
+    files["tests/prometheus/x_test.yaml"] = (
+        "rule_files: [x.yaml]\ntests:\n  - interval: 1m\n    input_series: []\n    alert_rule_test:\n"
+        "      - {eval_time: 1m, alertname: DiskGone, exp_alerts: []}\n"
+        "      - {eval_time: 1m, alertname: DiskSlow, exp_alerts: []}\n")
+    files["tests/alertmanager/routes.txt"] = (
+        "# receiver labels\nntfy alertname=DiskGone severity=warning\nnull alertname=DiskSlow\n"
+        "ntfy alertname=etcdNoLeader severity=critical\nntfy alertname=Any severity=critical category=security\n")
+    if runbook:
+        files["docs/runbooks/alerts/DiskGone.md"] = "# DiskGone\n"
+    if index:
+        files["docs/runbooks/alerts/README.md"] = "- [DiskGone](DiskGone.md)\n\n| `etcdNoLeader` | x |\n"
+    files.update(extra or {})
+    return files
+
+
+def runbook_fails(tmp_path, **kw):
+    return [x for x in fails(policy(tmp_path, files=alert_tree(**kw))) if "alert-runbooks" in x]
+
+
+def test_alert_runbooks_pass(tmp_path):
+    r = policy(tmp_path, files=alert_tree())
+    assert r.returncode == 0, r.stdout
+    assert "alert-runbooks" in r.stdout
+
+
+@pytest.mark.parametrize("kw,needle", [
+    ({"url": None}, "DiskGone has no runbook_url"),
+    ({"url": RUNBOOK + "Other.md"}, "DiskGone has runbook_url"),
+    ({"runbook": False}, "DiskGone.md is missing"),
+    ({"index": False}, "README.md does not link DiskGone.md"),
+    ({"extra": {"docs/runbooks/alerts/DiskSlow.md": "# DiskSlow\n"}}, "DiskSlow.md names no action: human alert"),
+    ({"index": False, "extra": {"docs/runbooks/alerts/README.md": "- [DiskGone](DiskGone.md)\n"}},
+     "etcdNoLeader pages but has no page and no row"),
+])
+def test_alert_runbooks_fail(tmp_path, kw, needle):
+    assert any(needle in x for x in runbook_fails(tmp_path, **kw))
+
+
+def test_alert_runbooks_auto_alert_url_must_resolve(tmp_path):
+    files = alert_tree()
+    files["platform/x/rules.yaml"] = files["platform/x/rules.yaml"].replace(
+        "action: auto\n          annotations:\n",
+        f"action: auto\n          annotations:\n            runbook_url: {RUNBOOK}DiskSlow.md\n")
+    assert any("DiskSlow has runbook_url" in x for x in fails(policy(tmp_path, files=files)))
+    files["docs/runbooks/alerts/DiskSlow.md"] = "# DiskSlow\n"
+    # A page for an auto alert is still stale: pages are for action: human alerts.
+    assert [x for x in fails(policy(tmp_path / "b", files=files)) if "alert-runbooks" in x] == [
+        "FAIL alert-runbooks: docs/runbooks/alerts/DiskSlow.md names no action: human alert"]

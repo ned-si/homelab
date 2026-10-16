@@ -10,7 +10,7 @@
 #   cnpg_collector_*, cnpg_pg_stat_archiver_*   the instance manager
 #   barman_cloud_cloudnative_pg_io_*            the Barman Cloud plugin sidecar
 #
-# What to do when one fires: docs/backups.md ("Alerts").
+# What to do when one fires: the runbook_url of each rule (docs/runbooks/alerts/).
 # Tests: tests/prometheus/cnpg_backups_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -49,6 +49,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupFailed.md
             summary: "Last base backup of {{ $labels.namespace }}/{{ $labels.pod }} failed"
             description: >-
               The newest Barman Cloud base backup failed after the last good one.
@@ -63,6 +64,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBaseBackupTooOld.md
             summary: "No base backup of {{ $labels.namespace }}/{{ $labels.pod }} in 26 h"
             description: >-
               The daily ScheduledBackup did not produce a base backup.
@@ -79,6 +81,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupMetricsMissing.md
             summary: "{{ $labels.namespace }}/{{ $labels.pod }} reports no Barman Cloud metrics"
             description: >-
               The pod has no plugin-barman-cloud sidecar or the plugin is down.
@@ -92,6 +95,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGWALArchivingFailing.md
             summary: "WAL archiving of {{ $labels.namespace }}/{{ $labels.pod }} is failing"
             description: >-
               The last WAL archive attempt failed and none has succeeded since.
@@ -105,6 +109,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGWALArchiveLag.md
             summary: "{{ $value }} WAL segments of {{ $labels.namespace }}/{{ $labels.pod }} wait for archiving"
             description: >-
               WAL is produced faster than it is archived, or archiving stalls.
@@ -118,6 +123,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGMetricsAbsent.md
             summary: "No CNPG instance metrics at all"
             description: >-
               Prometheus scrapes no CNPG instance, so none of the backup alerts can fire.

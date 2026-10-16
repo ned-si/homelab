@@ -40,6 +40,7 @@ spec:
         severity: warning
     - alert: PodStuckNotRunningLongTerm
       annotations:
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PodStuckNotRunningLongTerm.md
         summary: '{{ $labels.namespace }}/{{ $labels.pod }} has been broken for 6h
           ({{ $labels.reason }})'
       expr: |
@@ -118,6 +119,7 @@ spec:
           letting the filesystem grow -- no data movement. Do it before it becomes
           critical: a full volume under a database is an outage, and under an iSCSI
           zvol with xfs it is not always a clean one.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeNearlyFull.md
         summary: PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is
           over 85% full
       expr: |
@@ -131,6 +133,7 @@ spec:
         severity: warning
     - alert: PersistentVolumeCriticallyFull
       annotations:
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeCriticallyFull.md
         summary: PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is
           over 95% full
       expr: |
@@ -147,6 +150,7 @@ spec:
         description: Extrapolating the last 6 hours. If this is a Postgres data volume,
           check WAL archiving first -- unarchivable WAL is retained locally and fills
           the volume, and CNPGWALArchivingFailing is the cause, not this.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeFillingUp.md
         summary: PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} will
           be full within 24h
       expr: |
@@ -166,6 +170,7 @@ spec:
           the 25Gi volume. If it has, the WAL or a compaction is using the headroom.
           Grow the volume -- `iscsi` allows expansion -- rather than cutting retention,
           and see the comment on retentionSize in platform/kube-prometheus-stack/values.yaml.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusTsdbVolumeNearlyFull.md
         summary: Prometheus TSDB volume is nearly full
       expr: |
         (
@@ -182,6 +187,7 @@ spec:
           (/var). Find what holds it with `talosctl -n <ip> usage /var --depth 2`
           and remove unused images with `talosctl -n <ip> image remove` before it
           stops being able to create containers.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemNearlyFull.md
         summary: '{{ $labels.instance }} {{ $labels.mountpoint }} is over 85% full'
       expr: |
         (
@@ -197,6 +203,7 @@ spec:
         severity: warning
     - alert: NodeFilesystemCriticallyFull
       annotations:
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemCriticallyFull.md
         summary: '{{ $labels.instance }} {{ $labels.mountpoint }} is over 92% full'
       expr: |
         (
@@ -212,6 +219,7 @@ spec:
         description: Usually the beginning of eMMC failure, not a configuration change.
           Check dmesg on the node. Four nodes, one of which is a control plane member
           -- confirm which before rebooting anything.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemReadOnly.md
         summary: '{{ $labels.instance }} remounted {{ $labels.mountpoint }} READ-ONLY'
       expr: |
         node_filesystem_readonly{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"} == 1
@@ -223,6 +231,7 @@ spec:
       annotations:
         description: This reports as ENOSPC while `df -h` shows free space. Check
           `df -i` on the node.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemInodesNearlyFull.md
         summary: '{{ $labels.instance }} {{ $labels.mountpoint }} has under 10% of
           inodes free'
       expr: |
@@ -239,6 +248,7 @@ spec:
         description: The eMMC reports 80% or more of its rated wear or of its reserved
           blocks used. Plan the module replacement (docs/runbooks/node-replacement.md)
           and check what writes most with the Homelab / Nodes dashboard.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeEmmcWearHigh.md
         summary: '{{ $labels.instance }} eMMC {{ $labels.device }} is wearing out'
       expr: |
         max by (instance, device) (node_emmc_life_time_estimate) >= 9
@@ -253,6 +263,7 @@ spec:
         description: The eMMC reports its rated wear exceeded or its reserved blocks
           nearly gone. Replace the module (docs/runbooks/node-replacement.md); on
           a control plane, take an etcd snapshot first (`task talos:etcd-snapshot`).
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeEmmcEndOfLife.md
         summary: '{{ $labels.instance }} eMMC {{ $labels.device }} is at end of life'
       expr: |
         max by (instance, device) (node_emmc_life_time_estimate) >= 11
@@ -270,6 +281,7 @@ spec:
           so a renewal has already failed silently. Check the Certificate''s conditions
           and the ClusterIssuer''s Secret reference: kubectl -n {{ $labels.namespace
           }} describe certificate {{ $labels.name }}'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertificateExpiringSoon.md
         summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in
           under 21 days
       expr: |
@@ -283,6 +295,7 @@ spec:
         description: Every published hostname is served from the wildcard certificate
           on the shared Gateway. When this expires, everything breaks at once. Let's
           Encrypt rate-limits, so do not fix it by deleting and recreating in a loop.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertificateExpiringVerySoon.md
         summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in
           under 7 days
       expr: |
@@ -296,6 +309,7 @@ spec:
         description: An order or challenge is failing. A Let's Encrypt order expires
           after 7 days and then never completes, so a stuck Certificate does not recover
           on its own -- it has to be deleted and reissued.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertificateNotReady.md
         summary: Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready
       expr: |
         certmanager_certificate_ready_status{condition=~"True|true"} == 0
@@ -309,6 +323,7 @@ spec:
           is inert and the next expiry will be a surprise. Check `kubectl -n cert-manager
           get servicemonitor --show-labels` for release=kube-prometheus-stack, and
           the target in Prometheus.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertManagerMetricsAbsent.md
         summary: cert-manager metrics are not being scraped
       expr: |
         absent(certmanager_certificate_expiration_timestamp_seconds)
@@ -323,6 +338,7 @@ spec:
         description: Alerts are firing and not arriving. Check the credentials in
           the `alertmanager-notify` Secret and the Alertmanager pod log. If the phone
           has gone quiet, this is why.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/AlertmanagerNotificationsFailing.md
         summary: Alertmanager cannot deliver notifications ({{ $labels.integration
           }})
       expr: |
@@ -339,6 +355,7 @@ spec:
           wedged. This is one of the very few places where `or absent(...)` is combined
           into a single rule rather than split: both halves mean the identical thing,
           ''nothing is being sent'', and there is one action either way.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/AlertmanagerHasNoReceiverConfigured.md
         summary: Alertmanager has sent nothing in 6 hours
       expr: |
         sum(increase(alertmanager_notifications_total[6h])) == 0
@@ -351,6 +368,7 @@ spec:
       annotations:
         description: Every kube_* alert in this cluster -- pods, jobs, cronjobs, PVCs,
           deployments -- is currently inert.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KubeStateMetricsAbsent.md
         summary: kube-state-metrics is not being scraped
       expr: |
         absent(kube_pod_info)
@@ -362,6 +380,7 @@ spec:
       annotations:
         description: No node disk, memory or filesystem alerting is active. The /controller
           eMMC is unmonitored while this fires.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeExporterAbsent.md
         summary: node-exporter is not being scraped
       expr: |
         absent(node_filesystem_avail_bytes)

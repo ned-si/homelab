@@ -25,6 +25,7 @@ spec:
           talos/talconfig.yaml on main renders. From an up-to-date main, preview with
           `task talos:apply -- {{ $labels.node }}` in dry-run (docs/talos.md), then
           apply; if the node is right and main is wrong, fix main instead.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosConfigDrift.md
         summary: Talos config on {{ $labels.node }} differs from main
       expr: max by (node) (talos_config_drift{job="talos-drift"}) == 1
       for: 10m
@@ -36,6 +37,7 @@ spec:
         description: The talos-drift CronJob has not pushed a result for 2 days. Check
           kubectl -n system-upgrade get cronjob,jobs -l app.kubernetes.io/name=talos-drift
           and the last Job's log.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosDriftCheckStale.md
         summary: No Talos drift check in 2 days
       expr: |
         time() - max(max_over_time(talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}[3d])) > 2 * 86400

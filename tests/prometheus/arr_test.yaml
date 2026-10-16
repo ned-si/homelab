@@ -32,6 +32,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArrIndexersFailing.md
               summary: "Prowlarr: indexers need attention (IndexerLongTermStatusCheck)"
               description: >-
                 Prowlarr reports indexers that have failed for more than 6 hours
@@ -59,6 +60,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArrIndexersFailing.md
               summary: "Prowlarr: indexers need attention (IndexerNoDefinitionCheck)"
               description: >-
                 Prowlarr reports indexers that have failed for more than 6 hours

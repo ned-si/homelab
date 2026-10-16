@@ -58,6 +58,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNodeDown.md
               summary: Node homelab-w-1 has been NotReady for 15 minutes
               description: >-
                 homelab-w-1 did not come back on its own. Check
@@ -99,6 +100,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
               summary: NAS port 192.168.1.228:3260 has been unreachable for 10 minutes
               description: >-
                 The NAS does not power on by itself after a power loss: press
