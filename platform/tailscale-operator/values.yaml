@@ -1,0 +1,68 @@
+# tailscale-operator chart values (clusters/homelab/platform/tailscale-operator.yaml,
+# docs/remote-access.md).
+#
+# The OAuth client is precreated as the Secret `operator-oauth` (keys
+# client_id, client_secret), so `oauth` stays empty here. Its scopes: Devices
+# Core write, Auth Keys write, Services write, tag tag:k8s-operator.
+#
+# Every pod passes Pod Security `restricted` (namespace tailscale): the
+# operator below, and the Ingress proxies through the ProxyClass `restricted`
+# (platform/tailscale-operator/resources/proxyclass.yaml). Ingress proxies run tailscaled
+# in userspace mode, so they need no TUN device and no privileges.
+installCRDs: true
+
+operatorConfig:
+  defaultTags:
+    - "tag:k8s-operator"
+  # The tailnet name of the operator, and of its API server proxy:
+  # `tailscale configure kubeconfig tailscale-operator`.
+  hostname: tailscale-operator
+  image:
+    repository: tailscale/k8s-operator
+    # renovate: datasource=docker depName=tailscale/k8s-operator
+    tag: v1.104.1@sha256:38351d6333edc490a832b27b244665d40f4a5fe1765ade76af2264c99dbbfe0e
+    pullPolicy: IfNotPresent
+  logging: info
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+  # tsnet keeps its state in the Secret `operator`, but still creates a
+  # config directory under $HOME, which uid 65532 has no other place for.
+  extraEnv:
+    - name: HOME
+      value: /tmp
+
+ingressClass:
+  name: tailscale
+  enabled: true
+
+proxyConfig:
+  image:
+    repository: tailscale/tailscale
+    # renovate: datasource=docker depName=tailscale/tailscale
+    tag: v1.104.1@sha256:87c55d6be56ad85b3d8bceca5f87f73de288c609131460dd1be1874c250cc41d
+  defaultTags: "tag:k8s"
+  firewallMode: auto
+  # Applied to every Ingress and Service proxy that names no other class.
+  defaultProxyClass: restricted
+
+# In-process API server proxy in auth mode: it drops the client's credentials
+# and impersonates the tailnet identity, with the groups that the tailnet
+# policy grants (`tailscale.com/cap/kubernetes`, bootstrap/tailscale/policy.hujson).
+# RBAC for those groups: platform/tailscale-operator/resources/rbac.yaml.
+apiServerProxyConfig:
+  mode: "true"
+  allowImpersonation: "true"

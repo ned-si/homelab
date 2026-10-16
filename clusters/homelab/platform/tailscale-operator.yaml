@@ -1,0 +1,52 @@
+# Tailscale Kubernetes operator: the cluster on the tailnet `ned-si.github`
+# (docs/remote-access.md). It runs the Kubernetes API server proxy in-process
+# (tailnet host `tailscale-operator`) and creates one proxy pod per Tailscale
+# Ingress; nothing is published on the LAN or the internet.
+#
+# Multi-source: the chart, its values from this repo, and the rendered
+# ProxyClass and RBAC (deploy/platform/tailscale-operator/resources). The OAuth client
+# credential is the Secret `operator-oauth`
+# (platform/secrets/tailscale-operator.sops.yaml).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tailscale-operator
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://pkgs.tailscale.com/helmcharts
+      chart: tailscale-operator
+      # renovate: datasource=helm depName=tailscale-operator registryUrl=https://pkgs.tailscale.com/helmcharts
+      targetRevision: 1.104.1
+      helm:
+        releaseName: tailscale-operator
+        valueFiles:
+          - $values/platform/tailscale-operator/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/tailscale-operator/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tailscale
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false # ships CRDs: pruning one deletes every resource of that kind
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # The ProxyClass CRD comes with the chart, in the same sync.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

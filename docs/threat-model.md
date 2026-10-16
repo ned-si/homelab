@@ -116,12 +116,16 @@ point, a credential or an admission path is added or removed.
 
 ### The phone over a VPN
 
-- Today: no VPN. The phone reaches the public hostnames only; the Kubernetes
-  and Talos APIs are LAN-only.
-- Threats once a VPN exists: S and E through a lost or stolen phone holding
-  cluster credentials.
-- Planned: Tailscale with a subnet router (no inbound port), ACLs in git;
-  Kubernetes access by OIDC; a reduced talosconfig on the phone
+- Today: Tailscale ([remote-access.md](remote-access.md)). The operator runs
+  in the cluster with no inbound port and no subnet router; the Kubernetes API
+  is reachable over the tailnet through its API server proxy, which
+  impersonates the tailnet identity. The tailnet policy is in git
+  (`bootstrap/tailscale/policy.hujson`). The Talos API stays LAN-only.
+- Threats: S and E through a lost or stolen phone that is logged in to the
+  tailnet. The phone holds no cluster credential: the proxy maps the tailnet
+  login to the group `tailnet-admins`. Removing the device in the admin
+  console revokes it.
+- Planned: the tailnet policy applied from git by CI; a reduced talosconfig on the phone
   (`os:operator`), never the `os:admin` one.
 
 ## Accepted, not planned

@@ -107,7 +107,7 @@
         '/Makefile$/',
       ],
       matchStrings: [
-        '#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)(?:\\s+depName=(?<depName>[^\\s]+))?(?:\\s+packageName=(?<packageName>[^\\s]+))?(?:\\s+registryUrl=(?<registryUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?[^\\n]*\\n\\s*(?:targetRevision|version|tag|chart|talosVersion|kubernetesVersion|[A-Z][A-Z0-9_]*)\\s*[:=]+\\s*[\'"]?(?<currentValue>[^\'"\\s]+)[\'"]?',
+        '#\\s*renovate:\\s*datasource=(?<datasource>[a-z-]+)(?:\\s+depName=(?<depName>[^\\s]+))?(?:\\s+packageName=(?<packageName>[^\\s]+))?(?:\\s+registryUrl=(?<registryUrl>[^\\s]+))?(?:\\s+versioning=(?<versioning>[^\\s]+))?(?:\\s+extractVersion=(?<extractVersion>[^\\s]+))?[^\\n]*\\n\\s*(?:targetRevision|version|tag|chart|talosVersion|kubernetesVersion|[A-Z][A-Z0-9_]*)\\s*[:=]+\\s*[\'"]?(?<currentValue>[^\'"\\s@]+)[\'"]?(?:[\'"\\s]|$)',
       ],
       datasourceTemplate: '{{{datasource}}}',
       // Docker tags keep their suffix only under `docker` versioning (see the
@@ -131,6 +131,21 @@
       // `docker` versioning keeps the tag's suffix (-alpine3.24, -slim, ...)
       // as a compatibility constraint. `semver-coerced` drops it, which is how
       // python:3.14.8-alpine3.24 was offered python:3.15.0 (full Debian).
+      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}',
+    },
+    {
+      customType: 'regex',
+      // The same pin for chart values that build the image reference from
+      // `repository` and `tag` (tailscale-operator, headlamp): the tag carries
+      // the digest, `tag: v1.2.3@sha256:<index digest>`, and the chart renders
+      // `<repository>:v1.2.3@sha256:...`. The generic manager above skips a
+      // value containing `@`, so each line is detected once.
+      description: 'Annotated Helm-values `tag:` carrying version@digest. Captures the tag and the digest.',
+      managerFilePatterns: ['/\\.ya?ml$/'],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?[^\\n]*\\n\\s*tag:\\s*[\'"]?(?<currentValue>[^\'"\\s@]+)@(?<currentDigest>sha256:[a-f0-9]+)[\'"]?',
+      ],
+      datasourceTemplate: 'docker',
       versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}',
     },
     {

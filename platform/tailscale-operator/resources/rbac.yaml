@@ -1,0 +1,20 @@
+# What tailnet identities may do through the API server proxy. The proxy
+# impersonates the groups granted in bootstrap/tailscale/policy.hujson
+# (`tailscale.com/cap/kubernetes`); a user without a grant is impersonated
+# with no group and is denied.
+#
+#   tailnet-admins  the tailnet owner and admins: cluster-admin, the same
+#                   rights as the kubeconfig from talosctl.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: tailnet-admins
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: tailnet-admins
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin

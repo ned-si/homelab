@@ -36,6 +36,7 @@ PROM_OPERATOR=v0.94.1
 SNAPSHOTTER=v6.3.2
 BARMAN=v0.15.1
 TUPPR=0.5.7
+TAILSCALE=v1.104.1
 # talos.dev ServiceAccount: Talos installs this CRD itself; the file is its
 # test fixture at the release the nodes run.
 TALOS=v1.14.2
@@ -85,6 +86,7 @@ add "https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/$BA
 for k in kubernetesupgrades talosupgrades; do
   add "https://raw.githubusercontent.com/home-operations/tuppr/$TUPPR/config/crd/bases/tuppr.home-operations.com_$k.yaml"
 done
+add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_proxyclasses.yaml"
 add "https://raw.githubusercontent.com/siderolabs/talos/$TALOS/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml"
 
 gen="$work/gen"

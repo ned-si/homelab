@@ -53,6 +53,9 @@ are the ones pinned in [`talos/talconfig.yaml`](../talos/talconfig.yaml).
   into: every iSCSI mount fails.
 - Split of ownership: Talos owns the OS, kubelet, etcd and the control plane
   static pods. Argo CD owns everything above that, from git.
+- Away from home: `kubectl` works over the tailnet through the Tailscale
+  operator's API server proxy ([remote-access.md](remote-access.md)). The
+  Talos API does not: `talosctl` needs the LAN.
 
 Point `talosctl` at the generated client config from the repository root.
 Its endpoints are the three control planes and it has no default node, so
