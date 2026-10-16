@@ -65,9 +65,17 @@ default allow-all:
 - the owner and admins reach `tag:k8s-operator` on 443, with the Kubernetes
   capability `impersonate: groups: [tailnet-admins]`.
 
-Apply a change: admin console → Access controls → JSON editor, paste the
-whole file, Save. The editor validates it; a syntax error is refused and the
-old policy stays.
+Apply a change: edit the file in a pull request. The workflow
+`.github/workflows/tailscale-policy.yaml` tests it against the tailnet on the
+PR and applies it on merge to main; a rejected policy fails the run, posts to
+ntfy, and the tailnet keeps the old one. Edits made in the admin console are
+overwritten by the next apply.
+
+The workflow uses its own OAuth client (admin console → Settings → Trust
+credentials → Credential → OAuth, scope Policy File write), in the
+repository secrets `TS_POLICY_OAUTH_CLIENT_ID` and `TS_POLICY_OAUTH_SECRET`.
+Without them it skips with a notice; paste the file in Access controls →
+JSON editor instead.
 
 Tailnet settings this needs (admin console → DNS): MagicDNS on, HTTPS
 Certificates on.
@@ -126,5 +134,5 @@ it.
   RBAC, so a phone holds no long-lived cluster credential.
 - Auth mode rather than `noauth`: with `noauth` every client needs its own
   Kubernetes token; auth mode reuses the tailnet login and policy.
-- The policy is pasted by hand because the operator's OAuth client has no
-  policy-file scope; a CI job applying it needs a second credential.
+- The policy job has its own OAuth client rather than a Policy File scope
+  on the operator's: a leaked operator credential cannot rewrite the policy.
