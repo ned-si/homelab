@@ -27,7 +27,7 @@ tests:
         values: '0x330'
       - series: 'kube_cronjob_status_last_successful_time{job="kube-state-metrics", namespace="syncthing", cronjob="syncthing-backup"}'
         values: '0x330'
-      - series: 'kube_job_owner{job="kube-state-metrics", namespace="syncthing", job_name="syncthing-backup-29868120", owner_kind="CronJob", owner_name="syncthing-backup"}'
+      - series: 'kube_job_owner{namespace="syncthing", job_name="syncthing-backup-29868120", owner_kind="CronJob", owner_name="syncthing-backup"}'
         values: '1x330'
       - series: 'kube_job_failed{job="kube-state-metrics", namespace="syncthing", job_name="syncthing-backup-29868120", condition="true"}'
         values: '1x330'
