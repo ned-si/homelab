@@ -120,6 +120,10 @@ in git and every credential rotated on a schedule.
    exposedsecretreports.aquasecurity.github.io -A
    --as=system:serviceaccount:headlamp:headlamp` = `no`, same for
    `kube-system:agent-readonly`)
+6. NO credential SHALL be a key added by hand to a chart-managed Secret: the
+   Argo CD Keycloak client secret is the sealed Secret
+   `argo/argocd-oidc-keycloak`, and Keycloak SHALL accept it.
+   (`scripts/smoke.sh` item 11, `tests/smoke/test_smoke.sh`)
 
 ### Requirement 6: A hardened public edge
 

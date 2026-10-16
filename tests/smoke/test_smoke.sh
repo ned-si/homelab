@@ -15,8 +15,12 @@ export PATH="$HERE/fakebin:$PATH"
 export SMOKE_RETRY_SLEEP=0 SMOKE_ARP_INTERVAL=0 SMOKE_ARP_SAMPLES=2
 export SMOKE_DOMAIN=example.test SMOKE_HOSTS="argo media" SMOKE_API_VIP=192.0.2.11
 export SMOKE_PVC_MIN=3 SMOKE_CNPG_MIN=2 SMOKE_NOW=1790000000
+export SMOKE_SSO_APPS="argo /auth/login argocd /auth/callback"
 WAN=198.51.100.7
 ENTRY=192.0.2.254
+KC=https://auth.example.test/realms/homelab
+KC_AUTH="$KC/protocol/openid-connect/auth?client_id=argocd&redirect_uri=https%3A%2F%2Fargo.example.test%2Fauth%2Fcallback&response_type=code&state=s1"
+CS=fixture-client-secret
 
 # addr <dir> <node-ip> <cidr> [family]: one address resource, as
 # `talosctl get addresses -o json` prints it (one JSON document per line).
@@ -108,7 +112,21 @@ https://argo.example.test/ $WAN 200 - VALID
 https://media.example.test/ $WAN 302 https://auth.example.test/login VALID
 https://api.ipify.org - $WAN - -
 https://ifconfig.me - $WAN - -
+https://argo.example.test/auth/login - 303 $KC_AUTH -
+$KC_AUTH - 200 - -
+$KC/protocol/openid-connect/token secret:$CS 400 - -
+$KC/protocol/openid-connect/token secret:* 401 - -
 EOF
+  jq -n --arg iss "$KC" '{data: {"oidc.config": ("name: Keycloak\nissuer: " + $iss + "\nclientID: argocd\nclientSecret: $argocd-oidc-keycloak:clientSecret\n")}}' > "$d/argocd-cm.json"
+  jq -n --arg v "$(printf '%s' "$CS" | base64)" \
+    '{metadata: {name: "argocd-oidc-keycloak", labels: {"app.kubernetes.io/part-of": "argocd"}}, data: {clientSecret: $v}}' \
+    > "$d/secret-argocd-oidc-keycloak.json"
+  jq -n '{metadata: {name: "argocd-secret"}, data: {"server.secretkey": "eA=="}}' > "$d/secret-argocd-secret.json"
+}
+# tsv_set <file> <url> <field 2> <code> [location]: replace that curl.tsv line.
+tsv_set() {
+  awk -v u="$2" -v ip="$3" -v c="$4" -v l="${5:--}" '$1 == u && $2 == ip { $3 = c; $4 = l } { print }' "$1/curl.tsv" > "$1/x"
+  mv "$1/x" "$1/curl.tsv"
 }
 
 # run <fixdir> [args...]: sets RC and OUT (the JSON on stdout).
@@ -133,7 +151,7 @@ F=$(fresh base)
 run "$F"
 expect_eq "exit 0" 0 "$RC"
 expect_eq "green" true "$(jq -r .green <<<"$OUT")"
-expect_eq "ten items, all pass" "1 2 3 4 5 6 7 8 9 10" "$(jq -r '[.items[] | select(.pass) | .id] | map(tostring) | join(" ")' <<<"$OUT")"
+expect_eq "eleven items, all pass" "1 2 3 4 5 6 7 8 9 10 11" "$(jq -r '[.items[] | select(.pass) | .id] | map(tostring) | join(" ")' <<<"$OUT")"
 expect_eq "baseline is this run" "$(jq -r .started <<<"$OUT")" "$(jq -r .baseline.from <<<"$OUT")"
 expect_eq "baseline holds both hosts" 2 "$(jq '.baseline.http | length' <<<"$OUT")"
 expect_eq "Immich Q1 recorded" '{"IMAGE":100,"VIDEO":10}' "$(jq -c '.items[] | select(.id == 8) | .detail.q1' <<<"$OUT")"
@@ -373,6 +391,43 @@ expect_contains "and reports both sources" "api.ipify.org and ifconfig.me agree 
 F=$(fresh dns3); echo "not-an-ip" > "$F/wan.txt"
 run "$F"
 expect_eq "unreadable --default-targets fails item 10" false "$(pass_of 10)"
+
+echo "-- item 11: SSO"
+F=$(fresh s0)
+run "$F"
+expect_eq "client secret accepted" accepted "$(jq -r '.items[] | select(.id == 11) | .detail.argocd_client_secret' <<<"$OUT")"
+expect_eq "client secret never on argv" 0 "$(grep -c "$CS" "$F/calls.log" || true)"
+case "$OUT" in *"$CS"*) bad "client secret absent from the JSON" ;; *) ok "client secret absent from the JSON" ;; esac
+F=$(fresh s1); tsv_set "$F" https://argo.example.test/auth/login - 303 "${KC_AUTH/argo.example.test%2Fauth%2Fcallback/argo.example.test%2Fother}"
+run "$F"
+expect_eq "wrong redirect_uri fails" false "$(pass_of 11)"
+expect_contains "named in the failure" "redirect_uri is not https://argo.example.test/auth/callback" "$(fails_of 11)"
+only_failed 11
+F=$(fresh s2); tsv_set "$F" "$KC_AUTH" - 400
+run "$F"
+expect_eq "Keycloak refusing the authorization request fails" false "$(pass_of 11)"
+expect_contains "with Keycloak's code" "Keycloak answers 400" "$(fails_of 11)"
+F=$(fresh s3); tsv_set "$F" https://argo.example.test/auth/login - 200
+run "$F"
+expect_eq "no redirect to Keycloak fails" false "$(pass_of 11)"
+F=$(fresh s4); jset "$F/secret-argocd-oidc-keycloak.json" '.data.clientSecret = ("other" | @base64)'
+run "$F"
+expect_eq "secret Keycloak rejects fails" false "$(pass_of 11)"
+expect_contains "named as rejected" "Keycloak rejects the client secret of argocd" "$(fails_of 11)"
+only_failed 11
+F=$(fresh s5)
+# shellcheck disable=SC2016 # a jq program: the $ is literal
+jset "$F/argocd-cm.json" '.data["oidc.config"] |= sub("\\$argocd-oidc-keycloak:clientSecret"; "$oidc.keycloak.clientSecret")'
+run "$F"
+expect_eq "key missing from argocd-secret fails" false "$(pass_of 11)"
+expect_contains "names the Secret and key" "Secret argo/argocd-secret has no key oidc.keycloak.clientSecret" "$(fails_of 11)"
+F=$(fresh s6); jset "$F/secret-argocd-oidc-keycloak.json" 'del(.metadata.labels)'
+run "$F"
+expect_eq "Secret without the part-of label fails" false "$(pass_of 11)"
+F=$(fresh s7); rm "$F/secret-argocd-oidc-keycloak.json"
+run "$F"
+expect_eq "missing Secret fails" false "$(pass_of 11)"
+expect_contains "named as missing" "Secret argo/argocd-oidc-keycloak (oidc.config clientSecret) is missing" "$(fails_of 11)"
 
 echo "-- usage and input validation (exit 64, nothing runs)"
 F=$(fresh u1)

@@ -1,6 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2329 # probe functions run through with_retry
-# smoke.sh -- the read-only cluster smoke suite `S` (items 1-10).
+# smoke.sh -- the read-only cluster smoke suite `S` (items 1-11).
 #
 # usage: scripts/smoke.sh --node-macs <file> --immich-sql <file> --argo-gate <file>
 #                         --entry-ip <ip> [--previous <json>] [--pod-exclude <file>]
@@ -9,6 +9,9 @@
 # commands (psql with default_transaction_read_only=on, a file-existence
 # loop), `talosctl get services etcd` and `talosctl get addresses` (the nodes
 # run Talos: no SSH, etcd is a system service), curl, dig, nc -z, ping, arp -n.
+# Item 11 reads the Argo CD client secret and sends it to the Keycloak token
+# endpoint on stdin with a made-up code (never on argv, never printed): no
+# user, no session, no login.
 # Every network call is bounded (kubectl --request-timeout=10s, curl -m 10,
 # talosctl under a 20 s alarm, nc -G 3, dig +time=3); network checks retry
 # 3 times over about 60 s.
@@ -54,6 +57,9 @@ CERT_MIN_DAYS=${SMOKE_CERT_MIN_DAYS:-14}
 RETRY_SLEEP=${SMOKE_RETRY_SLEEP:-20}
 ARP_SAMPLES=${SMOKE_ARP_SAMPLES:-6}
 ARP_INTERVAL=${SMOKE_ARP_INTERVAL:-10}
+# Item 11: "<host> <login start path> <client_id> <callback path>", ";" apart.
+SSO_APPS=${SMOKE_SSO_APPS:-"argo /auth/login argocd /auth/callback;grafana /login/generic_oauth grafana-oauth /login/generic_oauth;headlamp /oauth2/start headlamp /oauth2/callback"}
+SSO_ISSUER=${SMOKE_SSO_ISSUER:-https://auth.$DOMAIN/realms/homelab}
 PENDING_MAX_S=300
 PLACEHOLDER='<previous run UTC>'
 
@@ -594,6 +600,102 @@ item_lb() {
   finish_item 9 lb "$(jq -n --argjson b "$d" --argjson s "$svcs" '{services: $s, bindings: $b}')"
 }
 
+# --- 11. SSO entry points and the Argo CD client secret --------------------------------
+# urlenc <url>: the query encoding Go's url.Values uses for a redirect_uri.
+urlenc() { printf '%s' "$1" | sed -e 's/%/%25/g' -e 's/:/%3A/g' -e 's#/#%2F#g'; }
+
+# sso_probe <host> <start path> <client_id> <callback path> <key>: 0 when the
+# app sends the browser to $SSO_ISSUER for <client_id> with redirect_uri
+# https://<host>.$DOMAIN<callback>, and Keycloak answers that request with its
+# login page (a client or redirect_uri it refuses gets a 400 error page).
+sso_probe() {
+  local out code loc q kc
+  : > "$RES/$5.why"; printf '000' > "$RES/$5.kc"
+  out=$(curl -sS -m 10 -o /dev/null -w '%{http_code} %{redirect_url}' "https://$1.$DOMAIN$2" 2>/dev/null)
+  code=$(printf '%s' "$out" | cut -d' ' -f1)
+  loc=$(printf '%s' "$out" | cut -s -d' ' -f2-)
+  printf '%s' "${code:-000}" > "$RES/$5.code"
+  case "$code" in
+    302|303|307) ;;
+    *) echo "answers ${code:-000}, want a redirect to Keycloak" > "$RES/$5.why"; return 1 ;;
+  esac
+  case "$loc" in
+    "$SSO_ISSUER/protocol/openid-connect/auth?"*) ;;
+    *) echo "redirects to $(scheme_host "$loc"), want $SSO_ISSUER/protocol/openid-connect/auth" > "$RES/$5.why"; return 1 ;;
+  esac
+  q="&${loc#*\?}&"
+  case "$q" in
+    *"&client_id=$3&"*) ;;
+    *) echo "client_id is not $3" > "$RES/$5.why"; return 1 ;;
+  esac
+  case "$q" in
+    *"&redirect_uri=$(urlenc "https://$1.$DOMAIN$4")&"*) ;;
+    *) echo "redirect_uri is not https://$1.$DOMAIN$4" > "$RES/$5.why"; return 1 ;;
+  esac
+  kc=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' "$loc" 2>/dev/null | cut -d' ' -f1)
+  printf '%s' "${kc:-000}" > "$RES/$5.kc"
+  [ "$kc" = 200 ] || { echo "Keycloak answers ${kc:-000} to the authorization request, want its login page (200)" > "$RES/$5.why"; return 1; }
+}
+
+# argo_secret_probe: 0 when Keycloak accepts the client secret that oidc.config
+# in argocd-cm points at. A made-up code with the right secret gets 400
+# invalid_grant; a wrong or empty secret gets 401 unauthorized_client.
+argo_secret_probe() {
+  local cfg ref name key cid iss sec code w="$RES/sso-secret.why"
+  : > "$w"; echo unchecked > "$RES/sso-secret.state"
+  cfg=$(k -n argo get cm argocd-cm -o json 2>/dev/null | jq -r '.data["oidc.config"] // empty') \
+    || { echo "kubectl get cm argocd-cm failed" > "$w"; return 1; }
+  oidc_val() { printf '%s\n' "$cfg" | sed -n "s/^$1:[[:space:]]*//p" | head -n 1 | tr -d "\"'"; }
+  cid=$(oidc_val clientID); iss=$(oidc_val issuer); ref=$(oidc_val clientSecret)
+  [ -n "$cid" ] || { echo "argocd-cm oidc.config has no clientID" > "$w"; return 1; }
+  [ "$iss" = "$SSO_ISSUER" ] || { echo "argocd-cm oidc.config issuer is '$iss', want $SSO_ISSUER" > "$w"; return 1; }
+  case "$ref" in
+    '$'*:*) name=${ref#\$}; name=${name%%:*}; key=${ref#*:} ;;
+    '$'?*) name=argocd-secret; key=${ref#\$} ;;
+    *) echo "argocd-cm oidc.config clientSecret is not a \$<secret>:<key> reference" > "$w"; return 1 ;;
+  esac
+  sec=$(k -n argo get secret "$name" -o json 2>/dev/null) \
+    || { echo "Secret argo/$name (oidc.config clientSecret) is missing" > "$w"; return 1; }
+  jq -e --arg k "$key" '(.data[$k] // "") != ""' <<<"$sec" >/dev/null \
+    || { echo "Secret argo/$name has no key $key (oidc.config clientSecret)" > "$w"; return 1; }
+  if [ "$name" != argocd-secret ] \
+     && ! jq -e '.metadata.labels["app.kubernetes.io/part-of"] == "argocd"' <<<"$sec" >/dev/null; then
+    echo "Secret argo/$name lacks the label app.kubernetes.io/part-of=argocd, so Argo CD ignores it" > "$w"; return 1
+  fi
+  code=$(jq -j --arg k "$key" '.data[$k] | @base64d' <<<"$sec" \
+    | curl -sS -m 10 -o /dev/null -w '%{http_code}' -d grant_type=authorization_code -d code=smoke-check \
+        -d "client_id=$cid" --data-urlencode client_secret@- "$iss/protocol/openid-connect/token" 2>/dev/null \
+    | cut -d' ' -f1)
+  case "$code" in
+    400) echo accepted > "$RES/sso-secret.state" ;;
+    401) echo rejected > "$RES/sso-secret.state"
+         echo "Keycloak rejects the client secret of $cid in argo/$name (401): logins fail at the code exchange" > "$w"; return 1 ;;
+    *) echo "Keycloak token endpoint answers ${code:-000}, want 400" > "$w"; return 1 ;;
+  esac
+}
+
+item_sso() {
+  local entry host start cid cb n=0 d='[]'
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    n=$((n + 1)) host="" start="" cid="" cb=""
+    read -r host start cid cb _ <<<"$entry"
+    if [ -z "$cb" ]; then
+      reason 11 "SSO entry '$entry' is malformed (want '<host> <start path> <client_id> <callback path>')"
+      continue
+    fi
+    if ! with_retry sso_probe "$host" "$start" "$cid" "$cb" "s-$n"; then
+      reason 11 "https://$host.$DOMAIN$start: $(cat "$RES/s-$n.why")"
+    fi
+    d=$(jq -c --arg h "$host.$DOMAIN" --arg c "$cid" --arg sc "$(cat "$RES/s-$n.code")" --arg kc "$(cat "$RES/s-$n.kc")" \
+      '. + [{host: $h, client_id: $c, start_code: $sc, keycloak_code: $kc}]' <<<"$d")
+  done < <(printf '%s\n' "$SSO_APPS" | tr ';' '\n')
+  if ! with_retry argo_secret_probe; then
+    reason 11 "$(cat "$RES/sso-secret.why")"
+  fi
+  finish_item 11 sso "$(jq -c --arg s "$(cat "$RES/sso-secret.state")" '{apps: ., argocd_client_secret: $s}' <<<"$d")"
+}
+
 # --- run --------------------------------------------------------------------------------
 item_nodes
 item_etcd
@@ -606,6 +708,7 @@ item_dns
 item_http
 item_immich
 item_lb
+item_sso
 
 FINISHED=$(utc_now)
 base=$(prev '.baseline // null')

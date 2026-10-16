@@ -6,12 +6,22 @@
 f=${SMOKE_FIX:?}
 echo "curl $*" >> "$f/calls.log"
 case " $* " in *" -m 10 "*) ;; *) echo "fake curl: no -m 10" >&2; exit 2 ;; esac
-resolve="" fmt="" url=""
+#
+# A POST with `--data-urlencode client_secret@-` reads the secret from stdin
+# and matches the line whose second field is `secret:<value>`, else the line
+# with `secret:*`. A secret on argv fails.
+resolve="" fmt="" url="" stdin_secret=0
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --resolve) resolve=$2; shift ;;
     -w) fmt=$2; shift ;;
-    -m|--connect-timeout|-o) shift ;;
+    -m|--connect-timeout|-o|-d) shift ;;
+    --data-urlencode)
+      case "$2" in
+        client_secret@-) stdin_secret=1 ;;
+        client_secret=*) echo "fake curl: client secret on argv" >&2; exit 2 ;;
+      esac
+      shift ;;
     -*) ;;
     *) url=$1 ;;
   esac
@@ -19,6 +29,10 @@ while [ "$#" -gt 0 ]; do
 done
 ip=-
 [ -n "$resolve" ] && ip=${resolve##*:}
+if [ "$stdin_secret" = 1 ]; then
+  ip="secret:$(cat)"
+  awk -v u="$url" -v ip="$ip" '$1 == u && $2 == ip { f = 1 } END { exit !f }' "$f/curl.tsv" || ip='secret:*'
+fi
 line=$(awk -v u="$url" -v ip="$ip" '$1 == u && $2 == ip { print; exit }' "$f/curl.tsv")
 if [ -z "$line" ]; then
   [ -n "$fmt" ] && printf '000 '

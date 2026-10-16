@@ -57,8 +57,9 @@ spec:
         factor: 2
         maxDuration: 3m
   ignoreDifferences:
-    # Argo CD writes server.secretkey and the admin password into it, and the
-    # Keycloak client secret is added by hand (docs/bootstrap.md step 6).
+    # Argo CD writes server.secretkey, the admin password and the API tokens
+    # into it. The Keycloak client secret is not in it: it is the Secret
+    # argocd-oidc-keycloak (platform/secrets/argocd-oidc.sops.yaml).
     - group: ""
       kind: Secret
       name: argocd-secret
