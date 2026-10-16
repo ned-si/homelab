@@ -19,6 +19,7 @@ configMapGenerator:
       - realm/sessions.conf
       - realm/platform.conf
       - realm/clients.conf
+      - realm/access.conf
       - realm/apply.sh
 
 # Before every sync: a base backup, unless WAL archiving works and the last

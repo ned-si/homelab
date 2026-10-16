@@ -1,15 +1,17 @@
 # Realm settings as code: after every sync of the `keycloak` Application,
-# this Job writes realm/sessions.conf, realm/platform.conf and
-# realm/clients.conf to the `homelab` realm with kcadm.sh and verifies them
-# (realm/apply.sh). A failed Job fails the sync, which the auto-rollback
-# workflow treats like any other failed deploy.
+# this Job writes realm/sessions.conf, realm/platform.conf,
+# realm/clients.conf and realm/access.conf to the `homelab` realm with
+# kcadm.sh and verifies them (realm/apply.sh). A failed Job fails the sync,
+# which the auto-rollback workflow treats like any other failed deploy.
 #
-# Scope is deliberately those three files: realm session fields, the
+# Scope is deliberately those four files: realm session fields, the
 # `browser-loa` flow, the default ACR of the platform clients, the clients
 # that must not exist (`removed_clients`), the oauth2-proxy clients and their
-# groups (`proxy_clients`), and the redirect URIs and web origins of the app
-# clients. Users, group members, credentials, other client settings and other
-# groups stay managed in the Keycloak admin console.
+# groups (`proxy_clients`), the redirect URIs and web origins of the app
+# clients, and per-client access (the `access` role, the groups mapped to it,
+# the client's `access-<client>` flows). Users, group members, credentials,
+# other client settings and other groups stay managed in the Keycloak admin
+# console.
 #
 # The image is the server's image (deployment.yaml); keep the two equal.
 ---
@@ -25,7 +27,9 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 2
-  activeDeadlineSeconds: 900
+  # kcadm.sh starts a JVM per call (~2 s); access.conf alone is ~15 calls per
+  # client, ~40 more when its flows are first built.
+  activeDeadlineSeconds: 1800
   template:
     metadata:
       labels:

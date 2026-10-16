@@ -1,7 +1,8 @@
 #!/bin/bash
 # platform/keycloak/realm/apply.sh static checks (CHECK_ONLY=1): the repo's
-# files pass, and wildcard or non-https redirect URIs, origins with a path and
-# clients both removed and configured fail before any kcadm call.
+# files pass, and wildcard or non-https redirect URIs, origins with a path,
+# malformed access.conf lines and clients both removed and configured fail
+# before any kcadm call.
 set -euo pipefail
 # shellcheck source=tests/bash/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -14,11 +15,11 @@ chmod +x "$tmp/kcadm"
 # A file named like a glob match must not hide a `*` value.
 touch "$tmp/https:"
 
-# run <platform.conf> <clients.conf> -> "rc=<n>" plus the output
+# run <platform.conf> <clients.conf> [access.conf] -> "rc=<n>" plus the output
 run() {
   local o r=0
   o=$(cd "$tmp" && CHECK_ONLY=1 KCADM="$tmp/kcadm" PLATFORM_CONF="$1" CLIENTS_CONF="$2" \
-    bash "$REALM_DIR/apply.sh" 2>&1) || r=$?
+    ACCESS_CONF="${3:-$REALM_DIR/access.conf}" bash "$REALM_DIR/apply.sh" 2>&1) || r=$?
   printf 'rc=%s %s' "$r" "$o"
 }
 clients() { printf '%s\n' "$@" > "$tmp/clients.conf"; echo "$tmp/clients.conf"; }
@@ -59,6 +60,23 @@ expect_contains "proxy client without group fails" "proxy_clients entry is not <
 sed 's/^removed_clients=.*/removed_clients=myclient theater-sso/' "$REALM_DIR/platform.conf" > "$tmp/p4.conf"
 o=$(run "$tmp/p4.conf" "$REALM_DIR/clients.conf")
 expect_contains "removed proxy client fails" "client theater-sso is in removed_clients" "$o"
+
+# access.conf: <clientId>=<groups>, each client once, not also removed.
+access() { printf '%s\n' "$@" > "$tmp/access.conf"; echo "$tmp/access.conf"; }
+for l in 'immich=' 'immich' 'immich=family,media' 'imm ich=family' 'immich=fam*'; do
+  o=$(run "$REALM_DIR/platform.conf" "$REALM_DIR/clients.conf" "$(access "$l")")
+  expect_contains "access line '$l' fails" "not <clientId>=<groups>" "$o"
+done
+o=$(run "$REALM_DIR/platform.conf" "$REALM_DIR/clients.conf" "$(access 'immich=family' 'immich=media')")
+expect_contains "client listed twice fails" "client listed twice: immich" "$o"
+o=$(run "$REALM_DIR/platform.conf" "$REALM_DIR/clients.conf" "$(access 'myclient=admins')")
+expect_contains "removed access client fails" "client myclient is in removed_clients" "$o"
+o=$(run "$REALM_DIR/platform.conf" "$REALM_DIR/clients.conf" "$(access '# c' 'app=family  media' '' 'x=admins')")
+expect_contains "comments, blanks and several groups pass" "rc=0" "$o"
+# Every app client with a redirect URI is gated.
+while IFS= read -r c; do
+  expect_contains "client $c is in access.conf" "$c=" "$(grep "^$c=" "$REALM_DIR/access.conf" || true)"
+done < <(sed -n 's/^\([A-Za-z0-9_-]*\)\.redirectUris=.*/\1/p' "$REALM_DIR/clients.conf")
 expect_eq "still no kcadm call" "" "$(cat "$tmp/kcadm.log" 2>/dev/null || true)"
 
 finish
