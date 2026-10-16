@@ -83,5 +83,5 @@ spec:
       serviceAccountName: github-exporter
       volumes:
       - configMap:
-          name: github-exporter-tgfkbkg65d
+          name: github-exporter-6dbd587b6f
         name: app
