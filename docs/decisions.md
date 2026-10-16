@@ -115,7 +115,10 @@ Nothing waits for a person: Renovate automerges every update on green CI
 reverted automatically ([Automatic rollback](#automatic-rollback)). The only
 exclusions are technical caps with a stated reason and an upstream source: the
 Immich database image (a VectorChord update or a PostgreSQL major is one-way),
-and versions a consumer does not support yet. Policy gates, once they exist, are Kyverno
+majors of stateful data stores (Postgres, ClickHouse, ZooKeeper, Valkey/Redis,
+MariaDB/MySQL: the pull request opens, a person merges it, because a store that
+has run on the new major cannot go back; ClickHouse 26 for SigNoz, #559, was
+the case), and versions a consumer does not support yet. Policy gates, once they exist, are Kyverno
 policies, not approvals.
 
 Why: one operator, and the goal is a system that updates and heals at any time.

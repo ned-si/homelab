@@ -265,6 +265,24 @@
       enabled: false,
     },
     {
+      // EXCEPTION: majors of stateful data stores open a pull request but do
+      // not automerge. A store that has run on a new major rewrites its
+      // on-disk format and cannot be rolled back by a revert (ClickHouse 26
+      // for SigNoz, #559). Minors, patches and digests still automerge.
+      description: 'No automerge for data-store majors',
+      matchPackageNames: [
+        '/postgres/',
+        '/clickhouse-server/',
+        '/zookeeper/',
+        '/valkey/',
+        '/redis/',
+        '/mariadb/',
+        '/mysql/',
+      ],
+      matchUpdateTypes: ['major'],
+      automerge: false,
+    },
+    {
       // Talos and Kubernetes: talosVersion / kubernetesVersion in
       // talos/talconfig.yaml and the tuppr upgrade resources in
       // platform/tuppr/upgrades/ share a depName, so one pull request bumps
