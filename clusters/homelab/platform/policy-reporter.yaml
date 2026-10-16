@@ -1,0 +1,43 @@
+# policy-reporter: Kyverno's PolicyReports as Prometheus metrics
+# (policy_report_result) for the Security dashboard (docs/security.md).
+#
+# Multi-source: the chart and its values from this repo.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: policy-reporter
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10): the ServiceMonitor CRD comes with that chart.
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://kyverno.github.io/policy-reporter/
+      chart: policy-reporter
+      # renovate: datasource=helm depName=policy-reporter registryUrl=https://kyverno.github.io/policy-reporter/
+      targetRevision: 3.11.1
+      helm:
+        releaseName: policy-reporter
+        valueFiles:
+          - $values/platform/policy-reporter/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false # ships a CRD: pruning it deletes every object of that kind
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

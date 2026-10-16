@@ -1,0 +1,10 @@
+# The CI policies as a kustomize base, so infrastructure/kyverno-policies
+# syncs these exact files into the cluster (in Audit there). CI and cluster
+# cannot drift. scripts/ci/kyverno.sh skips this file.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - disallow-latest-tag.yaml
+  - disallow-privileged.yaml
+  - require-probes.yaml
+  - require-resources.yaml

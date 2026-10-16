@@ -69,8 +69,8 @@ Kyverno policies:
 | `require-resources` | Audit: reported in the step summary |
 | `require-probes` (Deployments) | Audit: reported in the step summary |
 
-An Audit policy moves to Deny once `deploy/` passes it. The same files are the
-baseline for the in-cluster Kyverno gates.
+An Audit policy moves to Deny once `deploy/` passes it. The in-cluster Kyverno
+syncs the same files, in Audit there ([security.md](security.md#admission-kyverno)).
 
 ## 3. Pre-production (kind)
 

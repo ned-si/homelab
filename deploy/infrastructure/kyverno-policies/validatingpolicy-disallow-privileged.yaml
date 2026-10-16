@@ -1,0 +1,67 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    policies.kyverno.io/category: PSS Baseline; CIS 5.2.2; NIST 800-190 4.4.3
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/title: Disallow privileged containers
+  name: disallow-privileged
+spec:
+  failurePolicy: Ignore
+  matchConditions:
+  - expression: '!(object.metadata.?namespace.orValue('''') in [''kube-system'', ''democratic-csi''])'
+    name: not-allowlisted
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+    - apiGroups:
+      - apps
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - deployments
+      - statefulsets
+      - daemonsets
+    - apiGroups:
+      - batch
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - jobs
+      - cronjobs
+  validationActions:
+  - Audit
+  validations:
+  - expression: variables.containers.all(c, !c.?securityContext.?privileged.orValue(false))
+    message: Privileged containers are only allowed in kube-system and democratic-csi.
+  variables:
+  - expression: 'object.kind == ''Pod'' ? object.spec : object.kind == ''CronJob''
+      ? object.spec.jobTemplate.spec.template.spec : object.spec.template.spec'
+    name: pod
+  - expression: variables.pod.containers + variables.pod.?initContainers.orValue([])
+      + variables.pod.?ephemeralContainers.orValue([])
+    name: containers

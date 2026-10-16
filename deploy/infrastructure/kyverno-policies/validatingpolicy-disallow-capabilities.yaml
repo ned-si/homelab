@@ -1,0 +1,53 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    policies.kyverno.io/category: PSS Baseline; CIS 5.2.9; NIST 800-190 4.4.3
+    policies.kyverno.io/description: Adding capabilities beyond those listed in the
+      policy must be disallowed.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Disallow Capabilities in ValidatingPolicy
+  name: disallow-capabilities
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: variables.allContainers.all(container,  container.?securityContext.?capabilities.?add.orValue([]).all(capability,
+      capability == '' || capability in variables.allowedCapabilities))
+    message: Any capabilities added beyond the allowed list (AUDIT_WRITE, CHOWN, DAC_OVERRIDE,
+      FOWNER, FSETID, KILL, MKNOD, NET_BIND_SERVICE, SETFCAP, SETGID, SETPCAP, SETUID,
+      SYS_CHROOT) are disallowed.
+  variables:
+  - expression: '[''AUDIT_WRITE'',''CHOWN'',''DAC_OVERRIDE'',''FOWNER'',''FSETID'',''KILL'',''MKNOD'',''NET_BIND_SERVICE'',''SETFCAP'',''SETGID'',''SETPCAP'',''SETUID'',''SYS_CHROOT'']'
+    name: allowedCapabilities
+  - expression: (object.spec.containers +  object.spec.?initContainers.orValue([])
+      +  object.spec.?ephemeralContainers.orValue([]))
+    name: allContainers

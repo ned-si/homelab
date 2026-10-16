@@ -21,3 +21,4 @@ resources:
   - talos-drift.yaml
   - tailscale-operator.yaml
   - headlamp.yaml
+  - policy-reporter.yaml

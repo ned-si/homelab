@@ -1,0 +1,96 @@
+# Kyverno chart values: the admission controller and the reports controller,
+# in Audit mode only (docs/security.md#admission-kyverno).
+#
+# Cold-start safety, the reason for most of this file:
+#   - every webhook Kyverno registers fails open (forceFailurePolicyIgnore),
+#     and every policy also sets `failurePolicy: Ignore`
+#     (infrastructure/kyverno-policies);
+#   - the webhooks skip the namespaces a cold start depends on (namespaceSelector
+#     below), so a Kyverno outage never sits in their pod-creation path;
+#   - no Helm hooks: Argo CD would run them on every sync.
+#
+# Off to save memory on the SBCs: the background controller (generate and
+# mutate-existing policies, none here) and the cleanup controller (cleanup
+# policies, none here). The reports controller stays on: it runs the hourly
+# background scan of existing resources and writes the PolicyReports that
+# policy-reporter (platform/policy-reporter) turns into metrics.
+#
+# Images are pinned by digest; Renovate moves tag and digest together with the
+# chart (the chart's appVersion is the image tag).
+
+crds:
+  # A post-upgrade Helm hook that rewrites stored objects to the newest CRD
+  # version. Under Argo CD it becomes a PostSync Job on every sync. Run it by
+  # hand when a Kyverno minor drops a CRD version (release notes).
+  migration:
+    enabled: false
+
+webhooksCleanup:
+  # pre-delete hook; Argo CD never deletes this release.
+  enabled: false
+
+config:
+  webhooks:
+    namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - kube-system
+            - argo
+            - cilium
+            - kyverno
+            - tailscale
+            - talos
+
+features:
+  forceFailurePolicyIgnore:
+    enabled: true
+  # Native ValidatingAdmissionPolicies stay opt-in per policy (none opt in):
+  # the webhook namespaceSelector above would not apply to them.
+  generateValidatingAdmissionPolicy:
+    enabled: false
+  backgroundScan:
+    backgroundScanInterval: 1h
+    backgroundScanWorkers: 1
+
+admissionController:
+  replicas: 1
+  initContainer:
+    image:
+      registry: ghcr.io
+      repository: kyverno/kyvernopre
+      # renovate: datasource=docker depName=ghcr.io/kyverno/kyvernopre
+      tag: v1.19.1@sha256:c25c47461f06f2845a48c319ae86fbbc1730a7b9ed5b701889c9dc1f9ee94b09
+  container:
+    image:
+      registry: ghcr.io
+      repository: kyverno/kyverno
+      # renovate: datasource=docker depName=ghcr.io/kyverno/kyverno
+      tag: v1.19.1@sha256:b31d8511ae5fd6010e2a01ea72ebae08eb82fa51d91af14a1d9fe989949b4edb
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 384Mi
+
+backgroundController:
+  enabled: false
+
+cleanupController:
+  enabled: false
+
+reportsController:
+  replicas: 1
+  image:
+    registry: ghcr.io
+    repository: kyverno/reports-controller
+    # renovate: datasource=docker depName=ghcr.io/kyverno/reports-controller
+    tag: v1.19.1@sha256:c0eee97b9b44a0dd35805d56b358fa52548480f79d4944602b9609538eccd64c
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi

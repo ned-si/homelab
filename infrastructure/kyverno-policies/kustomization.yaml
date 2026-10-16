@@ -1,0 +1,162 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The ValidatingPolicies the in-cluster Kyverno evaluates, all in Audit
+# (docs/security.md#admission-kyverno). Enforcement (Deny) is a later change,
+# one policy at a time, once its PolicyReports are clean.
+#
+# Sources, no rules written here:
+#   - policies/kyverno: the CI policies, the same files scripts/ci/kyverno.sh
+#     runs over deploy/ (two of them Deny in CI, Audit here);
+#   - kyverno/policies, the upstream library, pinned to one commit (the repo
+#     has no tags; Renovate follows its main branch through git-refs):
+#     Pod Security Standards baseline and restricted, ValidatingPolicy
+#     versions, minus disallow-privileged-containers (policies/kyverno's
+#     disallow-privileged covers it), plus two best-practices policies.
+#
+# Patches:
+#   - every policy: validationActions [Audit] and failurePolicy Ignore, so no
+#     policy can reject or block a request, even on an evaluation error;
+#   - policies.kyverno.io/category: the framework controls each policy checks
+#     (Pod Security Standards level, CIS Kubernetes Benchmark, NIST SP 800-190
+#     countermeasure section, NSA/CISA Kubernetes Hardening Guide). Kyverno
+#     copies the category into every PolicyReport result, policy-reporter into
+#     the `category` label of policy_report_result, and the Security dashboard
+#     groups by it.
+resources:
+  - ../../policies/kyverno
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/disallow-host-ports/disallow-host-ports.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/disallow-host-process/disallow-host-process.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/disallow-proc-mount/disallow-proc-mount.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/disallow-selinux/disallow-selinux.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/restrict-seccomp/restrict-seccomp.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/baseline/restrict-sysctls/restrict-sysctls.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/restricted/disallow-capabilities-strict/disallow-capabilities-strict.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/restricted/disallow-privilege-escalation/disallow-privilege-escalation.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
+  - https://raw.githubusercontent.com/kyverno/policies/ec478cb5996376c0d2f09520675805a8e33297c9/best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
+
+patches:
+  - target:
+      group: policies.kyverno.io
+      kind: ValidatingPolicy
+    patch: |-
+      - op: add
+        path: /spec/validationActions
+        value: [Audit]
+      - op: add
+        path: /spec/failurePolicy
+        value: Ignore
+  # Controls, one patch per policy.
+  - target: {kind: ValidatingPolicy, name: disallow-privileged}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; CIS 5.2.2; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: disallow-latest-tag}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: NIST 800-190 4.2.2
+  - target: {kind: ValidatingPolicy, name: require-resources}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: NSA/CISA resource policies
+  - target: {kind: ValidatingPolicy, name: require-probes}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: Best practice (no security control)
+  - target: {kind: ValidatingPolicy, name: disallow-capabilities}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; CIS 5.2.9; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: disallow-host-namespaces}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; CIS 5.2.3-5.2.5; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: disallow-host-path}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; CIS 5.2.12; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: disallow-host-ports}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; CIS 5.2.13; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: disallow-host-process}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; CIS 5.2.11
+  - target: {kind: ValidatingPolicy, name: disallow-proc-mount}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: disallow-selinux}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: restrict-seccomp}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; CIS 5.7.2
+  - target: {kind: ValidatingPolicy, name: restrict-sysctls}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Baseline; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: disallow-capabilities-strict}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Restricted; CIS 5.2.8, 5.2.10
+  - target: {kind: ValidatingPolicy, name: disallow-privilege-escalation}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Restricted; CIS 5.2.6; NIST 800-190 4.4.3
+  - target: {kind: ValidatingPolicy, name: require-run-as-non-root-user}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Restricted; CIS 5.2.7; NIST 800-190 4.1.2
+  - target: {kind: ValidatingPolicy, name: require-run-as-nonroot}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Restricted; CIS 5.2.7; NIST 800-190 4.1.2
+  - target: {kind: ValidatingPolicy, name: restrict-seccomp-strict}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Restricted; CIS 5.7.2
+  - target: {kind: ValidatingPolicy, name: restrict-volume-types}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: PSS Restricted
+  - target: {kind: ValidatingPolicy, name: disallow-default-namespace}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: CIS 5.7.4
+  - target: {kind: ValidatingPolicy, name: require-ro-rootfs}
+    patch: |-
+      - op: add
+        path: /metadata/annotations/policies.kyverno.io~1category
+        value: NSA/CISA immutable filesystem; NIST 800-190 4.4.4

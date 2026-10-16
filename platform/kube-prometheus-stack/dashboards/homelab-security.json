@@ -1,7 +1,7 @@
 {
   "uid": "homelab-security",
   "title": "Homelab / Security",
-  "description": "TLS as served, authentication errors at the API server, the public endpoints and Keycloak, Secret age, image hygiene and CVEs in running images.",
+  "description": "TLS as served, authentication errors at the API server, the public endpoints and Keycloak, Secret age, image hygiene, CVEs in running images and admission policy violations.",
   "tags": [
     "homelab",
     "security"
@@ -1350,6 +1350,279 @@
       }
     },
     {
+      "id": 25,
+      "type": "row",
+      "title": "Admission policies (Kyverno, Audit)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 62
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Policy violations",
+      "description": "Failing PolicyReport results (policy-reporter, policy_report_result) from Kyverno's admission checks and its hourly background scan. Every policy is in Audit: nothing is blocked. Errors are policies that could not evaluate a resource.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(policy_report_result{status=\"fail\"}) or vector(0)",
+          "refId": "A",
+          "legendFormat": "violations",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(policy_report_result{status=\"error\"}) or vector(0)",
+          "refId": "B",
+          "legendFormat": "errors",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "id": 26,
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 0,
+        "y": 63
+      }
+    },
+    {
+      "type": "bargauge",
+      "title": "Violations by namespace",
+      "description": "Failing results per namespace, all policies. Cluster-scoped resources have no namespace.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(sum by (namespace) (policy_report_result{status=\"fail\"}))",
+          "refId": "A",
+          "legendFormat": "{{namespace}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "id": 27,
+      "gridPos": {
+        "h": 7,
+        "w": 18,
+        "x": 6,
+        "y": 63
+      }
+    },
+    {
+      "type": "table",
+      "title": "Violations by policy and control",
+      "description": "One row per policy. Controls: the Pod Security Standards level, CIS Kubernetes Benchmark, NIST SP 800-190 countermeasure section and NSA/CISA guidance the policy checks (annotation policies.kyverno.io/category, infrastructure/kyverno-policies). Details: kubectl get policyreports -A.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(sum by (policy, category, severity) (policy_report_result{status=\"fail\"}))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "policy": 0,
+              "category": 1,
+              "severity": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "violations",
+              "category": "controls"
+            }
+          }
+        }
+      ],
+      "id": 28,
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 70
+      }
+    },
+    {
+      "type": "table",
+      "title": "Violations by namespace and policy",
+      "description": "Failing results per namespace and policy, with the controls the policy checks.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort_desc(sum by (namespace, policy, category) (policy_report_result{status=\"fail\"}))",
+          "refId": "A",
+          "legendFormat": "",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true
+            },
+            "indexByName": {
+              "namespace": 0,
+              "policy": 1,
+              "category": 2,
+              "Value": 3
+            },
+            "renameByName": {
+              "Value": "violations",
+              "category": "controls"
+            }
+          }
+        }
+      ],
+      "id": 29,
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 70
+      }
+    },
+    {
       "id": 11,
       "type": "row",
       "title": "Not available yet",
@@ -1358,7 +1631,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 62
+        "y": 80
       },
       "panels": []
     },
@@ -1374,7 +1647,7 @@
         "h": 6,
         "w": 24,
         "x": 0,
-        "y": 63
+        "y": 81
       }
     }
   ]

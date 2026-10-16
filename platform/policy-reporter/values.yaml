@@ -1,0 +1,47 @@
+# policy-reporter chart values: reads Kyverno's PolicyReports and exports them
+# as Prometheus metrics for the Security dashboard (docs/security.md).
+#
+# Metrics only: no UI, no Kyverno plugin, no notification targets, no
+# Grafana dashboards from the chart (the Security dashboard has its own row).
+#
+# policy_report_result, custom mode: one series per namespace, policy,
+# category (the framework controls, infrastructure/kyverno-policies), severity,
+# source and status, its value the number of results. Passing and skipped
+# results are dropped: only violations are counted.
+
+image:
+  registry: ghcr.io
+  repository: kyverno/policy-reporter
+  # renovate: datasource=docker depName=ghcr.io/kyverno/policy-reporter
+  tag: 3.11.1@sha256:a95ef6394c4d57eeb488c589d278c6c64f029b306b0838f26badbbe6588b8b56
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 192Mi
+
+metrics:
+  enabled: true
+  mode: custom
+  customLabels: [namespace, policy, category, severity, source, status]
+  filter:
+    status:
+      exclude: [pass, skip]
+
+monitoring:
+  enabled: true
+  serviceMonitor:
+    labels:
+      release: kube-prometheus-stack
+  grafana:
+    dashboards:
+      enabled: false
+
+ui:
+  enabled: false
+
+plugin:
+  kyverno:
+    enabled: false

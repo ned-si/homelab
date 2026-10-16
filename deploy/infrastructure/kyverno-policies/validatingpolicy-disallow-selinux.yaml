@@ -1,0 +1,69 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    kyverno.io/kyverno-version: 1.14.0
+    policies.kyverno.io/category: PSS Baseline; NIST 800-190 4.4.3
+    policies.kyverno.io/description: SELinux options can be used to escalate privileges
+      and should not be allowed. This policy ensures that the `seLinuxOptions` field
+      is undefined.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Disallow SELinux in ValidatingPolicy
+  name: disallow-selinux
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: "variables.hasValidSELinuxType && variables.allContainerTypes.all(container,
+      \n  container.?securityContext.?seLinuxOptions.?type.orValue('') == '' || \n
+      \ variables.seLinuxTypes.exists(type, type == container.securityContext.seLinuxOptions.type))"
+    message: Setting the SELinux type is restricted. The field securityContext.seLinuxOptions.type  must
+      either be unset or set to one of the allowed values (container_t, container_init_t,
+      or container_kvm_t).
+  - expression: |-
+      variables.hasValidSELinuxUserRole && variables.allContainerTypes.all(container,
+
+        container.?securityContext.?seLinuxOptions.?user.orValue('') == '' &&
+        container.?securityContext.?seLinuxOptions.?role.orValue('') == '')
+    message: Setting the SELinux user or role is forbidden. The fields seLinuxOptions.user
+      and seLinuxOptions.role must be unset.
+  variables:
+  - expression: object.spec.containers +  object.spec.?initContainers.orValue([])
+      +  object.spec.?ephemeralContainers.orValue([])
+    name: allContainerTypes
+  - expression: '[''container_t'', ''container_init_t'', ''container_kvm_t'']'
+    name: seLinuxTypes
+  - expression: object.spec.?securityContext.?seLinuxOptions.?type.orValue('') ==
+      '' ||  variables.seLinuxTypes.exists(type, type == object.spec.securityContext.seLinuxOptions.type)
+    name: hasValidSELinuxType
+  - expression: object.spec.?securityContext.?seLinuxOptions.?user.orValue('') ==
+      '' && object.spec.?securityContext.?seLinuxOptions.?role.orValue('') == ''
+    name: hasValidSELinuxUserRole

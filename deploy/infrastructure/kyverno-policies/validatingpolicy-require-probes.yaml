@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    policies.kyverno.io/category: Best practice (no security control)
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/title: Require probes on Deployments
+  name: require-probes
+spec:
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - apps
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - deployments
+  validationActions:
+  - Audit
+  validations:
+  - expression: object.spec.template.spec.containers.all(c, has(c.readinessProbe)
+      && has(c.livenessProbe))
+    message: Every container needs a readinessProbe and a livenessProbe.

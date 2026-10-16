@@ -166,6 +166,21 @@
       ],
       datasourceTemplate: 'github-releases',
     },
+    {
+      customType: 'regex',
+      // kyverno/policies publishes no tags or releases: every URL is pinned
+      // to a commit, and the commit follows the head of main. Each URL is one
+      // match of the same dependency, so one update moves all of them.
+      description: 'kyverno/policies raw URLs pinned to a commit of main (infrastructure/kyverno-policies)',
+      managerFilePatterns: ['/(^|/)infrastructure/kyverno-policies/kustomization\\.yaml$/'],
+      matchStrings: [
+        'raw\\.githubusercontent\\.com/kyverno/policies/(?<currentDigest>[a-f0-9]{40})/',
+      ],
+      depNameTemplate: 'kyverno/policies',
+      packageNameTemplate: 'https://github.com/kyverno/policies',
+      currentValueTemplate: 'main',
+      datasourceTemplate: 'git-refs',
+    },
   ],
 
   packageRules: [

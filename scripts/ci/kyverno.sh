@@ -27,7 +27,12 @@ trap 'rm -rf "$out"' EXIT
 echo "== kyverno test policies/kyverno/tests"
 kyverno test policies/kyverno/tests --remove-color || rc=1
 
-policies=(policies/kyverno/*.yaml)
+# kustomization.yaml is how infrastructure/kyverno-policies syncs these files
+# into the cluster; it is not a policy.
+policies=()
+for p in policies/kyverno/*.yaml; do
+  [ "$(basename "$p")" = kustomization.yaml ] || policies+=("$p")
+done
 enforced=()
 for p in "${policies[@]}"; do
   if [ "$(yq '.spec.validationActions // [] | contains(["Deny"])' "$p")" = "true" ]; then

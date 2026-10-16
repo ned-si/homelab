@@ -73,14 +73,17 @@ point, a credential or an admission path is added or removed.
   workflow token is read-only, `renovate-render` runs only on Renovate's own
   branches and never with `pull_request_target`. Commits on `main` are signed.
   gitleaks and the Trivy gate run in CI; GitHub secret scanning has push
-  protection.
+  protection. In the cluster, Kyverno checks every pod against the Pod
+  Security Standards and the CI policies, in Audit
+  ([security.md](security.md#admission-kyverno)).
 - Residual: no app image is pinned by digest and no signature is verified, so
   a re-pushed tag reaches the cluster on the next pull; automerge trusts CI to
   catch a malicious update, which it does not look for.
 - SLSA: this repository builds no artifacts, so it applies SLSA as a consumer
   only: verify upstream provenance and signatures where they are published.
-- Planned: digest pins through Renovate; signature verification in Kyverno
-  (Audit first) for publishers that sign; a weekly SBOM and CVE scan of the
+- Planned: digest pins through Renovate; Kyverno Deny per policy once its
+  reports are clean; signature verification in Kyverno (Audit first) for
+  publishers that sign; a weekly SBOM and CVE scan of the
   running images; OpenSSF Scorecard and CodeQL.
 
 ### Argo CD repo-server and KSOPS

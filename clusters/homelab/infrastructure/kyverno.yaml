@@ -1,0 +1,45 @@
+# Kyverno: admission policies in Audit mode (docs/security.md#admission-kyverno).
+# The policies themselves are the `kyverno-policies` Application.
+#
+# SYNC WAVE 35, after everything else in this layer: a cold start never waits
+# on Kyverno, and Kyverno's webhooks fail open and skip the namespaces the
+# cold start depends on (infrastructure/kyverno/values.yaml).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "35"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://kyverno.github.io/kyverno/
+      chart: kyverno
+      # renovate: datasource=helm depName=kyverno registryUrl=https://kyverno.github.io/kyverno/
+      targetRevision: 3.9.1
+      helm:
+        releaseName: kyverno
+        valueFiles:
+          - $values/infrastructure/kyverno/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false # ships CRDs: pruning one deletes every policy and report of that kind
+      selfHeal: true
+    syncOptions:
+      # The CRDs are larger than the client-side apply annotation allows.
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

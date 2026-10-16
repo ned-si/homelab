@@ -37,6 +37,7 @@ SNAPSHOTTER=v6.3.2
 BARMAN=v0.15.1
 TUPPR=0.5.7
 TAILSCALE=v1.104.1
+KYVERNO=v1.19.1
 # talos.dev ServiceAccount: Talos installs this CRD itself; the file is its
 # test fixture at the release the nodes run.
 TALOS=v1.14.2
@@ -89,6 +90,7 @@ done
 add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_proxyclasses.yaml"
 add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_connectors.yaml"
 add "https://raw.githubusercontent.com/siderolabs/talos/$TALOS/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml"
+add "https://raw.githubusercontent.com/kyverno/kyverno/$KYVERNO/config/crds/policies.kyverno.io/policies.kyverno.io_validatingpolicies.yaml"
 
 gen="$work/gen"
 mkdir -p "$gen"

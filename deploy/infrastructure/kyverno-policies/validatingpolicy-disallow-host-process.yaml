@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    policies.kyverno.io/category: PSS Baseline; CIS 5.2.11
+    policies.kyverno.io/description: Windows pods offer the ability to run HostProcess
+      containers which enables privileged access to the Windows node. Privileged access
+      to the host is disallowed in the baseline policy. HostProcess pods are an alpha
+      feature as of Kubernetes v1.22. This policy ensures the `hostProcess` field,
+      if present, is set to `false`.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Disallow hostProcess in ValidatingPolicy
+  name: disallow-host-process
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: variables.allContainers.all(container, container.?securityContext.?windowsOptions.?hostProcess.orValue(false)
+      == false)
+    message: 'HostProcess containers are disallowed. The field spec.containers[*].securityContext.windowsOptions.hostProcess,
+      spec.initContainers[*].securityContext.windowsOptions.hostProcess, and spec.ephemeralContainers[*].securityContext.windowsOptions.hostProcess
+      must either be undefined or set to `false`. '
+  variables:
+  - expression: "object.spec.containers + \n  object.spec.?initContainers.orValue([])
+      + \n  object.spec.?ephemeralContainers.orValue([])"
+    name: allContainers

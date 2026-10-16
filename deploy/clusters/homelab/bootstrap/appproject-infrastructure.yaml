@@ -41,6 +41,8 @@ spec:
     kind: VolumeSnapshotClass
   - group: gateway.networking.k8s.io
     kind: GatewayClass
+  - group: policies.kyverno.io
+    kind: ValidatingPolicy
   - group: admissionregistration.k8s.io
     kind: MutatingWebhookConfiguration
   - group: admissionregistration.k8s.io
@@ -63,3 +65,4 @@ spec:
   - https://kubernetes-sigs.github.io/external-dns/
   - https://democratic-csi.github.io/charts/
   - https://argoproj.github.io/argo-helm
+  - https://kyverno.github.io/kyverno/
