@@ -11,13 +11,13 @@ tests:
   # never page.
   - interval: 1m
     input_series:
-      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", type="warning", message="Indexers unavailable due to failures for more than 6 hours: A"}'
+      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", message="6 hours: A"}'
         values: '_x9 1x30 _x60'
-      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", type="warning", message="Indexers unavailable due to failures for more than 6 hours: A, B"}'
+      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", message="6 hours: A, B"}'
         values: '_x39 1x60'
-      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerStatusCheck", type="warning", message="Indexers unavailable due to failures: C"}'
+      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerStatusCheck", message="failures: C"}'
         values: '1x100'
-      - series: 'sonarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", type="warning", message="Indexers unavailable due to failures for more than 6 hours: A"}'
+      - series: 'sonarr_system_health_issues{namespace="theater", source="IndexerLongTermStatusCheck", message="6 hours: A"}'
         values: '1x100'
     alert_rule_test:
       - eval_time: 60m

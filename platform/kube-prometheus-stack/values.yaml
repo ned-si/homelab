@@ -298,7 +298,13 @@ alertmanager:
         # kube-prometheus-stack, the tuppr chart's upgrade alerts).
         - receiver: ntfy
           matchers:
-            - alertname =~ "etcdInsufficientMembers|etcdNoLeader|TalosUpgradeFailed|TalosUpgradeNodeFailed|TalosUpgradeStuck|KubernetesUpgradeFailed|KubernetesUpgradeStuck|TupprOperatorAbsent"
+            - alertname =~ "etcdInsufficientMembers|etcdNoLeader"
+          group_by: [alertname]
+          repeat_interval: 4h
+          mute_time_intervals: [quiet-hours]
+        - receiver: ntfy
+          matchers:
+            - alertname =~ "(Talos|Kubernetes)Upgrade(Failed|NodeFailed|Stuck)|TupprOperatorAbsent"
           group_by: [alertname]
           repeat_interval: 4h
           mute_time_intervals: [quiet-hours]
