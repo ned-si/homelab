@@ -76,9 +76,11 @@ metadata:
   name: grafana-backup
   namespace: monitoring
 spec:
-  # 04:20. After the *arr configs (04:00-04:30 in apps/theater/backup.yaml) but
-  # the volume is tiny, so overlap costs nothing.
-  schedule: "20 4 * * *"
+  # 05:50, after the other nightly jobs (docs/backups.md, Schedule).
+  schedule: "50 5 * * *"
+  # Runs for real (ci/active-cronjobs.txt): the s3-backup Secret in
+  # `monitoring` holds the real credentials.
+  suspend: false
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5

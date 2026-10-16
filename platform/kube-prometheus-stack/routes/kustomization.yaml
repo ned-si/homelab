@@ -4,8 +4,9 @@ namespace: monitoring
 
 # Rendered: the Grafana route, the SLO rules, the general cluster alerts, the
 # Argo CD, the outage and the NAS alerts, the Cilium PodMonitors, the etcd scrape.
-# grafana-backup.yaml is new behaviour (backups) and ships in its own change.
+# And the nightly restic backup of grafana.db (grafana-backup.yaml).
 resources:
+  - grafana-backup.yaml
   - grafana.yaml
   - slo.yaml
   - alerts.yaml

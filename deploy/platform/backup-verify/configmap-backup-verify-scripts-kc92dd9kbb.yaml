@@ -107,6 +107,7 @@ data:
     calibre-library|s3:books/configs|calibre-library|/library/metadata.db
     home-assistant-config|s3:home/configs|home-assistant-config|/config/configuration.yaml;/config/.storage/core.config_entries
     home-assistant-postgres|s3:home/configs|home-assistant-postgres|/dumps/pg-home-home-assistant-postgresql.dump
+    grafana-db|s3:grafana/data|grafana-db-besteffort|/data/grafana.db
   verify-files.sh: |
     #!/bin/sh
     # Weekly restic restore test, run by CronJob backup-verify-files (restic image).
@@ -722,5 +723,5 @@ data:
     exit "$rc"
 kind: ConfigMap
 metadata:
-  name: backup-verify-scripts-998cffd9t8
+  name: backup-verify-scripts-kc92dd9kbb
   namespace: backup-verify
