@@ -8,8 +8,10 @@
 # `browser-loa` flow, the default ACR of the platform clients, the clients
 # that must not exist (`removed_clients`), the oauth2-proxy clients and their
 # groups (`proxy_clients`), the redirect URIs and web origins of the app
-# clients, and per-client access (the `access` role, the groups mapped to it,
-# the client's `access-<client>` flows). Users, group members, credentials,
+# clients, per-client access (the `access` role, the groups mapped to it,
+# the client's `access-<client>` flows), OTP for `mfa_groups` (realm role,
+# policy, required action) and, in the `master` realm, the Job's own client
+# and the OTP browser flow `browser-otp`. Users, group members, credentials,
 # other client settings and other groups stay managed in the Keycloak admin
 # console.
 #
@@ -28,8 +30,8 @@ metadata:
 spec:
   backoffLimit: 2
   # kcadm.sh starts a JVM per call (~2 s); access.conf alone is ~15 calls per
-  # client, ~40 more when its flows are first built.
-  activeDeadlineSeconds: 1800
+  # client, ~60 more when its flows are (re)built.
+  activeDeadlineSeconds: 3600
   template:
     metadata:
       labels:
@@ -81,6 +83,16 @@ spec:
                 secretKeyRef:
                   name: keycloak-hubble-client
                   key: HUBBLE_CLIENT_SECRET
+                  optional: true
+            # The Job's own master client, platform.conf `automation_client`
+            # (platform/secrets/keycloak-automation.sops.yaml). Without it the
+            # Job logs in with the admin password and leaves the master
+            # browser flow as it is.
+            - name: REALM_SETTINGS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-automation
+                  key: REALM_SETTINGS_CLIENT_SECRET
                   optional: true
           resources:
             requests:

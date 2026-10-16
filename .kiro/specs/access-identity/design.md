@@ -40,6 +40,7 @@ plus the `sops-age` Secret).
 | Decision | Where |
 | --- | --- |
 | Long sessions for user apps, 12 h for platform tools | [architecture.md](../../../docs/architecture.md#sessions) |
+| OTP for `admins` and the Keycloak admin; the realm Job on client credentials | [decisions.md](../../../docs/decisions.md#otp-for-admins-client-credentials-for-automation) |
 | Access enforced at Keycloak, per client, by group; users stay out of git | [architecture.md](../../../docs/architecture.md#per-app-access) |
 | One oauth2-proxy routing by path; app form logins kept as break-glass | [theater.md](../../../docs/theater.md#why-it-is-like-this) |
 | Tailscale operator in auth mode, no inbound port | [remote-access.md](../../../docs/remote-access.md#why-it-is-like-this) |
@@ -54,6 +55,7 @@ plus the `sops-age` Secret).
 | --- | --- |
 | Realm value drifts or `apply.sh` fails | the PostSync Job fails, the `keycloak` sync fails |
 | Keycloak down | new SSO logins fail; each app's local admin is the break-glass; Headlamp is unavailable, `kubectl` over the tailnet still works |
-| Lost phone | sign the user out in Keycloak and in the app; remove the device from the tailnet ([remote-access.md](../../../docs/remote-access.md#revoke-a-device)) |
+| Lost phone | sign the user out in Keycloak and in the app; remove the device from the tailnet ([remote-access.md](../../../docs/remote-access.md#revoke-a-device)); delete its OTP credential ([keycloak-otp.md](../../../docs/runbooks/keycloak-otp.md#reset-a-lost-authenticator)) |
+| Admin OTP lost and no admin console | the master client `realm-settings` deletes the OTP credential ([keycloak-otp.md](../../../docs/runbooks/keycloak-otp.md#break-glass)) |
 | Tailnet policy rejected | the workflow fails and posts to ntfy; the tailnet keeps the old policy |
 | A credential leaks | rotate per [secrets.md](../../../docs/secrets.md#rotating-a-credential); postmortem required ([sre.md](../../../docs/sre.md#postmortems)) |

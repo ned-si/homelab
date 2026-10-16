@@ -26,7 +26,9 @@ point, a credential or an admission path is added or removed.
 - Threats: S (credential stuffing on Keycloak), I (an app's own unauthenticated
   endpoints), D (floods), E (a vulnerable app).
 - Control: TLS with the Let's Encrypt wildcard; port 80 only redirects. Immich,
-  Mealie, Paperless, Grafana and Argo CD log in through Keycloak.
+  Mealie, Paperless, Grafana and Argo CD log in through Keycloak; members of
+  `admins` and the Keycloak admin (realm `master`) need a TOTP code after the
+  password ([keycloak-otp.md](runbooks/keycloak-otp.md)).
   Plex and Jellyfin keep their own login (their TV apps cannot use SSO), and
   so do the *arr UIs under `theater.lilalala.com/arr/<app>`. PSA `restricted`
   on the `gateway` namespace. DAST (ZAP) runs against the public names.
@@ -37,7 +39,7 @@ point, a credential or an admission path is added or removed.
 - Planned: oauth2-proxy in front of the *arr UIs (`apps/theater/sso.yaml`,
   written, not deployed); per-app access groups enforced at Keycloak; security
   headers on every HTTPRoute with DAST green; Keycloak brute-force protection
-  and OTP for the platform clients; default-deny network policies.
+  in git; default-deny network policies.
 
 ### Internet to Syncthing (22000 TCP and UDP on `192.168.1.201`)
 

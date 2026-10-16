@@ -318,3 +318,37 @@ zvols behind the PVs `pvc-2b0f41c1-041d-47a5-81cc-16371f05ea21` and
 `seafile`. Delete the volumes after 2026-11-16 if nobody asks for them.
 
 Rejected: upgrading to Seafile 12 to keep a file share no one opens.
+
+## OTP for admins, client credentials for automation
+
+Members of the `homelab` group `admins` need a TOTP code at every password
+login (realm role `mfa-required`, conditional subflows in `browser-loa` and
+every `access-<client>` flow), and so does every user of the `master` realm,
+which is the Keycloak admin console (flow `browser-otp`). The household keeps
+password-only logins, with OTP optional. Policy: TOTP, 6 digits, 30 s, SHA1.
+All of it is in `platform/keycloak/realm/platform.conf`, applied by the
+`keycloak-realm-settings` Job.
+
+Automation does not log in as a person. The Job uses the master client
+`realm-settings` (client credentials, master role `admin`, secret in
+`platform/secrets/keycloak-automation.sops.yaml`); the admin password is only
+its fallback on a new database, before that client exists, and the Job binds
+`browser-otp` only after a client login works. No other client uses a
+password grant or a service account today: Argo CD, Grafana, the apps and the
+oauth2-proxies use the authorization code flow. Password grants (`direct
+grant` flows) are unchanged.
+
+Break-glass ([keycloak-otp.md](runbooks/keycloak-otp.md#break-glass)): the
+`realm-settings` secret through `kubectl exec` and `kcadm.sh`, which deletes a
+lost OTP credential; if that fails, Keycloak's `kc.sh bootstrap-admin
+service` with the server stopped.
+
+Why: a stolen admin password opens the admin console and every platform
+tool; a second factor closes that. Moving the Job to its own client is what
+makes OTP on the human admin possible: the same account cannot be both
+OTP-protected in the browser and usable by a script with only a password.
+
+Rejected: leaving the master realm password-only (the most powerful login
+stays the weakest), OTP for every `homelab` user (the household does not use
+authenticator apps), and removing OTP from the master `direct grant` flow so
+the Job could keep the password (a password grant would bypass the OTP).

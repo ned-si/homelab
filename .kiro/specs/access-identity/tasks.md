@@ -26,6 +26,8 @@ Requirement numbers in brackets. New work in this area adds a task here first.
       client, owner and admins to `tag:talos:50000` only. [4.5] (#527)
 - [x] 25. ExposedSecretReports out of `view`: an admission policy strips the
       reader aggregation labels the trivy chart sets. [5.5] (#523)
+- [x] 26. TOTP for `admins` and the Keycloak admin; the realm Job on its own
+      master client; enrol, reset and break-glass runbook. [7.1-7.5] (#546)
 
 ## Open
 
@@ -42,8 +44,8 @@ Wave 3 syncs the Cilium policies unenforced, with Hubble to see drops:
 - [ ] 18. Then Headlamp with per-user OIDC tokens instead of its
       ServiceAccount.
 - [ ] 19. Keycloak hardening in code: brute-force protection and lockout
-      settings, OTP for the platform ACR, direct-access grants off and read
-      back by the PostSync Job.
+      settings, direct-access grants off and read back by the PostSync Job
+      (OTP for admins: task 26).
 - [ ] 20. External Secrets Operator proof of concept on one app (Mealie);
       backend to choose: OpenBao with a static seal, Infisical, or Bitwarden
       Secrets Manager. SOPS stays the bootstrap store.

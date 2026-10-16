@@ -136,3 +136,27 @@ headers and the edge scanned weekly.
    `STRICT_HEADERS=1`)
 3. THE namespaces that pass Pod Security `restricted` SHALL enforce it.
    (`infrastructure/namespaces/namespaces.yaml`)
+
+### Requirement 7: OTP for admins
+
+**User story:** As the operator, I want a stolen admin password to be useless
+without my phone, while the household keeps logging in with a password only
+and automation keeps working.
+
+#### Acceptance criteria
+
+1. WHEN a member of `admins` (realm role `mfa-required`) logs in with a
+   password in the browser, THE realm SHALL require a TOTP code (6 digits,
+   30 s, SHA1), and SHALL ask a member without one to enroll
+   (`CONFIGURE_TOTP`). (`platform.conf` `mfa_role`, `mfa_groups`,
+   `otp_policy`; flows `browser-loa`, `access-<client>`)
+2. WHEN any other user logs in, THE realm SHALL ask for OTP only if that user
+   set one up. (the `-otp` subflows)
+3. WHEN a user logs in to the `master` realm (Keycloak admin console) in the
+   browser, THE realm SHALL require password and TOTP. (flow `browser-otp`)
+4. THE `keycloak-realm-settings` Job SHALL log in with the master client
+   `realm-settings` (client credentials), and SHALL bind `browser-otp` only
+   after that login works; password grants SHALL keep their flows.
+   (`platform.conf` `automation_client`, `apply.sh`)
+5. A lost authenticator SHALL be recoverable without the admin console.
+   ([keycloak-otp.md](../../../docs/runbooks/keycloak-otp.md#break-glass))

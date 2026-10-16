@@ -19,7 +19,7 @@ metadata:
   name: keycloak-realm-settings
   namespace: keycloak
 spec:
-  activeDeadlineSeconds: 1800
+  activeDeadlineSeconds: 3600
   backoffLimit: 2
   template:
     metadata:
@@ -60,6 +60,12 @@ spec:
               key: HUBBLE_CLIENT_SECRET
               name: keycloak-hubble-client
               optional: true
+        - name: REALM_SETTINGS_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: REALM_SETTINGS_CLIENT_SECRET
+              name: keycloak-automation
+              optional: true
         image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
         name: kcadm
         resources:
@@ -89,7 +95,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-5d2f8db924
+          name: keycloak-realm-settings-gk7cctk4c9
         name: realm
       - emptyDir: {}
         name: tmp
