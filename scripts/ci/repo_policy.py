@@ -59,6 +59,9 @@ objects and rule ids only; values are never printed.
                         .kiro/steering/
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
+  alert-tests           every alert of a PrometheusRule under platform/ or apps/
+                        is the alertname of an alert_rule_test in
+                        tests/prometheus/*_test.yaml
   k8s-version-match     K8S_VERSION and the KIND_NODE_IMAGE tag in
                         .github/workflows/ci.yaml are on the Kubernetes minor of
                         kubernetesVersion in talos/talconfig.yaml
@@ -130,6 +133,9 @@ CODENAMES = {"bookworm", "bullseye", "buster", "trixie", "noble", "jammy", "foca
 BULKY_IMAGES = {"python", "node", "golang", "ubuntu", "debian"}
 # Set by the Gateway on every rule of an HTTPRoute on the https listener.
 ROUTE_HEADERS = {"strict-transport-security", "x-content-type-options"}
+# Homelab alert rules (docs/sre.md, Paging) and their promtool unit tests.
+RULE_DIRS = ("platform/", "apps/")
+PROMTOOL_TESTS = "tests/prometheus"
 
 
 class Policy:
@@ -560,6 +566,39 @@ class Policy:
             if w not in have:
                 self.fail("expected-ingresses", f"Ingress {w} is not rendered by the new layout")
 
+    def alert_rules(self) -> list[tuple[str, dict]]:
+        """(file, rule) per alert rule of a PrometheusRule under RULE_DIRS."""
+        out = []
+        for rel in self.tracked():
+            if not rel.startswith(RULE_DIRS) or not rel.endswith((".yaml", ".yml")):
+                continue
+            p = self.root / rel
+            if not p.is_file() or "PrometheusRule" not in p.read_text(errors="replace"):
+                continue
+            for doc in yaml_file_docs(p):
+                if doc.get("kind") != "PrometheusRule":
+                    continue
+                for group in (doc.get("spec") or {}).get("groups") or []:
+                    out.extend((rel, r) for r in group.get("rules") or [] if r.get("alert"))
+        return out
+
+    def rule_alert_tests(self) -> None:
+        rule = "alert-tests"
+        alerts = self.alert_rules()
+        if not alerts:
+            return
+        self.on(rule)
+        tested = set()
+        for p in sorted((self.root / PROMTOOL_TESTS).glob("*_test.yaml")):
+            for doc in yaml_file_docs(p):
+                for t in doc.get("tests") or []:
+                    tested.update(a.get("alertname") for a in t.get("alert_rule_test") or [])
+        seen = set()
+        for rel, r in alerts:
+            if r["alert"] not in tested and r["alert"] not in seen:
+                seen.add(r["alert"])
+                self.fail(rule, f"{rel}: {r['alert']} has no alert_rule_test in {PROMTOOL_TESTS}/*_test.yaml")
+
     def rule_k8s_version(self) -> None:
         rule = "k8s-version-match"
         ci, tal = self.root / CI_WORKFLOW, self.root / TALCONFIG
@@ -656,7 +695,8 @@ class Policy:
                      self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked,
-                     self.rule_expected_ingresses, self.rule_k8s_version, self.rule_image_bulky,
+                     self.rule_expected_ingresses, self.rule_alert_tests, self.rule_k8s_version,
+                     self.rule_image_bulky,
                      self.rule_image_variant, self.rule_image_digest):
             rule()
         for f in self.fails:
