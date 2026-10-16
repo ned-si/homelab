@@ -75,6 +75,13 @@ spec:
                   name: keycloak-headlamp-client
                   key: HEADLAMP_CLIENT_SECRET
                   optional: true
+            # platform/secrets/hubble-sso.sops.yaml.
+            - name: HUBBLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-hubble-client
+                  key: HUBBLE_CLIENT_SECRET
+                  optional: true
           resources:
             requests:
               cpu: 50m

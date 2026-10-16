@@ -1,0 +1,105 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/hubble-access
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/hubble-access and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: hubble-sso
+  name: hubble-sso
+  namespace: hubble
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hubble-sso
+  strategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: sso-proxy
+        app.kubernetes.io/name: hubble-sso
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - args:
+        - --alpha-config=/config/alpha-config.yaml
+        - --email-domain=*
+        - --reverse-proxy=true
+        - --redirect-url=https://hubble.tail32a1fc.ts.net/oauth2/callback
+        - --whitelist-domain=hubble.tail32a1fc.ts.net
+        - --cookie-secure=true
+        - --cookie-samesite=lax
+        - --cookie-expire=12h
+        - --cookie-refresh=1h
+        - --skip-provider-button=true
+        env:
+        - name: OAUTH2_PROXY_COOKIE_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: cookie-secret
+              name: hubble-sso
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+        name: oauth2-proxy
+        ports:
+        - containerPort: 4180
+          name: http
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /ping
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /config
+          name: config
+          readOnly: true
+        - mountPath: /secrets
+          name: secrets
+          readOnly: true
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - configMap:
+          name: hubble-sso-k7bkm2dg6m
+        name: config
+      - name: secrets
+        secret:
+          items:
+          - key: client-secret
+            path: client-secret
+          secretName: hubble-sso

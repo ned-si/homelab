@@ -1,0 +1,131 @@
+# Keycloak login in front of the Hubble UI: the oauth2-proxy `hubble-sso`.
+#
+#     Tailscale Ingress `hubble` --> hubble-sso:4180 --> hubble-ui.kube-system:80
+#
+# Access needs membership of the Keycloak group `admins`, checked twice: the
+# client's own login flow denies anyone else (platform/keycloak/realm/access.conf)
+# and the proxy's allowedGroups (sso-alpha-config.yaml). The client `hubble` is
+# realm code (platform/keycloak/realm/platform.conf, `proxy_clients`); it is a
+# platform client, so a login older than 12 hours is asked again.
+#
+# The Hubble UI has no login of its own: when Keycloak is down, read flows with
+# the hubble CLI through a port-forward to the relay (docs/networking.md).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hubble-sso
+  namespace: hubble
+  labels:
+    app.kubernetes.io/name: hubble-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: hubble-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: hubble-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # `nonroot` in the distroless base image.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+          imagePullPolicy: IfNotPresent
+          args:
+            - --alpha-config=/config/alpha-config.yaml
+            # Authorization is the group in the alpha config.
+            - --email-domain=*
+            # Behind the Tailscale Ingress proxy (tailscale serve).
+            - --reverse-proxy=true
+            - --redirect-url=https://hubble.tail32a1fc.ts.net/oauth2/callback
+            - --whitelist-domain=hubble.tail32a1fc.ts.net
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # The platform-client session length (platform.conf loa_max_age).
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hubble-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping needs no session and does not depend on Keycloak.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: hubble-sso
+        - name: secrets
+          secret:
+            secretName: hubble-sso
+            items:
+              - key: client-secret
+                path: client-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hubble-sso
+  namespace: hubble
+  labels:
+    app.kubernetes.io/name: hubble-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: hubble-sso

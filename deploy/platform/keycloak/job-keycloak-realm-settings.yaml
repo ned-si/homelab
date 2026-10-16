@@ -54,6 +54,12 @@ spec:
               key: HEADLAMP_CLIENT_SECRET
               name: keycloak-headlamp-client
               optional: true
+        - name: HUBBLE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: HUBBLE_CLIENT_SECRET
+              name: keycloak-hubble-client
+              optional: true
         image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
         name: kcadm
         resources:
@@ -83,7 +89,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-552mh6b6tm
+          name: keycloak-realm-settings-9mc545fhhf
         name: realm
       - emptyDir: {}
         name: tmp
