@@ -172,7 +172,7 @@ flowchart LR
    fresh throw-away CA and the relay could not talk to the agents. Outcome: #515 seeded
    the Secret before the merge, but Argo had not yet labelled it and created its own copy
    (relay: `certificate signed by unknown authority`); a hand-signed replacement fixed
-   it live. Task 2b (#CERTPR) replaces the mechanism with the chart's own
+   it live. Task 2b (#521) replaces the mechanism with the chart's own
    `hubble.tls.auto.method: cronJob` (certgen reuses `cilium-ca`, re-issues both
    certificates on every `cilium` sync as a PostSync hook and every four months; no
    agent restart; no cert-manager, because the bootstrap installs Cilium before its CRDs
