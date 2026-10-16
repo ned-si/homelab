@@ -19,6 +19,14 @@ spec:
   destination:
     namespace: trivy-system
     server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: rbac.authorization.k8s.io
+    jsonPointers:
+    - /metadata/labels/rbac.authorization.k8s.io~1aggregate-to-view
+    - /metadata/labels/rbac.authorization.k8s.io~1aggregate-to-edit
+    - /metadata/labels/rbac.authorization.k8s.io~1aggregate-to-cluster-reader
+    kind: ClusterRole
+    name: aggregate-exposed-secret-reports-view
   project: platform
   revisionHistoryLimit: 10
   sources:
@@ -30,6 +38,9 @@ spec:
     repoURL: https://aquasecurity.github.io/helm-charts/
     targetRevision: 0.37.0
   - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  - path: deploy/platform/trivy-operator/resources
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
   syncPolicy:

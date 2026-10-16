@@ -62,6 +62,10 @@ spec:
       kind: ProxyClass # tailscale-operator: the default proxy class
     - group: tailscale.com
       kind: Connector # tailscale-operator: the exit node
+    - group: admissionregistration.k8s.io
+      kind: MutatingAdmissionPolicy # trivy-operator: ExposedSecretReports out of `view`
+    - group: admissionregistration.k8s.io
+      kind: MutatingAdmissionPolicyBinding # trivy-operator: the policy's binding
   # Deliberately NOT here:
   #   Namespace       -- every namespace in the cluster is declared once, in the
   #                      infrastructure layer (infrastructure/namespaces/), so

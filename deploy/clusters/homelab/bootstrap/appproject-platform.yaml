@@ -37,6 +37,10 @@ spec:
     kind: ProxyClass
   - group: tailscale.com
     kind: Connector
+  - group: admissionregistration.k8s.io
+    kind: MutatingAdmissionPolicy
+  - group: admissionregistration.k8s.io
+    kind: MutatingAdmissionPolicyBinding
   description: Shared services - CloudNativePG, observability, Keycloak
   destinations:
   - namespace: '*'

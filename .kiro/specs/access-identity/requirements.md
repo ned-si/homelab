@@ -109,6 +109,13 @@ in git and every credential rotated on a schedule.
    `agent-readonly` (no Secrets, no exec), Argo CD account `agent`
    (`role:readonly`), Grafana service account `agent-readonly` (Viewer).
    (`platform/agent-access/rbac.yaml`, `kubectl auth can-i get secrets -A` = `no`)
+5. THE trivy ExposedSecretReports SHALL be readable by cluster admins only:
+   no ClusterRole granting them SHALL aggregate into `view`, `edit` or
+   `cluster-reader`. (MutatingAdmissionPolicy
+   `exposed-secret-reports-admin-only`; `kubectl auth can-i list
+   exposedsecretreports.aquasecurity.github.io -A
+   --as=system:serviceaccount:headlamp:headlamp` = `no`, same for
+   `kube-system:agent-readonly`)
 
 ### Requirement 6: A hardened public edge
 

@@ -1,7 +1,9 @@
 # trivy-operator: CVE reports for every running image (VulnerabilityReports)
 # and their metrics for the Security dashboard (docs/observability.md).
 #
-# Multi-source: the chart and its values from this repo.
+# Multi-source: the chart, its values from this repo, and the admission
+# policy that keeps ExposedSecretReports out of `view`
+# (deploy/platform/trivy-operator/resources).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -25,6 +27,9 @@ spec:
     - repoURL: https://github.com/ned-si/homelab.git
       targetRevision: main
       ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/trivy-operator/resources
   destination:
     server: https://kubernetes.default.svc
     namespace: trivy-system
@@ -41,3 +46,13 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    # Stripped at admission by the MutatingAdmissionPolicy
+    # exposed-secret-reports-admin-only.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: aggregate-exposed-secret-reports-view
+      jsonPointers:
+        - /metadata/labels/rbac.authorization.k8s.io~1aggregate-to-view
+        - /metadata/labels/rbac.authorization.k8s.io~1aggregate-to-edit
+        - /metadata/labels/rbac.authorization.k8s.io~1aggregate-to-cluster-reader
