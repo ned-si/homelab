@@ -34,4 +34,5 @@ backup-verify/backup-verify-files
 backup-verify/backup-verify-postgres
 backup-verify/backup-verify-mariadb
 monitoring/vuln-enrich
+monitoring/grafana-backup
 system-upgrade/talos-drift
