@@ -1,0 +1,49 @@
+# metrics-server: the metrics.k8s.io API for `kubectl top` and Headlamp
+# (infrastructure/metrics-server/values.yaml).
+#
+# Multi-source: the chart and its values from this repo. After cert-manager
+# (0, its Issuer and Certificate) and kubelet-serving-cert-approver (12).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "14"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/metrics-server/
+      chart: metrics-server
+      # renovate: datasource=helm depName=metrics-server registryUrl=https://kubernetes-sigs.github.io/metrics-server/
+      targetRevision: 3.14.0
+      helm:
+        releaseName: metrics-server
+        valueFiles:
+          - $values/infrastructure/metrics-server/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: metrics-server
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    # cert-manager's cainjector writes the CA bundle.
+    - group: apiregistration.k8s.io
+      kind: APIService
+      jsonPointers:
+        - /spec/caBundle

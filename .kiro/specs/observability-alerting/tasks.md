@@ -27,6 +27,10 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 17. Page only when a person has to act (`action` label). [2.1, 2.2] (#484)
 - [x] 18. Homelab / Automation dashboard and its event feed. [5.3] (#486, #490, #493)
 
+- [x] 22. metrics-server with verified kubelet TLS: kubelet serving
+      certificates by CSR and kubelet-serving-cert-approver, applied one node
+      at a time after the approver runs. [6.1-6.3] (#522)
+
 ## Open
 
 Wave 3 is specced in `.kiro/specs/wave3-*`: a runbook for every alert,

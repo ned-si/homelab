@@ -1,0 +1,36 @@
+# kubelet-serving-cert-approver: approves the kubelets' serving-certificate
+# requests (talos/patches/kubelet-serving-certs.yaml), so metrics-server
+# verifies the kubelets (infrastructure/kubelet-serving-cert-approver).
+#
+# Before metrics-server (14), after cert-manager-issuers (5). On a fresh
+# cluster it must be synced before the Talos patch reaches a node.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kubelet-serving-cert-approver
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "12"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/infrastructure/kubelet-serving-cert-approver
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubelet-serving-cert-approver
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
