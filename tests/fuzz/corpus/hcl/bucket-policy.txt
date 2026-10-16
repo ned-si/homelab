@@ -1,0 +1,36 @@
+# Shape of bootstrap/aws-backup/main.tf, the input of the backup-bucket-lock rule.
+data "aws_iam_policy_document" "bucket" {
+  statement {
+    sid    = "DenyVersionDestruction"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteObjectVersion",
+      "s3:PutBucketVersioning",
+      "s3:DeleteBucket",
+    ]
+    resources = [
+      aws_s3_bucket.backups.arn,
+      "${aws_s3_bucket.backups.arn}/*",
+    ]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+
+  statement {
+    effect  = "Deny"
+    actions = ["s3:*"]
+    /* a comment with a { brace */
+    condition {
+      test     = "Bool" // trailing { comment
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "backups" {
+  bucket = aws_s3_bucket.backups.id
+  policy = data.aws_iam_policy_document.bucket.json
+}

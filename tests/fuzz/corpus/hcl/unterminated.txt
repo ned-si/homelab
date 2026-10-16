@@ -1,0 +1,3 @@
+statement {
+  effect = "Deny\"
+  principals { type = "*"
