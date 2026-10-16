@@ -241,7 +241,7 @@ spec:
               # Same image as the four *arr clusters, so pg_dump matches the
               # server.
               # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-              image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie
+              image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:c9be7f221a05b18fe65259d9136affbabe3b39ad91c3b68f8f2f990a45f35f38
               imagePullPolicy: IfNotPresent
               command: ["/bin/bash", "/scripts/dump-postgres.sh"]
               volumeMounts:
@@ -275,7 +275,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/backup-config.sh", "theater-postgres", "/dumps"]
               env:
@@ -379,7 +379,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/sh
@@ -480,7 +480,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/sh
@@ -574,7 +574,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/sh
@@ -668,7 +668,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/sh
@@ -777,7 +777,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command:
                 - /bin/sh
@@ -893,7 +893,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               # Inline rather than via backup-config.sh, because this is the
               # only job that takes two snapshots with different guarantees.
@@ -1019,7 +1019,7 @@ spec:
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
-              image: restic/restic:0.19.1
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
               imagePullPolicy: IfNotPresent
               command: ["/bin/sh", "/scripts/forget-and-prune.sh"]
               env:

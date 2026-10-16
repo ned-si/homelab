@@ -27,7 +27,7 @@ spec:
       - args:
         - -m
         - "256"
-        image: memcached:1.6.45-alpine
+        image: memcached:1.6.45-alpine@sha256:9e4de012dc607573052061c0bcb38abc775e1dd59b24e7ac38d1892842094aaf
         name: memcached
         ports:
         - containerPort: 11211

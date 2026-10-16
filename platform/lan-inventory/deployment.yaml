@@ -34,7 +34,7 @@ spec:
       containers:
         - name: inventory
           # renovate: datasource=docker depName=python
-          image: docker.io/library/python:3.15.0-alpine3.24
+          image: docker.io/library/python:3.15.0-alpine3.24@sha256:ff4d3c9b1a48f646eedd93182aaea385c7a5452f4c8a8cd7cef686babacf4928
           command: ["python3", "-u", "/app/inventory.py"]
           env:
             - name: SCAN_INTERVAL

@@ -116,7 +116,13 @@
     },
     {
       customType: 'regex',
-      description: 'Annotated `image:`/`imageName:`/`reference:` carrying a full repo:tag. Captures only the tag. `imageName` is what CloudNativePG Clusters use, `reference` what image volumes use.',
+      // DIGESTS. Every image here is pinned as repo:tag@sha256:<index digest>
+      // (rule `image-digest` in scripts/ci/repo_policy.py). The digest is
+      // captured, so one update moves tag and digest together, and a tag
+      // re-pushed upstream comes as a `digest` update. `pinDigests` stays off:
+      // a regex manager cannot add a digest that is not in the match (the
+      // update fails), and the generic manager above has no digest at all.
+      description: 'Annotated `image:`/`imageName:`/`reference:` carrying a full repo:tag@digest. Captures the tag and the digest. `imageName` is what CloudNativePG Clusters use, `reference` what image volumes use.',
       managerFilePatterns: ['/\\.ya?ml$/'],
       matchStrings: [
         '#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?[^\\n]*\\n\\s*-?\\s*(?:image|imageName|reference):\\s*[\'"]?[^\\s:\'"]+:(?<currentValue>[^\'"\\s@]+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?[\'"]?',

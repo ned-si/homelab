@@ -194,7 +194,7 @@ spec:
       initContainers:
         - name: seed-config
           # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-          image: ghcr.io/hotio/bazarr:release-1.6.2
+          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:aab1002c1cf03178bfa318706047abbcabd9e6fea5dc2516bfaa44a94608930b
           imagePullPolicy: IfNotPresent
           command: ["sh", "/managed/seed.sh"]
           envFrom:
@@ -224,7 +224,7 @@ spec:
         - name: bazarr
           # Starts as root (s6-overlay), then drops to PUID/PGID.
           # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-          image: ghcr.io/hotio/bazarr:release-1.6.2
+          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:aab1002c1cf03178bfa318706047abbcabd9e6fea5dc2516bfaa44a94608930b
           imagePullPolicy: IfNotPresent
           env:
             - name: TZ
@@ -329,7 +329,7 @@ spec:
       containers:
         - name: settings
           # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
-          image: ghcr.io/hotio/bazarr:release-1.6.2
+          image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:aab1002c1cf03178bfa318706047abbcabd9e6fea5dc2516bfaa44a94608930b
           imagePullPolicy: IfNotPresent
           command: ["python3", "/managed/settings.py"]
           env:

@@ -69,7 +69,7 @@ spec:
           value: "true"
         - name: PAPERLESS_SESSION_COOKIE_AGE
           value: "31536000"
-        image: ghcr.io/paperless-ngx/paperless-ngx:3.3.1
+        image: ghcr.io/paperless-ngx/paperless-ngx:3.3.1@sha256:cb91bfb468e63025a9d10c01b54c33665113668eee61b490db96de19b860b9c4
         imagePullPolicy: Always
         name: paperless
         ports:

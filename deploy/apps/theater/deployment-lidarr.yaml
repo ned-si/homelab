@@ -42,7 +42,7 @@ spec:
           value: "002"
         - name: LIDARR__SERVER__URLBASE
           value: /arr/lidarr
-        image: ghcr.io/hotio/lidarr:release-3.1.0.4875
+        image: ghcr.io/hotio/lidarr:release-3.1.0.4875@sha256:226b11ba5b5c3bb8e59002f89f6671ba88758bd0d0d5f69badadb3ad45af7749
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 6
@@ -84,7 +84,7 @@ spec:
           value: /run/exportarr/api-key
         - name: LOG_FORMAT
           value: json
-        image: ghcr.io/onedr0p/exportarr:v2.3.0
+        image: ghcr.io/onedr0p/exportarr:v2.3.0@sha256:af535d94061cf97a52e1661945ffba78c03f9443eae7c0da1a80a5a4be56b520
         livenessProbe:
           failureThreshold: 3
           httpGet:
@@ -146,7 +146,7 @@ spec:
             secretKeyRef:
               key: dbname
               name: lidarr-postgresql-app
-        image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie
+        image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:c9be7f221a05b18fe65259d9136affbabe3b39ad91c3b68f8f2f990a45f35f38
         name: wait-for-db
         resources:
           limits:
@@ -168,7 +168,7 @@ spec:
         - -c
         - sed -n 's|.*<ApiKey>\(.*\)</ApiKey>.*|\1|p' /config/config.xml > /run/exportarr/api-key
           && test -s /run/exportarr/api-key
-        image: busybox:1.38.0
+        image: busybox:1.38.0@sha256:fd7dc98638c8e305f4dc34e979f1c0fdfdcaeb0fbf8fcff77ae834b6da3d7e6e
         name: exportarr-key
         resources:
           limits:
