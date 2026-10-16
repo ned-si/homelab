@@ -254,17 +254,23 @@ master-realm admin (password and OTP; without the phone, the master client
 `realm-settings`, [keycloak-otp.md](runbooks/keycloak-otp.md#break-glass)),
 or use `argocd --core`.
 
-Keycloak login needs the client secret of the
-Keycloak client `argocd` in `argocd-secret`. It is not in git; set it once
-Keycloak runs:
+Keycloak login needs the client secret of the Keycloak client `argocd`. It is
+sealed in `platform/secrets/argocd-oidc.sops.yaml` (Secret
+`argo/argocd-oidc-keycloak`, key `clientSecret`), synced by
+`secrets-platform`. On a new Keycloak database the client gets a new secret:
+put it in `secrets.local.env` as `ARGOCD_OIDC_CLIENT_SECRET`, re-seal the file
+and merge. Check that Keycloak accepts the value Argo CD has (also item 11 of
+`scripts/smoke.sh`):
 
 ```sh
-kubectl -n argo patch secret argocd-secret --type merge \
-  -p '{"stringData":{"oidc.keycloak.clientSecret":"<client-secret-from-keycloak>"}}'
+kubectl -n argo get secret argocd-oidc-keycloak -o jsonpath='{.data.clientSecret}' | base64 -d |
+  curl -sS -m 10 -o /dev/null -w '%{http_code}\n' -d grant_type=authorization_code \
+    -d code=check -d client_id=argocd --data-urlencode client_secret@- \
+    https://auth.lilalala.com/realms/homelab/protocol/openid-connect/token
 ```
 
-The `argocd` Application ignores the data of `argocd-secret`, so a sync keeps
-it.
+Expected: `400` (the secret is accepted, the made-up code is not). `401`
+means Keycloak rejects the secret.
 
 ### 9. Check
 

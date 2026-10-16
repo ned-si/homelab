@@ -10,10 +10,12 @@
 # Helm (url, oidc.config and the timeouts). Without them a chart upgrade
 # would drop the Keycloak login.
 #
-# No secret value lives here. oidc.config refers to the key
-# `oidc.keycloak.clientSecret` of argocd-secret, which Argo CD resolves at
-# runtime. configs.secret.createSecret stays true: with false, Helm would
-# delete argocd-secret on upgrade.
+# No secret value lives here. oidc.config refers to the key `clientSecret`
+# of the Secret argocd-oidc-keycloak (platform/secrets/argocd-oidc.sops.yaml,
+# labelled app.kubernetes.io/part-of: argocd), which Argo CD resolves at
+# runtime. Not a key of argocd-secret: the chart owns that Secret, and an
+# upgrade left it without the hand-added key. configs.secret.createSecret
+# stays true: with false, Helm would delete argocd-secret on upgrade.
 
 global:
   domain: argo.lilalala.com
@@ -38,7 +40,7 @@ configs:
       name: Keycloak
       issuer: https://auth.lilalala.com/realms/homelab
       clientID: argocd
-      clientSecret: $oidc.keycloak.clientSecret
+      clientSecret: $argocd-oidc-keycloak:clientSecret
       requestedScopes: ["openid", "profile", "email", "groups"]
     # Read-only API account for automation (MCP servers, agents): API tokens
     # only, no UI login, bound to role:readonly below. Its token lives outside

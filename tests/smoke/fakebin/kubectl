@@ -21,6 +21,11 @@ case "$s" in
   "get pvc -A -o json") cat "$f/pvc.json" ;;
   "get clusters.postgresql.cnpg.io -A -o json") cat "$f/cnpg.json" ;;
   "-n argo get applications -o json") cat "$f/apps.json" ;;
+  "-n argo get cm argocd-cm -o json") cat "$f/argocd-cm.json" ;;
+  "-n argo get secret "*" -o json")
+    n=${args[4]}
+    [ -f "$f/secret-$n.json" ] || { echo "Error from server (NotFound): secrets \"$n\" not found" >&2; exit 1; }
+    cat "$f/secret-$n.json" ;;
   "-n immich get pod -l cnpg.io/cluster=immich-db,role=primary -o name") cat "$f/immich-primary.txt" ;;
   "-n immich exec "*" -c postgres -- env PGOPTIONS=-c default_transaction_read_only=on psql -d app -tAc "*)
     sql=${args[${#args[@]}-1]}

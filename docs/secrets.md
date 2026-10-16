@@ -28,7 +28,7 @@ Expected: the same `age1...` public key three times, and nothing else.
 | Directory | Files (`*.sops.yaml`) | Application |
 | --- | --- | --- |
 | `infrastructure/secrets/` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `democratic-csi-iscsi` | `secrets-infrastructure` (wave -25) |
-| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso`, `hubble-sso`, `keycloak-automation`, `signoz-sso` | `secrets-platform` (wave -25) |
+| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `argocd-oidc`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso`, `hubble-sso`, `keycloak-automation`, `signoz-sso` | `secrets-platform` (wave -25) |
 | `apps/secrets/` | `immich-config`, `mealie-oidc`, `paperless-secrets`, `plex-claim`, `recyclarr-api-keys`, `theater-sso` | `secrets-apps` (wave -25) |
 
 Each file is a Kubernetes Secret with its own `metadata.namespace`; only
@@ -41,9 +41,11 @@ These three directories are the only ones Argo CD builds with kustomize, and
 the only ones not rendered into `deploy/`: rendering them would write plaintext.
 
 Not here, on purpose: PostgreSQL passwords. CloudNativePG generates them into
-`<cluster>-app` Secrets, so they never exist in git in any form. Also not here:
-the Argo CD Keycloak client secret (key `oidc.keycloak.clientSecret` of
-`argo/argocd-secret`, set by hand, see [bootstrap.md](bootstrap.md)).
+`<cluster>-app` Secrets, so they never exist in git in any form.
+
+No hand-set key in a chart-managed Secret either: a chart upgrade can rewrite
+it. The Argo CD Keycloak client secret is its own sealed Secret,
+`argocd-oidc-keycloak`, not a key of `argo/argocd-secret`.
 
 ## Everyday work
 
@@ -126,9 +128,9 @@ read-only on this repository, that lets Scorecard read branch protection).
 
 Credentials outside git follow the same classes: the Actions secret
 `AUTO_ROLLBACK_TOKEN` (the same value as `argocd-notifications`, so the same
-row), `NTFY_TOPIC` (`static`), the Argo CD OIDC client secret, the NAS root
-password and the DNS registrar and Cloudflare account logins (`credential`).
-Nothing checks the last four; rotate them with their sealed neighbours.
+row), `NTFY_TOPIC` (`static`), the NAS root password and the DNS registrar
+and Cloudflare account logins (`credential`). Nothing checks the last three;
+rotate them with their sealed neighbours.
 
 Checks (dates only, never a value):
 
@@ -164,7 +166,7 @@ new value in the password manager.
 | Keycloak admin | Keycloak master realm (`kcadm.sh set-password`) | `platform/secrets/keycloak-admin.sops.yaml`, `password` | `KC_BOOTSTRAP_ADMIN_PASSWORD` only applies to an empty database: change the user in Keycloak first, then bump `kubectl.kubernetes.io/restartedAt` in `platform/keycloak/deployment.yaml`. Its OTP is not in git: reset it as in [keycloak-otp.md](runbooks/keycloak-otp.md#reset-a-lost-authenticator) |
 | Keycloak automation client `realm-settings` (master realm) | the sealed file: the `keycloak-realm-settings` Job sets it on the client | `platform/secrets/keycloak-automation.sops.yaml`, `REALM_SETTINGS_CLIENT_SECRET` | `secrets.local.env` key `KEYCLOAK_REALM_SETTINGS_CLIENT_SECRET`. Rotate in Keycloak first: master realm, Clients, `realm-settings`, Credentials, Regenerate; put the new value in `secrets.local.env`, re-seal the file, merge. The Job reads the Secret at start, so it must already match the client |
 | OIDC client secrets (Grafana, Immich, Mealie, Paperless) | Keycloak, Clients, *client*, Credentials, Regenerate | `grafana-oidc`, `immich-config` (inside `immich-config.yaml`), `mealie-oidc`, `paperless-secrets` (`PAPERLESS_SOCIALACCOUNT_PROVIDERS`) | |
-| Argo CD OIDC client secret | Keycloak client `argocd` | not in git: `argo/argocd-secret`, `oidc.keycloak.clientSecret` | patch the Secret, restart `argocd-server` |
+| Argo CD OIDC client secret | Keycloak, Clients, `argocd`, Credentials, Regenerate | `platform/secrets/argocd-oidc.sops.yaml`, `clientSecret` (Secret `argo/argocd-oidc-keycloak`); `secrets.local.env` key `ARGOCD_OIDC_CLIENT_SECRET` | re-seal, merge; `argocd-server` reads the Secret without a restart. Logins fail between the Regenerate and the sync |
 | Paperless admin | `manage.py changepassword` in the pod | `paperless-secrets`, `PAPERLESS_ADMIN_PASSWORD` | |
 | TrueNAS API key | TrueNAS UI, API Keys | `democratic-csi-iscsi`, `apiKey` in `driver-config-file.yaml` | restart the democratic-csi controller and node pods, test a volume attach, then delete the old key |
 | TrueNAS SSH key | new keypair, public key on the NAS | `democratic-csi-iscsi`, `privateKey` | remove the old public key from the NAS afterwards |
