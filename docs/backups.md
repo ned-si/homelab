@@ -72,7 +72,7 @@ Each Cluster lists the plugin in `spec.plugins` with `isWALArchiver: true` and
 (`apps/mealie/cnpg-backup.yaml`, `apps/theater/cnpg-backup.yaml`,
 `platform/keycloak/backup.yaml`, `apps/immich/resources/backup.yaml`). The plugin
 runs as a sidecar (`plugin-barman-cloud`) in each instance pod, so the Postgres
-image needs no barman tools; that is why the pgvecto.rs image of `immich-db` works
+image needs no barman tools; that is why the VectorChord image of `immich-db` works
 unchanged. Objects land under `cnpg/<serverName>/base/` and
 `cnpg/<serverName>/wals/`. `serverName` is `<cluster>-t1` (new archives since the
 Talos cutover), except `home-assistant-postgresql`, whose archive carries its own
@@ -579,9 +579,12 @@ metadata:
   namespace: restore-test
 spec:
   instances: 1
-  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
+  # The image of apps/immich/resources/database.yaml. A target before
+  # 2026-10-16 08:37 UTC (pgvecto.rs) needs cloudnative-pgvecto.rs:16.5-v0.3.0
+  # with ["vectors.so"] instead.
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236
   postgresql:
-    shared_preload_libraries: ["vectors.so"]
+    shared_preload_libraries: ["vchord.so"]
   storage: { size: 5Gi, storageClass: iscsi }
   bootstrap:
     recovery:
@@ -624,8 +627,9 @@ when done.
   restores into a new cluster in a scratch namespace. Pointing an app at a restored
   cluster (or recreating its Cluster from the backup) is not rehearsed.
 - **`immich-db` from a local dump.** Its image is
-  `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16 with pgvecto.rs); restore
-  into a cluster with exactly that image. `task backup:verify-restore -- immich
+  `cloudnative-vectorchord:16.15-1.1.1` (PostgreSQL 16 with VectorChord); restore
+  into a cluster with exactly that image, or `cloudnative-pgvecto.rs:16.5-v0.3.0`
+  for a dump from before 2026-10-16. `task backup:verify-restore -- immich
   immich-db <dump>` derives the image from the source cluster.
 
 ## Consistency, per tag
@@ -1080,7 +1084,7 @@ kubectl -n backup-verify logs job/<job> -c report
   like a working backup.
 - **Postgres through the Barman Cloud plugin, not the in-tree
   `barmanObjectStore`.** CNPG deprecated the in-tree support in 1.26; the plugin is
-  the supported path. Its sidecar carries the barman tools, so the pgvecto.rs image
+  the supported path. Its sidecar carries the barman tools, so the VectorChord image
   of `immich-db` needs no change. The Mealie and *arr `pg_dump`s stay as a second,
   independent copy.
 - **The plugin runs in `immich`.** It must share the operator's namespace, and the

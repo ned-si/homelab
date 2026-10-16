@@ -42,10 +42,6 @@ server:
       # The library PVC is ReadWriteOnce: a second server pod could not mount
       # it. The chart defaults to RollingUpdate.
       strategy: Recreate
-      # Chart 0.10 added app.kubernetes.io/controller to the (immutable)
-      # selector: delete and recreate once. Removed in the next change.
-      annotations:
-        argocd.argoproj.io/sync-options: Force=true,Replace=true
       containers:
         main:
           env:
@@ -71,8 +67,6 @@ machine-learning:
     main:
       # Its model cache PVC is ReadWriteOnce too.
       strategy: Recreate
-      annotations:
-        argocd.argoproj.io/sync-options: Force=true,Replace=true
       containers:
         main:
           env:

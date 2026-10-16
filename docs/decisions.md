@@ -114,9 +114,8 @@ Nothing waits for a person: Renovate automerges every update on green CI
 (`.github/renovate.json5`), Argo CD deploys `main`, and a failed deploy is
 reverted automatically ([Automatic rollback](#automatic-rollback)). The only
 exclusions are technical caps with a stated reason and an upstream source: the
-Immich database image (pgvecto.rs, an irreversible migration), the Immich
-server below 3.0 (which drops pgvecto.rs) and the chart below 0.10 (new values
-layout), and versions a consumer does not support yet
+Immich database image (a VectorChord update or a PostgreSQL major is one-way),
+and versions a consumer does not support yet
 (MariaDB for Seafile 11, Seafile 12). Policy gates, once they exist, are Kyverno
 policies, not approvals.
 

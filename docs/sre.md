@@ -223,7 +223,7 @@ automated away or accepted with a reason.
 | --- | --- | --- | --- |
 | Press the NAS power button | after every power loss | the NAS does not power on by itself, and changing its firmware setting needs a display, so a GPU swap | the `HomelabNASDown` alert says when; a UPS, or a relay on the ATX power header |
 | Copy `talosconfig`, the admin kubeconfig and the age key into the password manager | after each is created or rotated | the password manager is the off-machine copy and has no API in use here | accepted; the alternative is another secret store with its own bootstrap problem ([secrets.md](secrets.md#why-it-is-like-this)) |
-| Upgrade the Immich database image | while `immich-db` runs pgvecto.rs | the migration is one-way, so Renovate excludes `cloudnative-pgvecto.rs` | the one-time migration in [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md); after it the Renovate exclusion can go |
+| Upgrade the Immich database image | on a VectorChord release Immich supports, or a PostgreSQL major | a VectorChord update needs `ALTER EXTENSION vchord UPDATE` and a reindex, a major an in-place upgrade; both are one-way, so Renovate excludes `cloudnative-vectorchord` | [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md#updating-the-database-image) |
 
 ## Who writes what
 
