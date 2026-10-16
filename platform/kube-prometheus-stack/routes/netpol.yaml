@@ -1,0 +1,81 @@
+# Would-be drops of the CiliumNetworkPolicy allow-lists
+# (infrastructure/network-policies, not enforced; docs/networking.md,
+# "Network policy").
+#
+# Source: the Hubble `policy` metric of the agents,
+# hubble_policy_verdicts_total{direction, match, action, source,
+# source_namespace, destination, destination_namespace}, one count per new
+# connection. With only allow-lists selecting a pod, Cilium adds a
+# wildcard-allow rule last; a connection that no allow-list rule matches is
+# allowed by it and reported with match="all". That is a would-be drop: the
+# namespace's default-deny switch would drop it. Verdicts from the host
+# (kubelet probes) are not counted by Hubble.
+#
+# The policed namespace is the destination for ingress and the source for
+# egress.
+#
+#   netpol:verdicts:rate5m{namespace, direction}        every verdict
+#   netpol:would_drop:rate5m{namespace, direction}      match="all" only
+#   netpol:would_drop:increase7d{namespace, direction}  from the 5m rate, averaged over 7 days;
+#                                                       0 where verdicts but no would-be drop
+#   netpol:ready_to_enforce{namespace, direction}       1 = no would-be drop in 7 days,
+#                                                       with 7 days of verdicts
+#
+# No alert: would-be drops do not notify. Wave 4 flips a namespace and
+# direction to default-deny only when netpol:ready_to_enforce is 1.
+#
+# Tests: tests/prometheus/netpol_test.yaml (promtool test rules).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-netpol
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: netpol.verdicts
+      interval: 1m
+      rules:
+        - record: netpol:verdicts:rate5m
+          expr: |
+            sum by (namespace, direction) (
+              label_replace(rate(hubble_policy_verdicts_total{direction="ingress", destination_namespace!=""}[5m]),
+                "namespace", "$1", "destination_namespace", "(.*)")
+            )
+            or
+            sum by (namespace, direction) (
+              label_replace(rate(hubble_policy_verdicts_total{direction="egress", source_namespace!=""}[5m]),
+                "namespace", "$1", "source_namespace", "(.*)")
+            )
+        - record: netpol:would_drop:rate5m
+          expr: |
+            sum by (namespace, direction) (
+              label_replace(rate(hubble_policy_verdicts_total{match="all", direction="ingress", destination_namespace!=""}[5m]),
+                "namespace", "$1", "destination_namespace", "(.*)")
+            )
+            or
+            sum by (namespace, direction) (
+              label_replace(rate(hubble_policy_verdicts_total{match="all", direction="egress", source_namespace!=""}[5m]),
+                "namespace", "$1", "source_namespace", "(.*)")
+            )
+    - name: netpol.ready
+      interval: 15m
+      rules:
+        - record: netpol:would_drop:increase7d
+          expr: |
+            avg_over_time(netpol:would_drop:rate5m[7d]) * 604800
+            or
+            max_over_time(netpol:verdicts:rate5m[7d]) * 0
+        # 1 only with verdicts 7 days ago: a fresh allow-list or a quiet
+        # namespace is not "ready" just because nothing was seen yet.
+        - record: netpol:ready_to_enforce
+          expr: |
+            (
+              (netpol:would_drop:increase7d < bool 1)
+              * on (namespace, direction)
+              (max_over_time(netpol:verdicts:rate5m[1h] offset 7d) >= bool 0)
+            )
+            or
+            netpol:would_drop:increase7d * 0

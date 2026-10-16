@@ -1,0 +1,55 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/netpol.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-netpol.yaml
+
+evaluation_interval: 5m
+
+tests:
+  # mealie: 8 days of verdicts, ingress fully covered (l3-l4), egress with one
+  # uncovered connection per minute (match all). paperless: covered, but
+  # verdicts for the last 2 days only. Hubble exports no verdicts of the host.
+  - interval: 1m
+    input_series:
+      - series: >-
+          hubble_policy_verdicts_total{direction="ingress", match="l3-l4", action="forwarded",
+          source="ingress", source_namespace="", destination="mealie", destination_namespace="mealie", pod="cilium-a"}
+        values: '0+5x11600'
+      - series: >-
+          hubble_policy_verdicts_total{direction="egress", match="all", action="forwarded",
+          source="mealie", source_namespace="mealie", destination="world", destination_namespace="", pod="cilium-a"}
+        values: '0+1x11600'
+      - series: >-
+          hubble_policy_verdicts_total{direction="egress", match="l3-l4", action="forwarded",
+          source="mealie", source_namespace="mealie", destination="kube-dns", destination_namespace="kube-system", pod="cilium-a"}
+        values: '0+2x11600'
+      - series: >-
+          hubble_policy_verdicts_total{direction="ingress", match="l3-l4", action="forwarded",
+          source="ingress", source_namespace="", destination="paperless", destination_namespace="paperless", pod="cilium-b"}
+        values: '_x9000 0+3x2600'
+    promql_expr_test:
+      # One per minute.
+      - expr: round(netpol:would_drop:rate5m * 60, 0.01)
+        eval_time: 8d
+        exp_samples:
+          - labels: '{namespace="mealie", direction="egress"}'
+            value: 1
+      - expr: round(netpol:would_drop:increase7d)
+        eval_time: 8d
+        exp_samples:
+          - labels: '{namespace="mealie", direction="egress"}'
+            value: 10080
+          - labels: '{namespace="mealie", direction="ingress"}'
+            value: 0
+          - labels: '{namespace="paperless", direction="ingress"}'
+            value: 0
+      - expr: netpol:ready_to_enforce
+        eval_time: 8d
+        exp_samples:
+          - labels: 'netpol:ready_to_enforce{namespace="mealie", direction="egress"}'
+            value: 0
+          - labels: 'netpol:ready_to_enforce{namespace="mealie", direction="ingress"}'
+            value: 1
+          # Covered, but only 2 days of verdicts.
+          - labels: 'netpol:ready_to_enforce{namespace="paperless", direction="ingress"}'
+            value: 0

@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-netpol
+  namespace: monitoring
+spec:
+  groups:
+  - interval: 1m
+    name: netpol.verdicts
+    rules:
+    - expr: |
+        sum by (namespace, direction) (
+          label_replace(rate(hubble_policy_verdicts_total{direction="ingress", destination_namespace!=""}[5m]),
+            "namespace", "$1", "destination_namespace", "(.*)")
+        )
+        or
+        sum by (namespace, direction) (
+          label_replace(rate(hubble_policy_verdicts_total{direction="egress", source_namespace!=""}[5m]),
+            "namespace", "$1", "source_namespace", "(.*)")
+        )
+      record: netpol:verdicts:rate5m
+    - expr: |
+        sum by (namespace, direction) (
+          label_replace(rate(hubble_policy_verdicts_total{match="all", direction="ingress", destination_namespace!=""}[5m]),
+            "namespace", "$1", "destination_namespace", "(.*)")
+        )
+        or
+        sum by (namespace, direction) (
+          label_replace(rate(hubble_policy_verdicts_total{match="all", direction="egress", source_namespace!=""}[5m]),
+            "namespace", "$1", "source_namespace", "(.*)")
+        )
+      record: netpol:would_drop:rate5m
+  - interval: 15m
+    name: netpol.ready
+    rules:
+    - expr: |
+        avg_over_time(netpol:would_drop:rate5m[7d]) * 604800
+        or
+        max_over_time(netpol:verdicts:rate5m[7d]) * 0
+      record: netpol:would_drop:increase7d
+    - expr: |
+        (
+          (netpol:would_drop:increase7d < bool 1)
+          * on (namespace, direction)
+          (max_over_time(netpol:verdicts:rate5m[1h] offset 7d) >= bool 0)
+        )
+        or
+        netpol:would_drop:increase7d * 0
+      record: netpol:ready_to_enforce

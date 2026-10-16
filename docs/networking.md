@@ -246,8 +246,10 @@ Prometheus scrapes them through the PodMonitors in
 | `hubble_tcp_flags_total` | flag, family, source, destination |
 | `hubble_icmp_total` | type, family, source, destination |
 | `hubble_http_requests_total`, `hubble_http_request_duration_seconds` | method, protocol, status, reporter, source, destination |
+| `hubble_policy_verdicts_total` | direction, match, action, source, destination (workload), source_namespace, destination_namespace |
 
-`source` and `destination` are the namespace, or the reserved identity
+`source` and `destination` are the namespace (the workload for
+`hubble_policy_verdicts_total`), or the reserved identity
 (`world`, `host`, `remote-node`, ...) for endpoints outside a namespace. HTTP
 metrics cover traffic through Envoy, which today is the Gateway. Hubble DNS
 metrics are off: they need Cilium's DNS proxy, which only runs with an FQDN
@@ -261,6 +263,25 @@ kubectl get --raw '/api/v1/namespaces/monitoring/services/kube-prometheus-stack-
 Expected: `monitoring/cilium-agent 8` (two endpoints on four nodes),
 `monitoring/cilium-envoy 4`, `monitoring/cilium-operator` with one per
 operator replica.
+
+### Would-be drops
+
+A policy verdict with `match="all"` in a namespace with allow-lists is a
+connection no allow-list rule covers: allowed today by Cilium's wildcard rule,
+dropped once that namespace and direction are switched to default-deny
+(`infrastructure/network-policies/90-enforcement.yaml`). Recording rules in
+`platform/kube-prometheus-stack/routes/netpol.yaml`, no alert:
+
+| Series | Meaning |
+| --- | --- |
+| `netpol:would_drop:rate5m{namespace, direction}` | would-be drops per second |
+| `netpol:would_drop:increase7d{namespace, direction}` | would-be drops in 7 days (0 where verdicts but none) |
+| `netpol:ready_to_enforce{namespace, direction}` | 1 = none in 7 days, with 7 days of verdicts |
+
+The Homelab / Network dashboard, row "Network policy (not enforced): would-be
+drops", shows them and the top source and destination workloads. Ports are
+not in the metric: `hubble observe --type policy-verdict` through the relay
+has them.
 
 ## Debugging
 

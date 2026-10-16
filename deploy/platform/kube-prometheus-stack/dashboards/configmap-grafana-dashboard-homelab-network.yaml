@@ -1302,6 +1302,232 @@ data:
             "x": 16,
             "y": 65
           }
+        },
+        {
+          "id": 28,
+          "type": "row",
+          "title": "Network policy (not enforced): would-be drops",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 73
+          },
+          "panels": []
+        },
+        {
+          "id": 29,
+          "type": "timeseries",
+          "title": "Would-be drops by namespace and direction",
+          "description": "New connections in a policed namespace that no allow-list rule covers (Hubble policy verdict match type `all`). Each would be dropped once the namespace and direction are switched to default-deny in infrastructure/network-policies/90-enforcement.yaml. Nothing is dropped today.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "netpol:would_drop:rate5m",
+              "refId": "A",
+              "legendFormat": "{{namespace}} {{direction}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "cps",
+              "custom": {
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 74
+          }
+        },
+        {
+          "id": 30,
+          "type": "table",
+          "title": "Ready to enforce (7 days without a would-be drop)",
+          "description": "1 = no would-be drop for 7 days, with 7 days of verdicts: the namespace and direction can be switched to default-deny (wave 4). Would-be drops in the last 7 days alongside.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "netpol:ready_to_enforce",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            },
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "round(netpol:would_drop:increase7d)",
+              "refId": "B",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "merge",
+              "options": {}
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "Value #A": "ready",
+                  "Value #B": "would-be drops (7d)"
+                }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {},
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "ready"
+                },
+                "properties": [
+                  {
+                    "id": "mappings",
+                    "value": [
+                      {
+                        "type": "value",
+                        "options": {
+                          "0": {
+                            "text": "not yet",
+                            "color": "orange"
+                          },
+                          "1": {
+                            "text": "ready",
+                            "color": "green"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "custom.cellOptions",
+                    "value": {
+                      "type": "color-text"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [
+              {
+                "displayName": "would-be drops (7d)",
+                "desc": true
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 74
+          }
+        },
+        {
+          "id": 31,
+          "type": "table",
+          "title": "Top would-be-drop peers (7 days)",
+          "description": "Source and destination workloads of the would-be drops, from hubble_policy_verdicts_total{match=\"all\"}; no ports (the metric has none): scripts/netpol-observe.sh <namespace> lists them with ports from the relay.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "topk(20, sum by (direction, source_namespace, source, destination_namespace, destination) (increase(hubble_policy_verdicts_total{match=\"all\"}[7d])) > 0)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false,
+              "format": "table"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {
+                  "Time": true
+                },
+                "renameByName": {
+                  "Value": "connections (7d)"
+                }
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 0
+            },
+            "overrides": []
+          },
+          "options": {
+            "showHeader": true,
+            "sortBy": [
+              {
+                "displayName": "connections (7d)",
+                "desc": true
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 24,
+            "x": 0,
+            "y": 82
+          }
         }
       ]
     }
