@@ -6,6 +6,7 @@
 #                    port hubble-metrics (9965): hubble_* flow metrics
 #   cilium-operator  port prometheus (9963): cilium_operator_*
 #   cilium-envoy     port envoy-metrics (9964): envoy_* of the Gateway
+#   hubble-relay     port prometheus (9966): hubble_relay_* (peer connections)
 #
 # The agent and Envoy run in the host network, so the pod IP is the node IP;
 # the `node` label names the node. `action: replace` is the CRD default,
@@ -71,3 +72,19 @@ spec:
         - sourceLabels: [__meta_kubernetes_pod_node_name]
           targetLabel: node
           action: replace
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: hubble-relay
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [kube-system]
+  selector:
+    matchLabels:
+      k8s-app: hubble-relay
+  podMetricsEndpoints:
+    - port: prometheus

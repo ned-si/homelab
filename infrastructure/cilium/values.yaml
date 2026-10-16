@@ -84,17 +84,36 @@ hubble:
   # Relay: one gRPC endpoint for the flows of every node (hubble-relay:80 in
   # kube-system), read by the UI. Its client certificate for the agents'
   # Hubble servers is `hubble-relay-client-certs`, signed by `cilium-ca`
-  # (kept live by ignoreDifferences in clusters/homelab/infrastructure/cilium.yaml).
-  # Neither relay nor UI changes cilium-config: enabling them does not roll
-  # the agents. Images stay digest-pinned (chart default `useDigest: true`).
+  # (see `tls` below). Neither relay nor UI changes cilium-config: enabling
+  # them does not roll the agents. Images stay digest-pinned (chart default
+  # `useDigest: true`). Relay metrics on :9966 (PodMonitor hubble-relay):
+  # hubble_relay_pool_peer_connection_status, the alert HubbleRelayPeersNotReady.
   relay:
     enabled: true
+    prometheus:
+      enabled: true
     resources:
       requests:
         cpu: 10m
         memory: 32Mi
       limits:
         memory: 128Mi
+  # mTLS between the relay and the agents' Hubble servers, issued by the
+  # chart's certgen (method cronJob): it reuses the CA in the Secret
+  # `cilium-ca` (or creates it on a new cluster) and writes
+  # `hubble-server-certs` and `hubble-relay-client-certs`, valid 365 days.
+  # It runs on every sync of the `cilium` Application (the Job is an Argo CD
+  # PostSync hook, see `certgen` below) and every four months (the CronJob
+  # `hubble-generate-certs`). Agents and relay reload the files without a
+  # restart. Not the helm method: Argo CD renders without `lookup`, so each
+  # render would sign with a throw-away CA. Not cert-manager: the bootstrap
+  # installs this chart before the cert-manager CRDs exist.
+  # Alert HubbleCertRenewalStale (platform/kube-prometheus-stack/routes/hubble-alerts.yaml).
+  tls:
+    auto:
+      method: cronJob
+      certValidityDuration: 365
+      schedule: "0 3 1 */4 *"
   # UI: tailnet only, behind the oauth2-proxy `hubble-sso`
   # (platform/hubble-access); no Service other than the chart's ClusterIP.
   ui:
@@ -113,3 +132,21 @@ hubble:
           memory: 32Mi
         limits:
           memory: 128Mi
+
+# The Hubble certificate generator (hubble.tls.auto.method cronJob). The
+# one-shot Job is an Argo CD PostSync hook: it is not a tracked resource, so a
+# new Job name (its spec checksum) leaves nothing to prune, and it re-issues
+# the certificates after each sync. The bootstrap's helm install ignores the
+# annotations and runs it once. certgen replaces each Secret it writes, labels
+# included, so Argo CD does not track them.
+certgen:
+  annotations:
+    job:
+      argocd.argoproj.io/hook: PostSync
+      argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi

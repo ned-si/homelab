@@ -60,28 +60,7 @@ spec:
       name: cilium-config
       jsonPointers:
         - /data/cluster-id
-    # The chart generates this CA and the Hubble server certificate with
-    # helm's genCA/genSignedCert, so every render produces new key material.
-    # Keep the live certificates: without this, every sync would rotate them.
-    - group: ""
-      kind: Secret
-      name: cilium-ca
-      namespace: kube-system
-      jsonPointers:
-        - /data
-    - group: ""
-      kind: Secret
-      name: hubble-server-certs
-      namespace: kube-system
-      jsonPointers:
-        - /data
-    # Hubble relay's client certificate for the agents. On a cluster that
-    # already runs, Argo's render (no `lookup`) would sign it with a throw-away
-    # CA; it is seeded once from a server-side render, which signs it with the
-    # live `cilium-ca` (docs/networking.md, "Hubble"), and kept from then on.
-    - group: ""
-      kind: Secret
-      name: hubble-relay-client-certs
-      namespace: kube-system
-      jsonPointers:
-        - /data
+  # No certificate Secrets in the render: certgen writes `cilium-ca`,
+  # `hubble-server-certs` and `hubble-relay-client-certs` itself
+  # (hubble.tls.auto.method cronJob in infrastructure/cilium/values.yaml), so
+  # a sync never rotates or replaces them.
