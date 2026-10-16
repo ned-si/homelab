@@ -376,10 +376,13 @@ tasks:
 
   talos:upgrade:
     desc: 'Upgrade Talos to talosVersion, one node at a time. Usage: task talos:upgrade [-- <node>]'
+    # No drain, as tuppr (platform/tuppr/upgrades/talos-upgrade.yaml): the
+    # single-instance CloudNativePG PDBs allow no eviction, so talosctl's
+    # default drain never finishes. Talos stops the pods at the reboot.
     cmds:
       - task: talos:genconfig
       - task: talos:run
-        vars: { GENCOMMAND: 'upgrade --offline-mode', NODE: '{{.CLI_ARGS}}' }
+        vars: { GENCOMMAND: 'upgrade --offline-mode --extra-flags=--drain=false', NODE: '{{.CLI_ARGS}}' }
 
   talos:upgrade-k8s:
     desc: 'Upgrade Kubernetes to kubernetesVersion through one control plane. Usage: task talos:upgrade-k8s [-- <node>]'

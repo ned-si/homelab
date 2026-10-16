@@ -116,7 +116,7 @@ order, one at a time, and stops at the first failure.
 | --- | --- |
 | `task talos:genconfig` | Writes `talos/clusterconfig/` (the only task that needs no node) |
 | `task talos:apply [-- <node>]` | `talosctl apply-config` to running nodes |
-| `task talos:upgrade [-- <node>]` | `talosctl upgrade` to the installer image at `talosVersion` |
+| `task talos:upgrade [-- <node>]` | `talosctl upgrade --drain=false` to the installer image at `talosVersion` (no drain, as tuppr) |
 | `task talos:upgrade-k8s [-- <node>]` | `talosctl upgrade-k8s --to <kubernetesVersion>` through one control plane (default cp-1) |
 | `task talos:etcd-snapshot [-- <ip>]` | Saves `~/homelab-backups/etcd/talos-<utc>.db` (default node cp-3) |
 
