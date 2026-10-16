@@ -97,7 +97,8 @@ def wf_run(name, run_id, age, event, title, branch="main", conclusion="success")
 
 EVENTS = {
     "/workflows?": {"workflows": [
-        {"id": 3, "name": "auto-rollback", "state": "active", "path": ".github/workflows/auto-rollback.yaml"},
+        # Disabled for a planned window: its history still counts.
+        {"id": 3, "name": "auto-rollback", "state": "disabled_manually", "path": ".github/workflows/auto-rollback.yaml"},
         {"id": 4, "name": "tofu", "state": "active", "path": ".github/workflows/tofu.yaml"}]},
     "/workflows/3/runs": {"workflow_runs": [
         wf_run("auto-rollback", 11, 600, "repository_dispatch", "auto-rollback home"),
