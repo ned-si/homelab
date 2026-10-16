@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Rendered into deploy/platform/trivy-operator/resources, the third source of
+# the trivy-operator Application.
+resources:
+  - secret-reports-policy.yaml

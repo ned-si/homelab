@@ -25,6 +25,8 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [ ] 24. Talos API on the tailnet: `tag:talos` owned by the operator's
       client, owner and admins to `tag:talos:50000` only. [4.5]
       (platform-talos task 17)
+- [x] 25. ExposedSecretReports out of `view`: an admission policy strips the
+      reader aggregation labels the trivy chart sets. [5.5] (#523)
 
 ## Open
 
