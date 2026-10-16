@@ -1,0 +1,48 @@
+# Vector: the log agent, one pod per node (docs/observability.md, "Logs").
+# Reads every pod's container logs from /var/log/pods, parses JSON and logfmt
+# into fields and exports its own metrics to Prometheus. The sink is a
+# blackhole until SigNoz takes the OTLP stream.
+#
+# Multi-source: the chart, its values from this repo, and the rendered
+# PodMonitor (deploy/platform/vector/resources).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vector
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://helm.vector.dev
+      chart: vector
+      # renovate: datasource=helm depName=vector registryUrl=https://helm.vector.dev
+      targetRevision: 0.59.0
+      helm:
+        releaseName: vector
+        valueFiles:
+          - $values/platform/vector/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/vector/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: logging
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

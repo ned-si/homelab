@@ -14,6 +14,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `ntfy-guard-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `ntfy-guard-url` the same plus `-guard`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents with flow, drop, TCP, ICMP and HTTP metrics, scraped with the Cilium agent, operator and Envoy metrics ([networking.md](networking.md#metrics)); relay and UI in `kube-system` ([networking.md](networking.md#hubble)) |
 | metrics-server | Application `metrics-server` in `metrics-server` (`infrastructure/metrics-server/values.yaml`): the `metrics.k8s.io` API for `kubectl top` and Headlamp's CPU and memory views, not used by Prometheus. It verifies the kubelets' serving certificates against the cluster CA (no `--kubelet-insecure-tls`): the kubelets request them by CSR (`talos/patches/kubelet-serving-certs.yaml`) and `kubelet-serving-cert-approver` approves them ([talos.md](talos.md#why-it-is-like-this)) |
+| Vector | log agent DaemonSet in `logging`: every pod's logs, parsed; no log store yet ([Logs](#logs)) |
 | truenas-exporter | Application `truenas-exporter` in `democratic-csi` ([NAS metrics](#nas-metrics)) |
 | blackbox-exporter | Application `blackbox-exporter` in `monitoring`; Probes in `platform/blackbox-exporter/probes/`: every public hostname (job `blackbox-public`, label `app`) and the API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS and CoreDNS (job `blackbox-internal`); a ping to the router, the NAS, the four nodes and the BMC (job `blackbox-lan`, label `device`; module `icmp` through the unprivileged-ICMP sysctl `net.ipv4.ping_group_range`, no NET_RAW). `LANDeviceUnreachable` (warning) fires when the router or the BMC does not answer for 10m (PrometheusRule `homelab-lan`) |
 | github-exporter | Application `github-exporter` in `monitoring` (`platform/github-exporter/exporter.py`, stdlib Python): every 15 minutes reads the workflows and their last 30 runs, open and recently closed pull requests and Renovate's Dependency Dashboard from the public GitHub API, unauthenticated (about 11 requests per cycle, ETag-cached, quota 60/hour per IP), plus the jobs of each auto-rollback and tofu run once, at most 5 reads per cycle so a restart stays inside the quota; metrics `github_*`. For the Automation dashboard also `automation_event_timestamp_seconds` (one series per event of the last 7 days), from GitHub, the Argo CD Applications (ClusterRole `github-exporter`, list only) and the Alertmanager silences; `automation_source_up` per in-cluster source |
@@ -186,6 +187,35 @@ kubectl -n monitoring logs deploy/lan-inventory --tail=3
 
 Expected: JSON lines with `"msg": "scan"`, `"ok": true` and a `devices`
 count.
+
+## Logs
+
+Vector (`platform/vector`, Argo CD app `vector`, namespace `logging`) runs
+one pod per node and reads every container log in `/var/log/pods`. Each line
+is parsed: JSON first, then logfmt (a line starting with `key=value`); the
+fields land under `attributes`, Kubernetes metadata under `kubernetes`. Any
+other line stays a plain `message` with `parse_failed=true`. The sink is a
+blackhole until the log store takes the stream over OTLP.
+
+Vector's own metrics are scraped by the PodMonitor `monitoring/vector` (port
+9598): `vector_component_received_events_total`,
+`vector_component_sent_events_total`, `vector_component_errors_total`,
+`vector_component_discarded_events_total`, buffer sizes, and
+`vector_log_events_total{namespace, parse_failed}`.
+
+```sh
+kubectl -n logging get ds vector
+kubectl get --raw '/api/v1/namespaces/monitoring/services/kube-prometheus-stack-prometheus:9090/proxy/api/v1/query?query=sum%20by%20(parse_failed)%20(rate(vector_log_events_total%5B5m%5D))' |
+  jq -r '.data.result[] | "\(.metric.parse_failed) \(.value[1])"'
+```
+
+Expected: `DESIRED 4`, `READY 4`, then the rate of parsed (`false`) and
+unparsed (`true`) lines per second.
+
+The pod runs as uid 0 with every capability dropped and a read-only root:
+the log files are root-owned, and Kubernetes gives a non-root container no
+ambient capabilities. Its hostPath mounts are why `logging` enforces Pod
+Security `privileged`.
 
 ## Notifications
 

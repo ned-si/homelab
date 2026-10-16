@@ -1,0 +1,23 @@
+# Vector's own metrics (vector_* on :9598): events in and out per component,
+# errors, discarded events, buffer sizes, and vector_log_events_total
+# {namespace, parse_failed} from platform/vector/values.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: vector
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [logging]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vector
+  podMetricsEndpoints:
+    - port: prom-exporter
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+          action: replace
