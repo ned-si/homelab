@@ -26,6 +26,8 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 15. Pin every image by digest; group digest refreshes. [3.2, 3.5] (#474, #476)
 - [x] 16. Branch protection on `main`: strict `ci`, signatures, linear history,
       admins included, 0 approvals (GitHub settings, no PR). [2.1]
+- [x] 24. repo_policy.py matches API groups exactly; closes its CodeQL
+      url-substring alerts. (#542)
 
 ## Open
 
