@@ -9,3 +9,10 @@ resources:
   - ingress.yaml
   - rbac.yaml
   - network-policy.yaml
+
+# oauth2-proxy config of headlamp-sso (sso.yaml). The name hash makes a
+# change here a new ConfigMap, which rolls the Deployment.
+configMapGenerator:
+  - name: headlamp-sso
+    files:
+      - alpha-config.yaml=sso-alpha-config.yaml
