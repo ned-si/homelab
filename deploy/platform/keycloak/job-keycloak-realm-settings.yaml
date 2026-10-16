@@ -66,6 +66,12 @@ spec:
               key: REALM_SETTINGS_CLIENT_SECRET
               name: keycloak-automation
               optional: true
+        - name: SIGNOZ_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: SIGNOZ_CLIENT_SECRET
+              name: keycloak-signoz-client
+              optional: true
         image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
         name: kcadm
         resources:
@@ -95,7 +101,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-bm9g8b2c7c
+          name: keycloak-realm-settings-ctfd4886b8
         name: realm
       - emptyDir: {}
         name: tmp

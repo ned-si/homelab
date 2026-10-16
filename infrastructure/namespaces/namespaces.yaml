@@ -206,6 +206,22 @@ metadata:
     pod-security.kubernetes.io/warn: baseline
     pod-security.kubernetes.io/audit: baseline
 ---
+# SigNoz (platform/signoz). baseline, not restricted: the chart exposes no
+# container security context for ClickHouse, ZooKeeper's init or the ClickHouse
+# operator, so restricted's dropped capabilities and seccomp cannot be set
+# there. signoz-sso and the collector set a restricted context; warn and audit
+# stay `restricted` to show the rest.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signoz
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
 # The oauth2-proxy in front of the Hubble UI (platform/hubble-access). The UI
 # and the relay themselves run in kube-system with the cilium release.
 apiVersion: v1

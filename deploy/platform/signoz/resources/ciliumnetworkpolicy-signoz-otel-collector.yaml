@@ -1,0 +1,43 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/signoz/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/signoz/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: signoz-otel-collector
+  namespace: signoz
+spec:
+  enableDefaultDeny:
+    egress: false
+    ingress: true
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: otel-collector
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: vector
+        k8s:io.kubernetes.pod.namespace: logging
+    toPorts:
+    - ports:
+      - port: "4317"
+        protocol: TCP
+      - port: "4318"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: prometheus
+        k8s:io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "8888"
+        protocol: TCP
+  - fromEntities:
+    - host

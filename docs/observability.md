@@ -217,6 +217,43 @@ the log files are root-owned, and Kubernetes gives a non-root container no
 ambient capabilities. Its hostPath mounts are why `logging` enforces Pod
 Security `privileged`.
 
+## SigNoz
+
+SigNoz Community Edition (`platform/signoz`, chart `signoz` 0.146.0, Argo CD
+app `signoz`, namespace `signoz`) is the log and trace store, on a 14-day
+trial. UI at `https://signoz.lilalala.com`: the oauth2-proxy
+`signoz-sso` (Keycloak client `signoz`, group `admins`, a fresh login after
+12 hours), then SigNoz's own login (one admin; the password is
+`admin-password` in `platform/secrets/signoz-sso.sops.yaml`).
+
+| Component | What | Storage |
+| --- | --- | --- |
+| `signoz` | UI and query service | metadata (users, dashboards, saved views) in SQLite, PVC `signoz-db-signoz-0`, 1 GiB, `iscsi-retain` |
+| `signoz-otel-collector` | OTLP receiver: gRPC 4317, HTTP 4318 | none |
+| ClickHouse (`signoz-clickhouse`, Altinity operator) | logs and traces, one replica, memory limit 6 GiB | 50 GiB `iscsi`, disposable: not backed up |
+| `signoz-zookeeper` | ClickHouse's coordination, one replica | 2 GiB `iscsi` |
+
+CiliumNetworkPolicies with default-deny ingress
+(`platform/signoz/resources/network-policy.yaml`): the Gateway reaches only
+`signoz-sso`, `signoz-sso` only the UI, the Vector pods only the collector's
+OTLP ports, and nothing outside the namespace reaches ClickHouse or
+ZooKeeper. The chart's ClickHouse password is its fixed default, so that
+policy is the control.
+
+Pod Security: `baseline` enforced, `restricted` warned. The chart exposes no
+container security context for ClickHouse and its operator.
+
+```sh
+kubectl -n signoz get pods
+kubectl -n signoz get chi
+```
+
+Expected: every pod `Running` (the `signoz-telemetrystore-migrator` Job
+`Completed`), and `signoz-clickhouse` with status `Completed`.
+
+Retention is set once in the UI (Settings → General): logs 15 days, traces
+7 days. SigNoz stores no metrics: Prometheus keeps them.
+
 ## Notifications
 
 The alerts of the paging policy ([sre.md](sre.md#paging)) go as a webhook

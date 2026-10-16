@@ -23,3 +23,4 @@ resources:
   - headlamp.yaml
   - vector.yaml
   - hubble-access.yaml
+  - signoz.yaml
