@@ -1,0 +1,102 @@
+# Remote access
+
+The cluster is on the tailnet `ned-si.github` through the Tailscale
+Kubernetes operator. Nothing extra is published on the router or the
+internet: the operator and its proxies dial out to Tailscale.
+
+| Tailnet host | What | Who |
+| --- | --- | --- |
+| `tailscale-operator` | Kubernetes API server proxy (`kubectl`, k9s) | owner and admins of the tailnet, as `tailnet-admins` (cluster-admin) |
+
+The public hostnames (`*.lilalala.com`) stay as they are; which admin UIs
+become tailnet-only is a later decision.
+
+## How it works
+
+- `platform/tailscale-operator` (Argo CD app `tailscale-operator`, namespace
+  `tailscale`): the official chart, versions and image digests pinned in
+  `values.yaml`. Every pod passes Pod Security `restricted`.
+- OAuth client: admin console, Settings → Trust credentials. Scopes Devices
+  Core write, Auth Keys write, Services write; tag `tag:k8s-operator`. Sealed
+  in `platform/secrets/tailscale-operator.sops.yaml` (Secret
+  `tailscale/operator-oauth`).
+- API server proxy, in the operator pod, auth mode. It drops the client's
+  credentials and impersonates the tailnet user with the groups the tailnet
+  policy grants. `tailnet-admins` is bound to `cluster-admin` in
+  `platform/tailscale-operator/resources/rbac.yaml`. A device without a grant
+  is denied.
+- Tailscale Ingress (class `tailscale`): one proxy pod per Ingress, tagged
+  `tag:k8s`, HTTPS on `https://<host>.<tailnet>.ts.net` with a Let's Encrypt
+  certificate. Proxies use the ProxyClass `restricted` (userspace mode, no
+  privileges).
+
+## Tailnet policy
+
+`bootstrap/tailscale/policy.hujson` is the policy, in git. It replaces the
+default allow-all:
+
+- a member's own devices reach each other (as before);
+- members reach `tag:k8s` (the Ingress proxies) on TCP 443 only;
+- the owner and admins reach `tag:k8s-operator` on 443, with the Kubernetes
+  capability `impersonate: groups: [tailnet-admins]`.
+
+Apply a change: admin console → Access controls → JSON editor, paste the
+whole file, Save. The editor validates it; a syntax error is refused and the
+old policy stays.
+
+Tailnet settings this needs (admin console → DNS): MagicDNS on, HTTPS
+Certificates on.
+
+## Mac
+
+1. Install the Tailscale app, log in with the tailnet account.
+2. Write the kubeconfig context (it adds `tailscale-operator.<tailnet>.ts.net`
+   to `~/.kube/config` and switches to it):
+
+   ```sh
+   tailscale configure kubeconfig tailscale-operator
+   kubectl get nodes
+   ```
+
+   Expected: the four nodes `Ready`. `kubectl auth whoami` shows your tailnet
+   login and the group `tailnet-admins`.
+3. Switch back to the LAN admin context with `kubectl config use-context
+   <context>` when you need it; both work at home.
+
+## Phone (Android, Pixel)
+
+1. Tailscale app from the Play Store, log in, toggle it on.
+2. Browser: the tailnet hosts above, by their full name
+   `https://<host>.<tailnet>.ts.net`.
+3. `kubectl`, k9s and `talosctl` in Termux (F-Droid build):
+
+   ```sh
+   pkg install kubectl k9s
+   ```
+
+   Copy the kubeconfig written on the Mac (step 2 above, only the
+   `tailscale-operator` cluster, context and user; it holds no credential) to
+   `~/.kube/config` in Termux, then `kubectl get nodes`. Termux uses the
+   phone's Tailscale VPN, so the name resolves through MagicDNS.
+4. Notifications: the ntfy app (alerts) and the GitHub app (pull requests).
+
+iPhone: the same with the App Store Tailscale app. There is no Termux; a
+kubeconfig-capable SSH or Kubernetes client app works the same way.
+
+`talosctl` needs the Talos API, which is LAN-only: at home only.
+
+## Revoke a device
+
+Admin console → Machines → the device → Remove. Its tailnet identity goes,
+and with it every grant above. Nothing in the cluster holds a credential for
+it.
+
+## Why it is like this
+
+- Tailscale operator rather than a subnet router or a port forward: no
+  inbound port, per-device identity, and the API proxy maps that identity to
+  RBAC, so a phone holds no long-lived cluster credential.
+- Auth mode rather than `noauth`: with `noauth` every client needs its own
+  Kubernetes token; auth mode reuses the tailnet login and policy.
+- The policy is pasted by hand because the operator's OAuth client has no
+  policy-file scope; a CI job applying it needs a second credential.

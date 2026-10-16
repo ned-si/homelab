@@ -19,3 +19,4 @@ resources:
   - backup-verify.yaml
   - vuln-enrich.yaml
   - talos-drift.yaml
+  - tailscale-operator.yaml

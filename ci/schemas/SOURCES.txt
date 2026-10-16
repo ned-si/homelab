@@ -58,5 +58,6 @@ d7939ea45a8798e11c0063dfdfe93e4d9e4b09a1160881f2cc403a6e8f0fa4d5  https://raw.gi
 8f377ff4a7d0d3f74fc64b0f7ac4f449fc38ca9e83a40107cca2f9315a9bd920  https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.1/manifest.yaml
 9e9738cb9116577cd02dbad1560aff89eb1a8bbb6412a01ea5f10d7b44070ae7  https://raw.githubusercontent.com/home-operations/tuppr/0.5.7/config/crd/bases/tuppr.home-operations.com_kubernetesupgrades.yaml
 3cac7be7d66dc4b243d06c73fe61f1092c877e206a67abc1548be4c0a3e11808  https://raw.githubusercontent.com/home-operations/tuppr/0.5.7/config/crd/bases/tuppr.home-operations.com_talosupgrades.yaml
+837de6ded1433fd3f3150e717dd0656f3118284dba1101caa4b849fe0961f423  https://raw.githubusercontent.com/tailscale/tailscale/v1.104.1/cmd/k8s-operator/deploy/crds/tailscale.com_proxyclasses.yaml
 24f42e7d6b8c23e94556908f79f6b06816fc11be090848e362720910b1497d7c  https://raw.githubusercontent.com/siderolabs/talos/v1.14.2/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml
 41d85b9f6f2757d35b6645086d5bcadf4904a8f0133b00d77e2576b3feb47d56  https://raw.githubusercontent.com/kubernetes/kubernetes/v1.37.1/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json

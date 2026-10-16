@@ -36,6 +36,7 @@ spec:
     # tuppr chart (OCI; Argo CD takes the registry path without oci://).
     - ghcr.io/home-operations/charts
     - https://aquasecurity.github.io/helm-charts/
+    - https://pkgs.tailscale.com/helmcharts
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -54,6 +55,10 @@ spec:
       kind: TalosUpgrade # tuppr: the target Talos version (platform/tuppr)
     - group: tuppr.home-operations.com
       kind: KubernetesUpgrade # tuppr: the target Kubernetes version
+    - group: networking.k8s.io
+      kind: IngressClass # tailscale-operator: the `tailscale` class
+    - group: tailscale.com
+      kind: ProxyClass # tailscale-operator: the default proxy class
   # Deliberately NOT here:
   #   Namespace       -- every namespace in the cluster is declared once, in the
   #                      infrastructure layer (infrastructure/namespaces/), so

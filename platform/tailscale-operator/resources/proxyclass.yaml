@@ -1,0 +1,33 @@
+# Default class of every Tailscale Ingress and Service proxy
+# (values.yaml `proxyConfig.defaultProxyClass`): Pod Security `restricted`,
+# the pinned proxy image, and resources. Ingress proxies run tailscaled in
+# userspace mode (the operator sets TS_USERSPACE=true for them), so they need
+# neither the privileged sysctl init container nor /dev/net/tun.
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: restricted
+spec:
+  statefulSet:
+    pod:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      tailscaleContainer:
+        # renovate: datasource=docker depName=tailscale/tailscale
+        image: tailscale/tailscale:v1.104.1@sha256:87c55d6be56ad85b3d8bceca5f87f73de288c609131460dd1be1874c250cc41d
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
