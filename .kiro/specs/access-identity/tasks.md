@@ -56,3 +56,6 @@ Wave 3 syncs the Cilium policies unenforced, with Hubble to see drops:
       DAST, external port and TLS scans, an in-cluster assessment, a Keycloak
       review. Guardrails enforced technically (no AWS or NAS admin keys,
       locked backup versions); written rules of engagement; private report.
+- [ ] 25. Headlamp public at `headlamp.lilalala.com` behind Keycloak; the
+      tailnet Ingress removed; UIs public, cluster APIs tailnet-only as the
+      rule. [4.3, 4.5]

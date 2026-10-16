@@ -78,10 +78,14 @@ anywhere, with nothing new exposed on the router.
 2. WHEN `bootstrap/tailscale/policy.hujson` changes, THE workflow
    `tailscale-policy` SHALL test it on the pull request and apply it on
    merge; a rejected policy fails and posts to ntfy.
-3. THE Headlamp UI SHALL be reachable only on the tailnet, only by Keycloak
-   group `admins`, and SHALL read without Secrets, exec or writes.
-   (`platform/headlamp/resources/`: Tailscale Ingress, `headlamp-sso`, RBAC,
-   default-deny CiliumNetworkPolicies)
+3. THE Headlamp UI SHALL be served only at `https://headlamp.lilalala.com`
+   on the shared Gateway, only to Keycloak group `admins`, and SHALL read
+   without Secrets, exec or writes; an unauthenticated request SHALL get a
+   302 to Keycloak. (`platform/headlamp/resources/`: HTTPRoute,
+   `headlamp-sso`, RBAC, default-deny CiliumNetworkPolicies)
+5. EVERY web UI SHALL be a public HTTPRoute behind Keycloak and group
+   gating; `kubectl` and `talosctl` SHALL NOT be reachable through the
+   Gateway. ([decisions.md](../../../docs/decisions.md#uis-public-behind-sso-cluster-apis-on-the-tailnet))
 4. THE exit nodes `home-exit-0` and `home-exit-1` SHALL route members'
    internet traffic only (`autogroup:internet`), not the LAN or the cluster.
    (`platform/tailscale-operator/resources/exit-node.yaml`, `policy.hujson`)

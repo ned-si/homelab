@@ -1,19 +1,24 @@
 # Remote access
 
+Web UIs are public on the shared Gateway behind Keycloak, gated by group;
+`kubectl` and `talosctl` go through the tailnet only
+([decisions.md](decisions.md#uis-public-behind-sso-cluster-apis-on-the-tailnet)).
 The cluster is on the tailnet `ned-si.github` through the Tailscale
-Kubernetes operator. Nothing extra is published on the router or the
-internet: the operator and its proxies dial out to Tailscale.
+Kubernetes operator. Nothing extra is published on the router for it: the
+operator and its proxies dial out to Tailscale.
+
+| Public host | What | Who |
+| --- | --- | --- |
+| `headlamp.lilalala.com` | Headlamp, read-only Kubernetes web UI | Keycloak group `admins` |
 
 | Tailnet host | What | Who |
 | --- | --- | --- |
 | `tailscale-operator` | Kubernetes API server proxy (`kubectl`, k9s) | owner and admins of the tailnet, as `tailnet-admins` (cluster-admin) |
-| `headlamp` | Headlamp, read-only Kubernetes web UI | tailnet members, then Keycloak group `admins` |
 | `hubble` | Hubble UI, live network flows of every namespace | tailnet members, then Keycloak group `admins` |
 | `home-exit-0`, `home-exit-1` | exit nodes: internet through the home connection | tailnet members |
 | `talos-cp-1` … `talos-cp-3`, `talos-w-1` | the Talos API of each node (`talosctl`), port 50000 | owner and admins of the tailnet, then the `talosconfig` client certificate |
 
-The public hostnames (`*.lilalala.com`) stay as they are; which admin UIs
-become tailnet-only is a later decision.
+The Hubble UI is still on the tailnet; it moves to the Gateway the same way.
 
 ## How it works
 
@@ -37,11 +42,12 @@ become tailnet-only is a later decision.
 ## Headlamp
 
 `platform/headlamp` (Argo CD app `headlamp`, namespace `headlamp`): the
-official chart, version and image digest pinned. Tailnet only: a Tailscale
-Ingress, no HTTPRoute on the public Gateway.
+official chart, version and image digest pinned. One URL,
+`https://headlamp.lilalala.com`: an HTTPRoute on the shared Gateway with the
+security headers, published by external-dns, scanned by the weekly DAST.
 
 ```text
-phone --tailnet--> Ingress proxy (tailscale) --> headlamp-sso (oauth2-proxy) --> headlamp
+browser --443--> Gateway (HTTPRoute headlamp) --> headlamp-sso (oauth2-proxy) --> headlamp
 ```
 
 - Login: the oauth2-proxy `headlamp-sso` with the Keycloak client `headlamp`
@@ -59,8 +65,8 @@ phone --tailnet--> Ingress proxy (tailscale) --> headlamp-sso (oauth2-proxy) -->
   reports, Tailscale. To show a new CRD, add a labelled ClusterRole with
   get/list/watch. Changes go
   through git, or `kubectl` over the API proxy.
-- Network: CiliumNetworkPolicies with default-deny ingress. Only the Ingress
-  proxies reach `headlamp-sso`, and only `headlamp-sso` reaches Headlamp,
+- Network: CiliumNetworkPolicies with default-deny ingress. Only the
+  Gateway reaches `headlamp-sso`, and only `headlamp-sso` reaches Headlamp,
   which trusts the identity headers it receives.
 - The proxy accepts an unverified email in the ID token
   (`insecureAllowUnverifiedEmail`): users are created by hand without email
@@ -196,11 +202,10 @@ DNS address).
 ## Phone (Android, Pixel)
 
 1. Tailscale app from the Play Store, log in, toggle it on.
-2. Browser: the tailnet hosts above, by their full name
-   `https://<host>.<tailnet>.ts.net`. Headlamp: open
-   `https://headlamp.<tailnet>.ts.net`, log in with Keycloak, then Workloads →
-   Pods → a pod → Logs, and Cluster → Events. Add it to the home screen
-   (browser menu → Add to Home screen).
+2. Browser: Headlamp needs no tailnet: open `https://headlamp.lilalala.com`,
+   log in with Keycloak, then Workloads → Pods → a pod → Logs, and Cluster →
+   Events. Add it to the home screen (browser menu → Add to Home screen). The
+   tailnet hosts above by their full name, `https://<host>.<tailnet>.ts.net`.
 3. `kubectl`, k9s and `talosctl` in Termux (F-Droid build):
 
    ```sh
@@ -279,11 +284,11 @@ it.
   RBAC, so a phone holds no long-lived cluster credential.
 - Auth mode rather than `noauth`: with `noauth` every client needs its own
   Kubernetes token; auth mode reuses the tailnet login and policy.
-- Argo CD and Grafana stay on their public hostnames only. Each has a single
-  external URL for its Keycloak redirect (`url` in argocd-cm, Grafana
-  `root_url`), so a tailnet hostname next to the public one would bounce the
-  login back to the public host. Making them tailnet-only means moving that
-  URL and removing the HTTPRoute, one app at a time.
+- UIs are public behind Keycloak, the cluster APIs are tailnet-only
+  ([decisions.md](decisions.md#uis-public-behind-sso-cluster-apis-on-the-tailnet)).
+  Headlamp moved from its tailnet Ingress to the Gateway: one URL, the same
+  login as Argo CD and Grafana, and no Tailscale app needed to read the
+  cluster from a phone.
 - The policy job has its own OAuth client rather than a Policy File scope
   on the operator's: a leaked operator credential cannot rewrite the policy.
 - The Talos API on the tailnet rather than LAN-only: it is the way in when

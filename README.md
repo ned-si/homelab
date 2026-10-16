@@ -95,6 +95,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Keycloak | Single sign-on, realm `homelab` | `keycloak` | `auth` | - |
 | Grafana, Prometheus, Alertmanager | Monitoring | `monitoring` | `grafana` | Yes (Grafana) |
 | Argo CD | GitOps controller | `argo` | `argo` | Yes |
+| Headlamp | Read-only Kubernetes web UI | `headlamp` | `headlamp` | Yes (group `admins`) |
 
 Hostnames are prefixes of `lilalala.com`. Plex and Jellyfin stay off SSO so
 their TV apps can sign in.

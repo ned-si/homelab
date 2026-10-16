@@ -1,7 +1,8 @@
 # Enforced from the start (default-deny ingress), unlike the allow-lists in
 # infrastructure/network-policies: Headlamp trusts the identity headers it
-# receives, so only headlamp-sso may reach it, and only the Tailscale Ingress
-# proxies may reach headlamp-sso. Egress stays open (API server, Keycloak).
+# receives, so only headlamp-sso may reach it, and only the shared Gateway
+# (Cilium's Envoy, identity `ingress`) may reach headlamp-sso. Egress stays
+# open (API server, Keycloak).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -38,12 +39,17 @@ spec:
     ingress: true
     egress: false
   ingress:
-    - fromEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: tailscale
+    # headlamp.lilalala.com (httproute.yaml) -> headlamp-sso :4180. The
+    # Gateway proxy has the identity `ingress`; with `bpf.masquerade: false`
+    # its cross-node traffic can arrive SNATed to a node address
+    # (infrastructure/network-policies/10-theater.yaml).
+    - fromEntities:
+        - ingress
+        - remote-node
       toPorts:
         - ports:
             - port: "4180"
               protocol: TCP
+    # kubelet probes.
     - fromEntities:
         - host

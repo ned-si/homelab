@@ -1,6 +1,6 @@
 # Keycloak login in front of Headlamp: the oauth2-proxy `headlamp-sso`.
 #
-#     Tailscale Ingress `headlamp` --> headlamp-sso:4180 --> headlamp:80
+#     Gateway (HTTPRoute `headlamp`) --> headlamp-sso:4180 --> headlamp:80
 #
 # Access needs membership of the Keycloak group `admins`, checked twice: the
 # client's own login flow denies anyone else (platform/keycloak/realm/access.conf)
@@ -53,10 +53,10 @@ spec:
             - --alpha-config=/config/alpha-config.yaml
             # Authorization is the group in the alpha config.
             - --email-domain=*
-            # Behind the Tailscale Ingress proxy (tailscale serve).
+            # Behind the shared Gateway.
             - --reverse-proxy=true
-            - --redirect-url=https://headlamp.tail32a1fc.ts.net/oauth2/callback
-            - --whitelist-domain=headlamp.tail32a1fc.ts.net
+            - --redirect-url=https://headlamp.lilalala.com/oauth2/callback
+            - --whitelist-domain=headlamp.lilalala.com
             - --cookie-secure=true
             - --cookie-samesite=lax
             # The platform-client session length (platform.conf loa_max_age).

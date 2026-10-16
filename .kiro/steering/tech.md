@@ -21,7 +21,7 @@ Application in `clusters/homelab/`, images by digest in the manifests.
 | File backups | restic to S3 (the photo library also to the NAS); weekly restore tests; old object versions locked | [backups](../../docs/backups.md) |
 | TLS and DNS | cert-manager (Let's Encrypt, DNS-01 on Cloudflare); external-dns, upsert only | [networking](../../docs/networking.md) |
 | Identity | Keycloak, OIDC per app, access by group | [architecture](../../docs/architecture.md#per-app-access) |
-| Remote access | Tailscale operator with the Kubernetes API proxy; Headlamp on the tailnet | [remote-access](../../docs/remote-access.md) |
+| Remote access | Tailscale operator with the Kubernetes API proxy; web UIs (Headlamp) public behind Keycloak | [remote-access](../../docs/remote-access.md) |
 | Observability | kube-prometheus-stack; Alertmanager -> ntfy; healthchecks.io heartbeat; SLOs as recording rules | [observability](../../docs/observability.md), [sre](../../docs/sre.md) |
 | Automation | Renovate automerge on green CI; automatic rollback on a degraded sync, with an outage guard | [decisions](../../docs/decisions.md#automatic-rollback) |
 | Cloud resources | OpenTofu under `bootstrap/`, applied by the `tofu` workflow through GitHub OIDC | [bootstrap](../../docs/bootstrap.md) |

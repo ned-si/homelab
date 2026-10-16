@@ -634,9 +634,9 @@ data:
     theater-sso.redirectUris=https://theater.lilalala.com/oauth2/callback
     theater-sso.webOrigins=https://theater.lilalala.com
 
-    # oauth2-proxy in front of Headlamp, on the tailnet (platform/headlamp).
-    headlamp.redirectUris=https://headlamp.tail32a1fc.ts.net/oauth2/callback
-    headlamp.webOrigins=https://headlamp.tail32a1fc.ts.net
+    # oauth2-proxy in front of Headlamp (platform/headlamp).
+    headlamp.redirectUris=https://headlamp.lilalala.com/oauth2/callback
+    headlamp.webOrigins=https://headlamp.lilalala.com
 
     # oauth2-proxy in front of the Hubble UI, on the tailnet (platform/hubble-access).
     hubble.redirectUris=https://hubble.tail32a1fc.ts.net/oauth2/callback
@@ -720,5 +720,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-9mc545fhhf
+  name: keycloak-realm-settings-5d2f8db924
   namespace: keycloak

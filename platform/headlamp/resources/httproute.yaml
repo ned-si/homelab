@@ -1,0 +1,47 @@
+# headlamp.lilalala.com on the shared Gateway, to the oauth2-proxy
+# headlamp-sso (Keycloak, group admins), never to Headlamp directly.
+# external-dns publishes the record from the hostname.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: headlamp
+spec:
+  # group/kind/weight and the catch-all match are the API server's defaults,
+  # spelled out so that Argo CD's diff sees no drift.
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: gateway
+      sectionName: https
+  hostnames:
+    - headlamp.lilalala.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), payment=(), usb=()"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: headlamp-sso
+          port: 4180
+          weight: 1
+      # Log follow and watches are long-lived requests.
+      timeouts:
+        request: 0s
