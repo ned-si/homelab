@@ -1,4 +1,4 @@
-# CiliumNetworkPolicy for the six application namespaces.
+# CiliumNetworkPolicy for the application namespaces.
 #
 # Source: infrastructure/network-policies/. Read that directory's
 # kustomization.yaml for the design and 90-enforcement.yaml for the rollout and
@@ -55,10 +55,10 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     # Every object in the source sets `metadata.namespace` explicitly and they
-    # span six namespaces, so this value is only the fallback Argo CD uses for an
+    # span several namespaces, so this value is only the fallback Argo CD uses for an
     # object that does not. `argocd` is the inert choice: a CiliumNetworkPolicy
     # that accidentally landed here would select nothing, whereas naming one of
-    # the six would silently apply a stray policy to real workloads.
+    # a policed namespace would silently apply a stray policy to real workloads.
     namespace: argo
   revisionHistoryLimit: 10
   syncPolicy:

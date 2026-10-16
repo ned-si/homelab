@@ -15,6 +15,8 @@ kind: Kustomization
 #    15  gateway           the shared Gateway on .254 (ADR 0007)
 #    20  democratic-csi    iSCSI CSI driver + StorageClasses; auto-sync, no prune
 #    25  iscsi-volumes     static PVs of the existing data zvols; no prune
+#    30  network-policies  CiliumNetworkPolicy allow-lists, not enforced
+#                          (every switch in 90-enforcement.yaml is false)
 #
 # Kept in git, not part of the layer yet (each is new behaviour and ships in
 # its own change, ADR 0002):
@@ -22,7 +24,6 @@ kind: Kustomization
 #                             v6.3.1 in kube-system; enabling it must replace it
 #   nfs-storage.yaml          would create new NFS PVs/PVCs; theater keeps its
 #                             inline NFS volumes as live
-#   network-policies.yaml     CiliumNetworkPolicies
 resources:
   - namespaces.yaml
   - secrets.yaml
@@ -36,3 +37,4 @@ resources:
   - gateway.yaml
   - democratic-csi.yaml
   - iscsi-volumes.yaml
+  - network-policies.yaml

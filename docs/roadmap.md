@@ -7,7 +7,7 @@ own pull request with its own diff, test and rollback
 ## Networking
 
 - Enforce the CiliumNetworkPolicies (`infrastructure/network-policies/`,
-  written, not in a layer), one namespace at a time.
+  synced, not enforced), one namespace at a time.
 - Cilium WireGuard transparent encryption
   ([decisions.md](decisions.md#no-service-mesh)).
 
