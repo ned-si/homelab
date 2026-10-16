@@ -210,7 +210,9 @@ templates in `X-Title`, `X-Message` and `X-Priority`
 | resolved | `Resolved: <alertname> (<namespace>)` | 2 (low) |
 
 The body is one `summary` per alert, plus the `description` when the batch has
-one alert. A batch carries at most 5 alerts (ntfy caps a message at 4 KiB).
+one alert, then the alert's `runbook_url` on the last line when it has one
+(every `action: human` rule does; the tuppr chart rules do not). A batch
+carries at most 5 alerts (ntfy caps a message at 4 KiB).
 
 Subscribe: install the ntfy app, add the topic on server `ntfy.sh`. Test from
 the Mac, without Alertmanager:
@@ -226,9 +228,12 @@ Test the whole path with a synthetic persistent slow burn of a made-up app
 ```sh
 kubectl -n monitoring exec alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager -- \
   amtool alert add SLOErrorBudgetBurnSlowPersistent severity=warning action=human app=synthetic namespace=monitoring \
-  --annotation=summary="Synthetic test" --end="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ)" \
+  --annotation=summary="Synthetic test" \
+  --annotation=runbook_url=https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnSlowPersistent.md \
+  --end="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ)" \
   --alertmanager.url=http://localhost:9093
-# expected after the 1m group_wait: "Warning: SLOErrorBudgetBurnSlowPersistent (monitoring)"
+# expected after the 1m group_wait: "Warning: SLOErrorBudgetBurnSlowPersistent (monitoring)",
+# body "Synthetic test", then the runbook URL
 ```
 
 Rotating the topic: a new one in `secrets.local.env` (`NTFY_TOPIC`), then
