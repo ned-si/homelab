@@ -60,6 +60,8 @@ spec:
       kind: IngressClass # tailscale-operator: the `tailscale` class
     - group: tailscale.com
       kind: ProxyClass # tailscale-operator: the default proxy class
+    - group: tailscale.com
+      kind: Connector # tailscale-operator: the exit node
   # Deliberately NOT here:
   #   Namespace       -- every namespace in the cluster is declared once, in the
   #                      infrastructure layer (infrastructure/namespaces/), so

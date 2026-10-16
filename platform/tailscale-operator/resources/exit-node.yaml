@@ -1,0 +1,77 @@
+# Exit node on the home connection: tailnet members route their internet
+# traffic through the cluster when away (docs/remote-access.md, "Exit node").
+# Two replicas, `home-exit-0` and `home-exit-1`, on different nodes when they
+# can be; each is a separate exit node to pick in the Tailscale app.
+#
+# The tailnet policy auto-approves `tag:exit` as an exit node and grants
+# members autogroup:internet only: the home LAN and the cluster are not
+# reachable through it.
+---
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: home-exit
+spec:
+  hostnamePrefix: home-exit
+  replicas: 2
+  exitNode: true
+  tags:
+    - "tag:exit"
+  proxyClass: exit-node
+---
+# Connector pods always get the operator's privileged `sysctler` init
+# container (it enables IP forwarding), which Pod Security `restricted` and
+# `baseline` reject; this is why the namespace `tailscale` enforces
+# `privileged` (infrastructure/namespaces/namespaces.yaml). The long-running
+# container is unprivileged: tailscaled in userspace mode, non-root, no
+# capabilities, so it needs neither /dev/net/tun nor forwarding.
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: exit-node
+spec:
+  statefulSet:
+    pod:
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    tailscale.com/parent-resource: home-exit
+                    tailscale.com/parent-resource-type: connector
+      tailscaleInitContainer:
+        securityContext:
+          privileged: true
+          runAsUser: 0
+        resources:
+          requests:
+            cpu: 1m
+            memory: 4Mi
+          limits:
+            memory: 16Mi
+      tailscaleContainer:
+        # renovate: datasource=docker depName=tailscale/tailscale
+        image: tailscale/tailscale:v1.104.1@sha256:87c55d6be56ad85b3d8bceca5f87f73de288c609131460dd1be1874c250cc41d
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: TS_USERSPACE
+            value: "true"
+        resources:
+          requests:
+            cpu: 20m
+            memory: 48Mi
+          limits:
+            memory: 256Mi
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]

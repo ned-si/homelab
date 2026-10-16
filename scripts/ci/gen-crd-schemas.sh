@@ -87,6 +87,7 @@ for k in kubernetesupgrades talosupgrades; do
   add "https://raw.githubusercontent.com/home-operations/tuppr/$TUPPR/config/crd/bases/tuppr.home-operations.com_$k.yaml"
 done
 add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_proxyclasses.yaml"
+add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_connectors.yaml"
 add "https://raw.githubusercontent.com/siderolabs/talos/$TALOS/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml"
 
 gen="$work/gen"
