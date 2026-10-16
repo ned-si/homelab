@@ -50,7 +50,7 @@ and `clusters/homelab/root.yaml` are the same object; CI fails if they differ.
 | --- | --- | --- |
 | infrastructure | `namespaces`, `secrets-infrastructure`, `gateway-api`, `cilium`, `cilium-config`, `cert-manager`, `cert-manager-issuers`, `external-dns`, `gateway`, `democratic-csi` | nothing |
 | platform | `secrets-platform`, `cnpg`, `barman-cloud-plugin`, `kube-prometheus-stack`, `keycloak` | StorageClasses, certificates |
-| apps | `secrets-apps`, `immich`, `mealie`, `paperless`, `seafile` (retained claims only, until 2026-11-16), `syncthing`, `theater` | databases, identity, routing |
+| apps | `secrets-apps`, `immich`, `mealie`, `paperless`, `syncthing`, `theater` | databases, identity, routing |
 
 Sync waves inside `infrastructure`:
 

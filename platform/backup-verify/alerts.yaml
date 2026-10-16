@@ -29,9 +29,12 @@ spec:
 
         - alert: BackupVerifyStale
           # Weekly checks: no pass in 8 days, the schedule plus a day.
+          # Targets removed with their app are excluded: their last result
+          # stays in the 9-day window and would read as a stale check
+          # (seafile, removed 2026-10-16; drop the matcher after 2026-10-26).
           expr: |
             time() - max by (check, target) (
-              max_over_time(backup_verify_last_success_timestamp_seconds{check!="restic-data"}[9d])
+              max_over_time(backup_verify_last_success_timestamp_seconds{check!="restic-data", target!~"seafile|seafile-data|seafile-mariadb"}[9d])
             ) > 8 * 86400
           for: 1h
           labels:
