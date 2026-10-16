@@ -1,0 +1,139 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/headlamp/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/headlamp/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    homelab.lilalala.com/aggregate-to-headlamp: "true"
+  name: headlamp-read-platform
+rules:
+- apiGroups:
+  - argoproj.io
+  resources:
+  - applications
+  - applicationsets
+  - appprojects
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - postgresql.cnpg.io
+  resources:
+  - clusters
+  - backups
+  - scheduledbackups
+  - poolers
+  - databases
+  - imagecatalogs
+  - clusterimagecatalogs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - barmancloud.cnpg.io
+  resources:
+  - objectstores
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cilium.io
+  resources:
+  - ciliumnetworkpolicies
+  - ciliumclusterwidenetworkpolicies
+  - ciliuml2announcementpolicies
+  - ciliumloadbalancerippools
+  - ciliumendpoints
+  - ciliumnodes
+  - ciliumidentities
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - cert-manager.io
+  resources:
+  - certificates
+  - certificaterequests
+  - issuers
+  - clusterissuers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - acme.cert-manager.io
+  resources:
+  - orders
+  - challenges
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - tuppr.home-operations.com
+  resources:
+  - talosupgrades
+  - kubernetesupgrades
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - prometheuses
+  - prometheusrules
+  - alertmanagers
+  - alertmanagerconfigs
+  - servicemonitors
+  - podmonitors
+  - probes
+  - scrapeconfigs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - wgpolicyk8s.io
+  resources:
+  - policyreports
+  - clusterpolicyreports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - aquasecurity.github.io
+  resources:
+  - vulnerabilityreports
+  - clustervulnerabilityreports
+  - configauditreports
+  - clusterconfigauditreports
+  - sbomreports
+  - clustersbomreports
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - tailscale.com
+  resources:
+  - connectors
+  - proxyclasses
+  - proxygroups
+  verbs:
+  - get
+  - list
+  - watch

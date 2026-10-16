@@ -49,7 +49,13 @@ phone --tailnet--> Ingress proxy (tailscale) --> headlamp-sso (oauth2-proxy) -->
 - Rights: Headlamp uses its own ServiceAccount for every user
   (`-unsafe-use-service-account-token`, `-proxy-auth`): `view` plus
   `headlamp-read` (nodes, storage, CRDs). It can list pods, read logs and
-  events; it cannot read Secrets, exec, or change anything. Changes go
+  events; it cannot read Secrets, exec, or change anything. `headlamp-read`
+  aggregates every ClusterRole labelled
+  `homelab.lilalala.com/aggregate-to-headlamp: "true"`
+  (`platform/headlamp/resources/rbac.yaml`): Gateway API, Argo CD, CNPG,
+  Cilium, cert-manager, tuppr, Prometheus Operator, policy and Trivy
+  reports, Tailscale. To show a new CRD, add a labelled ClusterRole with
+  get/list/watch. Changes go
   through git, or `kubectl` over the API proxy.
 - Network: CiliumNetworkPolicies with default-deny ingress. Only the Ingress
   proxies reach `headlamp-sso`, and only `headlamp-sso` reaches Headlamp,

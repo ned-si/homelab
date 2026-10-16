@@ -1,11 +1,45 @@
 # Read-only rights of the Headlamp ServiceAccount, on top of the chart's
-# binding to `view` (namespaced objects, no Secrets, no exec, logs allowed):
-# the cluster-scoped objects Headlamp's overview and node pages list.
+# binding to `view` (namespaced core objects, no Secrets, no exec, logs
+# allowed).
+#
+# `headlamp-read` is an aggregated ClusterRole: Kubernetes fills its rules
+# from every ClusterRole labelled `homelab.lilalala.com/aggregate-to-headlamp:
+# "true"`. To show a new CRD in Headlamp, add a labelled ClusterRole below
+# with get/list/watch on its resources. Never Secrets, never a report kind
+# that copies secret material (trivy `exposedsecretreports`), never a verb
+# other than get/list/watch.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: headlamp-read
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        homelab.lilalala.com/aggregate-to-headlamp: "true"
+# Filled in by the aggregation controller (the Application ignores it).
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: headlamp-read
+subjects:
+  - kind: ServiceAccount
+    name: headlamp
+    namespace: headlamp
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: headlamp-read
+---
+# Cluster-scoped core objects the overview and node pages list.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: headlamp-read-cluster
+  labels:
+    homelab.lilalala.com/aggregate-to-headlamp: "true"
 rules:
   - apiGroups: [""]
     resources: ["nodes", "persistentvolumes"]
@@ -25,16 +59,104 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["clusterroles", "clusterrolebindings"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshots", "volumesnapshotclasses", "volumesnapshotcontents"]
+    verbs: ["get", "list", "watch"]
+  # Node and pod CPU/memory, once a metrics server serves the API.
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["nodes", "pods"]
+    verbs: ["get", "list", "watch"]
 ---
+# Gateway API: the shared Gateway and every route.
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: ClusterRole
 metadata:
-  name: headlamp-read
-subjects:
-  - kind: ServiceAccount
-    name: headlamp
-    namespace: headlamp
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: headlamp-read
+  name: headlamp-read-gateway-api
+  labels:
+    homelab.lilalala.com/aggregate-to-headlamp: "true"
+rules:
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources:
+      - gatewayclasses
+      - gateways
+      - httproutes
+      - grpcroutes
+      - tlsroutes
+      - tcproutes
+      - udproutes
+      - referencegrants
+      - backendtlspolicies
+      - listenersets
+    verbs: ["get", "list", "watch"]
+---
+# The custom resources of the platform this cluster runs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: headlamp-read-platform
+  labels:
+    homelab.lilalala.com/aggregate-to-headlamp: "true"
+rules:
+  # Argo CD (Application and AppProject specs hold no credentials).
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications", "applicationsets", "appprojects"]
+    verbs: ["get", "list", "watch"]
+  # CloudNativePG and the Barman Cloud plugin.
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters", "backups", "scheduledbackups", "poolers", "databases", "imagecatalogs", "clusterimagecatalogs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["barmancloud.cnpg.io"]
+    resources: ["objectstores"]
+    verbs: ["get", "list", "watch"]
+  # Cilium: policies, L2 announcements, LB IP pools, endpoints.
+  - apiGroups: ["cilium.io"]
+    resources:
+      - ciliumnetworkpolicies
+      - ciliumclusterwidenetworkpolicies
+      - ciliuml2announcementpolicies
+      - ciliumloadbalancerippools
+      - ciliumendpoints
+      - ciliumnodes
+      - ciliumidentities
+    verbs: ["get", "list", "watch"]
+  # cert-manager.
+  - apiGroups: ["cert-manager.io"]
+    resources: ["certificates", "certificaterequests", "issuers", "clusterissuers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["acme.cert-manager.io"]
+    resources: ["orders", "challenges"]
+    verbs: ["get", "list", "watch"]
+  # tuppr: the Talos and Kubernetes upgrade targets.
+  - apiGroups: ["tuppr.home-operations.com"]
+    resources: ["talosupgrades", "kubernetesupgrades"]
+    verbs: ["get", "list", "watch"]
+  # Prometheus Operator.
+  - apiGroups: ["monitoring.coreos.com"]
+    resources:
+      - prometheuses
+      - prometheusrules
+      - alertmanagers
+      - alertmanagerconfigs
+      - servicemonitors
+      - podmonitors
+      - probes
+      - scrapeconfigs
+    verbs: ["get", "list", "watch"]
+  # Policy reports (Kyverno and other wgpolicyk8s.io producers).
+  - apiGroups: ["wgpolicyk8s.io"]
+    resources: ["policyreports", "clusterpolicyreports"]
+    verbs: ["get", "list", "watch"]
+  # Trivy: CVE and config reports; not exposedsecretreports.
+  - apiGroups: ["aquasecurity.github.io"]
+    resources:
+      - vulnerabilityreports
+      - clustervulnerabilityreports
+      - configauditreports
+      - clusterconfigauditreports
+      - sbomreports
+      - clustersbomreports
+    verbs: ["get", "list", "watch"]
+  # Tailscale operator.
+  - apiGroups: ["tailscale.com"]
+    resources: ["connectors", "proxyclasses", "proxygroups"]
+    verbs: ["get", "list", "watch"]

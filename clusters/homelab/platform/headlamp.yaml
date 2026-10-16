@@ -42,9 +42,17 @@ spec:
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  ignoreDifferences:
+    # Aggregated ClusterRole: the aggregation controller writes its rules.
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: headlamp-read
+      jsonPointers:
+        - /rules
