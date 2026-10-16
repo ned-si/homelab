@@ -37,5 +37,35 @@ tests:
                 Prowlarr reports indexers that have failed for more than 6 hours
                 or have no definition any more: usually an expired login or
                 cookie, or a site that is gone. Prowlarr -> System -> Status
-                names them; update the credentials, or disable or remove the
-                indexer (docs/theater.md "Indexers").
+                names them; update the credentials or disable the indexer, and
+                remove one that has no definition (docs/theater.md "Indexers").
+
+  # An indexer without a definition fires after 1 hour and resolves when it
+  # is removed (the series disappears at minute 90).
+  - interval: 1m
+    input_series:
+      - series: 'prowlarr_system_health_issues{namespace="theater", source="IndexerNoDefinitionCheck", message="no definition: D"}'
+        values: '1x90'
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: ArrIndexersFailing
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: ArrIndexersFailing
+        exp_alerts:
+          - exp_labels:
+              namespace: theater
+              source: IndexerNoDefinitionCheck
+              severity: warning
+              action: human
+            exp_annotations:
+              summary: "Prowlarr: indexers need attention (IndexerNoDefinitionCheck)"
+              description: >-
+                Prowlarr reports indexers that have failed for more than 6 hours
+                or have no definition any more: usually an expired login or
+                cookie, or a site that is gone. Prowlarr -> System -> Status
+                names them; update the credentials or disable the indexer, and
+                remove one that has no definition (docs/theater.md "Indexers").
+      - eval_time: 100m
+        alertname: ArrIndexersFailing
+        exp_alerts: []

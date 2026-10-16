@@ -175,13 +175,26 @@ Expected: one `import list 'Plex Watchlist'` line each for sonarr and radarr.
 
 ## Indexers
 
-Prowlarr syncs its indexers to Sonarr and Radarr (full sync). Policy: a
-private or semi-private tracker is used automatically only for freeleech
-releases, because other automatic grabs break its ratio rules.
+Prowlarr syncs its indexers to Sonarr and Radarr (full sync). The set is
+`EXPECTED` in `scripts/check-indexers.sh`:
+
+| Indexer | Privacy | State |
+|---|---|---|
+| BT.etree, EBookBay, LimeTorrents, The Pirate Bay, Torrent9 | public | enabled, profile `Standard`, tag `books` |
+| C411 | private | enabled, profile `Manual only` |
+| IPTorrents | private | disabled (see below) |
+
+An indexer whose definition Prowlarr no longer ships (System -> Status:
+"Indexers have no definition") cannot be used or edited: remove it in
+Prowlarr and from `EXPECTED`. A replacement definition is a new indexer, added
+with new credentials.
+
+Policy: a private or semi-private tracker is used automatically only for
+freeleech releases, because other automatic grabs break its ratio rules.
 
 - A private or semi-private indexer whose definition has a freeleech-only
-  option (Sharewood `freeleech`) has it on and uses the profile `Standard`:
-  RSS and automatic search see freeleech releases only.
+  option (IPTorrents `freeLeechOnly`) has it on and uses the profile
+  `Standard`: RSS and automatic search see freeleech releases only.
 - One without that option (C411) uses the app profile `Manual only` (RSS off,
   automatic search off, interactive search on). Sonarr and Radarr receive it
   with RSS and automatic search off, so it is only used from Interactive
@@ -189,8 +202,6 @@ releases, because other automatic grabs break its ratio rules.
 - Public indexers use the profile `Standard` (everything on). They also carry
   the tag `books`, which is what Prowlarr's `LazyLibrarian` application syncs;
   a non-public indexer must never get it.
-- YGG stays disabled. Its definition is no longer shipped by Prowlarr, so it
-  cannot be edited until it is re-added.
 - IPTorrents is disabled: the tracker has locked the account, and any use,
   freeleech included, stays off until it restores access. Then enable it with
   `freeLeechOnly` on and the profile `Standard`, and remove it from
@@ -206,7 +217,8 @@ scripts/check-indexers.sh
 Expected: one `ok` line per indexer, exit 0. A `FAIL` line names an enabled
 private or semi-private indexer that is automatic without freeleech-only on,
 carries the `books` tag, or is enabled while listed as one that must stay
-disabled (IPTorrents). Fix it in Prowlarr (Indexers, edit): turn the
+disabled (IPTorrents); or an indexer missing from Prowlarr or from
+`EXPECTED`. Fix it in Prowlarr (Indexers, edit): turn the
 freeleech-only option on, or set Sync Profile `Manual only` if the definition
 has none. `WARN` (freeleech-only on, manual profile) does not fail.
 

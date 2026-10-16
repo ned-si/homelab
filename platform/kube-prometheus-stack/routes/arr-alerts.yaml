@@ -6,7 +6,13 @@
 #                        hours, or indexers without a definition, for 1h   warning  human
 #
 # Prowlarr retries a failing indexer with a backoff, so a short outage of a
-# tracker never reaches the 6-hour check. The message names the indexers; it
+# tracker never reaches the 6-hour check.
+#
+# Disabled indexers: Prowlarr's 6-hour check counts enabled indexers only, so
+# one disabled on purpose (IPTorrents) never fires this. Its no-definition
+# check counts disabled ones too, but such an indexer can be neither used nor
+# edited, and removing it is the fix. The metric does not say which indexer is
+# enabled, so the rule cannot tell them apart. The message names the indexers; it
 # is not a label of the alert, so a change in the list does not notify again.
 #
 # Tests: tests/prometheus/arr_test.yaml (promtool test rules).
@@ -37,5 +43,5 @@ spec:
               Prowlarr reports indexers that have failed for more than 6 hours
               or have no definition any more: usually an expired login or
               cookie, or a site that is gone. Prowlarr -> System -> Status
-              names them; update the credentials, or disable or remove the
-              indexer (docs/theater.md "Indexers").
+              names them; update the credentials or disable the indexer, and
+              remove one that has no definition (docs/theater.md "Indexers").
