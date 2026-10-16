@@ -100,6 +100,7 @@ is the query helper the pages use. When done: `kill "$PF"`.
 - [CertificateExpiringSoon](CertificateExpiringSoon.md): a certificate expires in under 21 days
 - [CertificateExpiringVerySoon](CertificateExpiringVerySoon.md): a certificate expires in under 7 days
 - [CertificateNotReady](CertificateNotReady.md): a certificate not Ready for an hour
+- [HubbleCertRenewalStale](HubbleCertRenewalStale.md): the Hubble certificates not renewed for 130 days
 - [ArrIndexersFailing](ArrIndexersFailing.md): Prowlarr indexers failing for 6 hours
 - [NASExporterFailing](NASExporterFailing.md): the TrueNAS API refuses the exporter
 
@@ -120,6 +121,8 @@ is the query helper the pages use. When done: `kill "$PF"`.
 - [NASExporterAbsent](NASExporterAbsent.md): truenas-exporter not scraped
 - [LANInventoryFailing](LANInventoryFailing.md): no ARP scan for 30 minutes
 - [LANInventoryAbsent](LANInventoryAbsent.md): lan-inventory not scraped
+- [HubbleRelayPeersNotReady](HubbleRelayPeersNotReady.md): the Hubble relay misses some nodes
+- [HubbleRelayAbsent](HubbleRelayAbsent.md): the Hubble relay not scraped
 - [TalosDriftCheckStale](TalosDriftCheckStale.md): no Talos drift check in 2 days
 - [VulnEnrichmentStale](VulnEnrichmentStale.md): no KEV/EPSS enrichment in 3 days
 - [AlertmanagerNotificationsFailing](AlertmanagerNotificationsFailing.md): Alertmanager cannot deliver

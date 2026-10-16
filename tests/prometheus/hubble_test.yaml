@@ -24,6 +24,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayPeersNotReady.md
               summary: Hubble relay reaches 3 agents, fewer than are Ready
               description: >-
                 The relay cannot read the flows of every node: the Hubble UI and
@@ -50,6 +51,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayAbsent.md
               summary: Hubble relay is not being scraped
               description: >-
                 HubbleRelayPeersNotReady is inert while this fires. Check

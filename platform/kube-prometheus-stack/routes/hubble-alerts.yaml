@@ -33,6 +33,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayPeersNotReady.md
             summary: "Hubble relay reaches {{ $value }} agents, fewer than are Ready"
             description: >-
               The relay cannot read the flows of every node: the Hubble UI and
@@ -50,6 +51,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayAbsent.md
             summary: "Hubble relay is not being scraped"
             description: >-
               HubbleRelayPeersNotReady is inert while this fires. Check
@@ -71,6 +73,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleCertRenewalStale.md
             summary: "The Hubble certificates have not been renewed for 130 days"
             description: >-
               The CronJob kube-system/hubble-generate-certs has not succeeded

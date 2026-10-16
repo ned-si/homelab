@@ -26,6 +26,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleCertRenewalStale.md
               summary: The Hubble certificates have not been renewed for 130 days
               description: >-
                 The CronJob kube-system/hubble-generate-certs has not succeeded
@@ -51,6 +52,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleCertRenewalStale.md
               summary: The Hubble certificates have not been renewed for 130 days
               description: >-
                 The CronJob kube-system/hubble-generate-certs has not succeeded

@@ -27,6 +27,7 @@ spec:
           means the certificates: re-issue them with `kubectl -n kube-system create
           job --from=cronjob/hubble-generate-certs hubble-generate-certs-now` (docs/networking.md,
           "Hubble certificates").'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayPeersNotReady.md
         summary: Hubble relay reaches {{ $value }} agents, fewer than are Ready
       expr: |
         max(hubble_relay_pool_peer_connection_status{status="READY"})
@@ -39,6 +40,7 @@ spec:
       annotations:
         description: HubbleRelayPeersNotReady is inert while this fires. Check `kubectl
           -n kube-system get deploy hubble-relay` and the PodMonitor `monitoring/hubble-relay`.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayAbsent.md
         summary: Hubble relay is not being scraped
       expr: absent(hubble_relay_pool_peer_connection_status)
       for: 30m
@@ -51,6 +53,7 @@ spec:
           since its last four-monthly run. The certificates are valid 365 days from
           their last issue. Read the logs of its last Job, fix, and re-issue them
           (docs/networking.md, "Hubble certificates").
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleCertRenewalStale.md
         summary: The Hubble certificates have not been renewed for 130 days
       expr: |
         time() - max by (namespace, cronjob) (kube_cronjob_status_last_successful_time{namespace="kube-system", cronjob="hubble-generate-certs"})
