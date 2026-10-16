@@ -23,10 +23,10 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 12. Home Assistant metrics and the Home dashboard; home-automation docs.
       [5.5] (#417, #422)
 - [x] 13. Page when Prowlarr indexers fail for 6 hours. [2.3] (#484)
+- [x] 14. Remove the dead Prowlarr indexers from the expected set. [2.1] (#502)
 
 ## Open
 
-- [ ] 14. Remove the dead Prowlarr indexers. (#502, open)
 - [ ] 15. Zigbee2MQTT to 1 replica once the coordinator on the Raspberry Pi
       answers on TCP 20108; back up `zigbee2mqtt-data`.
 - [ ] 16. Frigate NVR for the cameras (storage sizing; check RK3588 NPU/VPU
