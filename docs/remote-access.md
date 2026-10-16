@@ -53,6 +53,9 @@ phone --tailnet--> Ingress proxy (tailscale) --> headlamp-sso (oauth2-proxy) -->
 - Network: CiliumNetworkPolicies with default-deny ingress. Only the Ingress
   proxies reach `headlamp-sso`, and only `headlamp-sso` reaches Headlamp,
   which trusts the identity headers it receives.
+- The proxy accepts an unverified email in the ID token
+  (`insecureAllowUnverifiedEmail`): users are created by hand without email
+  verification, and access is the group, never the email.
 - When Keycloak is down, Headlamp is unavailable; use `kubectl`.
 
 ## Tailnet policy
@@ -82,7 +85,20 @@ Certificates on.
 
 ## Mac
 
-1. Install the Tailscale app, log in with the tailnet account.
+1. Install Tailscale and log in with the tailnet account: the app from
+   tailscale.com/download, or the Homebrew CLI, whose daemon must run as a
+   root service:
+
+   ```sh
+   brew install tailscale
+   sudo brew services start tailscale
+   sudo tailscale up
+   tailscale status
+   ```
+
+   Expected: `tailscale status` lists this Mac and `tailscale-operator`.
+   `dial unix /var/run/tailscaled.socket: no such file` means the daemon is
+   not running.
 2. Write the kubeconfig context (it adds `tailscale-operator.<tailnet>.ts.net`
    to `~/.kube/config` and switches to it):
 
@@ -92,7 +108,9 @@ Certificates on.
    ```
 
    Expected: the four nodes `Ready`. `kubectl auth whoami` shows your tailnet
-   login and the group `tailnet-admins`.
+   login and the group `tailnet-admins`. A `TLS handshake timeout` on the
+   first request to a new tailnet host is its Let's Encrypt certificate
+   being issued (up to a minute); run the command again.
 3. Switch back to the LAN admin context with `kubectl config use-context
    <context>` when you need it; both work at home.
 
@@ -134,5 +152,10 @@ it.
   RBAC, so a phone holds no long-lived cluster credential.
 - Auth mode rather than `noauth`: with `noauth` every client needs its own
   Kubernetes token; auth mode reuses the tailnet login and policy.
+- Argo CD and Grafana stay on their public hostnames only. Each has a single
+  external URL for its Keycloak redirect (`url` in argocd-cm, Grafana
+  `root_url`), so a tailnet hostname next to the public one would bounce the
+  login back to the public host. Making them tailnet-only means moving that
+  URL and removing the HTTPRoute, one app at a time.
 - The policy job has its own OAuth client rather than a Policy File scope
   on the operator's: a leaked operator credential cannot rewrite the policy.
