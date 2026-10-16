@@ -55,5 +55,5 @@ data:
           insecureAllowUnverifiedEmail: true
 kind: ConfigMap
 metadata:
-  name: headlamp-sso
+  name: headlamp-sso-52cbbfgfhg
   namespace: headlamp
