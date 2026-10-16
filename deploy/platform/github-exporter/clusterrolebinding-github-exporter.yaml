@@ -1,0 +1,24 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/github-exporter
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/github-exporter and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: github-exporter
+  name: github-exporter
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: github-exporter
+subjects:
+- kind: ServiceAccount
+  name: github-exporter
+  namespace: monitoring

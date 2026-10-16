@@ -1,0 +1,130 @@
+# The automation history of the Homelab / Automation dashboard: one series per
+# event, `automation:event:timestamp_seconds{source, kind, app, what, result,
+# url}`, value the time of the event (Unix seconds). The dashboard's timeline
+# table lists the last 7 days, newest first.
+#
+#   source        kind            from
+#   github        pull-request,   merged pull requests, auto-rollback and tofu
+#                 renovate,       runs (github-exporter, public GitHub API)
+#                 auto-rollback,
+#                 tofu-*
+#   argocd        sync            Application history and failed operations
+#                                 (github-exporter, Kubernetes API)
+#   alertmanager  silence         maintenance silences (github-exporter)
+#   kubernetes    backup,         backup and restore-test Jobs
+#                 restore-test    (kube-state-metrics)
+#   cnpg          base-backup     Barman Cloud base backups (plugin metrics)
+#   tuppr         upgrade         Talos and Kubernetes upgrades (tuppr metrics)
+#
+# The alerts of class INFO (`action: auto`) are the dashboard's annotations,
+# read from ALERTS directly.
+#
+# Tests: tests/prometheus/automation_test.yaml (promtool test rules).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-automation
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.automation
+      interval: 1m
+      rules:
+        - record: automation:event:timestamp_seconds
+          expr: max by (source, kind, app, what, result, url) (automation_event_timestamp_seconds)
+
+        # Backup Jobs (restic, dumps, pre-sync backups) and restore tests.
+        # completionTime is set only when a Job succeeds; a failed one is
+        # dated by its start.
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(
+                max by (namespace, job_name) (kube_job_status_completion_time{job_name=~".+-backup(-.+)?", namespace!="backup-verify"})
+              , "source", "kubernetes", "", ""), "kind", "backup", "", ""), "result", "ok", "", "")
+              , "app", "$1", "namespace", "(.*)"), "what", "$1", "job_name", "(.*)")
+              , "url", "/d/homelab-data-protection", "", "")
+            )
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(
+                (
+                  max by (namespace, job_name) (kube_job_status_start_time{job_name=~".+-backup(-.+)?", namespace!="backup-verify"})
+                  and on (namespace, job_name) (max by (namespace, job_name) (kube_job_status_failed) > 0)
+                )
+                unless on (namespace, job_name) kube_job_status_completion_time
+              , "source", "kubernetes", "", ""), "kind", "backup", "", ""), "result", "failed", "", "")
+              , "app", "$1", "namespace", "(.*)"), "what", "$1", "job_name", "(.*)")
+              , "url", "/d/homelab-data-protection", "", "")
+            )
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(
+                max by (namespace, job_name) (kube_job_status_completion_time{namespace="backup-verify"})
+              , "source", "kubernetes", "", ""), "kind", "restore-test", "", ""), "result", "ok", "", "")
+              , "app", "backup-verify", "", ""), "what", "$1", "job_name", "(.*)")
+              , "url", "/d/homelab-data-protection", "", "")
+            )
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(
+                (
+                  max by (namespace, job_name) (kube_job_status_start_time{namespace="backup-verify"})
+                  and on (namespace, job_name) (max by (namespace, job_name) (kube_job_status_failed) > 0)
+                )
+                unless on (namespace, job_name) kube_job_status_completion_time
+              , "source", "kubernetes", "", ""), "kind", "restore-test", "", ""), "result", "failed", "", "")
+              , "app", "backup-verify", "", ""), "what", "$1", "job_name", "(.*)")
+              , "url", "/d/homelab-data-protection", "", "")
+            )
+
+        # CNPG base backups: the newest good one per instance, and a failed
+        # one newer than it.
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(
+                barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 0
+              , "source", "cnpg", "", ""), "kind", "base-backup", "", ""), "result", "ok", "", "")
+              , "app", "$1", "namespace", "(.*)"), "what", "base backup $1", "pod", "(.*)-[0-9]+")
+              , "url", "/d/homelab-data-protection", "", "")
+            )
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(
+                barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp
+                  > barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
+              , "source", "cnpg", "", ""), "kind", "base-backup", "", ""), "result", "failed", "", "")
+              , "app", "$1", "namespace", "(.*)"), "what", "base backup $1", "pod", "(.*)-[0-9]+")
+              , "url", "/d/homelab-data-protection", "", "")
+            )
+
+        # tuppr: the last finished upgrade of each kind, and one in progress
+        # (dated now).
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_join(
+                tuppr_upgrade_last_completion_timestamp_seconds > 0
+              , "upgrade", ";", "upgrade_type", "name"), "source", "tuppr", "", ""), "kind", "upgrade", "", "")
+              , "app", "$1", "upgrade_type", "(.*)"), "what", "$1 upgrade ($2)", "upgrade", "(.*);(.*)")
+              , "url", "/d/homelab-nodes", "", "")
+            )
+        - record: automation:event:timestamp_seconds
+          expr: |
+            max by (source, kind, app, what, result, url) (
+              label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(label_join(
+                label_replace(timestamp(tuppr_talos_upgrade_phase{phase=~"Upgrading|HealthChecking"} == 1), "upgrade_type", "talos", "", "")
+                or
+                label_replace(timestamp(tuppr_kubernetes_upgrade_phase{phase=~"Upgrading|HealthChecking"} == 1), "upgrade_type", "kubernetes", "", "")
+              , "upgrade", ";", "upgrade_type", "name"), "source", "tuppr", "", ""), "kind", "upgrade", "", "")
+              , "result", "$1", "phase", "(.*)"), "app", "$1", "upgrade_type", "(.*)")
+              , "what", "$1 upgrade ($2)", "upgrade", "(.*);(.*)"), "url", "/d/homelab-nodes", "", "")
+            )

@@ -1,5 +1,6 @@
 # github-exporter: GitHub Actions, pull request and Renovate data for the
-# Homelab / CI-CD dashboard (platform/github-exporter).
+# Homelab / CI-CD dashboard, and the automation history of the Homelab /
+# Automation dashboard (platform/github-exporter).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

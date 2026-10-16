@@ -10,6 +10,8 @@ resources:
   - grafana-backup.yaml
   - grafana.yaml
   - slo.yaml
+  # The automation history of the Homelab / Automation dashboard.
+  - automation.yaml
   - alerts.yaml
   - argocd-alerts.yaml
   - outage-alerts.yaml

@@ -1,0 +1,63 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/automation.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-automation.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # One event of each source; a Job that is not a backup is left out.
+  - interval: 1m
+    input_series:
+      - series: 'automation_event_timestamp_seconds{source="github", kind="renovate", app="deps", what="#1 chore(deps): x", result="merged", url="https://github.com/o/r/pull/1", pod="github-exporter-0"}'
+        values: '1000x10'
+      - series: 'kube_job_status_completion_time{namespace="mealie", job_name="mealie-backup-1"}'
+        values: '500x10'
+      - series: 'kube_job_status_succeeded{namespace="mealie", job_name="mealie-backup-1"}'
+        values: '1x10'
+      - series: 'kube_job_status_start_time{namespace="theater", job_name="theater-config-backup-sonarr-2"}'
+        values: '600x10'
+      - series: 'kube_job_status_failed{namespace="theater", job_name="theater-config-backup-sonarr-2", reason="BackoffLimitExceeded"}'
+        values: '1x10'
+      - series: 'kube_job_status_completion_time{namespace="backup-verify", job_name="bv-postgres-3"}'
+        values: '650x10'
+      - series: 'kube_job_status_completion_time{namespace="theater", job_name="recyclarr-sync-4"}'
+        values: '660x10'
+      - series: 'barman_cloud_cloudnative_pg_io_last_available_backup_timestamp{namespace="immich", pod="immich-db-1"}'
+        values: '700x10'
+      - series: 'barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp{namespace="immich", pod="immich-db-1"}'
+        values: '0x10'
+      - series: 'tuppr_upgrade_last_completion_timestamp_seconds{name="cluster", result="success", upgrade_type="talos"}'
+        values: '800x10'
+      - series: 'tuppr_talos_upgrade_phase{name="cluster", phase="Completed"}'
+        values: '1x10'
+      - series: 'tuppr_talos_upgrade_phase{name="cluster", phase="Upgrading"}'
+        values: '0x10'
+    promql_expr_test:
+      - expr: automation:event:timestamp_seconds
+        eval_time: 5m
+        exp_samples:
+          - labels: 'automation:event:timestamp_seconds{source="github", kind="renovate", app="deps", what="#1 chore(deps): x", result="merged", url="https://github.com/o/r/pull/1"}'
+            value: 1000
+          - labels: 'automation:event:timestamp_seconds{source="kubernetes", kind="backup", app="mealie", what="mealie-backup-1", result="ok", url="/d/homelab-data-protection"}'
+            value: 500
+          - labels: 'automation:event:timestamp_seconds{source="kubernetes", kind="backup", app="theater", what="theater-config-backup-sonarr-2", result="failed", url="/d/homelab-data-protection"}'
+            value: 600
+          - labels: 'automation:event:timestamp_seconds{source="kubernetes", kind="restore-test", app="backup-verify", what="bv-postgres-3", result="ok", url="/d/homelab-data-protection"}'
+            value: 650
+          - labels: 'automation:event:timestamp_seconds{source="cnpg", kind="base-backup", app="immich", what="base backup immich-db", result="ok", url="/d/homelab-data-protection"}'
+            value: 700
+          - labels: 'automation:event:timestamp_seconds{source="tuppr", kind="upgrade", app="talos", what="talos upgrade (cluster)", result="success", url="/d/homelab-nodes"}'
+            value: 800
+
+  # A Talos upgrade in progress is dated now.
+  - interval: 1m
+    input_series:
+      - series: 'tuppr_talos_upgrade_phase{name="cluster", phase="Upgrading"}'
+        values: '1x10'
+    promql_expr_test:
+      - expr: automation:event:timestamp_seconds
+        eval_time: 5m
+        exp_samples:
+          - labels: 'automation:event:timestamp_seconds{source="tuppr", kind="upgrade", app="talos", what="talos upgrade (cluster)", result="Upgrading", url="/d/homelab-nodes"}'
+            value: 300
