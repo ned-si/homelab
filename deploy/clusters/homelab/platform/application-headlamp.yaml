@@ -19,6 +19,12 @@ spec:
   destination:
     namespace: headlamp
     server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: rbac.authorization.k8s.io
+    jsonPointers:
+    - /rules
+    kind: ClusterRole
+    name: headlamp-read
   project: platform
   revisionHistoryLimit: 10
   sources:
@@ -47,3 +53,4 @@ spec:
       limit: 5
     syncOptions:
     - ServerSideApply=true
+    - RespectIgnoreDifferences=true
