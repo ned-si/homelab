@@ -20,7 +20,6 @@ case "$s" in
   "get pods -A -o json") cat "$f/pods.json" ;;
   "get pvc -A -o json") cat "$f/pvc.json" ;;
   "get clusters.postgresql.cnpg.io -A -o json") cat "$f/cnpg.json" ;;
-  "-n seafile get deploy mariadb -o json") cat "$f/mariadb.json" ;;
   "-n argo get applications -o json") cat "$f/apps.json" ;;
   "-n immich get pod -l cnpg.io/cluster=immich-db,role=primary -o name") cat "$f/immich-primary.txt" ;;
   "-n immich exec "*" -c postgres -- env PGOPTIONS=-c default_transaction_read_only=on psql -d app -tAc "*)

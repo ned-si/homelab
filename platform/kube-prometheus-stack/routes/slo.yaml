@@ -8,7 +8,7 @@
 # every 30s from inside the cluster through the public name, so an app counts
 # as down when its Gateway route, its backend, DNS or the WAN address fails.
 #
-# In scope: auth cinema theater media archive cook drive syncthing. argo and
+# In scope: auth cinema theater media archive cook syncthing. argo and
 # grafana are probed but carry no SLO: they are operator tools.
 #
 # Alerts follow the multi-window, multi-burn-rate pattern (Google SRE workbook,
@@ -48,15 +48,15 @@ spec:
       interval: 30s
       rules:
         - record: slo:probe_error:ratio_rate5m
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[5m]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[5m]))
         - record: slo:probe_error:ratio_rate30m
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[30m]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30m]))
         - record: slo:probe_error:ratio_rate1h
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[1h]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[1h]))
         - record: slo:probe_error:ratio_rate2h
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[2h]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[2h]))
         - record: slo:probe_error:ratio_rate6h
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[6h]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[6h]))
 
     # The long windows change slowly; evaluating them every 2 minutes keeps the
     # cost of reading days of samples low. Not 5m or more: an instant query
@@ -65,11 +65,11 @@ spec:
       interval: 2m
       rules:
         - record: slo:probe_error:ratio_rate1d
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[1d]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[1d]))
         - record: slo:probe_error:ratio_rate3d
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[3d]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[3d]))
         - record: slo:probe_error:ratio_rate30d
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[30d]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30d]))
         - record: slo:availability:ratio_rate30d
           expr: 1 - slo:probe_error:ratio_rate30d
         # 1 = the whole budget is left, 0 = spent, negative = SLO missed.
@@ -83,7 +83,7 @@ spec:
           expr: |
             clamp_max(
               avg by (app) (
-                count_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[30d])
+                count_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30d])
               ) / (30 * 2880),
               1
             )
@@ -111,9 +111,6 @@ spec:
         - record: slo:app:info
           expr: vector(1)
           labels: {app: cook, namespace: mealie}
-        - record: slo:app:info
-          expr: vector(1)
-          labels: {app: drive, namespace: seafile}
         - record: slo:app:info
           expr: vector(1)
           labels: {app: syncthing, namespace: syncthing}
@@ -305,19 +302,6 @@ spec:
           for: 15m
           labels:
             app: cook
-            severity: warning
-            action: human
-          annotations:
-            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
-            description: >-
-              The {{ $labels.app }} target is missing from the Probes in
-              platform/blackbox-exporter/probes, or its `app` relabeling no
-              longer matches.
-        - alert: SLOTargetProbeAbsent
-          expr: absent(probe_success{job="blackbox-public", app="drive"}) unless on() absent(probe_success{job="blackbox-public"})
-          for: 15m
-          labels:
-            app: drive
             severity: warning
             action: human
           annotations:

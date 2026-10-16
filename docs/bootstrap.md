@@ -202,7 +202,7 @@ A data claim bound to any other PV is on a new, empty volume: scale its
 workload to 0 and stop. Compare row counts and file counts with the values
 recorded before the old cluster stopped.
 
-The PreSync backup hooks of `mealie`, `seafile`, `theater`, `keycloak` and
+The PreSync backup hooks of `mealie`, `theater`, `keycloak` and
 `immich` do nothing on this first sync: their CronJob or CNPG Cluster does not
 exist yet. From the next sync on they follow the backup freshness rule in
 [backups.md](backups.md). Expected in each hook's log (`kubectl -n <app> logs

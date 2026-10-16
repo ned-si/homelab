@@ -239,19 +239,6 @@
       enabled: false,
     },
     {
-      // Database servers and their backup clients share one depName, so a
-      // bump moves both in the same PR and pg_dump / mariadb-dump always match
-      // the server. A server major is one-way: Argo CD's PreSync backup runs
-      // first, and a failed deploy is fixed forward (docs/decisions.md).
-      //
-      // Seafile 11 is built and documented against MariaDB 10.11
-      // (https://manual.seafile.com/11.0/upgrade/upgrade_docker/). Lift with a
-      // Seafile major that documents a newer MariaDB.
-      description: 'Cap MariaDB at 10.11 while Seafile is on 11.0',
-      matchPackageNames: ['mariadb'],
-      allowedVersions: '<11.0.0',
-    },
-    {
       // Talos and Kubernetes: talosVersion / kubernetesVersion in
       // talos/talconfig.yaml and the tuppr upgrade resources in
       // platform/tuppr/upgrades/ share a depName, so one pull request bumps
@@ -294,15 +281,6 @@
       matchPackageNames: ['ghcr.io/paperless-ngx/paperless-ngx'],
       matchCurrentVersion: '<2.20.0',
       allowedVersions: '<3.0.0',
-    },
-    {
-      // Seafile 12 replaces the environment-driven setup this Deployment uses
-      // and requires a new JWT_PRIVATE_KEY secret
-      // (https://manual.seafile.com/12.0/upgrade/upgrade_notes_for_12.0.x/):
-      // a step Renovate cannot make.
-      description: 'Cap Seafile at 11 until the manifests are ported to 12',
-      matchPackageNames: ['seafileltd/seafile-mc'],
-      allowedVersions: '<12.0.0',
     },
     {
       // Plex tags are <major>.<minor>.<patch>.<build>-<commit>. Default docker

@@ -102,7 +102,6 @@ app's in-cluster Service and its health endpoint.
 | immich | `immich-server:2283/api/server/ping` |
 | mealie | `mealie:9000/api/app/about` |
 | paperless | `paperless:8000/accounts/login/` |
-| seafile | `seafile/api2/ping/` |
 | syncthing | `syncthing-dashboard:8384/rest/noauth/health` |
 | theater | `/ping` of sonarr, radarr, lidarr and prowlarr; `qbittorrent:8080/`, `plex:32400/identity`, `jellyfin:8096/health` |
 | keycloak | `keycloak:9000/health/ready` |

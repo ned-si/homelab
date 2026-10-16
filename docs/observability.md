@@ -344,7 +344,7 @@ Tests: `tests/prometheus/argocd_test.yaml`.
 
 ## SLOs
 
-Each user-facing app (auth cinema theater media archive cook drive syncthing)
+Each user-facing app (auth cinema theater media archive cook syncthing)
 has one availability SLO: 99.5% of its public blackbox probes succeed over 30
 days, an error budget of about 3.6 hours a month. Plain recording rules, no
 SLO generator: `slo:probe_error:ratio_rate<window>`,

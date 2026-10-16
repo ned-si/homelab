@@ -16,10 +16,10 @@
 # bootstrap/aws-backup has been applied.
 #
 # THE PLACEHOLDER MAP IS PER-FILE, NOT GLOBAL.
-# `PUT_A_FRESHLY_GENERATED_PASSWORD_HERE` appears in FOUR templates and means a
-# different secret in each: the Paperless admin password, the Seafile admin
-# password, the Seafile MariaDB root password and the Keycloak bootstrap admin
-# password. A global search-and-replace would put the same value in all four.
+# `PUT_A_FRESHLY_GENERATED_PASSWORD_HERE` appears in two templates and means a
+# different secret in each: the Paperless admin password and the Keycloak
+# bootstrap admin password. A global search-and-replace would put the same
+# value in both.
 #
 # Idempotent: an already-sealed file is left alone unless --force is given.
 #
@@ -115,8 +115,6 @@ platform/secrets/s3-backup|PUT_A_GENERATED_RESTIC_REPOSITORY_PASSWORD_HERE=RESTI
 apps/secrets/immich-config|PUT_THE_NEW_KEYCLOAK_IMMICH_CLIENT_SECRET_HERE=IMMICH_OIDC_CLIENT_SECRET
 apps/secrets/mealie-oidc|PUT_THE_NEW_KEYCLOAK_MEALIE_CLIENT_SECRET_HERE=MEALIE_OIDC_CLIENT_SECRET
 apps/secrets/paperless-secrets|PUT_A_FRESHLY_GENERATED_DJANGO_SECRET_KEY_HERE=PAPERLESS_SECRET_KEY,PUT_A_FRESHLY_GENERATED_PASSWORD_HERE=PAPERLESS_ADMIN_PASSWORD,PUT_THE_NEW_KEYCLOAK_PAPERLESS_CLIENT_SECRET_HERE=PAPERLESS_OIDC_CLIENT_SECRET
-apps/secrets/seafile-admin|PUT_A_FRESHLY_GENERATED_PASSWORD_HERE=SEAFILE_ADMIN_PASSWORD
-apps/secrets/seafile-db|PUT_A_FRESHLY_GENERATED_PASSWORD_HERE=SEAFILE_DB_ROOT_PASSWORD
 apps/secrets/recyclarr-api-keys|PUT_THE_SONARR_API_KEY_HERE=RECYCLARR_SONARR_API_KEY,PUT_THE_RADARR_API_KEY_HERE=RECYCLARR_RADARR_API_KEY
 apps/secrets/theater-sso|PUT_THE_KEYCLOAK_THEATER_SSO_CLIENT_SECRET_HERE=THEATER_SSO_CLIENT_SECRET,PUT_A_FRESHLY_GENERATED_COOKIE_SECRET_HERE=THEATER_SSO_COOKIE_SECRET
 platform/secrets/alertmanager-notify|PUT_THE_NTFY_TOPIC_HERE=NTFY_TOPIC,PUT_THE_HEARTBEAT_PING_URL_HERE=HEARTBEAT_URL

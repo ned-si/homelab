@@ -233,9 +233,9 @@ item_pvcs() {
   finish_item 4 pvcs "$(jq -c --argjson want "$want" '. + {expected_min: $want}' <<<"$d")"
 }
 
-# --- 5. CNPG clusters and the seafile database ----------------------------------
+# --- 5. CNPG clusters ------------------------------------------------------------
 item_databases() {
-  local j d m mready=null want p
+  local j d want p
   if ! j=$(k get clusters.postgresql.cnpg.io -A -o json 2>/dev/null); then
     reason 5 "kubectl get clusters.postgresql.cnpg.io failed"; j='{"items":[]}'
   fi
@@ -245,13 +245,7 @@ item_databases() {
   if [ "$p" != null ] && [ "$p" -gt "$want" ]; then want=$p; fi
   [ "$(jq length <<<"$d")" -ge "$want" ] || reason 5 "$(jq length <<<"$d") CNPG clusters, expected at least $want"
   jq -r '.[] | select(.phase != "Cluster in healthy state") | "CNPG \(.ns)/\(.name): \(.phase)"' <<<"$d" >> "$RES/reasons-5"
-  if m=$(k -n seafile get deploy mariadb -o json 2>/dev/null); then
-    mready=$(jq -c '{replicas: (.spec.replicas // 1), ready: (.status.readyReplicas // 0)}' <<<"$m")
-    jq -e '.ready >= 1 and .ready == .replicas' <<<"$mready" >/dev/null || reason 5 "seafile/mariadb not Ready"
-  else
-    reason 5 "seafile/mariadb not found"
-  fi
-  finish_item 5 databases "$(jq -n --argjson c "$d" --argjson m "$mready" '{cnpg: $c, seafile_mariadb: $m}')"
+  finish_item 5 databases "$(jq -n --argjson c "$d" '{cnpg: $c}')"
 }
 
 # --- 6. Argo CD -----------------------------------------------------------------

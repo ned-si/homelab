@@ -2313,7 +2313,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (namespace, container, image) (kube_pod_container_info{namespace=~\"argo|keycloak|monitoring|immich|theater|mealie|paperless|seafile|syncthing|cert-manager|external-dns|gateway|democratic-csi|kube-system\"})",
+          "expr": "count by (namespace, container, image) (kube_pod_container_info{namespace=~\"argo|keycloak|monitoring|immich|theater|mealie|paperless|syncthing|cert-manager|external-dns|gateway|democratic-csi|kube-system\"})",
           "refId": "A",
           "legendFormat": "",
           "instant": true,

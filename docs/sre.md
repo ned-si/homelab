@@ -17,7 +17,6 @@ contractual figure; a second number would only be a second thing to watch.
 | `auth` | Keycloak | 1 |
 | `media` | Immich | 1 |
 | `archive` | Paperless-ngx | 1 |
-| `drive` | Seafile | 1 |
 | `syncthing` | Syncthing UI | 1 |
 | `cook` | Mealie | 2 |
 | `cinema` | Jellyfin | 2 |
@@ -40,8 +39,7 @@ Argo CD and Grafana are tools for the operator and carry no SLO.
 | Data | RPO (promised) | What runs today |
 | --- | --- | --- |
 | Postgres (all CloudNativePG clusters) | 24 h | continuous WAL archiving, a segment at least every 5 minutes, plus a daily base backup |
-| Files (Immich originals, Paperless, Seafile, Syncthing, app configs) | 24 h | nightly restic to S3; Immich also to the NAS |
-| Seafile MariaDB | 24 h | nightly `mariadb-dump` inside the restic snapshot |
+| Files (Immich originals, Paperless, Syncthing, app configs) | 24 h | nightly restic to S3; Immich also to the NAS |
 | Cluster state | last merged commit | git; etcd snapshots before risky changes |
 | Media library | none | not backed up; re-acquirable by design |
 
@@ -52,7 +50,7 @@ Details, schedules and rehearsed restores: [backups.md](backups.md#rpo-and-rto).
 | Tier | What | RTO, service fault | RTO, restore from backup |
 | --- | --- | --- | --- |
 | 0 | Nodes and etcd, Cilium and the Gateway, NAS storage, Argo CD, cert-manager | 4 h ([runbooks/cold-start.md](runbooks/cold-start.md)) | 24 h: rebuild from git ([bootstrap.md](bootstrap.md)), not rehearsed end to end |
-| 1 | `auth`, `media`, `archive`, `drive`, `syncthing` | 4 h | 24 h, data back to the RPO |
+| 1 | `auth`, `media`, `archive`, `syncthing` | 4 h | 24 h, data back to the RPO |
 | 2 | `cook`, `cinema`, `theater` | 72 h | 72 h |
 
 A service fault is anything fixed without restoring data: a revert, a pod or

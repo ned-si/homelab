@@ -8,7 +8,6 @@ immich-library|s3:immich/library|120
 nas-immich-library|local:/backups/immich/library|12
 mealie|s3:mealie/data|12
 paperless|s3:paperless/media|12
-seafile|s3:seafile/shared|12
 syncthing|s3:syncthing/data|12
 theater|s3:theater/configs|12
 books|s3:books/configs|12

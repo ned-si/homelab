@@ -42,7 +42,6 @@ spec:
       - https://media.lilalala.com/api/server/ping
       - https://archive.lilalala.com/accounts/login/
       - https://cook.lilalala.com/api/app/about
-      - https://drive.lilalala.com/api2/ping/
       - https://syncthing.lilalala.com/rest/noauth/health
       - https://audiobooks.lilalala.com/healthcheck
       - https://ebooks.lilalala.com/login

@@ -76,7 +76,7 @@ Next steps, in order:
 
          infrastructure/secrets/   cloudflare tokens, democratic-csi driver config
          platform/secrets/         keycloak admin, grafana OIDC, s3 backup
-         apps/secrets/             immich config, mealie/paperless OIDC, seafile
+         apps/secrets/             immich config, mealie/paperless OIDC
 
      Worked example, for the cert-manager Cloudflare token:
 

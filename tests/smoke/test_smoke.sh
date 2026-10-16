@@ -57,7 +57,6 @@ EOF
  {"metadata":{"namespace":"immich","name":"immich-db"},"status":{"phase":"Cluster in healthy state"}},
  {"metadata":{"namespace":"keycloak","name":"keycloak-db"},"status":{"phase":"Cluster in healthy state"}}]}
 EOF
-  echo '{"spec":{"replicas":1},"status":{"readyReplicas":1}}' > "$d/mariadb.json"
   cat > "$d/apps.json" <<'EOF'
 {"items":[
  {"metadata":{"name":"all-apps"},"status":{"sync":{"status":"Synced"},"health":{"status":"Healthy"}}},
@@ -337,9 +336,6 @@ F=$(fresh d1); jset "$F/cnpg.json" '.items[1].status.phase = "Waiting for the in
 run "$F"
 expect_eq "unhealthy CNPG cluster fails" false "$(pass_of 5)"
 only_failed 5
-F=$(fresh d2); echo '{"spec":{"replicas":1},"status":{}}' > "$F/mariadb.json"
-run "$F"
-expect_eq "seafile mariadb not Ready fails" false "$(pass_of 5)"
 
 echo "-- items 7 and 10"
 F=$(fresh h1); sed -i.bak "s#^https://argo.example.test/ $ENTRY 200#https://argo.example.test/ $ENTRY 503#" "$F/curl.tsv"

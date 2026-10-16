@@ -59,8 +59,6 @@ keycloak  keycloak
 mealie    mealie
 paperless paperless
 paperless valkey
-seafile   seafile
-seafile   mariadb
 theater   jellyfin
 theater   lidarr
 theater   plex

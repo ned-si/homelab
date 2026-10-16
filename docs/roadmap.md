@@ -35,8 +35,6 @@ Renovate automerges every other update on green CI
 
 - The Immich database image (VectorChord or PostgreSQL major):
   [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md#updating-the-database-image).
-- MariaDB above 10.11 and Seafile 12 (capped in `.github/renovate.json5`):
-  [runbook](runbooks/seafile-mariadb-upgrade.md).
 - external-dns: add `--force-default-targets` before chart 1.16 and later.
 
 ## Images: next pins

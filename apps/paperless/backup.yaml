@@ -29,7 +29,7 @@ metadata:
   name: paperless-backup
   namespace: paperless
 spec:
-  # 02:30, between Syncthing (02:00) and Seafile (03:00).
+  # 02:30, between Syncthing (02:00) and Mealie (03:20).
   schedule: "30 2 * * *"
   suspend: false
   concurrencyPolicy: Forbid

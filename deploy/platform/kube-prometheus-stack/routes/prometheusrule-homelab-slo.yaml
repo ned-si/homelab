@@ -20,24 +20,24 @@ spec:
   - interval: 30s
     name: homelab.slo.sli
     rules:
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[5m]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[5m]))
       record: slo:probe_error:ratio_rate5m
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[30m]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30m]))
       record: slo:probe_error:ratio_rate30m
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[1h]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[1h]))
       record: slo:probe_error:ratio_rate1h
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[2h]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[2h]))
       record: slo:probe_error:ratio_rate2h
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[6h]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[6h]))
       record: slo:probe_error:ratio_rate6h
   - interval: 2m
     name: homelab.slo.sli-long
     rules:
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[1d]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[1d]))
       record: slo:probe_error:ratio_rate1d
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[3d]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[3d]))
       record: slo:probe_error:ratio_rate3d
-    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[30d]))
+    - expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30d]))
       record: slo:probe_error:ratio_rate30d
     - expr: 1 - slo:probe_error:ratio_rate30d
       record: slo:availability:ratio_rate30d
@@ -46,7 +46,7 @@ spec:
     - expr: |
         clamp_max(
           avg by (app) (
-            count_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|drive|syncthing"}[30d])
+            count_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30d])
           ) / (30 * 2880),
           1
         )
@@ -82,11 +82,6 @@ spec:
       labels:
         app: cook
         namespace: mealie
-      record: slo:app:info
-    - expr: vector(1)
-      labels:
-        app: drive
-        namespace: seafile
       record: slo:app:info
     - expr: vector(1)
       labels:
@@ -255,18 +250,6 @@ spec:
       labels:
         action: human
         app: cook
-        severity: warning
-    - alert: SLOTargetProbeAbsent
-      annotations:
-        description: The {{ $labels.app }} target is missing from the Probes in platform/blackbox-exporter/probes,
-          or its `app` relabeling no longer matches.
-        summary: 'No probe results for {{ $labels.app }}: its SLO alerts are blind'
-      expr: absent(probe_success{job="blackbox-public", app="drive"}) unless on()
-        absent(probe_success{job="blackbox-public"})
-      for: 15m
-      labels:
-        action: human
-        app: drive
         severity: warning
     - alert: SLOTargetProbeAbsent
       annotations:

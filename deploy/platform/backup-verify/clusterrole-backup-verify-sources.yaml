@@ -39,7 +39,6 @@ rules:
   - radarr-postgresql-app
   - lidarr-postgresql-app
   - prowlarr-postgresql-app
-  - seafile-db
   resources:
   - secrets
   verbs:

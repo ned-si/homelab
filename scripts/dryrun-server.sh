@@ -82,7 +82,6 @@ XFAIL=(
   # a Deployment in one of these directories failing for ANY other reason is a
   # real finding, which is the entire point of matching on the message.
   'apps/paperless::strategy\.rollingUpdate: Forbidden::needs scripts/normalize-deployment-strategy.sh (RollingUpdate -> Recreate)'
-  'apps/seafile::strategy\.rollingUpdate: Forbidden::needs scripts/normalize-deployment-strategy.sh (RollingUpdate -> Recreate)'
   'apps/theater::strategy\.rollingUpdate: Forbidden::needs scripts/normalize-deployment-strategy.sh (RollingUpdate -> Recreate)'
   'platform/keycloak::strategy\.rollingUpdate: Forbidden::needs scripts/normalize-deployment-strategy.sh (RollingUpdate -> Recreate)'
 

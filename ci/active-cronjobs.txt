@@ -9,8 +9,6 @@ mealie/mealie-backup
 mealie/mealie-prune
 paperless/paperless-backup
 paperless/paperless-prune
-seafile/seafile-backup
-seafile/seafile-prune
 syncthing/syncthing-backup
 syncthing/syncthing-prune
 theater/theater-postgres-backup
@@ -32,7 +30,6 @@ home/home-prune
 theater/qbittorrent-private-seed
 backup-verify/backup-verify-files
 backup-verify/backup-verify-postgres
-backup-verify/backup-verify-mariadb
 backup-verify/backup-verify-lock
 monitoring/vuln-enrich
 monitoring/grafana-backup

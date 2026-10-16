@@ -86,14 +86,14 @@ misconfigurations:
       Re-read on the next plugin bump.
     expired_at: 2026-12-01
   # The restore tests read each source database as its owner, so they `get` the
-  # CNPG -app Secrets (and Seafile's database Secret) by name: resourceNames
-  # lists nine Secrets, verb `get` only, no list or watch.
+  # CNPG -app Secrets by name: resourceNames
+  # lists eight Secrets, verb `get` only, no list or watch.
   - id: AVD-KSV-0041
     paths:
       - "platform/backup-verify/rbac.yaml"
       - "deploy/platform/backup-verify/clusterrole-backup-verify-sources.yaml"
     statement: >-
-      get on nine named Secrets (the source databases' credentials), no list,
+      get on eight named Secrets (the source databases' credentials), no list,
       watch or write. The restore tests count the source rows read-only to
       compare them with the restore. Re-read when a target is added.
     expired_at: 2027-04-01
@@ -275,14 +275,10 @@ misconfigurations:
       - "apps/theater/*.yaml"
       - "apps/mealie/deployment.yaml"
       - "apps/paperless/deployment.yaml"
-      - "apps/seafile/deployment.yaml"
-      - "apps/seafile/mariadb.yaml"
       - "apps/syncthing/statefulset.yaml"
       - "deploy/apps/theater/*.yaml"
       - "deploy/apps/mealie/deployment-mealie.yaml"
       - "deploy/apps/paperless/deployment-paperless.yaml"
-      - "deploy/apps/seafile/deployment-seafile.yaml"
-      - "deploy/apps/seafile/deployment-mariadb.yaml"
       - "deploy/apps/syncthing/statefulset-syncthing.yaml"
       # Vendored upstream: the CSI external-snapshotter release manifest, not
       # written here. Same class as the barman plugin above.
@@ -303,15 +299,13 @@ misconfigurations:
     paths:
       - "apps/immich/resources/valkey.yaml"
       - "apps/paperless/valkey.yaml"
-      - "apps/seafile/memcached.yaml"
       - "platform/keycloak/deployment.yaml"
       - "deploy/apps/immich/resources/deployment-valkey.yaml"
       - "deploy/apps/paperless/deployment-valkey.yaml"
-      - "deploy/apps/seafile/deployment-memcached.yaml"
       - "deploy/platform/keycloak/deployment-keycloak.yaml"
     statement: >-
       Default security context on workloads ported unchanged from the running
-      cluster (valkey x2, memcached, Keycloak); setting one restarts them, so it
+      cluster (valkey x2, Keycloak); setting one restarts them, so it
       ships with the hardening change, not with the parity adoption.
     expired_at: 2027-01-31
 

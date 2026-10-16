@@ -15,7 +15,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 # Services that come from a Helm chart, not from deploy/.
 CHART_SERVICES="immich/immich-server"
-EXPECTED="deploy/apps/books deploy/apps/home deploy/apps/immich/resources deploy/apps/mealie deploy/apps/paperless deploy/apps/seafile deploy/apps/syncthing deploy/apps/theater deploy/platform/keycloak"
+EXPECTED="deploy/apps/books deploy/apps/home deploy/apps/immich/resources deploy/apps/mealie deploy/apps/paperless deploy/apps/syncthing deploy/apps/theater deploy/platform/keycloak"
 
 echo "rendered hooks"
 found=$(find deploy -name job-postsync-smoke.yaml -type f | sed 's|/job-postsync-smoke.yaml$||' | sort | tr '\n' ' ')

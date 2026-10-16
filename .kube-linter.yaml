@@ -92,7 +92,7 @@ customChecks: []
 #     jobs, backup-verify) where a probe is meaningless: kube-linter's probe
 #     checks apply to every DeploymentLike kind, including Job and CronJob, and
 #     there is no way to scope them by kind. The residue that IS real -- the
-#     paperless valkey and seafile memcached Deployments -- is a manifest fix.
+#     paperless valkey Deployment -- is a manifest fix.
 #
 #   unset-memory-requirements
 #     2 findings, both in vendored upstream bundles

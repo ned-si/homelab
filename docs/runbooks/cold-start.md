@@ -258,15 +258,6 @@ the pod; the new UID gets a new container name:
 kubectl -n <ns> delete pod <pod>
 ```
 
-**Seafile does not start.** Stale pid files in `/shared`
-(`seaf-server.pid`, `ccnet-server.pid`, `seahub.pid`, `seafdav.pid`): move them
-aside in the pod and restart the Deployment. MariaDB logs
-`InnoDB: Starting crash recovery` and then starts; that is normal:
-
-```sh
-kubectl -n seafile logs deploy/mariadb --tail=40 | grep -Ei 'innodb|error'
-```
-
 **Postgres `PANIC` or a `pg_control` error** in a CNPG cluster log is not
 normal. Stop there for that database and restore from the last dump
 ([backups.md](../backups.md)). On `immich-db`, never change the image
@@ -277,7 +268,7 @@ normal. Stop there for that database and restore from the last dump
 ```sh
 WAN=$(curl -s -4 -m 10 https://ifconfig.me); echo "WAN=$WAN"
 grep -- '--default-targets' infrastructure/external-dns/values.yaml
-for h in argo auth grafana theater cinema media archive cook drive syncthing; do
+for h in argo auth grafana theater cinema media archive cook syncthing; do
   printf '%-10s %s\n' "$h" "$(curl -s -o /dev/null -m 15 -w '%{http_code}' "https://$h.lilalala.com/")"
 done
 ```
@@ -345,8 +336,8 @@ task backup:dump
 ls -1d ~/homelab-backups/2* | tail -1
 ```
 
-Expected: nine `ok` rows (seven Postgres clusters, the Seafile MariaDB,
-Paperless' SQLite), `verified=9  failed=0`, and a new directory under
+Expected: eight `ok` rows (seven Postgres clusters and Paperless' SQLite),
+`verified=8  failed=0`, and a new directory under
 `~/homelab-backups/` (about 10 minutes). Then take an etcd snapshot (next
 section). The nightly restic jobs copy files and most databases to S3, but
 `immich-db`, `keycloak-db` and etcd have no off-site copy except these
