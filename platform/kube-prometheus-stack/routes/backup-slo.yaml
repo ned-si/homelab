@@ -71,7 +71,7 @@ spec:
               label_replace(
                 max by (namespace, owner_name) (
                   max by (namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob"})
-                  * on (namespace, job_name)
+                  and on (namespace, job_name)
                   (max by (namespace, job_name) (kube_job_failed) > 0)
                 ),
                 "target", "$1", "owner_name", "(.+)"
