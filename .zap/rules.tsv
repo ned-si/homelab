@@ -38,6 +38,8 @@
 # ---------------------------------------------------------------------------
 10003@syncthing.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Syncthing web UI	expires=2027-01-31
 10003@theater.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Plex web app	expires=2027-01-31
+10003@ebooks.lilalala.com	IGNORE	Vulnerable JS Library - bootstrap and underscore bundled in the upstream Calibre-Web app	expires=2027-01-31
+10003@audiobooks.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Audiobookshelf web app	expires=2027-01-31
 # ---------------------------------------------------------------------------
 # Set at the Gateway (tls-check gates them); reported where an app page
 # still lacks one.
