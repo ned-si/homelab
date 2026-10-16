@@ -40,7 +40,7 @@ the cause for each peer it cannot reach.
 
 ## Resolved when
 
-`q 'hubble_relay_pool_peer_connection_status{status="READY"}'` equals the
+`q 'sum(hubble_relay_pool_peer_connection_status{status=~"READY|IDLE"})'` equals the
 number of nodes; the alert clears.
 
 ## Links
