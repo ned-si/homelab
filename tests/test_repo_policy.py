@@ -457,6 +457,12 @@ def test_cnpg_backup_missing_object_store_fails(tmp_path):
     assert any("is not rendered" in x for x in cnpg_fails(tmp_path, [cl, sb]))
 
 
+def test_kiro_only_specs_and_steering_tracked(tmp_path):
+    files = {".kiro/specs/f/tasks.md": "x\n", ".kiro/steering/tech.md": "x\n", ".kiro/settings/mcp.json": "{}\n"}
+    assert fails(policy(tmp_path, files=files)) == [
+        "FAIL kiro-tracked: .kiro/settings/mcp.json: only .kiro/specs/ and .kiro/steering/ are tracked under .kiro/"]
+
+
 def test_expected_ingresses(tmp_path):
     ing = {"apiVersion": "networking.k8s.io/v1", "kind": "Ingress", "metadata": {"name": "argo", "namespace": "argo"}}
     files = {"ci/expected-ingresses.txt": "# ns/name\nargo/argo\nmealie/mealie\n"}

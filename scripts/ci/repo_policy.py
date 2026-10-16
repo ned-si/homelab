@@ -55,6 +55,8 @@ objects and rule ids only; values are never printed.
                         document has a statement denying s3:DeleteObjectVersion,
                         s3:PutBucketVersioning and s3:DeleteBucket to principal
                         * on the bucket and its objects, without a condition
+  kiro-tracked          no tracked file under .kiro/ outside .kiro/specs/ and
+                        .kiro/steering/
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   k8s-version-match     K8S_VERSION and the KIND_NODE_IMAGE tag in
@@ -112,6 +114,8 @@ AWS_BACKUP_TF = "bootstrap/aws-backup/main.tf"
 # What the backup bucket policy must deny to everyone (docs/backups.md#immutable-versions).
 LOCK_ACTIONS = {"s3:DeleteObjectVersion", "s3:PutBucketVersioning", "s3:DeleteBucket"}
 CI_WORKFLOW = ".github/workflows/ci.yaml"
+# The only tracked parts of .kiro/; settings, hooks and skills stay local.
+KIRO_TRACKED = (".kiro/specs/", ".kiro/steering/")
 TALCONFIG = "talos/talconfig.yaml"
 K8S_MINOR = re.compile(r"^v?(\d+)\.(\d+)(?:\.\d+)?$")
 IMAGE_DIRS = ("apps/", "platform/", "infrastructure/", "bootstrap/", "clusters/", "talos/")
@@ -535,6 +539,13 @@ class Policy:
                             f"{', '.join(sorted(LOCK_ACTIONS))} to principal * on the bucket and its objects "
                             "without a condition")
 
+    def rule_kiro_tracked(self) -> None:
+        rule = "kiro-tracked"
+        self.on(rule)
+        for rel in self.tracked():
+            if rel.startswith(".kiro/") and not rel.startswith(KIRO_TRACKED):
+                self.fail(rule, f"{rel}: only {' and '.join(KIRO_TRACKED)} are tracked under .kiro/")
+
     def rule_expected_ingresses(self) -> None:
         wanted = self.read_list("ci/expected-ingresses.txt")
         if wanted is None:
@@ -644,7 +655,7 @@ class Policy:
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
                      self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
-                     self.rule_backup_bucket_lock,
+                     self.rule_backup_bucket_lock, self.rule_kiro_tracked,
                      self.rule_expected_ingresses, self.rule_k8s_version, self.rule_image_bulky,
                      self.rule_image_variant, self.rule_image_digest):
             rule()
