@@ -19,6 +19,18 @@ spec:
   destination:
     namespace: signoz
     server: https://kubernetes.default.svc
+  ignoreDifferences:
+  - group: apps
+    jqPathExpressions:
+    - .spec.volumeClaimTemplates[]?.apiVersion
+    - .spec.volumeClaimTemplates[]?.kind
+    - .spec.volumeClaimTemplates[]?.status
+    kind: StatefulSet
+  - group: apps
+    jqPathExpressions:
+    - .spec.template.spec.containers[].env[]?.valueFrom.resourceFieldRef.divisor
+    kind: Deployment
+    name: signoz-clickhouse-operator
   project: platform
   revisionHistoryLimit: 10
   sources:
@@ -48,3 +60,4 @@ spec:
     syncOptions:
     - ServerSideApply=true
     - SkipDryRunOnMissingResource=true
+    - RespectIgnoreDifferences=true

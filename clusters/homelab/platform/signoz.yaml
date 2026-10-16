@@ -44,9 +44,26 @@ spec:
       - ServerSideApply=true
       # The ClickHouseInstallation CRD comes with the chart, in the same sync.
       - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 5
       backoff:
         duration: 5s
         factor: 2
         maxDuration: 3m
+  # Fields the API server fills in, which the chart does not render: without
+  # these the Application stays OutOfSync for ever.
+  ignoreDifferences:
+    # apiVersion, kind and status of each StatefulSet volumeClaimTemplate.
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?.apiVersion
+        - .spec.volumeClaimTemplates[]?.kind
+        - .spec.volumeClaimTemplates[]?.status
+    # The ClickHouse operator's resourceFieldRef env vars get `divisor: "0"`.
+    - group: apps
+      kind: Deployment
+      name: signoz-clickhouse-operator
+      jqPathExpressions:
+        - .spec.template.spec.containers[].env[]?.valueFrom.resourceFieldRef.divisor
