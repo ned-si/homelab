@@ -48,6 +48,12 @@ spec:
               key: THEATER_SSO_CLIENT_SECRET
               name: keycloak-proxy-clients
               optional: true
+        - name: HEADLAMP_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: HEADLAMP_CLIENT_SECRET
+              name: keycloak-headlamp-client
+              optional: true
         image: quay.io/keycloak/keycloak:26.8.1@sha256:79c623a22abacf3fe6c00a5fb30f5b7843d717b234033b80995891c06116d244
         name: kcadm
         resources:
@@ -77,7 +83,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-8722m79bm5
+          name: keycloak-realm-settings-552mh6b6tm
         name: realm
       - emptyDir: {}
         name: tmp

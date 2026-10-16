@@ -31,6 +31,7 @@ data:
     argocd=admins ArgoCDAdmins
     grafana-oauth=admins
     theater-sso=admins TheaterAdmins
+    headlamp=admins
     home-assistant=admins HomeAssistantAdmins family
     immich=admins family media
     audiobookshelf=admins family media
@@ -312,18 +313,6 @@ data:
         grep -E ",$1\$" | cut -d, -f1 || true
     }
 
-    for c in $clients; do
-      id=$(client_id "$c")
-      if [ -z "$id" ]; then
-        check "client $c" present ""
-        continue
-      fi
-      kc update "clients/$id" -r "$REALM" -s "attributes.\"default.acr.values\"=$ACR"
-      # `--fields attributes` returns an empty map: read the whole client.
-      got=$(kc get "clients/$id" -r "$REALM" | sed -n 's/^ *"default\.acr\.values" : "\(.*\)",\{0,1\}$/\1/p')
-      check "client $c default.acr.values" "$ACR" "$got"
-    done
-
     # --- platform.conf: clients that must not exist --------------------------------
     for c in $(conf removed_clients); do
       id=$(client_id "$c")
@@ -399,6 +388,21 @@ data:
         got=absent
       fi
       check "client $c audience mapper" present "$got"
+    done
+
+    # --- platform.conf: default ACR of the platform clients -----------------------
+    # After proxy_clients, so a platform client that is also a new proxy client
+    # exists by now.
+    for c in $clients; do
+      id=$(client_id "$c")
+      if [ -z "$id" ]; then
+        check "client $c" present ""
+        continue
+      fi
+      kc update "clients/$id" -r "$REALM" -s "attributes.\"default.acr.values\"=$ACR"
+      # `--fields attributes` returns an empty map: read the whole client.
+      got=$(kc get "clients/$id" -r "$REALM" | sed -n 's/^ *"default\.acr\.values" : "\(.*\)",\{0,1\}$/\1/p')
+      check "client $c default.acr.values" "$ACR" "$got"
     done
 
     # --- clients.conf: redirect URIs and web origins -------------------------------
@@ -629,6 +633,10 @@ data:
     theater-sso.redirectUris=https://theater.lilalala.com/oauth2/callback
     theater-sso.webOrigins=https://theater.lilalala.com
 
+    # oauth2-proxy in front of Headlamp, on the tailnet (platform/headlamp).
+    headlamp.redirectUris=https://headlamp.tail32a1fc.ts.net/oauth2/callback
+    headlamp.webOrigins=https://headlamp.tail32a1fc.ts.net
+
     mealie.redirectUris=https://cook.lilalala.com/login https://cook.lilalala.com/login?direct=1
     mealie.webOrigins=https://cook.lilalala.com
 
@@ -653,7 +661,7 @@ data:
     loa_max_age=43200
 
     # Client IDs, space-separated.
-    platform_clients=argocd grafana-oauth security-admin-console
+    platform_clients=argocd grafana-oauth security-admin-console headlamp
 
     # Clients deleted if present, space-separated. `myclient` is the Keycloak
     # getting-started client: public, direct access grants on, redirects to
@@ -666,7 +674,7 @@ data:
     # group, and sets the client secret from the environment variable
     # <CLIENT_ID>_CLIENT_SECRET (upper case, `-` as `_`). Group members stay in
     # the admin console. Redirect URIs are in clients.conf.
-    proxy_clients=theater-sso:TheaterAdmins
+    proxy_clients=theater-sso:TheaterAdmins headlamp:admins
   sessions.conf: |
     # Session and token lifetimes of the `homelab` realm, applied by the
     # keycloak-realm-settings Job (realm-settings.yaml) after every sync.
@@ -707,5 +715,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-8722m79bm5
+  name: keycloak-realm-settings-552mh6b6tm
   namespace: keycloak
