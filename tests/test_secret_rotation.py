@@ -9,12 +9,14 @@ from conftest import REPO, SCRIPTS, git_init, write
 TODAY = "2026-10-16"
 
 
-def run(tmp_path, table, files=("apps/secrets/a.sops.yaml",), mode="age", today=TODAY):
+def run(tmp_path, table, files=("apps/secrets/a.sops.yaml",), mode="age", today=TODAY, workflow=None):
     root = tmp_path / "repo"
     root.mkdir(parents=True, exist_ok=True)
     write(root, ".sops.yaml", "creation_rules: []\n")
     for rel in files:
         write(root, rel, "sops: {}\n")
+    if workflow is not None:
+        write(root, ".github/workflows/w.yaml", workflow)
     write(root, "ci/secret-rotation.tsv", "# header\n" + "".join("\t".join(r) + "\n" for r in table))
     git_init(root)
     return subprocess.run([sys.executable, str(SCRIPTS / "secret_rotation.py"), mode, "--repo-root", str(root),
@@ -63,6 +65,29 @@ def test_coverage_findings(tmp_path, table, needle):
     r = run(tmp_path, table, mode="coverage")
     assert r.returncode == 1
     assert any(needle in f for f in fails(r)), r.stdout
+
+
+FILE_ROW = ("apps/secrets/a.sops.yaml", "credential", "2026-10-01")
+USES_TOKEN = "jobs:\n  x:\n    steps:\n      - with:\n          token: ${{ secrets.MY_TOKEN }}\n"
+
+
+def test_actions_secret_row_read_by_a_workflow(tmp_path):
+    r = run(tmp_path, [FILE_ROW, ("actions-secret:MY_TOKEN", "api-token", "2026-10-01")], workflow=USES_TOKEN)
+    assert r.returncode == 0, r.stdout
+
+
+@pytest.mark.parametrize("workflow", [None, "jobs: {}\n", "token: ${{ secrets.MY_TOKEN_2 }}\n"])
+def test_actions_secret_row_no_workflow_reads_it(tmp_path, workflow):
+    r = run(tmp_path, [FILE_ROW, ("actions-secret:MY_TOKEN", "api-token", "2026-10-01")], mode="coverage",
+            workflow=workflow)
+    assert r.returncode == 1
+    assert any("no workflow reads secrets.MY_TOKEN (stale row)" in f for f in fails(r)), r.stdout
+
+
+def test_actions_secret_row_ages(tmp_path):
+    r = run(tmp_path, [FILE_ROW, ("actions-secret:MY_TOKEN", "api-token", "2026-04-18")], workflow=USES_TOKEN)
+    assert r.returncode == 1
+    assert any("actions-secret:MY_TOKEN: api-token last set" in f for f in fails(r)), r.stdout
 
 
 def test_this_repository_is_covered():
