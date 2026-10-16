@@ -39,19 +39,27 @@ case "${WORKLOAD_ISOLATION:-}" in
   *) die "WORKLOAD_ISOLATION must be true or false, got '${WORKLOAD_ISOLATION}'" ;;
 esac
 
-# A sealed secrets file needs the age identity; a plaintext one (CI) does not.
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+# A sealed secrets file needs the age identity; a plaintext one (CI, the drift
+# check) does not. The variables talconfig.yaml substitutes (the Tailscale
+# auth key) come from talos/talenv.sops.yaml with the sealed secrets, and are
+# a placeholder otherwise: platform/talos-drift/check.sh masks that line on
+# both sides.
 if grep -q '^sops:' "$secret"; then
   # SC1091: pre-commit passes only the staged files, so the library may not be an input.
   # shellcheck source=scripts/lib/sops-age.sh disable=SC1091
   . "$ROOT/scripts/lib/sops-age.sh"
   sops_age_env
+  env_file="$TALOS_DIR/talenv.sops.yaml"
+else
+  env_file="$work/talenv.yaml"
+  printf 'TS_OAUTH_SECRET: placeholder\n' > "$env_file"
 fi
 
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
-
 # talhelper resolves `@./patches/...` relative to the working directory.
-(cd "$TALOS_DIR" && talhelper genconfig --offline-mode -c talconfig.yaml -s "$secret" -o "$out")
+(cd "$TALOS_DIR" && talhelper genconfig --offline-mode -c talconfig.yaml -s "$secret" -e "$env_file" -o "$out")
 
 patches=()
 for p in "$TALOS_DIR"/patches/talosctl/*.yaml; do

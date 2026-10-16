@@ -10,6 +10,9 @@
 		"tag:k8s": ["tag:k8s-operator"],
 		// The exit node on the home connection (Connector `home-exit`).
 		"tag:exit": ["tag:k8s-operator"],
+		// The Talos nodes (siderolabs/tailscale extension), which log in
+		// with the operator's OAuth client secret (talos/talconfig.yaml).
+		"tag:talos": ["tag:k8s-operator"],
 	},
 
 	// The exit node needs no approval in the admin console.
@@ -69,6 +72,14 @@
 					{"impersonate": {"groups": ["tailnet-admins"]}},
 				],
 			},
+		},
+		// The owner and admins reach the Talos API (apid, mTLS with the
+		// talosconfig) on the nodes; nothing else reaches tag:talos, and
+		// tag:talos reaches nothing.
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": ["tag:talos"],
+			"ip":  ["tcp:50000"],
 		},
 	],
 

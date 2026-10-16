@@ -42,14 +42,18 @@ cniConfig:
 patches:
   - "@./patches/sysctls.yaml"
   - "@./patches/kubelet-image-gc.yaml"
+  - "@./patches/node-ip.yaml"
 
 controlPlane:
   patches:
     # Kubernetes component documents are control-plane only in Talos 1.14.
     - "@./patches/kube-proxy.yaml"
     - "@./patches/controlplane-metrics.yaml"
-  # Image Factory schematic ca77d17f5b2c67e1fdb32a57cdbb166e20b8e19010ab6d35a888970958d76c02.
+    - "@./patches/etcd-subnet.yaml"
+  # Image Factory schematic 21cb209fd2bf7aa421d4f2ae391ca60c97b25694cda234c067f992a2709f0646.
   # scripts/ci/talos-validate.sh fails if the generated installer image has another ID.
+  # tuppr keeps each node's running schematic: a change here reaches the
+  # nodes through `task talos:upgrade -- <node>`, one node at a time.
   schematic: &schematic
     overlay:
       image: siderolabs/sbc-rockchip
@@ -59,6 +63,8 @@ controlPlane:
         officialExtensions:
           # iscsiadm and iscsid for democratic-csi (ISCSIADM_HOST_STRATEGY=nsenter).
           - siderolabs/iscsi-tools
+          # The Talos API on the tailnet (docs/remote-access.md, "Talos API").
+          - siderolabs/tailscale
   machineSpec: &machineSpec
     mode: metal
     arch: arm64
@@ -69,11 +75,27 @@ worker:
   schematic: *schematic
   machineSpec: *machineSpec
 
+# Tailnet (docs/remote-access.md, "Talos API"): each node joins as
+# talos-<node> with tag:talos through the siderolabs/tailscale extension, and
+# apid's certificate carries that name. TS_OAUTH_SECRET is the operator's
+# Tailscale OAuth client secret, sealed in talos/talenv.sops.yaml; talhelper
+# substitutes it. TS_AUTH_ONCE logs in on first start only: the node key
+# then lives in the extension's state on EPHEMERAL.
 nodes:
   - hostname: homelab-cp-1
     ipAddress: 192.168.1.247
     controlPlane: true
     installDisk: /dev/mmcblk0
+    certSANs:
+      - talos-cp-1
+      - talos-cp-1.tail32a1fc.ts.net
+    extensionServices:
+      - name: tailscale
+        environment:
+          - TS_AUTHKEY=${TS_OAUTH_SECRET}?ephemeral=false&preauthorized=true
+          - TS_HOSTNAME=talos-cp-1
+          - TS_EXTRA_ARGS=--advertise-tags=tag:talos
+          - TS_AUTH_ONCE=true
     nameservers: [192.168.1.1]
     networkInterfaces:
       - deviceSelector:
@@ -90,6 +112,16 @@ nodes:
     ipAddress: 192.168.1.238
     controlPlane: true
     installDisk: /dev/mmcblk0
+    certSANs:
+      - talos-cp-2
+      - talos-cp-2.tail32a1fc.ts.net
+    extensionServices:
+      - name: tailscale
+        environment:
+          - TS_AUTHKEY=${TS_OAUTH_SECRET}?ephemeral=false&preauthorized=true
+          - TS_HOSTNAME=talos-cp-2
+          - TS_EXTRA_ARGS=--advertise-tags=tag:talos
+          - TS_AUTH_ONCE=true
     nameservers: [192.168.1.1]
     networkInterfaces:
       - deviceSelector:
@@ -106,6 +138,16 @@ nodes:
     ipAddress: 192.168.1.239
     controlPlane: true
     installDisk: /dev/mmcblk0
+    certSANs:
+      - talos-cp-3
+      - talos-cp-3.tail32a1fc.ts.net
+    extensionServices:
+      - name: tailscale
+        environment:
+          - TS_AUTHKEY=${TS_OAUTH_SECRET}?ephemeral=false&preauthorized=true
+          - TS_HOSTNAME=talos-cp-3
+          - TS_EXTRA_ARGS=--advertise-tags=tag:talos
+          - TS_AUTH_ONCE=true
     nameservers: [192.168.1.1]
     networkInterfaces:
       - deviceSelector:
@@ -122,6 +164,16 @@ nodes:
     ipAddress: 192.168.1.240
     controlPlane: false
     installDisk: /dev/mmcblk0
+    certSANs:
+      - talos-w-1
+      - talos-w-1.tail32a1fc.ts.net
+    extensionServices:
+      - name: tailscale
+        environment:
+          - TS_AUTHKEY=${TS_OAUTH_SECRET}?ephemeral=false&preauthorized=true
+          - TS_HOSTNAME=talos-w-1
+          - TS_EXTRA_ARGS=--advertise-tags=tag:talos
+          - TS_AUTH_ONCE=true
     nameservers: [192.168.1.1]
     networkInterfaces:
       - deviceSelector:

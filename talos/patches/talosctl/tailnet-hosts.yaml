@@ -1,0 +1,32 @@
+# Applied by scripts/talos-genconfig.sh with talosctl after talhelper (see
+# security-profile.yaml). The nodes do not use MagicDNS, so `talosctl --nodes
+# talos-<node>` (or its full tailnet name) through another node's apid
+# resolves the name here, to the node's LAN address (docs/remote-access.md,
+# "Talos API").
+apiVersion: v1alpha1
+kind: StaticHostConfig
+name: 192.168.1.247
+hostnames:
+  - talos-cp-1
+  - talos-cp-1.tail32a1fc.ts.net
+---
+apiVersion: v1alpha1
+kind: StaticHostConfig
+name: 192.168.1.238
+hostnames:
+  - talos-cp-2
+  - talos-cp-2.tail32a1fc.ts.net
+---
+apiVersion: v1alpha1
+kind: StaticHostConfig
+name: 192.168.1.239
+hostnames:
+  - talos-cp-3
+  - talos-cp-3.tail32a1fc.ts.net
+---
+apiVersion: v1alpha1
+kind: StaticHostConfig
+name: 192.168.1.240
+hostnames:
+  - talos-w-1
+  - talos-w-1.tail32a1fc.ts.net

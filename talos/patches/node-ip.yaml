@@ -1,0 +1,9 @@
+# Kubernetes and etcd stay on the LAN. With the Tailscale extension a node
+# also holds a tailnet address (tailscale0, 100.96.0.0/11), which sorts before
+# 192.168.1.0/24: without these subnets Talos could pick it as the kubelet
+# node IP or the etcd peer address after a reboot.
+machine:
+  kubelet:
+    nodeIP:
+      validSubnets:
+        - 192.168.1.0/24

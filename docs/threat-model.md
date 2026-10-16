@@ -14,7 +14,7 @@ point, a credential or an admission path is added or removed.
 | Photos and videos (Immich originals) | PVC `immich-data` on the NAS | irreplaceable | private family data | restic to S3 and to the NAS, restore rehearsed ([backups.md](backups.md)); Keycloak login |
 | Documents (Paperless, Syncthing) | iSCSI PVCs on the NAS | hard to replace | private, some official papers | nightly restic to S3; Keycloak login (Paperless) |
 | age private key | the Mac, the password manager, Secret `argo/sops-age` | every sealed secret must be recreated | every secret in git, including history, is readable | three copies only, mode 600 on the Mac ([secrets.md](secrets.md#the-key)) |
-| `talosconfig` | the Mac, the password manager | regenerated from `talos/talsecret.sops.yaml` | full control of every node: reset, upgrade, read machine configs and their keys | mTLS client certificate, role `os:admin`; Talos API reachable from the LAN only |
+| `talosconfig` | the Mac, the password manager | regenerated from `talos/talsecret.sops.yaml` | full control of every node: reset, upgrade, read machine configs and their keys | mTLS client certificate, role `os:admin`; Talos API reachable from the LAN and, for the tailnet owner and admins, over the tailnet (`tag:talos`, TCP 50000) |
 | Admin kubeconfig | the Mac, the password manager | regenerated with `talosctl kubeconfig` | `cluster-admin` (group `system:masters`); cannot be revoked short of a CA rotation | client certificate; API VIP `192.168.1.11` reachable from the LAN only |
 | Supporting credentials | SOPS files ([secrets.md](secrets.md#layout)) | recreated at their source | per credential: DNS (Cloudflare), storage (TrueNAS API key), backups (S3 keys, `RESTIC_PASSWORD`), the auto-rollback GitHub token | sealed in git, rotation steps per credential |
 | Write access to `ned-si/homelab` | GitHub | none | `main` is production: a merge deploys | signed commits, required `ci` check, linear history, admins included |
@@ -121,7 +121,9 @@ point, a credential or an admission path is added or removed.
   in the cluster with no inbound port and no subnet router; the Kubernetes API
   is reachable over the tailnet through its API server proxy, which
   impersonates the tailnet identity. The tailnet policy is in git
-  (`bootstrap/tailscale/policy.hujson`). The Talos API stays LAN-only.
+  (`bootstrap/tailscale/policy.hujson`). The Talos API is on the tailnet
+  through each node's Tailscale extension, for the owner and admins on TCP
+  50000 only, and still needs the `talosconfig` certificate.
 - Threats: S and E through a lost or stolen phone that is logged in to the
   tailnet. The phone holds no cluster credential: the proxy maps the tailnet
   login to the group `tailnet-admins`. Removing the device in the admin

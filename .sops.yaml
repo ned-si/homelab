@@ -66,7 +66,10 @@ creation_rules:
   # FIRST ON PURPOSE. sops uses the first rule whose path_regex matches, and the
   # generic rule below also matches this path. Its `^(data|stringData)$` would
   # match no key in this file and leave every CA key in plaintext.
-  - path_regex: (^|/)talos/talsecret\.sops\.ya?ml$
+  #
+  # talenv.sops.yaml holds the variables talconfig.yaml substitutes (the
+  # Tailscale auth key): same reason, every value encrypted.
+  - path_regex: (^|/)talos/tal(secret|env)\.sops\.ya?ml$
     age: >-
       age1aj3h6euznpdh9mps62heswlyg697gzcr6llrvnen6996c70zwfpqz959xh
 

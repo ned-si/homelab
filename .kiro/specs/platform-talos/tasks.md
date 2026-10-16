@@ -33,3 +33,8 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [ ] 15. Revisit NVMe per node once the eMMC `life_time` trend has a few
       weeks of data.
 - [ ] 16. Seal the Turing Pi BMC credentials.
+- [ ] 17. Talos API on the tailnet: `siderolabs/tailscale` in the schematic,
+      an ExtensionServiceConfig per node with the sealed OAuth secret,
+      tailnet names in `certSANs` and `/etc/hosts`, kubelet and etcd pinned to
+      the LAN, the `tag:talos` grant; rolled out node by node (w-1, cp-3,
+      cp-2, cp-1) with `task talos:upgrade`; context `homelab-ts`. [5]

@@ -11,6 +11,8 @@
 #        - VIP 192.168.1.11 on the control planes only
 #        - kube-proxy disabled, no Flannel, SecurityProfileConfig present
 #        - Talos API access from system-upgrade (tuppr) on the control planes
+#        - the tailscale extension service as talos-<node> with tag:talos,
+#          that name in certSANs, the tailnet hosts, kubelet and etcd on the LAN
 #        - tuppr's target versions equal talosVersion and kubernetesVersion
 #        - WORKLOAD_ISOLATION=true switches workload isolation on
 #        - talos/clusterconfig/ and plaintext talsecret files are git-ignored
@@ -23,9 +25,10 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 # Image Factory schematic for the Turing RK1 (overlay sbc-rockchip/turingrk1 +
-# siderolabs/iscsi-tools). The nodes are flashed with this ID's disk image, so a
-# change to the schematic in talconfig.yaml must change this line too.
-EXPECTED_SCHEMATIC=ca77d17f5b2c67e1fdb32a57cdbb166e20b8e19010ab6d35a888970958d76c02
+# siderolabs/iscsi-tools + siderolabs/tailscale). The nodes run this ID's
+# image, so a change to the schematic in talconfig.yaml must change this line
+# too.
+EXPECTED_SCHEMATIC=21cb209fd2bf7aa421d4f2ae391ca60c97b25694cda234c067f992a2709f0646
 VIP=192.168.1.11
 
 fail=0
@@ -45,7 +48,9 @@ doc_of() {
   ' "$2"
 }
 
-talhelper validate talconfig talos/talconfig.yaml
+# The placeholder scripts/talos-genconfig.sh uses without the sealed env.
+printf 'TS_OAUTH_SECRET: placeholder\n' > "$tmp/talenv.yaml"
+talhelper validate talconfig talos/talconfig.yaml -e "$tmp/talenv.yaml"
 ok "talhelper validate talconfig"
 
 (cd talos && talhelper gensecret) > "$tmp/talsecret.yaml"
@@ -89,6 +94,20 @@ for f in "$tmp"/default/*.yaml "$tmp"/isolated/*.yaml; do
     || bad "$name: SecurityProfileConfig workloadIsolation is not $want"
 
   [ "${f#"$tmp"/default/}" != "$f" ] || continue
+  # Tailnet: talos-<node> with tag:talos, that name in apid's certificate,
+  # every tailnet name in /etc/hosts, the kubelet on the LAN.
+  short=${name#default/homelab-homelab-}
+  short=${short%.yaml}
+  ts_name="talos-$short.tail32a1fc.ts.net"
+  ts=$(doc_of ExtensionServiceConfig "$f")
+  printf '%s\n' "$ts" | grep -q '^name: tailscale$' || bad "$name: no ExtensionServiceConfig tailscale"
+  printf '%s\n' "$ts" | grep -qE "^ +- TS_HOSTNAME=talos-$short\$" || bad "$name: TS_HOSTNAME is not talos-$short"
+  printf '%s\n' "$ts" | grep -qE '^ +- TS_EXTRA_ARGS=--advertise-tags=tag:talos$' || bad "$name: not advertised as tag:talos"
+  printf '%s\n' "$ts" | grep -qE '^ +- TS_AUTHKEY=placeholder\?ephemeral=false&preauthorized=true$' \
+    || bad "$name: TS_AUTHKEY is not the substituted, non-ephemeral, pre-authorized key"
+  grep -qE "^ +- $ts_name\$" "$f" || bad "$name: $ts_name not in certSANs"
+  [ "$(grep -c '^kind: StaticHostConfig$' "$f")" -eq 4 ] || bad "$name: expected 4 StaticHostConfig documents"
+  grep -qE '^ +- 192\.168\.1\.0/24$' "$f" || bad "$name: kubelet nodeIP.validSubnets is not the LAN"
   if grep -qE '^ +type: controlplane$' "$f"; then
     cps=$((cps + 1))
     doc_of Layer2VIPConfig "$f" | grep -q "^name: $VIP\$" || bad "$name: no Layer2VIPConfig for $VIP"
@@ -97,6 +116,7 @@ for f in "$tmp"/default/*.yaml "$tmp"/isolated/*.yaml; do
       doc_of "$k" "$f" | grep -qE '^ +bind-address: 0\.0\.0\.0$' || bad "$name: $k does not bind metrics on 0.0.0.0"
     done
     grep -qE '^ +listen-metrics-urls: http://0\.0\.0\.0:2381$' "$f" || bad "$name: etcd metrics not on 0.0.0.0:2381"
+    grep -qE '^ +advertisedSubnets:$' "$f" || bad "$name: etcd advertisedSubnets not set"
     # tuppr (platform/tuppr) upgrades the nodes from this namespace.
     doc_of KubeTalosAPIAccessConfig "$f" | grep -qE '^ +- system-upgrade$' \
       || bad "$name: KubeTalosAPIAccessConfig does not allow system-upgrade"

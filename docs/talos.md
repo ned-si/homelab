@@ -44,9 +44,14 @@ version change is rolled out by tuppr ([Upgrades](#upgrades)).
 
 The Image Factory schematic is in `talconfig.yaml` (`controlPlane.schematic`,
 reused by `worker`): the `sbc-rockchip` overlay `turingrk1` plus the
-`siderolabs/iscsi-tools` extension for democratic-csi. Its ID is
-`ca77d17f5b2c67e1fdb32a57cdbb166e20b8e19010ab6d35a888970958d76c02`; CI fails if
-the generated installer image carries another one.
+`siderolabs/iscsi-tools` extension for democratic-csi and
+`siderolabs/tailscale` for the Talos API on the tailnet
+([remote-access.md](remote-access.md#talos-api)). Its ID is
+`21cb209fd2bf7aa421d4f2ae391ca60c97b25694cda234c067f992a2709f0646`; CI fails if
+the generated installer image carries another one. tuppr keeps each node's
+running schematic, so a new one reaches the nodes with `task talos:upgrade --
+<node>`, one node at a time; register it with the Factory first (a `talhelper
+genurl` without `--offline-mode` does).
 
 Print the disk image URL:
 
@@ -55,7 +60,7 @@ cd talos && talhelper genurl image --offline-mode -n homelab-cp-3
 ```
 
 Expected:
-`https://factory.talos.dev/image/ca77d17f5b2c67e1fdb32a57cdbb166e20b8e19010ab6d35a888970958d76c02/v1.14.2/metal-arm64.raw.xz`.
+`https://factory.talos.dev/image/21cb209fd2bf7aa421d4f2ae391ca60c97b25694cda234c067f992a2709f0646/v1.14.4/metal-arm64.raw.xz`.
 
 Flash a slot from the BMC (slot 4 is `homelab-w-1`), after `xz -d`:
 
