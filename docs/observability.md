@@ -233,11 +233,14 @@ kubectl -n monitoring exec alertmanager-kube-prometheus-stack-alertmanager-0 -c 
   amtool alert add SLOErrorBudgetBurnSlowPersistent severity=warning action=human app=synthetic namespace=monitoring \
   --annotation=summary="Synthetic test" \
   --annotation=runbook_url=https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnSlowPersistent.md \
-  --end="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ)" \
+  --start="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --end="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ)" \
   --alertmanager.url=http://localhost:9093
 # expected after the 1m group_wait: "Warning: SLOErrorBudgetBurnSlowPersistent (monitoring)",
 # body "Synthetic test", then the runbook URL
 ```
+
+Pass `--start` with `--end`: with `--end` alone, amtool 0.34 sent a start
+equal to the end time, and the alert did not notify.
 
 Rotating the topic: a new one in `secrets.local.env` (`NTFY_TOPIC`), then
 `rm platform/secrets/alertmanager-notify.sops.yaml && scripts/seal-secrets-from-env.sh`,
