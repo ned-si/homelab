@@ -26,6 +26,19 @@ inclusion: always
 
 Layout and reasons: [docs/architecture.md](../../docs/architecture.md).
 
+## Specs
+
+One spec per area, as-is behaviour plus open tasks. New work starts by
+updating or adding a spec; tasks are ticked with their PR numbers.
+
+- [`platform-talos`](../specs/platform-talos/): nodes, Talos config as code, tuppr upgrades, the CI rehearsal, drift check, eMMC monitoring.
+- [`gitops-delivery`](../specs/gitops-delivery/): Argo CD layers, render in PR, CI gate, Renovate automerge, image pinning and variants, auto-rollback.
+- [`backups-dr`](../specs/backups-dr/): restic, CNPG Barman, the PreSync freshness rule, restore tests, bucket immutability.
+- [`observability-alerting`](../specs/observability-alerting/): SLOs and budgets, paging policy, quiet hours, silences, dashboards.
+- [`access-identity`](../specs/access-identity/): Keycloak realm as code, per-app groups, sessions, Tailscale and Headlamp, secrets.
+- [`media-home`](../specs/media-home/): the theater stack, books, Home Assistant.
+- [`immich-v3-migration`](../specs/immich-v3-migration/): the Immich 3 and VectorChord migration (done).
+
 ## Rendered manifests
 
 - Never edit `deploy/` by hand. Change the source, run `task render`, commit
