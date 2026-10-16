@@ -19,7 +19,7 @@ metadata:
   name: keycloak-realm-settings
   namespace: keycloak
 spec:
-  activeDeadlineSeconds: 900
+  activeDeadlineSeconds: 1800
   backoffLimit: 2
   template:
     metadata:
@@ -77,7 +77,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-4hh9fk58g6
+          name: keycloak-realm-settings-tftdk48tcb
         name: realm
       - emptyDir: {}
         name: tmp

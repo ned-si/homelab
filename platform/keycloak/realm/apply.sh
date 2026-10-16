@@ -1,7 +1,8 @@
 #!/bin/bash
-# Apply sessions.conf, platform.conf and clients.conf to the `homelab` realm,
-# then read the realm back and fail unless every managed value is the
-# expected one. CHECK_ONLY=1 runs the static checks of the files and exits.
+# Apply sessions.conf, platform.conf, clients.conf and access.conf to the
+# `homelab` realm, then read the realm back and fail unless every managed
+# value is the expected one. CHECK_ONLY=1 runs the static checks of the files
+# and exits.
 #
 # Runs in the Keycloak image (kcadm.sh, bash, grep, sed; no awk, jq or curl).
 # `kcadm.sh update -s` fetches an object, changes only the given fields and
@@ -17,7 +18,9 @@ REALM=${REALM:-homelab}
 CONF=${CONF:-/realm/sessions.conf}
 PLATFORM_CONF=${PLATFORM_CONF:-/realm/platform.conf}
 CLIENTS_CONF=${CLIENTS_CONF:-/realm/clients.conf}
+ACCESS_CONF=${ACCESS_CONF:-/realm/access.conf}
 FLOW=browser-loa
+ROLE=access
 ACR=platform
 
 kc() { "$KCADM" "$@" --config "$CFG"; }
@@ -70,9 +73,23 @@ for pc in $(conf proxy_clients); do
     bad=1
   fi
 done
+# access.conf lines: <clientId>=<groups>
+access_lines() { sed -e 's/#.*//' -e 's/[[:space:]]*$//' "$ACCESS_CONF" | grep -v '^[[:space:]]*$' || true; }
+while IFS= read -r line; do
+  [ -z "$line" ] && continue
+  if ! [[ "$line" =~ ^[A-Za-z0-9_-]+=[A-Za-z0-9_-]+([[:space:]]+[A-Za-z0-9_-]+)*$ ]]; then
+    echo "FAIL access.conf: not <clientId>=<groups>: $line" >&2
+    bad=1
+  fi
+done < <(access_lines)
+access_clients=$(access_lines | sed 's/=.*//')
+if [ -n "$(printf '%s\n' "$access_clients" | sort | uniq -d)" ]; then
+  echo "FAIL access.conf: client listed twice: $(printf '%s\n' "$access_clients" | sort | uniq -d | tr '\n' ' ')" >&2
+  bad=1
+fi
 # A client that must not exist cannot also be configured.
 for c in $(conf removed_clients); do
-  for m in $(conf platform_clients) $managed_clients $(conf proxy_clients | tr ' ' '\n' | sed 's/:.*//'); do
+  for m in $(conf platform_clients) $managed_clients $access_clients $(conf proxy_clients | tr ' ' '\n' | sed 's/:.*//'); do
     if [ "$c" = "$m" ]; then
       echo "FAIL client $c is in removed_clients and configured elsewhere" >&2
       bad=1
@@ -124,82 +141,129 @@ max_age=$(conf loa_max_age)
 clients=$(conf platform_clients)
 [[ "$max_age" =~ ^[0-9]+$ ]] || { echo "FAIL loa_max_age is not a number" >&2; exit 1; }
 
-# requirement,displayName,level of every execution in the flow, in order.
-execs() {
-  kc get "authentication/flows/$FLOW/executions" -r "$REALM" --format csv --noquotes \
-    --fields "${1:-requirement,displayName,level}"
+# requirement,displayName,level of every execution in a flow, in order.
+execs() { # flow [fields]
+  kc get "authentication/flows/$1/executions" -r "$REALM" --format csv --noquotes \
+    --fields "${2:-requirement,displayName,level}"
 }
-exec_row() { # displayName fields -> the matching row; displayName is the 2nd field
-  local row name
+row_named() { # rows displayName field -> the first row whose <field> is displayName
+  local row
   while IFS= read -r row; do
-    name=${row#*,}
-    name=${name%%,*}
-    if [ "$name" = "$1" ]; then
+    if [ "$(printf '%s' "$row" | cut -d, -f"$3")" = "$2" ]; then
       printf '%s\n' "$row"
       return
     fi
-  done < <(execs "$2")
+  done <<< "$1"
 }
-exec_id() { exec_row "$1" id,displayName | cut -d, -f1; }
-exec_cfg() { exec_row "$1" id,displayName,authenticationConfig | cut -d, -f3; }
-set_req() { # displayName requirement
-  # Send the execution's priority back unchanged: Keycloak 25+ applies the
-  # priority of this request, and a missing one would reorder the flow.
-  local row id prio
-  row=$(exec_row "$1" id,displayName,priority)
-  id=${row%%,*}
-  prio=${row##*,}
-  if [[ "$prio" =~ ^[0-9]+$ ]]; then
-    kc update "authentication/flows/$FLOW/executions" -r "$REALM" \
-      -b "{\"id\":\"$id\",\"requirement\":\"$2\",\"priority\":$prio}"
+set_reqs() { # flow; stdin: <displayName>=<requirement> lines
+  # One listing, then one update per execution. Send the execution's priority
+  # back unchanged: Keycloak 25+ applies the priority of this request, and a
+  # missing one would reorder the flow.
+  local pairs rows kv row id prio body
+  pairs=$(cat)
+  rows=$(execs "$1" id,displayName,priority)
+  while IFS= read -r kv; do
+    row=$(row_named "$rows" "${kv%=*}" 2)
+    id=${row%%,*}
+    prio=${row##*,}
+    body="{\"id\":\"$id\",\"requirement\":\"${kv##*=}\""
+    if [[ "$prio" =~ ^[0-9]+$ ]]; then body="$body,\"priority\":$prio"; fi
+    kc update "authentication/flows/$1/executions" -r "$REALM" -b "$body}" < /dev/null
+  done <<< "$pairs"
+}
+# id,requirement,displayName,level,authenticationConfig of every execution;
+# shape() keeps requirement,displayName,level for the readback.
+flow_rows() { execs "$1" id,requirement,displayName,level,authenticationConfig; }
+shape() { printf '%s\n' "$1" | cut -d, -f2-4; }
+flow_id() { # alias -> id; empty when the flow does not exist
+  kc get authentication/flows -r "$REALM" --format csv --noquotes --fields id,alias |
+    grep -E ",$1\$" | cut -d, -f1 || true
+}
+new_flow() { # alias description
+  echo "creating flow $1"
+  kc create authentication/flows -r "$REALM" -s alias="$1" -s providerId=basic-flow \
+    -s topLevel=true -s builtIn=false -s "description=$2" >/dev/null 2>&1
+}
+sub() { # parent alias
+  kc create "authentication/flows/$1/executions/flow" -r "$REALM" -s alias="$2" \
+    -s type=basic-flow -s provider=registration-page-form >/dev/null 2>&1
+}
+step() { # flow provider
+  kc create "authentication/flows/$1/executions/execution" -r "$REALM" -s provider="$2" >/dev/null 2>&1
+}
+# The browser-loa login under <parent>, subflows named <prefix>-*;
+# login_reqs prints their requirements for set_reqs.
+login_steps() { # parent prefix
+  step "$1" auth-cookie
+  step "$1" identity-provider-redirector
+  sub "$1" "$2-forms"
+  sub "$2-forms" "$2-level-1"
+  step "$2-level-1" conditional-level-of-authentication
+  step "$2-level-1" auth-username-password-form
+  sub "$2-level-1" "$2-otp"
+  step "$2-otp" conditional-user-configured
+  step "$2-otp" auth-otp-form
+}
+login_reqs() { # prefix
+  printf '%s\n' "Cookie=ALTERNATIVE" "Identity Provider Redirector=ALTERNATIVE" \
+    "$1-forms=ALTERNATIVE" "$1-level-1=CONDITIONAL" \
+    "Condition - Level of Authentication=REQUIRED" "Username Password Form=REQUIRED" \
+    "$1-otp=CONDITIONAL" "Condition - user configured=REQUIRED" "OTP Form=REQUIRED"
+}
+# Expected rows of login_steps at <level> (0 when directly in the top flow).
+login_rows() { # prefix level
+  local l=$2
+  printf '%s\n' "ALTERNATIVE,Cookie,$l" "ALTERNATIVE,Identity Provider Redirector,$l" \
+    "ALTERNATIVE,$1-forms,$l" "CONDITIONAL,$1-level-1,$((l + 1))" \
+    "REQUIRED,Condition - Level of Authentication,$((l + 2))" \
+    "REQUIRED,Username Password Form,$((l + 2))" "CONDITIONAL,$1-otp,$((l + 2))" \
+    "REQUIRED,Condition - user configured,$((l + 3))" "REQUIRED,OTP Form,$((l + 3))"
+}
+cfg_val() { # config JSON, key -> value
+  printf '%s\n' "$1" | sed -n "s/^ *\"$2\" : \"\\(.*\\)\",\\{0,1\\}\$/\\1/p"
+}
+# Create the config of execution <displayName>, or update it when a value
+# differs, then check every value. <rows> is flow_rows of the flow.
+ensure_cfg() { # flow rows displayName alias key=value...
+  local f=$1 n=$3 a=$4 row eid cfg live="" kv args=() drift=0
+  row=$(row_named "$2" "$n" 3)
+  shift 4
+  eid=${row%%,*}
+  cfg=${row##*,}
+  if [ -n "$cfg" ]; then live=$(kc get "authentication/config/$cfg" -r "$REALM"); fi
+  for kv in "$@"; do
+    args+=(-s "config.\"${kv%%=*}\"=${kv#*=}")
+    [ "$(cfg_val "$live" "${kv%%=*}")" = "${kv#*=}" ] || drift=1
+  done
+  if [ -z "$cfg" ]; then
+    kc create "authentication/executions/$eid/config" -r "$REALM" -s alias="$a" "${args[@]}" >/dev/null 2>&1
+    row=$(row_named "$(flow_rows "$f")" "$n" 3)
+    cfg=${row##*,}
+  elif [ "$drift" = 1 ]; then
+    kc update "authentication/config/$cfg" -r "$REALM" "${args[@]}"
+  fi
+  if [ "$drift" = 1 ]; then live=$(kc get "authentication/config/$cfg" -r "$REALM"); fi
+  for kv in "$@"; do
+    check "flow $f $n ${kv%%=*}" "${kv#*=}" "$(cfg_val "$live" "${kv%%=*}")"
+  done
+}
+check_flow() { # flow rows expected-shape
+  if [ "$(shape "$2")" = "$3" ]; then
+    echo "ok   flow $1: $(printf '%s\n' "$2" | wc -l | tr -d ' ') executions"
   else
-    kc update "authentication/flows/$FLOW/executions" -r "$REALM" \
-      -b "{\"id\":\"$id\",\"requirement\":\"$2\"}"
+    printf 'FAIL flow %s:\n%s\n' "$1" "$(shape "$2")" >&2
+    rc=1
   fi
 }
 
-if ! kc get authentication/flows -r "$REALM" --format csv --noquotes --fields alias | grep -qx "$FLOW"; then
-  echo "creating flow $FLOW"
-  kc create authentication/flows -r "$REALM" -s alias="$FLOW" -s providerId=basic-flow \
-    -s topLevel=true -s builtIn=false \
-    -s 'description=Browser login; platform clients re-authenticate after platform.conf loa_max_age' >/dev/null 2>&1
-  sub() { # parent alias
-    kc create "authentication/flows/$1/executions/flow" -r "$REALM" -s alias="$2" \
-      -s type=basic-flow -s provider=registration-page-form >/dev/null 2>&1
-  }
-  step() { # flow provider
-    kc create "authentication/flows/$1/executions/execution" -r "$REALM" -s provider="$2" >/dev/null 2>&1
-  }
-  step "$FLOW" auth-cookie
-  step "$FLOW" identity-provider-redirector
-  sub "$FLOW" "$FLOW-forms"
-  sub "$FLOW-forms" "$FLOW-level-1"
-  step "$FLOW-level-1" conditional-level-of-authentication
-  step "$FLOW-level-1" auth-username-password-form
-  sub "$FLOW-level-1" "$FLOW-otp"
-  step "$FLOW-otp" conditional-user-configured
-  step "$FLOW-otp" auth-otp-form
-  set_req "Cookie" ALTERNATIVE
-  set_req "Identity Provider Redirector" ALTERNATIVE
-  set_req "$FLOW-forms" ALTERNATIVE
-  set_req "$FLOW-level-1" CONDITIONAL
-  set_req "Condition - Level of Authentication" REQUIRED
-  set_req "Username Password Form" REQUIRED
-  set_req "$FLOW-otp" CONDITIONAL
-  set_req "Condition - user configured" REQUIRED
-  set_req "OTP Form" REQUIRED
+if [ -z "$(flow_id "$FLOW")" ]; then
+  new_flow "$FLOW" 'Browser login; platform clients re-authenticate after platform.conf loa_max_age'
+  login_steps "$FLOW" "$FLOW"
+  login_reqs "$FLOW" | set_reqs "$FLOW"
 fi
-
-loa_cfg=$(exec_cfg "Condition - Level of Authentication")
-if [ -z "$loa_cfg" ]; then
-  kc create "authentication/executions/$(exec_id "Condition - Level of Authentication")/config" \
-    -r "$REALM" -s alias="$FLOW-max-age" \
-    -s 'config."loa-condition-level"=1' -s "config.\"loa-max-age\"=$max_age" >/dev/null 2>&1
-  loa_cfg=$(exec_cfg "Condition - Level of Authentication")
-else
-  kc update "authentication/config/$loa_cfg" -r "$REALM" \
-    -s 'config."loa-condition-level"=1' -s "config.\"loa-max-age\"=$max_age"
-fi
+loa_rows=$(flow_rows "$FLOW")
+ensure_cfg "$FLOW" "$loa_rows" "Condition - Level of Authentication" "$FLOW-max-age" \
+  loa-condition-level=1 "loa-max-age=$max_age"
 
 kc update "realms/$REALM" -s browserFlow="$FLOW" -s "attributes.\"acr.loa.map\"=\"{\\\"$ACR\\\":1}\""
 
@@ -348,26 +412,142 @@ while IFS= read -r line; do
   esac
 done < <(kc get clients -r "$REALM" --fields clientId,redirectUris)
 
-# Read back the flow, its condition and the realm binding.
-want="ALTERNATIVE,Cookie,0
-ALTERNATIVE,Identity Provider Redirector,0
-ALTERNATIVE,$FLOW-forms,0
-CONDITIONAL,$FLOW-level-1,1
-REQUIRED,Condition - Level of Authentication,2
-REQUIRED,Username Password Form,2
-CONDITIONAL,$FLOW-otp,2
-REQUIRED,Condition - user configured,3
-REQUIRED,OTP Form,3"
-got=$(execs)
-if [ "$got" = "$want" ]; then
-  echo "ok   flow $FLOW: $(printf '%s\n' "$got" | wc -l | tr -d ' ') executions"
-else
-  printf 'FAIL flow %s:\n%s\n' "$FLOW" "$got" >&2
-  rc=1
-fi
-cfg=$(kc get "authentication/config/$loa_cfg" -r "$REALM")
-check loa-condition-level 1 "$(printf '%s\n' "$cfg" | sed -n 's/^ *"loa-condition-level" : "\(.*\)",\{0,1\}$/\1/p')"
-check loa-max-age "$max_age" "$(printf '%s\n' "$cfg" | sed -n 's/^ *"loa-max-age" : "\(.*\)",\{0,1\}$/\1/p')"
+# --- access.conf: who may log in to each client ---------------------------------
+# Groups get the client role `access`; the client's own flows deny a user
+# without it, after the login step (cookie included).
+access_groups() { access_lines | sed -n "s/^$1=//p"; }
+sorted() { tr ' ' '\n' | grep -v '^$' | sort | tr '\n' ' ' | sed 's/ $//' || true; }
+role_groups() { # client internal id -> sorted names of the groups mapped to its role
+  kc get "clients/$1/roles/$ROLE/groups" -r "$REALM" --format csv --noquotes --fields name | sorted
+}
+override() { # client JSON, binding -> flow id
+  printf '%s\n' "$1" | sed -n "s/^ *\"$2\" : \"\\(.*\\)\",\\{0,1\\}\$/\\1/p"
+}
+for c in $access_clients; do
+  id=$(client_id "$c")
+  if [ -z "$id" ]; then
+    check "client $c" present ""
+    continue
+  fi
+  want_groups=$(access_groups "$c" | sorted)
+
+  if ! kc get "clients/$id/roles" -r "$REALM" --format csv --noquotes --fields name | grep -qx "$ROLE"; then
+    echo "creating role $c.$ROLE"
+    kc create "clients/$id/roles" -r "$REALM" -s name="$ROLE" -s 'description=May log in (access.conf)' >/dev/null
+  fi
+  for g in $want_groups; do
+    if [ -z "$(name_id groups "$g")" ]; then
+      echo "creating group $g"
+      kc create groups -r "$REALM" -s name="$g" >/dev/null
+    fi
+  done
+  live_groups=$(role_groups "$id")
+  for g in $want_groups; do
+    case " $live_groups " in
+      *" $g "*) ;;
+      *) kc add-roles -r "$REALM" --gid "$(name_id groups "$g")" --cclientid "$c" --rolename "$ROLE" ;;
+    esac
+  done
+  for g in $live_groups; do
+    case " $want_groups " in
+      *" $g "*) ;;
+      *)
+        echo "removing $c.$ROLE from group $g"
+        kc remove-roles -r "$REALM" --gid "$(name_id groups "$g")" --cclientid "$c" --rolename "$ROLE"
+        ;;
+    esac
+  done
+  check "client $c $ROLE groups" "$want_groups" "$(role_groups "$id")"
+  if kc get "roles/default-roles-$REALM/composites/clients/$id" -r "$REALM" --format csv --noquotes --fields name | grep -qx "$ROLE"; then
+    got=present
+  else
+    got=absent
+  fi
+  check "client $c $ROLE in default roles" absent "$got"
+  n=$(kc get "clients/$id/roles/$ROLE/users" -r "$REALM" --format csv --noquotes --fields id | grep -c . || true)
+  [ "$n" = 0 ] || echo "WARN client $c: $n user(s) hold $c.$ROLE directly instead of through a group" >&2
+
+  bf="access-$c"
+  df="access-$c-direct"
+  want_b=$(
+    echo "REQUIRED,$bf-login,0"
+    login_rows "$bf" 1
+    printf '%s\n' "CONDITIONAL,$bf-gate,0" "REQUIRED,Condition - user role,1" "REQUIRED,Deny access,1"
+  )
+  want_d=$(printf '%s\n' "REQUIRED,Username Validation,0" "REQUIRED,Password,0" \
+    "CONDITIONAL,$df-otp,0" "REQUIRED,Condition - user configured,1" "REQUIRED,OTP,1" \
+    "CONDITIONAL,$df-gate,0" "REQUIRED,Condition - user role,1" "REQUIRED,Deny access,1")
+  bid=$(flow_id "$bf")
+  did=$(flow_id "$df")
+  rows_b=""
+  rows_d=""
+  if [ -n "$bid" ]; then rows_b=$(flow_rows "$bf"); fi
+  if [ -n "$did" ]; then rows_d=$(flow_rows "$df"); fi
+  # A flow that differs (a Job stopped half-way through building it) is
+  # rebuilt. Keycloak deletes only unbound flows, so the client falls back to
+  # the realm flow until the end of this iteration.
+  stale=""
+  if [ -n "$bid" ] && [ "$(shape "$rows_b")" != "$want_b" ]; then stale="$stale $bid"; bid=""; fi
+  if [ -n "$did" ] && [ "$(shape "$rows_d")" != "$want_d" ]; then stale="$stale $did"; did=""; fi
+  if [ -n "$stale" ]; then
+    echo "rebuilding the flows of $c"
+    kc update "clients/$id" -r "$REALM" -s 'authenticationFlowBindingOverrides={}'
+    for f in $stale; do kc delete "authentication/flows/$f" -r "$REALM"; done
+  fi
+  if [ -z "$bid" ]; then
+    new_flow "$bf" "Browser login to $c, then deny without $c.$ROLE (access.conf)"
+    sub "$bf" "$bf-login"
+    sub "$bf" "$bf-gate"
+    login_steps "$bf-login" "$bf"
+    step "$bf-gate" conditional-user-role
+    step "$bf-gate" deny-access-authenticator
+    {
+      echo "$bf-login=REQUIRED"
+      login_reqs "$bf"
+      printf '%s\n' "$bf-gate=CONDITIONAL" "Condition - user role=REQUIRED" "Deny access=REQUIRED"
+    } | set_reqs "$bf"
+    bid=$(flow_id "$bf")
+    rows_b=$(flow_rows "$bf")
+  fi
+  if [ -z "$did" ]; then
+    new_flow "$df" "Password grant to $c, then deny without $c.$ROLE (access.conf)"
+    step "$df" direct-grant-validate-username
+    step "$df" direct-grant-validate-password
+    sub "$df" "$df-otp"
+    step "$df-otp" conditional-user-configured
+    step "$df-otp" direct-grant-validate-otp
+    sub "$df" "$df-gate"
+    step "$df-gate" conditional-user-role
+    step "$df-gate" deny-access-authenticator
+    printf '%s\n' "Username Validation=REQUIRED" "Password=REQUIRED" "$df-otp=CONDITIONAL" \
+      "Condition - user configured=REQUIRED" "OTP=REQUIRED" "$df-gate=CONDITIONAL" \
+      "Condition - user role=REQUIRED" "Deny access=REQUIRED" | set_reqs "$df"
+    did=$(flow_id "$df")
+    rows_d=$(flow_rows "$df")
+  fi
+  check_flow "$bf" "$rows_b" "$want_b"
+  check_flow "$df" "$rows_d" "$want_d"
+  ensure_cfg "$bf" "$rows_b" "Condition - Level of Authentication" "$bf-max-age" \
+    loa-condition-level=1 "loa-max-age=$max_age"
+  ensure_cfg "$bf" "$rows_b" "Condition - user role" "$bf-role" "condUserRole=$c.$ROLE" negate=true
+  ensure_cfg "$df" "$rows_d" "Condition - user role" "$df-role" "condUserRole=$c.$ROLE" negate=true
+
+  live=$(kc get "clients/$id" -r "$REALM")
+  if [ "$(override "$live" browser)" != "$bid" ] || [ "$(override "$live" direct_grant)" != "$did" ]; then
+    kc update "clients/$id" -r "$REALM" -s "authenticationFlowBindingOverrides.browser=$bid" \
+      -s "authenticationFlowBindingOverrides.direct_grant=$did"
+    live=$(kc get "clients/$id" -r "$REALM")
+  fi
+  got=""
+  if [ "$(override "$live" browser)" = "$bid" ]; then got=$bf; fi
+  check "client $c browser flow" "$bf" "$got"
+  got=""
+  if [ "$(override "$live" direct_grant)" = "$did" ]; then got=$df; fi
+  check "client $c direct_grant flow" "$df" "$got"
+done
+
+# Read back the realm flow and its binding.
+check_flow "$FLOW" "$loa_rows" "$(login_rows "$FLOW" 0)"
 realm=$(kc get "realms/$REALM")
 check browserFlow "$FLOW" "$(printf '%s\n' "$realm" | sed -n 's/^ *"browserFlow" : "\(.*\)",\{0,1\}$/\1/p')"
 check acr.loa.map "{\\\"$ACR\\\":1}" "$(printf '%s\n' "$realm" | sed -n 's/^ *"acr\.loa\.map" : "\(.*\)",\{0,1\}$/\1/p')"

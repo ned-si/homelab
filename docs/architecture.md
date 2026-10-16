@@ -200,12 +200,34 @@ satisfied by an SSO cookie whose level-1 (password) login is younger than the
 max age; otherwise Keycloak shows the login form. Clients that request no ACR
 are satisfied by the cookie alone, so the user apps never see the prompt.
 
-The realm values live in `platform/keycloak/realm/sessions.conf` and
-`platform.conf`. After every sync of the `keycloak` Application, the PostSync
-Job `keycloak-realm-settings` writes them with `kcadm.sh` and reads them back;
-a mismatch fails the Job and the sync. Only what those files list is managed.
-Users, credentials, other client settings and groups stay in the Keycloak
-admin console.
+The realm values live in `platform/keycloak/realm/sessions.conf`,
+`platform.conf`, `clients.conf` and `access.conf`. After every sync of the
+`keycloak` Application, the PostSync Job `keycloak-realm-settings` writes them
+with `kcadm.sh` and reads them back; a mismatch fails the Job and the sync.
+Only what those files list is managed. Users, credentials, group members and
+other client settings stay in the Keycloak admin console.
+
+### Per-app access
+
+`access.conf` lists the groups that may log in to each app client. Each
+client gets a role `access`, mapped to exactly those groups, and its own
+browser and direct-grant flows (`access-<client>`, `access-<client>-direct`):
+the usual login, then "Condition - user role" (not `<client>.access`) and
+"Deny access". The check runs after the SSO cookie too, so a session for one
+app does not open another; a user outside the groups sees Keycloak's "Access
+denied" page. A denial counts as a failed login for brute-force detection, so
+a user who keeps opening an app they are not in can lock their account.
+
+| Group | Apps |
+| --- | --- |
+| `admins` | every app |
+| `family` | Immich, Audiobookshelf, Calibre-Web, Mealie, Paperless, Home Assistant |
+| `media` | Immich, Audiobookshelf, Calibre-Web |
+| `ArgoCDAdmins`, `HomeAssistantAdmins`, `TheaterAdmins` | Argo CD, Home Assistant, the theater admin UIs |
+
+A new user gets no app until they are in a group: Users, the user, Groups,
+Join group. To give a group another app, add it to the client's line in
+`access.conf` and merge.
 
 To change a value, edit the file, run `task render` and merge. To check the
 live realm:
