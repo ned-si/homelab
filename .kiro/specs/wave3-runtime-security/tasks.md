@@ -11,7 +11,7 @@ agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR 
       hook, `scripts/ci/kyverno.sh` blocking list by name, replace the four homelab
       duplicates after the side-by-side comparison, updated CLI tests. CI only, nothing in
       the cluster yet. [1.2, 1.3, 1.4, 1.5]
-- [ ] 3. PR `feat(policy): map each policy to CIS, NIST and NSA/CISA`:
+- [x] 3. (#569) PR `feat(policy): map each policy to CIS, NIST and NSA/CISA`:
       `policies/kyverno/upstream/controls.yaml`, `tests/test_security_controls.py`, the
       controls section of `docs/threat-model.md` (with the wave 4 baseline counts). [3.1,
       3.3, 3.4]
