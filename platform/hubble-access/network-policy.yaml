@@ -2,7 +2,8 @@
 # infrastructure/network-policies: the Hubble UI has no login and the relay
 # serves every flow of the cluster, so the path is closed hop by hop. Only the
 # Tailscale Ingress proxies reach hubble-sso, only hubble-sso reaches the UI,
-# only the UI reaches the relay. Egress stays open.
+# only the UI reaches the relay's API (and Prometheus its metrics). Egress
+# stays open.
 #
 # The kube-system policies select the relay and the UI pods only; no other pod
 # in kube-system is affected. `kubectl port-forward` to the relay enters the
@@ -75,6 +76,15 @@ spec:
       toPorts:
         - ports:
             - port: "4245"
+              protocol: TCP
+    # Prometheus scrapes the relay metrics (PodMonitor monitoring/hubble-relay).
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9966"
               protocol: TCP
     - fromEntities:
         - host
