@@ -28,7 +28,7 @@ spec:
       parameters:
         barmanObjectName: cnpg-backup
         serverName: immich-db
-  imageName: ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0
+  imageName: ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236
   instances: 1
   plugins:
   - enabled: true
@@ -39,6 +39,6 @@ spec:
       serverName: immich-db-t1
   postgresql:
     shared_preload_libraries:
-    - vectors.so
+    - vchord.so
   storage:
     size: 5Gi

@@ -91,11 +91,12 @@ def test_wan_ip_counted_per_layout(tmp_path):
 
 def test_immich_db_image(tmp_path):
     good = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "immich-db"},
-            "spec": {"imageName": "ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0"}}
+            "spec": {"imageName": "ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1"
+                                  "@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236"}}
     assert not [f for f in fails(policy(tmp_path, renders=[("legacy/all-apps", "1", None, "argo", [good])]))
                 if "immich-db-image" in f]
     bad = copy.deepcopy(good)
-    bad["spec"]["imageName"] = "ghcr.io/tensorchord/cloudnative-vectorchord:16"
+    bad["spec"]["imageName"] = "ghcr.io/tensorchord/cloudnative-pgvecto.rs:16.5-v0.3.0"
     r = policy(tmp_path / "b", renders=[("legacy/all-apps", "1", None, "argo", [bad])])
     assert any("immich-db-image" in f for f in fails(r))
     r = policy(tmp_path / "c", files={"apps/immich/values.yaml": "x: 1\n"})

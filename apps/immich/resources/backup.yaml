@@ -2,7 +2,7 @@
 # archiving plus a daily base backup, into
 # s3://ned-si-homelab-backups/cnpg/immich-db/, kept 30 days (point-in-time
 # recovery anywhere in that window). The barman tools run in the plugin's
-# sidecar, so the pgvecto.rs image needs nothing extra. Restore: docs/backups.md.
+# sidecar, so the VectorChord image needs nothing extra. Restore: docs/backups.md.
 #
 # Two independent things must be backed up. Losing either loses the library:
 #
