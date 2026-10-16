@@ -20,3 +20,4 @@ resources:
   - vuln-enrich.yaml
   - talos-drift.yaml
   - tailscale-operator.yaml
+  - headlamp.yaml

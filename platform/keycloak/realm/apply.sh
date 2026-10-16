@@ -272,18 +272,6 @@ client_id() { # clientId -> internal id; empty when the client does not exist
     grep -E ",$1\$" | cut -d, -f1 || true
 }
 
-for c in $clients; do
-  id=$(client_id "$c")
-  if [ -z "$id" ]; then
-    check "client $c" present ""
-    continue
-  fi
-  kc update "clients/$id" -r "$REALM" -s "attributes.\"default.acr.values\"=$ACR"
-  # `--fields attributes` returns an empty map: read the whole client.
-  got=$(kc get "clients/$id" -r "$REALM" | sed -n 's/^ *"default\.acr\.values" : "\(.*\)",\{0,1\}$/\1/p')
-  check "client $c default.acr.values" "$ACR" "$got"
-done
-
 # --- platform.conf: clients that must not exist --------------------------------
 for c in $(conf removed_clients); do
   id=$(client_id "$c")
@@ -359,6 +347,21 @@ for pc in $(conf proxy_clients); do
     got=absent
   fi
   check "client $c audience mapper" present "$got"
+done
+
+# --- platform.conf: default ACR of the platform clients -----------------------
+# After proxy_clients, so a platform client that is also a new proxy client
+# exists by now.
+for c in $clients; do
+  id=$(client_id "$c")
+  if [ -z "$id" ]; then
+    check "client $c" present ""
+    continue
+  fi
+  kc update "clients/$id" -r "$REALM" -s "attributes.\"default.acr.values\"=$ACR"
+  # `--fields attributes` returns an empty map: read the whole client.
+  got=$(kc get "clients/$id" -r "$REALM" | sed -n 's/^ *"default\.acr\.values" : "\(.*\)",\{0,1\}$/\1/p')
+  check "client $c default.acr.values" "$ACR" "$got"
 done
 
 # --- clients.conf: redirect URIs and web origins -------------------------------

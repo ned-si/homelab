@@ -1,0 +1,49 @@
+# Enforced from the start (default-deny ingress), unlike the allow-lists in
+# infrastructure/network-policies: Headlamp trusts the identity headers it
+# receives, so only headlamp-sso may reach it, and only the Tailscale Ingress
+# proxies may reach headlamp-sso. Egress stays open (API server, Keycloak).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: headlamp
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: headlamp-sso
+      toPorts:
+        - ports:
+            - port: "4466"
+              protocol: TCP
+    # kubelet probes.
+    - fromEntities:
+        - host
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: headlamp-sso
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp-sso
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+      toPorts:
+        - ports:
+            - port: "4180"
+              protocol: TCP
+    - fromEntities:
+        - host

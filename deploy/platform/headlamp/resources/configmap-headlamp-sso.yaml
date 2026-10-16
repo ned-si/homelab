@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/headlamp/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/headlamp/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  alpha-config.yaml: |
+    upstreamConfig:
+      upstreams:
+        - id: headlamp
+          path: /
+          uri: http://headlamp.headlamp.svc.cluster.local:80
+          # Log follow and watches are long-lived requests.
+          timeout: 3600s
+    injectRequestHeaders:
+      - name: X-Forwarded-User
+        values:
+          - claimSource:
+              claim: preferred_username
+      - name: X-Forwarded-Email
+        values:
+          - claimSource:
+              claim: email
+      - name: X-Forwarded-Group
+        values:
+          - claimSource:
+              claim: groups
+    server:
+      bindAddress: 0.0.0.0:4180
+    providers:
+      - id: keycloak
+        provider: keycloak-oidc
+        clientID: headlamp
+        clientSecretFile: /secrets/client-secret
+        scope: openid email profile groups
+        allowedGroups:
+          - admins
+        code_challenge_method: S256
+        oidcConfig:
+          issuerURL: https://auth.lilalala.com/realms/homelab
+          emailClaim: email
+          groupsClaim: groups
+          userIDClaim: email
+          audienceClaims:
+            - aud
+          insecureSkipNonce: false
+kind: ConfigMap
+metadata:
+  name: headlamp-sso
+  namespace: headlamp

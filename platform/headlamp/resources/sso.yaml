@@ -1,0 +1,176 @@
+# Keycloak login in front of Headlamp: the oauth2-proxy `headlamp-sso`.
+#
+#     Tailscale Ingress `headlamp` --> headlamp-sso:4180 --> headlamp:80
+#
+# Access needs membership of the Keycloak group `admins`, checked twice: the
+# client's own login flow denies anyone else (platform/keycloak/realm/access.conf)
+# and the proxy's allowedGroups below. The client `headlamp` is realm code
+# (platform/keycloak/realm/platform.conf, `proxy_clients`); it is a platform
+# client, so a login older than 12 hours is asked again.
+#
+# The proxy replaces any client-sent X-Forwarded-User/-Email/-Groups with the
+# logged-in user's, and Headlamp reads them (`-proxy-auth`). Headlamp itself
+# has no login and no break-glass: when Keycloak is down, use kubectl.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headlamp-sso
+data:
+  alpha-config.yaml: |
+    upstreamConfig:
+      upstreams:
+        - id: headlamp
+          path: /
+          uri: http://headlamp.headlamp.svc.cluster.local:80
+          # Log follow and watches are long-lived requests.
+          timeout: 3600s
+    injectRequestHeaders:
+      - name: X-Forwarded-User
+        values:
+          - claimSource:
+              claim: preferred_username
+      - name: X-Forwarded-Email
+        values:
+          - claimSource:
+              claim: email
+      - name: X-Forwarded-Group
+        values:
+          - claimSource:
+              claim: groups
+    server:
+      bindAddress: 0.0.0.0:4180
+    providers:
+      - id: keycloak
+        provider: keycloak-oidc
+        clientID: headlamp
+        clientSecretFile: /secrets/client-secret
+        scope: openid email profile groups
+        allowedGroups:
+          - admins
+        code_challenge_method: S256
+        oidcConfig:
+          issuerURL: https://auth.lilalala.com/realms/homelab
+          emailClaim: email
+          groupsClaim: groups
+          userIDClaim: email
+          audienceClaims:
+            - aud
+          insecureSkipNonce: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headlamp-sso
+  labels:
+    app.kubernetes.io/name: headlamp-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headlamp-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headlamp-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # `nonroot` in the distroless base image.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+          imagePullPolicy: IfNotPresent
+          args:
+            - --alpha-config=/config/alpha-config.yaml
+            # Authorization is the group in the alpha config.
+            - --email-domain=*
+            # Behind the Tailscale Ingress proxy (tailscale serve).
+            - --reverse-proxy=true
+            - --redirect-url=https://headlamp.tail32a1fc.ts.net/oauth2/callback
+            - --whitelist-domain=headlamp.tail32a1fc.ts.net
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # The platform-client session length (platform.conf loa_max_age).
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: headlamp-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping needs no session and does not depend on Keycloak.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: headlamp-sso
+        - name: secrets
+          secret:
+            secretName: headlamp-sso
+            items:
+              - key: client-secret
+                path: client-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: headlamp-sso
+  labels:
+    app.kubernetes.io/name: headlamp-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: headlamp-sso

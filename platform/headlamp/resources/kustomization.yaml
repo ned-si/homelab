@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Rendered to deploy/platform/headlamp/resources, the third source of the
+# headlamp Application.
+namespace: headlamp
+resources:
+  - sso.yaml
+  - ingress.yaml
+  - rbac.yaml
+  - network-policy.yaml
