@@ -109,6 +109,44 @@ as an admin. Grafana token: Administration, Service accounts,
 recreates it with a new value), the Argo CD token
 (`argocd account delete-token`) or the Grafana token.
 
+## Rotation periods
+
+Every sealed file has a row in `ci/secret-rotation.tsv`: its class and the
+date its values were last set. The class sets how long a value may live:
+
+| Class | Period | What |
+| --- | --- | --- |
+| `api-token` | 180 days | Keys and tokens for an outside system or the NAS: AWS IAM keys (`s3-backup`, `cnpg-backup-s3`, `aws-exporter`), Cloudflare, the GitHub token (`argocd-notifications`), TrueNAS (`democratic-csi-iscsi`) |
+| `credential` | 365 days | Passwords, OIDC client secrets and app API keys inside the homelab |
+| `static` | on compromise only | `talsecret` (the Talos PKI; rotating it is a CA rotation), `alertmanager-notify` (the ntfy topic and the heartbeat URL; a new topic means re-subscribing the phone), `plex-claim` (single use) |
+
+Credentials outside git follow the same classes: the Actions secret
+`AUTO_ROLLBACK_TOKEN` (the same value as `argocd-notifications`, so the same
+row), `NTFY_TOPIC` (`static`), the Argo CD OIDC client secret, the NAS root
+password and the DNS registrar and Cloudflare account logins (`credential`).
+Nothing checks the last four; rotate them with their sealed neighbours.
+
+Checks (dates only, never a value):
+
+- `scripts/ci/secret_rotation.py coverage` (repo-policy, every pull request):
+  every `*.sops.yaml` has exactly one row, no row is stale, classes and dates
+  are valid.
+- `scripts/ci/secret_rotation.py age` (workflow `secret-age`, Mondays 07:00
+  UTC): any row past its period fails the run, and the failure posts to ntfy.
+  Rows due within 30 days are listed in the run log.
+
+Run both locally:
+
+```sh
+python3 scripts/ci/secret_rotation.py coverage
+python3 scripts/ci/secret_rotation.py age
+```
+
+Expected: `secret-rotation <mode>: <n> row(s), 0 failure(s), ...` and exit 0.
+After a rotation (below), set the file's date in `ci/secret-rotation.tsv` to
+the day of the change, in the same pull request. A new sealed file gets its
+row in the pull request that adds it.
+
 ## Rotating a credential
 
 The general pattern: create the new value at its source, put it in the sealed
@@ -220,5 +258,9 @@ public.
   after every power cut blocks the cluster).
 - One key for the cluster: one person administers it. A second recipient (a
   recovery key) is one more `age:` entry and `sops updatekeys`.
+- Rotation age from a dated table in git, not from the cluster: a Secret's
+  `creationTimestamp` (`kube_secret_created`) does not move when Argo CD
+  updates its values, and `sops.lastmodified` moves on every re-seal, even with
+  the same values. Rejected: an in-cluster Prometheus alert on Secret age.
 - Grouped per layer, not per app: three exec-plugin directories instead of one
   per app.

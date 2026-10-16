@@ -140,7 +140,7 @@ What quiet hours do not cover:
 
 - healthchecks.io posts to ntfy directly when the heartbeat stops, so a dead
   cluster or a dead house internet still notifies at night.
-- The GitHub Actions failure posts (`dast`, `renovate-render`) go to ntfy
+- The GitHub Actions failure posts (`dast`, `renovate-render`, `secret-age`) go to ntfy
   directly, at priority low. In quiet hours they carry a `Delay` until 08:00
   Zurich (`scripts/ci/ntfy-quiet-delay.sh`), so ntfy delivers them then.
 - `HomelabNodeNotReady` and `HomelabNASUnreachable` also go, unmuted, to a

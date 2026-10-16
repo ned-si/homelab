@@ -10,6 +10,8 @@
 #      scripts/secrets-check.sh (strict), scripts/leak-check.sh,
 #      scripts/placeholder-check.sh, scripts/check-restic-repos.sh,
 #      scripts/render-deploy.sh --check, kube-linter on deploy/
+#   4. scripts/ci/secret_rotation.py coverage: every sealed file has a row in
+#      ci/secret-rotation.tsv
 # Every step runs; the script fails if any step failed.
 set -uo pipefail
 
@@ -54,6 +56,7 @@ else
 fi
 
 [ -x scripts/secrets-check.sh ] && step secrets-check env SECRETS_CHECK_STRICT=1 scripts/secrets-check.sh
+step secret-rotation python3 scripts/ci/secret_rotation.py coverage
 [ -x scripts/leak-check.sh ] && step leak-check scripts/leak-check.sh
 [ -x scripts/placeholder-check.sh ] && step placeholder-check scripts/placeholder-check.sh
 [ -x scripts/check-restic-repos.sh ] && step check-restic-repos scripts/check-restic-repos.sh
