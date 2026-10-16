@@ -12,6 +12,7 @@ resources:
   - restore-files.yaml
   - restore-postgres.yaml
   - restore-mariadb.yaml
+  - lock-test.yaml
   - alerts.yaml
 
 configMapGenerator:
@@ -21,6 +22,7 @@ configMapGenerator:
       - scripts/verify-files.sh
       - scripts/verify-postgres.sh
       - scripts/verify-mariadb.sh
+      - scripts/verify-lock.sh
       - scripts/restic-targets.txt
       - scripts/restic-data-targets.txt
       - scripts/postgres-targets.txt

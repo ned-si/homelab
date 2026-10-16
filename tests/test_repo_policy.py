@@ -331,6 +331,72 @@ def test_bootstrap_chart_without_helm_releases_entry(tmp_path):
     assert "FAIL bootstrap-chart-versions: ci/helm-releases.yaml has no argocd entry" in fails(r), r.stdout
 
 
+LOCK_STATEMENT = '''  statement {
+    sid    = "DenyVersionDestruction"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteObjectVersion",
+      "s3:PutBucketVersioning",
+      "s3:DeleteBucket",
+    ]
+    resources = [
+      aws_s3_bucket.backups.arn,
+      "${aws_s3_bucket.backups.arn}/*",
+    ]
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+  }
+'''
+
+
+def _aws_backup_tf(statement=LOCK_STATEMENT, policy="data.aws_iam_policy_document.bucket.json"):
+    return ('# A comment with a { brace.\n'
+            'data "aws_iam_policy_document" "bucket" {\n'
+            '  statement {\n    sid     = "DenyInsecureTransport"\n    effect  = "Deny"\n'
+            '    actions = ["s3:*"]\n    resources = ["${aws_s3_bucket.backups.arn}/*"]\n'
+            '    condition {\n      test = "Bool"\n      variable = "aws:SecureTransport"\n      values = ["false"]\n    }\n'
+            '  }\n\n' + statement + '}\n\n'
+            'resource "aws_s3_bucket_policy" "backups" {\n'
+            '  bucket = aws_s3_bucket.backups.id\n'
+            f'  policy = {policy}\n'
+            '}\n')
+
+
+def test_backup_bucket_lock_passes(tmp_path):
+    r = policy(tmp_path, files={"bootstrap/aws-backup/main.tf": _aws_backup_tf()})
+    assert r.returncode == 0, r.stdout
+    assert "backup-bucket-lock" in r.stdout
+
+
+def test_backup_bucket_lock_real_tree_passes():
+    from pathlib import Path
+    sys.path.insert(0, str(SCRIPTS))
+    import repo_policy
+    text = (Path(SCRIPTS).parents[1] / "bootstrap/aws-backup/main.tf").read_text()
+    doc = repo_policy.hcl_block(text, r'data\s+"aws_iam_policy_document"\s+"bucket"')
+    assert doc is not None
+    assert any(repo_policy.lock_statement(s) for s in repo_policy.hcl_blocks(doc, "statement"))
+
+
+@pytest.mark.parametrize("statement,policy_ref", [
+    ("", "data.aws_iam_policy_document.bucket.json"),
+    (LOCK_STATEMENT.replace('"Deny"', '"Allow"'), "data.aws_iam_policy_document.bucket.json"),
+    (LOCK_STATEMENT.replace('      "s3:DeleteObjectVersion",\n', ""), "data.aws_iam_policy_document.bucket.json"),
+    (LOCK_STATEMENT.replace('identifiers = ["*"]', 'identifiers = ["arn:aws:iam::1:root"]'),
+     "data.aws_iam_policy_document.bucket.json"),
+    (LOCK_STATEMENT.replace('      "${aws_s3_bucket.backups.arn}/*",\n', ""), "data.aws_iam_policy_document.bucket.json"),
+    (LOCK_STATEMENT.replace("    principals {", '    condition {\n      test = "StringEquals"\n'
+                            '      variable = "aws:PrincipalArn"\n      values = ["x"]\n    }\n    principals {'),
+     "data.aws_iam_policy_document.bucket.json"),
+    (LOCK_STATEMENT, "data.aws_iam_policy_document.other.json"),
+])
+def test_backup_bucket_lock_fails(tmp_path, statement, policy_ref):
+    r = policy(tmp_path, files={"bootstrap/aws-backup/main.tf": _aws_backup_tf(statement, policy_ref)})
+    assert any(f.startswith("FAIL backup-bucket-lock:") for f in fails(r)), r.stdout
+
+
 def cnpg_set():
     plugin = "barman-cloud.cloudnative-pg.io"
     cl = {"apiVersion": "postgresql.cnpg.io/v1", "kind": "Cluster", "metadata": {"name": "db"},

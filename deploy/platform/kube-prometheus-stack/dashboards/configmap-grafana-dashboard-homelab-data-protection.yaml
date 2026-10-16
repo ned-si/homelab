@@ -14,7 +14,7 @@ data:
     {
       "uid": "homelab-data-protection",
       "title": "Homelab / Data protection",
-      "description": "Restore test results (platform/backup-verify) and backup freshness.",
+      "description": "Restore test results (platform/backup-verify), the bucket version lock test and backup freshness.",
       "tags": [
         "homelab",
         "backup"
@@ -73,6 +73,225 @@ data:
           }
         },
         {
+          "id": 14,
+          "type": "row",
+          "title": "Bucket version lock",
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 2
+          },
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Old versions protected",
+          "description": "Weekly lock test (CronJob backup-verify-lock): deleting an old object version in ned-si-homelab-backups is refused by the bucket policy, and the policy still denies s3:DeleteObjectVersion to every principal. 0 fires BackupLockBroken (pages). docs/backups.md#immutable-versions",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "max(backup_verify_lock_ok)",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              },
+              "mappings": [
+                {
+                  "type": "value",
+                  "options": {
+                    "0": {
+                      "text": "BROKEN",
+                      "color": "red",
+                      "index": 0
+                    },
+                    "1": {
+                      "text": "Locked",
+                      "color": "green",
+                      "index": 1
+                    }
+                  }
+                }
+              ],
+              "noValue": "No result"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 15,
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 0,
+            "y": 3
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Lock test last passed",
+          "description": "Time since the last passing lock test. Over 8 days fires BackupLockCheckStale.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "time() - max(max_over_time(backup_verify_lock_last_success_timestamp_seconds[30d]))",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dtdurations",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 691200
+                  }
+                ]
+              },
+              "noValue": "Never"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 16,
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 8,
+            "y": 3
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Lock test last ran",
+          "description": "Time since the last lock test run, passing or not. A run that cannot conclude (for example the verifier key cannot write) pushes only this.",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "expr": "time() - max(max_over_time(backup_verify_lock_last_run_timestamp_seconds[30d]))",
+              "refId": "A",
+              "legendFormat": "",
+              "instant": true,
+              "range": false
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "dtdurations",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 691200
+                  }
+                ]
+              },
+              "noValue": "Never"
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "none",
+            "textMode": "auto",
+            "justifyMode": "auto",
+            "orientation": "auto"
+          },
+          "id": 17,
+          "gridPos": {
+            "h": 4,
+            "w": 8,
+            "x": 16,
+            "y": 3
+          }
+        },
+        {
           "id": 2,
           "type": "row",
           "title": "Restore tests",
@@ -81,7 +300,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 2
+            "y": 7
           },
           "panels": []
         },
@@ -144,7 +363,7 @@ data:
             "h": 4,
             "w": 6,
             "x": 0,
-            "y": 3
+            "y": 8
           }
         },
         {
@@ -206,7 +425,7 @@ data:
             "h": 4,
             "w": 6,
             "x": 6,
-            "y": 3
+            "y": 8
           }
         },
         {
@@ -268,7 +487,7 @@ data:
             "h": 4,
             "w": 6,
             "x": 12,
-            "y": 3
+            "y": 8
           }
         },
         {
@@ -326,7 +545,7 @@ data:
             "h": 4,
             "w": 6,
             "x": 18,
-            "y": 3
+            "y": 8
           }
         },
         {
@@ -655,7 +874,7 @@ data:
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 7
+            "y": 12
           }
         },
         {
@@ -667,7 +886,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 19
+            "y": 24
           },
           "panels": []
         },
@@ -752,7 +971,7 @@ data:
             "h": 10,
             "w": 12,
             "x": 0,
-            "y": 20
+            "y": 25
           }
         },
         {
@@ -836,7 +1055,7 @@ data:
             "h": 5,
             "w": 12,
             "x": 12,
-            "y": 20
+            "y": 25
           }
         },
         {
@@ -920,7 +1139,7 @@ data:
             "h": 5,
             "w": 12,
             "x": 12,
-            "y": 25
+            "y": 30
           }
         },
         {
@@ -932,7 +1151,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 30
+            "y": 35
           },
           "panels": []
         },
@@ -994,7 +1213,7 @@ data:
             "h": 12,
             "w": 24,
             "x": 0,
-            "y": 31
+            "y": 36
           }
         }
       ]

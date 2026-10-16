@@ -50,6 +50,11 @@ objects and rule ids only; values are never printed.
                         rendered ObjectStore in its namespace; no Cluster uses
                         spec.backup.barmanObjectStore; every ScheduledBackup is
                         method: plugin, not suspended, and targets such a Cluster
+  backup-bucket-lock    bootstrap/aws-backup/main.tf: aws_s3_bucket_policy.backups
+                        uses data.aws_iam_policy_document.bucket, and that
+                        document has a statement denying s3:DeleteObjectVersion,
+                        s3:PutBucketVersioning and s3:DeleteBucket to principal
+                        * on the bucket and its objects, without a condition
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   k8s-version-match     K8S_VERSION and the KIND_NODE_IMAGE tag in
@@ -102,6 +107,9 @@ LEGACY_PREFIXES = ("kubernetes/applications/", "iac/")
 IPV4 = re.compile(r"(?<![0-9.])(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 # Only a literal IPv4 value counts as "setting" the public address.
 DEFAULT_TARGETS = re.compile(r"--default-targets=(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
+AWS_BACKUP_TF = "bootstrap/aws-backup/main.tf"
+# What the backup bucket policy must deny to everyone (docs/backups.md#immutable-versions).
+LOCK_ACTIONS = {"s3:DeleteObjectVersion", "s3:PutBucketVersioning", "s3:DeleteBucket"}
 CI_WORKFLOW = ".github/workflows/ci.yaml"
 TALCONFIG = "talos/talconfig.yaml"
 K8S_MINOR = re.compile(r"^v?(\d+)\.(\d+)(?:\.\d+)?$")
@@ -503,6 +511,29 @@ class Policy:
                 self.fail("cnpg-backup", f"{app}: Cluster {ns}/{name} references ObjectStore {ns}/{store}, "
                                          "which is not rendered")
 
+    def rule_backup_bucket_lock(self) -> None:
+        rule = "backup-bucket-lock"
+        tf = self.root / AWS_BACKUP_TF
+        if not tf.is_file():
+            return
+        self.on(rule)
+        text = tf.read_text()
+        pol = hcl_block(text, r'resource\s+"aws_s3_bucket_policy"\s+"backups"')
+        if pol is None:
+            self.fail(rule, f"{AWS_BACKUP_TF}: no resource aws_s3_bucket_policy.backups")
+        elif not re.search(r'^\s*policy\s*=\s*data\.aws_iam_policy_document\.bucket\.json\s*$', pol, re.M) \
+                or not re.search(r'^\s*bucket\s*=\s*aws_s3_bucket\.backups\.id\s*$', pol, re.M):
+            self.fail(rule, f"{AWS_BACKUP_TF}: aws_s3_bucket_policy.backups must set bucket = aws_s3_bucket.backups.id "
+                            "and policy = data.aws_iam_policy_document.bucket.json")
+        doc = hcl_block(text, r'data\s+"aws_iam_policy_document"\s+"bucket"')
+        if doc is None:
+            self.fail(rule, f"{AWS_BACKUP_TF}: no data aws_iam_policy_document.bucket")
+            return
+        if not any(lock_statement(s) for s in hcl_blocks(doc, r'statement')):
+            self.fail(rule, f"{AWS_BACKUP_TF}: data.aws_iam_policy_document.bucket has no statement that denies "
+                            f"{', '.join(sorted(LOCK_ACTIONS))} to principal * on the bucket and its objects "
+                            "without a condition")
+
     def rule_expected_ingresses(self) -> None:
         wanted = self.read_list("ci/expected-ingresses.txt")
         if wanted is None:
@@ -612,6 +643,7 @@ class Policy:
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
                      self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
+                     self.rule_backup_bucket_lock,
                      self.rule_expected_ingresses, self.rule_k8s_version, self.rule_image_bulky,
                      self.rule_image_variant, self.rule_image_digest):
             rule()
@@ -620,6 +652,85 @@ class Policy:
         print(f"repo-policy: {len(self.active)} rule(s) active ({', '.join(self.active) or 'none'}), "
               f"{len(self.fails)} failure(s)")
         return 1 if self.fails else 0
+
+
+def hcl_blocks(text: str, header: str) -> list[str]:
+    """Bodies of the top-level blocks of `text` whose header matches `header` (`name "label" ... {`).
+
+    Braces are counted outside comments and strings; `${...}` inside a string
+    is balanced, so it needs no special case."""
+    out, depth, i, n = [], 0, 0, len(text)
+    head = re.compile(r"(?:^|(?<=\s))" + header + r"\s*\{")
+    while i < n:
+        c = text[i]
+        if c == "#" or text.startswith("//", i):
+            i = text.find("\n", i)
+            i = n if i < 0 else i
+            continue
+        if text.startswith("/*", i):
+            i = text.find("*/", i)
+            i = n if i < 0 else i + 2
+            continue
+        if c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            i = j + 1
+            continue
+        if depth == 0:
+            m = head.match(text, i)
+            if m:
+                body_start = m.end()
+                j, d = body_start, 1
+                while j < n and d:
+                    if text[j] == '"':
+                        k = j + 1
+                        while k < n and text[k] != '"':
+                            k += 2 if text[k] == "\\" else 1
+                        j = k + 1
+                        continue
+                    if text[j] == "#":
+                        k = text.find("\n", j)
+                        j = n if k < 0 else k
+                        continue
+                    d += {"{": 1, "}": -1}.get(text[j], 0)
+                    j += 1
+                out.append(text[body_start:j - 1])
+                i = j
+                continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return out
+
+
+def hcl_block(text: str, header: str) -> str | None:
+    """The body of the one top-level block matching `header`, else None."""
+    blocks = hcl_blocks(text, header)
+    return blocks[0] if len(blocks) == 1 else None
+
+
+def hcl_strings(body: str, attr: str) -> list[str] | None:
+    """String items of `attr = [...]` or `attr = "..."` in a block body, else None."""
+    m = re.search(r"^\s*" + attr + r"\s*=\s*(\[[^\]]*\]|\"[^\"]*\")", body, re.M)
+    return re.findall(r'"([^"]*)"', m.group(1)) if m else None
+
+
+def lock_statement(stmt: str) -> bool:
+    """A bucket-policy statement that keeps every version: Deny LOCK_ACTIONS to principal * on the bucket and its
+    objects, without a condition."""
+    if hcl_strings(stmt, "effect") != ["Deny"] or hcl_blocks(stmt, "condition"):
+        return False
+    if not LOCK_ACTIONS <= set(hcl_strings(stmt, "actions") or []):
+        return False
+    resources = re.search(r"^\s*resources\s*=\s*\[(.*?)\]", stmt, re.M | re.S)
+    if not resources or not re.search(r"(?:^|[\s,])aws_s3_bucket\.backups\.arn\s*(?:,|$)", resources.group(1), re.M) \
+            or '"${aws_s3_bucket.backups.arn}/*"' not in resources.group(1):
+        return False
+    return any(hcl_strings(p, "type") == ["*"] and hcl_strings(p, "identifiers") == ["*"]
+               for p in hcl_blocks(stmt, "principals"))
 
 
 def check_guard(cj: dict, mode: str | None) -> list[str]:

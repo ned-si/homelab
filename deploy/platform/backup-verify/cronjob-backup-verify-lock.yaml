@@ -1,0 +1,119 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-lock
+  namespace: backup-verify
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      backoffLimit: 0
+      template:
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/verify-lock.sh
+            - report
+            env:
+            - name: WORK
+              value: /work
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            name: report
+            resources:
+              limits:
+                ephemeral-storage: 64Mi
+                memory: 64Mi
+              requests:
+                cpu: 10m
+                ephemeral-storage: 16Mi
+                memory: 16Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          initContainers:
+          - command:
+            - /bin/sh
+            - /scripts/verify-lock.sh
+            - test
+            env:
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_ACCESS_KEY_ID
+                  name: s3-backup
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: AWS_SECRET_ACCESS_KEY
+                  name: s3-backup
+            - name: AWS_DEFAULT_REGION
+              value: eu-central-1
+            - name: AWS_PAGER
+              value: ""
+            - name: HOME
+              value: /work
+            - name: WORK
+              value: /work
+            image: amazon/aws-cli:2.38.1@sha256:733d5be1015825e4038c6016f3fa9954868ddee1f611b73be795a9cc2e706bfd
+            name: test
+            resources:
+              limits:
+                ephemeral-storage: 64Mi
+                memory: 256Mi
+              requests:
+                cpu: 10m
+                ephemeral-storage: 16Mi
+                memory: 64Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 65534
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: backup-verify
+          volumes:
+          - configMap:
+              name: backup-verify-scripts-gmht44hmk9
+            name: scripts
+          - emptyDir:
+              sizeLimit: 64Mi
+            name: work
+  schedule: 0 20 * * 6
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  suspend: false

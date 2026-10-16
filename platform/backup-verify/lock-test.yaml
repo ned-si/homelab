@@ -1,0 +1,108 @@
+# Weekly test of the version lock on the backup bucket
+# (scripts/verify-lock.sh, one phase per container): an old object version
+# must not be deletable. Alert: BackupLockBroken (alerts.yaml).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-lock
+spec:
+  # Saturday 20:00 UTC, before the other restore tests; takes seconds.
+  schedule: "0 20 * * 6"
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: backup-verify
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: test
+              # renovate: datasource=docker depName=amazon/aws-cli
+              image: amazon/aws-cli:2.38.1@sha256:733d5be1015825e4038c6016f3fa9954868ddee1f611b73be795a9cc2e706bfd
+              command: ["/bin/sh", "/scripts/verify-lock.sh", "test"]
+              env:
+                # The verifier key only, not the rest of the Secret.
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: s3-backup
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: s3-backup
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: AWS_DEFAULT_REGION
+                  value: eu-central-1
+                - name: AWS_PAGER
+                  value: ""
+                - name: HOME
+                  value: /work
+                - name: WORK
+                  value: /work
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                  ephemeral-storage: 16Mi
+                limits:
+                  memory: 256Mi
+                  ephemeral-storage: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          containers:
+            - name: report
+              # jq and wget.
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+              command: ["/bin/sh", "/scripts/verify-lock.sh", "report"]
+              env:
+                - name: WORK
+                  value: /work
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                  ephemeral-storage: 16Mi
+                limits:
+                  memory: 64Mi
+                  ephemeral-storage: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: backup-verify-scripts
+            - name: work
+              emptyDir:
+                sizeLimit: 64Mi

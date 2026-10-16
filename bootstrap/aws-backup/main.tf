@@ -448,9 +448,10 @@ resource "aws_iam_access_key" "cnpg" {
 }
 
 # ---------------------------------------------------------------------------
-# A read-only credential for verification, used by the annual in-region restore
-# drill (docs/backups.md). It cannot write or delete anything at all, so a drill
-# gone wrong cannot damage the backup it is testing.
+# A read-only credential for verification, used by the restore tests
+# (platform/backup-verify) and the annual in-region restore drill
+# (docs/backups.md). It writes only restic lock files and the _lock-test/
+# prefix, so a test gone wrong cannot damage the backup it is testing.
 # ---------------------------------------------------------------------------
 resource "aws_iam_user" "verify" {
   name = "${var.bucket_name}-verifier"
@@ -481,6 +482,23 @@ data "aws_iam_policy_document" "verify" {
     effect    = "Allow"
     actions   = ["s3:PutObject", "s3:DeleteObject"]
     resources = ["${aws_s3_bucket.backups.arn}/*/locks/*"]
+  }
+  # The weekly version-lock test (platform/backup-verify/lock-test.yaml): it
+  # writes _lock-test/weekly, tries to delete an old version of it and reads
+  # the bucket policy. DeleteObjectVersion is allowed here on purpose, on that
+  # prefix only: the bucket policy's deny is then the only thing that stops
+  # it, so the test fails if that statement goes.
+  statement {
+    sid       = "LockTestObject"
+    effect    = "Allow"
+    actions   = ["s3:PutObject", "s3:DeleteObjectVersion"]
+    resources = ["${aws_s3_bucket.backups.arn}/_lock-test/*"]
+  }
+  statement {
+    sid       = "LockTestPolicyRead"
+    effect    = "Allow"
+    actions   = ["s3:GetBucketPolicy"]
+    resources = [aws_s3_bucket.backups.arn]
   }
 }
 

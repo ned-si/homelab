@@ -296,7 +296,7 @@ alertmanager:
           mute_time_intervals: [quiet-hours]
         - receiver: ntfy
           matchers:
-            - alertname =~ "BackupVerifyFailed|CNPGBackupFailed|CNPGWALArchivingFailing"
+            - alertname =~ "BackupVerifyFailed|BackupLockBroken|CNPGBackupFailed|CNPGWALArchivingFailing"
           group_by: [alertname]
           group_wait: 5m
           mute_time_intervals: [quiet-hours]

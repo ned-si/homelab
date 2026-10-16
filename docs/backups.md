@@ -174,8 +174,9 @@ The theater jobs share one repository and restic takes an exclusive lock for
 other rendered CronJob that is not suspended.
 
 The restore tests run on weekend evenings, outside this window and one at a
-time: `backup-verify-mariadb` Saturday 21:00, `backup-verify-files` Saturday
-22:00, `backup-verify-postgres` Sunday 21:00 ([Verification](#verification)).
+time: `backup-verify-lock` Saturday 20:00, `backup-verify-mariadb` Saturday
+21:00, `backup-verify-files` Saturday 22:00, `backup-verify-postgres` Sunday
+21:00 ([Verification](#verification)).
 
 A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack.
 For Postgres, PrometheusRule `cnpg-backups` (group `cnpg.backups`, in
@@ -695,7 +696,7 @@ would make the repository unreadable. Instant Retrieval, not Deep Archive, so
 | IAM user | Used by | Can |
 |---|---|---|
 | `ned-si-homelab-backups-writer` | the backup jobs, via `s3-backup` | get, put and delete objects; list the bucket |
-| `ned-si-homelab-backups-verifier` | restores and drills | get objects and versions, list the bucket, write only under `*/locks/` |
+| `ned-si-homelab-backups-verifier` | restores, drills and the lock test | get objects and versions, list the bucket, write only under `*/locks/` and `_lock-test/`; delete versions under `_lock-test/` (refused by the bucket policy, which is the test); read the bucket policy |
 | `ned-si-homelab-backups-cnpg` | the Barman Cloud plugin, via `cnpg-backup-s3` | get, put and delete objects under `cnpg/` only; list the bucket only without a prefix or with `cnpg/*` |
 | `homelab-metrics-reader` | the AWS dashboard, via `aws-exporter` | list the bucket (no object reads); read CloudWatch metrics and Cost Explorer |
 
@@ -722,11 +723,32 @@ bucket policies). Restic prune, the Barman Cloud retention and the verify
 jobs only issue plain deletes, so they work unchanged. Changing the lifecycle
 or the policy is a pull request: the `tofu` workflow applies it on merge.
 
-Check it (expected: `AccessDenied` on a key that does not exist, so nothing
-can be lost if it were allowed):
+How it is proven:
+
+- **Live test, 2026-10-16.** An object under `_lock-test/` written twice by
+  the writer key, then a delete of its older version (`delete-object
+  --version-id`) with the writer key, the verifier key and the account root
+  user: all three got `AccessDenied ... with an explicit deny in a
+  resource-based policy`. A plain delete by the writer added a delete
+  marker; both versions are still there and expire with the lifecycle rule.
+- **Weekly, in the cluster.** CronJob `backup-verify-lock` (Saturday 20:00
+  UTC) does the same with the verifier key on `_lock-test/weekly`. That key is
+  allowed `s3:DeleteObjectVersion` there, so only the bucket policy refuses
+  it. It also reads the policy and checks for an unconditional `Deny` of
+  `s3:DeleteObjectVersion` to every principal on every object. Result:
+  `backup_verify_lock_ok`; `BackupLockBroken` (critical, ntfy) when the delete
+  succeeds or the statement is missing ([When the lock test fails](#when-the-lock-test-fails)).
+- **On every pull request.** repo-policy `backup-bucket-lock` fails if
+  `aws_s3_bucket_policy.backups` stops using
+  `data.aws_iam_policy_document.bucket`, or that document loses its
+  unconditional `Deny` of `s3:DeleteObjectVersion`, `s3:PutBucketVersioning`
+  and `s3:DeleteBucket` to principal `*` on the bucket and its objects. The
+  daily `tofu` plan catches the live policy drifting from the code.
+
+By hand (expected: `AccessDenied`, on a key that does not exist):
 
 ```sh
-aws s3api delete-object-version --profile homelab --bucket ned-si-homelab-backups \
+aws s3api delete-object --profile homelab --bucket ned-si-homelab-backups \
   --key policy-check/none --version-id null
 ```
 
@@ -889,12 +911,14 @@ For a new bucket or a rebuilt cluster, in order.
 Every nightly job ends with `restic check` (structure: snapshots, trees and blob
 index, not the pack contents). On top of that, the Application `backup-verify`
 (`platform/backup-verify/`, namespace `backup-verify`) restores every backup on a
-schedule and compares the result. It only reads: S3 through the read-only verifier
-key in `backup-verify/s3-backup`, the NAS repository mounted read-only, restic
-with `--no-lock`, and the production databases through read-only transactions.
+schedule and compares the result. It only reads: S3 through the verifier key in
+`backup-verify/s3-backup` (which writes nothing outside `*/locks/` and
+`_lock-test/`), the NAS repository mounted read-only, restic with `--no-lock`,
+and the production databases through read-only transactions.
 
 | CronJob (UTC) | What it proves | Pass when |
 | --- | --- | --- |
+| `backup-verify-lock`, Saturday 20:00 | an old version in the bucket cannot be deleted ([Immutable versions](#immutable-versions)) | the delete of the older version of `_lock-test/weekly` is refused by the bucket policy, and the policy still denies `s3:DeleteObjectVersion` to every principal |
 | `backup-verify-mariadb`, Saturday 21:00 | the newest `seafile-mariadb` dump loads into a scratch MariaDB (same image as the server, on an emptyDir) | the table sets of `ccnet_db`, `seafile_db` and `seahub_db` equal the live server's, and every table not written since the dump has the live row count |
 | `backup-verify-files`, Saturday 22:00 | per tag in `scripts/restic-targets.txt`: the newest snapshot restores, with `restic restore --verify`, into an emptyDir | the snapshot is at most 72 h old, every required file (identity, keys, configs, dumps) is in it and non-empty, and the required files plus five sampled files of up to 64 MiB (a different sample every ISO week) restore with the size the snapshot records |
 | the same job, first Saturday of the month | `restic check --read-data-subset=<n>/<slices>` on every repository in `scripts/restic-data-targets.txt` | no errors; the slice rotates monthly, so every pack is read once every 12 months (S3 `immich/library`: 1/120 a month, about 2.3 GiB) |
@@ -926,13 +950,17 @@ scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
 | `backup_verify_rows`, `backup_verify_tables` | rows and tables restored and compared (Postgres, MariaDB) |
 | `backup_verify_files`, `backup_verify_bytes` | files and bytes restored (restic) |
 | `backup_verify_restore_seconds` | time to a Ready restored cluster (Postgres) |
+| `backup_verify_lock_ok` | lock test (`check="lock"`): 1 the version delete was refused by the bucket policy, 0 it succeeded or the deny is gone; not pushed by an inconclusive run |
+| `backup_verify_lock_last_success_timestamp_seconds`, `backup_verify_lock_last_run_timestamp_seconds` | end of the last passing and of the last lock test |
 
 Alerts (PrometheusRule `backup-verify`, group `backup.verify`, all `warning`;
 only `BackupVerifyFailed` notifies on ntfy, [sre.md](sre.md#paging)):
 `BackupVerifyFailed` (a check's last run failed), `BackupVerifyStale` (no
 pass in 8 days), `BackupVerifyDataStale` (no monthly pack read in 36 days) and
 `BackupVerifyMissing` (no passing result of a check at all). A Job that crashes
-before pushing also fires the stock `KubeJobFailed`.
+before pushing also fires the stock `KubeJobFailed`. Group `backup.lock`:
+`BackupLockBroken` (`critical`, notifies) and `BackupLockCheckStale`
+(`warning`, no passing lock test in 8 days or none on record).
 
 ```sh
 kubectl -n backup-verify get cronjobs,jobs
@@ -993,6 +1021,25 @@ restic --no-lock check --read-data
 
 Expected: `no errors were found`. Terminate the instance afterwards. The NAS
 repository can be read in full for free from inside the cluster.
+
+### When the lock test fails
+
+```sh
+kubectl -n backup-verify logs job/<job> -c report
+```
+
+- `BROKEN: DeleteObjectVersion ... succeeded`, `BROKEN: the bucket has no
+  policy` or `BROKEN: no unconditional Deny ...`: the bucket no longer
+  protects old versions. Run the `tofu` workflow (`gh workflow run
+  tofu.yaml`), which re-applies the policy, and check it with `aws s3api
+  get-bucket-policy --profile homelab --bucket ned-si-homelab-backups`. Then
+  find who changed it (CloudTrail `PutBucketPolicy`/`DeleteBucketPolicy`
+  events) and rotate the keys if it was not you. A new run must log `OK`:
+  `kubectl -n backup-verify create job --from=cronjob/backup-verify-lock lock-now`.
+- `INCONCLUSIVE`: the verifier key could not write `_lock-test/weekly` or read
+  the policy, or the delete was refused by something other than the bucket
+  policy (for example the verifier's IAM policy not applied). Only the run
+  time is pushed; `BackupLockCheckStale` fires after 8 days without a pass.
 
 ## Known gaps
 

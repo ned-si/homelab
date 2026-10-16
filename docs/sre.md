@@ -122,7 +122,7 @@ Alertmanager, where the agent pass and the dashboards read it.
 | Node disk | `NodeFilesystemReadOnly` (an eMMC starting to fail) | alert | 4 h |
 | Talos upgrade | `TalosUpgradeFailed` (tuppr stopped the rollout) | alert | 4 h |
 | Alert delivery | `AlertmanagerNotificationsFailing` (reaches the phone only if ntfy still works; the heartbeat covers the rest) | alert | 4 h |
-| Backups | `BackupVerifyFailed`, `CNPGBackupFailed`, `CNPGWALArchivingFailing`, `KubeJobFailed` of a `*-backup-*` Job | alert | 24 h |
+| Backups | `BackupVerifyFailed`, `BackupLockBroken`, `CNPGBackupFailed`, `CNPGWALArchivingFailing`, `KubeJobFailed` of a `*-backup-*` Job | alert | 24 h |
 | Security | any `critical` alert labelled `category: security` | alert | 4 h |
 | Heartbeat | `Watchdog`, to healthchecks.io every 5 minutes, which notifies when it stops | | |
 
