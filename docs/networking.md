@@ -208,10 +208,24 @@ Expected: `READY True`.
 ## Network policy
 
 `infrastructure/network-policies/` holds a `CiliumNetworkPolicy` set per app
-namespace. It is written and not enabled: its Application file is not in the
-infrastructure layer. Every policy ships with
+namespace (`immich`, `mealie`, `paperless`, `syncthing`, `theater`), synced by
+the Application `network-policies` (infrastructure layer, wave 30, prune on,
+self-heal off). Nothing is enforced: every policy ships with
 `enableDefaultDeny: {ingress: false, egress: false}`; enforcement is opt-in per
-namespace in `90-enforcement.yaml`, which also documents the procedure.
+namespace and direction in `90-enforcement.yaml`, which also documents the
+procedure and the one-step revert.
+
+With only such policies selecting a pod, Cilium enables policy for it and adds
+a wildcard-allow rule last, so `cilium-dbg endpoint list` shows `Enabled` and
+traffic is unchanged. A flow that no allow-list rule covers is allowed by that
+wildcard rule (Hubble match type `all`): it would be dropped once the namespace
+is switched to default-deny.
+
+```sh
+kubectl get cnp -A | grep -v -E 'headlamp|hubble' | wc -l
+```
+
+Expected: the policy count plus the header line (28 today).
 
 NFS and iSCSI are mounted by the kubelet and `iscsid` in the host network
 namespace, so a pod policy never sees that traffic. The NAS export allow-list is

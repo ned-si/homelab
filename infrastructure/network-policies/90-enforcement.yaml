@@ -30,10 +30,18 @@
 #     kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
 #       cilium-dbg policy get | head -40
 #
-#   Confirm nothing is enforced. The POLICY columns must read `Disabled`:
+#   Confirm nothing is enforced. The POLICY columns of the selected endpoints
+#   read `Enabled` (Cilium computes their policy, with the synthesized
+#   wildcard-allow rule of point 3), so check the verdicts instead: no
+#   `policy-verdict` drop in a policed namespace.
 #
-#     kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
-#       cilium-dbg endpoint list
+#     kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
+#     hubble observe --server localhost:4245 --type policy-verdict \
+#       --verdict DROPPED --namespace mealie --last 100
+#
+#   A flow no allow-list rule covers is allowed by the wildcard rule, which
+#   Hubble reports as match type `all`: that is a would-be drop
+#   (docs/networking.md, "Network policy").
 #
 # STEP 1 -- learn what the namespace actually does, from the cluster, not from
 #           this repo. Hubble is enabled (infrastructure/cilium/values.yaml:
@@ -66,7 +74,7 @@
 #     hubble observe --server localhost:4245 --namespace mealie --verdict DROPPED -f
 #
 # STEP 4 -- flip the same namespace's egress. Then repeat 3-4 for immich,
-#           paperless, seafile, syncthing, and theater LAST. theater is the
+#           paperless, syncthing, and theater LAST. theater is the
 #           largest (seven workloads and four Postgres clusters) and the one with
 #           a known-fragile component, so it benefits most from the practice.
 #
@@ -229,35 +237,6 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: enforce-default-deny
-  namespace: seafile
-spec:
-  description: >-
-    Enforcement switch for the seafile namespace, plus kubelet probes in and
-    cluster DNS out.
-  endpointSelector: {}
-  enableDefaultDeny:
-    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
-    egress: false      # <-- true enforces EGRESS default-deny for this namespace
-  ingress:
-    - fromEntities:
-        - host
-        - remote-node
-  egress:
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: kube-system
-            k8s-app: kube-dns
-      toPorts:
-        - ports:
-            - port: "53"
-              protocol: UDP
-            - port: "53"
-              protocol: TCP
----
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: enforce-default-deny
   namespace: syncthing
 spec:
   description: >-
@@ -284,7 +263,7 @@ spec:
               protocol: TCP
 ---
 # theater last: the largest namespace (seven workloads, four Postgres
-# clusters). Enforce it once the other five have been stable.
+# clusters). Enforce it once the other four have been stable.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
