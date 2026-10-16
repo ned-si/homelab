@@ -7,10 +7,47 @@
 [![last commit](https://img.shields.io/github/last-commit/ned-si/homelab/main)](https://github.com/ned-si/homelab/commits/main)
 [![license](https://img.shields.io/github/license/ned-si/homelab)](LICENSE)
 
-GitOps repository for a family homelab: a four-node arm64 Kubernetes cluster
-that hosts photos, media, files, documents and recipes for the household,
-behind one Keycloak single sign-on. Argo CD deploys it from this repository:
-one root Application, three layers, one Application per app.
+This is the README of an extremely over-engineered homelab. Four small arm64
+boards on one motherboard run what a household needs (photos, films,
+documents, recipes), with more automation, policy and monitoring than a few
+photo albums will ever deserve. Fair enough: that is rather the point.
+
+The goals, roughly in order of how easy they are to justify:
+
+1. Run the services I actually need.
+2. Run almost by itself, upgrades included. Renovate opens the pull requests,
+   CI is the only gate, green CI merges, and a merge that degrades an app is
+   reverted automatically. I should only hear about it when a person has to
+   act.
+3. Apply current best practices for modern platform and infrastructure
+   deployments (GitOps, DevSecOps, SRE), at a scale where nobody can complain
+   that they slow things down.
+4. Show what spec-driven development with AI can do today. Most of this
+   repository was planned, written and checked by AI agents working from
+   briefs, skills and specs, with me deciding what gets built.
+5. Share all of it, as inspiration, as an implementation example, or as a
+   bag of ideas on how things can be done and automated now. There is no need
+   to copy it all: pick one piece, make it yours, and iterate.
+
+Is it reasonable for a home? No. Is it a very good playground? Indeed.
+
+## What's inside
+
+- GitOps: Argo CD deploys `main`, one root Application, three layers, one
+  Application per app ([architecture](docs/architecture.md),
+  [decisions](docs/decisions.md)).
+- Autonomous operation: Renovate automerge, automatic rollback, Talos and
+  Kubernetes upgrades rehearsed in CI and rolled out by tuppr
+  ([talos](docs/talos.md), [rollback](docs/decisions.md#automatic-rollback)).
+- DevSecOps: signed commits, everything pinned, SOPS secrets, layered CI,
+  DAST, a threat model ([testing](docs/testing.md), [secrets](docs/secrets.md),
+  [threat model](docs/threat-model.md)).
+- SRE: SLOs, paging only when a person has to act, dashboards for the rest,
+  postmortems ([sre](docs/sre.md), [observability](docs/observability.md)).
+- Data: WAL archiving, nightly backups, a version-locked bucket and restore
+  tests ([backups](docs/backups.md)).
+- Network: one shared Gateway, Let's Encrypt certificates, Cloudflare DNS
+  ([networking](docs/networking.md)).
 
 ## At a glance
 
