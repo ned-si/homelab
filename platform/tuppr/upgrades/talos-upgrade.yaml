@@ -19,7 +19,7 @@ spec:
   talos:
     # Equal to talosVersion in talos/talconfig.yaml (CI checks).
     # renovate: datasource=docker depName=ghcr.io/siderolabs/talos
-    version: v1.14.3
+    version: v1.14.4
   policy:
     # No drain: each CloudNativePG cluster has one instance and a PDB that
     # allows no eviction, so a drain could never finish. Talos stops the pods
