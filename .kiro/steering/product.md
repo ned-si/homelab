@@ -27,7 +27,7 @@ one Keycloak single sign-on, and it is public as an implementation example.
 | Device sync | Syncthing |
 | Home | Home Assistant, Mosquitto, Zigbee2MQTT |
 | Identity | Keycloak, realm `homelab`, per-app access by group |
-| Operator tools | Argo CD, Grafana, Headlamp (tailnet only) |
+| Operator tools | Argo CD, Grafana, Headlamp (public behind Keycloak, group `admins`) |
 
 The current list with namespaces and hostnames is the Services table in
 [README.md](../../README.md#services). Plex and Jellyfin stay off SSO so the
@@ -56,3 +56,6 @@ TV apps can sign in.
 - No data loss: data volumes are `Retain`, no prune where a deletion is an
   outage ([docs/decisions.md](../../docs/decisions.md)).
 - Public repository: no secrets, no personal data, LAN addresses are fine.
+- UIs are public on the shared Gateway behind Keycloak SSO and group gating;
+  `kubectl` and `talosctl` go through the tailnet only
+  ([docs/decisions.md](../../docs/decisions.md#uis-public-behind-sso-cluster-apis-on-the-tailnet)).

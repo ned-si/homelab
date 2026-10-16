@@ -6,7 +6,7 @@ kind: Kustomization
 namespace: headlamp
 resources:
   - sso.yaml
-  - ingress.yaml
+  - httproute.yaml
   - rbac.yaml
   - network-policy.yaml
 

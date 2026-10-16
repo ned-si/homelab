@@ -9,13 +9,13 @@ flowchart LR
   GW --> P[oauth2-proxy theater-sso] -->|OIDC| KC
   KC -->|access-<client> flow: role access or deny| APP
   OP[operator device] -->|tailnet| TS[Tailscale operator: API proxy, auth mode] --> API[kube-apiserver]
-  OP -->|tailnet| HI[Ingress proxy] --> HS[headlamp-sso] --> HL[Headlamp, read-only SA]
+  GW --> HS[headlamp-sso] --> HL[Headlamp, read-only SA]
   HS -->|OIDC, group admins| KC
   G[git: *.sops.yaml] -->|KSOPS on repo-server, age key| S[Secrets]
 ```
 
-Identity has one source (Keycloak); network reachability for operators has one
-path (the tailnet); secrets have one store (SOPS in git, age key off-cluster
+Identity has one source (Keycloak); web UIs are public behind it, and the
+cluster APIs have one path (the tailnet); secrets have one store (SOPS in git, age key off-cluster
 plus the `sops-age` Secret).
 
 ## Components
@@ -27,7 +27,7 @@ plus the `sops-age` Secret).
 | `apps/theater/sso.yaml`, `platform/headlamp/resources/sso.yaml` | oauth2-proxy in front of apps without OIDC |
 | `platform/tailscale-operator/` | Operator chart, API proxy RBAC, ProxyClass `restricted`, Connector `home-exit` |
 | `bootstrap/tailscale/policy.hujson`, `.github/workflows/tailscale-policy.yaml` | Tailnet policy in git, tested on PR, applied on merge |
-| `platform/headlamp/` | Headlamp chart values, Tailscale Ingress, RBAC, network policy |
+| `platform/headlamp/` | Headlamp chart values, HTTPRoute, RBAC, network policy |
 | `platform/agent-access/rbac.yaml` | Read-only ServiceAccount for agents |
 | `.sops.yaml`, `*/secrets/*.sops.yaml` | SOPS rules and sealed Secrets, one `.example` template each |
 | `ci/secret-rotation.tsv`, `scripts/ci/secret_rotation.py`, `.github/workflows/secret-age.yaml` | Rotation classes, coverage and age checks |
@@ -42,7 +42,8 @@ plus the `sops-age` Secret).
 | Long sessions for user apps, 12 h for platform tools | [architecture.md](../../../docs/architecture.md#sessions) |
 | Access enforced at Keycloak, per client, by group; users stay out of git | [architecture.md](../../../docs/architecture.md#per-app-access) |
 | One oauth2-proxy routing by path; app form logins kept as break-glass | [theater.md](../../../docs/theater.md#why-it-is-like-this) |
-| Tailscale operator in auth mode, no inbound port; Argo CD and Grafana stay public for now | [remote-access.md](../../../docs/remote-access.md#why-it-is-like-this) |
+| Tailscale operator in auth mode, no inbound port | [remote-access.md](../../../docs/remote-access.md#why-it-is-like-this) |
+| UIs public behind SSO and group gating, cluster APIs on the tailnet | [decisions.md](../../../docs/decisions.md#uis-public-behind-sso-cluster-apis-on-the-tailnet) |
 | SOPS with one age key; no secret store in the boot path | [secrets.md](../../../docs/secrets.md#why-it-is-like-this) |
 | LAN addressing is public | [decisions.md](../../../docs/decisions.md#lan-addressing-is-public) |
 | Trust boundaries and accepted risks | [threat-model.md](../../../docs/threat-model.md#why-it-is-like-this) |

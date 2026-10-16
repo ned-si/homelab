@@ -282,6 +282,26 @@ Rejected: a self-hosted runner in the cluster with Kubernetes and Talos
 credentials, and applying Talos config drift automatically (a config change
 can reboot a node; the alert asks for `task talos:apply`).
 
+## UIs public behind SSO, cluster APIs on the tailnet
+
+Every web UI is a public HTTPRoute on the shared Gateway behind a Keycloak
+login, gated by group (the client's own login flow and, for an oauth2-proxy,
+its `allowedGroups`), with the security headers and the weekly DAST like any
+other route. Only the cluster APIs stay off the internet: `kubectl` through
+the Tailscale API server proxy, `talosctl` through each node's own Tailscale
+(or the LAN); neither is ever on the Gateway
+([remote-access.md](remote-access.md)). Headlamp moved to
+`headlamp.lilalala.com` under this rule; the Hubble UI follows.
+
+Why: a UI already has a strong login and per-group access, and one URL per
+tool works from any device without the Tailscale app, with one redirect URI
+per client. The APIs carry cluster-admin or `os:admin` credentials and have
+no Keycloak in front, so the network stays their first boundary.
+
+Rejected: tailnet-only UIs (the first Headlamp setup): two places to look
+for a tool, a VPN on every device that opens one, and a corporate VPN on the
+Mac that overlapped the tailnet range.
+
 ## Seafile removed
 
 Seafile was removed on 2026-10-16. Nobody used it: shared documents live in

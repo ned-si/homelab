@@ -35,8 +35,8 @@ spec:
         - --alpha-config=/config/alpha-config.yaml
         - --email-domain=*
         - --reverse-proxy=true
-        - --redirect-url=https://headlamp.tail32a1fc.ts.net/oauth2/callback
-        - --whitelist-domain=headlamp.tail32a1fc.ts.net
+        - --redirect-url=https://headlamp.lilalala.com/oauth2/callback
+        - --whitelist-domain=headlamp.lilalala.com
         - --cookie-secure=true
         - --cookie-samesite=lax
         - --cookie-expire=12h
