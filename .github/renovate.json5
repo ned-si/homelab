@@ -150,6 +150,19 @@
     },
     {
       customType: 'regex',
+      // Charts that also print the tag into a label (the Vector chart's
+      // app.kubernetes.io/version, max 63 characters, no `@`) take the digest
+      // in a separate `sha:` key on the next line.
+      description: 'Annotated Helm-values `tag:` followed by `sha:`. Captures the tag and the digest.',
+      managerFilePatterns: ['/\\.ya?ml$/'],
+      matchStrings: [
+        '#\\s*renovate:\\s*datasource=docker\\s+depName=(?<depName>[^\\s]+)(?:\\s+versioning=(?<versioning>[^\\s]+))?[^\\n]*\\n\\s*tag:\\s*[\'"]?(?<currentValue>[^\'"\\s@]+)[\'"]?\\s*\\n\\s*sha:\\s*[\'"]?(?<currentDigest>sha256:[a-f0-9]+)[\'"]?',
+      ],
+      datasourceTemplate: 'docker',
+      versioningTemplate: '{{#if versioning}}{{{versioning}}}{{else}}docker{{/if}}',
+    },
+    {
+      customType: 'regex',
       description: 'Annotated GitHub release-asset URL, e.g. the Gateway API CRD bundle. The version sits mid-path so the generic manager above cannot reach it.',
       managerFilePatterns: ['/\\.ya?ml$/'],
       matchStrings: [
