@@ -8,6 +8,13 @@
 		"tag:k8s-operator": [],
 		// Every proxy the operator creates (Tailscale Ingress, Service).
 		"tag:k8s": ["tag:k8s-operator"],
+		// The exit node on the home connection (Connector `home-exit`).
+		"tag:exit": ["tag:k8s-operator"],
+	},
+
+	// The exit node needs no approval in the admin console.
+	"autoApprovers": {
+		"exitNode": ["tag:exit"],
 	},
 
 	"grants": [
@@ -23,6 +30,13 @@
 			"src": ["autogroup:member"],
 			"dst": ["tag:k8s"],
 			"ip":  ["tcp:443"],
+		},
+		// Members use an exit node for the internet only: not the home LAN,
+		// not the cluster.
+		{
+			"src": ["autogroup:member"],
+			"dst": ["autogroup:internet"],
+			"ip":  ["*"],
 		},
 		// The owner and admins reach the Kubernetes API server proxy, which
 		// impersonates them as the group `tailnet-admins`

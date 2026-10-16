@@ -138,9 +138,12 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
-# Tailscale operator and its proxies (platform/tailscale-operator). The
-# operator and every proxy set a restricted security context; Ingress proxies
-# run in userspace mode.
+# Tailscale operator and its proxies (platform/tailscale-operator).
+# privileged: the exit node's Connector pods get the operator's privileged
+# `sysctler` init container, which no ProxyClass can remove. Everything else
+# here (the operator, the Ingress proxies, the exit node's main container)
+# sets a restricted security context; warn and audit stay `restricted`, so
+# the init container is the only expected finding.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -148,7 +151,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---

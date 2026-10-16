@@ -1,0 +1,21 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/tailscale-operator/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/tailscale-operator/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: home-exit
+spec:
+  exitNode: true
+  hostnamePrefix: home-exit
+  proxyClass: exit-node
+  replicas: 2
+  tags:
+  - tag:exit

@@ -35,6 +35,8 @@ spec:
     kind: IngressClass
   - group: tailscale.com
     kind: ProxyClass
+  - group: tailscale.com
+    kind: Connector
   description: Shared services - CloudNativePG, observability, Keycloak
   destinations:
   - namespace: '*'

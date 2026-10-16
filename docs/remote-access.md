@@ -8,6 +8,7 @@ internet: the operator and its proxies dial out to Tailscale.
 | --- | --- | --- |
 | `tailscale-operator` | Kubernetes API server proxy (`kubectl`, k9s) | owner and admins of the tailnet, as `tailnet-admins` (cluster-admin) |
 | `headlamp` | Headlamp, read-only Kubernetes web UI | tailnet members, then Keycloak group `admins` |
+| `home-exit-0`, `home-exit-1` | exit nodes: internet through the home connection | tailnet members |
 
 The public hostnames (`*.lilalala.com`) stay as they are; which admin UIs
 become tailnet-only is a later decision.
@@ -58,6 +59,33 @@ phone --tailnet--> Ingress proxy (tailscale) --> headlamp-sso (oauth2-proxy) -->
   verification, and access is the group, never the email.
 - When Keycloak is down, Headlamp is unavailable; use `kubectl`.
 
+## Exit node
+
+The Connector `home-exit` (`platform/tailscale-operator/resources/exit-node.yaml`)
+runs two exit nodes, `home-exit-0` and `home-exit-1`, on different nodes when
+they can be. Picking one sends the device's internet traffic out through the
+home connection: the sites you visit see the home WAN IP.
+
+- When: untrusted Wi-Fi (hotel, train, café), or a service that needs a Swiss
+  IP. At home it adds nothing.
+- Use it: Tailscale app → Exit node → `home-exit-0` (or `-1`). Turn it off
+  the same way. On a Mac: `tailscale set --exit-node=home-exit-0`, and
+  `tailscale set --exit-node=` to stop.
+- Allow LAN access (a toggle next to the exit node in the app): keeps the
+  local network you are on (a hotel printer, a Chromecast) reachable
+  outside the tunnel. Leave it off on untrusted networks.
+- It depends on the cluster: with both nodes down, the NAS or the router
+  off, an exit-node device has no internet until you turn the exit node off.
+- Scope: the policy grants `autogroup:internet` only. The home LAN and the
+  cluster are not reachable through it; use the tailnet hosts above.
+- `tag:exit` is auto-approved (`autoApprovers.exitNode`), so a new replica
+  needs no click in the admin console.
+- Pod Security: the operator gives Connector pods a privileged `sysctler`
+  init container that no ProxyClass can remove, so the namespace `tailscale`
+  enforces `privileged` (warn and audit stay `restricted`). The exit node's
+  main container runs tailscaled in userspace mode, non-root, with no
+  capabilities. No network policy covers `tailscale`, so its egress is open.
+
 ## Tailnet policy
 
 `bootstrap/tailscale/policy.hujson` is the policy, in git. It replaces the
@@ -65,6 +93,8 @@ default allow-all:
 
 - a member's own devices reach each other (as before);
 - members reach `tag:k8s` (the Ingress proxies) on TCP 443 only;
+- members use the exit nodes (`tag:exit`, auto-approved) for
+  `autogroup:internet`;
 - the owner and admins reach `tag:k8s-operator` on 443, with the Kubernetes
   capability `impersonate: groups: [tailnet-admins]`.
 

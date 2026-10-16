@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/tailscale-operator/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/tailscale-operator/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: exit-node
+spec:
+  statefulSet:
+    pod:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  tailscale.com/parent-resource: home-exit
+                  tailscale.com/parent-resource-type: connector
+              topologyKey: kubernetes.io/hostname
+            weight: 100
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      tailscaleContainer:
+        env:
+        - name: TS_USERSPACE
+          value: "true"
+        image: tailscale/tailscale:v1.104.1@sha256:87c55d6be56ad85b3d8bceca5f87f73de288c609131460dd1be1874c250cc41d
+        imagePullPolicy: IfNotPresent
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 20m
+            memory: 48Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+      tailscaleInitContainer:
+        resources:
+          limits:
+            memory: 16Mi
+          requests:
+            cpu: 1m
+            memory: 4Mi
+        securityContext:
+          privileged: true
+          runAsUser: 0
