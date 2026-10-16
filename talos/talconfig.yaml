@@ -11,7 +11,7 @@ clusterName: homelab
 # carries the same tags. tuppr rolls this version out after a merge
 # (platform/tuppr/upgrades/talos-upgrade.yaml, kept equal by CI).
 # renovate: datasource=docker depName=ghcr.io/siderolabs/talos
-talosVersion: v1.14.3
+talosVersion: v1.14.4
 # The Kubernetes that Talos 1.14.2 ships. Cilium 1.20, Argo CD 3.5 and
 # cert-manager 1.21 are tested up to 1.36 only, so the CI test cluster runs
 # this version before any node does. tuppr applies a change to the running
