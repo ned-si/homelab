@@ -24,20 +24,29 @@ PR; CI is the gate; merge with `scripts/pr-merge.sh`.
       `SLOLatencyBudgetBurnSlow` (auto) and `SLOLatencyBudgetBurnSlowPersistent` (human)
       with promtool tests (fires, stays quiet under an availability burn, stays quiet when
       fast), runbook section, `routes.txt` line, overview panels, `docs/sre.md` and
-      `docs/observability.md`. [3.1, 3.3, 3.4, 3.5, 3.6, 3.7, 6.1, 6.2, 6.3]
-- [ ] 7. PR `feat(slo): backup freshness SLO`: `routes/backup-slo.yaml`, `BackupNotFresh`
-      with promtool tests (stale, suspended, fresh, inhibited case in an Alertmanager
-      scenario), the inhibit rule, runbook section, `routes.txt` line, Data Protection
-      panels, `docs/sre.md` RPO table and `docs/backups.md`. [4.1, 4.2, 4.3, 4.4, 4.5, 4.6,
-      6.1, 6.2, 6.3]
-- [ ] 8. PR `ci: hold Renovate on an app out of budget and still failing`:
+      `docs/observability.md`. [3.1, 3.3, 3.4, 3.5, 3.6, 3.7, 6.1, 6.2, 6.3] #524
+- [x] 7. PR `feat(slo): backup freshness SLO`: `routes/backup-slo.yaml`, `BackupNotFresh`
+      with promtool tests (stale, suspended, fresh, a failed Job, kube-state-metrics
+      absent), runbook section, `routes.txt` line, Data Protection panels, `docs/sre.md`
+      RPO table and `docs/backups.md`. No inhibit rule: the expression leaves out a
+      CronJob with a failed Job (design, Decisions). [4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 6.1,
+      6.2, 6.3] #531
+- [ ] 8. Deferred: not cheap, and it reverses the budget policy (design, Error handling).
+      PR `ci: hold Renovate on an app out of budget and still failing`:
       `SLOAutomergePause` (promtool tests), the `ntfy-guard` route and its `routes.txt`
       line, `scripts/ci/error-budget-gate.sh` and its bash test, `ci/slo-app-paths.txt`
       and repo-policy rule `slo-app-paths`, job `error-budget` in `ci.yaml`,
       `error-budget-recheck.yaml`, `docs/sre.md`. Skip with a recorded reason per the
       design's error handling if the guard topic cannot carry the state. [5.1, 5.2, 5.3,
       5.4, 5.5, 5.6, 6.1, 6.3]
-- [ ] 9. Live check, read-only: new series present per app and target, no new alert
-      firing, gate dry run prints "no app paused", `gh workflow view
-      error-budget-recheck.yaml` enabled. [3.3, 4.2, 5.2]
-- [ ] 10. Tick this file and record the PR numbers. [all]
+- [x] 9. Live check, read-only: new series present per app and target, no new alert
+      firing (the gate checks went with task 8). [3.3, 4.2] 2026-10-16 21:10Z:
+      `slo:latency_budget_remaining:ratio_rate30d` for the 7 apps; the ntfy page of a
+      synthetic alert ends with its runbook URL (17:10Z). `SLOLatencyBudgetBurnSlow`
+      (`action: auto`, no page) fired for syncthing: the latency series was 4 hours old,
+      so every window held the same 1.2% (0.7% failed probes, one near the 10 s
+      timeout); the 2h window was 0, so it ends when the burst leaves the 6h window,
+      well before the persistent page's day. 21:35Z, after #531: `slo:backup_fresh` for
+      18 restic and 8 cnpg targets, none stale; `BackupNotFresh` neither pending nor
+      firing.
+- [x] 10. Tick this file and record the PR numbers. [all]

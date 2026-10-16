@@ -111,6 +111,7 @@ flowchart LR
 | Latency thresholds put an app above budget on day one | Recompute with the script; if the p95 is unstable, take the next ladder step and record why in `slo.yaml` |
 | `kube_cronjob_status_last_successful_time` missing for a CronJob | Use `kube_cronjob_status_last_schedule_time` with the last Job's success; record the fallback in `backup-slo.yaml` |
 | The guard topic cannot carry the pause state | Drop Requirement 5 from this wave and record why in this file; no other channel without cluster credentials in GitHub |
+| The pause is not cheap (the run brief: "only if cheap and deterministic") | Requirement 5 deferred on 2026-10-16. Deterministic, but not cheap: a new required CI job, a scheduled workflow with `actions: write`, a parser of free-text ntfy messages, a path map and a policy rule. It also reverses `docs/sre.md` ("Renovate automerge continues, for that app too"; budget exhaustion changes the work, not the deploys) and the automerge-everything rule, which only the operator can change. Every budget reads negative until the cutover outages leave the 30-day window, so it would turn on with any burn. To revisit only if the operator changes the budget policy |
 
 ## Open questions (answered at the start of the run)
 
