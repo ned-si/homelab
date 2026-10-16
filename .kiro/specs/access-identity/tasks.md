@@ -26,8 +26,8 @@ Requirement numbers in brackets. New work in this area adds a task here first.
       client, owner and admins to `tag:talos:50000` only. [4.5] (#527)
 - [x] 25. ExposedSecretReports out of `view`: an admission policy strips the
       reader aggregation labels the trivy chart sets. [5.5] (#523)
-- [ ] 26. TOTP for `admins` and the Keycloak admin; the realm Job on its own
-      master client; enrol, reset and break-glass runbook. [7.1-7.5]
+- [x] 26. TOTP for `admins` and the Keycloak admin; the realm Job on its own
+      master client; enrol, reset and break-glass runbook. [7.1-7.5] (#546)
 
 ## Open
 
