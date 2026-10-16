@@ -190,6 +190,15 @@
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
     },
     {
+      // Every image is pinned by digest, so a tag re-pushed upstream is a
+      // `digest` update. One pull request for all of them, automerged like
+      // the rest (no schedule, operator rule). Tag updates stay one per image.
+      description: 'Group image digest refreshes into one pull request',
+      matchDatasources: ['docker'],
+      matchUpdateTypes: ['digest'],
+      groupName: 'image digests',
+    },
+    {
       // The *arr apps and qBittorrent share a download-client credential
       // contract. Bumping qBittorrent alone is what broke this cluster once.
       description: 'theater stack moves as one unit',
