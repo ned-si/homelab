@@ -54,6 +54,8 @@ ARGO_HISTORY = 3
 
 _etags: dict[str, tuple[str, object]] = {}
 _jobs: dict[int, list] = {}
+JOBS_PER_CYCLE = 5
+_jobs_budget = JOBS_PER_CYCLE
 _metrics = "# no data yet\n"
 _lock = threading.Lock()
 
@@ -139,18 +141,35 @@ def title_scope(title: str) -> str:
     return m.group(1) if m else ""
 
 
-def run_jobs(run_id: int) -> list:
-    """The jobs of a completed run; they never change, so each run is read once."""
+def run_jobs(run_id: int) -> list | None:
+    """The jobs of a completed run; they never change, so each run is read
+    once. At most JOBS_PER_CYCLE reads per collection, so that a restart (an
+    empty cache) stays inside the unauthenticated quota; None until read."""
+    global _jobs_budget
     if run_id not in _jobs:
-        body, _ = get(f"/repos/{REPO}/actions/runs/{run_id}/jobs?per_page=20")
+        if _jobs_budget <= 0:
+            return None
+        _jobs_budget -= 1
+        try:
+            body, _ = get(f"/repos/{REPO}/actions/runs/{run_id}/jobs?per_page=20")
+        except urllib.error.HTTPError as e:
+            log("error", "jobs read failed", run=run_id, error=f"HTTP {e.code}")
+            _jobs_budget = 0
+            return None
         _jobs[run_id] = body.get("jobs", [])
     return _jobs[run_id]
 
 
 def run_result(workflow: str, r: dict) -> tuple[str, str, str]:
-    """(kind, app, result) of an auto-rollback or tofu run."""
-    jobs = {j.get("name"): j for j in run_jobs(r["id"])}
+    """(kind, app, result) of an auto-rollback or tofu run. Until its jobs are
+    read, a successful run says `success`."""
+    listed = run_jobs(r["id"])
+    jobs = {j.get("name"): j for j in listed or []}
     concl = r.get("conclusion") or "unknown"
+    if listed is None and concl == "success":
+        if workflow == "auto-rollback":
+            return "auto-rollback", (r.get("display_title") or "").removeprefix("auto-rollback ").strip(), "success"
+        return {"schedule": "tofu-drift", "push": "tofu-apply"}.get(r.get("event", ""), "tofu-manual"), "aws", "success"
     if workflow == "auto-rollback":
         app = (r.get("display_title") or "").removeprefix("auto-rollback ").strip()
         act = (jobs.get("act") or {}).get("conclusion")
@@ -226,6 +245,8 @@ def silence_events(o: Out, silences: list, now: float) -> None:
 
 
 def collect() -> str:
+    global _jobs_budget
+    _jobs_budget = JOBS_PER_CYCLE
     now = time.time()
     o = Out()
     workflows, hdr = get(f"/repos/{REPO}/actions/workflows?per_page=50")
