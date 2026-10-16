@@ -161,7 +161,9 @@ grafana:
 #                        every 5 minutes. It alerts when the pings stop.
 #   SLO burn rate     -> ntfy, one group per app (fast critical, slow warning).
 #   infra critical    -> ntfy, one group per alert name: node down, etcd
-#                        quorum, NAS unreachable or pool unhealthy.
+#                        quorum, NAS unreachable or pool unhealthy, a node
+#                        filesystem read-only, a failed Talos upgrade,
+#                        Alertmanager failing to deliver.
 #   backup failed     -> ntfy, one group per alert name: a restore test, a
 #                        CNPG base backup or WAL archive, a backup Job.
 #   security critical -> ntfy: any critical rule labelled `category: security`.
@@ -257,7 +259,7 @@ alertmanager:
               mute_time_intervals: [quiet-hours]
         - receiver: ntfy
           matchers:
-            - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable|etcdInsufficientMembers|etcdNoLeader|NASPoolUnhealthy"
+            - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable|etcdInsufficientMembers|etcdNoLeader|NASPoolUnhealthy|NodeFilesystemReadOnly|TalosUpgradeFailed|AlertmanagerNotificationsFailing"
           group_by: [alertname]
           repeat_interval: 4h
           mute_time_intervals: [quiet-hours]

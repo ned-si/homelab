@@ -13,6 +13,9 @@ ntfy-guard,ntfy alertname=HomelabNASUnreachable severity=critical instance=192.1
 ntfy alertname=etcdInsufficientMembers severity=critical job=kube-etcd
 ntfy alertname=etcdNoLeader severity=critical job=kube-etcd
 ntfy alertname=NASPoolUnhealthy severity=critical pool=homelab
+ntfy alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9100
+ntfy alertname=TalosUpgradeFailed severity=critical name=cluster
+ntfy alertname=AlertmanagerNotificationsFailing severity=critical integration=webhook
 # Notifies: backups and restore tests.
 ntfy alertname=BackupVerifyFailed severity=warning check=postgres target=immich-db
 ntfy alertname=CNPGBackupFailed severity=critical namespace=immich pod=immich-db-1
@@ -36,8 +39,6 @@ null alertname=KubePdbNotEnoughHealthyPods severity=warning namespace=keycloak p
 null alertname=PodStuckNotRunningLongTerm severity=critical namespace=home pod=mosquitto-0
 null alertname=KubeNodeNotReady severity=warning node=homelab-w-1
 null alertname=CertificateExpiringVerySoon severity=critical namespace=gateway name=wildcard
-null alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9100
-null alertname=AlertmanagerNotificationsFailing severity=critical integration=webhook
 null alertname=SLOProbesAbsent severity=warning job=blackbox-public
 null alertname=LANNewDeviceSeen severity=warning mac=00:11:22:33:44:55
 null alertname=InfoInhibitor severity=none

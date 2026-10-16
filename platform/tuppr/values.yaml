@@ -15,8 +15,8 @@ resources:
 
 # Metrics and the chart's alerts (TalosUpgradeFailed, KubernetesUpgradeFailed,
 # TalosUpgradeStuck, TupprOperatorAbsent, ...) go to the kube-prometheus-stack
-# Prometheus, which selects on the `release` label, and show in Grafana
-# (docs/sre.md "Paging").
+# Prometheus, which selects on the `release` label, and show in Grafana;
+# TalosUpgradeFailed also notifies (docs/sre.md "Paging").
 monitoring:
   serviceMonitor:
     enabled: true
