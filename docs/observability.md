@@ -197,11 +197,25 @@ fields land under `attributes`, Kubernetes metadata under `kubernetes`. Any
 other line stays a plain `message` with `parse_failed=true`. The sink is a
 blackhole until the log store takes the stream over OTLP.
 
+It also takes the node's Talos logs, which Talos sends as JSON lines over TCP
+to the host-network listeners ([talos.md](talos.md#why-it-is-like-this)):
+
+| Source | Listener | `log_source` |
+| --- | --- | --- |
+| `talos_services` (machined, kubelet, etcd, containerd, ...) | `127.0.0.1:6050` | `talos-service` |
+| `talos_kernel` (kmsg) | `127.0.0.1:6051` | `talos-kernel` |
+| `pods` (`/var/log/pods`) | none | `pods` |
+
+Talos fields map to `service` (`talos-service`), `message` (`msg`) and
+`attributes.level`. The pod runs in the host network for these listeners;
+its API (probes) binds `127.0.0.1:8686`, its metrics port `9598` the node's
+addresses.
+
 Vector's own metrics are scraped by the PodMonitor `monitoring/vector` (port
 9598): `vector_component_received_events_total`,
 `vector_component_sent_events_total`, `vector_component_errors_total`,
 `vector_component_discarded_events_total`, buffer sizes, and
-`vector_log_events_total{namespace, parse_failed}`.
+`vector_log_events_total{namespace, source, parse_failed}`.
 
 ```sh
 kubectl -n logging get ds vector
@@ -214,8 +228,8 @@ unparsed (`true`) lines per second.
 
 The pod runs as uid 0 with every capability dropped and a read-only root:
 the log files are root-owned, and Kubernetes gives a non-root container no
-ambient capabilities. Its hostPath mounts are why `logging` enforces Pod
-Security `privileged`.
+ambient capabilities. Its hostPath mounts and the host network are why
+`logging` enforces Pod Security `privileged`.
 
 ## SigNoz
 

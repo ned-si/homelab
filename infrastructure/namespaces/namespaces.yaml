@@ -193,7 +193,8 @@ metadata:
     pod-security.kubernetes.io/audit: restricted
 ---
 # The log agent Vector (platform/vector). privileged: its DaemonSet mounts the
-# node's /var/log and /var/lib/vector (hostPath), which baseline rejects. The
+# node's /var/log and /var/lib/vector (hostPath) and runs in the host network
+# (Talos sends its logs to 127.0.0.1), which baseline rejects. The
 # container runs with every capability dropped and a read-only root.
 apiVersion: v1
 kind: Namespace

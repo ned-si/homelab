@@ -1,0 +1,11 @@
+# Service logs of Talos (machined, kubelet, etcd, containerd, ...) as JSON
+# lines to the Vector pod on the same node, which listens on the host network
+# at 127.0.0.1:6050 (platform/vector/values.yaml, source `talos_services`).
+# Nothing leaves the node: Talos sends from boot, before any pod network
+# exists, and buffers nothing; logs from before Vector starts are only in the
+# node's ring buffer (`talosctl logs`). Kernel logs: talosctl/kmsg-log.yaml.
+machine:
+  logging:
+    destinations:
+      - endpoint: tcp://127.0.0.1:6050/
+        format: json_lines

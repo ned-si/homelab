@@ -1,0 +1,7 @@
+# Kernel logs (kmsg) as JSON lines to the Vector pod on the same node, on the
+# host network at 127.0.0.1:6051 (platform/vector/values.yaml, source
+# `talos_kernel`). Applied by scripts/talos-genconfig.sh with talosctl.
+apiVersion: v1alpha1
+kind: KmsgLogConfig
+name: vector
+url: tcp://127.0.0.1:6051

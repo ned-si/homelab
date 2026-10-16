@@ -13,7 +13,7 @@ version change is rolled out by tuppr ([Upgrades](#upgrades)).
 | Path | Contents |
 | --- | --- |
 | [`talos/talconfig.yaml`](../talos/talconfig.yaml) | Cluster, versions, Image Factory schematic, the four nodes |
-| [`talos/patches/`](../talos/patches) | Patches talhelper applies: `sysctls.yaml` (every node), `kube-proxy.yaml` and `controlplane-metrics.yaml` (control planes) |
+| [`talos/patches/`](../talos/patches) | Patches talhelper applies: `sysctls.yaml` and `logging.yaml` (every node), `kube-proxy.yaml` and `controlplane-metrics.yaml` (control planes) |
 | [`talos/patches/talosctl/`](../talos/patches/talosctl) | Documents talhelper 3.1.17 cannot parse yet (`SecurityProfileConfig`; in `controlplane/`, `KubeTalosAPIAccessConfig` for tuppr); `scripts/talos-genconfig.sh` applies them with `talosctl machineconfig patch` |
 | `talos/talsecret.sops.yaml` | Cluster CAs, keys and tokens, SOPS-encrypted (created once, [below](#cluster-secrets-once)) |
 | `talos/clusterconfig/` | Generated machine configs and `talosconfig`. Git-ignored: they hold the keys in plaintext |
@@ -240,6 +240,14 @@ Expected: `ok` lines only, the last one `ok  git-ignore rules`, exit 0.
   approver must be running before the patch reaches a node: without an
   approved certificate the kubelet serves nothing, and `kubectl logs` and
   `exec` fail on that node.
+- Service logs (`patches/logging.yaml`, `machine.logging`) and kernel logs
+  (`patches/talosctl/kmsg-log.yaml`, `KmsgLogConfig`) go as JSON lines over
+  TCP to `127.0.0.1:6050` and `:6051`, where the Vector pod of the same node
+  listens on the host network ([observability.md](observability.md#logs)).
+  Loopback, not a LoadBalancer IP: Talos sends from boot, before Cilium, and
+  the logs never cross the LAN. TCP, not UDP: a missing listener is visible,
+  not silent loss. Lines sent while Vector is down are dropped; the node's
+  ring buffer (`talosctl logs`) still has them.
 - The drift check holds an `os:admin` Talos certificate, like tuppr. Machine
   configs are a sensitive resource that `os:reader` and `os:operator` cannot
   read, and a check that compares anything less (derived resources, redacted
