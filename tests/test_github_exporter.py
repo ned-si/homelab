@@ -156,6 +156,22 @@ def test_automation_events_from_github(tmp_path):
     assert sum(1 for k in ev if k[0].startswith("tofu")) == 2
 
 
+def test_jobs_reads_are_budgeted(tmp_path):
+    mod = load()
+    mod.get = events_get
+    mod.SA_DIR = str(tmp_path / "none")
+    mod.JOBS_PER_CYCLE = 1
+    ev = {(e["kind"], e["app"], e["result"]) for e in event_labels(mod.collect())}
+    # The newest run gets its jobs read; the next successful one says success
+    # until a later collection, and a failed run is failed either way.
+    assert ("auto-rollback", "home", "reverted") in ev
+    assert ("auto-rollback", "mealie", "success") in ev
+    assert ("tofu-drift", "aws", "success") in ev
+    assert ("tofu-apply", "aws", "failed") in ev
+    ev = {(e["kind"], e["app"], e["result"]) for e in event_labels(mod.collect())}
+    assert ("auto-rollback", "mealie", "not reverted") in ev
+
+
 def test_argocd_and_silence_events():
     mod = load()
     now = time.time()
