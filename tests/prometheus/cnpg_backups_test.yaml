@@ -38,6 +38,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupFailed.md
               summary: Last base backup of immich/immich-db-1 failed
               description: >-
                 The newest Barman Cloud base backup failed after the last good one.
@@ -67,6 +68,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBaseBackupTooOld.md
               summary: No base backup of keycloak/keycloak-db-1 in 26 h
               description: >-
                 The daily ScheduledBackup did not produce a base backup.
@@ -92,6 +94,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupMetricsMissing.md
               summary: theater/sonarr-postgresql-1 reports no Barman Cloud metrics
               description: >-
                 The pod has no plugin-barman-cloud sidecar or the plugin is down.
@@ -123,6 +126,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGWALArchivingFailing.md
               summary: WAL archiving of keycloak/keycloak-db-1 is failing
               description: >-
                 The last WAL archive attempt failed and none has succeeded since.
@@ -141,6 +145,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGWALArchiveLag.md
               summary: 8 WAL segments of keycloak/keycloak-db-1 wait for archiving
               description: >-
                 WAL is produced faster than it is archived, or archiving stalls.
@@ -161,6 +166,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGMetricsAbsent.md
               summary: No CNPG instance metrics at all
               description: >-
                 Prometheus scrapes no CNPG instance, so none of the backup alerts can fire.

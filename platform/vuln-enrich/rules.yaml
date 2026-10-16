@@ -58,6 +58,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/VulnEnrichmentStale.md
             summary: "No KEV/EPSS enrichment in 3 days"
             description: >-
               The vuln-enrich CronJob has not pushed for 3 days, so the

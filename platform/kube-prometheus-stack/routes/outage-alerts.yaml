@@ -53,6 +53,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNodeDown.md
             summary: "Node {{ $labels.node }} has been NotReady for 15 minutes"
             description: >-
               {{ $labels.node }} did not come back on its own. Check
@@ -86,6 +87,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
             summary: "NAS port {{ $labels.instance }} has been unreachable for 10 minutes"
             description: >-
               The NAS does not power on by itself after a power loss: press

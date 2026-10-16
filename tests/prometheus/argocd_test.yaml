@@ -180,6 +180,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDAppStillDegraded.md
               summary: home has been Degraded for 30 minutes
               description: >-
                 Nothing automatic has fixed home: check the
@@ -215,6 +216,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDSyncStuck.md
               summary: "books: sync failed and still OutOfSync after 30 minutes"
               description: >-
                 A sync of books failed and nothing automatic has
@@ -236,6 +238,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDMetricsAbsent.md
               summary: Argo CD application metrics are missing
               description: >-
                 Prometheus has no argocd_app_info for 15 minutes, so no Argo CD

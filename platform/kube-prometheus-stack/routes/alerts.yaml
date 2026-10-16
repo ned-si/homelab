@@ -96,6 +96,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PodStuckNotRunningLongTerm.md
             summary: "{{ $labels.namespace }}/{{ $labels.pod }} has been broken for 6h ({{ $labels.reason }})"
 
         - alert: PodPendingTooLong
@@ -201,6 +202,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeNearlyFull.md
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is over 85% full"
             description: >-
               The `iscsi` StorageClass sets allowVolumeExpansion: true, so this
@@ -220,6 +222,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeCriticallyFull.md
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is over 95% full"
 
         - alert: PersistentVolumeFillingUp
@@ -239,6 +242,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeFillingUp.md
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} will be full within 24h"
             description: >-
               Extrapolating the last 6 hours. If this is a Postgres data volume,
@@ -265,6 +269,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusTsdbVolumeNearlyFull.md
             summary: "Prometheus TSDB volume is nearly full"
             description: >-
               retentionSize (20GiB) is meant to keep this from happening inside
@@ -296,6 +301,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemNearlyFull.md
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is over 85% full"
             description: >-
               On these nodes the eMMC holds the kubelet and containerd
@@ -314,6 +320,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemCriticallyFull.md
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is over 92% full"
 
         - alert: NodeFilesystemReadOnly
@@ -327,6 +334,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemReadOnly.md
             summary: "{{ $labels.instance }} remounted {{ $labels.mountpoint }} READ-ONLY"
             description: >-
               Usually the beginning of eMMC failure, not a configuration change.
@@ -346,6 +354,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemInodesNearlyFull.md
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has under 10% of inodes free"
             description: >-
               This reports as ENOSPC while `df -h` shows free space. Check
@@ -367,6 +376,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeEmmcWearHigh.md
             summary: "{{ $labels.instance }} eMMC {{ $labels.device }} is wearing out"
             description: >-
               The eMMC reports 80% or more of its rated wear or of its reserved
@@ -386,6 +396,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeEmmcEndOfLife.md
             summary: "{{ $labels.instance }} eMMC {{ $labels.device }} is at end of life"
             description: >-
               The eMMC reports its rated wear exceeded or its reserved blocks
@@ -408,6 +419,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertificateExpiringSoon.md
             summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 21 days"
             description: >-
               cert-manager should have renewed this at 30 days remaining, so a
@@ -423,6 +435,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertificateExpiringVerySoon.md
             summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 7 days"
             description: >-
               Every published hostname is served from the wildcard certificate on
@@ -444,6 +457,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertificateNotReady.md
             summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready"
             description: >-
               An order or challenge is failing. A Let's Encrypt order expires
@@ -461,6 +475,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CertManagerMetricsAbsent.md
             summary: "cert-manager metrics are not being scraped"
             description: >-
               No certificate expiry series exists, so every certificate alert is
@@ -488,6 +503,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/AlertmanagerNotificationsFailing.md
             summary: "Alertmanager cannot deliver notifications ({{ $labels.integration }})"
             description: >-
               Alerts are firing and not arriving. Check the credentials in the
@@ -510,6 +526,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/AlertmanagerHasNoReceiverConfigured.md
             summary: "Alertmanager has sent nothing in 6 hours"
             description: >-
               The Watchdog route sends a heartbeat every 5 minutes, so this
@@ -531,6 +548,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KubeStateMetricsAbsent.md
             summary: "kube-state-metrics is not being scraped"
             description: >-
               Every kube_* alert in this cluster -- pods, jobs, cronjobs, PVCs,
@@ -544,6 +562,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeExporterAbsent.md
             summary: "node-exporter is not being scraped"
             description: >-
               No node disk, memory or filesystem alerting is active. The

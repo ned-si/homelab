@@ -79,6 +79,7 @@ spec:
         description: 'Nothing automatic has fixed {{ $labels.name }}: check the auto-rollback
           run on the Homelab / Automation dashboard, then https://argo.lilalala.com/applications/argo/{{
           $labels.name }}.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDAppStillDegraded.md
         summary: '{{ $labels.name }} has been Degraded for 30 minutes'
       expr: |
         max by (name, namespace) (
@@ -94,6 +95,7 @@ spec:
           replaced it: the cluster still runs the previous revision. Check the auto-rollback
           run on the Homelab / Automation dashboard, then https://argo.lilalala.com/applications/argo/{{
           $labels.name }}.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDSyncStuck.md
         summary: '{{ $labels.name }}: sync failed and still OutOfSync after 30 minutes'
       expr: |
         max by (name, namespace) (
@@ -110,6 +112,7 @@ spec:
         description: Prometheus has no argocd_app_info for 15 minutes, so no Argo
           CD alert can fire. Check the ServiceMonitor argo/argocd-application-controller
           (label release) and the application controller pod.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDMetricsAbsent.md
         summary: Argo CD application metrics are missing
       expr: absent(argocd_app_info)
       for: 15m

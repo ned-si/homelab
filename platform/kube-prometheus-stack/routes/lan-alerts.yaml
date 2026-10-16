@@ -33,6 +33,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANDeviceUnreachable.md
             summary: "LAN device {{ $labels.device }} ({{ $labels.instance }}) does not answer a ping"
             description: >-
               No ICMP reply for 10 minutes. For the router, the cluster has
@@ -64,6 +65,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANNewDeviceSeen.md
             summary: "New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}"
             description: >-
               {{ $labels.mac }} answered ARP at {{ $labels.ip }} and was not
@@ -80,6 +82,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryFailing.md
             summary: "lan-inventory has not completed an ARP scan for 30 minutes"
             description: >-
               LANNewDeviceSeen is inert while this fires. Read
@@ -92,6 +95,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryAbsent.md
             summary: "lan-inventory is not being scraped"
             description: >-
               LANNewDeviceSeen is inert while this fires. Check the

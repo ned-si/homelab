@@ -113,6 +113,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDAppStillDegraded.md
             summary: "{{ $labels.name }} has been Degraded for 30 minutes"
             description: >-
               Nothing automatic has fixed {{ $labels.name }}: check the
@@ -135,6 +136,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDSyncStuck.md
             summary: "{{ $labels.name }}: sync failed and still OutOfSync after 30 minutes"
             description: >-
               A sync of {{ $labels.name }} failed and nothing automatic has
@@ -150,6 +152,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDMetricsAbsent.md
             summary: Argo CD application metrics are missing
             description: >-
               Prometheus has no argocd_app_info for 15 minutes, so no Argo CD

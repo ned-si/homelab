@@ -42,6 +42,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolFillingUp.md
               summary: NAS pool homelab is full in 4.5 days at the current trend
       - eval_time: 8d
         alertname: NASPoolNearlyFull
@@ -52,6 +53,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolNearlyFull.md
               summary: NAS pool homelab is over 80% used
       - eval_time: 8d
         alertname: NASPoolCriticallyFull

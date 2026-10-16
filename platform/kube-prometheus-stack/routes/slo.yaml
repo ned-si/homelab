@@ -192,6 +192,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnFastPersistent.md
             summary: "{{ $labels.app }} has been failing for 30 minutes"
             description: >-
               The public probes of {{ $labels.app }} have failed for half an
@@ -206,6 +207,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnSlowPersistent.md
             summary: "{{ $labels.app }} has been burning its error budget for a day"
             description: >-
               SLOErrorBudgetBurnSlow has fired for {{ $labels.app }} for 24
@@ -222,6 +224,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOProbesAbsent.md
             summary: "No public blackbox probe results: the SLO alerts are blind"
             description: >-
               Check the blackbox-exporter Application and the Probes in
@@ -240,6 +243,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
               The {{ $labels.app }} target is missing from the Probes in
@@ -253,6 +257,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
               The {{ $labels.app }} target is missing from the Probes in
@@ -266,6 +271,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
               The {{ $labels.app }} target is missing from the Probes in
@@ -279,6 +285,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
               The {{ $labels.app }} target is missing from the Probes in
@@ -292,6 +299,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
               The {{ $labels.app }} target is missing from the Probes in
@@ -305,6 +313,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
               The {{ $labels.app }} target is missing from the Probes in
@@ -318,6 +327,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
             summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
             description: >-
               The {{ $labels.app }} target is missing from the Probes in

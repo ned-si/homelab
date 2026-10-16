@@ -193,8 +193,16 @@ none, one that fails sends one; a node reboot and a NAS flap reach only the
 guard topic, a node or the NAS down for good sends one; the Watchdog reaches
 the heartbeat. It also checks that every ntfy route mutes `quiet-hours`, and
 that a node down during quiet hours notifies once after they end.
-Adding a PAGE alert is a change to this page and to
-`tests/alertmanager/routes.txt` in the same pull request.
+Adding a PAGE alert is a change to this page, to
+`tests/alertmanager/routes.txt` and to [runbooks/alerts/](runbooks/alerts/README.md)
+in the same pull request.
+
+Every `action: human` rule links its runbook in the `runbook_url`
+annotation: what it means, how to confirm, what to do, how to tell it is
+resolved. The CI rule `alert-runbooks` (`scripts/ci/repo_policy.py`) fails a
+paging rule without one, a missing page, a page with no rule, or a chart rule
+that pages by name without a row in the index. The CI rule `alert-tests`
+fails an alert without a promtool test (`tests/prometheus/`).
 
 ## Postmortems
 

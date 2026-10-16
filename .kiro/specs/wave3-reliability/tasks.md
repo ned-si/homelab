@@ -5,13 +5,14 @@ PR; CI is the gate; merge with `scripts/pr-merge.sh`.
 
 - [x] 1. Answer the design's open questions in `design.md` (read-only: repo, Prometheus,
       ntfy docs, the Renovate docs). [1.5, 3.2, 4.1, 5.1] Done in the PR of task 2.
-- [ ] 2. PR `test(alerting): a promtool test for every alert`: add the missing promtool
+- [x] 2. PR `test(alerting): a promtool test for every alert`: add the missing promtool
       tests (open question 7: none) and repo-policy rule `alert-tests`. [2.4, 2.5, 6.1]
-- [ ] 3. PR `feat(alerting): a runbook for every paging alert` (#509, adopted):
+      #514
+- [x] 3. PR `feat(alerting): a runbook for every paging alert` (#509, adopted):
       `docs/runbooks/alerts/<AlertName>.md` and the index with the chart pages,
       `runbook_url` on every `action: human` rule, repo-policy rule `alert-runbooks` (also
       the chart rules of the `ntfy` lines of `routes.txt`), links from `docs/sre.md` and
-      `docs/observability.md`. [1.1, 1.2, 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 2.5]
+      `docs/observability.md`. [1.1, 1.2, 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 2.5] #509
 - [ ] 4. PR `feat(alerting): the runbook link in every notification`: `X-Message` in
       `values.yaml` (no `X-Click`, open question 1); check on the phone with one test
       alert. [1.5]

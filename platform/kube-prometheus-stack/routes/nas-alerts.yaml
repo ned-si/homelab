@@ -52,6 +52,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolUnhealthy.md
             summary: "NAS pool {{ $labels.pool }} is not healthy"
             description: >-
               ZFS reports {{ $labels.pool }} unhealthy (DEGRADED, FAULTED or
@@ -66,6 +67,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolDeviceNotOnline.md
             summary: "NAS {{ $labels.pool }} {{ $labels.role }} device {{ $labels.disk }} is not ONLINE"
             description: >-
               A cache or log device going away slows the pool; a data device
@@ -79,6 +81,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolDeviceErrors.md
             summary: "NAS device {{ $labels.disk }} has {{ $value }} {{ $labels.type }} errors"
             description: >-
               ZFS counted {{ $labels.type }} errors on {{ $labels.disk }} in
@@ -93,6 +96,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASSmartTestFailed.md
             summary: "NAS disk {{ $labels.disk }} failed its SMART self-test"
             description: >-
               The newest {{ $labels.test }} self-test on {{ $labels.disk }} did
@@ -106,6 +110,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASDiskHot.md
             summary: "NAS disk {{ $labels.disk }} is at {{ $value }} C"
             description: >-
               Above 65 C for 30 minutes. Check the case airflow and fans.
@@ -118,6 +123,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolNearlyFull.md
             summary: "NAS pool {{ $labels.pool }} is over 80% used"
 
         - alert: NASPoolCriticallyFull
@@ -127,6 +133,7 @@ spec:
             severity: critical
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolCriticallyFull.md
             summary: "NAS pool {{ $labels.pool }} is over 90% used"
             description: >-
               Every iSCSI volume and the media library are on this pool. Free
@@ -139,6 +146,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolFillingUp.md
             summary: "NAS pool {{ $labels.pool }} is full in {{ $value | humanize }} days at the current trend"
 
         - alert: NASScrubOverdue
@@ -148,6 +156,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASScrubOverdue.md
             summary: "NAS pool {{ $labels.pool }} has not finished a scrub in 40 days"
             description: >-
               TrueNAS scrubs every 35 days by default. Check the scrub task under
@@ -165,6 +174,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASExporterFailing.md
             summary: "truenas-exporter cannot read the TrueNAS API"
             description: >-
               Every NAS alert is inert while this fires. Read
@@ -179,6 +189,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASExporterAbsent.md
             summary: "truenas-exporter is not being scraped"
             description: >-
               No NAS health alert can fire. Check the truenas-exporter

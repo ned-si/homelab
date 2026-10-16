@@ -25,6 +25,7 @@ spec:
           }} failed, so that backup may not restore. The FAIL lines are in the log
           of the last Job: kubectl -n backup-verify get jobs, then kubectl -n backup-verify
           logs job/<job> --all-containers. Runbook: docs/backups.md#when-a-restore-test-fails'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyFailed.md
         summary: 'Backup restore test failed: {{ $labels.check }}/{{ $labels.target
           }}'
       expr: backup_verify_success == 0
@@ -37,6 +38,7 @@ spec:
         description: '{{ $labels.check }}/{{ $labels.target }} last passed {{ $value
           | humanizeDuration }} ago. Either its CronJob did not run or every run failed:
           kubectl -n backup-verify get cronjobs,jobs. Runbook: docs/backups.md#when-a-restore-test-fails'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyStale.md
         summary: 'No passing restore test in 8 days: {{ $labels.check }}/{{ $labels.target
           }}'
       expr: |
@@ -51,6 +53,7 @@ spec:
       annotations:
         description: 'The monthly restic check --read-data-subset of {{ $labels.target
           }} last passed {{ $value | humanizeDuration }} ago. Runbook: docs/backups.md#when-a-restore-test-fails'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyDataStale.md
         summary: 'No passing pack read in 36 days: {{ $labels.target }}'
       expr: |
         time() - max by (check, target) (
@@ -66,6 +69,7 @@ spec:
           window (9 days, 30 for restic-data). Check the CronJobs (kubectl -n backup-verify
           get cronjobs,jobs) and the Pushgateway target on the Prometheus targets
           page. Runbook: docs/backups.md#when-a-restore-test-fails'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyMissing.md
         summary: No passing {{ $labels.check }} restore test on record
       expr: |
         absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic"}[9d])
@@ -83,6 +87,7 @@ spec:
           $labels.target }}, or the bucket policy no longer denies s3:DeleteObjectVersion
           to every principal. The reason is in the log: kubectl -n backup-verify logs
           job/<job> -c report. Runbook: docs/backups.md#when-the-lock-test-fails'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockBroken.md
         summary: 'Backup versions can be deleted: {{ $labels.target }}'
       expr: backup_verify_lock_ok == 0
       labels:
@@ -93,6 +98,7 @@ spec:
         description: 'The weekly lock test has not passed in 8 days: the CronJob did
           not run or every run was inconclusive (kubectl -n backup-verify get cronjobs,jobs).
           Runbook: docs/backups.md#when-the-lock-test-fails'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockCheckStale.md
         summary: No passing backup lock test in 8 days
       expr: |
         time() - max(max_over_time(backup_verify_lock_last_success_timestamp_seconds[9d])) > 8 * 86400

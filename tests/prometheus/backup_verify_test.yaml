@@ -26,6 +26,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyFailed.md
               summary: "Backup restore test failed: postgres/keycloak-db"
               description: >-
                 The last postgres restore test of keycloak-db
@@ -60,6 +61,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyStale.md
               summary: "No passing restore test in 8 days: restic/plex"
               description: >-
                 restic/plex last passed
@@ -72,6 +74,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyStale.md
               summary: "No passing restore test in 8 days: postgres/immich-db"
               description: >-
                 postgres/immich-db last passed
@@ -90,6 +93,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyDataStale.md
               summary: "No passing pack read in 36 days: theater"
               description: >-
                 The monthly restic check --read-data-subset of theater
@@ -117,6 +121,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockBroken.md
               summary: "Backup versions can be deleted: ned-si-homelab-backups"
               description: >-
                 The weekly lock test could delete an old object version in
@@ -141,6 +146,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockCheckStale.md
               summary: "No passing backup lock test in 8 days"
               description: >-
                 The weekly lock test has not passed in 8 days: the CronJob did
@@ -164,6 +170,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockCheckStale.md
               summary: "No passing backup lock test in 8 days"
               description: >-
                 The weekly lock test has not passed in 8 days: the CronJob did
@@ -188,6 +195,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyMissing.md
               summary: "No passing postgres restore test on record"
               description: >-
                 Prometheus has no passing postgres result in its
@@ -200,6 +208,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyMissing.md
               summary: "No passing restic-data restore test on record"
               description: >-
                 Prometheus has no passing restic-data result in its

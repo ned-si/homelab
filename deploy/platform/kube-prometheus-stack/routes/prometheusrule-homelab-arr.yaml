@@ -26,6 +26,7 @@ spec:
           site that is gone. Prowlarr -> System -> Status names them; update the credentials
           or disable the indexer, and remove one that has no definition (docs/theater.md
           "Indexers").'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArrIndexersFailing.md
         summary: 'Prowlarr: indexers need attention ({{ $labels.source }})'
       expr: |
         max by (namespace, source) (

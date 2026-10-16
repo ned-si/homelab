@@ -49,6 +49,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANNewDeviceSeen.md
               summary: "New device on the LAN: a8:00:00:00:00:04 at 192.168.1.62"
               description: >-
                 a8:00:00:00:00:04 answered ARP at 192.168.1.62 and was not
@@ -85,6 +86,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryFailing.md
               summary: lan-inventory has not completed an ARP scan for 30 minutes
               description: >-
                 LANNewDeviceSeen is inert while this fires. Read

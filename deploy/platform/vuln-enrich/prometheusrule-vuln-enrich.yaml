@@ -46,6 +46,7 @@ spec:
         description: The vuln-enrich CronJob has not pushed for 3 days, so the Security
           dashboard's "Act now" list is out of date. Check kubectl -n monitoring get
           cronjob,jobs -l app.kubernetes.io/name=vuln-enrich and the last Job's log.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/VulnEnrichmentStale.md
         summary: No KEV/EPSS enrichment in 3 days
       expr: |
         time() - max(max_over_time(vuln_enrich_last_success_timestamp_seconds[4d])) > 3 * 86400

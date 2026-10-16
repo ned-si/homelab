@@ -159,6 +159,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
               summary: "No probe results for media: its SLO alerts are blind"
               description: >-
                 The media target is missing from the Probes in
@@ -186,6 +187,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOProbesAbsent.md
               summary: "No public blackbox probe results: the SLO alerts are blind"
               description: >-
                 Check the blackbox-exporter Application and the Probes in
@@ -238,6 +240,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnFastPersistent.md
               summary: cook has been failing for 30 minutes
               description: >-
                 The public probes of cook have failed for half an hour and
@@ -254,6 +257,7 @@ tests:
               severity: critical
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnFastPersistent.md
               summary: cook has been failing for 30 minutes
               description: >-
                 The public probes of cook have failed for half an hour and
@@ -281,6 +285,7 @@ tests:
               severity: warning
               action: human
             exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOErrorBudgetBurnSlowPersistent.md
               summary: archive has been burning its error budget for a day
               description: >-
                 SLOErrorBudgetBurnSlow has fired for archive for 24 hours: an

@@ -27,6 +27,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosConfigDrift.md
             summary: "Talos config on {{ $labels.node }} differs from main"
             description: >-
               The running machine config of {{ $labels.node }} is not the one
@@ -43,6 +44,7 @@ spec:
             severity: warning
             action: human
           annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosDriftCheckStale.md
             summary: "No Talos drift check in 2 days"
             description: >-
               The talos-drift CronJob has not pushed a result for 2 days. Check

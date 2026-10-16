@@ -62,6 +62,15 @@ objects and rule ids only; values are never printed.
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
                         is the alertname of an alert_rule_test in
                         tests/prometheus/*_test.yaml
+  alert-runbooks        every `action: human` alert of a PrometheusRule under
+                        platform/ or apps/ has annotation runbook_url
+                        https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/<alert>.md,
+                        that file exists and docs/runbooks/alerts/README.md
+                        links it; every other .md there names such an alert; an
+                        `action: auto` alert with a runbook_url follows the same
+                        form; every other alert on an `ntfy` line of
+                        tests/alertmanager/routes.txt (but `category=security`)
+                        is named in backticks in the README
   k8s-version-match     K8S_VERSION and the KIND_NODE_IMAGE tag in
                         .github/workflows/ci.yaml are on the Kubernetes minor of
                         kubernetesVersion in talos/talconfig.yaml
@@ -136,6 +145,10 @@ ROUTE_HEADERS = {"strict-transport-security", "x-content-type-options"}
 # Homelab alert rules (docs/sre.md, Paging) and their promtool unit tests.
 RULE_DIRS = ("platform/", "apps/")
 PROMTOOL_TESTS = "tests/prometheus"
+# Every paging alert links its runbook on main (docs/runbooks/alerts/README.md).
+RUNBOOK_DIR = "docs/runbooks/alerts"
+RUNBOOK_BASE = "https://github.com/ned-si/homelab/blob/main/" + RUNBOOK_DIR + "/"
+AM_ROUTES = "tests/alertmanager/routes.txt"
 
 
 class Policy:
@@ -599,6 +612,44 @@ class Policy:
                 seen.add(r["alert"])
                 self.fail(rule, f"{rel}: {r['alert']} has no alert_rule_test in {PROMTOOL_TESTS}/*_test.yaml")
 
+    def rule_alert_runbooks(self) -> None:
+        rule = "alert-runbooks"
+        rules = self.alert_rules()
+        rb_dir = self.root / RUNBOOK_DIR
+        if not rules and not rb_dir.is_dir():
+            return
+        self.on(rule)
+        names = set()
+        for rel, r in rules:
+            alert, url = r["alert"], (r.get("annotations") or {}).get("runbook_url")
+            want = f"{RUNBOOK_BASE}{alert}.md"
+            if (r.get("labels") or {}).get("action") == "human":
+                names.add(alert)
+                if url != want:
+                    self.fail(rule, f"{rel}: {alert} has {'runbook_url ' + url if url else 'no runbook_url'}, want {want}")
+            elif url and url.startswith(RUNBOOK_BASE) and (url != want or not (rb_dir / f"{alert}.md").is_file()):
+                self.fail(rule, f"{rel}: {alert} has runbook_url {url}, want {want} and that page")
+        index = rb_dir / "README.md"
+        index_text = index.read_text() if index.is_file() else ""
+        for alert in sorted(names):
+            if not (rb_dir / f"{alert}.md").is_file():
+                self.fail(rule, f"{RUNBOOK_DIR}/{alert}.md is missing (runbook of an action: human alert)")
+            if f"]({alert}.md)" not in index_text:
+                self.fail(rule, f"{RUNBOOK_DIR}/README.md does not link {alert}.md")
+        for p in sorted(rb_dir.glob("*.md")) if rb_dir.is_dir() else []:
+            if p.name != "README.md" and p.stem not in names:
+                self.fail(rule, f"{RUNBOOK_DIR}/{p.name} names no action: human alert")
+        # The chart rules that page by name: a row in the index.
+        routes = self.root / AM_ROUTES
+        for ln in routes.read_text().splitlines() if routes.is_file() else []:
+            parts = ln.split()
+            if not parts or parts[0] != "ntfy" or "category=security" in parts[1:]:
+                continue
+            labels = dict(p.split("=", 1) for p in parts[1:] if "=" in p)
+            alert = labels.get("alertname", "")
+            if alert and alert not in names and f"`{alert}`" not in index_text:
+                self.fail(rule, f"{AM_ROUTES}: {alert} pages but has no page and no row in {RUNBOOK_DIR}/README.md")
+
     def rule_k8s_version(self) -> None:
         rule = "k8s-version-match"
         ci, tal = self.root / CI_WORKFLOW, self.root / TALCONFIG
@@ -695,7 +746,8 @@ class Policy:
                      self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked,
-                     self.rule_expected_ingresses, self.rule_alert_tests, self.rule_k8s_version,
+                     self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
+                     self.rule_k8s_version,
                      self.rule_image_bulky,
                      self.rule_image_variant, self.rule_image_digest):
             rule()

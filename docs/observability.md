@@ -203,6 +203,9 @@ templates in `X-Title`, `X-Message` and `X-Priority`
 ([inline templating](https://docs.ntfy.sh/publish/#message-templating)), all in
 `platform/kube-prometheus-stack/values.yaml`.
 
+What to do for each paging alert is in [runbooks/alerts/](runbooks/alerts/README.md),
+one page per alert; each `action: human` rule links its page in `runbook_url`.
+
 | Alert | Title | Priority |
 | --- | --- | --- |
 | `critical` firing | `CRITICAL: <alertname> (<namespace>)` | 5 (urgent) |

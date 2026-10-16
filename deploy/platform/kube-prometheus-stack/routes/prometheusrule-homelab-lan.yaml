@@ -25,6 +25,7 @@ spec:
           no internet and this may only arrive once it is back. For the BMC, check
           whether its DHCP lease moved (`turingpi.local` from the Mac) and update
           platform/blackbox-exporter/probes/lan.yaml.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANDeviceUnreachable.md
         summary: LAN device {{ $labels.device }} ({{ $labels.instance }}) does not
           answer a ping
       expr: probe_success{job="blackbox-lan", device=~"router|bmc"} == 0
@@ -46,6 +47,7 @@ spec:
           seen in the last 30 days. Its MAC is a fixed vendor address, so this is
           new hardware, not a phone rotating its private address. If it is not yours,
           find it in the router''s DHCP list and block it.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANNewDeviceSeen.md
         summary: 'New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}'
       expr: |
         max by (mac, ip, random_mac) (lan_device_present{random_mac="false"})
@@ -58,6 +60,7 @@ spec:
       annotations:
         description: LANNewDeviceSeen is inert while this fires. Read `kubectl -n
           monitoring logs deploy/lan-inventory`.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryFailing.md
         summary: lan-inventory has not completed an ARP scan for 30 minutes
       expr: |
         lan_inventory_scan_success == 0
@@ -70,6 +73,7 @@ spec:
       annotations:
         description: LANNewDeviceSeen is inert while this fires. Check the lan-inventory
           Application and its ServiceMonitor.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryAbsent.md
         summary: lan-inventory is not being scraped
       expr: absent(lan_inventory_devices)
       for: 30m
