@@ -69,6 +69,11 @@ l2announcements:
 #   icmp    ICMP by type
 #   httpV2  requests, status and latency of L7 traffic through Envoy (the
 #           Gateway)
+#   policy  policy verdicts with their match type (would-be drops); labelled
+#           by workload, with the namespaces as extra labels
+# A change to this list changes cilium-config and takes effect when the
+# agents restart (`rollOutCiliumPods` is off): restart the DaemonSet once,
+# under a kube-system maintenance silence.
 # No `dns`: Hubble sees DNS only through its DNS proxy, which needs an FQDN
 # policy; CoreDNS's own metrics cover DNS.
 prometheus:
@@ -81,6 +86,10 @@ hubble:
       - tcp:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
       - icmp:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
       - httpV2:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
+      # Policy verdicts per new connection, by workload and namespace on both
+      # ends: match="all" in a namespace with allow-lists is a would-be drop
+      # (platform/kube-prometheus-stack/routes/netpol.yaml).
+      - policy:sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity;labelsContext=source_namespace,destination_namespace
   # Relay: one gRPC endpoint for the flows of every node (hubble-relay:80 in
   # kube-system), read by the UI. Its client certificate for the agents'
   # Hubble servers is `hubble-relay-client-certs`, signed by `cilium-ca`

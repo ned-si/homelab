@@ -22,3 +22,5 @@ resources:
   - arr-alerts.yaml
   # Hubble relay and its certificates.
   - hubble-alerts.yaml
+  # Would-be drops of the network policy allow-lists (recording rules only).
+  - netpol.yaml
