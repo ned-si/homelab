@@ -17,6 +17,25 @@
 		"exitNode": ["tag:exit"],
 	},
 
+	// IP pool: new devices get an address in 100.96.0.0-100.127.255.255,
+	// minus Tailscale's reserved 100.100.0.0/22 and 100.115.0.0/16 blocks.
+	// A corporate VPN on a member's laptop routes 100.72.0.0-100.95.255.255
+	// into its own tunnel, so tailnet devices there are unreachable from it
+	// (docs/remote-access.md, "Address range").
+	"nodeAttrs": [
+		{
+			"target": ["*"],
+			"ipPool": [
+				"100.96.0.0/14",
+				"100.104.0.0/13",
+				"100.112.0.0/15",
+				"100.114.0.0/16",
+				"100.116.0.0/14",
+				"100.120.0.0/13",
+			],
+		},
+	],
+
 	"grants": [
 		// A member's own devices reach each other, as before.
 		{
