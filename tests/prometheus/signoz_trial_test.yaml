@@ -1,0 +1,76 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/signoz-trial.yaml
+# (the trial recording rules and signoz_trial:pass).
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-signoz.yaml
+
+evaluation_interval: 15m
+
+tests:
+  # Two healthy days: 2 GiB of ClickHouse memory, no restart, the volume grows
+  # 1 GiB a day on 50 GiB, three sources, 1 unparsed line in 1111, nothing
+  # discarded.
+  - interval: 15m
+    input_series:
+      - series: 'container_memory_working_set_bytes{namespace="signoz", container="clickhouse", pod="chi-0"}'
+        values: '2147483648x192'
+      - series: 'kube_pod_container_status_restarts_total{namespace="signoz", container="clickhouse", pod="chi-0"}'
+        values: '0x192'
+      - series: 'kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim="data-volumeclaim-template-chi-signoz-clickhouse-cluster-0-0-0"}'
+        values: '1073741824+11184811x192'
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="signoz", persistentvolumeclaim="data-volumeclaim-template-chi-signoz-clickhouse-cluster-0-0-0"}'
+        values: '53687091200x192'
+      - series: 'vector_log_events_total{source="pods", parse_failed="false", pod="vector-a"}'
+        values: '0+1000x192'
+      - series: 'vector_log_events_total{source="pods", parse_failed="true", pod="vector-a"}'
+        values: '0+1x192'
+      - series: 'vector_log_events_total{source="talos-service", parse_failed="false", pod="vector-a"}'
+        values: '0+100x192'
+      - series: 'vector_log_events_total{source="talos-kernel", parse_failed="false", pod="vector-a"}'
+        values: '0+10x192'
+      - series: 'vector_component_discarded_events_total{component_id="signoz_pods", pod="vector-a"}'
+        values: '0x192'
+    promql_expr_test:
+      - expr: signoz_trial:sources_present
+        eval_time: 2d
+        exp_samples:
+          - labels: 'signoz_trial:sources_present'
+            value: 3
+      - expr: round(signoz_trial:volume_growth_bytes_per_day / 1073741824, 0.01)
+        eval_time: 2d
+        exp_samples:
+          - labels: '{}'
+            value: 1
+      - expr: signoz_trial:pass
+        eval_time: 2d
+        exp_samples:
+          - labels: 'signoz_trial:pass'
+            value: 1
+
+  # Same, but 50 unparsed lines in 1160 (4%): the gate fails.
+  - interval: 15m
+    input_series:
+      - series: 'container_memory_working_set_bytes{namespace="signoz", container="clickhouse", pod="chi-0"}'
+        values: '2147483648x192'
+      - series: 'kube_pod_container_status_restarts_total{namespace="signoz", container="clickhouse", pod="chi-0"}'
+        values: '0x192'
+      - series: 'kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim="data-volumeclaim-template-chi-signoz-clickhouse-cluster-0-0-0"}'
+        values: '1073741824+11184811x192'
+      - series: 'kubelet_volume_stats_capacity_bytes{namespace="signoz", persistentvolumeclaim="data-volumeclaim-template-chi-signoz-clickhouse-cluster-0-0-0"}'
+        values: '53687091200x192'
+      - series: 'vector_log_events_total{source="pods", parse_failed="false", pod="vector-a"}'
+        values: '0+1000x192'
+      - series: 'vector_log_events_total{source="pods", parse_failed="true", pod="vector-a"}'
+        values: '0+50x192'
+      - series: 'vector_log_events_total{source="talos-service", parse_failed="false", pod="vector-a"}'
+        values: '0+100x192'
+      - series: 'vector_log_events_total{source="talos-kernel", parse_failed="false", pod="vector-a"}'
+        values: '0+10x192'
+      - series: 'vector_component_discarded_events_total{component_id="signoz_pods", pod="vector-a"}'
+        values: '0x192'
+    promql_expr_test:
+      - expr: signoz_trial:pass
+        eval_time: 2d
+        exp_samples:
+          - labels: 'signoz_trial:pass'
+            value: 0

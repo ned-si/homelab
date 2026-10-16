@@ -1,0 +1,57 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/signoz-trial.yaml (alerts).
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-signoz.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Vector discards events from minute 10 on.
+  - interval: 1m
+    input_series:
+      - series: 'vector_component_discarded_events_total{component_id="signoz", pod="vector-a"}'
+        values: '0x9 0+5x120'
+      - series: 'up{namespace="signoz", job="signoz/signoz-otel-collector", pod="c"}'
+        values: '1x130'
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: LogPipelineDiscarding
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: LogPipelineDiscarding
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LogPipelineDiscarding.md
+              summary: Vector has been discarding log events for an hour
+              description: >-
+                Logs are being lost between the nodes and SigNoz. Find the
+                component in `vector_component_discarded_events_total` and read
+                `kubectl -n logging logs ds/vector`.
+      - eval_time: 90m
+        alertname: SigNozCollectorAbsent
+        exp_alerts: []
+
+  # The collector target goes down at minute 5.
+  - interval: 1m
+    input_series:
+      - series: 'up{namespace="signoz", job="signoz/signoz-otel-collector", pod="c"}'
+        values: '1x4 0x100'
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: SigNozCollectorAbsent
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: SigNozCollectorAbsent
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SigNozCollectorAbsent.md
+              summary: No SigNoz collector has been up for an hour
+              description: >-
+                Vector cannot deliver logs: they buffer, then are discarded. Check
+                `kubectl -n signoz get pods` and the collector's log.

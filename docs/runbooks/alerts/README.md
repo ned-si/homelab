@@ -124,6 +124,8 @@ is the query helper the pages use. When done: `kill "$PF"`.
 - [LANInventoryAbsent](LANInventoryAbsent.md): lan-inventory not scraped
 - [HubbleRelayPeersNotReady](HubbleRelayPeersNotReady.md): the Hubble relay misses some nodes
 - [HubbleRelayAbsent](HubbleRelayAbsent.md): the Hubble relay not scraped
+- [LogPipelineDiscarding](LogPipelineDiscarding.md): Vector discards log events
+- [SigNozCollectorAbsent](SigNozCollectorAbsent.md): no SigNoz collector up
 - [TalosDriftCheckStale](TalosDriftCheckStale.md): no Talos drift check in 2 days
 - [VulnEnrichmentStale](VulnEnrichmentStale.md): no KEV/EPSS enrichment in 3 days
 - [AlertmanagerNotificationsFailing](AlertmanagerNotificationsFailing.md): Alertmanager cannot deliver

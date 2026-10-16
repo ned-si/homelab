@@ -1,0 +1,126 @@
+# The SigNoz trial gate and the "logs went blind" alerts
+# (docs/observability.md, "SigNoz trial").
+#
+# Trial gate, recorded every 15 minutes over the trial window (14 days); each
+# threshold is a 0/1 series and signoz_trial:pass is 1 only when all hold:
+#
+#   signoz_trial:clickhouse_memory_p95_bytes     p95 of ClickHouse working set   < 6 GiB
+#   signoz_trial:clickhouse_restarts             restarts and OOM kills          == 0
+#   signoz_trial:volume_growth_bytes_per_day     ClickHouse volume growth        < 2 GiB/day
+#   signoz_trial:volume_projection_ratio         used + 15 days of growth,
+#                                                over capacity                   < 0.7
+#   signoz_trial:parse_failed_ratio              unparsed share of log lines     < 0.01
+#   signoz_trial:discarded_events                events Vector discarded         == 0
+#   signoz_trial:sources_present                 pods, Talos services, kernel    == 3
+#
+# The phone check (the UI loads from the phone) is the one manual criterion.
+#
+# Alerts (`action: human`, warning), the only paging from the log pipeline:
+#   LogPipelineDiscarding    Vector discards events for 1h
+#   SigNozCollectorAbsent    no SigNoz collector target for 1h
+#
+# The collector's own metrics (port metrics, 8888) are scraped by the
+# PodMonitor below: SigNozCollectorAbsent reads its `up`.
+#
+# Tests: tests/prometheus/signoz_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-signoz
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: signoz.trial.raw
+      interval: 5m
+      rules:
+        - record: signoz_trial:clickhouse_memory_bytes
+          expr: max(container_memory_working_set_bytes{namespace="signoz", container="clickhouse"})
+    - name: signoz.trial
+      interval: 15m
+      rules:
+        - record: signoz_trial:clickhouse_memory_p95_bytes
+          expr: quantile_over_time(0.95, signoz_trial:clickhouse_memory_bytes[14d])
+        - record: signoz_trial:clickhouse_restarts
+          expr: |
+            sum(increase(kube_pod_container_status_restarts_total{namespace="signoz", container="clickhouse"}[14d]))
+            or vector(0)
+        - record: signoz_trial:volume_growth_bytes_per_day
+          expr: |
+            max(deriv(kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}[1d])) * 86400
+        - record: signoz_trial:volume_projection_ratio
+          expr: |
+            max(
+              (kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}
+               + 15 * 86400 * clamp_min(deriv(kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}[1d]), 0))
+              / kubelet_volume_stats_capacity_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}
+            )
+        - record: signoz_trial:parse_failed_ratio
+          expr: |
+            sum(increase(vector_log_events_total{parse_failed="true"}[1d]))
+            / sum(increase(vector_log_events_total[1d]))
+        - record: signoz_trial:discarded_events
+          expr: |
+            sum(increase(vector_component_discarded_events_total[1d])) or vector(0)
+        - record: signoz_trial:sources_present
+          expr: |
+            count(sum by (source) (increase(vector_log_events_total{source=~"pods|talos-service|talos-kernel"}[1h])) > 0)
+            or vector(0)
+        - record: signoz_trial:pass
+          expr: |
+            (
+              (signoz_trial:clickhouse_memory_p95_bytes < bool 6 * 1024 * 1024 * 1024)
+              * on () (signoz_trial:clickhouse_restarts == bool 0)
+              * on () (signoz_trial:volume_growth_bytes_per_day < bool 2 * 1024 * 1024 * 1024)
+              * on () (signoz_trial:volume_projection_ratio < bool 0.7)
+              * on () (signoz_trial:parse_failed_ratio < bool 0.01)
+              * on () (signoz_trial:discarded_events == bool 0)
+              * on () (signoz_trial:sources_present == bool 3)
+            )
+            or vector(0)
+    - name: signoz.alerts
+      rules:
+        - alert: LogPipelineDiscarding
+          expr: sum(increase(vector_component_discarded_events_total[15m])) > 0
+          for: 1h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LogPipelineDiscarding.md
+            summary: "Vector has been discarding log events for an hour"
+            description: >-
+              Logs are being lost between the nodes and SigNoz. Find the
+              component in `vector_component_discarded_events_total` and read
+              `kubectl -n logging logs ds/vector`.
+        - alert: SigNozCollectorAbsent
+          expr: absent(up{namespace="signoz", job=~".*otel-collector.*"} == 1)
+          for: 1h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SigNozCollectorAbsent.md
+            summary: "No SigNoz collector has been up for an hour"
+            description: >-
+              Vector cannot deliver logs: they buffer, then are discarded. Check
+              `kubectl -n signoz get pods` and the collector's log.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: signoz-otel-collector
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [signoz]
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: signoz
+      app.kubernetes.io/component: otel-collector
+  podMetricsEndpoints:
+    - port: metrics

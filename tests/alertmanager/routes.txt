@@ -40,6 +40,8 @@ ntfy alertname=PersistentVolumeNearlyFull severity=warning namespace=immich pers
 ntfy alertname=LANDeviceUnreachable severity=warning device=bmc
 ntfy alertname=HubbleRelayPeersNotReady severity=warning
 ntfy alertname=HubbleRelayAbsent severity=warning
+ntfy alertname=LogPipelineDiscarding severity=warning
+ntfy alertname=SigNozCollectorAbsent severity=warning
 # Expired credentials and accounts.
 ntfy alertname=CertificateExpiringSoon severity=warning namespace=gateway name=wildcard
 ntfy alertname=HubbleCertRenewalStale severity=warning
