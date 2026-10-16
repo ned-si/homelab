@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    kyverno.io/kyverno-version: 1.14.0
+    policies.kyverno.io/category: Pod Security Standards (Restricted) in ValidatingPolicy
+    policies.kyverno.io/description: Containers must be required to run as non-root
+      users. This policy ensures `runAsUser` is either unset or set to a number greater
+      than zero.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Require Run As Non-Root User in ValidatingPolicy
+  name: require-run-as-non-root-user
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: object.spec.?securityContext.?runAsUser.orValue(1) > 0
+    message: Running as root is not allowed. The field spec.securityContext.runAsUser  must
+      be unset or set to a number greater than zero.
+  - expression: "variables.allContainers.all(container, \n  container.?securityContext.?runAsUser.orValue(1)
+      > 0)"
+    message: Running as root is not allowed. The field spec.containers[*].securityContext.runAsUser,  spec.initContainers[*].securityContext.runAsUser,
+      and  spec.ephemeralContainers[*].securityContext.runAsUser must be unset or
+      set to a number greater than zero.
+  variables:
+  - expression: object.spec.containers +  object.spec.?initContainers.orValue([])
+      +  object.spec.?ephemeralContainers.orValue([])
+    name: allContainers
+  webhookConfiguration:
+    timeoutSeconds: 3

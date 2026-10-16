@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The ValidatingPolicies the in-cluster Kyverno runs: the same files CI runs
+# over deploy/ (policies/kyverno). Audit only; Deny is wave 4, one policy at a
+# time, once its reports are clean.
+#
+# The vendored files stay byte for byte upstream; the cluster settings are
+# patched here:
+#   - validationActions [Audit]: nothing is ever rejected;
+#   - failurePolicy Ignore and a 3 s webhook timeout: an evaluation error or a
+#     slow Kyverno never blocks a request.
+resources:
+  - ../../policies/kyverno
+
+patches:
+  - target:
+      group: policies.kyverno.io
+      kind: ValidatingPolicy
+    patch: |-
+      - op: add
+        path: /spec/validationActions
+        value: [Audit]
+      - op: add
+        path: /spec/failurePolicy
+        value: Ignore
+      - op: add
+        path: /spec/webhookConfiguration
+        value:
+          timeoutSeconds: 3

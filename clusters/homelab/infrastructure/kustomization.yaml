@@ -17,6 +17,8 @@ kind: Kustomization
 #    15  gateway           the shared Gateway on .254 (ADR 0007)
 #    20  democratic-csi    iSCSI CSI driver + StorageClasses; auto-sync, no prune
 #    25  iscsi-volumes     static PVs of the existing data zvols; no prune
+#    26  kyverno           admission policies, Audit only, fail-open webhooks
+#    27  kyverno-policies  the ValidatingPolicies (needs the CRDs above)
 #    30  network-policies  CiliumNetworkPolicy allow-lists, not enforced
 #                          (every switch in 90-enforcement.yaml is false)
 #
@@ -41,4 +43,6 @@ resources:
   - gateway.yaml
   - democratic-csi.yaml
   - iscsi-volumes.yaml
+  - kyverno.yaml
+  - kyverno-policies.yaml
   - network-policies.yaml

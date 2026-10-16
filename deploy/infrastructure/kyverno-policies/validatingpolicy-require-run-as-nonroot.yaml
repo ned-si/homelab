@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    kyverno.io/kyverno-version: 1.14.0
+    policies.kyverno.io/category: Pod Security Standards (Restricted) in ValidatingPolicy
+    policies.kyverno.io/description: Containers must be required to run as non-root.
+      This policy ensures `runAsNonRoot` is set to true.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Require runAsNonRoot in ValidatingPolicy
+  name: require-run-as-nonroot
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: |-
+      (object.spec.?securityContext.?runAsNonRoot.orValue(false) == true
+
+        && variables.ctnrs.all(c, c.?securityContext.?runAsNonRoot.orValue(true) == true))
+        || variables.ctnrs.all(c, c.?securityContext.?runAsNonRoot.orValue(false) == true)
+    message: Running as root is not allowed. Either spec.securityContext.runAsNonRoot  must
+      be set to true, or all containers (spec.containers[*], spec.initContainers[*],  spec.ephemeralContainers[*])
+      must have securityContext.runAsNonRoot set to true.
+  variables:
+  - expression: object.spec.containers +  object.spec.?initContainers.orValue([])
+      +  object.spec.?ephemeralContainers.orValue([])
+    name: ctnrs
+  webhookConfiguration:
+    timeoutSeconds: 3

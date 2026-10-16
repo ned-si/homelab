@@ -1,0 +1,34 @@
+# The policies as a kustomize base, so infrastructure/kyverno-policies syncs
+# these exact files into the cluster (in Audit there): CI and cluster cannot
+# drift. scripts/ci/kyverno.sh skips this file; tests/test_security_controls.py
+# checks that it lists every policy.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - require-probes.yaml
+  - upstream/pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
+  - upstream/pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
+  - upstream/pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
+  - upstream/pod-security-vpol/baseline/disallow-host-ports/disallow-host-ports.yaml
+  - upstream/pod-security-vpol/baseline/disallow-host-process/disallow-host-process.yaml
+  - upstream/pod-security-vpol/baseline/disallow-privileged-containers/disallow-privileged-containers.yaml
+  - upstream/pod-security-vpol/baseline/disallow-proc-mount/disallow-proc-mount.yaml
+  - upstream/pod-security-vpol/baseline/disallow-selinux/disallow-selinux.yaml
+  - upstream/pod-security-vpol/baseline/restrict-seccomp/restrict-seccomp.yaml
+  - upstream/pod-security-vpol/baseline/restrict-sysctls/restrict-sysctls.yaml
+  - upstream/pod-security-vpol/restricted/disallow-capabilities-strict/disallow-capabilities-strict.yaml
+  - upstream/pod-security-vpol/restricted/disallow-privilege-escalation/disallow-privilege-escalation.yaml
+  - upstream/pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
+  - upstream/pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
+  - upstream/pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
+  - upstream/pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
+  - upstream/best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
+  - upstream/best-practices-vpol/disallow-cri-sock-mount/disallow-cri-sock-mount.yaml
+  - upstream/best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
+  - upstream/best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
+  - upstream/best-practices-vpol/require-drop-all/require-drop-all.yaml
+  - upstream/best-practices-vpol/require-drop-cap-net-raw/require-drop-cap-net-raw.yaml
+  - upstream/best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
+  - upstream/best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
+  - upstream/best-practices-vpol/restrict-node-port/restrict-node-port.yaml
+  - upstream/best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml

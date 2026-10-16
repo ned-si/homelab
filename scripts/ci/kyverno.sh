@@ -44,8 +44,12 @@ scripts/kyverno-vendor.sh --check || rc=1
 echo "== kyverno test policies/kyverno/tests"
 kyverno test policies/kyverno/tests --remove-color || rc=1
 
+# policies/kyverno/kustomization.yaml is how infrastructure/kyverno-policies
+# syncs these files into the cluster; it is not a policy.
 policies=()
-for p in policies/kyverno/*.yaml; do policies+=("$p"); done
+for p in policies/kyverno/*.yaml; do
+  [ "$(basename "$p")" = kustomization.yaml ] || policies+=("$p")
+done
 while IFS= read -r p; do policies+=("$p"); done \
   < <(find policies/kyverno/upstream -name '*.yaml' -type f ! -name controls.yaml | sort)
 names=" $(for p in "${policies[@]}"; do yq '.metadata.name' "$p"; done | tr '\n' ' ') "

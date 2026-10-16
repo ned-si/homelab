@@ -48,7 +48,7 @@ and `clusters/homelab/root.yaml` are the same object; CI fails if they differ.
 
 | Layer | Applications | Depends on |
 | --- | --- | --- |
-| infrastructure | `namespaces`, `secrets-infrastructure`, `gateway-api`, `cilium`, `cilium-config`, `cert-manager`, `cert-manager-issuers`, `external-dns`, `gateway`, `democratic-csi` | nothing |
+| infrastructure | `namespaces`, `secrets-infrastructure`, `gateway-api`, `cilium`, `cilium-config`, `cert-manager`, `cert-manager-issuers`, `external-dns`, `gateway`, `democratic-csi`, `kyverno`, `kyverno-policies` | nothing |
 | platform | `secrets-platform`, `cnpg`, `barman-cloud-plugin`, `kube-prometheus-stack`, `keycloak` | StorageClasses, certificates |
 | apps | `secrets-apps`, `immich`, `mealie`, `paperless`, `syncthing`, `theater` | databases, identity, routing |
 
@@ -66,6 +66,8 @@ Sync waves inside `infrastructure`:
 | 10 | `external-dns` | |
 | 15 | `gateway` | The shared entrypoint |
 | 20 | `democratic-csi` | StorageClasses before any PVC in later layers |
+| 26 | `kyverno` | Last: nothing in a cold start waits on it |
+| 27 | `kyverno-policies` | Needs the ValidatingPolicy CRD |
 
 `platform`: `secrets-platform` (-25), `cnpg` (0), `barman-cloud-plugin` (5), `kube-prometheus-stack` (10),
 `keycloak` (20). `apps`: `secrets-apps` (-25), every app at 0.
@@ -100,8 +102,9 @@ Each layer has an `AppProject`. None wildcards cluster-scoped kinds:
 
 - `infrastructure`: an enumerated `clusterResourceWhitelist` (Namespace,
   PersistentVolume, ClusterIssuer, the two Cilium kinds, CRDs, ClusterRole and
-  binding, CSIDriver, StorageClass, VolumeSnapshotClass, GatewayClass, the two
-  webhook kinds), each entry commented with what needs it.
+  binding, CSIDriver, StorageClass, VolumeSnapshotClass, GatewayClass,
+  ValidatingPolicy, the webhook and admission-policy kinds), each entry
+  commented with what needs it.
 - `platform`: a shorter enumerated list.
 - `apps`: namespaced kinds only, in a fixed list of destination namespaces.
 
@@ -109,6 +112,33 @@ A kind that is not on the list cannot be created by that layer: the sync fails
 and names the kind. That is why `infrastructure/network-policies/` uses
 namespaced `CiliumNetworkPolicy`, not `CiliumClusterwideNetworkPolicy`. Widening
 a list is a deliberate edit with the reason on the same line.
+
+## Admission policy (Kyverno)
+
+Kyverno runs the same policy files as CI (`policies/kyverno/`, see
+[testing.md](testing.md)), in Audit only: nothing is rejected.
+
+- `infrastructure/kyverno`: the chart, admission and reports controllers only,
+  one replica each, namespace `kyverno` (PSA `restricted`).
+- `infrastructure/kyverno-policies`: renders `policies/kyverno` with every
+  policy patched to `validationActions: [Audit]`, `failurePolicy: Ignore` and
+  a 3 s webhook timeout. The vendored files stay byte for byte upstream.
+- Cold start: every webhook fails open (`forceFailurePolicyIgnore`) and skips
+  `kube-system`, `argo`, `cilium`, `kyverno` and `tailscale`, so a missing or
+  slow Kyverno never blocks pod creation.
+- Reports: an hourly background scan writes `wgpolicyk8s.io/v1alpha2`
+  `PolicyReport`s for every namespace, the excluded ones included.
+
+Check:
+
+```sh
+kubectl --request-timeout=10s get validatingpolicies
+kubectl --request-timeout=10s get validatingwebhookconfigurations -l webhook.kyverno.io/managed-by=kyverno \
+  -o jsonpath='{range .items[*].webhooks[*]}{.name} {.failurePolicy}{"\n"}{end}'
+kubectl --request-timeout=10s get policyreports -A | head
+```
+
+Expected: 27 policies, every webhook `Ignore`, reports in the app namespaces.
 
 ## deploy/: rendered manifests
 

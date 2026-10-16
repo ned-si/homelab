@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    kyverno.io/kyverno-version: 1.14.0
+    policies.kyverno.io/category: Pod Security Standards (Baseline) in ValidatingPolicy
+    policies.kyverno.io/description: The default /proc masks are set up to reduce
+      attack surface and should be required. This policy ensures nothing but the default
+      procMount can be specified. Note that in order for users to deviate from the
+      `Default` procMount requires setting a feature gate at the API server.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Disallow procMount in ValidatingPolicy
+  name: disallow-proc-mount
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: variables.allContainers.all(container, container.?securityContext.?procMount.orValue('Default')
+      == 'Default')
+    message: Changing the proc mount from the default is not allowed.
+  variables:
+  - expression: "object.spec.containers + \n  object.spec.?initContainers.orValue([])
+      + \n  object.spec.?ephemeralContainers.orValue([])"
+    name: allContainers
+  webhookConfiguration:
+    timeoutSeconds: 3

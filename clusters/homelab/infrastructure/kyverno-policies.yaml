@@ -1,0 +1,37 @@
+# The Kyverno ValidatingPolicies, Audit only. Source:
+# infrastructure/kyverno-policies (policies/kyverno, the vendored upstream set
+# and the homelab require-probes), rendered into deploy/.
+#
+# SYNC WAVE 27: after `kyverno` (26), which brings the ValidatingPolicy CRD.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kyverno-policies
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "27"
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/infrastructure/kyverno-policies
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kyverno
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      # A policy taken out of git leaves the cluster.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
