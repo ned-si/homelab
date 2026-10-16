@@ -9,7 +9,9 @@ tests:
   # One event of each source; a Job that is not a backup is left out.
   - interval: 1m
     input_series:
-      - series: 'automation_event_timestamp_seconds{source="github", kind="renovate", app="deps", what="#1 chore(deps): x", result="merged", url="https://github.com/o/r/pull/1", pod="github-exporter-0"}'
+      - series: >-
+          automation_event_timestamp_seconds{source="github", kind="renovate", app="deps",
+          what="#1 chore(deps): x", result="merged", url="https://github.com/o/r/pull/1", pod="github-exporter-0"}
         values: '1000x10'
       - series: 'kube_job_status_completion_time{namespace="mealie", job_name="mealie-backup-1"}'
         values: '500x10'
@@ -37,17 +39,29 @@ tests:
       - expr: automation:event:timestamp_seconds
         eval_time: 5m
         exp_samples:
-          - labels: 'automation:event:timestamp_seconds{source="github", kind="renovate", app="deps", what="#1 chore(deps): x", result="merged", url="https://github.com/o/r/pull/1"}'
+          - labels: >-
+              automation:event:timestamp_seconds{source="github", kind="renovate", app="deps",
+              what="#1 chore(deps): x", result="merged", url="https://github.com/o/r/pull/1"}
             value: 1000
-          - labels: 'automation:event:timestamp_seconds{source="kubernetes", kind="backup", app="mealie", what="mealie-backup-1", result="ok", url="/d/homelab-data-protection"}'
+          - labels: >-
+              automation:event:timestamp_seconds{source="kubernetes", kind="backup", app="mealie",
+              what="mealie-backup-1", result="ok", url="/d/homelab-data-protection"}
             value: 500
-          - labels: 'automation:event:timestamp_seconds{source="kubernetes", kind="backup", app="theater", what="theater-config-backup-sonarr-2", result="failed", url="/d/homelab-data-protection"}'
+          - labels: >-
+              automation:event:timestamp_seconds{source="kubernetes", kind="backup", app="theater",
+              what="theater-config-backup-sonarr-2", result="failed", url="/d/homelab-data-protection"}
             value: 600
-          - labels: 'automation:event:timestamp_seconds{source="kubernetes", kind="restore-test", app="backup-verify", what="bv-postgres-3", result="ok", url="/d/homelab-data-protection"}'
+          - labels: >-
+              automation:event:timestamp_seconds{source="kubernetes", kind="restore-test", app="backup-verify",
+              what="bv-postgres-3", result="ok", url="/d/homelab-data-protection"}
             value: 650
-          - labels: 'automation:event:timestamp_seconds{source="cnpg", kind="base-backup", app="immich", what="base backup immich-db", result="ok", url="/d/homelab-data-protection"}'
+          - labels: >-
+              automation:event:timestamp_seconds{source="cnpg", kind="base-backup", app="immich",
+              what="base backup immich-db", result="ok", url="/d/homelab-data-protection"}
             value: 700
-          - labels: 'automation:event:timestamp_seconds{source="tuppr", kind="upgrade", app="talos", what="talos upgrade (cluster)", result="success", url="/d/homelab-nodes"}'
+          - labels: >-
+              automation:event:timestamp_seconds{source="tuppr", kind="upgrade", app="talos",
+              what="talos upgrade (cluster)", result="success", url="/d/homelab-nodes"}
             value: 800
 
   # A Talos upgrade in progress is dated now.
@@ -59,5 +73,7 @@ tests:
       - expr: automation:event:timestamp_seconds
         eval_time: 5m
         exp_samples:
-          - labels: 'automation:event:timestamp_seconds{source="tuppr", kind="upgrade", app="talos", what="talos upgrade (cluster)", result="Upgrading", url="/d/homelab-nodes"}'
+          - labels: >-
+              automation:event:timestamp_seconds{source="tuppr", kind="upgrade", app="talos",
+              what="talos upgrade (cluster)", result="Upgrading", url="/d/homelab-nodes"}
             value: 300
