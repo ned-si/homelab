@@ -51,7 +51,7 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
 - [ ] 12. PR `feat(talos): send service and kernel logs to Vector`: `talos/patches/logging.yaml`,
       the `KmsgLogConfig` document, `docs/talos.md`; etcd snapshot, then
       `task talos:apply` node by node from main. [4.5]
-- [ ] 13. PR `feat(backups): SigNoz metadata backup`: restic CronJob with the pending
+- [x] 13. (#SZBPR) PR `feat(backups): SigNoz metadata backup`: restic CronJob with the pending
       guard, `ci/active-cronjobs.txt`, `ci/guard-modes.txt`, `docs/backups.md` (metadata
       backed up, ClickHouse disposable); rehearse one restore into a scratch namespace and
       write it down. [6.1, 6.2, 6.3, 6.4]

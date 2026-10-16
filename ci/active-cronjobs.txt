@@ -35,3 +35,4 @@ backup-verify/backup-verify-lock
 monitoring/vuln-enrich
 monitoring/grafana-backup
 system-upgrade/talos-drift
+signoz/signoz-backup

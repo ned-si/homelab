@@ -59,6 +59,7 @@ locals {
     "theater/configs", # apps/theater/backup.yaml (all six config jobs share it)
     "books/configs",   # apps/books/backup.yaml
     "home/configs",    # apps/home/backup.yaml
+    "signoz/metadata", # platform/signoz/resources/backup.yaml
   ]
 }
 

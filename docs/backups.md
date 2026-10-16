@@ -33,6 +33,7 @@ One restic repository per prefix. The restic URL is
 | `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`, `lazylibrarian`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
 | `books/configs` | `books` | `/data` → `audiobookshelf`; `/library` → `calibre-library`; `/config` → `calibre-web` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs`; NFS `books/ebooks`; PVC `calibre-web-config`, minus `log` | not yet measured |
 | `home/configs` | `home` | `/dumps` → `home-assistant-postgres`; `/config` → `home-assistant-config` (both also `home-assistant`) | `pg_dump` of `home-assistant-postgresql`; PVC `home-assistant-config`, minus logs, `deps`, `tts`, `.cache` | not yet measured |
+| `signoz/metadata` | `signoz` | `/data/signoz.db*` → `signoz-db-besteffort` | PVC `signoz-db-signoz-0`: SigNoz users, dashboards, saved views, alert rules | 4 MiB |
 | `grafana/data` | `grafana` | `/data` → `grafana-config` (minus `grafana.db*`); `/data/grafana.db*` → `grafana-db-besteffort` | PVC `kube-prometheus-stack-grafana`: the service accounts and their tokens, preferences, annotations | not yet measured |
 
 Every snapshot in `theater/configs` also carries the tag `theater-configs`. The
@@ -71,6 +72,7 @@ upgrades, not against losing the NAS.
 | `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | Barman Cloud plugin: WAL + `<cluster>-daily`; `pg_dump` in `theater-postgres-backup` | `cnpg/<cluster>-t1/`; `theater/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | `home/home-assistant-postgresql` | Barman Cloud plugin: WAL + `home-assistant-postgresql-daily`; `pg_dump` in `home-assistant-backup` | `cnpg/home-assistant-postgresql/`; `home/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | Paperless SQLite | file copy of `db.sqlite3` inside `/data` | `paperless/media` | may be torn: the restic image has no `sqlite3`, so `.backup` is skipped and the job logs a warning |
+| SigNoz SQLite | file copy of `signoz.db` (and `-wal`/`-shm`) in `signoz-backup` | `signoz/metadata` | may be torn, tagged `signoz-db-besteffort` |
 | Grafana SQLite | file copy of `grafana.db` (and `-wal`/`-shm`) in `grafana-backup` | `grafana/data` | may be torn, tagged `grafana-db-besteffort`; dashboards and datasources are in git |
 
 Each Cluster lists the plugin in `spec.plugins` with `isWALArchiver: true` and
@@ -202,6 +204,7 @@ the NAS:
 | 05:30 | `theater/theater-config-backup-lazylibrarian` |
 | 05:40 | `home/home-assistant-backup` |
 | 05:50 | `monitoring/grafana-backup` (keeps its own 7 daily / 4 weekly / 6 monthly; no prune job) |
+| 06:00 | `signoz/signoz-backup` (keeps its own 7 daily / 4 weekly / 6 monthly; no prune job) |
 | 1st of the month, 12:00–13:45 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, theater 13:00, books 13:15, immich 13:30, home 13:45 |
 
 The theater jobs share one repository and restic takes an exclusive lock for
@@ -845,6 +848,10 @@ deletes one when its manifest leaves git.
   every peer; Syncthing's per-folder File Versioning (in `config.xml`) covers that.
 - **Grafana.** No persistent volume: dashboards and data sources are provisioned
   from git, users come from Keycloak.
+- **SigNoz telemetry** (ClickHouse, PVC `data-volumeclaim-template-chi-signoz-clickhouse-cluster-0-0-0`,
+  50 GiB). Logs and traces are disposable by decision: they expire after 15 and 7
+  days anyway, and a rebuild starts empty. Only SigNoz's metadata is backed up
+  (`signoz/metadata`).
 - **etcd on a schedule.** Take a snapshot by hand before every Kubernetes upgrade
   or risky change: `task talos:etcd-snapshot`
   ([talos-cheatsheet.md](talos-cheatsheet.md#etcd-snapshots)).
