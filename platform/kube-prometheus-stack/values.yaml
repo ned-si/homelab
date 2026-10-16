@@ -155,8 +155,9 @@ grafana:
   # restart: the service account `agent-readonly` and its token
   # (docs/secrets.md), annotations, stars. Dashboards and datasources stay
   # provisioned from git. PVC `kube-prometheus-stack-grafana`, the name
-  # routes/grafana-backup.yaml backs up. ReadWriteOnce, so Recreate: a rolling
-  # update would start the new pod while the old one holds the volume.
+  # routes/grafana-backup.yaml backs up. ReadWriteOnce, so the old pod stops
+  # before the new one starts (maxSurge 0). Not `type: Recreate`: the live
+  # Deployment keeps its defaulted rollingUpdate block and the apply is refused.
   persistence:
     enabled: true
     type: pvc
@@ -167,7 +168,10 @@ grafana:
     annotations:
       argocd.argoproj.io/sync-options: Delete=false,Prune=false
   deploymentStrategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   # fsGroup 472 (the chart default) already gives Grafana the new volume; the
   # chown init container would run as root.
   initChownData:
