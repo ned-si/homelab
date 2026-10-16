@@ -8,7 +8,7 @@ own pull request with its own diff, test and rollback
 
 - Enforce the CiliumNetworkPolicies (`infrastructure/network-policies/`,
   written, not in a layer), one namespace at a time.
-- Cilium WireGuard transparent encryption, then Hubble relay, UI and metrics
+- Cilium WireGuard transparent encryption
   ([decisions.md](decisions.md#no-service-mesh)).
 
 ## Monitoring

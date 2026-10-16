@@ -81,3 +81,35 @@ hubble:
       - tcp:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
       - icmp:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
       - httpV2:sourceContext=namespace|reserved-identity;destinationContext=namespace|reserved-identity
+  # Relay: one gRPC endpoint for the flows of every node (hubble-relay:80 in
+  # kube-system), read by the UI. Its client certificate for the agents'
+  # Hubble servers is `hubble-relay-client-certs`, signed by `cilium-ca`
+  # (kept live by ignoreDifferences in clusters/homelab/infrastructure/cilium.yaml).
+  # Neither relay nor UI changes cilium-config: enabling them does not roll
+  # the agents. Images stay digest-pinned (chart default `useDigest: true`).
+  relay:
+    enabled: true
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  # UI: tailnet only, behind the oauth2-proxy `hubble-sso`
+  # (platform/hubble-access); no Service other than the chart's ClusterIP.
+  ui:
+    enabled: true
+    frontend:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 16Mi
+        limits:
+          memory: 64Mi
+    backend:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 32Mi
+        limits:
+          memory: 128Mi

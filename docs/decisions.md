@@ -234,8 +234,8 @@ No Istio, no Linkerd. Zero-trust networking and traffic observability are
 built from Cilium, which is already the CNI: identity-based
 `CiliumNetworkPolicy` (written, not enforced yet, see
 [networking.md](networking.md#network-policy)), WireGuard transparent
-encryption (not enabled yet) and Hubble (on in the agents; relay, UI and
-metrics not enabled yet).
+encryption (not enabled yet) and Hubble (metrics, relay and UI, see
+[networking.md](networking.md#hubble)).
 
 Why: a mesh adds a sidecar or proxy per pod and a second control plane on four
 32 GB arm64 nodes, to deliver mostly what the CNI provides without them.
