@@ -288,8 +288,8 @@ Every web UI is a public HTTPRoute on the shared Gateway behind a Keycloak
 login, gated by group (the client's own login flow and, for an oauth2-proxy,
 its `allowedGroups`), with the security headers and the weekly DAST like any
 other route. Only the cluster APIs stay off the internet: `kubectl` through
-the Tailscale API server proxy, `talosctl` on the LAN (the Talos API is not
-on the tailnet yet); neither is ever on the Gateway
+the Tailscale API server proxy, `talosctl` through each node's own Tailscale
+(or the LAN); neither is ever on the Gateway
 ([remote-access.md](remote-access.md)). Headlamp moved to
 `headlamp.lilalala.com` under this rule; the Hubble UI follows.
 
