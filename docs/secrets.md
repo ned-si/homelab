@@ -87,7 +87,7 @@ credentials that live outside the repository, under `~/homelab-backups/agent/`
 | --- | --- | --- |
 | Kubernetes ServiceAccount `kube-system/agent-readonly` | `platform/agent-access/rbac.yaml` | ClusterRole `view` plus read on nodes; no Secrets, no exec |
 | Argo CD account `agent` (API key only) | `bootstrap/argocd-values.yaml`, `accounts.agent` | `role:readonly` |
-| Grafana service account `agent-readonly` | Grafana API (Grafana has no service account provisioning) | Viewer |
+| Grafana service account `agent-readonly` | Grafana API (Grafana has no service account provisioning); kept in `grafana.db` on PVC `monitoring/kube-prometheus-stack-grafana`, so it survives restarts | Viewer |
 
 Build the Kubernetes kubeconfig from the token Secret (prints nothing):
 
