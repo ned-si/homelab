@@ -30,7 +30,7 @@ spec:
         runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayPeersNotReady.md
         summary: Hubble relay reaches {{ $value }} agents, fewer than are Ready
       expr: |
-        max(hubble_relay_pool_peer_connection_status{status="READY"})
+        sum(hubble_relay_pool_peer_connection_status{status=~"READY|IDLE"})
         < max(kube_daemonset_status_number_ready{namespace="kube-system", daemonset="cilium"})
       for: 30m
       labels:

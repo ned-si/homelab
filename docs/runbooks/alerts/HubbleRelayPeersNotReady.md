@@ -16,7 +16,7 @@ q 'hubble_relay_pool_peer_connection_status'
 kubectl -n kube-system logs deploy/hubble-relay --tail=20
 ```
 
-Expected while it fires: `READY` below the node count, and the relay log names
+Expected while it fires: `READY` plus `IDLE` (connected, no stream open) below the node count, and the relay log names
 the cause for each peer it cannot reach.
 
 ## Fix
