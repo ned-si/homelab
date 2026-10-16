@@ -43,9 +43,12 @@ spec:
     ingress: false
     egress: false
   ingress:
+    # The exporter pod only, not all of monitoring: it holds an admin-level
+    # Jellyfin key (docs/secrets.md).
     - fromEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: usage-exporter
       toPorts:
         - ports:
             - port: "8096"
