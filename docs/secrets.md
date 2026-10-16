@@ -120,6 +120,10 @@ date its values were last set. The class sets how long a value may live:
 | `credential` | 365 days | Passwords, OIDC client secrets and app API keys inside the homelab |
 | `static` | on compromise only | `talsecret` (the Talos PKI; rotating it is a CA rotation), `alertmanager-notify` (the ntfy topic and the heartbeat URL; a new topic means re-subscribing the phone), `plex-claim` (single use) |
 
+An Actions secret with no sealed copy gets its own row,
+`actions-secret:<NAME>`: `SCORECARD_TOKEN` (`api-token`; a fine-grained token,
+read-only on this repository, that lets Scorecard read branch protection).
+
 Credentials outside git follow the same classes: the Actions secret
 `AUTO_ROLLBACK_TOKEN` (the same value as `argocd-notifications`, so the same
 row), `NTFY_TOPIC` (`static`), the Argo CD OIDC client secret, the NAS root
@@ -129,8 +133,9 @@ Nothing checks the last four; rotate them with their sealed neighbours.
 Checks (dates only, never a value):
 
 - `scripts/ci/secret_rotation.py coverage` (repo-policy, every pull request):
-  every `*.sops.yaml` has exactly one row, no row is stale, classes and dates
-  are valid.
+  every `*.sops.yaml` has exactly one row, no row is stale (an
+  `actions-secret:` row is stale when no workflow reads the secret), classes
+  and dates are valid.
 - `scripts/ci/secret_rotation.py age` (workflow `secret-age`, Mondays 07:00
   UTC): any row past its period fails the run, and the failure posts to ntfy.
   Rows due within 30 days are listed in the run log.

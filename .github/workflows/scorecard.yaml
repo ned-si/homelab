@@ -44,6 +44,10 @@ jobs:
         with:
           results_file: results.sarif
           results_format: sarif
+          # Fine-grained PAT, this repository only, read-only (Administration,
+          # Contents, Metadata): the default token can't read classic branch
+          # protection. Publishing still signs with the job's OIDC token.
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
           publish_results: true
 
       - name: Upload to code scanning
