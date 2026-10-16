@@ -86,8 +86,8 @@ XFAIL=(
   'apps/theater::strategy\.rollingUpdate: Forbidden::needs scripts/normalize-deployment-strategy.sh (RollingUpdate -> Recreate)'
   'platform/keycloak::strategy\.rollingUpdate: Forbidden::needs scripts/normalize-deployment-strategy.sh (RollingUpdate -> Recreate)'
 
-  # The one genuinely irreversible change in the restructure.
-  'apps/immich/resources::(imageName|major|shared_preload_libraries|VectorChord|vchord|pgvecto)::PG 16.5 -> 17 + pgvecto.rs -> VectorChord; needs docs/runbooks/immich-upgrade.md'
+  # immich-db image changes are one-way (VectorChord update or PG major).
+  'apps/immich/resources::(imageName|major|shared_preload_libraries|VectorChord|vchord)::immich-db image change; needs docs/runbooks/immich-upgrade.md'
 )
 
 if [ "$#" -gt 0 ]; then

@@ -224,21 +224,6 @@
       enabled: false,
     },
     {
-      // Immich 3.0 removes pgvecto.rs support, so the server stays on 2.x
-      // until the database moves to VectorChord (docs/runbooks/immich-upgrade.md).
-      description: 'Cap the Immich server below 3.0 while the database runs pgvecto.rs',
-      matchPackageNames: ['ghcr.io/immich-app/immich-server'],
-      allowedVersions: '<3.0.0',
-    },
-    {
-      // Chart 0.10 rewrote the values layout; apps/immich/values.yaml does not
-      // render on it. It moves with the VectorChord migration.
-      description: 'Cap the Immich chart below 0.10 until its values are migrated',
-      matchDatasources: ['helm'],
-      matchPackageNames: ['immich'],
-      allowedVersions: '<0.10.0',
-    },
-    {
       // Database servers and their backup clients share one depName, so a
       // bump moves both in the same PR and pg_dump / mariadb-dump always match
       // the server. A server major is one-way: Argo CD's PreSync backup runs

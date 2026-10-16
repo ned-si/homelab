@@ -1,11 +1,9 @@
 # Immich - photo library.
 #
 # Synced automatically, like every other app. Renovate updates the server
-# image below v3.0.0 and the chart below 0.10.0 (.github/renovate.json5);
-# Immich 3.0 drops pgvecto.rs and chart 0.10 rewrote the values, so both
-# move together with the database image, by hand, following
-# docs/runbooks/immich-upgrade.md. The database image
-# (cloudnative-pgvecto.rs:16.5-v0.3.0) is never updated by Renovate.
+# and machine-learning image and the chart (.github/renovate.json5). The
+# database image (cloudnative-vectorchord, apps/immich/resources/database.yaml)
+# is never updated by Renovate: docs/runbooks/immich-upgrade.md.
 #
 # Before every sync a PreSync hook takes a base backup of immich-db, and
 # after it a PostSync hook checks the server answers

@@ -1,159 +1,153 @@
-# Immich: migrating from pgvecto.rs to VectorChord
+# Immich: server and database upgrades
 
-**The one irreversible upgrade in this cluster. Not done yet.** Immich runs
-v2.x (chart 0.9.x) on `cloudnative-pgvecto.rs:16.5-v0.3.0` (PostgreSQL 16).
+Immich runs v3.x on chart 0.13.x (`oci://ghcr.io/immich-app/immich-charts/immich`)
+with `immich-db` on `cloudnative-vectorchord:16.15-1.1.1` (PostgreSQL 16.15,
+VectorChord 1.1.1, pgvector 0.8.6).
 
-The `immich` Application syncs automatically, so a merged change deploys
-within minutes, after a PreSync base backup of `immich-db`. Renovate updates
-the server within 2.x and the chart within 0.9.x on its own. It never proposes
-what this runbook covers: the database image is disabled, the server is capped
-below 3.0.0 and the chart below 0.10.0 (`.github/renovate.json5`). Merge the
-migration only after a verified off-site backup exists.
-
-## What changed and why it is forced
-
-Immich 3.0 **removed support for pgvecto.rs**. It now requires
-[VectorChord](https://github.com/tensorchord/VectorChord) (`vchord`) and validates
-the extension at startup, refusing to boot outside `vchord >= 0.3, < 2.0`.
-
-| | Before | After |
+| What | Who updates it | Where |
 |---|---|---|
-| Immich | v2.x | v3.1.0 or later |
-| Chart | 0.9.x | the release that ships the target server |
-| DB image | `cloudnative-pgvecto.rs:16.5-v0.3.0` | `cloudnative-vectorchord:17-1.1.0` |
-| `shared_preload_libraries` | `vectors.so` | `vchord.so` |
-| Extension | `vectors` | `vchord` (+ `vector` via CASCADE) |
-| Postgres major | 16 | 17 |
+| Server and machine-learning image (one tag) | Renovate, automerged on green CI | `apps/immich/values.yaml` |
+| Chart | Renovate, automerged on green CI | `clusters/homelab/apps/immich.yaml` |
+| Database image | by hand, this runbook | `apps/immich/resources/database.yaml` |
 
-So this is not a version bump. It is **an extension migration and a Postgres major
-upgrade at the same time**, and it cannot be rolled back once Immich 3.x has
-migrated its schema.
+The `immich` Application syncs automatically. Every sync starts with a PreSync
+base backup of `immich-db` and ends with the PostSync smoke check
+(`apps/immich/resources/kustomization.yaml`). The server runs its schema
+migrations on start; Immich does not support downgrades, so a server update is
+fixed forward.
 
-There is also a chart-layout change: from 0.10.0, immich-charts uses a new
-values layout (`controllers:`, `valkey:`), so every values key is at a new path.
-The current values file fails to render on it.
+Never touch the PVC `immich-data` (the library) in any of this. Only the database
+and the images change.
 
-## Before you start
+## Updating the database image
 
-- [ ] The cluster is reachable and healthy.
-- [ ] You are not in a hurry. Reindexing a large library takes hours.
-- [ ] You have somewhere to put a database dump that is **not** the cluster.
+Renovate never proposes it (`.github/renovate.json5`, "Never update the Immich
+database image") and CI pins it (`scripts/ci/repo_policy.py`, rule
+`immich-db-image`).
 
-## 1. Back up, properly
+### VectorChord update, same PostgreSQL major
 
-A CloudNativePG PVC snapshot is not enough on its own, because you are changing
-the Postgres major version — a restored PG16 volume will not start under a PG17
-image. Take a verified logical dump of every database:
+Preconditions: Immich's accepted range covers the new release
+(`VECTORCHORD_VERSION_RANGE` in the server's `server/src/constants.ts`, today
+`>=0.3 <2`; pgvector `>=0.7 <0.9`), and a base backup under 24 h exists
+(`kubectl -n immich get backups.postgresql.cnpg.io`).
 
-```sh
-task backup:dump
-ls -lh "$(ls -1d ~/homelab-backups/2* | tail -1)"/pg-immich-immich-db.dump
-```
-
-Expected: `verified=9  failed=0` and the Immich dump listed. Copy the directory
-off the Mac.
-
-Also snapshot the library volume. It holds the actual photos and is the only
-truly irreplaceable thing here:
-
-```sh
-kubectl -n immich get pvc immich-data
-```
-
-Take the snapshot on TrueNAS, or via a `VolumeSnapshot` (the `iscsi`
-VolumeSnapshotClass is defined in `infrastructure/democratic-csi/values-iscsi.yaml`).
-
-## 2. Decide: migrate in place, or rebuild
-
-Because the Postgres major version changes as well, **rebuilding the database is
-usually less painful than migrating it**, and Immich can regenerate everything
-that matters.
-
-What is actually stored in Postgres: albums, shared links, users, face/person
-names, and the vector indexes. What is stored on disk: the photos and videos
-themselves. A rebuild loses the former and keeps the latter, and Immich will
-re-derive thumbnails, faces and embeddings from the files.
-
-### Option A — rebuild (simpler, loses albums and person names)
-
-First merge a change that removes the `automated:` block from
-`clusters/homelab/apps/immich.yaml`. Otherwise self-heal scales Immich straight
-back up and recreates the Cluster. A `kubectl patch` of the Application does not
-stick: the `apps` layer restores it.
-
-```sh
-# Scale Immich down so nothing writes during the swap.
-kubectl -n immich scale deploy immich-server --replicas=0
-
-# Delete the old cluster. CloudNativePG deletes its PVC; the PV is Retain, so
-# the volume stays on the NAS as Released until you delete it by hand.
-kubectl -n immich delete cluster immich-db
-```
-
-Then merge the pull request that switches `apps/immich/resources/database.yaml`
-to the VectorChord image (with `postInitApplicationSQL` creating `vchord`,
-`cube` and `earthdistance` on the empty database) and moves the chart and
-`apps/immich/values.yaml` to the new version, and sync:
-
-```sh
-argocd app sync immich --grpc-web
-```
-
-Then bring Immich up, log in, and run **Administration → Jobs → Smart Search →
-"All"** plus **Face Detection → "All"** to rebuild the embeddings.
-
-### Option B — migrate in place (keeps everything, more steps)
-
-Only worth it if you have curated a lot of albums and named a lot of faces.
-
-1. Stand up the new VectorChord cluster under a **different name**
-   (`immich-db-v2`) so the old one stays intact.
-2. Restore the logical dump from step 1 into it:
+1. Silence the namespace:
    ```sh
-   dump="$(ls -1d ~/homelab-backups/2* | tail -1)/pg-immich-immich-db.dump"
-   kubectl -n immich exec -i immich-db-v2-1 -- \
-     pg_restore -U app -d app --no-owner < "$dump"
+   scripts/maintenance-silence.sh immich 2h "immich-db image <tag>"
    ```
-   Expect errors on the `vectors` extension objects. They are expected — those
-   are the pgvecto.rs types that no longer exist.
-3. Install the new extension and drop the old one:
+   Expected: `silenced namespace=immich for 2h: <id>`.
+2. One PR: the new tag and index digest in `apps/immich/resources/database.yaml`,
+   `IMMICH_DB_IMAGE` in `scripts/ci/repo_policy.py` and its test in
+   `tests/test_repo_policy.py`, then `scripts/render-deploy.sh`. Get the digest
+   with `docker buildx imagetools inspect ghcr.io/tensorchord/cloudnative-vectorchord:<tag>`.
+3. After the merge CNPG restarts the instance. Wait for it:
+   ```sh
+   kubectl -n immich get cluster immich-db -o jsonpath='{.status.phase}{"\n"}'
+   ```
+   Expected: `Cluster in healthy state`.
+4. Update the extension and rebuild the indexes, as the superuser:
+   ```sh
+   kubectl -n immich exec -i immich-db-1 -c postgres -- psql -U postgres -d app <<'SQL'
+   ALTER EXTENSION vchord UPDATE;
+   REINDEX INDEX face_index;
+   REINDEX INDEX clip_index;
+   SQL
+   ```
+   Expected: `ALTER EXTENSION`, `REINDEX`, `REINDEX`.
+5. Verify (next section), then expire the silence:
+   `scripts/maintenance-silence.sh --expire <id>`.
+
+### PostgreSQL major
+
+Not done yet. CNPG 1.26+ upgrades a major in place when `imageName` moves to a
+new major (offline `pg_upgrade`); the extensions must exist in the new image
+(`cloudnative-vectorchord:<major>-<vchord>`). Take a fresh base backup and a
+`pg_dump -Fc` first. Rollback is a restore of that backup on the old image.
+
+## Verify
+
+```sh
+kubectl -n immich exec immich-db-1 -c postgres -- psql -U postgres -d app -c '\dx'
+kubectl -n immich get cluster immich-db \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status} {end}{"\n"}'
+kubectl -n immich exec deploy/immich-server -- immich-admin schema-check
+```
+
+Expected: `vchord` and `vector` listed (plus `cube`, `earthdistance`, `pg_trgm`,
+`unaccent`, `uuid-ossp`); `Ready=True ContinuousArchiving=True`; `Migrations are
+up to date` and `No schema drift detected`.
+
+Then, with an admin API key (`x-api-key`):
+
+- `GET /api/server/statistics`: photos and videos not below the last count;
+- `POST /api/search/smart` with `{"query":"beach"}` returns items;
+- `GET /api/assets/<id>/original` returns 200 for a few of the key owner's assets
+  (another user's asset returns 400 by design);
+- `GET /api/server/version` and `/api/server/features` answer (the phone app).
+
+The asset counts in the database are the reference: `backup-verify-postgres`
+checks them weekly (`docs/backups.md`).
+
+## The pgvecto.rs to VectorChord migration (done 2026-10-16)
+
+Immich 3.0 dropped pgvecto.rs. `immich-db` moved from
+`cloudnative-pgvecto.rs:16.5-v0.3.0` to `cloudnative-vectorchord:16.15-1.1.1`
+(#482), then Immich from v2.7.5 / chart 0.9.3 to v3.3.3 / chart 0.13.4 (#485).
+The VectorChord image has no pgvecto.rs, so it followed the manual path of
+Immich's [pre-existing Postgres guide](https://docs.immich.app/administration/postgres-standalone) ("Migrating from pgvecto.rs").
+Repeat it only to bring a pre-2026-10-16 backup forward:
+
+1. On the old image, with pgvecto.rs still loaded:
+   ```sql
+   DROP INDEX IF EXISTS clip_index;
+   DROP INDEX IF EXISTS face_index;
+   ALTER TABLE smart_search ALTER COLUMN embedding SET DATA TYPE real[];
+   ALTER TABLE face_search ALTER COLUMN embedding SET DATA TYPE real[];
+   DROP EXTENSION vectors;
+   DROP SCHEMA IF EXISTS vectors;
+   ```
+2. Switch `imageName` and `shared_preload_libraries` (`vectors.so` to `vchord.so`).
+3. On the new image (768 is the CLIP model's dimension,
+   `ViT-B-16-SigLIP-i18n-256__webli`; check it with
+   `SELECT atttypmod FROM pg_attribute WHERE attrelid='smart_search'::regclass AND attname='embedding'`
+   before step 1):
    ```sql
    CREATE EXTENSION IF NOT EXISTS vchord CASCADE;
-   DROP EXTENSION IF EXISTS vectors CASCADE;
-   DROP SCHEMA IF EXISTS vectors CASCADE;
+   ALTER TABLE smart_search ALTER COLUMN embedding SET DATA TYPE vector(768);
+   ALTER TABLE face_search ALTER COLUMN embedding SET DATA TYPE vector(512);
    ```
-   `CASCADE` on the drop removes the old embedding columns. That is intended —
-   Immich rebuilds them.
-4. Point `DB_HOSTNAME` in `apps/immich/values.yaml` at `immich-db-v2-rw`, commit,
-   sync.
-5. Let Immich run its migrations, then re-run Smart Search and Face Detection.
-6. Once verified, delete `immich-db` and rename if you care about tidiness.
+4. Restart the server. Expected in its log: `Reindexed face_index` and
+   `Reindexed clip_index`.
 
-## 3. Verify
+Chart 0.10+ details kept in `apps/immich/values.yaml`: the library stays mounted
+at `/usr/src/app/upload` with `IMMICH_MEDIA_LOCATION` set (every asset path in the
+database starts with it; another location makes the server rewrite them all),
+both Deployments use `Recreate` (ReadWriteOnce volumes), and the ML cache keeps
+its PVC name through `forceRename`. Immich 3 replaced
+`MACHINE_LEARNING_PRELOAD__CLIP` with `..._CLIP__TEXTUAL` and `..._CLIP__VISUAL`.
 
-```sh
-# Extension present and the right version?
-kubectl -n immich exec immich-db-1 -- \
-  psql -U app -d app -c "SELECT extname, extversion FROM pg_extension;"
+## Rollback
 
-# Immich booted? It refuses to start on a wrong extension version, so a
-# running, ready pod is itself a meaningful signal.
-kubectl -n immich get pods
-kubectl -n immich logs deploy/immich-server | tail -30
-```
+There is no in-place rollback: the server migrated its schema and Immich does not
+downgrade. The fallback is the pre-migration backup, on the old image, with
+Immich v2.7.5:
 
-Then in the UI: search for something by text (exercises CLIP + vchord), and open
-the map view (exercises `earthdistance`).
+- CNPG base backup `immich-db-pre-v3-20261016t074150z` (serverName `immich-db-t1`,
+  WAL up to 2026-10-16 08:26 UTC is pgvecto.rs);
+- `pg_dump -Fc` in the restic repository `immich/library`, tag `immich-db-dump`.
 
-## 4. Afterwards
+1. Remove `automated:` from `clusters/homelab/apps/immich.yaml` (PR), so
+   self-heal does not fight the restore, and scale `immich-server` to 0.
+2. Revert #485 and #482 in one PR (chart 0.9.3, v2.7.5, the old image), without
+   merging it yet.
+3. Recover into a new Cluster on `cloudnative-pgvecto.rs:16.5-v0.3.0` with
+   `shared_preload_libraries: ["vectors.so"]` and
+   `recoveryTarget.targetTime` before 08:26 UTC on 2026-10-16
+   ([backups.md](../backups.md), the `immich-db-restored` example), or
+   `pg_restore` the dump into an empty cluster on that image.
+4. Point `DB_URL` at it (or swap it in under the name `immich-db`), merge the
+   revert, restore `automated:`, and check the counts.
 
-Put the `automated:` block back in `clusters/homelab/apps/immich.yaml`. In
-`.github/renovate.json5`, drop the 3.0.0 server cap and the 0.10.0 chart cap,
-and keep the database image rule (a Postgres major stays a manual step).
-
-## If it goes wrong
-
-The photos are on the library PVC and are untouched by any of the above. Worst
-case, you rebuild the database from empty (Option A) and let Immich rescan. That
-is slow but not lossy for the files themselves — which is why step 1 insists on
-snapshotting the library volume separately from the database.
+Anything uploaded after the migration exists only as files in the library and
+has to be re-imported.

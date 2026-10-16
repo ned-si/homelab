@@ -270,7 +270,7 @@ kubectl -n seafile logs deploy/mariadb --tail=40 | grep -Ei 'innodb|error'
 **Postgres `PANIC` or a `pg_control` error** in a CNPG cluster log is not
 normal. Stop there for that database and restore from the last dump
 ([backups.md](../backups.md)). On `immich-db`, never change the image
-(`cloudnative-pgvecto.rs:16.5-v0.3.0`, PostgreSQL 16) as part of a recovery.
+(`cloudnative-vectorchord:16.15-1.1.1`, PostgreSQL 16) as part of a recovery.
 
 ## Step 7: public access
 
