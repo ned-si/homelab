@@ -42,7 +42,7 @@ clickhouse:
       registry: docker.io
       repository: signoz/zookeeper
       # renovate: datasource=docker depName=docker.io/signoz/zookeeper
-      tag: 3.7.1@sha256:fcc4a3288154ccaa3bdb5ae6dc10180c084d29a8a6a26b62ac8e30a8940dc2e6
+      tag: 3.9.3@sha256:2982759ec21211d52514154a5c87d2bbe6725d94cfa864cdfea2f7040b7bd365
     resources:
       requests:
         cpu: 50m
