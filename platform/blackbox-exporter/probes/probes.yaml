@@ -52,6 +52,7 @@ spec:
         - https://home.lilalala.com/manifest.json
         # oauth2-proxy's own health endpoint: needs no session.
         - https://hubble.lilalala.com/ping
+        - https://signoz.lilalala.com/ping
       relabelingConfigs:
         - action: replace
           sourceLabels: [__param_target]

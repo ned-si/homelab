@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/signoz/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/signoz/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: signoz-ui
+  namespace: signoz
+spec:
+  enableDefaultDeny:
+    egress: false
+    ingress: true
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: signoz
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: signoz-sso
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/component: otel-collector
+    toPorts:
+    - ports:
+      - port: "4320"
+        protocol: TCP
+  - fromEntities:
+    - host

@@ -33,6 +33,7 @@ data:
     theater-sso=admins TheaterAdmins
     headlamp=admins
     hubble=admins
+    signoz=admins
     home-assistant=admins HomeAssistantAdmins family
     immich=admins family media
     audiobookshelf=admins family media
@@ -880,6 +881,10 @@ data:
     # PAPERLESS_SOCIALACCOUNT_PROVIDERS (apps/paperless).
     paperless.redirectUris=https://archive.lilalala.com/accounts/oidc/keycloak/login/callback/
     paperless.webOrigins=https://archive.lilalala.com
+
+    # oauth2-proxy in front of the SigNoz UI (platform/signoz).
+    signoz.redirectUris=https://signoz.lilalala.com/oauth2/callback
+    signoz.webOrigins=https://signoz.lilalala.com
   platform.conf: |
     # Platform clients of the `homelab` realm, applied by apply.sh after
     # sessions.conf. A stolen session on one of these is cluster-admin, so they
@@ -919,7 +924,7 @@ data:
     automation_client=realm-settings
 
     # Client IDs, space-separated.
-    platform_clients=argocd grafana-oauth security-admin-console headlamp hubble
+    platform_clients=argocd grafana-oauth security-admin-console headlamp hubble signoz
 
     # Clients deleted if present, space-separated. `myclient` is the Keycloak
     # getting-started client: public, direct access grants on, redirects to
@@ -932,7 +937,7 @@ data:
     # group, and sets the client secret from the environment variable
     # <CLIENT_ID>_CLIENT_SECRET (upper case, `-` as `_`). Group members stay in
     # the admin console. Redirect URIs are in clients.conf.
-    proxy_clients=theater-sso:TheaterAdmins headlamp:admins hubble:admins
+    proxy_clients=theater-sso:TheaterAdmins headlamp:admins hubble:admins signoz:admins
   sessions.conf: |
     # Session and token lifetimes of the `homelab` realm, applied by the
     # keycloak-realm-settings Job (realm-settings.yaml) after every sync.
@@ -973,5 +978,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-bm9g8b2c7c
+  name: keycloak-realm-settings-ctfd4886b8
   namespace: keycloak

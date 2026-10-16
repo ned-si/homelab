@@ -1,0 +1,124 @@
+# Enforced from the start (default-deny ingress), per component:
+#
+#   signoz-sso      from the shared Gateway (reserved:ingress) on 4180
+#   signoz (UI)     from signoz-sso on 8080
+#   otel-collector  OTLP from the Vector agents (namespace logging) on 4317 and
+#                   4318; Prometheus on 8888
+#   clickhouse      from pods in this namespace only (the chart keeps a fixed
+#                   default password, so the network is the control)
+#   zookeeper       from pods in this namespace only
+#   operator        Prometheus on its metrics port
+#
+# Kubelet probes come from the host. Egress stays open.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: signoz-sso
+  namespace: signoz
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: signoz-sso
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    # The shared Gateway (Cilium's Envoy, identity `reserved:ingress`).
+    - fromEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "4180"
+              protocol: TCP
+    - fromEntities:
+        - host
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: signoz-ui
+  namespace: signoz
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: signoz
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: signoz-sso
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # The collector's OpAMP client.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/component: otel-collector
+      toPorts:
+        - ports:
+            - port: "4320"
+              protocol: TCP
+    - fromEntities:
+        - host
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: signoz-otel-collector
+  namespace: signoz
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/component: otel-collector
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: logging
+            app.kubernetes.io/name: vector
+      toPorts:
+        - ports:
+            - port: "4317"
+              protocol: TCP
+            - port: "4318"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "8888"
+              protocol: TCP
+    - fromEntities:
+        - host
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: signoz-storage
+  namespace: signoz
+spec:
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [clickhouse, zookeeper]
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - {}
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+    - fromEntities:
+        - host

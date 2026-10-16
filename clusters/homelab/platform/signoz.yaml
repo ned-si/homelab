@@ -1,0 +1,52 @@
+# SigNoz: the log and trace store, on trial for 14 days
+# (docs/observability.md, "SigNoz"). UI at https://signoz.lilalala.com
+# behind Keycloak (group admins), then SigNoz's own login.
+#
+#     shared Gateway --> signoz-sso (oauth2-proxy) --> signoz (UI, query)
+#     Vector (logging) --OTLP--> signoz-otel-collector --> ClickHouse
+#
+# Multi-source: the chart, its values from this repo, and the rendered proxy,
+# HTTPRoute and network policies (deploy/platform/signoz/resources).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: signoz
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://charts.signoz.io
+      chart: signoz
+      # renovate: datasource=helm depName=signoz registryUrl=https://charts.signoz.io
+      targetRevision: 0.146.0
+      helm:
+        releaseName: signoz
+        valueFiles:
+          - $values/platform/signoz/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/signoz/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: signoz
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: false # ships the ClickHouse operator CRDs: pruning one deletes every ClickHouse
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      # The ClickHouseInstallation CRD comes with the chart, in the same sync.
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

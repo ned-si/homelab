@@ -60,5 +60,6 @@ d7939ea45a8798e11c0063dfdfe93e4d9e4b09a1160881f2cc403a6e8f0fa4d5  https://raw.gi
 3cac7be7d66dc4b243d06c73fe61f1092c877e206a67abc1548be4c0a3e11808  https://raw.githubusercontent.com/home-operations/tuppr/0.5.7/config/crd/bases/tuppr.home-operations.com_talosupgrades.yaml
 837de6ded1433fd3f3150e717dd0656f3118284dba1101caa4b849fe0961f423  https://raw.githubusercontent.com/tailscale/tailscale/v1.104.1/cmd/k8s-operator/deploy/crds/tailscale.com_proxyclasses.yaml
 21452c3870be7464ab6e22b4b9eb6ebfd8dc43f480b00e1e91e949627e43b2af  https://raw.githubusercontent.com/tailscale/tailscale/v1.104.1/cmd/k8s-operator/deploy/crds/tailscale.com_connectors.yaml
+cacf8ced29ca03576b2e3c6b16c33ac46f334bd5e6a63a4a9aebd553be85d3e3  https://raw.githubusercontent.com/Altinity/clickhouse-operator/0.21.2/deploy/helm/crds/CustomResourceDefinition-clickhouseinstallations.clickhouse.altinity.com.yaml
 24f42e7d6b8c23e94556908f79f6b06816fc11be090848e362720910b1497d7c  https://raw.githubusercontent.com/siderolabs/talos/v1.14.2/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml
 41d85b9f6f2757d35b6645086d5bcadf4904a8f0133b00d77e2576b3feb47d56  https://raw.githubusercontent.com/kubernetes/kubernetes/v1.37.1/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json

@@ -26,10 +26,10 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
 - [x] 4. (#525) PR `feat(network): sync the Cilium policies, not enforced`: `network-policies`
       in the infrastructure layer as-is, switches false; check `cilium-dbg endpoint list`
       shows nothing enforced and Headlamp still is. [2.1, 2.5]
-- [ ] 5. PR `feat(network): would-be drops from policy verdicts`: the Hubble `policy`
+- [x] 5. (#530) PR `feat(network): would-be drops from policy verdicts`: the Hubble `policy`
       metric (or the flow-export fallback with Vector, after task 9), `routes/netpol.yaml`,
       the Network dashboard row, `docs/networking.md`. [3.1, 3.2, 3.3, 3.4]
-- [ ] 6. PR `feat(network): netpol-observe script`: `scripts/netpol-observe.sh` and its
+- [x] 6. (#533) PR `feat(network): netpol-observe script`: `scripts/netpol-observe.sh` and its
       bash test. [2.3]
 - [ ] 7. Observe 7 days, then one PR per namespace group, `feat(network): allow-lists for
       <namespaces> from observed flows`: regenerated or new files with one comment per
@@ -39,10 +39,10 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       `logging`, `signoz`). [2.2, 2.3, 2.4, 2.5]
 - [x] 8. (design.md, Answers) Answer open questions 5 to 7 (ClickHouse on the RK3588 first; stop the logs part
       here if it fails). [5.1, 5.5, 6.1]
-- [ ] 9. PR `feat(observability): Vector agent for pod logs`: namespace `logging`, Vector
+- [x] 9. (#535, #549) PR `feat(observability): Vector agent for pod logs`: namespace `logging`, Vector
       DaemonSet (parsing, memory buffer, metrics, blackhole sink until task 11),
       PodMonitor, `docs/observability.md` Logs section. [4.1, 4.2, 4.4, 4.6, 4.7]
-- [ ] 10. PR `feat(observability): SigNoz behind Keycloak`: namespace `signoz`, chart
+- [x] 10. (#540) PR `feat(observability): SigNoz behind Keycloak`: namespace `signoz`, chart
       values (limits, retention, `iscsi` volume, digests, JSON logs), `signoz-sso`,
       HTTPRoute `signoz.lilalala.com`, CNPs (OTLP from `logging` only), Keycloak client
       `signoz`, SOPS Secrets, `docs/observability.md`. [5.1, 5.2, 5.3, 5.4, 5.5, 5.6]

@@ -1,0 +1,132 @@
+# Keycloak login in front of the SigNoz UI: the oauth2-proxy `signoz-sso`.
+#
+#     HTTPRoute `signoz` (shared Gateway) --> signoz-sso:4180 --> signoz:8080
+#
+# Access needs membership of the Keycloak group `admins`, checked twice: the
+# client's own login flow denies anyone else (platform/keycloak/realm/access.conf)
+# and the proxy's allowedGroups (sso-alpha-config.yaml). The client `signoz` is
+# realm code (platform/keycloak/realm/platform.conf, `proxy_clients`); it is a
+# platform client, so a login older than 12 hours is asked again.
+#
+# SigNoz's own login (one admin, password in platform/secrets/signoz-sso.sops.yaml)
+# sits behind this one. When Keycloak is down, port-forward to `svc/signoz`
+# 8080 and use that login.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: signoz-sso
+  namespace: signoz
+  labels:
+    app.kubernetes.io/name: signoz-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: signoz-sso
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: signoz-sso
+        app.kubernetes.io/component: sso-proxy
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        # `nonroot` in the distroless base image.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: oauth2-proxy
+          # renovate: datasource=docker depName=quay.io/oauth2-proxy/oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5@sha256:8498b0d0ef0a7b29686414000a08aee467f02d0299c9ed1e006a8f33fc017916
+          imagePullPolicy: IfNotPresent
+          args:
+            - --alpha-config=/config/alpha-config.yaml
+            # Authorization is the group in the alpha config.
+            - --email-domain=*
+            # Behind the shared Gateway (Envoy sets X-Forwarded-*).
+            - --reverse-proxy=true
+            - --redirect-url=https://signoz.lilalala.com/oauth2/callback
+            - --whitelist-domain=signoz.lilalala.com
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            # The platform-client session length (platform.conf loa_max_age).
+            - --cookie-expire=12h
+            - --cookie-refresh=1h
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: signoz-sso
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+              protocol: TCP
+          # /ping needs no session and does not depend on Keycloak.
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: signoz-sso
+        - name: secrets
+          secret:
+            secretName: signoz-sso
+            items:
+              - key: client-secret
+                path: client-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: signoz-sso
+  namespace: signoz
+  labels:
+    app.kubernetes.io/name: signoz-sso
+    app.kubernetes.io/component: sso-proxy
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 4180
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: signoz-sso

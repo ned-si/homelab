@@ -120,6 +120,7 @@ router 80/443 -> 192.168.1.254 = Service gateway/cilium-gateway-shared
 | `cook` | `mealie/mealie` | Mealie |
 | `syncthing` | `syncthing/syncthing` | Syncthing UI |
 | `hubble` | `hubble/hubble` | `hubble-sso` (oauth2-proxy, Keycloak group `admins`) → Hubble UI |
+| `signoz` | `signoz/signoz` | `signoz-sso` (oauth2-proxy, Keycloak group `admins`) → SigNoz |
 
 - Every route sets `parentRefs` with `sectionName: https`. Without it the route
   also answers on plain HTTP and skips the redirect.

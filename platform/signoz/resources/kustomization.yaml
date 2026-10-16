@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Rendered to deploy/platform/signoz/resources, the third source of the
+# signoz Application.
+namespace: signoz
+resources:
+  - sso.yaml
+  - httproute.yaml
+  - network-policy.yaml
+
+# oauth2-proxy config of signoz-sso (sso.yaml). The name hash makes a change
+# here a new ConfigMap, which rolls the Deployment.
+configMapGenerator:
+  - name: signoz-sso
+    files:
+      - alpha-config.yaml=sso-alpha-config.yaml

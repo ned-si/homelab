@@ -94,6 +94,13 @@ spec:
                   name: keycloak-automation
                   key: REALM_SETTINGS_CLIENT_SECRET
                   optional: true
+            # platform/secrets/signoz-sso.sops.yaml.
+            - name: SIGNOZ_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-signoz-client
+                  key: SIGNOZ_CLIENT_SECRET
+                  optional: true
           resources:
             requests:
               cpu: 50m
