@@ -221,6 +221,12 @@ class Policy:
     def name_of(doc: dict) -> str:
         return (doc.get("metadata") or {}).get("name") or "?"
 
+    @staticmethod
+    def group_of(doc: dict) -> str:
+        """API group of a manifest: postgresql.cnpg.io for postgresql.cnpg.io/v1, "" for the core group (v1)."""
+        group, sep, _ = str(doc.get("apiVersion", "")).partition("/")
+        return group if sep else ""
+
     def read_list(self, rel: str) -> list[str] | None:
         p = self.root / rel
         if not p.is_file():
@@ -266,7 +272,7 @@ class Policy:
         found = 0
         for e in self.entries():
             for d in self.docs_of(e):
-                if d.get("kind") == "Cluster" and str(d.get("apiVersion", "")).startswith("postgresql.cnpg.io/") \
+                if d.get("kind") == "Cluster" and self.group_of(d) == "postgresql.cnpg.io" \
                         and self.name_of(d) == "immich-db":
                     found += 1
                     self.on("immich-db-image")
@@ -313,7 +319,7 @@ class Policy:
         for e in self.entries(new_layout_only=True):
             for d in self.docs_of(e):
                 if self.ns_of(d, e) != "immich" or d.get("kind") != "Cluster" \
-                        or not str(d.get("apiVersion", "")).startswith("postgresql.cnpg.io/"):
+                        or self.group_of(d) != "postgresql.cnpg.io":
                     continue
                 self.on("pvc-sync-options")
                 if not self._keeps(d):
@@ -494,11 +500,11 @@ class Policy:
         stores: set[tuple[str, str]] = set()
         for e in self.entries():
             for d in self.docs_of(e):
-                api, kind = str(d.get("apiVersion", "")), d.get("kind")
+                group, kind = self.group_of(d), d.get("kind")
                 ns = self.ns_of(d, e)
-                if api.startswith("barmancloud.cnpg.io/") and kind == "ObjectStore":
+                if group == "barmancloud.cnpg.io" and kind == "ObjectStore":
                     stores.add((ns, self.name_of(d)))
-                if not api.startswith("postgresql.cnpg.io/"):
+                if group != "postgresql.cnpg.io":
                     continue
                 self.on("cnpg-backup")
                 spec = d.get("spec") or {}
