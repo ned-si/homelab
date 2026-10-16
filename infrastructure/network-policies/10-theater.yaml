@@ -194,15 +194,15 @@ spec:
               protocol: TCP
 
     # Recyclarr (`recyclarr-sync` CronJob) writes quality profiles into both
-    # APIs, the `bazarr-settings` Job the `kids-fr` auto tag and the
-    # `arr-import-lists` Job the Plex Watchlist lists. Selected by their own
-    # labels: the broad job-name selector would also grant the backup jobs
-    # these ports. No 8686: none touches Lidarr.
+    # APIs, the `bazarr-settings` Job the auto tags, `bazarr-nightly` reads
+    # the titles and the `arr-import-lists` Job writes the Plex Watchlist
+    # lists. Selected by their own labels: the broad job-name selector would
+    # also grant the backup jobs these ports. No 8686: none touches Lidarr.
     - fromEndpoints:
         - matchExpressions:
             - key: app.kubernetes.io/name
               operator: In
-              values: [recyclarr-sync, bazarr-settings, arr-import-lists]
+              values: [recyclarr-sync, bazarr-settings, bazarr-nightly, arr-import-lists]
       toPorts:
         - ports:
             - port: "8989"
@@ -398,13 +398,13 @@ spec:
             - port: "6767"
               protocol: TCP
 
-    # The `bazarr-settings` PostSync Job (apps/theater/bazarr.yaml) and the
-    # SSO proxy (apps/theater/sso.yaml).
+    # The `bazarr-settings` PostSync Job and the `bazarr-nightly` CronJob
+    # (apps/theater/bazarr.yaml) and the SSO proxy (apps/theater/sso.yaml).
     - fromEndpoints:
         - matchExpressions:
             - key: app.kubernetes.io/name
               operator: In
-              values: [bazarr-settings, theater-sso]
+              values: [bazarr-settings, bazarr-nightly, theater-sso]
       toPorts:
         - ports:
             - port: "6767"
@@ -597,9 +597,10 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# bazarr-settings
+# bazarr-settings, bazarr-nightly
 #
-# The PostSync Job that applies Bazarr's settings. Nothing connects to it.
+# The PostSync Job that applies Bazarr's settings and the CronJob that starts
+# the nightly searches (same script). Nothing connects to them.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -608,11 +609,13 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    bazarr-settings Job: egress to the Bazarr, Sonarr and Radarr APIs. No
-    ingress.
+    bazarr-settings Job and bazarr-nightly CronJob: egress to the Bazarr,
+    Sonarr and Radarr APIs. No ingress.
   endpointSelector:
-    matchLabels:
-      app.kubernetes.io/name: bazarr-settings
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [bazarr-settings, bazarr-nightly]
   enableDefaultDeny:
     ingress: false
     egress: false

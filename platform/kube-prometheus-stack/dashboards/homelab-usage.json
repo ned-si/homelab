@@ -1,7 +1,7 @@
 {
   "uid": "homelab-usage",
   "title": "Homelab / Usage",
-  "description": "Immich photos and storage per user, the *arr libraries and queues, Jellyfin library and watching per user.",
+  "description": "Immich photos and storage per user, the *arr libraries and queues, Jellyfin library and watching per user, subtitle coverage per language.",
   "tags": [
     "homelab",
     "usage"
@@ -1066,9 +1066,9 @@
       }
     },
     {
-      "id": 18,
+      "id": 21,
       "type": "row",
-      "title": "Sources",
+      "title": "Subtitles (Bazarr)",
       "collapsed": false,
       "gridPos": {
         "h": 1,
@@ -1079,9 +1079,247 @@
       "panels": []
     },
     {
+      "id": 22,
+      "type": "bargauge",
+      "title": "Coverage per language",
+      "description": "Share of the titles whose Bazarr profile asks for the language that have it (embedded or external text subtitle). English and French on every title, Spanish on Spanish originals. The nightly search (bazarr-nightly) fills the gaps.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sort(1 - sum by (kind, language) (subtitles_missing{forced=\"false\"}) / sum by (kind, language) (subtitles_required{forced=\"false\"} > 0))",
+          "refId": "A",
+          "legendFormat": "{{kind}} {{language}}",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.5
+              },
+              {
+                "color": "green",
+                "value": 0.9
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "showUnfilled": true
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 38
+      }
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "Coverage over time",
+      "description": "Coverage per kind and language.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "1 - sum by (kind, language) (subtitles_missing{forced=\"false\"}) / sum by (kind, language) (subtitles_required{forced=\"false\"} > 0)",
+          "refId": "A",
+          "legendFormat": "{{kind}} {{language}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 8,
+        "y": 38
+      }
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "Subtitles missing",
+      "description": "Episodes and movies still missing a wanted subtitle, per language (forced French counted apart).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (kind, language, forced) (subtitles_missing)",
+          "refId": "A",
+          "legendFormat": "{{kind}} {{language}} forced={{forced}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 16,
+        "x": 0,
+        "y": 45
+      }
+    },
+    {
+      "id": 25,
+      "type": "stat",
+      "title": "Providers paused",
+      "description": "Providers Bazarr pauses after a rate limit or an error; they resume on their own.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(subtitles_provider_throttled)",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 45
+      }
+    },
+    {
+      "id": 18,
+      "type": "row",
+      "title": "Sources",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "panels": []
+    },
+    {
       "type": "stat",
       "title": "Exporters",
-      "description": "usage-exporter sources (0 = no API key yet, see platform/secrets/usage-exporter.sops.yaml.example) and the exportarr sidecars.",
+      "description": "usage-exporter sources (0 = no API key yet, see platform/secrets/usage-exporter.sops.yaml.example) and the exportarr sidecars, and the subtitle exporter.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
@@ -1106,6 +1344,17 @@
           "expr": "max by (pod) (up{job=\"theater/exportarr\"})",
           "refId": "B",
           "legendFormat": "{{pod}}",
+          "instant": true,
+          "range": false
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "max(subtitles_source_up)",
+          "refId": "C",
+          "legendFormat": "bazarr (subtitles)",
           "instant": true,
           "range": false
         }
@@ -1164,7 +1413,7 @@
         "h": 4,
         "w": 16,
         "x": 0,
-        "y": 38
+        "y": 53
       }
     },
     {
@@ -1242,7 +1491,7 @@
         "h": 4,
         "w": 8,
         "x": 16,
-        "y": 38
+        "y": 53
       }
     }
   ]

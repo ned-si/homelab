@@ -13,6 +13,7 @@ Zigbee2MQTT. This spec records what they do today. Detail:
 
 Non-goals:
 - Backing up the media library or the audiobook files (re-acquirable).
+- Subtitle providers that need an account or a paid API key.
 - Device-specific Home Assistant setup in git (location, integrations and
   devices stay in its UI; the repo is public).
 
@@ -32,7 +33,7 @@ release on their own, in the audio the viewer needs.
    Surround +100 on top of TRaSH. (read-only score check in
    [theater.md](../../../docs/theater.md#deviations-from-trash))
 3. WHEN a title uses `HD-Kids-FR`, Sonarr and Radarr SHALL tag it `kids-fr`
-   and Bazarr SHALL fetch French subtitles for it; English otherwise.
+   and Bazarr SHALL also fetch forced French subtitles for it (Requirement 6).
    (PostSync Job `bazarr-settings`)
 4. WHEN a title is added to the Plex watchlist, Sonarr or Radarr SHALL add it
    with `HD-Original` and search for it, within 6 hours. (PostSync Job
@@ -107,3 +108,31 @@ and its history kept.
    (`apps/home/zigbee2mqtt.yaml`)
 5. Prometheus SHALL scrape Home Assistant's `/api/prometheus` every 60 s for
    the "Home" dashboard. (ServiceMonitor `home/home-assistant`)
+
+### Requirement 6: Subtitles for the whole library
+
+**User story:** As a viewer, I want English and French subtitles on every
+film and episode, and Spanish ones when Spanish is the original language.
+
+#### Acceptance criteria
+
+1. Bazarr SHALL want English and French subtitles for every series and movie
+   (profile `en-fr`, the default).
+2. WHEN a title's original language in Sonarr or Radarr is Spanish, Sonarr
+   and Radarr SHALL tag it `orig-es` and Bazarr SHALL also want Spanish
+   (profile `en-fr-es`).
+3. WHEN a title is tagged `kids-fr`, Bazarr SHALL also want forced French
+   (profile `kids-fr`, or `kids-fr-es` when it is also `orig-es`).
+4. WHEN `theater` syncs and every night, THE profile of every existing series
+   and movie SHALL be set from these rules, not only for new titles.
+5. An embedded or external text subtitle (SRT, ASS) SHALL count as present;
+   an image subtitle (PGS, VobSub) SHALL NOT, so Bazarr fetches a text one
+   that Plex does not burn in.
+6. Bazarr SHALL use only providers that need no account, and IF a provider
+   rate-limits, THEN Bazarr SHALL pause it (built-in throttling).
+7. EVERY night at 22:30 UTC, THE CronJob `bazarr-nightly` SHALL start Bazarr's
+   wanted search for series and movies; Bazarr's own interval search SHALL be
+   off.
+8. THE Homelab / Usage dashboard SHALL show subtitle coverage per language
+   for movies and episodes. Class INFO (`action: auto`): the nightly search is
+   the remediation; nothing pages.

@@ -2,7 +2,9 @@
 # allow-lists in 10-theater.yaml (Cilium allows the union of all policies):
 #   - Prometheus scrapes the exportarr sidecars of the *arr apps on 9707;
 #   - the usage exporter (monitoring) reads library counts and sessions from
-#     Jellyfin's API on 8096.
+#     Jellyfin's API on 8096;
+#   - Prometheus scrapes the subtitle exporter on 9173, which reads Bazarr's
+#     API on 6767.
 # Off like the rest: an allow-list only, switched in ./90-enforcement.yaml.
 ---
 apiVersion: cilium.io/v2
@@ -52,4 +54,68 @@ spec:
       toPorts:
         - ports:
             - port: "8096"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: subtitle-exporter
+  namespace: theater
+spec:
+  description: >-
+    Subtitle exporter: scraped from monitoring, reads Bazarr's API.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: subtitle-exporter
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9173"
+              protocol: TCP
+  egress:
+    # Cluster DNS.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: bazarr
+      toPorts:
+        - ports:
+            - port: "6767"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: bazarr-subtitle-exporter
+  namespace: theater
+spec:
+  description: The subtitle exporter reads Bazarr's API.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: bazarr
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: subtitle-exporter
+      toPorts:
+        - ports:
+            - port: "6767"
               protocol: TCP

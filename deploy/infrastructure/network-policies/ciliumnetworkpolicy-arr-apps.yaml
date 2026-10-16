@@ -123,6 +123,7 @@ spec:
         values:
         - recyclarr-sync
         - bazarr-settings
+        - bazarr-nightly
         - arr-import-lists
     toPorts:
     - ports:
