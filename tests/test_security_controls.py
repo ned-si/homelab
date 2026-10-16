@@ -132,6 +132,15 @@ def test_tracing_policies_observe_only():
         assert not bad, f"TracingPolicy {name} has enforcement actions {sorted(bad)}"
 
 
+def test_cluster_runs_every_tracing_policy():
+    if not tracing_policies():
+        pytest.skip("no TracingPolicy yet")
+    root = TETRAGON.parent
+    listed = {(root / r).resolve() for r in docs(root / "kustomization.yaml")[0]["resources"] if r.startswith("policies/")}
+    files = {p.resolve() for p in TETRAGON.rglob("*.yaml") if p.name != "controls.yaml"}
+    assert listed == files, f"platform/tetragon/kustomization.yaml vs policies/: {sorted(str(p) for p in listed ^ files)}"
+
+
 def test_tracing_policies_mapped():
     policies = tracing_policies()
     if not policies:
@@ -141,3 +150,8 @@ def test_tracing_policies_mapped():
     for name, entry in controls.items():
         assert MITRE.match(entry["mitre"]), f"{name}: MITRE {entry['mitre']}"
         assert "DE.CM-09" in entry["csf"], f"{name}: CSF must include DE.CM-09"
+        assert (TETRAGON / entry["file"]).is_file(), f"{name}: no file {entry['file']}"
+        calls = {k.get("call") for k in policies[name].get("spec", {}).get("kprobes", [])}
+        for hook, technique in entry.get("hooks", {}).items():
+            assert hook in calls, f"{name}: no kprobe {hook}"
+            assert MITRE.match(technique), f"{name}/{hook}: MITRE {technique}"

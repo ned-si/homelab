@@ -23,9 +23,11 @@ set -euo pipefail
 [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "commit-render: bad HEAD_SHA" >&2; exit 1; }
 [ "$(git rev-parse HEAD)" = "$HEAD_SHA" ] || { echo "commit-render: checkout is not $HEAD_SHA" >&2; exit 1; }
 
-# deploy/, and the vendored Kyverno policies (scripts/kyverno-vendor.sh).
+# deploy/, and the vendored upstream files (scripts/vendor-upstream.sh).
 paths=(deploy)
-[ -e policies/kyverno/upstream ] && paths+=(policies/kyverno/upstream)
+for d in policies/kyverno/upstream platform/tetragon/policies; do
+  [ -e "$d" ] && paths+=("$d")
+done
 git add -A -- "${paths[@]}"
 changes=$(git diff --cached --name-status --no-renames -- "${paths[@]}")
 if [ -z "$changes" ]; then

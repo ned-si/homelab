@@ -245,6 +245,39 @@ the log files are root-owned, and Kubernetes gives a non-root container no
 ambient capabilities. Its hostPath mounts and the host network are why
 `logging` enforces Pod Security `privileged`.
 
+## Runtime (Tetragon)
+
+Tetragon (`platform/tetragon`, chart `tetragon` 1.7.1, Argo CD app
+`tetragon`, namespace `tetragon`, PSA `privileged`) runs one eBPF agent per
+node and records process exec and exit, plus the events of the vendored
+upstream TracingPolicies in `platform/tetragon/policies/` (list, commit and
+what is left out in its `SOURCE`; MITRE ATT&CK mapping in `controls.yaml`).
+Observe only: no policy has an enforcement action, and CI fails if one does.
+
+| Policy | Records | MITRE ATT&CK |
+| --- | --- | --- |
+| `privileges-raise` | uid or gid set to 0; capabilities raised with `capset`; an unprivileged user namespace | T1068; T1611 for the last two |
+| `monitor-kernel-modules` | kernel module requests and loads | T1547.006 |
+| `bpf-library-policy` | BPF program loads, map creation, BPF filesystem access | T1014 |
+| `loader` | shared libraries mapped at exec | T1574.006 |
+
+- Events: JSON on the `export-stdout` container's stdout, which Vector
+  collects. Exported: every policy event and process exec outside the host and
+  `kube-system`/`tetragon`. The export file is on the `/run` tmpfs, 10 MiB and
+  two rotated copies.
+- Metrics: the chart's ServiceMonitor, labels `namespace`, `workload` and
+  `binary`.
+
+Check:
+
+```sh
+kubectl --request-timeout=10s -n tetragon get ds tetragon
+kubectl --request-timeout=10s get tracingpolicies
+kubectl --request-timeout=10s -n tetragon exec ds/tetragon -c tetragon -- tetra tracingpolicy list
+```
+
+Expected: 4/4 ready, four policies, each `enabled` in the agent.
+
 ## SigNoz
 
 SigNoz Community Edition (`platform/signoz`, chart `signoz` 0.146.0, Argo CD

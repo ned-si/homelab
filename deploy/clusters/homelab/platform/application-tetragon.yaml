@@ -1,0 +1,50 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     clusters/homelab/platform
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in clusters/homelab/platform and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+  name: tetragon
+  namespace: argo
+spec:
+  destination:
+    namespace: tetragon
+    server: https://kubernetes.default.svc
+  project: platform
+  revisionHistoryLimit: 10
+  sources:
+  - chart: tetragon
+    helm:
+      releaseName: tetragon
+      valueFiles:
+      - $values/platform/tetragon/values.yaml
+    repoURL: https://helm.cilium.io
+    targetRevision: 1.7.1
+  - ref: values
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  - path: deploy/platform/tetragon
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+      limit: 5
+    syncOptions:
+    - ServerSideApply=true
+    - SkipDryRunOnMissingResource=true

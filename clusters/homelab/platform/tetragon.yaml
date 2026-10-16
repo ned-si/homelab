@@ -1,0 +1,48 @@
+# Tetragon: eBPF runtime events on every node, observe only
+# (docs/observability.md#runtime-tetragon). The operator installs the
+# TracingPolicy CRDs at start, so the policies retry until they exist.
+#
+# Multi-source: the chart, its values from this repo, and the rendered
+# vendored TracingPolicies (deploy/platform/tetragon).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: tetragon
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: tetragon
+      # renovate: datasource=helm depName=tetragon registryUrl=https://helm.cilium.io
+      targetRevision: 1.7.1
+      helm:
+        releaseName: tetragon
+        valueFiles:
+          - $values/platform/tetragon/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/tetragon
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: tetragon
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

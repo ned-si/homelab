@@ -1,0 +1,233 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/tetragon
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/tetragon and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  annotations:
+    description: Detects privileges raising operations
+  name: privileges-raise
+spec:
+  kprobes:
+  - args:
+    - index: 0
+      type: nop
+    - index: 1
+      type: cred
+    - index: 2
+      type: cap_effective
+    - index: 3
+      type: cap_inheritable
+    - index: 4
+      type: cap_permitted
+    call: security_capset
+    message: Process changed its capabilities using capset system call
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 2
+        operator: NotEqual
+        values:
+        - "0"
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 3
+        operator: NotEqual
+        values:
+        - "0"
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 4
+        operator: NotEqual
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: nop
+    call: create_user_ns
+    message: Unprivileged process created a user namespace where it will be privileged
+    selectors:
+    - matchCapabilities:
+      - operator: NotIn
+        type: Effective
+        values:
+        - CAP_SYS_ADMIN
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    call: __sys_setuid
+    message: Privileged operation setuid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 0
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    call: __sys_setgid
+    message: Privileged operation setgid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 0
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    - index: 1
+      type: int
+    call: __sys_setreuid
+    message: Privileged operation setuid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 0
+        operator: Equal
+        values:
+        - "0"
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 1
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    - index: 1
+      type: int
+    call: __sys_setregid
+    message: Privileged operation setgid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 0
+        operator: Equal
+        values:
+        - "0"
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 1
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    - index: 1
+      type: int
+    - index: 2
+      type: int
+    call: __sys_setresuid
+    message: Privileged operation setuid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 1
+        operator: Equal
+        values:
+        - "0"
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 2
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    - index: 1
+      type: int
+    - index: 2
+      type: int
+    call: __sys_setresgid
+    message: Privileged operation setgid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 1
+        operator: Equal
+        values:
+        - "0"
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 2
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    call: __sys_setfsuid
+    message: Privileged operation setuid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 0
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
+  - args:
+    - index: 0
+      type: int
+    call: __sys_setfsgid
+    message: Privileged operation setgid to root
+    selectors:
+    - matchActions:
+      - action: Post
+        rateLimit: 1m
+      matchArgs:
+      - index: 0
+        operator: Equal
+        values:
+        - "0"
+    syscall: false
