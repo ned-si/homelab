@@ -7,10 +7,10 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
 - [x] 1. (design.md, Answers) Answer the design's open questions 1 to 4 and 8 to 10 in `design.md` (read-only:
       Cilium docs and chart, the live agents, the tailnet policy). [1.5, 1.6, 3.1, 3.4,
       4.5]
-- [ ] 2. PR `feat(network): Hubble relay and UI`: Cilium values, `ignoreDifferences` for the
+- [x] 2. (#515) PR `feat(network): Hubble relay and UI`: Cilium values, `ignoreDifferences` for the
       relay certificate. Silence `kube-system` if open question 2 says the agents roll.
       [1.1, 1.5, 1.6]
-- [ ] 3. PR `feat(network): Hubble UI on the tailnet`: namespace `hubble`, app
+- [x] 3. (#519) PR `feat(network): Hubble UI on the tailnet`: namespace `hubble`, app
       `hubble-access` (oauth2-proxy, Tailscale Ingress, CNPs in `hubble` and
       `kube-system`), Keycloak client `hubble` (platform client, `admins`), SOPS Secret,
       `ci/expected-ingresses.txt`, `docs/remote-access.md`. Check the login matrix
