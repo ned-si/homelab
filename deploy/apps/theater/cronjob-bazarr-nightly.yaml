@@ -1,0 +1,74 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/theater
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/theater and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bazarr-nightly
+  namespace: theater
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 1800
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: bazarr-nightly
+        spec:
+          containers:
+          - command:
+            - python3
+            - /managed/settings.py
+            env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: MODE
+              value: nightly
+            envFrom:
+            - secretRef:
+                name: bazarr
+            - secretRef:
+                name: recyclarr-api-keys
+            image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:aab1002c1cf03178bfa318706047abbcabd9e6fea5dc2516bfaa44a94608930b
+            imagePullPolicy: IfNotPresent
+            name: nightly
+            resources:
+              limits:
+                memory: 128Mi
+              requests:
+                cpu: 10m
+                memory: 32Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /managed
+              name: managed
+              readOnly: true
+          restartPolicy: Never
+          securityContext:
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              name: bazarr-config
+            name: managed
+  schedule: 30 22 * * *
+  successfulJobsHistoryLimit: 1
+  suspend: false

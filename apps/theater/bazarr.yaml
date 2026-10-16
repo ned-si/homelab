@@ -6,16 +6,19 @@
 #   - `seed.sh` (init container) writes a minimal config.yaml on first start
 #     only: the URL base, the API key and the login, so the UI is never up
 #     without authentication;
-#   - the `bazarr-settings` PostSync Job (`settings.py`) applies everything
-#     else through Bazarr's settings API on every sync, and the `kids-fr` auto
-#     tag in Sonarr and Radarr. Changes made in the UI to these keys are
-#     overwritten on the next sync; anything else stays the UI's.
+#   - `settings.py` applies everything else: as the `bazarr-settings` PostSync
+#     Job on every sync (auto tags in Sonarr and Radarr, Bazarr settings, the
+#     profile of every title) and as the `bazarr-nightly` CronJob (the profile
+#     of every title, then the wanted searches). Changes made in the UI to
+#     these keys are overwritten; anything else stays the UI's.
 #
-# Language profiles:
-#   EN  English, the default for every series and movie
-#   FR  French, full and forced; assigned to titles tagged `kids-fr`, which
-#       Sonarr and Radarr set automatically on titles with the quality profile
-#       HD-Kids-FR
+# Language profiles (English and French always):
+#   1 en-fr       en, fr; the default
+#   2 kids-fr-es  en, fr, fr forced, es; tag `kids-fr-es`
+#   3 kids-fr     en, fr, fr forced; tag `kids-fr` (quality profile HD-Kids-FR)
+#   4 en-fr-es    en, fr, es; tag `orig-es` (original language Spanish)
+# Bazarr gives a title the first profile, by ID, whose tag it carries, hence
+# kids-fr-es before the two tags it combines.
 #
 # SQLite in /config/db, not CloudNativePG: everything in it but the download
 # history is rebuilt from this file and from Sonarr/Radarr, so a best-effort
@@ -48,24 +51,36 @@ data:
     EOF
     echo "config.yaml seeded"
   settings.py: |
-    # Idempotent: apply the managed Bazarr settings and the `kids-fr` auto
-    # tag in Sonarr and Radarr. Standard library only.
+    # Idempotent. MODE=sync (PostSync): auto tags in Sonarr and Radarr, the
+    # Bazarr settings, the profile of every title. MODE=nightly (CronJob):
+    # the profile of every title, then the wanted searches. Standard library
+    # only.
     import json, os, time, urllib.parse, urllib.request
 
-    TAG = "kids-fr"
+    MODE = os.environ.get("MODE", "sync")
     KIDS_PROFILE = "HD-Kids-FR"
-    PROVIDERS = ["podnapisi", "gestdown", "tvsubtitles", "yifysubtitles", "soustitreseu", "subsynchro"]
+    SPANISH = "Spanish"
+    # No account needed. Podnapisi is no longer in Bazarr 1.6.
+    PROVIDERS = ["gestdown", "tvsubtitles", "yifysubtitles", "subtitulamostv", "subtis",
+                 "soustitreseu", "subsynchro"]
     LANG = lambda i, code, forced: {"id": i, "language": code, "forced": forced,
                                    "hi": "False", "audio_exclude": "False",
                                    "audio_only_include": "False"}
+    def profile(pid, name, tag, *langs):
+        items = [LANG(i + 1, code, forced) for i, (code, forced) in enumerate(langs)]
+        return {"profileId": pid, "name": name, "cutoff": None, "tag": tag, "items": items,
+                "mustContain": [], "mustNotContain": [], "originalFormat": 0}
+    EN, FR, FRF, ES = ("en", "False"), ("fr", "False"), ("fr", "True"), ("es", "False")
     PROFILES = [
-        {"profileId": 1, "name": "EN", "cutoff": None, "tag": None,
-         "items": [LANG(1, "en", "False")],
-         "mustContain": [], "mustNotContain": [], "originalFormat": 0},
-        {"profileId": 2, "name": "FR", "cutoff": None, "tag": TAG,
-         "items": [LANG(1, "fr", "False"), LANG(2, "fr", "True")],
-         "mustContain": [], "mustNotContain": [], "originalFormat": 0},
+        profile(1, "en-fr", None, EN, FR),
+        profile(2, "kids-fr-es", "kids-fr-es", EN, FR, FRF, ES),
+        profile(3, "kids-fr", "kids-fr", EN, FR, FRF),
+        profile(4, "en-fr-es", "orig-es", EN, FR, ES),
     ]
+    # (kids, Spanish original) -> profile ID
+    PROFILE_OF = {(False, False): 1, (True, True): 2, (True, False): 3, (False, True): 4}
+    # Bazarr's "never" for its own interval search; bazarr-nightly starts it.
+    ONE_HUNDRED_YEARS_IN_HOURS = "876000"
 
     def call(method, url, key_header, key, body=None, form=None):
         headers = {key_header: key}
@@ -77,7 +92,9 @@ data:
             data = urllib.parse.urlencode(form, doseq=True).encode()
             headers["Content-Type"] = "application/x-www-form-urlencoded"
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
-        with urllib.request.urlopen(req, timeout=60) as r:
+        # Long: a profile change makes Bazarr recompute what is missing for
+        # the whole library before it answers.
+        with urllib.request.urlopen(req, timeout=600) as r:
             raw = r.read()
             return json.loads(raw) if raw else None
 
@@ -90,36 +107,84 @@ data:
                 time.sleep(10)
         raise SystemExit(f"not answering: {url}")
 
-    def auto_tag(name, base, key):
+    def auto_tags(name, base, key):
         h = "X-Api-Key"
-        profiles = call("GET", f"{base}/api/v3/qualityprofile", h, key)
-        pid = next(p["id"] for p in profiles if p["name"] == KIDS_PROFILE)
-        tags = call("GET", f"{base}/api/v3/tag", h, key)
-        tid = next((t["id"] for t in tags if t["label"] == TAG), None)
-        if tid is None:
-            tid = call("POST", f"{base}/api/v3/tag", h, key, {"label": TAG})["id"]
-        rule = {"name": f"{TAG} (Bazarr FR)", "removeTagsAutomatically": True,
-                "tags": [tid],
-                "specifications": [{"name": KIDS_PROFILE, "implementation": "QualityProfileSpecification",
-                                    "negate": False, "required": True,
-                                    "fields": [{"name": "value", "value": pid}]}]}
-        rules = call("GET", f"{base}/api/v3/autotagging", h, key)
-        old = next((r for r in rules if r["name"] == rule["name"]), None)
-        if old is None:
-            call("POST", f"{base}/api/v3/autotagging", h, key, rule)
-        else:
-            call("PUT", f"{base}/api/v3/autotagging/{old['id']}", h, key, dict(rule, id=old["id"]))
-        print(f"{name}: auto tag {TAG} -> profile {KIDS_PROFILE} ({pid})")
+        api = f"{base}/api/v3"
+        kids = next(p["id"] for p in call("GET", f"{api}/qualityprofile", h, key)
+                    if p["name"] == KIDS_PROFILE)
+        schema = call("GET", f"{api}/autotagging/schema", h, key)
+        lang_spec = next(s for s in schema if s["implementation"] == "OriginalLanguageSpecification")
+        spanish = next(o["value"] for o in lang_spec["fields"][0]["selectOptions"] if o["name"] == SPANISH)
+        spec_kids = {"name": KIDS_PROFILE, "implementation": "QualityProfileSpecification",
+                     "negate": False, "required": True, "fields": [{"name": "value", "value": kids}]}
+        spec_es = {"name": SPANISH, "implementation": "OriginalLanguageSpecification",
+                   "negate": False, "required": True, "fields": [{"name": "value", "value": spanish}]}
+        tags = {t["label"]: t["id"] for t in call("GET", f"{api}/tag", h, key)}
+        rules = {r["name"]: r for r in call("GET", f"{api}/autotagging", h, key)}
+        for tag, rule_name, specs in (("kids-fr", "kids-fr (Bazarr FR)", [spec_kids]),
+                                      ("orig-es", "orig-es (Bazarr ES)", [spec_es]),
+                                      ("kids-fr-es", "kids-fr-es (Bazarr FR+ES)", [spec_kids, spec_es])):
+            if tag not in tags:
+                tags[tag] = call("POST", f"{api}/tag", h, key, {"label": tag})["id"]
+            rule = {"name": rule_name, "removeTagsAutomatically": True, "tags": [tags[tag]],
+                    "specifications": specs}
+            old = rules.get(rule_name)
+            if old is None:
+                call("POST", f"{api}/autotagging", h, key, rule)
+            else:
+                call("PUT", f"{api}/autotagging/{old['id']}", h, key, dict(rule, id=old["id"]))
+        print(f"{name}: auto tags kids-fr ({KIDS_PROFILE}), orig-es ({SPANISH}), kids-fr-es (both)")
+
+    def wanted_profiles(base, key, kind):
+        # {*arr ID: Bazarr profile ID}, from the quality profile and the
+        # original language: no wait for the *arr to apply its auto tags.
+        h = "X-Api-Key"
+        kids = next(p["id"] for p in call("GET", f"{base}/api/v3/qualityprofile", h, key)
+                    if p["name"] == KIDS_PROFILE)
+        out = {}
+        for item in call("GET", f"{base}/api/v3/{kind}", h, key):
+            es = (item.get("originalLanguage") or {}).get("name") == SPANISH
+            out[item["id"]] = PROFILE_OF[(item["qualityProfileId"] == kids, es)]
+        return out
+
+    def assign(kind, id_field, form_id, want):
+        # Only the titles whose profile differs; Bazarr recomputes what is
+        # missing for each.
+        items = call("GET", f"{bazarr}/api/{kind}?length=-1", "X-API-KEY", bkey)["data"]
+        todo = [(i[id_field], want[i[id_field]]) for i in items
+                if i[id_field] in want and i["profileId"] != want[i[id_field]]]
+        for n in range(0, len(todo), 50):
+            chunk = todo[n:n + 50]
+            call("POST", f"{bazarr}/api/{kind}", "X-API-KEY", bkey,
+                 form={form_id: [c[0] for c in chunk], "profileid": [str(c[1]) for c in chunk]})
+        counts = {}
+        for pid in want.values():
+            counts[pid] = counts.get(pid, 0) + 1
+        names = {p["profileId"]: p["name"] for p in PROFILES}
+        print(f"bazarr: {kind} profiles set, {len(todo)} changed; "
+              + ", ".join(f"{names[p]} {n}" for p, n in sorted(counts.items())))
 
     sonarr = "http://sonarr.theater.svc.cluster.local:8989/arr/sonarr"
     radarr = "http://radarr.theater.svc.cluster.local:7878/arr/radarr"
     bazarr = "http://bazarr.theater.svc.cluster.local:6767/arr/bazarr"
-    auto_tag("sonarr", sonarr, os.environ["SONARR_API_KEY"])
-    auto_tag("radarr", radarr, os.environ["RADARR_API_KEY"])
+    skey, rkey, bkey = os.environ["SONARR_API_KEY"], os.environ["RADARR_API_KEY"], os.environ["API_KEY"]
+    if MODE == "sync":
+        auto_tags("sonarr", sonarr, skey)
+        auto_tags("radarr", radarr, rkey)
 
     wait(f"{bazarr}/api/system/ping")
+    if MODE == "nightly":
+        assign("series", "sonarrSeriesId", "seriesid", wanted_profiles(sonarr, skey, "series"))
+        assign("movies", "radarrId", "radarrid", wanted_profiles(radarr, rkey, "movie"))
+        # Bazarr runs each search in the background, one at a time, and
+        # pauses providers that rate-limit.
+        for task in ("wanted_search_missing_subtitles_series", "wanted_search_missing_subtitles_movies"):
+            call("POST", f"{bazarr}/api/system/tasks", "X-API-KEY", bkey, form={"taskid": task})
+        print("bazarr: wanted searches started (series, movies)")
+        raise SystemExit(0)
+
     form = {
-        "languages-enabled": ["en", "fr"],
+        "languages-enabled": ["en", "fr", "es"],
         "languages-profiles": json.dumps(PROFILES),
         "settings-general-base_url": "/arr/bazarr",
         "settings-general-use_sonarr": "true",
@@ -141,6 +206,14 @@ data:
         "settings-general-serie_tag_enabled": "true",
         "settings-general-movie_tag_enabled": "true",
         "settings-general-enabled_providers": PROVIDERS,
+        # Embedded text subtitles count as present; bitmaps (PGS, VobSub) do
+        # not, so Bazarr fetches a text one that Plex does not burn in.
+        "settings-general-use_embedded_subs": "true",
+        "settings-general-ignore_pgs_subs": "true",
+        "settings-general-ignore_vobsub_subs": "true",
+        "settings-general-ignore_ass_subs": "false",
+        "settings-general-wanted_search_frequency": ONE_HUNDRED_YEARS_IN_HOURS,
+        "settings-general-wanted_search_frequency_movie": ONE_HUNDRED_YEARS_IN_HOURS,
         # External files next to the video, named <video>.<lang>[.forced].srt.
         "settings-general-subfolder": "current",
         "settings-general-utf8_encode": "true",
@@ -148,8 +221,11 @@ data:
         "settings-auth-username": "admin",
         "settings-auth-password": os.environ["ADMIN_PASSWORD"],
     }
-    call("POST", f"{bazarr}/api/system/settings", "X-API-KEY", os.environ["API_KEY"], form=form)
-    print(f"bazarr: settings applied, profiles EN (default) and FR (tag {TAG}), providers {', '.join(PROVIDERS)}")
+    call("POST", f"{bazarr}/api/system/settings", "X-API-KEY", bkey, form=form)
+    print("bazarr: settings applied, profiles " + ", ".join(p["name"] for p in PROFILES)
+          + f", providers {', '.join(PROVIDERS)}")
+    assign("series", "sonarrSeriesId", "seriesid", wanted_profiles(sonarr, skey, "series"))
+    assign("movies", "radarrId", "radarrid", wanted_profiles(radarr, rkey, "movie"))
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -361,3 +437,73 @@ spec:
         - name: managed
           configMap:
             name: bazarr-config
+---
+# Nightly at 22:30 UTC: the profile of every title, then Bazarr's wanted
+# searches for series and movies (its own interval search is off). The job
+# only starts them; Bazarr runs them in the background at the pace its
+# provider throttling allows. Run now:
+#   kubectl -n theater create job --from=cronjob/bazarr-nightly bazarr-nightly-manual
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: bazarr-nightly
+  namespace: theater
+spec:
+  suspend: false
+  schedule: "30 22 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: bazarr-nightly
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: nightly
+              # renovate: datasource=docker depName=ghcr.io/hotio/bazarr
+              image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:aab1002c1cf03178bfa318706047abbcabd9e6fea5dc2516bfaa44a94608930b
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/managed/settings.py"]
+              env:
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                - name: MODE
+                  value: nightly
+              envFrom:
+                # API_KEY, ADMIN_PASSWORD (apps/secrets/bazarr.sops.yaml).
+                - secretRef:
+                    name: bazarr
+                # SONARR_API_KEY, RADARR_API_KEY.
+                - secretRef:
+                    name: recyclarr-api-keys
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: managed
+                  mountPath: /managed
+                  readOnly: true
+          volumes:
+            - name: managed
+              configMap:
+                name: bazarr-config

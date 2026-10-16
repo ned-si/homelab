@@ -14,8 +14,8 @@ metadata:
   name: bazarr-settings
   namespace: theater
 spec:
-  description: 'bazarr-settings Job: egress to the Bazarr, Sonarr and Radarr APIs.
-    No ingress.'
+  description: 'bazarr-settings Job and bazarr-nightly CronJob: egress to the Bazarr,
+    Sonarr and Radarr APIs. No ingress.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -52,5 +52,9 @@ spec:
     egress: false
     ingress: false
   endpointSelector:
-    matchLabels:
-      app.kubernetes.io/name: bazarr-settings
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - bazarr-settings
+      - bazarr-nightly

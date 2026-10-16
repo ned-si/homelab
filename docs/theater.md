@@ -128,30 +128,50 @@ Bazarr (`apps/theater/bazarr.yaml`, https://theater.lilalala.com/arr/bazarr,
 user `admin`, password in `apps/secrets/bazarr.sops.yaml`) downloads subtitles
 for every series and movie in Sonarr and Radarr and saves them as external
 files next to the video: `<video>.en.srt`, `<video>.fr.srt`,
-`<video>.fr.forced.srt`.
+`<video>.fr.forced.srt`, `<video>.es.srt`. English and French on every title,
+Spanish when it is the original language.
 
 | Language profile | Languages | Applies to |
 |---|---|---|
-| `EN` | English | Default, every title |
-| `FR` | French, full and forced | Titles tagged `kids-fr` |
+| `en-fr` | English, French | Default, every title |
+| `en-fr-es` | English, French, Spanish | Titles tagged `orig-es` |
+| `kids-fr` | English, French full and forced | Titles tagged `kids-fr` |
+| `kids-fr-es` | English, French full and forced, Spanish | Titles tagged `kids-fr-es` |
 
-Sonarr and Radarr tag a title `kids-fr` automatically while its quality
-profile is `HD-Kids-FR` (auto tagging rule `kids-fr (Bazarr FR)`), and Bazarr
-assigns the `FR` profile to tagged titles at its next sync with them (hourly).
-Providers, none of which needs an account: Podnapisi, Gestdown (Addic7ed proxy),
-TVSubtitles, YIFY Subtitles, Sous-Titres.eu, Subsynchro. Embedded text
-subtitles count as present.
+Sonarr and Radarr tag titles with auto tagging rules: `kids-fr` while the
+quality profile is `HD-Kids-FR`, `orig-es` while the original language is
+Spanish, `kids-fr-es` for both. Bazarr gives a tagged title the first profile,
+by ID, whose tag it carries at its hourly sync; `kids-fr-es` (ID 2) comes
+before `kids-fr` (3) and `en-fr-es` (4).
 
-The PostSync Job `bazarr-settings` applies all of this through the Bazarr,
-Sonarr and Radarr APIs on every Argo CD sync of `theater`; UI changes to these
-settings are overwritten then. Check its last run (read-only):
+Embedded and external text subtitles (SRT, ASS) count as present; image ones
+(PGS, VobSub) do not, so Bazarr fetches a text subtitle that Plex shows
+without burning it in. Providers, none of which needs an account: Gestdown
+(Addic7ed's catalogue), TVSubtitles, YIFY Subtitles, Subtitulamos.tv, Subtis,
+Sous-Titres.eu, Subsynchro. Bazarr pauses a provider that rate-limits it, and
+retries a title with no result after 3 weeks, then weekly.
+
+`settings.py` (ConfigMap `bazarr-config`) applies all of this through the
+Bazarr, Sonarr and Radarr APIs; UI changes to these settings are overwritten:
+
+- the PostSync Job `bazarr-settings`, on every Argo CD sync of `theater`: the
+  auto tagging rules, the Bazarr settings, the profile of every title;
+- the CronJob `bazarr-nightly`, at 22:30 UTC: the profile of every title, then
+  Bazarr's wanted searches for series and movies. Bazarr's own interval search
+  is off.
+
+Check the last runs (read-only):
 
 ```sh
 kubectl -n theater logs job/bazarr-settings
+kubectl -n theater logs -l app.kubernetes.io/name=bazarr-nightly --tail=5
 ```
 
-Expected: one `auto tag kids-fr` line each for sonarr and radarr, then
-`bazarr: settings applied`. See also [subtitles](runbooks/subtitles.md).
+Expected: `bazarr-settings` prints one `auto tags` line each for sonarr and
+radarr, `bazarr: settings applied`, then a `profiles set` line for series and
+for movies; `bazarr-nightly` the two `profiles set` lines and
+`bazarr: wanted searches started (series, movies)`. See also
+[subtitles](runbooks/subtitles.md).
 
 ## Plex watchlist
 

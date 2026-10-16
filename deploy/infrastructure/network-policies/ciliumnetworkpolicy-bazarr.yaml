@@ -70,6 +70,7 @@ spec:
         operator: In
         values:
         - bazarr-settings
+        - bazarr-nightly
         - theater-sso
     toPorts:
     - ports:
