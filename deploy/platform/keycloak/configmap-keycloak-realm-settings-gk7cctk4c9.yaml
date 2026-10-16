@@ -42,13 +42,13 @@ data:
   apply.sh: |
     #!/bin/bash
     # Apply sessions.conf, platform.conf, clients.conf and access.conf to the
-    # `homelab` realm, then read the realm back and fail unless every managed
-    # value is the expected one. CHECK_ONLY=1 runs the static checks of the files
-    # and exits.
+    # `homelab` realm (and the OTP rules of platform.conf to the `master` realm),
+    # then read them back and fail unless every managed value is the expected
+    # one. CHECK_ONLY=1 runs the static checks of the files and exits.
     #
     # Runs in the Keycloak image (kcadm.sh, bash, grep, sed; no awk, jq or curl).
     # `kcadm.sh update -s` fetches an object, changes only the given fields and
-    # writes it back, so nothing outside the two files is touched.
+    # writes it back, so nothing outside the files is touched.
     set -euo pipefail
     # Values such as a `*` redirect URI must never expand to file names.
     set -f
@@ -57,15 +57,27 @@ data:
     CFG=/tmp/kcadm.config
     SERVER=${KEYCLOAK_URL:-http://keycloak.keycloak.svc.cluster.local:8080}
     REALM=${REALM:-homelab}
+    HOMELAB=$REALM
     CONF=${CONF:-/realm/sessions.conf}
     PLATFORM_CONF=${PLATFORM_CONF:-/realm/platform.conf}
     CLIENTS_CONF=${CLIENTS_CONF:-/realm/clients.conf}
     ACCESS_CONF=${ACCESS_CONF:-/realm/access.conf}
     FLOW=browser-loa
+    MASTER_FLOW=browser-otp
     ROLE=access
     ACR=platform
 
     kc() { "$KCADM" "$@" --config "$CFG"; }
+    client_id() { # clientId -> internal id in $REALM; empty when the client does not exist
+      kc get clients -r "$REALM" -q clientId="$1" --format csv --noquotes --fields id,clientId |
+        grep -E ",$1\$" | cut -d, -f1 || true
+    }
+    name_id() { # resource name -> id of the entry with that name
+      kc get "$1" -r "$REALM" --format csv --noquotes --fields id,name | grep -E ",$2\$" | cut -d, -f1 || true
+    }
+    sorted() { tr ' ' '\n' | grep -v '^$' | sort | tr '\n' ' ' | sed 's/ $//' || true; }
+    env_name() { printf '%s_CLIENT_SECRET' "$(printf '%s' "$1" | tr 'a-z-' 'A-Z_')"; }
+    usable() { [ -n "$1" ] && [ "${1#PENDING}" = "$1" ]; }
 
     rc=0
     check() { # name want got
@@ -138,24 +150,67 @@ data:
         fi
       done
     done
+    # OTP: one realm role, its groups, the automation client, the policy fields.
+    MFA=$(conf mfa_role)
+    AUTO=$(conf automation_client)
+    for v in "mfa_role:$MFA" "automation_client:$AUTO"; do
+      if ! [[ "${v#*:}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        echo "FAIL platform.conf: ${v%%:*} is not one name: ${v#*:}" >&2
+        bad=1
+      fi
+    done
+    if [ -z "$(conf mfa_groups)" ]; then
+      echo "FAIL platform.conf: mfa_groups is empty" >&2
+      bad=1
+    fi
+    for g in $(conf mfa_groups); do
+      if ! [[ "$g" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        echo "FAIL platform.conf: mfa_groups entry is not a group name: $g" >&2
+        bad=1
+      fi
+    done
+    for p in $(conf otp_policy); do
+      if ! [[ "$p" =~ ^otpPolicy[A-Za-z]+=[A-Za-z0-9]+$ ]]; then
+        echo "FAIL platform.conf: otp_policy entry is not otpPolicy<Field>=<value>: $p" >&2
+        bad=1
+      fi
+    done
     [ "$bad" = 0 ] || exit 1
     if [ -n "${CHECK_ONLY:-}" ]; then
       echo "ok   static checks"
       exit 0
     fi
 
+    # Log in as the automation client (client credentials); the admin password
+    # is the fallback for a new database, before the client exists. Once the
+    # admin has OTP, the password alone no longer logs in.
+    AUTO_VAR=$(env_name "$AUTO")
+    AUTO_SECRET=${!AUTO_VAR:-}
+    login() { # config file -> 0 when logged in; sets login_as
+      if usable "$AUTO_SECRET" && "$KCADM" config credentials --config "$1" --server "$SERVER" \
+        --realm master --client "$AUTO" --secret "$AUTO_SECRET" >/dev/null 2>&1; then
+        login_as="client $AUTO"
+        return 0
+      fi
+      if [ "$1" = "$CFG" ] && "$KCADM" config credentials --config "$1" --server "$SERVER" \
+        --realm master --user "$KC_ADMIN_USER" --password "$KC_ADMIN_PASSWORD" >/dev/null 2>&1; then
+        login_as="user $KC_ADMIN_USER"
+        return 0
+      fi
+      return 1
+    }
     # Keycloak may still be starting after a sync: retry the login for 5 minutes.
     for i in $(seq 1 30); do
-      if "$KCADM" config credentials --config "$CFG" --server "$SERVER" \
-        --realm master --user "$KC_ADMIN_USER" --password "$KC_ADMIN_PASSWORD" >/dev/null 2>&1; then
+      if login "$CFG"; then
         break
       fi
       if [ "$i" = 30 ]; then
-        echo "admin login to $SERVER failed" >&2
+        echo "admin login to $SERVER failed (client $AUTO and user $KC_ADMIN_USER)" >&2
         exit 1
       fi
       sleep 10
     done
+    echo "ok   login as $login_as"
 
     # --- sessions.conf: realm fields ---------------------------------------------
     args=()
@@ -197,16 +252,37 @@ data:
         fi
       done <<< "$1"
     }
-    set_reqs() { # flow; stdin: <displayName>|<requirement> lines
+    rows_after() { # rows id -> the rows after the one whose first field is id
+      local r found=0
+      while IFS= read -r r; do
+        if [ "$found" = 1 ]; then printf '%s\n' "$r"; fi
+        if [ "${r%%,*}" = "$2" ]; then found=1; fi
+      done <<< "$1"
+    }
+    rows_under() { # flow_rows subflow -> the rows nested under the subflow <displayName>
+      local r l lvl=""
+      while IFS= read -r r; do
+        l=$(printf '%s' "$r" | cut -d, -f4)
+        if [ -n "$lvl" ]; then
+          [ "$l" -gt "$lvl" ] || break
+          printf '%s\n' "$r"
+        elif [ "$(printf '%s' "$r" | cut -d, -f3)" = "$2" ]; then
+          lvl=$l
+        fi
+      done <<< "$1"
+    }
+    set_reqs() { # flow; stdin: <displayName>|<requirement> lines, in flow order
       # One listing, then one update per execution. Send the execution's priority
       # back unchanged: Keycloak 25+ applies the priority of this request, and a
-      # missing one would reorder the flow.
+      # missing one would reorder the flow. A name can occur twice (OTP Form):
+      # each line takes the next execution of that name.
       local pairs rows kv row id prio body
       pairs=$(cat)
       rows=$(execs "$1" id,displayName,priority)
       while IFS= read -r kv; do
         row=$(row_named "$rows" "${kv%|*}" 2)
         id=${row%%,*}
+        rows=$(rows_after "$rows" "$id")
         prio=${row##*,}
         body="{\"id\":\"$id\",\"requirement\":\"${kv##*|}\""
         if [[ "$prio" =~ ^[0-9]+$ ]]; then body="$body,\"priority\":$prio"; fi
@@ -234,7 +310,11 @@ data:
       kc create "authentication/flows/$1/executions/execution" -r "$REALM" -s provider="$2" >/dev/null 2>&1
     }
     # The browser-loa login under <parent>, subflows named <prefix>-*;
-    # login_reqs prints their requirements for set_reqs.
+    # login_reqs prints their requirements for set_reqs. After the password,
+    # exactly one of two OTP subflows runs its OTP Form: <prefix>-otp for users
+    # without the role mfa_role who configured OTP (optional OTP, as before), and
+    # <prefix>-mfa for every holder of the role, who is asked to set OTP up
+    # (required action CONFIGURE_TOTP) when they have none.
     login_steps() { # parent prefix
       step "$1" auth-cookie
       step "$1" identity-provider-redirector
@@ -244,13 +324,19 @@ data:
       step "$2-level-1" auth-username-password-form
       sub "$2-level-1" "$2-otp"
       step "$2-otp" conditional-user-configured
+      step "$2-otp" conditional-user-role
       step "$2-otp" auth-otp-form
+      sub "$2-level-1" "$2-mfa"
+      step "$2-mfa" conditional-user-role
+      step "$2-mfa" auth-otp-form
     }
     login_reqs() { # prefix
       printf '%s\n' "Cookie|ALTERNATIVE" "Identity Provider Redirector|ALTERNATIVE" \
         "$1-forms|ALTERNATIVE" "$1-level-1|CONDITIONAL" \
         "Condition - Level of Authentication|REQUIRED" "Username Password Form|REQUIRED" \
-        "$1-otp|CONDITIONAL" "Condition - user configured|REQUIRED" "OTP Form|REQUIRED"
+        "$1-otp|CONDITIONAL" "Condition - user configured|REQUIRED" \
+        "Condition - user role|REQUIRED" "OTP Form|REQUIRED" \
+        "$1-mfa|CONDITIONAL" "Condition - user role|REQUIRED" "OTP Form|REQUIRED"
     }
     # Expected rows of login_steps at <level> (0 when directly in the top flow).
     login_rows() { # prefix level
@@ -259,17 +345,23 @@ data:
         "ALTERNATIVE,$1-forms,$l" "CONDITIONAL,$1-level-1,$((l + 1))" \
         "REQUIRED,Condition - Level of Authentication,$((l + 2))" \
         "REQUIRED,Username Password Form,$((l + 2))" "CONDITIONAL,$1-otp,$((l + 2))" \
-        "REQUIRED,Condition - user configured,$((l + 3))" "REQUIRED,OTP Form,$((l + 3))"
+        "REQUIRED,Condition - user configured,$((l + 3))" \
+        "REQUIRED,Condition - user role,$((l + 3))" "REQUIRED,OTP Form,$((l + 3))" \
+        "CONDITIONAL,$1-mfa,$((l + 2))" "REQUIRED,Condition - user role,$((l + 3))" \
+        "REQUIRED,OTP Form,$((l + 3))"
     }
     cfg_val() { # config JSON, key -> value
       printf '%s\n' "$1" | sed -n "s/^ *\"$2\" : \"\\(.*\\)\",\\{0,1\\}\$/\\1/p"
     }
     # Create the config of execution <displayName>, or update it when a value
-    # differs, then check every value. <rows> is flow_rows of the flow.
-    ensure_cfg() { # flow rows displayName alias key=value...
-      local f=$1 n=$3 a=$4 row eid cfg live="" kv args=() drift=0
-      row=$(row_named "$2" "$n" 3)
-      shift 4
+    # differs, then check every value. <rows> is flow_rows of the flow; <scope>
+    # is the subflow that holds the execution, or empty for the first match in
+    # the whole flow.
+    ensure_cfg() { # flow rows scope displayName alias key=value...
+      local f=$1 rows=$2 s=$3 n=$4 a=$5 row eid cfg live="" kv args=() drift=0
+      if [ -n "$s" ]; then rows=$(rows_under "$rows" "$s"); fi
+      row=$(row_named "$rows" "$n" 3)
+      shift 5
       eid=${row%%,*}
       cfg=${row##*,}
       if [ -n "$cfg" ]; then live=$(kc get "authentication/config/$cfg" -r "$REALM"); fi
@@ -279,15 +371,46 @@ data:
       done
       if [ -z "$cfg" ]; then
         kc create "authentication/executions/$eid/config" -r "$REALM" -s alias="$a" "${args[@]}" >/dev/null 2>&1
-        row=$(row_named "$(flow_rows "$f")" "$n" 3)
+        rows=$(flow_rows "$f")
+        if [ -n "$s" ]; then rows=$(rows_under "$rows" "$s"); fi
+        row=$(row_named "$rows" "$n" 3)
         cfg=${row##*,}
       elif [ "$drift" = 1 ]; then
         kc update "authentication/config/$cfg" -r "$REALM" "${args[@]}"
       fi
       if [ "$drift" = 1 ]; then live=$(kc get "authentication/config/$cfg" -r "$REALM"); fi
       for kv in "$@"; do
-        check "flow $f $n ${kv%%=*}" "${kv#*=}" "$(cfg_val "$live" "${kv%%=*}")"
+        check "flow $f ${s:+$s }$n ${kv%%=*}" "${kv#*=}" "$(cfg_val "$live" "${kv%%=*}")"
       done
+    }
+    # The three condition configs of login_steps.
+    login_cfgs() { # flow rows prefix
+      ensure_cfg "$1" "$2" "" "Condition - Level of Authentication" "$3-max-age" \
+        loa-condition-level=1 "loa-max-age=$max_age"
+      ensure_cfg "$1" "$2" "$3-otp" "Condition - user role" "$3-otp-role" "condUserRole=$MFA" negate=true
+      ensure_cfg "$1" "$2" "$3-mfa" "Condition - user role" "$3-mfa-role" "condUserRole=$MFA" negate=false
+    }
+    rebuild_flow() { # alias id -> unbinds the realm browser flow, deletes the flow
+      # Keycloak deletes only unbound flows: the built-in `browser` flow serves
+      # logins until the flow is bound again a few calls later.
+      echo "rebuilding flow $1"
+      kc update "realms/$REALM" -s browserFlow=browser
+      kc delete "authentication/flows/$2" -r "$REALM"
+    }
+    # OTP policy and the CONFIGURE_TOTP required action of $REALM.
+    otp_settings() {
+      local args=() p live got
+      for p in $(conf otp_policy); do args+=(-s "$p"); done
+      kc update "realms/$REALM" "${args[@]}"
+      live=$(kc get "realms/$REALM")
+      for p in $(conf otp_policy); do
+        got=$(printf '%s\n' "$live" | grep -E "^  \"${p%%=*}\" : " | sed -E 's/^[^:]+: //; s/,$//; s/^"//; s/"$//' || true)
+        check "$REALM ${p%%=*}" "${p#*=}" "$got"
+      done
+      kc update authentication/required-actions/CONFIGURE_TOTP -r "$REALM" -s enabled=true
+      got=$(kc get authentication/required-actions/CONFIGURE_TOTP -r "$REALM" --fields enabled |
+        sed -n 's/^ *"enabled" : \([a-z]*\).*$/\1/p')
+      check "$REALM required action CONFIGURE_TOTP enabled" true "$got"
     }
     check_flow() { # flow rows expected-shape
       if [ "$(shape "$2")" = "$3" ]; then
@@ -298,21 +421,129 @@ data:
       fi
     }
 
-    if [ -z "$(flow_id "$FLOW")" ]; then
-      new_flow "$FLOW" 'Browser login; platform clients re-authenticate after platform.conf loa_max_age'
+    # --- platform.conf: the Keycloak admin (master realm) --------------------------
+    # The automation client first: the Job logs in with it, so OTP on the admin
+    # user cannot lock the Job out. Only when that login works does the master
+    # browser flow require OTP.
+    REALM=master
+    if [ -z "$(client_id "$AUTO")" ]; then
+      echo "creating master client $AUTO"
+      kc create clients -r "$REALM" -s clientId="$AUTO" -s protocol=openid-connect \
+        -s publicClient=false -s standardFlowEnabled=false -s directAccessGrantsEnabled=false \
+        -s implicitFlowEnabled=false -s serviceAccountsEnabled=true \
+        -s 'description=keycloak-realm-settings Job (platform.conf automation_client)' >/dev/null
+    fi
+    auto_ok=0
+    id=$(client_id "$AUTO")
+    if [ -z "$id" ]; then
+      check "master client $AUTO" present ""
+    else
+      # The secret is never printed: only whether the live one matches.
+      field=secret
+      if usable "$AUTO_SECRET"; then
+        kc update "clients/$id" -r "$REALM" -s "$field=$AUTO_SECRET"
+      else
+        echo "WARN master client $AUTO: $AUTO_VAR is unset or PENDING; client $field left as is" >&2
+      fi
+      sa="service-account-$AUTO"
+      if ! kc get-roles -r "$REALM" --uusername "$sa" --format csv --noquotes --fields name | grep -qx admin; then
+        kc add-roles -r "$REALM" --uusername "$sa" --rolename admin
+      fi
+      if kc get-roles -r "$REALM" --uusername "$sa" --format csv --noquotes --fields name | grep -qx admin; then
+        got=present
+      else
+        got=absent
+      fi
+      check "master client $AUTO realm role admin" present "$got"
+      # A fresh login with the client alone, and one read with that token.
+      if login /tmp/kcadm-auto.config &&
+        "$KCADM" get realms/master --config /tmp/kcadm-auto.config --fields realm >/dev/null 2>&1; then
+        auto_ok=1
+        got=ok
+      else
+        got=failed
+      fi
+      rm -f /tmp/kcadm-auto.config
+      check "master client $AUTO login" ok "$got"
+    fi
+
+    master_rows() {
+      printf '%s\n' "ALTERNATIVE,Cookie,0" "ALTERNATIVE,$MASTER_FLOW-forms,0" \
+        "REQUIRED,Username Password Form,1" "REQUIRED,OTP Form,1"
+    }
+    if [ "$auto_ok" = 1 ]; then
+      otp_settings
+      mid=$(flow_id "$MASTER_FLOW")
+      if [ -n "$mid" ] && [ "$(shape "$(flow_rows "$MASTER_FLOW")")" != "$(master_rows)" ]; then
+        rebuild_flow "$MASTER_FLOW" "$mid"
+        mid=""
+      fi
+      if [ -z "$mid" ]; then
+        new_flow "$MASTER_FLOW" 'Keycloak admin login: password and OTP for every user (platform.conf)'
+        step "$MASTER_FLOW" auth-cookie
+        sub "$MASTER_FLOW" "$MASTER_FLOW-forms"
+        step "$MASTER_FLOW-forms" auth-username-password-form
+        step "$MASTER_FLOW-forms" auth-otp-form
+        printf '%s\n' "Cookie|ALTERNATIVE" "$MASTER_FLOW-forms|ALTERNATIVE" \
+          "Username Password Form|REQUIRED" "OTP Form|REQUIRED" | set_reqs "$MASTER_FLOW"
+      fi
+      check_flow "$MASTER_FLOW" "$(flow_rows "$MASTER_FLOW")" "$(master_rows)"
+      kc update "realms/$REALM" -s browserFlow="$MASTER_FLOW"
+      got=$(kc get "realms/$REALM" --fields browserFlow | sed -n 's/^ *"browserFlow" : "\(.*\)",\{0,1\}$/\1/p')
+      check "master browserFlow" "$MASTER_FLOW" "$got"
+    else
+      echo "FAIL master browser flow left as is: the Job cannot log in as $AUTO, and OTP on the admin would lock it out" >&2
+      rc=1
+    fi
+    REALM=$HOMELAB
+
+    # --- platform.conf: OTP for the members of mfa_groups ----------------------------
+    otp_settings
+    if ! kc get roles -r "$REALM" --format csv --noquotes --fields name | grep -qx "$MFA"; then
+      echo "creating realm role $MFA"
+      kc create roles -r "$REALM" -s name="$MFA" -s 'description=Must use OTP to log in (platform.conf mfa_groups)' >/dev/null
+    fi
+    mfa_live() { kc get "roles/$MFA/groups" -r "$REALM" --format csv --noquotes --fields name | sorted; }
+    want_groups=$(conf mfa_groups | sorted)
+    live_groups=$(mfa_live)
+    for g in $want_groups; do
+      if [ -z "$(name_id groups "$g")" ]; then
+        echo "creating group $g"
+        kc create groups -r "$REALM" -s name="$g" >/dev/null
+      fi
+      case " $live_groups " in
+        *" $g "*) ;;
+        *) kc add-roles -r "$REALM" --gid "$(name_id groups "$g")" --rolename "$MFA" ;;
+      esac
+    done
+    for g in $live_groups; do
+      case " $want_groups " in
+        *" $g "*) ;;
+        *)
+          echo "removing realm role $MFA from group $g"
+          kc remove-roles -r "$REALM" --gid "$(name_id groups "$g")" --rolename "$MFA"
+          ;;
+      esac
+    done
+    check "realm role $MFA groups" "$want_groups" "$(mfa_live)"
+
+    # --- platform.conf: the realm browser flow --------------------------------------
+    # A flow of another shape (an older version of login_steps, or a Job stopped
+    # half-way) is rebuilt.
+    fid=$(flow_id "$FLOW")
+    if [ -n "$fid" ] && [ "$(shape "$(flow_rows "$FLOW")")" != "$(login_rows "$FLOW" 0)" ]; then
+      rebuild_flow "$FLOW" "$fid"
+      fid=""
+    fi
+    if [ -z "$fid" ]; then
+      new_flow "$FLOW" 'Browser login; platform clients re-authenticate after platform.conf loa_max_age; OTP for mfa_role'
       login_steps "$FLOW" "$FLOW"
       login_reqs "$FLOW" | set_reqs "$FLOW"
     fi
     loa_rows=$(flow_rows "$FLOW")
-    ensure_cfg "$FLOW" "$loa_rows" "Condition - Level of Authentication" "$FLOW-max-age" \
-      loa-condition-level=1 "loa-max-age=$max_age"
+    login_cfgs "$FLOW" "$loa_rows" "$FLOW"
 
     kc update "realms/$REALM" -s browserFlow="$FLOW" -s "attributes.\"acr.loa.map\"=\"{\\\"$ACR\\\":1}\""
-
-    client_id() { # clientId -> internal id; empty when the client does not exist
-      kc get clients -r "$REALM" -q clientId="$1" --format csv --noquotes --fields id,clientId |
-        grep -E ",$1\$" | cut -d, -f1 || true
-    }
 
     # --- platform.conf: clients that must not exist --------------------------------
     for c in $(conf removed_clients); do
@@ -326,9 +557,6 @@ data:
     done
 
     # --- platform.conf: confidential clients for oauth2-proxy ----------------------
-    name_id() { # resource name -> id of the entry with that name
-      kc get "$1" -r "$REALM" --format csv --noquotes --fields id,name | grep -E ",$2\$" | cut -d, -f1 || true
-    }
     for pc in $(conf proxy_clients); do
       c=${pc%%:*}
       g=${pc#*:}
@@ -461,7 +689,6 @@ data:
     # Groups get the client role `access`; the client's own flows deny a user
     # without it, after the login step (cookie included).
     access_groups() { access_lines | sed -n "s/^$1=//p"; }
-    sorted() { tr ' ' '\n' | grep -v '^$' | sort | tr '\n' ' ' | sed 's/ $//' || true; }
     role_groups() { # client internal id -> sorted names of the groups mapped to its role
       kc get "clients/$1/roles/$ROLE/groups" -r "$REALM" --format csv --noquotes --fields name | sorted
     }
@@ -528,16 +755,21 @@ data:
       rows_d=""
       if [ -n "$bid" ]; then rows_b=$(flow_rows "$bf"); fi
       if [ -n "$did" ]; then rows_d=$(flow_rows "$df"); fi
-      # A flow that differs (a Job stopped half-way through building it) is
-      # rebuilt. Keycloak deletes only unbound flows, so the client falls back to
-      # the realm flow until the end of this iteration.
-      stale=""
-      if [ -n "$bid" ] && [ "$(shape "$rows_b")" != "$want_b" ]; then stale="$stale $bid"; bid=""; fi
-      if [ -n "$did" ] && [ "$(shape "$rows_d")" != "$want_d" ]; then stale="$stale $did"; did=""; fi
-      if [ -n "$stale" ]; then
-        echo "rebuilding the flows of $c"
-        kc update "clients/$id" -r "$REALM" -s 'authenticationFlowBindingOverrides={}'
-        for f in $stale; do kc delete "authentication/flows/$f" -r "$REALM"; done
+      # A flow that differs (an older login_steps, or a Job stopped half-way
+      # through building it) is rebuilt. Keycloak deletes only unbound flows, so
+      # that binding of the client falls back to the realm flow until the end of
+      # this iteration. An empty value removes a binding; an empty map does not.
+      if [ -n "$bid" ] && [ "$(shape "$rows_b")" != "$want_b" ]; then
+        echo "rebuilding flow $bf"
+        kc update "clients/$id" -r "$REALM" -s 'authenticationFlowBindingOverrides.browser='
+        kc delete "authentication/flows/$bid" -r "$REALM"
+        bid=""
+      fi
+      if [ -n "$did" ] && [ "$(shape "$rows_d")" != "$want_d" ]; then
+        echo "rebuilding flow $df"
+        kc update "clients/$id" -r "$REALM" -s 'authenticationFlowBindingOverrides.direct_grant='
+        kc delete "authentication/flows/$did" -r "$REALM"
+        did=""
       fi
       if [ -z "$bid" ]; then
         new_flow "$bf" "Browser login to $c, then deny without $c.$ROLE (access.conf)"
@@ -572,10 +804,9 @@ data:
       fi
       check_flow "$bf" "$rows_b" "$want_b"
       check_flow "$df" "$rows_d" "$want_d"
-      ensure_cfg "$bf" "$rows_b" "Condition - Level of Authentication" "$bf-max-age" \
-        loa-condition-level=1 "loa-max-age=$max_age"
-      ensure_cfg "$bf" "$rows_b" "Condition - user role" "$bf-role" "condUserRole=$c.$ROLE" negate=true
-      ensure_cfg "$df" "$rows_d" "Condition - user role" "$df-role" "condUserRole=$c.$ROLE" negate=true
+      login_cfgs "$bf" "$rows_b" "$bf"
+      ensure_cfg "$bf" "$rows_b" "$bf-gate" "Condition - user role" "$bf-role" "condUserRole=$c.$ROLE" negate=true
+      ensure_cfg "$df" "$rows_d" "$df-gate" "Condition - user role" "$df-role" "condUserRole=$c.$ROLE" negate=true
 
       live=$(kc get "clients/$id" -r "$REALM")
       if [ "$(override "$live" browser)" != "$bid" ] || [ "$(override "$live" direct_grant)" != "$did" ]; then
@@ -665,6 +896,28 @@ data:
     # 12 hours.
     loa_max_age=43200
 
+    # OTP for admins. Members of mfa_groups get the realm role mfa_role. The
+    # password step of `browser-loa` and of every `access-<client>` flow is then
+    # followed by the OTP Form for holders of the role; one without an
+    # authenticator app is asked to set one up (required action CONFIGURE_TOTP).
+    # Everyone else keeps OTP optional: asked only when they set one up. Password
+    # grants (direct grant flows) are unchanged.
+    mfa_role=mfa-required
+    mfa_groups=admins
+
+    # OTP policy of both realms, as RealmRepresentation fields: what common
+    # authenticator apps expect.
+    otp_policy=otpPolicyType=totp otpPolicyDigits=6 otpPolicyPeriod=30 otpPolicyAlgorithm=HmacSHA1
+
+    # The Keycloak admin (realm `master`). Its browser flow `browser-otp` asks
+    # every master user for password and OTP. The keycloak-realm-settings Job logs
+    # in as this confidential master client (client credentials, master role
+    # `admin`, secret from <CLIENT_ID>_CLIENT_SECRET as for proxy_clients), so the
+    # admin's OTP never blocks it; the admin password is only its fallback on a
+    # new database. apply.sh binds `browser-otp` only after a login as this client
+    # works.
+    automation_client=realm-settings
+
     # Client IDs, space-separated.
     platform_clients=argocd grafana-oauth security-admin-console headlamp hubble
 
@@ -720,5 +973,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-5d2f8db924
+  name: keycloak-realm-settings-gk7cctk4c9
   namespace: keycloak

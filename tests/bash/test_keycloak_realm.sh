@@ -1,8 +1,8 @@
 #!/bin/bash
 # platform/keycloak/realm/apply.sh static checks (CHECK_ONLY=1): the repo's
 # files pass, and wildcard or non-https redirect URIs, origins with a path,
-# malformed access.conf lines and clients both removed and configured fail
-# before any kcadm call.
+# malformed access.conf lines, malformed OTP settings and clients both removed
+# and configured fail before any kcadm call.
 set -euo pipefail
 # shellcheck source=tests/bash/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -60,6 +60,20 @@ expect_contains "proxy client without group fails" "proxy_clients entry is not <
 sed 's/^removed_clients=.*/removed_clients=myclient theater-sso/' "$REALM_DIR/platform.conf" > "$tmp/p4.conf"
 o=$(run "$tmp/p4.conf" "$REALM_DIR/clients.conf")
 expect_contains "removed proxy client fails" "client theater-sso is in removed_clients" "$o"
+
+# OTP: mfa_role and automation_client one name each, mfa_groups not empty,
+# otp_policy entries otpPolicy<Field>=<value>; the repo enforces OTP for admins.
+expect_contains "mfa_groups has admins" "admins" "$(sed -n 's/^mfa_groups=//p' "$REALM_DIR/platform.conf")"
+expect_contains "otp policy is TOTP, 6 digits, 30 s, SHA1" \
+  "otpPolicyType=totp otpPolicyDigits=6 otpPolicyPeriod=30 otpPolicyAlgorithm=HmacSHA1" \
+  "$(sed -n 's/^otp_policy=//p' "$REALM_DIR/platform.conf")"
+for e in 's/^mfa_role=.*/mfa_role=mfa required/' 's/^automation_client=.*/automation_client=/' \
+  's/^mfa_groups=.*/mfa_groups=/' 's/^mfa_groups=.*/mfa_groups=adm*ns/' \
+  's/^otp_policy=.*/otp_policy=otpPolicyDigits=6 digits=8/'; do
+  sed "$e" "$REALM_DIR/platform.conf" > "$tmp/p5.conf"
+  o=$(run "$tmp/p5.conf" "$REALM_DIR/clients.conf")
+  expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf" "$o"
+done
 
 # access.conf: <clientId>=<groups>, each client once, not also removed.
 access() { printf '%s\n' "$@" > "$tmp/access.conf"; echo "$tmp/access.conf"; }

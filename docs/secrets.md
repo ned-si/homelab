@@ -28,7 +28,7 @@ Expected: the same `age1...` public key three times, and nothing else.
 | Directory | Files (`*.sops.yaml`) | Application |
 | --- | --- | --- |
 | `infrastructure/secrets/` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `democratic-csi-iscsi` | `secrets-infrastructure` (wave -25) |
-| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso`, `hubble-sso` | `secrets-platform` (wave -25) |
+| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso`, `hubble-sso`, `keycloak-automation` | `secrets-platform` (wave -25) |
 | `apps/secrets/` | `immich-config`, `mealie-oidc`, `paperless-secrets`, `plex-claim`, `recyclarr-api-keys`, `theater-sso` | `secrets-apps` (wave -25) |
 
 Each file is a Kubernetes Secret with its own `metadata.namespace`; only
@@ -161,7 +161,8 @@ new value in the password manager.
 
 | Credential | Source of truth | Sealed file, key | Notes |
 | --- | --- | --- | --- |
-| Keycloak admin | Keycloak master realm (`kcadm.sh set-password`) | `platform/secrets/keycloak-admin.sops.yaml`, `password` | `KC_BOOTSTRAP_ADMIN_PASSWORD` only applies to an empty database: change the user in Keycloak first, then bump `kubectl.kubernetes.io/restartedAt` in `platform/keycloak/deployment.yaml` |
+| Keycloak admin | Keycloak master realm (`kcadm.sh set-password`) | `platform/secrets/keycloak-admin.sops.yaml`, `password` | `KC_BOOTSTRAP_ADMIN_PASSWORD` only applies to an empty database: change the user in Keycloak first, then bump `kubectl.kubernetes.io/restartedAt` in `platform/keycloak/deployment.yaml`. Its OTP is not in git: reset it as in [keycloak-otp.md](runbooks/keycloak-otp.md#reset-a-lost-authenticator) |
+| Keycloak automation client `realm-settings` (master realm) | the sealed file: the `keycloak-realm-settings` Job sets it on the client | `platform/secrets/keycloak-automation.sops.yaml`, `REALM_SETTINGS_CLIENT_SECRET` | `secrets.local.env` key `KEYCLOAK_REALM_SETTINGS_CLIENT_SECRET`. Rotate in Keycloak first: master realm, Clients, `realm-settings`, Credentials, Regenerate; put the new value in `secrets.local.env`, re-seal the file, merge. The Job reads the Secret at start, so it must already match the client |
 | OIDC client secrets (Grafana, Immich, Mealie, Paperless) | Keycloak, Clients, *client*, Credentials, Regenerate | `grafana-oidc`, `immich-config` (inside `immich-config.yaml`), `mealie-oidc`, `paperless-secrets` (`PAPERLESS_SOCIALACCOUNT_PROVIDERS`) | |
 | Argo CD OIDC client secret | Keycloak client `argocd` | not in git: `argo/argocd-secret`, `oidc.keycloak.clientSecret` | patch the Secret, restart `argocd-server` |
 | Paperless admin | `manage.py changepassword` in the pod | `paperless-secrets`, `PAPERLESS_ADMIN_PASSWORD` | |

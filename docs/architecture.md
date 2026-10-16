@@ -184,8 +184,9 @@ password login is 12 hours old.
 | | Offline session idle / max | 365 d / none |
 | | Access token | 5 min |
 | | Browser flow `browser-loa`: password step behind "Condition - Level of Authentication", level 1 | max age 12 h |
-| | ACR `platform` = level 1 (`acr.loa.map`); default ACR of `argocd`, `grafana-oauth`, `security-admin-console` | `platform` |
-| Keycloak realm `master` (Keycloak admin) | defaults | 30 min idle, 10 h max |
+| | OTP after the password: required for realm role `mfa-required` (group `admins`), optional for everyone else | TOTP, 6 digits, 30 s, SHA1 |
+| | ACR `platform` = level 1 (`acr.loa.map`); default ACR of `argocd`, `grafana-oauth`, `security-admin-console`, `headlamp`, `hubble` | `platform` |
+| Keycloak realm `master` (Keycloak admin) | sessions: defaults; browser flow `browser-otp`: password and OTP for every user | 30 min idle, 10 h max |
 | Immich | built in: session tokens do not expire, cookies last 400 d; OAuth `autoLaunch` and `autoRegister` on; mobile redirect `app.immich:///oauth-callback` | none to set |
 | Mealie | `TOKEN_TIME` | 8760 h |
 | Paperless | `PAPERLESS_SESSION_COOKIE_AGE` | 365 d |
@@ -198,6 +199,16 @@ How the 12 hours work: a client that requests ACR `platform` is only
 satisfied by an SSO cookie whose level-1 (password) login is younger than the
 max age; otherwise Keycloak shows the login form. Clients that request no ACR
 are satisfied by the cookie alone, so the user apps never see the prompt.
+
+OTP is part of the level-1 login. After the password, a holder of the realm
+role `mfa-required` (`platform.conf` `mfa_role`, mapped to `mfa_groups`)
+always gets the OTP Form; one without an authenticator is asked to set one up
+(required action `CONFIGURE_TOTP`). Other users get the OTP Form only when
+they set up OTP themselves. The Keycloak admin console (realm `master`) asks
+every user for both. Password grants are unchanged, and the
+`keycloak-realm-settings` Job logs in as the master client `realm-settings`
+(client credentials), so the admin's OTP does not stop it. Enrolment, a lost
+phone and break-glass: [keycloak-otp.md](runbooks/keycloak-otp.md).
 
 The realm values live in `platform/keycloak/realm/sessions.conf`,
 `platform.conf`, `clients.conf` and `access.conf`. After every sync of the
@@ -236,7 +247,8 @@ kubectl -n keycloak logs job/keycloak-realm-settings
 ```
 
 Expected: one `ok   <name>=<value>` line per managed value, `ok   flow
-browser-loa: 9 executions`, and no `FAIL` line.
+browser-loa: 13 executions`, `ok   flow browser-otp: 4 executions`, and no
+`FAIL` line.
 
 To end a session early (lost phone), sign the user out in the Keycloak admin
 console (Users, the user, Sessions) and in the app itself (Immich: Account
@@ -282,6 +294,10 @@ any of the manifests (`task render`).
   level-of-authentication max age) rather than per app, so every platform
   client gets the same rule. Rejected: per-client session lifetimes, which do
   not force a password when the SSO cookie is still valid.
+- OTP by realm role, not for everyone: the admins hold cluster-admin tools,
+  the household does not use authenticator apps. Rejected: OTP for every
+  user, and the `auth-conditional-otp-form` authenticator (deprecated in
+  favour of conditional subflows).
 - Realm settings applied by a Job with `kcadm.sh`, scoped to what two files
   list: it cannot reset users, credentials or other client settings. Rejected: a full
   realm import (keycloak-config-cli), which would make every client and

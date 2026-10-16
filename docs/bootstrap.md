@@ -250,7 +250,9 @@ The local `admin` account is disabled (`admin.enabled: false` in
 the group `ArgoCDAdmins` get `role:admin`, everyone else gets nothing
 (`policy.default: ""`). Until Keycloak runs, use `kubectl` or
 `argocd --core`. Break-glass if SSO breaks: fix the realm as the Keycloak
-master-realm admin, or use `argocd --core`.
+master-realm admin (password and OTP; without the phone, the master client
+`realm-settings`, [keycloak-otp.md](runbooks/keycloak-otp.md#break-glass)),
+or use `argocd --core`.
 
 Keycloak login needs the client secret of the
 Keycloak client `argocd` in `argocd-secret`. It is not in git; set it once
