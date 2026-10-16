@@ -303,6 +303,19 @@ kill %1
 
 Expected from `hubble status`: `Connected Nodes: 4/4`.
 
+What one namespace does on the network, grouped for its allow-list
+(`scripts/netpol-observe.sh`, read-only), with the same port-forward running:
+
+```sh
+scripts/netpol-observe.sh mealie --since 1h      # live: peers, ports, match type
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090 &
+scripts/netpol-observe.sh mealie --days 7        # history: peers and match type, no ports
+```
+
+Expected: a tab-separated table, one row per direction, peer, port and
+protocol (live) with a count; match `all` rows are flows no allow-list rule
+covers, the would-be drops.
+
 #### Hubble certificates
 
 The relay and the agents' Hubble servers authenticate each other with mTLS.
