@@ -373,6 +373,23 @@ outage weighs more. The overview shows it next to availability and budget.
 | `SLOErrorBudgetBurnSlowPersistent` | `SLOErrorBudgetBurnSlow` firing for 1d | `warning`, pages |
 | `SLOProbesAbsent` | no `probe_success` for job `blackbox-public` for 15m | `warning` |
 | `SLOTargetProbeAbsent` | no `probe_success` for one SLO target for 15m (quiet while `SLOProbesAbsent` fires) | `warning` |
+| `SLOLatencyBudgetBurnSlow` | slow share above 3x the 1% budget over 1d and 2h, or 1x over 3d and 6h; quiet while an availability slow burn of the app is pending or firing and for a day after a fast one | `warning`, Grafana only |
+| `SLOLatencyBudgetBurnSlowPersistent` | `SLOLatencyBudgetBurnSlow` firing for 1d | `warning`, pages |
+
+Latency is an internal objective next to availability: 99% of probes succeed
+within the app's threshold over 30 days ([sre.md](sre.md#latency)).
+`slo:probe_fast` is 1 per target when its last probe succeeded within
+`slo:latency_threshold_seconds{app}`, else 0 (a failed probe is slow too);
+then `slo:probe_slow:ratio_rate<window>`, `slo:latency:ratio_rate30d` and
+`slo:latency_budget_remaining:ratio_rate30d`, by `app`. The thresholds are
+static in `slo.yaml`, from `scripts/slo-latency-thresholds.sh` (read-only,
+through a port-forward):
+
+```sh
+scripts/slo-latency-thresholds.sh 14
+# expected: one line per SLO app, e.g. "cook p95=0.106 threshold=0.25 slow=0.0002",
+# then "data=<days>d", the days of probe data the figures cover
+```
 
 Prometheus keeps `retention: 30d` capped by `retentionSize: 20GiB` on a 25Gi
 volume. At about 0.55 GB of blocks a day, 30 days take about 17 GB; the rest

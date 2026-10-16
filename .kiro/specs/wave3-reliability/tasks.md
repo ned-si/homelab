@@ -13,12 +13,14 @@ PR; CI is the gate; merge with `scripts/pr-merge.sh`.
       `runbook_url` on every `action: human` rule, repo-policy rule `alert-runbooks` (also
       the chart rules of the `ntfy` lines of `routes.txt`), links from `docs/sre.md` and
       `docs/observability.md`. [1.1, 1.2, 1.3, 1.4, 1.6, 2.1, 2.2, 2.3, 2.5] #509
-- [ ] 4. PR `feat(alerting): the runbook link in every notification`: `X-Message` in
+- [x] 4. PR `feat(alerting): the runbook link in every notification`: `X-Message` in
       `values.yaml` (no `X-Click`, open question 1); check on the phone with one test
-      alert. [1.5]
-- [ ] 5. Run `scripts/slo-latency-thresholds.sh` (new, read-only) and record each app's
-      p95 and threshold in the PR of task 6. [3.2]
-- [ ] 6. PR `feat(slo): a latency SLO per app`: recording rules, thresholds,
+      alert. [1.5] #520
+- [x] 5. Run `scripts/slo-latency-thresholds.sh` (new, read-only) and record each app's
+      p95 and threshold in the PR of task 6. [3.2] Every app 0.25 s (p95 0.065 to
+      0.106 s, successful-but-slow share 0.02% to 0.53%) over the 3.2 days of probe data
+      Prometheus holds; recorded in `docs/sre.md` (Latency) and the PR of task 6.
+- [x] 6. PR `feat(slo): a latency SLO per app`: recording rules, thresholds,
       `SLOLatencyBudgetBurnSlow` (auto) and `SLOLatencyBudgetBurnSlowPersistent` (human)
       with promtool tests (fires, stays quiet under an availability burn, stays quiet when
       fast), runbook section, `routes.txt` line, overview panels, `docs/sre.md` and

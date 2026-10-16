@@ -45,6 +45,7 @@ ntfy alertname=NASExporterFailing severity=warning
 # A user-facing SLO burn that outlasted the remediation window.
 ntfy alertname=SLOErrorBudgetBurnFastPersistent severity=critical app=auth namespace=keycloak
 ntfy alertname=SLOErrorBudgetBurnSlowPersistent severity=warning app=cook namespace=mealie
+ntfy alertname=SLOLatencyBudgetBurnSlowPersistent severity=warning app=archive namespace=paperless
 # Monitoring that went blind, and alert delivery.
 ntfy alertname=SLOProbesAbsent severity=warning job=blackbox-public
 ntfy alertname=KubeStateMetricsAbsent severity=critical
@@ -59,6 +60,7 @@ ntfy-guard alertname=HomelabNodeNotReady severity=critical node=homelab-w-1
 ntfy-guard alertname=HomelabNASUnreachable severity=critical instance=192.168.1.228:3260
 null alertname=SLOErrorBudgetBurnFast severity=critical app=auth namespace=keycloak
 null alertname=SLOErrorBudgetBurnSlow severity=warning app=cook namespace=mealie
+null alertname=SLOLatencyBudgetBurnSlow severity=warning app=archive namespace=paperless
 null alertname=ArgoCDAppDegraded severity=critical name=keycloak namespace=keycloak
 null alertname=ArgoCDSyncFailed severity=warning name=keycloak namespace=keycloak
 null alertname=ArgoCDAppOutOfSync severity=warning name=seafile namespace=seafile

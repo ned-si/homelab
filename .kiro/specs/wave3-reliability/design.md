@@ -135,7 +135,13 @@ flowchart LR
    `quantile_over_time(0.95, probe_duration_seconds{job="blackbox-public"}[14d])`, 2026-10-16):
    archive 0.098 s, auth 0.073 s, cinema 0.074 s, cook 0.106 s, media 0.065 s, syncthing
    0.066 s, theater 0.069 s. Twice each is under 0.25 s, the first ladder step; task 5
-   confirms it against the budget.
+   confirms it against the budget. Prometheus holds only 3.2 days of probe data (since
+   the Talos cutover), not 14; the successful-but-slow share at 0.25 s is 0.02% to
+   0.53%, inside the 1% budget. The availability budgets are all negative over the same
+   window (the cutover outages), and a failed probe also spends the latency budget, so
+   both read negative until those days leave the 30-day window. The latency alert's
+   suppression matches the availability slow burn while it is pending or firing (not only
+   firing), so the two cannot race at the same evaluation.
 5. Does Renovate label `osvVulnerabilityAlerts` pull requests `security`? **Yes, by
    design**: Renovate builds the OSV package rules with the `vulnerabilityAlerts` config,
    so they get `labels: ['security']`. Not observed live: OSV covers only the crate, go,
