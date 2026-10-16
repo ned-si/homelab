@@ -14,6 +14,7 @@ ignore: |
   deploy/
   # Upstream Kyverno policies, kept byte for byte (scripts/kyverno-vendor.sh).
   policies/kyverno/upstream/
+  platform/tetragon/policies/
 
 rules:
   # Kubernetes manifests routinely exceed 80 columns, and Helm values with long

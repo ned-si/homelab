@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/tetragon
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/tetragon and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  annotations:
+    description: Monitor kernel modules operations
+  name: monitor-kernel-modules
+spec:
+  kprobes:
+  - args:
+    - index: 0
+      type: string
+    call: security_kernel_module_request
+    message: Kernel module requested and is being loaded automatically
+    return: true
+    returnArg:
+      index: 0
+      type: int
+    syscall: false
+  - args:
+    - index: 0
+      type: file
+    - index: 1
+      type: int
+    call: security_kernel_read_file
+    message: Kernel module is being loaded
+    return: true
+    returnArg:
+      index: 0
+      type: int
+    selectors:
+    - matchArgs:
+      - index: 1
+        operator: Equal
+        values:
+        - "2"
+    syscall: false

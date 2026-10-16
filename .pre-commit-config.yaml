@@ -35,16 +35,16 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
-      # policies/kyverno/upstream holds upstream files kept byte for byte
+      # policies/kyverno/upstream and platform/tetragon/policies hold upstream files kept byte for byte
       # (scripts/kyverno-vendor.sh --check): excluded like deploy/.
       - id: trailing-whitespace
-        exclude: ^(deploy|policies/kyverno/upstream)/
+        exclude: ^(deploy|policies/kyverno/upstream|platform/tetragon/policies)/
       - id: end-of-file-fixer
-        exclude: ^(deploy|policies/kyverno/upstream)/
+        exclude: ^(deploy|policies/kyverno/upstream|platform/tetragon/policies)/
       - id: check-merge-conflict
       - id: mixed-line-ending
         args: [--fix=lf]
-        exclude: ^(deploy|policies/kyverno/upstream)/
+        exclude: ^(deploy|policies/kyverno/upstream|platform/tetragon/policies)/
       - id: check-yaml
         name: check-yaml (skips SOPS + Helm templates)
         # Multi-document manifests are the norm here.
@@ -125,7 +125,7 @@ repos:
         # Generated output. Style-linting it would mean either editing generated
         # files or vendoring upstream CRDs that happen to satisfy our line-length
         # rules, neither of which is a real goal.
-        exclude: ^(deploy|policies/kyverno/upstream)/
+        exclude: ^(deploy|policies/kyverno/upstream|platform/tetragon/policies)/
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1

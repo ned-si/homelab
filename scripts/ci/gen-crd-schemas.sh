@@ -42,6 +42,8 @@ CLICKHOUSE_OPERATOR=0.21.2
 # Kyverno ValidatingPolicy and PolicyException (infrastructure/kyverno-policies),
 # at the release of the kyverno chart's appVersion.
 KYVERNO=v1.19.1
+# Tetragon TracingPolicy (platform/tetragon), at the chart's release.
+TETRAGON=v1.7.1
 # talos.dev ServiceAccount: Talos installs this CRD itself; the file is its
 # test fixture at the release the nodes run.
 TALOS=v1.14.2
@@ -97,6 +99,7 @@ add "https://raw.githubusercontent.com/Altinity/clickhouse-operator/$CLICKHOUSE_
 for k in validatingpolicies policyexceptions; do
   add "https://raw.githubusercontent.com/kyverno/kyverno/$KYVERNO/config/crds/policies.kyverno.io/policies.kyverno.io_$k.yaml"
 done
+add "https://raw.githubusercontent.com/cilium/tetragon/$TETRAGON/pkg/k8s/apis/cilium.io/client/crds/v1alpha1/cilium.io_tracingpolicies.yaml"
 add "https://raw.githubusercontent.com/siderolabs/talos/$TALOS/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml"
 
 gen="$work/gen"

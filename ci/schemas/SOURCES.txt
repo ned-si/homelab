@@ -63,5 +63,6 @@ d7939ea45a8798e11c0063dfdfe93e4d9e4b09a1160881f2cc403a6e8f0fa4d5  https://raw.gi
 cacf8ced29ca03576b2e3c6b16c33ac46f334bd5e6a63a4a9aebd553be85d3e3  https://raw.githubusercontent.com/Altinity/clickhouse-operator/0.21.2/deploy/helm/crds/CustomResourceDefinition-clickhouseinstallations.clickhouse.altinity.com.yaml
 87d8700778623b26ae2c9b2f512713e478714ddd0fbcb4e44574c76ae015f10f  https://raw.githubusercontent.com/kyverno/kyverno/v1.19.1/config/crds/policies.kyverno.io/policies.kyverno.io_validatingpolicies.yaml
 4663799165411bc350b3c2d35a370b05ac148a03ce3af9de9821974f77eb503d  https://raw.githubusercontent.com/kyverno/kyverno/v1.19.1/config/crds/policies.kyverno.io/policies.kyverno.io_policyexceptions.yaml
+21aef097670ccda504fa23e072292f9497e4d82575862a22acef9a5fc8b77e70  https://raw.githubusercontent.com/cilium/tetragon/v1.7.1/pkg/k8s/apis/cilium.io/client/crds/v1alpha1/cilium.io_tracingpolicies.yaml
 24f42e7d6b8c23e94556908f79f6b06816fc11be090848e362720910b1497d7c  https://raw.githubusercontent.com/siderolabs/talos/v1.14.2/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml
 41d85b9f6f2757d35b6645086d5bcadf4904a8f0133b00d77e2576b3feb47d56  https://raw.githubusercontent.com/kubernetes/kubernetes/v1.37.1/api/openapi-spec/v3/apis__apiextensions.k8s.io__v1_openapi.json

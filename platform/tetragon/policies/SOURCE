@@ -1,0 +1,21 @@
+# Upstream Tetragon TracingPolicies (examples/policylibrary), vendored
+# unchanged at the commit of the chart's release. Re-vendor with
+# scripts/vendor-upstream.sh platform/tetragon/policies; CI checks the sha256
+# lines. Renovate moves `ref:` and `commit:` together with the chart (group
+# tetragon) and the renovate-render workflow re-vendors.
+#
+# None has an enforcement action (tests/test_security_controls.py).
+#
+# Not vendored:
+#   sshd.yaml                       no SSH on Talos or in the images
+#   egress.yaml                     Hubble already records every flow
+#   privileges/privileges-setuid-root.yaml  the same setuid-to-root hooks as
+#                                   privileges-raise.yaml, which is vendored
+repo: https://github.com/cilium/tetragon
+ref: v1.7.1
+commit: 99ca93d98710b98a42551bf3c12613e32888885d
+path: examples/policylibrary
+45ed6becbfe42fb6c3fdf4e0f46ba51bbd726762b60bd254ede83a8bf6d8652f  privileges/privileges-raise.yaml
+18a5a298a173315bce08a951215c85f649ea693f13528c6a81c44ff316e10c03  modules.yaml
+a6d85445f0da64ed879014f230df7c3a0e90ee8bca127706ea1417aebea34a90  bpf.yaml
+50a070b6577a635d866444df542b2dcbe3772f227da04f4352a77b522e875c7a  library.yaml
