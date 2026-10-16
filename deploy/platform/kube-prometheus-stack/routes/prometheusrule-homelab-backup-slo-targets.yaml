@@ -127,3 +127,9 @@ spec:
         kind: restic
         namespace: monitoring
       record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: signoz-backup
+        kind: restic
+        namespace: signoz
+      record: slo:backup_target:info

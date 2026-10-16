@@ -242,7 +242,7 @@ trial. UI at `https://signoz.lilalala.com`: the oauth2-proxy
 
 | Component | What | Storage |
 | --- | --- | --- |
-| `signoz` | UI and query service | metadata (users, dashboards, saved views) in SQLite, PVC `signoz-db-signoz-0`, 1 GiB, `iscsi-retain` |
+| `signoz` | UI and query service | metadata (users, dashboards, saved views) in SQLite, PVC `signoz-db-signoz-0`, 1 GiB, `iscsi`, backed up nightly ([backups.md](backups.md#s3-repositories)) |
 | `signoz-otel-collector` | OTLP receiver: gRPC 4317, HTTP 4318 | none |
 | ClickHouse (`signoz-clickhouse`, Altinity operator) | logs and traces, one replica, memory limit 6 GiB | 50 GiB `iscsi`, disposable: not backed up |
 | `signoz-zookeeper` | ClickHouse's coordination, one replica | 2 GiB `iscsi` |

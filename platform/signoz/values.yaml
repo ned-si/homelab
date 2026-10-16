@@ -73,10 +73,11 @@ signoz:
     repository: signoz/signoz
     # renovate: datasource=docker depName=docker.io/signoz/signoz
     tag: v0.146.0@sha256:cd3ca6950df3b3681b4629c1b2cea4d3bcd5fece57445a3ec2a1a20466ab14ca
-  # Metadata (users, dashboards, saved views): backed up nightly
-  # (platform/signoz/resources/backup.yaml), so the volume is kept.
+  # Metadata (users, dashboards, saved views): backed up nightly to S3
+  # (platform/signoz/resources/backup.yaml), so the volume itself is plain
+  # `iscsi`. The chart's global.storageClass wins over this key anyway.
   persistence:
-    storageClass: iscsi-retain
+    storageClass: iscsi
     size: 1Gi
   resources:
     requests:

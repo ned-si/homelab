@@ -8,6 +8,8 @@ resources:
   - sso.yaml
   - httproute.yaml
   - network-policy.yaml
+  # Nightly restic copy of the metadata (SQLite) to S3.
+  - backup.yaml
 
 # oauth2-proxy config of signoz-sso (sso.yaml). The name hash makes a change
 # here a new ConfigMap, which rolls the Deployment.
