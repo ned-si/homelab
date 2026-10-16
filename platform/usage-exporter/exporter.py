@@ -81,7 +81,8 @@ def immich(o: Out, k: str) -> None:
 
 
 def jellyfin(o: Out, k: str) -> None:
-    h = {"X-Emby-Token": k}
+    # Jellyfin 12 refuses the legacy X-Emby-Token header and api_key query.
+    h = {"Authorization": f'MediaBrowser Token="{k}"'}
     counts = get(f"{JELLYFIN_URL}/Items/Counts", h)
     for key, n in sorted(counts.items()):
         m = re.fullmatch(r"(\w+?)Count", key)

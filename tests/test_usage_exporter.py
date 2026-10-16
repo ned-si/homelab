@@ -55,6 +55,18 @@ def test_pending_key_skips_the_source(monkeypatch):
     assert not any(k.startswith(("immich_", "jellyfin_", "usage_source_up")) for k in m)
 
 
+def test_jellyfin_uses_the_authorization_header(monkeypatch):
+    mod = load(monkeypatch, JELLYFIN_API_KEY="k2")
+    seen = []
+
+    def get(url, headers):
+        seen.append((url, headers))
+        return next(v for k, v in ANSWERS.items() if k in url)
+    mod.get = get
+    mod.collect()
+    assert seen and all(h == {"Authorization": 'MediaBrowser Token="k2"'} for _, h in seen)
+
+
 def test_failing_source_is_down(monkeypatch):
     mod = load(monkeypatch, IMMICH_API_KEY="k1")
 
