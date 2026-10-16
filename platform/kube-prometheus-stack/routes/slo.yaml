@@ -31,6 +31,14 @@
 # The slow burn stays quiet for a day after a fast burn of the same app, so one
 # outage notifies once.
 #
+# Latency, an internal objective (the self-SLA stays availability): 99% of
+# probes succeed within the app's threshold over 30 days, budget 1%. Slow
+# burn only, same windows and rates:
+#
+#   SLOLatencyBudgetBurnSlow             auto, quiet while an availability
+#                                        burn of the app fires
+#   SLOLatencyBudgetBurnSlowPersistent   human, the latency burn for a day
+#
 # The 30-day figures need 30 days of data: `retention: 30d` in ../values.yaml.
 #
 # Tests: tests/prometheus/slo_test.yaml (promtool test rules).
@@ -333,3 +341,115 @@ spec:
               The {{ $labels.app }} target is missing from the Probes in
               platform/blackbox-exporter/probes, or its `app` relabeling no
               longer matches.
+
+    # Latency (an internal objective; docs/sre.md, Latency): 99% of probes
+    # succeed within the app's threshold over 30 days. A failed probe counts
+    # as slow too. The thresholds come from scripts/slo-latency-thresholds.sh:
+    # the smallest of 0.25 0.5 1 2 5 s that is at least twice the app's p95
+    # probe duration, static so that a regression cannot move its own bar.
+    - name: homelab.slo.latency-thresholds
+      rules:
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: auth}
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: cinema}
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: theater}
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: media}
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: archive}
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: cook}
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: syncthing}
+
+    # 1 per probe target when its last probe succeeded within the threshold,
+    # else 0. Evaluated every 30s, the probe interval, so each probe counts
+    # about once.
+    - name: homelab.slo.latency
+      interval: 30s
+      rules:
+        - record: slo:probe_fast
+          expr: |
+            probe_success{job="blackbox-public"}
+            * (
+              probe_duration_seconds{job="blackbox-public"}
+              <= bool on (app) group_left () slo:latency_threshold_seconds
+            )
+        - record: slo:probe_slow:ratio_rate2h
+          expr: 1 - avg by (app) (avg_over_time(slo:probe_fast[2h]))
+        - record: slo:probe_slow:ratio_rate6h
+          expr: 1 - avg by (app) (avg_over_time(slo:probe_fast[6h]))
+
+    - name: homelab.slo.latency-long
+      interval: 2m
+      rules:
+        - record: slo:probe_slow:ratio_rate1d
+          expr: 1 - avg by (app) (avg_over_time(slo:probe_fast[1d]))
+        - record: slo:probe_slow:ratio_rate3d
+          expr: 1 - avg by (app) (avg_over_time(slo:probe_fast[3d]))
+        - record: slo:probe_slow:ratio_rate30d
+          expr: 1 - avg by (app) (avg_over_time(slo:probe_fast[30d]))
+        - record: slo:latency:ratio_rate30d
+          expr: 1 - slo:probe_slow:ratio_rate30d
+        # 1 = the whole budget (1% slow) is left, 0 = spent, negative = missed.
+        - record: slo:latency_budget_remaining:ratio_rate30d
+          expr: 1 - slo:probe_slow:ratio_rate30d / 0.01
+
+    # Slow burn only, at the availability SLO's slow rates: latency at the
+    # probe is rarely an emergency, and a hard outage is the availability
+    # alerts' job. Quiet while an availability slow burn of the app is pending
+    # or firing, and for a day after a fast one (a failed probe also counts as
+    # slow), so one outage notifies once.
+    - name: homelab.slo.latency-alerts
+      rules:
+        - alert: SLOLatencyBudgetBurnSlow
+          expr: |
+            (
+              (
+                slo:probe_slow:ratio_rate1d > (3 * 0.01)
+                and
+                slo:probe_slow:ratio_rate2h > (3 * 0.01)
+              )
+              or
+              (
+                slo:probe_slow:ratio_rate3d > 0.01
+                and
+                slo:probe_slow:ratio_rate6h > 0.01
+              )
+            )
+            * on (app) group_left (namespace) slo:app:info
+            unless on (app) ALERTS{alertname="SLOErrorBudgetBurnSlow"}
+            unless on (app) max_over_time(ALERTS{alertname="SLOErrorBudgetBurnFast"}[1d])
+          for: 15m
+          labels:
+            severity: warning
+            action: auto
+          annotations:
+            summary: "{{ $labels.app }} is slowly burning its 30-day latency budget"
+            description: >-
+              More than 1% of the probes of {{ $labels.app }} answer slower
+              than its threshold (slo:latency_threshold_seconds), over a day
+              or more, while the app is up. Look at probe_duration_seconds on
+              the Homelab overview dashboard.
+        - alert: SLOLatencyBudgetBurnSlowPersistent
+          expr: max by (app, namespace) (ALERTS{alertname="SLOLatencyBudgetBurnSlow", alertstate="firing"})
+          for: 1d
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOLatencyBudgetBurnSlowPersistent.md
+            summary: "{{ $labels.app }} has been slow for a day"
+            description: >-
+              SLOLatencyBudgetBurnSlow has fired for {{ $labels.app }} for 24
+              hours: responses stay slower than its threshold and nothing
+              automatic has fixed it.

@@ -34,6 +34,32 @@ Argo CD and Grafana are tools for the operator and carry no SLO.
   ([observability.md](observability.md#heartbeat)) covers it as a missed
   ping, not as budget.
 
+## Latency
+
+An internal objective, not part of the self-SLA or the error-budget policy:
+99% of each app's public probes succeed within its threshold over 30 days, a
+budget of 1% (about 7 hours a month). A failed probe counts as slow.
+
+| App | Threshold | p95 at the choice |
+| --- | --- | --- |
+| `auth` | 0.25 s | 0.073 s |
+| `media` | 0.25 s | 0.065 s |
+| `archive` | 0.25 s | 0.098 s |
+| `syncthing` | 0.25 s | 0.066 s |
+| `cook` | 0.25 s | 0.106 s |
+| `cinema` | 0.25 s | 0.074 s |
+| `theater` | 0.25 s | 0.069 s |
+
+A threshold is the smallest of 0.25, 0.5, 1, 2 and 5 s that is at least twice
+the app's p95 probe duration, from `scripts/slo-latency-thresholds.sh`
+([observability.md](observability.md#slos)), and is committed as a static
+value. It changes only in a pull request that carries the script's output.
+The p95 above covers the 3.2 days of probe data Prometheus held on
+2026-10-16; rerun the script once 14 days exist. The state is
+`slo:latency_budget_remaining:ratio_rate30d{app="<app>"}`. A slow burn that
+lasts a day pages (`SLOLatencyBudgetBurnSlowPersistent`); an availability
+burn of the same app silences the latency alerts, so one outage notifies once.
+
 ## RPO
 
 | Data | RPO (promised) | What runs today |
@@ -134,7 +160,7 @@ PAGE, grouped by alert name (the persistent burns by app); repeated every
 | The physical world | `HomelabNodeDown` (NotReady 15 min), `HomelabNASDown` (unreachable 10 min: press the NAS power button), `etcdInsufficientMembers`, `etcdNoLeader`, `NodeFilesystemReadOnly`, `NodeEmmcWearHigh`, `NodeEmmcEndOfLife`, `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASSmartTestFailed`, `NASDiskHot`, `LANDeviceUnreachable`, `LANNewDeviceSeen` |
 | Capacity (nothing grows a volume) | `PersistentVolumeNearlyFull`, `PersistentVolumeCriticallyFull`, `PersistentVolumeFillingUp`, `PrometheusTsdbVolumeNearlyFull`, `NodeFilesystemNearlyFull`, `NodeFilesystemCriticallyFull`, `NodeFilesystemInodesNearlyFull`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue` |
 | Expired credentials and accounts | `CertificateExpiringSoon` (a renewal failed), `CertificateExpiringVerySoon`, `CertificateNotReady`, `ArrIndexersFailing` (Prowlarr indexers failing for 6 h: login, cookie, locked account), `NASExporterFailing` (an API key revoked) |
-| A user-facing burn that outlasted remediation | `SLOErrorBudgetBurnFastPersistent` (still failing after 30 min), `SLOErrorBudgetBurnSlowPersistent` (a slow burn for a day) |
+| A user-facing burn that outlasted remediation | `SLOErrorBudgetBurnFastPersistent` (still failing after 30 min), `SLOErrorBudgetBurnSlowPersistent` (a slow burn for a day), `SLOLatencyBudgetBurnSlowPersistent` (up but slow for a day) |
 | Monitoring went blind | `SLOProbesAbsent`, `SLOTargetProbeAbsent`, `KubeStateMetricsAbsent`, `NodeExporterAbsent`, `CertManagerMetricsAbsent`, `ArgoCDMetricsAbsent`, `NASExporterAbsent`, `LANInventoryFailing`, `LANInventoryAbsent`, `TalosDriftCheckStale`, `VulnEnrichmentStale`, `AlertmanagerNotificationsFailing`, `AlertmanagerHasNoReceiverConfigured` |
 | Security | any `critical` alert labelled `category: security` |
 | Heartbeat | `Watchdog`, to healthchecks.io every 5 minutes; healthchecks.io notifies ntfy when it stops |
@@ -248,6 +274,12 @@ exists.
 - Budget exhaustion changes the work, not the deploys: with one operator and
   automerge, a deploy freeze only lets updates pile up. Rejected: the classic
   release freeze.
+- Latency as a second, internal objective: "up but unusable" counts, but the
+  self-SLA and the budget policy stay one number. Its thresholds are static
+  and twice the measured p95, so a regression cannot move its own bar and
+  normal jitter does not spend the budget. Rejected: a p95 alert (no budget,
+  no burn rate) and a dynamic baseline (drifts with the regression it should
+  catch).
 - Triggers as thresholds, not judgement: they are checkable by a script and
   by an agent, and they cannot be argued with during an incident.
 - Page when a person has to act, not when something broke: sending every

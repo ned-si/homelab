@@ -286,7 +286,7 @@ alertmanager:
               repeat_interval: 4h
               mute_time_intervals: [quiet-hours]
             - matchers:
-                - alertname = "SLOErrorBudgetBurnSlowPersistent"
+                - alertname =~ "SLOErrorBudgetBurnSlowPersistent|SLOLatencyBudgetBurnSlowPersistent"
               group_by: [alertname, namespace, app]
               mute_time_intervals: [quiet-hours]
             - matchers:

@@ -107,6 +107,7 @@ is the query helper the pages use. When done: `kill "$PF"`.
 
 - [SLOErrorBudgetBurnFastPersistent](SLOErrorBudgetBurnFastPersistent.md): an app failing for 30 minutes
 - [SLOErrorBudgetBurnSlowPersistent](SLOErrorBudgetBurnSlowPersistent.md): an app burning its budget for a day
+- [SLOLatencyBudgetBurnSlowPersistent](SLOLatencyBudgetBurnSlowPersistent.md): an app up but slow for a day
 
 ## Monitoring went blind
 

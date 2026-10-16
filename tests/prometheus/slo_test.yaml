@@ -292,3 +292,135 @@ tests:
                 intermittent fault that does not go away on its own. Look for
                 restarts, slow responses (probe_duration_seconds) or a flapping
                 node.
+
+  # Latency. cook answers every probe in 0.5 s, above its 0.25 s threshold:
+  # the latency slow burn fires; auth (0.1 s) stays quiet; argo has no SLO
+  # and no threshold, so no slo:probe_fast series.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '1x120'
+      - series: 'probe_duration_seconds{job="blackbox-public", app="cook"}'
+        values: '0.5x120'
+      - series: 'probe_success{job="blackbox-public", app="auth"}'
+        values: '1x120'
+      - series: 'probe_duration_seconds{job="blackbox-public", app="auth"}'
+        values: '0.1x120'
+      - series: 'probe_success{job="blackbox-public", app="argo"}'
+        values: '1x120'
+      - series: 'probe_duration_seconds{job="blackbox-public", app="argo"}'
+        values: '0.5x120'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: SLOLatencyBudgetBurnSlow
+        exp_alerts:
+          - exp_labels:
+              app: cook
+              namespace: mealie
+              severity: warning
+              action: auto
+            exp_annotations:
+              summary: cook is slowly burning its 30-day latency budget
+              description: >-
+                More than 1% of the probes of cook answer slower than its
+                threshold (slo:latency_threshold_seconds), over a day or more,
+                while the app is up. Look at probe_duration_seconds on the
+                Homelab overview dashboard.
+      - eval_time: 60m
+        alertname: SLOErrorBudgetBurnSlow
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: SLOLatencyBudgetBurnSlow
+        exp_alerts: []
+    promql_expr_test:
+      - expr: slo:probe_fast
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:probe_fast{job="blackbox-public", app="cook"}'
+            value: 0
+          - labels: 'slo:probe_fast{job="blackbox-public", app="auth"}'
+            value: 1
+
+  # A failed probe counts as slow, but an outage notifies once: archive is
+  # down for 30 minutes and up again. The availability fast burn fires; the
+  # latency windows hold the outage, and the latency burn stays quiet for a
+  # day after the fast burn.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="archive"}'
+        values: '1x1379 0x29 1x100'
+      - series: 'probe_duration_seconds{job="blackbox-public", app="archive"}'
+        values: '0.1x1508'
+    alert_rule_test:
+      - eval_time: 1400m
+        alertname: SLOLatencyBudgetBurnSlow
+        exp_alerts: []
+      - eval_time: 1450m
+        alertname: SLOLatencyBudgetBurnSlow
+        exp_alerts: []
+    promql_expr_test:
+      - expr: slo:probe_slow:ratio_rate6h > bool 0.01
+        eval_time: 1450m
+        exp_samples:
+          - labels: '{app="archive"}'
+            value: 1
+
+  # cook fails 2% of its probes, all fast: the availability slow burn fires,
+  # the latency one stays quiet behind it.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '0.98x120'
+      - series: 'probe_duration_seconds{job="blackbox-public", app="cook"}'
+        values: '0.1x120'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: SLOLatencyBudgetBurnSlow
+        exp_alerts: []
+
+  # archive answers in 0.5 s for 26 hours: the latency slow burn fires within
+  # the hour and pages a day later.
+  - interval: 5m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="archive"}'
+        values: '1x312'
+      - series: 'probe_duration_seconds{job="blackbox-public", app="archive"}'
+        values: '0.5x312'
+    alert_rule_test:
+      - eval_time: 1380m
+        alertname: SLOLatencyBudgetBurnSlowPersistent
+        exp_alerts: []
+      - eval_time: 1540m
+        alertname: SLOLatencyBudgetBurnSlowPersistent
+        exp_alerts:
+          - exp_labels:
+              app: archive
+              namespace: paperless
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOLatencyBudgetBurnSlowPersistent.md
+              summary: archive has been slow for a day
+              description: >-
+                SLOLatencyBudgetBurnSlow has fired for archive for 24 hours:
+                responses stay slower than its threshold and nothing automatic
+                has fixed it.
+
+  # A full day of fast probes: the whole latency budget is left.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="auth"}'
+        values: '1x1440'
+      - series: 'probe_duration_seconds{job="blackbox-public", app="auth"}'
+        values: '0.1x1440'
+    promql_expr_test:
+      - expr: slo:latency_budget_remaining:ratio_rate30d
+        eval_time: 1440m
+        exp_samples:
+          - labels: 'slo:latency_budget_remaining:ratio_rate30d{app="auth"}'
+            value: 1
+      - expr: slo:latency:ratio_rate30d
+        eval_time: 1440m
+        exp_samples:
+          - labels: 'slo:latency:ratio_rate30d{app="auth"}'
+            value: 1
