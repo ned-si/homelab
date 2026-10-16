@@ -9,7 +9,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | --- | --- |
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`), the chart's default dashboards; `grafana.db` on a 1 Gi volume (PVC `kube-prometheus-stack-grafana`, `iscsi-retain`), so service accounts and their tokens survive restarts |
-| Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); SLO burn rates, infrastructure criticals, backup failures and critical security alerts go to the hosted ntfy.sh topic ([Notifications](#notifications), policy in [sre.md](sre.md#paging)); everything else goes to `null` and is visible in Grafana only |
+| Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); alerts labelled `action: human` (a person has to act), a few chart alerts by name and critical security alerts go to the hosted ntfy.sh topic ([Notifications](#notifications), policy in [sre.md](sre.md#paging)); everything else goes to `null` and is visible in Grafana and on the Homelab / Automation dashboard |
 | Custom alert rules | `backup-verify` (group `backup.verify`, the restore tests, in `platform/backup-verify/alerts.yaml`; [backups.md](backups.md#verification)); `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)); `vuln-enrich` ([Vulnerability priority](#vulnerability-priority)); `talos-drift` in `system-upgrade` ([Talos drift check](talos.md#drift-check)) |
 | Notification credentials | Secret `monitoring/alertmanager-notify` (keys `ntfy-url`, `ntfy-guard-url`, `heartbeat-url`), mounted into Alertmanager; `ntfy-url` is `https://ntfy.sh/<topic>`, `ntfy-guard-url` the same plus `-guard`, `heartbeat-url` is a healthchecks.io ping URL (check period 5 minutes, grace 15 minutes) |
 | Hubble | on in the Cilium agents with flow, drop, TCP, ICMP and HTTP metrics, scraped with the Cilium agent, operator and Envoy metrics ([networking.md](networking.md#metrics)); relay and UI not enabled |
@@ -168,14 +168,13 @@ minutes:
 | Alert | Fires when | Severity |
 | --- | --- | --- |
 | `LANNewDeviceSeen` | a fixed (vendor) MAC answers that did not answer in the 30 days before the last hour; quiet during the first day of data; resolves after an hour | `warning` |
-| `LANNewRandomMACSeen` | the same for a randomised MAC: phones and laptops can rotate those, and ARP carries no hostname to recognise them by | `info` (Grafana only, no ntfy) |
 | `LANInventoryFailing` | no completed scan for 30m | `warning` |
 | `LANInventoryAbsent` | no `lan_inventory_devices` for 30m | `warning` |
 
 The scan sees what answers ARP on the LAN: Cilium answers for the
 LoadBalancer addresses and Talos for the API VIP, with a node's MAC. A
 device that changes its private MAC (some phones rotate it per day) shows up
-as new each time, which is why randomised MACs are `info`. Tests: `tests/test_lan_inventory.py`,
+as new each time, which is why randomised MACs raise no alert (the Homelab / LAN dashboard counts them). Tests: `tests/test_lan_inventory.py`,
 `tests/prometheus/lan_inventory_test.yaml`.
 
 ```sh
@@ -220,15 +219,15 @@ curl -m 10 -d "test" "https://ntfy.sh/<topic>"
 # expected: a JSON line with "event":"message"; the phone shows "test"
 ```
 
-Test the whole path with a synthetic slow burn of a made-up app (it resolves
-after 10 minutes):
+Test the whole path with a synthetic persistent slow burn of a made-up app
+(it resolves after 10 minutes):
 
 ```sh
 kubectl -n monitoring exec alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager -- \
-  amtool alert add SLOErrorBudgetBurnSlow severity=warning app=synthetic namespace=monitoring \
+  amtool alert add SLOErrorBudgetBurnSlowPersistent severity=warning action=human app=synthetic namespace=monitoring \
   --annotation=summary="Synthetic test" --end="$(date -u -v+10M +%Y-%m-%dT%H:%M:%SZ)" \
   --alertmanager.url=http://localhost:9093
-# expected after the 5m group_wait: "Warning: SLOErrorBudgetBurnSlow (monitoring)"
+# expected after the 1m group_wait: "Warning: SLOErrorBudgetBurnSlowPersistent (monitoring)"
 ```
 
 Rotating the topic: a new one in `secrets.local.env` (`NTFY_TOPIC`), then
@@ -307,7 +306,7 @@ with the image, package, installed and fixed version, CVE and `kev` as labels
 and EPSS as the value: the "Act now" table. The headline counts (overview,
 "Fixable CVEs in running images") stay the full fixable set.
 
-The data refreshes once a day. `VulnEnrichmentStale` (warning, Grafana only)
+The data refreshes once a day. `VulnEnrichmentStale` (warning, pages)
 fires when no push succeeded for 3 days. Run it now:
 
 ```sh
@@ -356,8 +355,10 @@ outage weighs more. The overview shows it next to availability and budget.
 
 | Alert | Fires when | Severity |
 | --- | --- | --- |
-| `SLOErrorBudgetBurnFast` | burn rate above 14.4x over 1h and 5m, or 6x over 6h and 30m | `critical` |
-| `SLOErrorBudgetBurnSlow` | burn rate above 3x over 1d and 2h, or 1x over 3d and 6h | `warning` |
+| `SLOErrorBudgetBurnFast` | burn rate above 14.4x over 1h and 5m, or 6x over 6h and 30m | `critical`, Grafana only |
+| `SLOErrorBudgetBurnSlow` | burn rate above 3x over 1d and 2h, or 1x over 3d and 6h | `warning`, Grafana only |
+| `SLOErrorBudgetBurnFastPersistent` | the 14.4x pair (1h and 5m) for 30m: still failing | `critical`, pages |
+| `SLOErrorBudgetBurnSlowPersistent` | `SLOErrorBudgetBurnSlow` firing for 1d | `warning`, pages |
 | `SLOProbesAbsent` | no `probe_success` for job `blackbox-public` for 15m | `warning` |
 | `SLOTargetProbeAbsent` | no `probe_success` for one SLO target for 15m (quiet while `SLOProbesAbsent` fires) | `warning` |
 

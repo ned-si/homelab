@@ -1,0 +1,11 @@
+{
+  "description": "cp-2 reboots for a Talos upgrade (tuppr): NotReady for a few minutes. Only the guard topic gets it; nothing reaches the phone.",
+  "alerts": [
+    {"alertname": "HomelabNodeNotReady", "severity": "critical", "node": "homelab-cp-2"},
+    {"alertname": "KubeNodeNotReady", "severity": "warning", "node": "homelab-cp-2"},
+    {"alertname": "PodNotReady", "severity": "warning", "namespace": "mealie", "pod": "mealie-0", "node": "homelab-cp-2"},
+    {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "mealie", "namespace": "mealie"}
+  ],
+  "notifications": ["ntfy-guard HomelabNodeNotReady"],
+  "uninhibited": ["ArgoCDAppDegraded", "HomelabNodeNotReady"]
+}

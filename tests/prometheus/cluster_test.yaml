@@ -33,6 +33,7 @@ tests:
               reason: CreateContainerError
               node: homelab-w-1
               severity: warning
+              action: auto
             exp_annotations:
               summary: "media/broken stuck in CreateContainerError"
               description: >-
@@ -65,6 +66,7 @@ tests:
               reason: ImagePullBackOff
               node: homelab-w-1
               severity: critical
+              action: human
             exp_annotations:
               summary: "media/broken has been broken for 6h (ImagePullBackOff)"
 
@@ -86,6 +88,7 @@ tests:
               namespace: immich
               pod: pending
               severity: warning
+              action: auto
             exp_annotations:
               summary: "immich/pending has been Pending for 30m"
               description: >-
@@ -121,6 +124,7 @@ tests:
               pod: web
               node: homelab-cp-1
               severity: warning
+              action: auto
             exp_annotations:
               summary: "mealie/web is Running but not Ready"
               description: >-
@@ -155,6 +159,7 @@ tests:
               namespace: theater
               deployment: sonarr
               severity: critical
+              action: auto
             exp_annotations:
               summary: "theater/sonarr has ZERO available replicas"
               description: >-
@@ -169,6 +174,7 @@ tests:
               namespace: syncthing
               statefulset: syncthing
               severity: critical
+              action: auto
             exp_annotations:
               summary: "syncthing/syncthing has no ready replica"
 
@@ -201,6 +207,7 @@ tests:
               namespace: cook
               persistentvolumeclaim: data-a
               severity: warning
+              action: human
             exp_annotations:
               summary: "PVC cook/data-a is over 85% full"
               description: >-
@@ -213,6 +220,7 @@ tests:
               namespace: cook
               persistentvolumeclaim: data-b
               severity: warning
+              action: human
             exp_annotations:
               summary: "PVC cook/data-b is over 85% full"
               description: >-
@@ -225,6 +233,7 @@ tests:
               namespace: monitoring
               persistentvolumeclaim: prometheus-db-0
               severity: warning
+              action: human
             exp_annotations:
               summary: "PVC monitoring/prometheus-db-0 is over 85% full"
               description: >-
@@ -240,6 +249,7 @@ tests:
               namespace: cook
               persistentvolumeclaim: data-b
               severity: critical
+              action: human
             exp_annotations:
               summary: "PVC cook/data-b is over 95% full"
       - eval_time: 20m
@@ -249,6 +259,7 @@ tests:
               namespace: monitoring
               persistentvolumeclaim: prometheus-db-0
               severity: critical
+              action: human
             exp_annotations:
               summary: "Prometheus TSDB volume is nearly full"
               description: >-
@@ -279,6 +290,7 @@ tests:
               namespace: immich
               persistentvolumeclaim: wal
               severity: warning
+              action: human
             exp_annotations:
               summary: "PVC immich/wal will be full within 24h"
               description: >-
@@ -331,6 +343,7 @@ tests:
               mountpoint: /data
               fstype: xfs
               severity: warning
+              action: human
             exp_annotations:
               summary: "cp-1 /data is over 85% full"
               description: >-
@@ -343,6 +356,7 @@ tests:
               mountpoint: /var
               fstype: xfs
               severity: warning
+              action: human
             exp_annotations:
               summary: "cp-1 /var is over 85% full"
               description: >-
@@ -358,6 +372,7 @@ tests:
               mountpoint: /data
               fstype: xfs
               severity: critical
+              action: human
             exp_annotations:
               summary: "cp-1 /data is over 92% full"
       - eval_time: 10m
@@ -368,6 +383,7 @@ tests:
               mountpoint: /boot
               fstype: ext4
               severity: critical
+              action: human
             exp_annotations:
               summary: "cp-1 remounted /boot READ-ONLY"
               description: >-
@@ -382,6 +398,7 @@ tests:
               mountpoint: /inodes
               fstype: xfs
               severity: warning
+              action: human
             exp_annotations:
               summary: "cp-1 /inodes has under 10% of inodes free"
               description: >-
@@ -425,6 +442,7 @@ tests:
               instance: cp-2
               device: "mmc0:0001"
               severity: warning
+              action: human
             exp_annotations:
               summary: "cp-2 eMMC mmc0:0001 is wearing out"
               description: >-
@@ -436,6 +454,7 @@ tests:
               instance: w-1
               device: "mmc0:0001"
               severity: warning
+              action: human
             exp_annotations:
               summary: "w-1 eMMC mmc0:0001 is wearing out"
               description: >-
@@ -450,6 +469,7 @@ tests:
               instance: w-1
               device: "mmc0:0001"
               severity: critical
+              action: human
             exp_annotations:
               summary: "w-1 eMMC mmc0:0001 is at end of life"
               description: >-
@@ -484,6 +504,7 @@ tests:
               namespace: gateway
               name: auth
               severity: warning
+              action: human
             exp_annotations:
               summary: "Certificate gateway/auth expires in under 21 days"
               description: >-
@@ -495,6 +516,7 @@ tests:
               namespace: gateway
               name: wildcard
               severity: warning
+              action: human
             exp_annotations:
               summary: "Certificate gateway/wildcard expires in under 21 days"
               description: >-
@@ -509,6 +531,7 @@ tests:
               namespace: gateway
               name: auth
               severity: critical
+              action: human
             exp_annotations:
               summary: "Certificate gateway/auth expires in under 7 days"
               description: >-
@@ -524,6 +547,7 @@ tests:
               name: auth
               condition: "True"
               severity: warning
+              action: human
             exp_annotations:
               summary: "Certificate gateway/auth is not Ready"
               description: >-
@@ -560,6 +584,7 @@ tests:
           - exp_labels:
               integration: webhook
               severity: critical
+              action: human
             exp_annotations:
               summary: "Alertmanager cannot deliver notifications (webhook)"
               description: >-
@@ -586,6 +611,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              action: human
             exp_annotations: &am_silent
               summary: "Alertmanager has sent nothing in 6 hours"
               description: >-
@@ -611,6 +637,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              action: human
             exp_annotations:
               summary: "kube-state-metrics is not being scraped"
               description: >-
@@ -621,6 +648,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              action: human
             exp_annotations:
               summary: "node-exporter is not being scraped"
               description: >-
@@ -631,6 +659,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              action: human
             exp_annotations:
               summary: "cert-manager metrics are not being scraped"
               description: >-
@@ -643,4 +672,5 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: critical
+              action: human
             exp_annotations: *am_silent

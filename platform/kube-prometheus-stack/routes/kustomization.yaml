@@ -3,7 +3,8 @@ kind: Kustomization
 namespace: monitoring
 
 # Rendered: the Grafana route, the SLO rules, the general cluster alerts, the
-# Argo CD, the outage and the NAS alerts, the Cilium PodMonitors, the etcd scrape.
+# Argo CD, the outage, the NAS, the LAN and the *arr alerts, the Cilium
+# PodMonitors, the etcd scrape.
 # And the nightly restic backup of grafana.db (grafana-backup.yaml).
 resources:
   - grafana-backup.yaml
@@ -16,3 +17,4 @@ resources:
   - etcd-scrape.yaml
   - nas-alerts.yaml
   - lan-alerts.yaml
+  - arr-alerts.yaml

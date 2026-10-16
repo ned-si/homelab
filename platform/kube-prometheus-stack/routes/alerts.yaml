@@ -73,6 +73,7 @@ spec:
           for: 15m
           labels:
             severity: warning
+            action: auto
           annotations:
             summary: "{{ $labels.namespace }}/{{ $labels.pod }} stuck in {{ $labels.reason }}"
             description: >-
@@ -93,6 +94,7 @@ spec:
           for: 6h
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "{{ $labels.namespace }}/{{ $labels.pod }} has been broken for 6h ({{ $labels.reason }})"
 
@@ -106,6 +108,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: auto
           annotations:
             summary: "{{ $labels.namespace }}/{{ $labels.pod }} has been Pending for 30m"
             description: >-
@@ -133,6 +136,7 @@ spec:
           for: 20m
           labels:
             severity: warning
+            action: auto
           annotations:
             summary: "{{ $labels.namespace }}/{{ $labels.pod }} is Running but not Ready"
             description: >-
@@ -157,6 +161,7 @@ spec:
           for: 15m
           labels:
             severity: critical
+            action: auto
           annotations:
             summary: "{{ $labels.namespace }}/{{ $labels.deployment }} has ZERO available replicas"
             description: >-
@@ -175,6 +180,7 @@ spec:
           for: 15m
           labels:
             severity: critical
+            action: auto
           annotations:
             summary: "{{ $labels.namespace }}/{{ $labels.statefulset }} has no ready replica"
 
@@ -193,6 +199,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is over 85% full"
             description: >-
@@ -211,6 +218,7 @@ spec:
           for: 10m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} is over 95% full"
 
@@ -229,6 +237,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} will be full within 24h"
             description: >-
@@ -254,6 +263,7 @@ spec:
           for: 15m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "Prometheus TSDB volume is nearly full"
             description: >-
@@ -284,6 +294,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is over 85% full"
             description: >-
@@ -301,6 +312,7 @@ spec:
           for: 10m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} is over 92% full"
 
@@ -313,6 +325,7 @@ spec:
           for: 5m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "{{ $labels.instance }} remounted {{ $labels.mountpoint }} READ-ONLY"
             description: >-
@@ -331,6 +344,7 @@ spec:
           for: 30m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has under 10% of inodes free"
             description: >-
@@ -351,6 +365,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "{{ $labels.instance }} eMMC {{ $labels.device }} is wearing out"
             description: >-
@@ -369,6 +384,7 @@ spec:
           for: 10m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "{{ $labels.instance }} eMMC {{ $labels.device }} is at end of life"
             description: >-
@@ -390,6 +406,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 21 days"
             description: >-
@@ -404,6 +421,7 @@ spec:
           for: 1h
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} expires in under 7 days"
             description: >-
@@ -424,6 +442,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is not Ready"
             description: >-
@@ -440,6 +459,7 @@ spec:
           for: 1h
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "cert-manager metrics are not being scraped"
             description: >-
@@ -466,6 +486,7 @@ spec:
           for: 15m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "Alertmanager cannot deliver notifications ({{ $labels.integration }})"
             description: >-
@@ -487,6 +508,7 @@ spec:
           for: 1h
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "Alertmanager has sent nothing in 6 hours"
             description: >-
@@ -507,6 +529,7 @@ spec:
           for: 15m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "kube-state-metrics is not being scraped"
             description: >-
@@ -519,6 +542,7 @@ spec:
           for: 15m
           labels:
             severity: critical
+            action: human
           annotations:
             summary: "node-exporter is not being scraped"
             description: >-

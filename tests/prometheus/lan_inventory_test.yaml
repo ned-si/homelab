@@ -15,7 +15,7 @@ tests:
   # The scanner runs from t=0. The router answers throughout; a TV appears
   # at 2h (inside the first day: no alert). At 25h a new fixed-MAC device
   # appears, and a known phone (seen since 1h) rotates its private MAC on the
-  # same IP: only the fixed MAC pages, the rotation is info.
+  # same IP: only the fixed MAC raises an alert.
   - interval: 5m
     input_series:
       - series: 'lan_inventory_devices'
@@ -47,6 +47,7 @@ tests:
               ip: 192.168.1.62
               random_mac: "false"
               severity: warning
+              action: human
             exp_annotations:
               summary: "New device on the LAN: a8:00:00:00:00:04 at 192.168.1.62"
               description: >-
@@ -54,21 +55,8 @@ tests:
                 seen in the last 30 days. Its MAC is a fixed vendor address, so
                 this is new hardware, not a phone rotating its private address.
                 If it is not yours, find it in the router's DHCP list and block it.
-      - eval_time: 25h10m
-        alertname: LANNewRandomMACSeen
-        exp_alerts:
-          - exp_labels:
-              mac: de:00:00:00:00:05
-              ip: 192.168.1.61
-              random_mac: "true"
-              severity: info
-            exp_annotations:
-              summary: "New randomised MAC on the LAN: de:00:00:00:00:05 at 192.168.1.61"
       - eval_time: 26h10m
         alertname: LANNewDeviceSeen
-        exp_alerts: []
-      - eval_time: 26h10m
-        alertname: LANNewRandomMACSeen
         exp_alerts: []
       - eval_time: 26h10m
         alertname: LANInventoryFailing
@@ -95,6 +83,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              action: human
             exp_annotations:
               summary: lan-inventory has not completed an ARP scan for 30 minutes
               description: >-

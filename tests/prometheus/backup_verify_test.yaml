@@ -24,6 +24,7 @@ tests:
               check: postgres
               target: keycloak-db
               severity: warning
+              action: human
             exp_annotations:
               summary: "Backup restore test failed: postgres/keycloak-db"
               description: >-
@@ -56,6 +57,7 @@ tests:
               check: restic
               target: plex
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing restore test in 8 days: restic/plex"
               description: >-
@@ -67,6 +69,7 @@ tests:
               check: postgres
               target: immich-db
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing restore test in 8 days: postgres/immich-db"
               description: >-
@@ -78,6 +81,7 @@ tests:
               check: mariadb
               target: seafile
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing restore test in 8 days: mariadb/seafile"
               description: >-
@@ -95,6 +99,7 @@ tests:
               check: restic-data
               target: theater
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing pack read in 36 days: theater"
               description: >-
@@ -121,6 +126,7 @@ tests:
               check: lock
               target: ned-si-homelab-backups
               severity: critical
+              action: human
             exp_annotations:
               summary: "Backup versions can be deleted: ned-si-homelab-backups"
               description: >-
@@ -144,6 +150,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing backup lock test in 8 days"
               description: >-
@@ -166,6 +173,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing backup lock test in 8 days"
               description: >-
@@ -191,6 +199,7 @@ tests:
           - exp_labels:
               check: postgres
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing postgres restore test on record"
               description: >-
@@ -202,6 +211,7 @@ tests:
           - exp_labels:
               check: restic-data
               severity: warning
+              action: human
             exp_annotations:
               summary: "No passing restic-data restore test on record"
               description: >-

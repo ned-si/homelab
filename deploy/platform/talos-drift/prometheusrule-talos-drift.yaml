@@ -29,6 +29,7 @@ spec:
       expr: max by (node) (talos_config_drift{job="talos-drift"}) == 1
       for: 10m
       labels:
+        action: human
         severity: warning
     - alert: TalosDriftCheckStale
       annotations:
@@ -41,4 +42,5 @@ spec:
         or absent_over_time(talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}[3d])
       for: 1h
       labels:
+        action: human
         severity: warning

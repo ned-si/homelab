@@ -30,6 +30,7 @@ spec:
       expr: probe_success{job="blackbox-lan", device=~"router|bmc"} == 0
       for: 10m
       labels:
+        action: human
         severity: warning
   - interval: 5m
     name: homelab.lan.inventory.recording
@@ -51,17 +52,8 @@ spec:
         unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
         and on () (count(lan_inventory_devices offset 1d) > 0)
       labels:
+        action: human
         severity: warning
-    - alert: LANNewRandomMACSeen
-      annotations:
-        summary: 'New randomised MAC on the LAN: {{ $labels.mac }} at {{ $labels.ip
-          }}'
-      expr: |
-        max by (mac, ip, random_mac) (lan_device_present{random_mac="true"})
-        unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
-        and on () (count(lan_inventory_devices offset 1d) > 0)
-      labels:
-        severity: info
     - alert: LANInventoryFailing
       annotations:
         description: LANNewDeviceSeen is inert while this fires. Read `kubectl -n
@@ -72,6 +64,7 @@ spec:
         or time() - lan_inventory_scan_timestamp_seconds > 1800
       for: 30m
       labels:
+        action: human
         severity: warning
     - alert: LANInventoryAbsent
       annotations:
@@ -81,4 +74,5 @@ spec:
       expr: absent(lan_inventory_devices)
       for: 30m
       labels:
+        action: human
         severity: warning

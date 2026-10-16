@@ -1,5 +1,5 @@
 {
-  "description": "The basement switch drops the NAS: one notification, HomelabNASUnreachable for both ports. Every storage consumer, SLO burns included, is inhibited.",
+  "description": "The basement switch drops the NAS for a few minutes: only the guard topic gets HomelabNASUnreachable. Every storage consumer, SLO burns and backup failures included, is inhibited.",
   "alerts": [
     {"alertname": "HomelabNASUnreachable", "severity": "critical", "instance": "192.168.1.228:3260"},
     {"alertname": "HomelabNASUnreachable", "severity": "critical", "instance": "192.168.1.228:2049"},
@@ -12,6 +12,6 @@
     {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "seafile", "pod": "seafile-0"},
     {"alertname": "NASExporterFailing", "severity": "warning"}
   ],
-  "notifications": ["ntfy HomelabNASUnreachable", "ntfy-guard HomelabNASUnreachable"],
+  "notifications": ["ntfy-guard HomelabNASUnreachable"],
   "uninhibited": ["HomelabNASUnreachable", "HomelabNASUnreachable"]
 }

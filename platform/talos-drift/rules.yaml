@@ -6,7 +6,8 @@
 #   TalosDriftCheckStale   no successful check in 2 days: drift would go
 #                          unnoticed.
 #
-# Both are warnings (Grafana only, docs/sre.md "Paging").
+# Both page (`action: human`, docs/sre.md "Paging"): nothing applies Talos
+# config automatically, and a check that stopped needs fixing by hand.
 # Tests: tests/prometheus/talos_drift_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -24,6 +25,7 @@ spec:
           for: 10m
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "Talos config on {{ $labels.node }} differs from main"
             description: >-
@@ -39,6 +41,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "No Talos drift check in 2 days"
             description: >-

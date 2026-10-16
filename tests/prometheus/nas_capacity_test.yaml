@@ -40,6 +40,7 @@ tests:
               pool: homelab
               dataset: homelab
               severity: warning
+              action: human
             exp_annotations:
               summary: NAS pool homelab is full in 4.5 days at the current trend
       - eval_time: 8d
@@ -49,6 +50,7 @@ tests:
               pool: homelab
               dataset: homelab
               severity: warning
+              action: human
             exp_annotations:
               summary: NAS pool homelab is over 80% used
       - eval_time: 8d

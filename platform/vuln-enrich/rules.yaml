@@ -11,8 +11,8 @@
 #                         fixed version; value EPSS. The Security dashboard's
 #                         "Act now" table.
 #
-# VulnEnrichmentStale (warning, Grafana only) fires when the daily push is
-# missing for 3 days: the act-now list is then out of date, not empty.
+# VulnEnrichmentStale (warning, pages: `action: human`) fires when the daily
+# push is missing for 3 days: the act-now list is then out of date, not empty.
 #
 # Tests: tests/prometheus/vuln_enrich_test.yaml.
 ---
@@ -56,6 +56,7 @@ spec:
           for: 1h
           labels:
             severity: warning
+            action: human
           annotations:
             summary: "No KEV/EPSS enrichment in 3 days"
             description: >-

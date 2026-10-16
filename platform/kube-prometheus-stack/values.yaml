@@ -177,20 +177,20 @@ grafana:
   initChownData:
     enabled: false
 
-# Alertmanager routes: the paging policy of docs/sre.md "Paging". Only the
-# alerts below notify; every other alert is visible in Grafana and
-# Alertmanager and sends nothing.
+# Alertmanager routes: the paging policy of docs/sre.md "Paging". A
+# notification means a person has to act. Every homelab rule carries
+# `action: human` (PAGE) or `action: auto` (INFO: what automation handles,
+# visible in Grafana and on the Homelab / Automation dashboard, sends
+# nothing); CI fails a rule without it (scripts/ci/alertmanager-test.sh).
 #
 #   Watchdog          -> heartbeat: the dead-man's switch (healthchecks.io) in
 #                        Secret `alertmanager-notify` key `heartbeat-url`,
 #                        every 5 minutes. It alerts when the pings stop.
-#   SLO burn rate     -> ntfy, one group per app (fast critical, slow warning).
-#   infra critical    -> ntfy, one group per alert name: node down, etcd
-#                        quorum, NAS unreachable or pool unhealthy, a node
-#                        filesystem read-only, a failed Talos upgrade,
-#                        Alertmanager failing to deliver.
-#   backup failed     -> ntfy, one group per alert name: a restore test, a
-#                        CNPG base backup or WAL archive, a backup Job.
+#   action=human      -> ntfy, one group per alert name; the persistent SLO
+#                        burns one group per app. Repeats every 4 h when
+#                        critical, else every 24 h.
+#   chart rules       -> ntfy, by name: etcd quorum, the tuppr upgrade
+#                        failures and stalls, a failed backup Job.
 #   security critical -> ntfy: any critical rule labelled `category: security`.
 #   anything else     -> "null".
 #
@@ -204,22 +204,26 @@ grafana:
 #
 # The ntfy pushes go to the hosted ntfy.sh topic in key `ntfy-url`. Hosted,
 # so they do not depend on this cluster or the house's network being up.
-# HomelabNodeNotReady and HomelabNASUnreachable also go, unmuted and with
-# the same title, to the guard topic in key `ntfy-guard-url` (the ntfy topic
-# plus `-guard`, which nobody subscribes to): the auto-rollback outage guard
-# reads them there at any hour (scripts/ci/auto-rollback-guard.sh).
+# HomelabNodeNotReady and HomelabNASUnreachable (`action: auto`; their
+# 15- and 10-minute versions page) go, unmuted, to the guard topic in key
+# `ntfy-guard-url` (the ntfy topic plus `-guard`, which nobody subscribes
+# to): the auto-rollback outage guard reads them there at any hour
+# (scripts/ci/auto-rollback-guard.sh).
 #
 # Inhibition removes the cause alerts of an incident that already notifies,
 # so they show as suppressed in Alertmanager:
 #
 #   SLOErrorBudgetBurnFast              -> the pod, workload and Argo CD
-#   ServiceHasNoReadyBackend,              alerts of the same namespace
+#                                          alerts of the same namespace
+#   ServiceHasNoReadyBackend,           -> the same, `action: auto` only
 #   StatefulSetHasNoReadyReplica
 #   HomelabNodeNotReady                 -> the node and pod alerts with the
 #                                          same `node` label
 #   HomelabNASUnreachable               -> everything that needs storage:
 #                                          pods, workloads, Argo CD, CNPG,
 #                                          backups, SLO burns, everywhere
+#   the critical alert of an object     -> its warning (certificates, PVCs,
+#                                          node filesystems, NAS pool, eMMC)
 #
 # Tests: scripts/ci/alertmanager-test.sh (CI: render job) runs amtool on
 # tests/alertmanager/routes.txt and replays tests/alertmanager/*.json against
@@ -259,49 +263,48 @@ alertmanager:
           group_wait: 0s
           group_interval: 1m
           repeat_interval: 5m
-        # The outage guard's copy, never muted; `continue` so the ntfy route
-        # below still pages.
+        # The outage guard's copy, never muted. Both are `action: auto`, so
+        # nothing below matches them.
         - receiver: ntfy-guard
           matchers:
             - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable"
           group_by: [alertname]
           repeat_interval: 4h
-          continue: true
+        # PAGE: every homelab rule labelled `action: human`.
         - receiver: ntfy
           matchers:
-            - alertname =~ "SLOErrorBudgetBurnFast|SLOErrorBudgetBurnSlow"
-          group_by: [alertname, namespace, app]
+            - action = "human"
+          group_by: [alertname]
           mute_time_intervals: [quiet-hours]
           routes:
+            - matchers:
+                - alertname = "SLOErrorBudgetBurnFastPersistent"
+              group_by: [alertname, namespace, app]
+              repeat_interval: 4h
+              mute_time_intervals: [quiet-hours]
+            - matchers:
+                - alertname = "SLOErrorBudgetBurnSlowPersistent"
+              group_by: [alertname, namespace, app]
+              mute_time_intervals: [quiet-hours]
+            - matchers:
+                - alertname =~ "Backup.*|CNPG.*"
+              group_wait: 5m
+              mute_time_intervals: [quiet-hours]
             - matchers:
                 - severity = "critical"
               repeat_interval: 4h
               mute_time_intervals: [quiet-hours]
-            - matchers:
-                - severity = "warning"
-              group_wait: 5m
-              repeat_interval: 24h
-              mute_time_intervals: [quiet-hours]
+        # PAGE: chart rules that carry no `action` label (etcd from
+        # kube-prometheus-stack, the tuppr chart's upgrade alerts).
         - receiver: ntfy
           matchers:
-            - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable|etcdInsufficientMembers|etcdNoLeader|NASPoolUnhealthy"
+            - alertname =~ "etcdInsufficientMembers|etcdNoLeader|TalosUpgradeFailed|TalosUpgradeNodeFailed|TalosUpgradeStuck|KubernetesUpgradeFailed|KubernetesUpgradeStuck|TupprOperatorAbsent"
           group_by: [alertname]
           repeat_interval: 4h
           mute_time_intervals: [quiet-hours]
-        - receiver: ntfy
-          matchers:
-            - alertname =~ "NodeFilesystemReadOnly|TalosUpgradeFailed|AlertmanagerNotificationsFailing"
-          group_by: [alertname]
-          repeat_interval: 4h
-          mute_time_intervals: [quiet-hours]
-        - receiver: ntfy
-          matchers:
-            - alertname =~ "BackupVerifyFailed|BackupLockBroken|CNPGBackupFailed|CNPGWALArchivingFailing"
-          group_by: [alertname]
-          group_wait: 5m
-          mute_time_intervals: [quiet-hours]
-        # A failed backup or dump Job (the restic CronJobs are *-backup*).
-        # The restore tests report through BackupVerifyFailed instead.
+        # PAGE: a failed backup or dump Job (the restic CronJobs are
+        # *-backup*; the chart's KubeJobFailed). The restore tests report
+        # through BackupVerifyFailed instead.
         - receiver: ntfy
           matchers:
             - alertname = "KubeJobFailed"
@@ -310,6 +313,7 @@ alertmanager:
           group_by: [alertname]
           group_wait: 5m
           mute_time_intervals: [quiet-hours]
+        # PAGE: critical security findings.
         - receiver: ntfy
           matchers:
             - category = "security"
@@ -340,17 +344,58 @@ alertmanager:
         equal: [namespace, alertname]
       # The pod, workload and Argo CD alerts: KubePod*, KubeContainerWaiting,
       # KubeDeployment*, KubeStatefulSet*, KubePdbNotEnoughHealthyPods,
-      # KubeJobFailed, Pod* (routes/alerts.yaml) and ArgoCD*.
+      # KubeJobFailed, Pod* (routes/alerts.yaml) and ArgoCD*. A fast burn
+      # also hides the pages among them (ArgoCDAppStillDegraded, ...): its
+      # own page, SLOErrorBudgetBurnFastPersistent, covers the app. A missing
+      # backend hides only the `action: auto` ones, so an app without an SLO
+      # still pages through ArgoCDAppStillDegraded.
       - source_matchers:
-          - alertname =~ "SLOErrorBudgetBurnFast|ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica"
+          - alertname = "SLOErrorBudgetBurnFast"
         target_matchers:
           - alertname =~ "(Kube(Pod|ContainerWaiting|Deployment|StatefulSet|PdbNotEnoughHealthyPods|JobFailed)|Pod|ArgoCD).*"
+        equal: [namespace]
+      - source_matchers:
+          - alertname =~ "ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica"
+        target_matchers:
+          - alertname =~ "(Kube(Pod|ContainerWaiting|Deployment|StatefulSet|PdbNotEnoughHealthyPods|JobFailed)|Pod|ArgoCD).*"
+          - action != "human"
         equal: [namespace]
       - source_matchers:
           - alertname = "SLOErrorBudgetBurnFast"
         target_matchers:
           - alertname =~ "ServiceHasNoReadyBackend|StatefulSetHasNoReadyReplica"
         equal: [namespace]
+      # The worse alert of the same object hides the milder one.
+      - source_matchers:
+          - alertname = "CertificateExpiringVerySoon"
+        target_matchers:
+          - alertname =~ "CertificateExpiringSoon|CertificateNotReady"
+        equal: [namespace, name]
+      - source_matchers:
+          - alertname = "CertificateExpiringSoon"
+        target_matchers:
+          - alertname = "CertificateNotReady"
+        equal: [namespace, name]
+      - source_matchers:
+          - alertname = "PersistentVolumeCriticallyFull"
+        target_matchers:
+          - alertname =~ "PersistentVolumeNearlyFull|PersistentVolumeFillingUp"
+        equal: [namespace, persistentvolumeclaim]
+      - source_matchers:
+          - alertname = "NodeFilesystemCriticallyFull"
+        target_matchers:
+          - alertname = "NodeFilesystemNearlyFull"
+        equal: [instance, mountpoint]
+      - source_matchers:
+          - alertname = "NASPoolCriticallyFull"
+        target_matchers:
+          - alertname =~ "NASPoolNearlyFull|NASPoolFillingUp"
+        equal: [pool]
+      - source_matchers:
+          - alertname = "NodeEmmcEndOfLife"
+        target_matchers:
+          - alertname = "NodeEmmcWearHigh"
+        equal: [instance, device]
       - source_matchers:
           - alertname = "HomelabNodeNotReady"
         target_matchers:
@@ -363,7 +408,7 @@ alertmanager:
       - source_matchers:
           - alertname = "HomelabNASUnreachable"
         target_matchers:
-          - alertname =~ "(SLOErrorBudgetBurn|(ServiceHas|StatefulSetHas)NoReady|KubePersistentVolumeErrors|CNPG|BackupVerify|NASExporter).*"
+          - alertname =~ "(SLOErrorBudgetBurn|(ServiceHas|StatefulSetHas)NoReady|KubePersistentVolumeErrors|CNPG|Backup|NASExporter).*"
     receivers:
       - name: "null"
       - name: heartbeat

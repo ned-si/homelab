@@ -25,6 +25,7 @@ tests:
               disk: ada1
               test: short
               severity: warning
+              action: human
             exp_annotations:
               summary: NAS disk ada1 failed its SMART self-test
               description: >-
@@ -51,6 +52,7 @@ tests:
           - exp_labels:
               disk: ada2
               severity: warning
+              action: human
             exp_annotations:
               summary: NAS disk ada2 is at 70 C
               description: >-

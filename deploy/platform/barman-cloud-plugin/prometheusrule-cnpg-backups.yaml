@@ -30,6 +30,7 @@ spec:
           > barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
       for: 15m
       labels:
+        action: human
         severity: critical
     - alert: CNPGBaseBackupTooOld
       annotations:
@@ -42,6 +43,7 @@ spec:
         time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 26 * 3600
       for: 15m
       labels:
+        action: human
         severity: critical
     - alert: CNPGBackupMetricsMissing
       annotations:
@@ -55,6 +57,7 @@ spec:
           unless on (namespace, pod) barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
       for: 1h
       labels:
+        action: human
         severity: warning
     - alert: CNPGWALArchivingFailing
       annotations:
@@ -66,6 +69,7 @@ spec:
         cnpg_pg_stat_archiver_last_failed_time > cnpg_pg_stat_archiver_last_archived_time
       for: 10m
       labels:
+        action: human
         severity: critical
     - alert: CNPGWALArchiveLag
       annotations:
@@ -78,6 +82,7 @@ spec:
         cnpg_collector_pg_wal_archive_status{value="ready"} > 5
       for: 30m
       labels:
+        action: human
         severity: critical
     - alert: CNPGMetricsAbsent
       annotations:
@@ -87,4 +92,5 @@ spec:
       expr: absent(cnpg_collector_up)
       for: 30m
       labels:
+        action: human
         severity: critical

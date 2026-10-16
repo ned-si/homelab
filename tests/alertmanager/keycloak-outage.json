@@ -1,5 +1,5 @@
 {
-  "description": "keycloak-db crash-loops and Keycloak serves nothing (2026-10-15): one notification, the fast burn of auth. SLOErrorBudgetBurnSlow stays quiet in the rule itself (tests/prometheus/slo_test.yaml).",
+  "description": "keycloak-db crash-loops and Keycloak serves nothing (2026-10-15), within the remediation window: the fast burn and its causes fire, nothing notifies.",
   "alerts": [
     {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "auth", "namespace": "keycloak"},
     {"alertname": "ServiceHasNoReadyBackend", "severity": "critical", "namespace": "keycloak", "deployment": "keycloak"},
@@ -11,6 +11,6 @@
     {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "keycloak", "namespace": "keycloak"},
     {"alertname": "ArgoCDSyncFailed", "severity": "warning", "name": "keycloak", "namespace": "keycloak"}
   ],
-  "notifications": ["ntfy SLOErrorBudgetBurnFast"],
+  "notifications": [],
   "uninhibited": ["SLOErrorBudgetBurnFast"]
 }

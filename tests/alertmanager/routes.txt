@@ -1,46 +1,79 @@
 # Receiver each alert reaches (scripts/ci/alertmanager-test.sh), the paging
 # policy of docs/sre.md "Paging". Format: <receiver> <label>=<value>...
+# The script adds each alert's `action` label from its PrometheusRule.
 #
-# Notifies: the heartbeat.
+# The heartbeat (dead-man's switch).
 heartbeat alertname=Watchdog severity=none
-# Notifies: SLO burn rates.
-ntfy alertname=SLOErrorBudgetBurnFast severity=critical app=auth namespace=keycloak
-ntfy alertname=SLOErrorBudgetBurnSlow severity=warning app=cook namespace=mealie
-# Notifies: infrastructure criticals.
-# The node and NAS alerts also reach the outage guard's topic.
-ntfy-guard,ntfy alertname=HomelabNodeNotReady severity=critical node=homelab-w-1
-ntfy-guard,ntfy alertname=HomelabNASUnreachable severity=critical instance=192.168.1.228:3260
-ntfy alertname=etcdInsufficientMembers severity=critical job=kube-etcd
-ntfy alertname=etcdNoLeader severity=critical job=kube-etcd
-ntfy alertname=NASPoolUnhealthy severity=critical pool=homelab
-ntfy alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9100
+#
+# PAGE: a person has to act (`action: human`).
+# Automation failed or gave up.
+ntfy alertname=ArgoCDAppStillDegraded severity=critical name=home namespace=home
+ntfy alertname=ArgoCDSyncStuck severity=warning name=books namespace=books
 ntfy alertname=TalosUpgradeFailed severity=critical name=cluster
-ntfy alertname=AlertmanagerNotificationsFailing severity=critical integration=webhook
-# Notifies: backups and restore tests.
+ntfy alertname=TalosUpgradeNodeFailed severity=critical name=cluster node=homelab-w-1
+ntfy alertname=TalosUpgradeStuck severity=warning name=cluster
+ntfy alertname=KubernetesUpgradeFailed severity=critical name=kubernetes
+ntfy alertname=KubernetesUpgradeStuck severity=warning name=kubernetes
+ntfy alertname=TupprOperatorAbsent severity=critical
+ntfy alertname=TalosConfigDrift severity=warning node=homelab-cp-1
+# Backups and restore tests.
 ntfy alertname=BackupVerifyFailed severity=warning check=postgres target=immich-db
+ntfy alertname=BackupVerifyMissing severity=warning check=mariadb
 ntfy alertname=BackupLockBroken severity=critical check=lock target=ned-si-homelab-backups
+ntfy alertname=BackupLockCheckStale severity=warning
 ntfy alertname=CNPGBackupFailed severity=critical namespace=immich pod=immich-db-1
 ntfy alertname=CNPGWALArchivingFailing severity=critical namespace=keycloak pod=keycloak-db-1
 ntfy alertname=KubeJobFailed severity=warning namespace=mealie job_name=mealie-backup-29868120
 ntfy alertname=KubeJobFailed severity=warning namespace=theater job_name=theater-config-backup-sonarr-29868120
-# Notifies: critical security.
+ntfy alertname=KubeJobFailed severity=warning namespace=monitoring job_name=grafana-backup-29868120
+# The physical world.
+ntfy alertname=HomelabNodeDown severity=critical node=homelab-w-1
+ntfy alertname=HomelabNASDown severity=critical instance=192.168.1.228:3260
+ntfy alertname=etcdInsufficientMembers severity=critical job=kube-etcd
+ntfy alertname=etcdNoLeader severity=critical job=kube-etcd
+ntfy alertname=NASPoolUnhealthy severity=critical pool=homelab
+ntfy alertname=NASSmartTestFailed severity=warning disk=ada3 test=SHORT
+ntfy alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9100
+ntfy alertname=NodeEmmcWearHigh severity=warning instance=192.168.1.240:9100 device=mmc0:0001
+ntfy alertname=PersistentVolumeNearlyFull severity=warning namespace=immich persistentvolumeclaim=immich-db-1
+ntfy alertname=LANDeviceUnreachable severity=warning device=bmc
+# Expired credentials and accounts.
+ntfy alertname=CertificateExpiringSoon severity=warning namespace=gateway name=wildcard
+ntfy alertname=CertificateNotReady severity=warning namespace=gateway name=wildcard
+ntfy alertname=ArrIndexersFailing severity=warning namespace=theater source=IndexerLongTermStatusCheck
+ntfy alertname=NASExporterFailing severity=warning
+# A user-facing SLO burn that outlasted the remediation window.
+ntfy alertname=SLOErrorBudgetBurnFastPersistent severity=critical app=auth namespace=keycloak
+ntfy alertname=SLOErrorBudgetBurnSlowPersistent severity=warning app=cook namespace=mealie
+# Monitoring that went blind, and alert delivery.
+ntfy alertname=SLOProbesAbsent severity=warning job=blackbox-public
+ntfy alertname=KubeStateMetricsAbsent severity=critical
+ntfy alertname=AlertmanagerNotificationsFailing severity=critical integration=webhook
+ntfy alertname=LANNewDeviceSeen severity=warning mac=00:11:22:33:44:55
+# Critical security findings.
 ntfy alertname=SecurityExample severity=critical category=security
-# Grafana only.
-null alertname=SecurityExample severity=warning category=security
-null alertname=KubeJobFailed severity=warning namespace=theater job_name=qbittorrent-private-seed-29868120
-null alertname=KubeJobFailed severity=warning namespace=backup-verify job_name=backup-verify-files-29868120
-null alertname=ServiceHasNoReadyBackend severity=critical namespace=keycloak deployment=keycloak
-null alertname=StatefulSetHasNoReadyReplica severity=critical namespace=syncthing statefulset=syncthing
+#
+# INFO: automation handles it (`action: auto`), Grafana only. The node and
+# NAS alerts also reach the outage guard's topic.
+ntfy-guard alertname=HomelabNodeNotReady severity=critical node=homelab-w-1
+ntfy-guard alertname=HomelabNASUnreachable severity=critical instance=192.168.1.228:3260
+null alertname=SLOErrorBudgetBurnFast severity=critical app=auth namespace=keycloak
+null alertname=SLOErrorBudgetBurnSlow severity=warning app=cook namespace=mealie
 null alertname=ArgoCDAppDegraded severity=critical name=keycloak namespace=keycloak
 null alertname=ArgoCDSyncFailed severity=warning name=keycloak namespace=keycloak
+null alertname=ArgoCDAppOutOfSync severity=warning name=seafile namespace=seafile
+null alertname=ServiceHasNoReadyBackend severity=critical namespace=keycloak deployment=keycloak
+null alertname=StatefulSetHasNoReadyReplica severity=critical namespace=syncthing statefulset=syncthing
+null alertname=PodNotReady severity=warning namespace=keycloak pod=keycloak-0 node=homelab-cp-1
+null alertname=PodStuckNotRunning severity=warning namespace=home pod=mosquitto-0 node=homelab-w-1
+# Chart rules without an `action` label stay in Grafana unless named above.
 null alertname=KubePodNotReady severity=warning namespace=keycloak pod=keycloak-0
 null alertname=KubePodCrashLooping severity=warning namespace=keycloak pod=keycloak-db-1
 null alertname=KubeDeploymentReplicasMismatch severity=warning namespace=keycloak deployment=keycloak
 null alertname=KubePdbNotEnoughHealthyPods severity=warning namespace=keycloak poddisruptionbudget=keycloak-db
-null alertname=PodStuckNotRunningLongTerm severity=critical namespace=home pod=mosquitto-0
 null alertname=KubeNodeNotReady severity=warning node=homelab-w-1
-null alertname=CertificateExpiringVerySoon severity=critical namespace=gateway name=wildcard
-null alertname=SLOProbesAbsent severity=warning job=blackbox-public
-null alertname=BackupLockCheckStale severity=warning
-null alertname=LANNewDeviceSeen severity=warning mac=00:11:22:33:44:55
+null alertname=KubeJobFailed severity=warning namespace=theater job_name=qbittorrent-private-seed-29868120
+null alertname=KubeJobFailed severity=warning namespace=backup-verify job_name=backup-verify-files-29868120
+null alertname=TupprUpgradeBlocked severity=warning name=cluster
+null alertname=SecurityExample severity=warning category=security
 null alertname=InfoInhibitor severity=none

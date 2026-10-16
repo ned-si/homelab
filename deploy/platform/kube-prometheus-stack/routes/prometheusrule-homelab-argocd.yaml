@@ -32,6 +32,7 @@ spec:
         ) == 1
       for: 5m
       labels:
+        action: auto
         severity: critical
     - alert: ArgoCDSyncFailed
       annotations:
@@ -56,6 +57,7 @@ spec:
           label_replace(argocd_app_info, "namespace", "$1", "dest_namespace", "(.*)")
         )
       labels:
+        action: auto
         severity: warning
     - alert: ArgoCDAppOutOfSync
       annotations:
@@ -70,6 +72,38 @@ spec:
         ) == 1
       for: 30m
       labels:
+        action: auto
+        severity: warning
+    - alert: ArgoCDAppStillDegraded
+      annotations:
+        description: 'Nothing automatic has fixed {{ $labels.name }}: check the auto-rollback
+          run on the Homelab / Automation dashboard, then https://argo.lilalala.com/applications/argo/{{
+          $labels.name }}.'
+        summary: '{{ $labels.name }} has been Degraded for 30 minutes'
+      expr: |
+        max by (name, namespace) (
+          label_replace(argocd_app_info{health_status="Degraded"}, "namespace", "$1", "dest_namespace", "(.*)")
+        ) == 1
+      for: 30m
+      labels:
+        action: human
+        severity: critical
+    - alert: ArgoCDSyncStuck
+      annotations:
+        description: 'A sync of {{ $labels.name }} failed and nothing automatic has
+          replaced it: the cluster still runs the previous revision. Check the auto-rollback
+          run on the Homelab / Automation dashboard, then https://argo.lilalala.com/applications/argo/{{
+          $labels.name }}.'
+        summary: '{{ $labels.name }}: sync failed and still OutOfSync after 30 minutes'
+      expr: |
+        max by (name, namespace) (
+          label_replace(argocd_app_info{sync_status="OutOfSync"}, "namespace", "$1", "dest_namespace", "(.*)")
+        ) == 1
+        and on (name)
+        max by (name) (max_over_time(ALERTS{alertname="ArgoCDSyncFailed", alertstate="firing"}[6h]))
+      for: 30m
+      labels:
+        action: human
         severity: warning
     - alert: ArgoCDMetricsAbsent
       annotations:
@@ -80,4 +114,5 @@ spec:
       expr: absent(argocd_app_info)
       for: 15m
       labels:
+        action: human
         severity: warning

@@ -1,0 +1,36 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-arr
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.arr
+    rules:
+    - alert: ArrIndexersFailing
+      annotations:
+        description: 'Prowlarr reports indexers that have failed for more than 6 hours
+          or have no definition any more: usually an expired login or cookie, or a
+          site that is gone. Prowlarr -> System -> Status names them; update the credentials,
+          or disable or remove the indexer (docs/theater.md "Indexers").'
+        summary: 'Prowlarr: indexers need attention ({{ $labels.source }})'
+      expr: |
+        max by (namespace, source) (
+          prowlarr_system_health_issues{source=~"IndexerLongTermStatusCheck|IndexerNoDefinitionCheck"}
+        ) == 1
+      for: 1h
+      labels:
+        action: human
+        severity: warning

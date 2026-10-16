@@ -1,13 +1,23 @@
 # Cluster-wide outages: a node NotReady or the NAS unreachable.
 #
-# Each is critical in its own right, and both are also read by the outage
-# guard of auto-rollback (scripts/ci/auto-rollback-guard.sh): while one fires,
-# a failing app is blamed on the outage, not on the newest merge, and nothing
-# is reverted. The guard finds them by alert name in the ntfy.sh topic, so a
-# rename here needs the same rename in OUTAGE_ALERTS there.
+# Two alerts per outage. The short one is read by the outage guard of
+# auto-rollback (scripts/ci/auto-rollback-guard.sh): while it fires, a failing
+# app is blamed on the outage, not on the newest merge, and nothing is
+# reverted. The guard finds it by alert name in the ntfy.sh guard topic, so a
+# rename here needs the same rename in OUTAGE_ALERTS there. It also inhibits
+# the alerts the outage causes (../values.yaml). It pages nobody: a node
+# rebooting for a Talos upgrade, or a switch that drops the NAS for a few
+# minutes, recovers on its own. The long one pages: past that window the node
+# or the NAS needs a person (power, cable, the NAS power button).
 #
-#   HomelabNodeNotReady     a node not Ready for 2m       critical
-#   HomelabNASUnreachable   iSCSI or NFS port down for 2m critical
+#   HomelabNodeNotReady     a node not Ready for 2m          critical  auto
+#   HomelabNodeDown         a node not Ready for 15m         critical  human
+#   HomelabNASUnreachable   iSCSI or NFS port down for 2m    critical  auto
+#   HomelabNASDown          iSCSI or NFS port down for 10m   critical  human
+#
+# 15 minutes covers a Talos upgrade reboot (about 5 on the RK1 eMMC); 10
+# covers the switch flaps seen so far (the longest, 2026-10-15, about 11
+# minutes with the cluster unreachable too, so it is the heartbeat's case).
 #
 # Tests: tests/prometheus/outage_test.yaml (promtool test rules).
 ---
@@ -27,6 +37,7 @@ spec:
           for: 2m
           labels:
             severity: critical
+            action: auto
           annotations:
             summary: "Node {{ $labels.node }} is NotReady"
             description: >-
@@ -34,6 +45,19 @@ spec:
               and volumes are down. auto-rollback reverts nothing while this
               fires. Check `kubectl get nodes` and
               `talosctl -n <node IP> dmesg`.
+
+        - alert: HomelabNodeDown
+          expr: max by (node) (kube_node_status_condition{condition="Ready", status="true"}) == 0
+          for: 15m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            summary: "Node {{ $labels.node }} has been NotReady for 15 minutes"
+            description: >-
+              {{ $labels.node }} did not come back on its own. Check
+              `talosctl -n <node IP> dmesg`, then power-cycle it from the
+              BMC (docs/runbooks/node-power-cycle.md).
 
         - alert: HomelabNASUnreachable
           expr: |
@@ -43,6 +67,7 @@ spec:
           for: 2m
           labels:
             severity: critical
+            action: auto
           annotations:
             summary: "NAS port {{ $labels.instance }} is unreachable"
             description: >-
@@ -50,3 +75,19 @@ spec:
               (3260 iSCSI: every PVC; 2049 NFS: media and local backups).
               auto-rollback reverts nothing while this fires. Check the NAS
               and the basement switch.
+
+        - alert: HomelabNASDown
+          expr: |
+            max by (instance) (
+              probe_success{job="blackbox-internal", instance=~"192\\.168\\.1\\.228:(3260|2049)"}
+            ) == 0
+          for: 10m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            summary: "NAS port {{ $labels.instance }} has been unreachable for 10 minutes"
+            description: >-
+              The NAS does not power on by itself after a power loss: press
+              its power button. Otherwise check the basement switch and the
+              NAS network link.

@@ -82,6 +82,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
+              action: human
             exp_annotations:
               summary: "No KEV/EPSS enrichment in 3 days"
               description: >-

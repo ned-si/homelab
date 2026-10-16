@@ -108,28 +108,52 @@ a design change that removes the cause, or its target is lowered on purpose.
 
 ## Paging
 
-A notification (ntfy) means a user is affected or data is at risk now. One
-root cause sends one notification. Every other alert stays in Grafana and
-Alertmanager, where the agent pass and the dashboards read it.
+A notification (ntfy) means a person has to do something. What automation
+handles (a pod restart, an auto-rollback, a Talos upgrade, a corrected
+drift, a Renovate automerge, a burn that ends by itself) notifies nobody: it
+is visible in Grafana and on the Homelab / Automation dashboard. One root
+cause sends one notification.
 
-| Notifies | Alerts | Grouped by | Repeats |
-| --- | --- | --- | --- |
-| SLO fast burn | `SLOErrorBudgetBurnFast` (critical) | app | 4 h |
-| SLO slow burn | `SLOErrorBudgetBurnSlow` (warning); quiet for a day after a fast burn of the same app | app | 24 h |
-| Node down | `HomelabNodeNotReady` | alert | 4 h |
-| etcd quorum | `etcdInsufficientMembers`, `etcdNoLeader` | alert | 4 h |
-| NAS | `HomelabNASUnreachable`, `NASPoolUnhealthy` | alert | 4 h |
-| Node disk | `NodeFilesystemReadOnly` (an eMMC starting to fail) | alert | 4 h |
-| Talos upgrade | `TalosUpgradeFailed` (tuppr stopped the rollout) | alert | 4 h |
-| Alert delivery | `AlertmanagerNotificationsFailing` (reaches the phone only if ntfy still works; the heartbeat covers the rest) | alert | 4 h |
-| Backups | `BackupVerifyFailed`, `BackupLockBroken`, `CNPGBackupFailed`, `CNPGWALArchivingFailing`, `KubeJobFailed` of a `*-backup-*` Job | alert | 24 h |
-| Security | any `critical` alert labelled `category: security` | alert | 4 h |
-| Heartbeat | `Watchdog`, to healthchecks.io every 5 minutes, which notifies when it stops | | |
+Every alert of a homelab PrometheusRule carries one of two labels, and CI
+fails a rule without it (`scripts/ci/alertmanager-test.sh`):
 
-Not notified, by design: pod, workload and Argo CD alerts
-(`KubePodCrashLooping`, `ServiceHasNoReadyBackend`, `ArgoCDAppDegraded`, ...),
-capacity and certificate warnings, LAN and exporter alerts. A cause that
-matters to users shows up as an SLO burn.
+| Class | Label | Goes to |
+| --- | --- | --- |
+| PAGE | `action: human` | ntfy |
+| INFO | `action: auto` | Grafana only |
+
+The chart rules (kube-prometheus-stack, tuppr) have no label: they are INFO
+unless named in the PAGE table. An alert that needs no person and that no
+automation handles is deleted, not kept as INFO.
+
+PAGE, grouped by alert name (the persistent burns by app); repeated every
+4 h while critical, every 24 h otherwise:
+
+| Why a person | Alerts |
+| --- | --- |
+| Automation gave up or failed | `ArgoCDAppStillDegraded` (Degraded for 30 min: auto-rollback refused, skipped by the outage guard, or its revert failed), `ArgoCDSyncStuck` (OutOfSync 30 min after a failed sync), `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck`, `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent`, `TalosConfigDrift` (nothing applies Talos config), `PodStuckNotRunningLongTerm` (6 h) |
+| Backups | `BackupLockBroken` (old versions deletable), `BackupLockCheckStale`, `BackupVerifyFailed`, `BackupVerifyStale`, `BackupVerifyDataStale`, `BackupVerifyMissing`, `CNPGBackupFailed`, `CNPGBaseBackupTooOld`, `CNPGBackupMetricsMissing`, `CNPGWALArchivingFailing`, `CNPGWALArchiveLag`, `CNPGMetricsAbsent`, `KubeJobFailed` of a `*-backup-*` Job |
+| The physical world | `HomelabNodeDown` (NotReady 15 min), `HomelabNASDown` (unreachable 10 min: press the NAS power button), `etcdInsufficientMembers`, `etcdNoLeader`, `NodeFilesystemReadOnly`, `NodeEmmcWearHigh`, `NodeEmmcEndOfLife`, `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASSmartTestFailed`, `NASDiskHot`, `LANDeviceUnreachable`, `LANNewDeviceSeen` |
+| Capacity (nothing grows a volume) | `PersistentVolumeNearlyFull`, `PersistentVolumeCriticallyFull`, `PersistentVolumeFillingUp`, `PrometheusTsdbVolumeNearlyFull`, `NodeFilesystemNearlyFull`, `NodeFilesystemCriticallyFull`, `NodeFilesystemInodesNearlyFull`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue` |
+| Expired credentials and accounts | `CertificateExpiringSoon` (a renewal failed), `CertificateExpiringVerySoon`, `CertificateNotReady`, `ArrIndexersFailing` (Prowlarr indexers failing for 6 h: login, cookie, locked account), `NASExporterFailing` (an API key revoked) |
+| A user-facing burn that outlasted remediation | `SLOErrorBudgetBurnFastPersistent` (still failing after 30 min), `SLOErrorBudgetBurnSlowPersistent` (a slow burn for a day) |
+| Monitoring went blind | `SLOProbesAbsent`, `SLOTargetProbeAbsent`, `KubeStateMetricsAbsent`, `NodeExporterAbsent`, `CertManagerMetricsAbsent`, `ArgoCDMetricsAbsent`, `NASExporterAbsent`, `LANInventoryFailing`, `LANInventoryAbsent`, `TalosDriftCheckStale`, `VulnEnrichmentStale`, `AlertmanagerNotificationsFailing`, `AlertmanagerHasNoReceiverConfigured` |
+| Security | any `critical` alert labelled `category: security` |
+| Heartbeat | `Watchdog`, to healthchecks.io every 5 minutes; healthchecks.io notifies ntfy when it stops |
+
+INFO (`action: auto`): `SLOErrorBudgetBurnFast` and `SLOErrorBudgetBurnSlow`
+(most burns end with a restart or a revert), `HomelabNodeNotReady` (a node
+rebooting for an upgrade) and `HomelabNASUnreachable` (a switch flap), which
+also feed the outage guard; `ArgoCDAppDegraded`, `ArgoCDSyncFailed` and
+`ArgoCDAppOutOfSync` (auto-rollback and self-heal); `ServiceHasNoReadyBackend`,
+`StatefulSetHasNoReadyReplica`, `PodStuckNotRunning`, `PodPendingTooLong`,
+`PodNotReady`; and the chart's pod, workload and node alerts. The Homelab /
+Automation dashboard marks them as annotations.
+
+GitHub Actions post to ntfy directly only for a person's action: a failed or
+refused `tofu` plan or apply (a destroy, a plan-only module with changes), a
+`dast` regression, a failed `renovate-render`, a secret past its rotation
+period (`secret-age`). A corrected drift posts nothing.
 
 ### Quiet hours
 
@@ -155,20 +179,23 @@ Inhibition hides the causes behind the alert that notified:
 
 | While this fires | These are inhibited |
 | --- | --- |
-| `SLOErrorBudgetBurnFast` | the pod, workload and Argo CD alerts and `ServiceHasNoReadyBackend` of the app's namespace |
-| `ServiceHasNoReadyBackend`, `StatefulSetHasNoReadyReplica` | the pod, workload and Argo CD alerts of that namespace |
+| `SLOErrorBudgetBurnFast` | the pod, workload and Argo CD alerts (pages included: the persistent burn covers the app) and `ServiceHasNoReadyBackend` of the app's namespace |
+| `ServiceHasNoReadyBackend`, `StatefulSetHasNoReadyReplica` | the INFO pod, workload and Argo CD alerts of that namespace |
 | `HomelabNodeNotReady` | the node and pod alerts with the same `node` label |
 | `HomelabNASUnreachable` | every storage consumer: SLO burns, pods, workloads, Argo CD, CNPG, backups, the NAS exporter |
 | any `critical` | the `warning` of the same alert and namespace |
+| the critical alert of a certificate, PVC, node filesystem, NAS pool or eMMC | its milder alerts |
 
 The routes, inhibit rules and timings are in
-`platform/kube-prometheus-stack/values.yaml`. CI replays the Keycloak outage
-of 2026-10-15 (nine alerts), a node down and the NAS unreachable against a
-real Alertmanager and requires one notification each
-(`scripts/ci/alertmanager-test.sh`, scenarios in `tests/alertmanager/`). It
-also checks that every ntfy route mutes `quiet-hours`, and that a node down
-during quiet hours notifies once after they end.
-Adding an alert to the table above is a change to this page and to
+`platform/kube-prometheus-stack/values.yaml`. CI replays scenarios against a
+real Alertmanager and counts notifications (`scripts/ci/alertmanager-test.sh`,
+`tests/alertmanager/`): the Keycloak outage of 2026-10-15 sends none within
+the remediation window and one past it; an auto-rollback that works sends
+none, one that fails sends one; a node reboot and a NAS flap reach only the
+guard topic, a node or the NAS down for good sends one; the Watchdog reaches
+the heartbeat. It also checks that every ntfy route mutes `quiet-hours`, and
+that a node down during quiet hours notifies once after they end.
+Adding a PAGE alert is a change to this page and to
 `tests/alertmanager/routes.txt` in the same pull request.
 
 ## Postmortems
@@ -194,7 +221,7 @@ automated away or accepted with a reason.
 
 | Toil | When | Why it is manual | Way out |
 | --- | --- | --- | --- |
-| Press the NAS power button | after every power loss | the NAS does not power on by itself, and changing its firmware setting needs a display, so a GPU swap | the `HomelabNASUnreachable` alert says when; a UPS, or a relay on the ATX power header |
+| Press the NAS power button | after every power loss | the NAS does not power on by itself, and changing its firmware setting needs a display, so a GPU swap | the `HomelabNASDown` alert says when; a UPS, or a relay on the ATX power header |
 | Copy `talosconfig`, the admin kubeconfig and the age key into the password manager | after each is created or rotated | the password manager is the off-machine copy and has no API in use here | accepted; the alternative is another secret store with its own bootstrap problem ([secrets.md](secrets.md#why-it-is-like-this)) |
 | Upgrade the Immich database image | while `immich-db` runs pgvecto.rs | the migration is one-way, so Renovate excludes `cloudnative-pgvecto.rs` | the one-time migration in [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md); after it the Renovate exclusion can go |
 
@@ -216,8 +243,12 @@ exists.
   release freeze.
 - Triggers as thresholds, not judgement: they are checkable by a script and
   by an agent, and they cannot be argued with during an incident.
-- Page on symptoms, not causes: sending every `warning` and `critical` sent
-  eight notifications for the one Keycloak outage of 2026-10-15. The SLO burn
-  says a user is affected; the causes are in Grafana when the operator looks.
-  Rejected: per-alert tuning of `for:` durations, which still sends one
-  notification per cause.
+- Page when a person has to act, not when something broke: sending every
+  `warning` and `critical` sent eight notifications for the one Keycloak
+  outage of 2026-10-15, and most failures here are fixed by a restart, a
+  revert or a retry before anyone could look. A failure pages once automation
+  had its chance (the persistent and "still" alerts), or when no automation
+  exists for it (hardware, capacity, credentials, backups). Rejected: paging
+  on every SLO burn, which woke the operator for outages auto-rollback had
+  already ended; and per-alert tuning of `for:` durations, which still sends
+  one notification per cause.
