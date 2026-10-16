@@ -71,6 +71,10 @@ objects and rule ids only; values are never printed.
                         form; every other alert on an `ntfy` line of
                         tests/alertmanager/routes.txt (but `category=security`)
                         is named in backticks in the README
+  backup-slo-targets    the slo:backup_target:info records of
+                        platform/kube-prometheus-stack/routes/backup-slo-targets.yaml
+                        are exactly the ci/active-cronjobs.txt entries whose
+                        name contains `-backup`
   k8s-version-match     K8S_VERSION and the KIND_NODE_IMAGE tag in
                         .github/workflows/ci.yaml are on the Kubernetes minor of
                         kubernetesVersion in talos/talconfig.yaml
@@ -149,6 +153,8 @@ PROMTOOL_TESTS = "tests/prometheus"
 RUNBOOK_DIR = "docs/runbooks/alerts"
 RUNBOOK_BASE = "https://github.com/ned-si/homelab/blob/main/" + RUNBOOK_DIR + "/"
 AM_ROUTES = "tests/alertmanager/routes.txt"
+# The restic CronJobs the backup-freshness SLO watches (docs/sre.md, RPO).
+BACKUP_SLO_TARGETS = "platform/kube-prometheus-stack/routes/backup-slo-targets.yaml"
 
 
 class Policy:
@@ -656,6 +662,26 @@ class Policy:
             if alert and alert not in names and f"`{alert}`" not in index_text:
                 self.fail(rule, f"{AM_ROUTES}: {alert} pages but has no page and no row in {RUNBOOK_DIR}/README.md")
 
+    def rule_backup_slo_targets(self) -> None:
+        rule = "backup-slo-targets"
+        p = self.root / BACKUP_SLO_TARGETS
+        active = self.read_list("ci/active-cronjobs.txt")
+        if not p.is_file() or active is None:
+            return
+        self.on(rule)
+        want = {a for a in active if "-backup" in a.split("/", 1)[-1]}
+        have = set()
+        for doc in yaml_file_docs(p):
+            for group in (doc.get("spec") or {}).get("groups") or []:
+                for r in group.get("rules") or []:
+                    if r.get("record") == "slo:backup_target:info":
+                        labels = r.get("labels") or {}
+                        have.add(f"{labels.get('namespace')}/{labels.get('cronjob')}")
+        for x in sorted(want - have):
+            self.fail(rule, f"{BACKUP_SLO_TARGETS}: no slo:backup_target:info for {x} (ci/active-cronjobs.txt)")
+        for x in sorted(have - want):
+            self.fail(rule, f"{BACKUP_SLO_TARGETS}: {x} is not a backup CronJob of ci/active-cronjobs.txt")
+
     def rule_k8s_version(self) -> None:
         rule = "k8s-version-match"
         ci, tal = self.root / CI_WORKFLOW, self.root / TALCONFIG
@@ -753,7 +779,7 @@ class Policy:
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
-                     self.rule_k8s_version,
+                     self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
                      self.rule_image_variant, self.rule_image_digest):
             rule()

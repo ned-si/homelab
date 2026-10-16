@@ -69,6 +69,13 @@ burn of the same app silences the latency alerts, so one outage notifies once.
 | Cluster state | last merged commit | git; etcd snapshots before risky changes |
 | Media library | none | not backed up; re-acquirable by design |
 
+The measure of the 24 h promise is the backup-freshness SLO: every restic
+backup CronJob and every CloudNativePG cluster has a successful backup younger
+than 26 hours 99% of the time over 30 days
+(`slo:backup_freshness:ratio_rate30d{kind, namespace, target}`,
+[backups.md: Freshness](backups.md#freshness)). A restic target stale for 15
+minutes pages `BackupNotFresh`.
+
 Details, schedules and rehearsed restores: [backups.md](backups.md#rpo-and-rto).
 
 ## RTO per tier
@@ -156,7 +163,7 @@ PAGE, grouped by alert name (the persistent burns by app); repeated every
 | Why a person | Alerts |
 | --- | --- |
 | Automation gave up or failed | `ArgoCDAppStillDegraded` (Degraded for 30 min: auto-rollback refused, skipped by the outage guard, or its revert failed), `ArgoCDSyncStuck` (OutOfSync 30 min after a failed sync), `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck`, `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent`, `TalosConfigDrift` (nothing applies Talos config), `PodStuckNotRunningLongTerm` (6 h) |
-| Backups | `BackupLockBroken` (old versions deletable), `BackupLockCheckStale`, `BackupVerifyFailed`, `BackupVerifyStale`, `BackupVerifyDataStale`, `BackupVerifyMissing`, `CNPGBackupFailed`, `CNPGBaseBackupTooOld`, `CNPGBackupMetricsMissing`, `CNPGWALArchivingFailing`, `CNPGWALArchiveLag`, `CNPGMetricsAbsent`, `KubeJobFailed` of a `*-backup-*` Job |
+| Backups | `BackupLockBroken` (old versions deletable), `BackupLockCheckStale`, `BackupNotFresh` (a restic CronJob without a success in 26 h), `BackupVerifyFailed`, `BackupVerifyStale`, `BackupVerifyDataStale`, `BackupVerifyMissing`, `CNPGBackupFailed`, `CNPGBaseBackupTooOld`, `CNPGBackupMetricsMissing`, `CNPGWALArchivingFailing`, `CNPGWALArchiveLag`, `CNPGMetricsAbsent`, `KubeJobFailed` of a `*-backup-*` Job |
 | The physical world | `HomelabNodeDown` (NotReady 15 min), `HomelabNASDown` (unreachable 10 min: press the NAS power button), `etcdInsufficientMembers`, `etcdNoLeader`, `NodeFilesystemReadOnly`, `NodeEmmcWearHigh`, `NodeEmmcEndOfLife`, `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASSmartTestFailed`, `NASDiskHot`, `LANDeviceUnreachable`, `LANNewDeviceSeen` |
 | Capacity (nothing grows a volume) | `PersistentVolumeNearlyFull`, `PersistentVolumeCriticallyFull`, `PersistentVolumeFillingUp`, `PrometheusTsdbVolumeNearlyFull`, `NodeFilesystemNearlyFull`, `NodeFilesystemCriticallyFull`, `NodeFilesystemInodesNearlyFull`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue` |
 | Expired credentials and accounts | `CertificateExpiringSoon` (a renewal failed), `CertificateExpiringVerySoon`, `CertificateNotReady`, `ArrIndexersFailing` (Prowlarr indexers failing for 6 h: login, cookie, locked account), `NASExporterFailing` (an API key revoked) |

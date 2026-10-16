@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-backup-slo
+  namespace: monitoring
+spec:
+  groups:
+  - interval: 2m
+    name: homelab.backup-slo
+    rules:
+    - expr: |
+        max by (namespace, target) (
+          label_replace(
+            (
+              slo:backup_target:info{kind="restic"}
+              * on (namespace, cronjob)
+              (time() - max by (namespace, cronjob) (kube_cronjob_status_last_successful_time) < bool 26 * 3600)
+            )
+            or on (namespace, cronjob)
+            slo:backup_target:info{kind="restic"} * 0,
+            "target", "$1", "cronjob", "(.+)"
+          )
+        )
+      labels:
+        kind: restic
+      record: slo:backup_fresh
+    - expr: |
+        max by (namespace, target) (
+          label_replace(
+            time() - barman_cloud_cloudnative_pg_io_last_available_backup_timestamp < bool 26 * 3600,
+            "target", "$1", "pod", "(.+)-[0-9]+"
+          )
+        )
+      labels:
+        kind: cnpg
+      record: slo:backup_fresh
+    - expr: avg_over_time(slo:backup_fresh[30d])
+      record: slo:backup_freshness:ratio_rate30d
+  - name: homelab.backup-slo.alerts
+    rules:
+    - alert: BackupNotFresh
+      annotations:
+        description: 'The restic CronJob {{ $labels.namespace }}/{{ $labels.target
+          }} has not completed a run for 26 hours: suspended, not scheduled, deleted,
+          or its Jobs never finish. The 24 h RPO of its data is not met.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupNotFresh.md
+        summary: No successful backup of {{ $labels.namespace }}/{{ $labels.target
+          }} in 26 h
+      expr: |
+        slo:backup_fresh{kind="restic"} == 0
+        unless on (namespace, target)
+          label_replace(
+            max by (namespace, owner_name) (
+              max by (namespace, job_name, owner_name) (kube_job_owner{owner_kind="CronJob"})
+              and on (namespace, job_name)
+              (max by (namespace, job_name) (kube_job_failed) > 0)
+            ),
+            "target", "$1", "owner_name", "(.+)"
+          )
+        unless on () absent(kube_cronjob_status_last_successful_time)
+      for: 15m
+      labels:
+        action: human
+        severity: warning

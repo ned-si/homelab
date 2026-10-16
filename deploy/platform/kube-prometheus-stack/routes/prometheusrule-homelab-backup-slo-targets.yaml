@@ -1,0 +1,129 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-backup-slo-targets
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.backup-slo.targets
+    rules:
+    - expr: vector(1)
+      labels:
+        cronjob: immich-library-backup
+        kind: restic
+        namespace: immich
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: immich-library-backup-local
+        kind: restic
+        namespace: immich
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: mealie-backup
+        kind: restic
+        namespace: mealie
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: paperless-backup
+        kind: restic
+        namespace: paperless
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: syncthing-backup
+        kind: restic
+        namespace: syncthing
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-postgres-backup
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-sonarr
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-radarr
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-lidarr
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-prowlarr
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-plex
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-jellyfin
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-lazylibrarian
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: theater-config-backup-bazarr
+        kind: restic
+        namespace: theater
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: books-config-backup-audiobookshelf
+        kind: restic
+        namespace: books
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: books-config-backup-calibre-web
+        kind: restic
+        namespace: books
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: home-assistant-backup
+        kind: restic
+        namespace: home
+      record: slo:backup_target:info
+    - expr: vector(1)
+      labels:
+        cronjob: grafana-backup
+        kind: restic
+        namespace: monitoring
+      record: slo:backup_target:info

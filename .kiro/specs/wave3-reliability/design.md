@@ -48,9 +48,9 @@ flowchart LR
 | Latency threshold | Static per-app series `slo:latency_threshold_seconds{app}` (one recording rule per app, like `slo:app:info`), values from the ladder by `scripts/slo-latency-thresholds.sh` against 14 days of data | A threshold per alert expression: duplicated eight times; a dynamic baseline: not reviewable, drifts with the regression it should catch |
 | Latency alerts | Slow burn only (3x over 1d/2h, 1x over 3d/6h), `action: auto`; persistent after 1d, `action: human`; both `unless` an availability burn of the same app | A fast latency burn: latency at the probe is rarely an emergency, and a hard outage is the availability alert's job |
 | Latency budget policy | Internal objective; the error-budget policy keeps acting on availability only | Two budgets driving the policy: the self-SLA is one number by decision |
-| Backup freshness SLI | restic: `time() - kube_cronjob_status_last_successful_time{cronjob=~".+-backup.*"} < 26h`, restricted to the CronJobs in `ci/active-cronjobs.txt` that are backups; CNPG: `time() - cnpg_collector_last_available_backup_timestamp < 26h` | Job-level metrics: a CronJob that never creates a Job leaves no Job series |
+| Backup freshness SLI | restic: `time() - kube_cronjob_status_last_successful_time < 26h` for each static target `slo:backup_target:info{namespace, cronjob}` (`routes/backup-slo-targets.yaml`, its own PrometheusRule so the promtool tests feed their own targets; repo-policy rule `backup-slo-targets` keeps it equal to the `-backup` entries of `ci/active-cronjobs.txt`); a target with no series is stale, so a deleted or never-successful CronJob counts. CNPG: `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp` (the plugin's metric; `cnpg_collector_last_available_backup_timestamp` is 0 on every cluster with the Barman Cloud plugin) | Job-level metrics: a CronJob that never creates a Job leaves no Job series; a regex over live CronJobs: a deleted one would vanish instead of going stale |
 | Freshness objective | 99% of the time over 30 days per target (about 7 h of staleness a month), as `avg_over_time(fresh[30d])` | 99.9%: one late night of the NAS would spend it |
-| New page | `BackupNotFresh` for restic targets only, `for: 15m`, `severity: warning`, `action: human`, inhibited by `KubeJobFailed` of the same CronJob | Also for CNPG: `CNPGBaseBackupTooOld` already pages |
+| New page | `BackupNotFresh` for restic targets only, `for: 15m`, `severity: warning`, `action: human`; quiet while a failed Job of the same CronJob exists (`kube_job_owner` joined to `kube_job_failed > 0`, the condition of the chart's `KubeJobFailed`), and while kube-state-metrics reports no CronJob at all | Also for CNPG: `CNPGBaseBackupTooOld` already pages; an Alertmanager inhibit rule: `KubeJobFailed` carries `job_name`, not the CronJob's name, so no `equal` label can match them |
 | Pause trigger | `SLOAutomergePause{app}` = `slo:error_budget_remaining:ratio_rate30d <= 0` and an availability burn of the app firing, `action: auto` | Budget at or below 0 alone: the state lasts until the 30-day window drops the outage, which would hold updates for weeks after the app is healthy again |
 | Pause channel | Route `SLOAutomergePause` to `ntfy-guard` (unmuted, `send_resolved`, repeat 4h, inside the 12 h ntfy.sh cache); the CI script reads the newest message per app, `CRITICAL:`/`Warning:` = active, `Resolved:` = not, like `scripts/ci/auto-rollback-guard.sh` | Cluster credentials in GitHub: rejected by decision; github-exporter writing to GitHub: it is read-only by design |
 | Pause gate | New job `error-budget` in `ci.yaml`, required through the existing `ci` aggregate job, runs `scripts/ci/error-budget-gate.sh` only for pull requests by `renovate[bot]`; skips (passes) with label `security` | A Renovate `prBlockedBy` setting: Renovate cannot read cluster state |
@@ -66,9 +66,9 @@ flowchart LR
   `platform/kube-prometheus-stack/routes/{alerts,argocd-alerts,arr-alerts,lan-alerts,nas-alerts,outage-alerts,slo}.yaml`,
   `platform/talos-drift/rules.yaml`, `platform/vuln-enrich/rules.yaml`: `runbook_url` on
   every `action: human` rule.
-- `platform/kube-prometheus-stack/values.yaml`: `X-Message` (and `X-Click`) of the `ntfy`
-  receiver; the `ntfy-guard` route matcher gains `SLOAutomergePause`; one inhibit rule
-  (`KubeJobFailed` inhibits `BackupNotFresh` on `namespace`, `cronjob`).
+- `platform/kube-prometheus-stack/values.yaml`: `X-Message` of the `ntfy` receiver; the
+  `ntfy-guard` route matcher gains `SLOAutomergePause`. No inhibit rule for
+  `BackupNotFresh`: its expression leaves out a CronJob with a failed Job (see Decisions).
 - `platform/kube-prometheus-stack/routes/slo.yaml`: groups `homelab.slo.latency`,
   `homelab.slo.latency-long`, `homelab.slo.latency-thresholds`, the two latency alerts,
   `SLOAutomergePause`.

@@ -146,6 +146,38 @@ restored and size-checked every week ([Verification](#verification)).
 | Media library | none | everything | — | — |
 | Cluster state | git, plus etcd snapshots by hand | last merged commit | no | rebuild, see [bootstrap.md](bootstrap.md) and [runbooks/cold-start.md](runbooks/cold-start.md) |
 
+### Freshness
+
+The 24 h RPO is measured as an SLO (PrometheusRule `homelab-backup-slo`,
+`platform/kube-prometheus-stack/routes/backup-slo.yaml`): a backup target is
+fresh while its last successful backup is younger than 26 hours, and each
+target should be fresh 99% of the time over 30 days (about 7 hours of
+staleness a month).
+
+| Kind | Targets | Last success from |
+| --- | --- | --- |
+| `restic` | the 18 backup CronJobs of `ci/active-cronjobs.txt` (`backup-slo-targets.yaml`, kept equal by repo-policy rule `backup-slo-targets`) | `kube_cronjob_status_last_successful_time`; no series counts as stale |
+| `cnpg` | every CloudNativePG cluster | `barman_cloud_cloudnative_pg_io_last_available_backup_timestamp` |
+
+`slo:backup_fresh{kind, namespace, target}` is 1 or 0;
+`slo:backup_freshness:ratio_rate30d` is the share of 30 days it was 1. The
+Homelab / Data protection dashboard shows both. A restic target stale for 15
+minutes pages `BackupNotFresh`
+([runbook](runbooks/alerts/BackupNotFresh.md)) whatever the cause, except a
+failed Job, which already pages as `KubeJobFailed`; a stale CNPG cluster pages
+`CNPGBaseBackupTooOld`. Read it:
+
+```sh
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090 > /dev/null 2>&1 &
+PF=$!
+sleep 3
+curl -s -m 10 http://localhost:9090/api/v1/query --data-urlencode 'query=slo:backup_fresh == 0' |
+  jq -r '.data.result[] | "\(.metric.kind) \(.metric.namespace)/\(.metric.target)"'
+kill "$PF"
+```
+
+Expected: no output when every target is fresh.
+
 ## Schedule
 
 All times UTC (the controller's time zone; no CronJob sets `timeZone`). Every job

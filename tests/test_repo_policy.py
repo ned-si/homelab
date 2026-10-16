@@ -491,6 +491,27 @@ def test_alert_tests_every_alert_has_a_promtool_test(tmp_path):
     assert "alert-tests" in r.stdout
 
 
+def backup_targets(*pairs):
+    rules = "".join(f"        - {{record: 'slo:backup_target:info', expr: vector(1), "
+                    f"labels: {{kind: restic, namespace: {ns}, cronjob: {cj}}}}}\n" for ns, cj in pairs)
+    return ("apiVersion: monitoring.coreos.com/v1\nkind: PrometheusRule\nmetadata: {name: t}\nspec:\n"
+            "  groups:\n    - name: t\n      rules:\n" + rules)
+
+
+def test_backup_slo_targets_match_active_cronjobs(tmp_path):
+    rel = "platform/kube-prometheus-stack/routes/backup-slo-targets.yaml"
+    files = {"ci/active-cronjobs.txt": "# x\nmealie/mealie-backup\nmealie/mealie-prune\nbackup-verify/backup-verify-files\n",
+             rel: backup_targets(("mealie", "mealie-backup"))}
+    r = policy(tmp_path, files=files)
+    assert not [f for f in fails(r) if "backup-slo-targets" in f], r.stdout
+    assert "backup-slo-targets" in r.stdout
+    files["ci/active-cronjobs.txt"] += "home/home-assistant-backup\n"
+    files[rel] = backup_targets(("mealie", "mealie-backup"), ("books", "books-gone-backup"))
+    assert [f for f in fails(policy(tmp_path / "b", files=files)) if "backup-slo-targets" in f] == [
+        f"FAIL backup-slo-targets: {rel}: no slo:backup_target:info for home/home-assistant-backup (ci/active-cronjobs.txt)",
+        f"FAIL backup-slo-targets: {rel}: books/books-gone-backup is not a backup CronJob of ci/active-cronjobs.txt"]
+
+
 def k8s_tree(k8s="1.37.1", node="v1.37.0", talos="v1.37.1"):
     ci = (f"name: ci\nenv:\n  K8S_VERSION: \"{k8s}\"\n"
           f"  KIND_NODE_IMAGE: kindest/node:{node}@sha256:{'0' * 64}\n")

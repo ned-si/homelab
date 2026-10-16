@@ -21,6 +21,7 @@ ntfy alertname=BackupVerifyFailed severity=warning check=postgres target=immich-
 ntfy alertname=BackupVerifyMissing severity=warning check=mariadb
 ntfy alertname=BackupLockBroken severity=critical check=lock target=ned-si-homelab-backups
 ntfy alertname=BackupLockCheckStale severity=warning
+ntfy alertname=BackupNotFresh severity=warning kind=restic namespace=paperless target=paperless-backup
 ntfy alertname=CNPGBackupFailed severity=critical namespace=immich pod=immich-db-1
 ntfy alertname=CNPGWALArchivingFailing severity=critical namespace=keycloak pod=keycloak-db-1
 ntfy alertname=KubeJobFailed severity=warning namespace=mealie job_name=mealie-backup-29868120
