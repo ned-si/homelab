@@ -1,0 +1,50 @@
+# Headlamp: read-only Kubernetes web UI for the phone, on the tailnet only
+# (https://headlamp.<tailnet>.ts.net, docs/remote-access.md).
+#
+#     tailnet --> Tailscale Ingress proxy --> headlamp-sso (oauth2-proxy,
+#     Keycloak, group admins) --> headlamp (ServiceAccount, read-only)
+#
+# Multi-source: the chart, its values from this repo, and the rendered proxy,
+# Ingress, RBAC and network policies (deploy/platform/headlamp/resources).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: headlamp
+  namespace: argo
+  annotations:
+    # After tailscale-operator (20): the `tailscale` IngressClass.
+    argocd.argoproj.io/sync-wave: "21"
+spec:
+  project: platform
+  sources:
+    - repoURL: https://kubernetes-sigs.github.io/headlamp/
+      chart: headlamp
+      # renovate: datasource=helm depName=headlamp registryUrl=https://kubernetes-sigs.github.io/headlamp/
+      targetRevision: 0.46.0
+      helm:
+        releaseName: headlamp
+        valueFiles:
+          - $values/platform/headlamp/values.yaml
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/platform/headlamp/resources
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: headlamp
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

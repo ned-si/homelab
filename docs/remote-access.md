@@ -7,6 +7,7 @@ internet: the operator and its proxies dial out to Tailscale.
 | Tailnet host | What | Who |
 | --- | --- | --- |
 | `tailscale-operator` | Kubernetes API server proxy (`kubectl`, k9s) | owner and admins of the tailnet, as `tailnet-admins` (cluster-admin) |
+| `headlamp` | Headlamp, read-only Kubernetes web UI | tailnet members, then Keycloak group `admins` |
 
 The public hostnames (`*.lilalala.com`) stay as they are; which admin UIs
 become tailnet-only is a later decision.
@@ -29,6 +30,30 @@ become tailnet-only is a later decision.
   `tag:k8s`, HTTPS on `https://<host>.<tailnet>.ts.net` with a Let's Encrypt
   certificate. Proxies use the ProxyClass `restricted` (userspace mode, no
   privileges).
+
+## Headlamp
+
+`platform/headlamp` (Argo CD app `headlamp`, namespace `headlamp`): the
+official chart, version and image digest pinned. Tailnet only: a Tailscale
+Ingress, no HTTPRoute on the public Gateway.
+
+```text
+phone --tailnet--> Ingress proxy (tailscale) --> headlamp-sso (oauth2-proxy) --> headlamp
+```
+
+- Login: the oauth2-proxy `headlamp-sso` with the Keycloak client `headlamp`
+  (realm code: `proxy_clients`, `platform_clients`, `access.conf`). Only the
+  group `admins` gets in; as a platform client, a login older than 12 hours
+  is asked again.
+- Rights: Headlamp uses its own ServiceAccount for every user
+  (`-unsafe-use-service-account-token`, `-proxy-auth`): `view` plus
+  `headlamp-read` (nodes, storage, CRDs). It can list pods, read logs and
+  events; it cannot read Secrets, exec, or change anything. Changes go
+  through git, or `kubectl` over the API proxy.
+- Network: CiliumNetworkPolicies with default-deny ingress. Only the Ingress
+  proxies reach `headlamp-sso`, and only `headlamp-sso` reaches Headlamp,
+  which trusts the identity headers it receives.
+- When Keycloak is down, Headlamp is unavailable; use `kubectl`.
 
 ## Tailnet policy
 
@@ -67,7 +92,10 @@ Certificates on.
 
 1. Tailscale app from the Play Store, log in, toggle it on.
 2. Browser: the tailnet hosts above, by their full name
-   `https://<host>.<tailnet>.ts.net`.
+   `https://<host>.<tailnet>.ts.net`. Headlamp: open
+   `https://headlamp.<tailnet>.ts.net`, log in with Keycloak, then Workloads →
+   Pods → a pod → Logs, and Cluster → Events. Add it to the home screen
+   (browser menu → Add to Home screen).
 3. `kubectl`, k9s and `talosctl` in Termux (F-Droid build):
 
    ```sh

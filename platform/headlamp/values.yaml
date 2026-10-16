@@ -1,0 +1,62 @@
+# headlamp chart values (clusters/homelab/platform/headlamp.yaml,
+# docs/remote-access.md).
+#
+# Login is the oauth2-proxy `headlamp-sso` in front (resources/sso.yaml):
+# Headlamp trusts its X-Forwarded-User header (`-proxy-auth`) and talks to the
+# API server as its own ServiceAccount (`unsafeUseServiceAccountToken`), so
+# every user gets the same read-only rights: the `view` ClusterRole (no
+# Secrets, no exec) plus `headlamp-read` (nodes and other cluster-scoped
+# objects, resources/rbac.yaml). Only headlamp-sso may reach the pod
+# (resources/network-policy.yaml): the header is trusted, so nothing else may
+# send it.
+fullnameOverride: headlamp
+
+image:
+  registry: ghcr.io
+  repository: headlamp-k8s/headlamp
+  # renovate: datasource=docker depName=ghcr.io/headlamp-k8s/headlamp
+  tag: v0.46.0@sha256:8a0ef97527544baa2b35825940ddf4db6e2d09c30cd5aa31fd269ff604cc8b75
+  pullPolicy: IfNotPresent
+
+config:
+  inCluster: true
+  inClusterContextName: homelab
+  sessionTTL: 43200
+  unsafeUseServiceAccountToken: true
+  oidc:
+    secret:
+      create: false
+  extraArgs:
+    - -proxy-auth=true
+
+clusterRoleBinding:
+  create: true
+  clusterRoleName: view
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  seccompProfile:
+    type: RuntimeDefault
+
+# readOnlyRootFilesystem: the chart adds an emptyDir at /tmp.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 100
+  runAsGroup: 101
+  capabilities:
+    drop: ["ALL"]
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 80

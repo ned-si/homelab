@@ -68,6 +68,13 @@ spec:
                   name: keycloak-proxy-clients
                   key: THEATER_SSO_CLIENT_SECRET
                   optional: true
+            # platform/secrets/headlamp-sso.sops.yaml.
+            - name: HEADLAMP_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-headlamp-client
+                  key: HEADLAMP_CLIENT_SECRET
+                  optional: true
           resources:
             requests:
               cpu: 50m
