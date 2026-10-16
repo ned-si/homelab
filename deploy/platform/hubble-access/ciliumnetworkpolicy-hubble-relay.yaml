@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/hubble-access
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/hubble-access and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-relay
+  namespace: kube-system
+spec:
+  enableDefaultDeny:
+    egress: false
+    ingress: true
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-relay
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s-app: hubble-ui
+    toPorts:
+    - ports:
+      - port: "4245"
+        protocol: TCP
+  - fromEntities:
+    - host

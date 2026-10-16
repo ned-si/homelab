@@ -32,6 +32,7 @@ data:
     grafana-oauth=admins
     theater-sso=admins TheaterAdmins
     headlamp=admins
+    hubble=admins
     home-assistant=admins HomeAssistantAdmins family
     immich=admins family media
     audiobookshelf=admins family media
@@ -637,6 +638,10 @@ data:
     headlamp.redirectUris=https://headlamp.tail32a1fc.ts.net/oauth2/callback
     headlamp.webOrigins=https://headlamp.tail32a1fc.ts.net
 
+    # oauth2-proxy in front of the Hubble UI, on the tailnet (platform/hubble-access).
+    hubble.redirectUris=https://hubble.tail32a1fc.ts.net/oauth2/callback
+    hubble.webOrigins=https://hubble.tail32a1fc.ts.net
+
     mealie.redirectUris=https://cook.lilalala.com/login https://cook.lilalala.com/login?direct=1
     mealie.webOrigins=https://cook.lilalala.com
 
@@ -661,7 +666,7 @@ data:
     loa_max_age=43200
 
     # Client IDs, space-separated.
-    platform_clients=argocd grafana-oauth security-admin-console headlamp
+    platform_clients=argocd grafana-oauth security-admin-console headlamp hubble
 
     # Clients deleted if present, space-separated. `myclient` is the Keycloak
     # getting-started client: public, direct access grants on, redirects to
@@ -674,7 +679,7 @@ data:
     # group, and sets the client secret from the environment variable
     # <CLIENT_ID>_CLIENT_SECRET (upper case, `-` as `_`). Group members stay in
     # the admin console. Redirect URIs are in clients.conf.
-    proxy_clients=theater-sso:TheaterAdmins headlamp:admins
+    proxy_clients=theater-sso:TheaterAdmins headlamp:admins hubble:admins
   sessions.conf: |
     # Session and token lifetimes of the `homelab` realm, applied by the
     # keycloak-realm-settings Job (realm-settings.yaml) after every sync.
@@ -715,5 +720,5 @@ data:
     accessTokenLifespan=300
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-552mh6b6tm
+  name: keycloak-realm-settings-9mc545fhhf
   namespace: keycloak

@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/hubble-access
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/hubble-access and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: sso-proxy
+    app.kubernetes.io/name: hubble-sso
+  name: hubble-sso
+  namespace: hubble
+spec:
+  ports:
+  - name: http
+    port: 4180
+    protocol: TCP
+    targetPort: http
+  selector:
+    app.kubernetes.io/name: hubble-sso
+  type: ClusterIP

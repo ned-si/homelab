@@ -1,0 +1,80 @@
+# Enforced from the start (default-deny ingress), unlike the allow-lists in
+# infrastructure/network-policies: the Hubble UI has no login and the relay
+# serves every flow of the cluster, so the path is closed hop by hop. Only the
+# Tailscale Ingress proxies reach hubble-sso, only hubble-sso reaches the UI,
+# only the UI reaches the relay. Egress stays open.
+#
+# The kube-system policies select the relay and the UI pods only; no other pod
+# in kube-system is affected. `kubectl port-forward` to the relay enters the
+# pod over loopback and is not subject to them.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-sso
+  namespace: hubble
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hubble-sso
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: tailscale
+      toPorts:
+        - ports:
+            - port: "4180"
+              protocol: TCP
+    # kubelet probes.
+    - fromEntities:
+        - host
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-ui
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-ui
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: hubble
+            app.kubernetes.io/name: hubble-sso
+      toPorts:
+        - ports:
+            - port: "8081"
+              protocol: TCP
+    - fromEntities:
+        - host
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-relay
+  namespace: kube-system
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s-app: hubble-relay
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s-app: hubble-ui
+      toPorts:
+        - ports:
+            - port: "4245"
+              protocol: TCP
+    - fromEntities:
+        - host

@@ -1,0 +1,29 @@
+upstreamConfig:
+  upstreams:
+    - id: hubble-ui
+      path: /
+      uri: http://hubble-ui.kube-system.svc.cluster.local:80
+      # The flow stream (gRPC-web) is a long-lived request.
+      timeout: 3600s
+server:
+  bindAddress: 0.0.0.0:4180
+providers:
+  - id: keycloak
+    provider: keycloak-oidc
+    clientID: hubble
+    clientSecretFile: /secrets/client-secret
+    scope: openid email profile groups
+    allowedGroups:
+      - admins
+    code_challenge_method: S256
+    oidcConfig:
+      issuerURL: https://auth.lilalala.com/realms/homelab
+      emailClaim: email
+      groupsClaim: groups
+      userIDClaim: email
+      audienceClaims:
+        - aud
+      insecureSkipNonce: false
+      # Users are created by hand in the admin console without email
+      # verification; access is the group above, never the email.
+      insecureAllowUnverifiedEmail: true

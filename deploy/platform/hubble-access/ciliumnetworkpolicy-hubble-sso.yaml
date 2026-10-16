@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/hubble-access
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/hubble-access and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hubble-sso
+  namespace: hubble
+spec:
+  enableDefaultDeny:
+    egress: false
+    ingress: true
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: hubble-sso
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: tailscale
+    toPorts:
+    - ports:
+      - port: "4180"
+        protocol: TCP
+  - fromEntities:
+    - host

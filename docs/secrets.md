@@ -28,7 +28,7 @@ Expected: the same `age1...` public key three times, and nothing else.
 | Directory | Files (`*.sops.yaml`) | Application |
 | --- | --- | --- |
 | `infrastructure/secrets/` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `democratic-csi-iscsi` | `secrets-infrastructure` (wave -25) |
-| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso` | `secrets-platform` (wave -25) |
+| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso`, `hubble-sso` | `secrets-platform` (wave -25) |
 | `apps/secrets/` | `immich-config`, `mealie-oidc`, `paperless-secrets`, `plex-claim`, `recyclarr-api-keys`, `theater-sso` | `secrets-apps` (wave -25) |
 
 Each file is a Kubernetes Secret with its own `metadata.namespace`; only

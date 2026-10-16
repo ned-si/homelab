@@ -8,6 +8,7 @@ internet: the operator and its proxies dial out to Tailscale.
 | --- | --- | --- |
 | `tailscale-operator` | Kubernetes API server proxy (`kubectl`, k9s) | owner and admins of the tailnet, as `tailnet-admins` (cluster-admin) |
 | `headlamp` | Headlamp, read-only Kubernetes web UI | tailnet members, then Keycloak group `admins` |
+| `hubble` | Hubble UI, live network flows of every namespace | tailnet members, then Keycloak group `admins` |
 | `home-exit-0`, `home-exit-1` | exit nodes: internet through the home connection | tailnet members |
 
 The public hostnames (`*.lilalala.com`) stay as they are; which admin UIs
@@ -64,6 +65,26 @@ phone --tailnet--> Ingress proxy (tailscale) --> headlamp-sso (oauth2-proxy) -->
   (`insecureAllowUnverifiedEmail`): users are created by hand without email
   verification, and access is the group, never the email.
 - When Keycloak is down, Headlamp is unavailable; use `kubectl`.
+
+## Hubble UI
+
+`platform/hubble-access` (Argo CD app `hubble-access`, namespace `hubble`):
+the access path to the Hubble UI, which runs with the `cilium` release in
+`kube-system` ([networking.md](networking.md#hubble)). Tailnet only.
+
+```text
+phone --tailnet--> Ingress proxy (tailscale) --> hubble-sso (oauth2-proxy) --> hubble-ui --> hubble-relay
+```
+
+- Login: the oauth2-proxy `hubble-sso` with the Keycloak client `hubble`
+  (`proxy_clients`, `platform_clients`, `access.conf`), group `admins` only,
+  a fresh login after 12 hours. The UI itself has no login.
+- Network: CiliumNetworkPolicies with default-deny ingress
+  (`platform/hubble-access/network-policy.yaml`). Only the Ingress proxies
+  reach `hubble-sso`, only `hubble-sso` reaches `hubble-ui`, and only
+  `hubble-ui` reaches `hubble-relay`.
+- When Keycloak is down, use the hubble CLI through a port-forward to the
+  relay ([networking.md](networking.md#hubble)).
 
 ## Exit node
 
