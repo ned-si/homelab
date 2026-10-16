@@ -60,7 +60,8 @@ are the ones pinned in [`talos/talconfig.yaml`](../talos/talconfig.yaml).
   Kubernetes down ([remote-access.md](remote-access.md#talos-api)):
 
   ```sh
-  talosctl --context homelab-ts -n talos-cp-3 health
+  talosctl --context homelab-ts -n talos-cp-3 health \
+    --control-plane-nodes 192.168.1.247,192.168.1.238,192.168.1.239 --worker-nodes 192.168.1.240
   talosctl --context homelab-ts -n talos-w-1 services
   talosctl --context homelab-ts -n talos-cp-1 get extensionstatus  # tailscale running
   ```

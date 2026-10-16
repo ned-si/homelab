@@ -18,6 +18,11 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 10. First automated rollouts through tuppr: Talos 1.14.3 and 1.14.4. [2.3] (#457, #499)
 - [x] 11. Docs: Talos crash course and cheatsheet; keep the boot partitions
       when resetting a node; BMC slots and the power-cycle runbook. (#312, #318, #236)
+- [x] 17. Talos API on the tailnet: `siderolabs/tailscale` in the schematic,
+      an ExtensionServiceConfig per node with the sealed OAuth secret,
+      tailnet names in `certSANs` and `/etc/hosts`, kubelet and etcd pinned to
+      the LAN, the `tag:talos` grant; rolled out node by node (w-1, cp-3,
+      cp-2, cp-1) without drain; context `homelab-ts`. [5] (#527)
 
 ## Open
 
@@ -33,8 +38,13 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [ ] 15. Revisit NVMe per node once the eMMC `life_time` trend has a few
       weeks of data.
 - [ ] 16. Seal the Turing Pi BMC credentials.
-- [ ] 17. Talos API on the tailnet: `siderolabs/tailscale` in the schematic,
-      an ExtensionServiceConfig per node with the sealed OAuth secret,
-      tailnet names in `certSANs` and `/etc/hosts`, kubelet and etcd pinned to
-      the LAN, the `tag:talos` grant; rolled out node by node (w-1, cp-3,
-      cp-2, cp-1) with `task talos:upgrade`; context `homelab-ts`. [5]
+- [ ] 18. Set the kubelet's graceful node shutdown explicitly in
+      `talconfig.yaml` (`shutdownGracePeriod`,
+      `shutdownGracePeriodCriticalPods`; Talos defaults 30 s / 10 s today),
+      sized so single-instance Postgres stops cleanly on a reboot.
+- [ ] 19. A drain path for the single-instance CloudNativePG clusters
+      (`nodeMaintenanceWindow` with `reusePVC`, set by the upgrade automation
+      around each node), so upgrades can drain instead of skipping it.
+- [ ] 20. Keep the tailnet addresses out of the cluster discovery data:
+      KubePrism lists them as API endpoints (unreachable, filtered as
+      unhealthy) and `talosctl health` without node lists dials them.
