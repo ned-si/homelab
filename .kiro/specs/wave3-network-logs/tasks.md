@@ -46,7 +46,8 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       values (limits, retention, `iscsi` volume, digests, JSON logs), `signoz-sso`,
       HTTPRoute `signoz.lilalala.com`, CNPs (OTLP from `logging` only), Keycloak client
       `signoz`, SOPS Secrets, `docs/observability.md`. [5.1, 5.2, 5.3, 5.4, 5.5, 5.6]
-- [ ] 10b. PR `docs(observability): SigNoz login`: Requirement 8, answer 11, the design
+- [x] 10b. (#570; organisation `homelab` registered, self-registration closed, admin
+      password sealed in #572) PR `docs(observability): SigNoz login`: Requirement 8, answer 11, the design
       row, `docs/decisions.md`. Register the organisation and the admin, close
       self-registration; ask the operator for his login email and whether his Google
       account is on a Workspace domain. [8.1, 8.2, 8.3]
@@ -55,15 +56,20 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       `/login?password=Y`); with a Workspace domain also the OAuth client in SOPS and the
       authenticated domain set through the API. Check the login matrix of 8.8. [8.3, 8.4,
       8.5, 8.6, 8.7, 8.8]
-- [ ] 11. PR `feat(observability): ship logs to SigNoz over OTLP`: Vector sink switched to
-      OTLP. [4.3]
-- [ ] 12. PR `feat(talos): send service and kernel logs to Vector`: `talos/patches/logging.yaml`,
+- [x] 11. (#574; collector metrics fixed in #571) PR `feat(observability): ship logs to
+      SigNoz over OTLP`: Vector sink switched to OTLP. The collector accepts OTLP/HTTP from
+      the node identities, not from Vector's pod labels: Vector runs on the host network.
+      Checked: rows in `signoz_logs.distributed_logs_v2` from `pods` on all four nodes,
+      `talos-service` on all four, `talos-kernel` on cp-1 and w-1 (kernel lines are rare). [4.3]
+- [x] 12. (#548; applied on all four nodes without a reboot) PR `feat(talos): send service and kernel logs to Vector`: `talos/patches/logging.yaml`,
       the `KmsgLogConfig` document, `docs/talos.md`; etcd snapshot, then
       `task talos:apply` node by node from main. [4.5]
 - [x] 13. (#561) PR `feat(backups): SigNoz metadata backup`: restic CronJob with the pending
       guard, `ci/active-cronjobs.txt`, `ci/guard-modes.txt`, `docs/backups.md` (metadata
       backed up, ClickHouse disposable); rehearse one restore into a scratch namespace and
       write it down. [6.1, 6.2, 6.3, 6.4]
+- [ ] 13b. The restore rehearsal of task 13, not done yet: it needs a nightly snapshot of
+      the real organisation (the first is 2026-10-17 06:00 UTC) and a scratch SigNoz. [6.4]
 - [x] 14. (#564) PR `feat(observability): SigNoz trial gate`: `platform/signoz/rules.yaml` (trial
       recording rules, `signoz_trial:pass`, `LogPipelineDiscarding`,
       `SigNozCollectorAbsent`) with promtool tests, runbook sections, `routes.txt` lines,
@@ -72,4 +78,8 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
 - [ ] 15. On the end date: read `signoz_trial:pass` over the trial window and the phone
       check; PR `docs(observability): SigNoz trial result` that either drops "trial" or
       removes SigNoz and records the Loki fallback. [7.4, 7.5]
-- [ ] 16. Tick this file and record the PR numbers. [all]
+- [x] 16. Tick this file and record the PR numbers. Also merged for this spec: #544
+      (relay peers alert counts IDLE), #551 (would-be drops scoped), #560 (Vector memory),
+      #566 (SigNoz sync drift), #568 (no automerge for data-store majors). Open: 7 (needs
+      7 days of flows, earliest 2026-10-24), 10c (waits on the operator), 13b, 15
+      (2026-10-31). [all]
