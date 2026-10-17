@@ -194,8 +194,15 @@ Vector (`platform/vector`, Argo CD app `vector`, namespace `logging`) runs
 one pod per node and reads every container log in `/var/log/pods`. Each line
 is parsed: JSON first, then logfmt (a line starting with `key=value`); the
 fields land under `attributes`, Kubernetes metadata under `kubernetes`. Any
-other line stays a plain `message` with `parse_failed=true`. The sink is a
-blackhole until the log store takes the stream over OTLP.
+other line stays a plain `message` with `parse_failed=true`. Every event goes
+to SigNoz over OTLP/HTTP (`signoz-otel-collector.signoz.svc:4318`) as one log
+record: `service.name`, `k8s.*`, `host.name` and `log.source` as resource
+attributes, the parsed fields and `parse_failed` as record attributes, the
+severity from the `level` field (`msg` or `message` as the body when the line
+had one). Buffers are in memory only, 32 MiB per sink: pods block when full
+(the kubelet keeps the files and Vector resumes from its checkpoints), Talos
+drops the newest (counted in `vector_component_discarded_events_total`,
+which `LogPipelineDiscarding` watches).
 
 It also takes the node's Talos logs, which Talos sends as JSON lines over TCP
 to the host-network listeners ([talos.md](talos.md#why-it-is-like-this)):
@@ -249,8 +256,10 @@ trial. UI at `https://signoz.lilalala.com`: the oauth2-proxy
 
 CiliumNetworkPolicies with default-deny ingress
 (`platform/signoz/resources/network-policy.yaml`): the Gateway reaches only
-`signoz-sso`, `signoz-sso` only the UI, the Vector pods only the collector's
-OTLP ports, and nothing outside the namespace reaches ClickHouse or
+`signoz-sso`, `signoz-sso` only the UI, the nodes only the collector's
+OTLP/HTTP port (Vector runs on the host network, so it has a node identity,
+not a pod one: any host-network process could send logs, none can read
+them), and nothing outside the namespace reaches ClickHouse or
 ZooKeeper. The chart's ClickHouse password is its fixed default, so that
 policy is the control.
 

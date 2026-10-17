@@ -2,8 +2,8 @@
 #
 #   signoz-sso      from the shared Gateway (reserved:ingress) on 4180
 #   signoz (UI)     from signoz-sso on 8080
-#   otel-collector  OTLP from the Vector agents (namespace logging) on 4317 and
-#                   4318; Prometheus on 8888
+#   otel-collector  OTLP/HTTP from the Vector agents (host network, so the
+#                   node identities) on 4318; Prometheus on 8888
 #   clickhouse      from pods in this namespace only (the chart keeps a fixed
 #                   default password, so the network is the control)
 #   zookeeper       from pods in this namespace only
@@ -78,14 +78,14 @@ spec:
     ingress: true
     egress: false
   ingress:
-    - fromEndpoints:
-        - matchLabels:
-            k8s:io.kubernetes.pod.namespace: logging
-            app.kubernetes.io/name: vector
+    # Vector runs on the host network (platform/vector/values.yaml), so its
+    # packets carry a node identity, not the pod's labels: `remote-node` from
+    # the other nodes here, `host` from the collector's own node (the last
+    # rule). OTLP/HTTP only; Vector does not use gRPC.
+    - fromEntities:
+        - remote-node
       toPorts:
         - ports:
-            - port: "4317"
-              protocol: TCP
             - port: "4318"
               protocol: TCP
     - fromEndpoints:

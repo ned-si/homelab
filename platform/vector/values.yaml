@@ -3,7 +3,7 @@
 #
 # One DaemonSet pod per node reads /var/log/pods (kubelet's container logs,
 # Talos keeps them on the EPHEMERAL partition), parses each line and, for now,
-# drops it in a blackhole: the store (SigNoz, OTLP) is the next change.
+# ships it to SigNoz over OTLP/HTTP (signoz-otel-collector, namespace signoz).
 #
 # Runs as uid 0 with every capability dropped and a read-only root: the log
 # files are root-owned 0640, which root reads as their owner. Kubernetes sets
@@ -177,12 +177,136 @@ customConfig:
             namespace: '{{ "{{" }} kubernetes.pod_namespace {{ "}}" }}'
             source: '{{ "{{" }} log_source {{ "}}" }}'
             parse_failed: '{{ "{{" }} parse_failed {{ "}}" }}'
+    # One OTLP log record per event: resource attributes (service.name,
+    # k8s.*, host.name, log.source), the parsed fields as record attributes,
+    # severity from the `level` field.
+    otlp_pods:
+      type: remap
+      inputs: [parsed]
+      source: |
+        # One OTLP log record per event (codec otlp of the opentelemetry sink).
+        ts = to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds")
+        attrs = {}
+        if is_object(.attributes) { attrs = object!(.attributes) }
+        level = downcase(string(attrs.level || attrs.lvl || attrs.severity || .level || "") ?? "")
+        severity = if includes(["error", "err", "fatal", "panic", "crit", "critical", "alert", "emerg"], level) {
+          "ERROR"
+        } else if includes(["warn", "warning"], level) {
+          "WARN"
+        } else if includes(["debug", "trace"], level) {
+          "DEBUG"
+        } else if level == "" { "UNSPECIFIED" } else { "INFO" }
+        record_attrs = [{"key": "parse_failed", "value": {"boolValue": .parse_failed == true}}]
+        for_each(attrs) -> |k, v| {
+          s = if is_string(v) { string!(v) } else { encode_json(v) }
+          record_attrs = push(record_attrs, {"key": k, "value": {"stringValue": s}})
+        }
+        src = string(.log_source) ?? "pods"
+        body = string(attrs.msg || attrs.message) ?? string(.message) ?? ""
+        resource = [
+          {"key": "log.source", "value": {"stringValue": src}},
+          {"key": "host.name", "value": {"stringValue": string(.host) ?? ""}}
+        ]
+        if src == "pods" {
+          resource = push(resource, {"key": "service.name", "value": {"stringValue": string(.kubernetes.container_name) ?? "unknown"}})
+          resource = push(resource, {"key": "k8s.namespace.name", "value": {"stringValue": string(.kubernetes.pod_namespace) ?? ""}})
+          resource = push(resource, {"key": "k8s.pod.name", "value": {"stringValue": string(.kubernetes.pod_name) ?? ""}})
+          resource = push(resource, {"key": "k8s.container.name", "value": {"stringValue": string(.kubernetes.container_name) ?? ""}})
+          resource = push(resource, {"key": "k8s.node.name", "value": {"stringValue": string(.kubernetes.pod_node_name) ?? ""}})
+        } else {
+          resource = push(resource, {"key": "service.name", "value": {"stringValue": string(.service) ?? src}})
+        }
+        . = {"resourceLogs": [{
+          "resource": {"attributes": resource},
+          "scopeLogs": [{
+            "scope": {"name": "vector"},
+            "logRecords": [{
+              "timeUnixNano": ts,
+              "body": {"stringValue": body},
+              "severityText": severity,
+              "attributes": record_attrs
+            }]
+          }]
+        }]}
+    otlp_talos:
+      type: remap
+      inputs: [talos_parsed]
+      source: |
+        # One OTLP log record per event (codec otlp of the opentelemetry sink).
+        ts = to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds")
+        attrs = {}
+        if is_object(.attributes) { attrs = object!(.attributes) }
+        level = downcase(string(attrs.level || attrs.lvl || attrs.severity || .level || "") ?? "")
+        severity = if includes(["error", "err", "fatal", "panic", "crit", "critical", "alert", "emerg"], level) {
+          "ERROR"
+        } else if includes(["warn", "warning"], level) {
+          "WARN"
+        } else if includes(["debug", "trace"], level) {
+          "DEBUG"
+        } else if level == "" { "UNSPECIFIED" } else { "INFO" }
+        record_attrs = [{"key": "parse_failed", "value": {"boolValue": .parse_failed == true}}]
+        for_each(attrs) -> |k, v| {
+          s = if is_string(v) { string!(v) } else { encode_json(v) }
+          record_attrs = push(record_attrs, {"key": k, "value": {"stringValue": s}})
+        }
+        src = string(.log_source) ?? "pods"
+        body = string(attrs.msg || attrs.message) ?? string(.message) ?? ""
+        resource = [
+          {"key": "log.source", "value": {"stringValue": src}},
+          {"key": "host.name", "value": {"stringValue": string(.host) ?? ""}}
+        ]
+        if src == "pods" {
+          resource = push(resource, {"key": "service.name", "value": {"stringValue": string(.kubernetes.container_name) ?? "unknown"}})
+          resource = push(resource, {"key": "k8s.namespace.name", "value": {"stringValue": string(.kubernetes.pod_namespace) ?? ""}})
+          resource = push(resource, {"key": "k8s.pod.name", "value": {"stringValue": string(.kubernetes.pod_name) ?? ""}})
+          resource = push(resource, {"key": "k8s.container.name", "value": {"stringValue": string(.kubernetes.container_name) ?? ""}})
+          resource = push(resource, {"key": "k8s.node.name", "value": {"stringValue": string(.kubernetes.pod_node_name) ?? ""}})
+        } else {
+          resource = push(resource, {"key": "service.name", "value": {"stringValue": string(.service) ?? src}})
+        }
+        . = {"resourceLogs": [{
+          "resource": {"attributes": resource},
+          "scopeLogs": [{
+            "scope": {"name": "vector"},
+            "logRecords": [{
+              "timeUnixNano": ts,
+              "body": {"stringValue": body},
+              "severityText": severity,
+              "attributes": record_attrs
+            }]
+          }]
+        }]}
   sinks:
-    # Until SigNoz takes the stream.
-    discard:
-      type: blackhole
-      inputs: [parsed, talos_parsed]
-      print_interval_secs: 0
+    # OTLP/HTTP to the SigNoz collector, memory buffers only (no disk: eMMC).
+    # Pods block when full (the kubelet keeps the files, Vector resumes from
+    # its checkpoint); Talos drops the newest (counted in
+    # vector_component_discarded_events_total).
+    signoz_pods:
+      type: opentelemetry
+      inputs: [otlp_pods]
+      protocol:
+        type: http
+        uri: http://signoz-otel-collector.signoz.svc.cluster.local:4318/v1/logs
+        method: post
+        encoding:
+          codec: otlp
+      buffer:
+        type: memory
+        max_size: 33554432
+        when_full: block
+    signoz_talos:
+      type: opentelemetry
+      inputs: [otlp_talos]
+      protocol:
+        type: http
+        uri: http://signoz-otel-collector.signoz.svc.cluster.local:4318/v1/logs
+        method: post
+        encoding:
+          codec: otlp
+      buffer:
+        type: memory
+        max_size: 33554432
+        when_full: drop_newest
     prometheus:
       type: prometheus_exporter
       inputs: [vector_metrics, parse_metrics]
