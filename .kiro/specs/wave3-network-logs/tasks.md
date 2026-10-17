@@ -83,3 +83,20 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       #566 (SigNoz sync drift), #568 (no automerge for data-store majors). Open: 7 (needs
       7 days of flows, earliest 2026-10-24), 10c (waits on the operator), 13b, 15
       (2026-10-31). [all]
+- [ ] 17. PR `docs(storage): SELinux labels on iSCSI volumes`: Requirement 9, the design
+      rows, `docs/decisions.md` (prerequisite of SELinux enforcing), the threat model. [9]
+- [ ] 18. PR `feat(storage): SELinux label on the iSCSI StorageClasses`: `mountOptions` and
+      `Force=true,Replace=true` in `infrastructure/democratic-csi/values-iscsi.yaml`, a
+      repo policy check with tests, the StorageClass table in `docs/backups.md`. Before
+      the sync: a scratch
+      StorageClass and claim on the cluster prove that deleting a class keeps its
+      volumes bound and that a labelled volume mounts as `ephemeral_t`. [9.1, 9.2]
+- [ ] 19. PR `feat(storage): pv-selinux-label script`: `scripts/pv-selinux-label.sh` (dry
+      run by default, `--apply`, `--revert`, refuses `immich-data` and git-managed
+      volumes), its bash test, a runbook. [9.3, 9.4, 9.6]
+- [ ] 20. PR `feat(observability): count auditd records`: the Vector counter, the
+      `AuditAVCRateHigh` rule with a promtool test, `routes.txt`, the Logs section. [9.7,
+      9.8]
+- [ ] 21. Roll out: the ClickHouse volume first and its proof (9.5); then one application
+      at a time, git-managed volumes by one PR each, the others by the script, databases
+      after a fresh backup. Record each volume here. [9.3, 9.5, 9.6]

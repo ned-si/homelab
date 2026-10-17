@@ -327,6 +327,27 @@ alone (SigNoz has no trusted-header login), and Google as a Keycloak identity
 provider for now (it changes the login of every UI, so it gets its own spec).
 Details: [wave 3 design, answer 11](../.kiro/specs/wave3-network-logs/design.md#answers).
 
+## SELinux labels on CSI volumes
+
+Every iSCSI volume is mounted with
+`context=system_u:object_r:ephemeral_t:s0`, the label Talos gives its own
+user volumes, set as a StorageClass mount option and on each existing
+PersistentVolume. One exception: the volume of `immich/immich-data` stays
+unlabelled until the operator decides otherwise.
+
+Why: Talos runs SELinux in permissive mode and cannot label a volume that a
+CSI driver mounts. Without the label every file a pod touches is
+`unlabeled_t`, and each access logs an AVC denial with five companion
+records. On 2026-10-17 ClickHouse alone produced about 1,300 records a
+second on one node, and shipping them to SigNoz made ClickHouse write more.
+In enforcing mode those same accesses would fail, so labelled volumes are a
+prerequisite of SELinux enforcing (wave 5, spec `platform-talos` task 13).
+
+Rejected: dropping the records in Vector (hides the cause), turning SELinux
+off (gives up enforcing mode) and `chcon` inside the volumes (a mount
+without `context=` brings the old labels back).
+Details: [wave 3 design](../.kiro/specs/wave3-network-logs/design.md#decisions).
+
 ## Seafile removed
 
 Seafile was removed on 2026-10-16. Nobody used it: shared documents live in

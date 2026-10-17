@@ -115,7 +115,10 @@ point, a credential or an admission path is added or removed.
   the audit log stays on each control plane's eMMC.
 - Planned: NFS exports scoped to the node addresses; Kubernetes API login
   through Keycloak OIDC with the admin certificate kept as break-glass;
-  central logs including the audit log; SELinux enforcing on Talos.
+  central logs including the audit log; SELinux enforcing on Talos, which
+  needs every CSI volume labelled first
+  ([decisions.md](decisions.md#selinux-labels-on-csi-volumes); `immich-data`
+  is still unlabelled by choice).
 
 ### The phone over a VPN
 
