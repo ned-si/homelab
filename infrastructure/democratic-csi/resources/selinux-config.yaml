@@ -1,0 +1,22 @@
+# /etc/selinux/config for the iSCSI node plugin (values-iscsi.yaml,
+# node.driver.extraVolumeMounts). Without this file libselinux reports SELinux
+# disabled inside the container, and libmount then drops `context=` from
+# every mount: found on 2026-10-17 with LIBMOUNT_DEBUG (fs options
+# `context=...,nouuid` became `nouuid`), see the wave 3 design
+# (.kiro/specs/wave3-network-logs/design.md, "libmount in the CSI node
+# plugin"). The content only tells libselinux that SELinux is on; Talos
+# decides the real mode. Pinned to exactly these two lines.
+#
+# The node plugin pods cannot start without it: never pruned or deleted, and
+# synced before the DaemonSet.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iscsi-node-selinux-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+data:
+  config: |
+    SELINUX=permissive
+    SELINUXTYPE=targeted

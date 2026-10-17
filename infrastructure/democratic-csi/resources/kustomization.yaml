@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Rendered to deploy/infrastructure/democratic-csi/resources, the third source
+# of the democratic-csi Application.
+namespace: democratic-csi
+resources:
+  - selinux-config.yaml
