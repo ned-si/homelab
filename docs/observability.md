@@ -204,6 +204,13 @@ had one). Buffers are in memory only, 32 MiB per sink: pods block when full
 drops the newest (counted in `vector_component_discarded_events_total`,
 which `LogPipelineDiscarding` watches).
 
+Talos auditd records are all kept and also counted by record type,
+`vector_audit_records_total{node, type}` (`AVC`, `SYSCALL`, `BPF`, ...).
+`AuditAVCRateHigh` (`action: auto`, dashboard only) fires when one node logs
+more than 10 SELinux AVC records a second for 30 minutes, usually a volume
+without the SELinux label
+([runbooks/pv-selinux-label.md](runbooks/pv-selinux-label.md)).
+
 It also takes the node's Talos logs, which Talos sends as JSON lines over TCP
 to the host-network listeners ([talos.md](talos.md#why-it-is-like-this)):
 

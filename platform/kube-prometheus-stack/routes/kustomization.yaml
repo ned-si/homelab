@@ -29,3 +29,5 @@ resources:
   - netpol.yaml
   # The SigNoz trial gate, the log-pipeline alerts and the collector scrape.
   - signoz-trial.yaml
+  # Talos audit records (Vector's counter): AuditAVCRateHigh.
+  - audit-records.yaml
