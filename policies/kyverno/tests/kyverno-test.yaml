@@ -9,6 +9,7 @@ policies:
   - ../upstream/best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
   - ../upstream/pod-security-vpol/baseline/disallow-privileged-containers/disallow-privileged-containers.yaml
   - ../upstream/best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
+  - ../drop-cap-net-raw.yaml
   - ../require-probes.yaml
 resources:
   - resources.yaml
@@ -67,4 +68,15 @@ results:
     isValidatingPolicy: true
     resources: [no-liveness]
     kind: Deployment
+    result: fail
+  # `drop: [ALL]` counts, which is what upstream's copy failed on.
+  - policy: drop-cap-net-raw
+    isValidatingPolicy: true
+    resources: [cap-drop-all, cap-drop-net-raw]
+    kind: Pod
+    result: pass
+  - policy: drop-cap-net-raw
+    isValidatingPolicy: true
+    resources: [cap-no-drop]
+    kind: Pod
     result: fail
