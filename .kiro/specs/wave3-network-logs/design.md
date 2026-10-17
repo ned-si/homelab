@@ -57,7 +57,8 @@ flowchart LR
 | Sink | Vector `opentelemetry` sink, OTLP/HTTP to `signoz-otel-collector.signoz.svc:4318`, memory buffer 64 MiB, `when_full: block` for pods (kubelet keeps the files) and `drop_newest` for Talos (counted) | A disk buffer: eMMC writes |
 | SigNoz install | Official `signoz` chart, namespace `signoz`, platform layer; ClickHouse single replica (limit 6 GiB), Keeper/ZooKeeper single replica (0.5 GiB), collector (1 GiB), SigNoz (1 GiB); chart and images digest-pinned in values with Renovate comments | Docker Compose or a hand-written manifest set: no upgrade path |
 | ClickHouse volume | 50 GiB on `iscsi` (reclaim Delete): the data is disposable by decision, so a removed trial leaves no orphan zvol | `iscsi-retain`: keeps a volume no one restores |
-| UI access | oauth2-proxy `signoz-sso` (Keycloak client `signoz`, group `admins`, platform client), HTTPRoute `signoz.lilalala.com` on the shared Gateway with the #465 headers; SigNoz's own login behind it (one admin, password in SOPS, copy in the password manager); no `skip_auth_routes` | A tailnet-only Ingress: superseded by the operator decision of 2026-10-16; SigNoz SSO: Enterprise only |
+| UI access | oauth2-proxy `signoz-sso` (Keycloak client `signoz`, group `admins`, platform client), HTTPRoute `signoz.lilalala.com` on the shared Gateway with the #465 headers; SigNoz's own login behind it (one admin, password in SOPS, copy in the password manager); no `skip_auth_routes` | A tailnet-only Ingress: superseded by the operator decision of 2026-10-16 |
+| SigNoz login (Requirement 8) | Keycloak gate always, then SigNoz's own login: the Community Edition Google method on an authenticated domain if the operator's Google account is on a Workspace domain he controls (that domain only, `Enforce SSO`, default role VIEWER, client in SOPS); otherwise the local admin password. Self-registration closed after setup. The admin's email is the operator's real address either way (answer 11) | OIDC or SAML against Keycloak: Enterprise licence only; a `gmail.com` authenticated domain: never matches (the `hd` check) and would mean "any Gmail user"; oauth2-proxy alone: SigNoz has no trusted-header login; Google as a Keycloak identity provider: a realm-wide change for every UI, its own spec |
 | Metadata backup | Nightly restic CronJob of the SigNoz metadata volume to the S3 repository, guarded like `routes/grafana-backup.yaml` (best-effort copy of a live SQLite file unless SigNoz offers a consistent export, open question 6) | ClickHouse `BACKUP ... TO S3`: backs up the disposable part |
 | Paging | Only "logs went blind": `LogPipelineDiscarding` (Vector `component_discarded_events_total` rising for 1 h) and `SigNozCollectorAbsent` (no collector target for 1 h), `action: human`, warning | SigNoz alert rules: a second paging path with no promtool tests |
 | Trial evaluation | Recording rules `signoz_trial:clickhouse_memory_p95_bytes`, `:clickhouse_restarts`, `:volume_growth_bytes_per_day`, `:volume_projection_ratio`, `:parse_failed_ratio`, `:discarded_events`, `:sources_present`, and `signoz_trial:pass` (1 when all hold); a panel on Homelab / Nodes or Storage | A judgement at the end: not deterministic |
@@ -144,6 +145,8 @@ flowchart LR
    `40-seafile.yaml` is removed.
 10. Does the exit node (#503) run as a Connector pod in `tailscale`, and which egress does
     it need?
+11. (Added for Requirement 8) Which SSO methods does SigNoz v0.146.0 offer without a
+    licence, and can one of them log in a Google account?
 
 ## Answers
 
@@ -208,3 +211,19 @@ flowchart LR
     home-exit`, `parent-resource-type: connector`) in `tailscale`. Egress: the tailnet
     control plane and DERP (`world` 443, UDP 3478, UDP 41641) and, as an exit node, any
     `world` destination; nothing in the cluster or on the LAN.
+11. Only Google, and only for Google Workspace accounts. The server has four login
+    providers: email and password, Google (`pkg/authn/callbackauthn/googlecallbackauthn`),
+    and OIDC and SAML under `ee/`, which fail with "a valid license is not available"
+    without a licence (`/api/v1/version` reports `ee: Y` because the image is the
+    enterprise build, not because a licence is active). The Google method is bound to an
+    authenticated domain: it sends `hd=<domain>` and rejects an ID token whose `hd` claim
+    differs from the domain. A personal Gmail account has no `hd` claim, so a `gmail.com`
+    domain can never log anyone in; a Workspace domain admits every verified account of
+    that Workspace just in time (as the default role), and narrowing it to groups needs a
+    Workspace service account with domain-wide delegation. There is no per-user
+    allowlist and no trusted-header login, so oauth2-proxy cannot replace SigNoz's login.
+    The redirect URI is `https://signoz.lilalala.com/api/v1/complete/google`; a broken
+    setup is bypassed with `/login?password=Y`. Sources:
+    [SSO overview](https://signoz.io/docs/userguide/sso-authentication/),
+    [Google Workspace guide](https://signoz.io/docs/manage/administrator-guide/sso/user-guides/sso-google/),
+    the v0.146.0 source above.

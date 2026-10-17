@@ -190,3 +190,34 @@ numbers, so that keeping SigNoz is not a matter of taste.
 6. WHEN the Vector agent discards events or the SigNoz collector is absent for one hour,
    THE system SHALL fire an `action: human` warning (logs went blind), with promtool
    tests, a runbook section and a `routes.txt` line.
+
+### Requirement 8: SigNoz login
+
+**User story:** As the operator, I want to log in to SigNoz with my Google account if
+SigNoz allows it, and with exactly one known identity either way, so that the second
+login behind Keycloak is not a password nobody remembers and no stranger gets an account.
+
+#### Acceptance criteria
+
+1. THE Keycloak gate of Requirement 5.2 (oauth2-proxy `signoz-sso`, group `admins`)
+   SHALL stay in front of SigNoz whatever SigNoz's own login method is.
+2. WHEN SigNoz setup has completed, THE register endpoint SHALL refuse a new
+   organisation or user, and new users SHALL join only by invite or by the login method
+   of criterion 4.
+3. THE SigNoz admin user's email SHALL be the operator's real login identity (the
+   address of his Keycloak user and Google account), so that a later SSO login maps to
+   that user instead of creating a second one.
+4. WHERE the operator's Google account belongs to a Google Workspace domain he
+   controls, THE SigNoz organisation SHALL have one authenticated domain, that domain,
+   with the Google method, an OAuth client used by SigNoz only, `Enforce SSO` on and
+   VIEWER as the default role of a just-in-time user.
+5. IF the operator's Google account is a personal `gmail.com` account, THEN SigNoz SHALL
+   NOT have a Google authenticated domain, and SigNoz's login SHALL stay the local
+   password of criterion 3, stored in SOPS.
+6. THE password login SHALL stay reachable as break-glass (`/login?password=Y`) with the
+   SOPS password, and the runbook SHALL say so.
+7. THE OAuth client secret, if any, SHALL be stored in SOPS and set in SigNoz only
+   through its API or UI (SigNoz keeps it in the backed-up metadata store, Requirement 6).
+8. WHEN the login method changes, THE run SHALL check it with a real login: a Keycloak
+   member of `admins` reaches SigNoz and lands as ADMIN under the email of criterion 3; a
+   Keycloak user outside `admins` is refused before SigNoz.

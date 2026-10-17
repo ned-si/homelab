@@ -46,6 +46,15 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       values (limits, retention, `iscsi` volume, digests, JSON logs), `signoz-sso`,
       HTTPRoute `signoz.lilalala.com`, CNPs (OTLP from `logging` only), Keycloak client
       `signoz`, SOPS Secrets, `docs/observability.md`. [5.1, 5.2, 5.3, 5.4, 5.5, 5.6]
+- [ ] 10b. PR `docs(observability): SigNoz login`: Requirement 8, answer 11, the design
+      row, `docs/decisions.md`. Register the organisation and the admin, close
+      self-registration; ask the operator for his login email and whether his Google
+      account is on a Workspace domain. [8.1, 8.2, 8.3]
+- [ ] 10c. PR `feat(observability): SigNoz admin under the operator's identity`: the admin
+      email changed to his address, the SOPS password re-sealed, the runbook (break-glass
+      `/login?password=Y`); with a Workspace domain also the OAuth client in SOPS and the
+      authenticated domain set through the API. Check the login matrix of 8.8. [8.3, 8.4,
+      8.5, 8.6, 8.7, 8.8]
 - [ ] 11. PR `feat(observability): ship logs to SigNoz over OTLP`: Vector sink switched to
       OTLP. [4.3]
 - [ ] 12. PR `feat(talos): send service and kernel logs to Vector`: `talos/patches/logging.yaml`,
