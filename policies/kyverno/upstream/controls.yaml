@@ -149,7 +149,7 @@ policies:
     nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
     csf: ["PR.PS-01"]
   drop-cap-net-raw:
-    file: best-practices-vpol/require-drop-cap-net-raw/require-drop-cap-net-raw.yaml
+    file: ../drop-cap-net-raw.yaml
     cis: ["5.2.8"]
     nist_800_190: ["4.4.3"]
     nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
