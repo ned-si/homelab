@@ -78,14 +78,27 @@ storageClasses:
   # immutable, and a StorageClass's reclaimPolicy is immutable too. The data
   # PVs bound through it were switched to Retain individually on 2026-10-04
   # (docs/backups.md); caches stay on Delete.
+  #
+  # mountOptions: the SELinux label Talos gives its own user volumes
+  # (ephemeral_t). Talos cannot label a volume a CSI driver mounts, so
+  # without it every file is `unlabeled_t` and each access logs an AVC
+  # denial (permissive mode today, a failure once enforcing). A
+  # StorageClass's mountOptions are immutable, hence Force/Replace: Argo
+  # deletes and recreates the class, which leaves bound PVs and claims alone
+  # (checked on a scratch class, 2026-10-17). Existing PVs get the option one
+  # by one (scripts/pv-selinux-label.sh, infrastructure/iscsi-volumes/).
+  # CI: repo policy `iscsi-selinux-label`.
   - name: iscsi
     defaultClass: true
+    annotations:
+      argocd.argoproj.io/sync-options: Force=true,Replace=true
     reclaimPolicy: Delete
     volumeBindingMode: Immediate
     allowVolumeExpansion: true
     parameters:
       fsType: xfs
-    mountOptions: []
+    mountOptions:
+      - context=system_u:object_r:ephemeral_t:s0
     secrets:
       provisioner-secret:
       controller-publish-secret:
@@ -97,12 +110,15 @@ storageClasses:
   # anything that is not a regenerable cache.
   - name: iscsi-retain
     defaultClass: false
+    annotations:
+      argocd.argoproj.io/sync-options: Force=true,Replace=true
     reclaimPolicy: Retain
     volumeBindingMode: Immediate
     allowVolumeExpansion: true
     parameters:
       fsType: xfs
-    mountOptions: []
+    mountOptions:
+      - context=system_u:object_r:ephemeral_t:s0
     secrets:
       provisioner-secret:
       controller-publish-secret:
