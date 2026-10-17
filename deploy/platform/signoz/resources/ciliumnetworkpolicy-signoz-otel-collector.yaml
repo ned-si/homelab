@@ -21,14 +21,10 @@ spec:
     matchLabels:
       app.kubernetes.io/component: otel-collector
   ingress:
-  - fromEndpoints:
-    - matchLabels:
-        app.kubernetes.io/name: vector
-        k8s:io.kubernetes.pod.namespace: logging
+  - fromEntities:
+    - remote-node
     toPorts:
     - ports:
-      - port: "4317"
-        protocol: TCP
       - port: "4318"
         protocol: TCP
   - fromEndpoints:
