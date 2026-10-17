@@ -1,0 +1,191 @@
+# Framework controls per Kyverno policy (the vendored set and the homelab
+# require-probes). tests/test_security_controls.py fails when a policy has no
+# entry, an entry names no policy, or an ID is malformed. Kept here, not as
+# annotations, so the vendored files stay byte for byte upstream.
+#
+#   cis           CIS Kubernetes Benchmark v1.10, section 5 (policies)
+#   nist_800_190  NIST SP 800-190, section 4 (countermeasures)
+#   nsa_cisa      NSA/CISA Kubernetes Hardening Guide v1.2, "<section>: <subsection>"
+#   csf           NIST CSF 2.0 subcategory
+#
+# CIS sections 1 to 4 (control plane, etcd, kubelet and their files) are set
+# by Talos, not by admission policy (docs/threat-model.md).
+frameworks:
+  cis: CIS Kubernetes Benchmark v1.10
+  nist_800_190: NIST SP 800-190 Application Container Security Guide
+  nsa_cisa: NSA/CISA Kubernetes Hardening Guide v1.2
+  csf: NIST Cybersecurity Framework 2.0
+
+policies:
+  # Pod Security Standards, baseline
+  disallow-capabilities:
+    file: pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
+    cis: ["5.2.9"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  disallow-host-namespaces:
+    file: pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
+    cis: ["5.2.3", "5.2.4", "5.2.5"]
+    nist_800_190: ["4.4.3", "4.5.2"]
+    nsa_cisa: ["Kubernetes Pod security: Pod security enforcement"]
+    csf: ["PR.PS-01"]
+  disallow-host-path:
+    file: pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
+    cis: ["5.2.12"]
+    nist_800_190: ["4.4.3", "4.5.5"]
+    nsa_cisa: ["Kubernetes Pod security: Pod security enforcement"]
+    csf: ["PR.PS-01"]
+  disallow-host-ports:
+    file: pod-security-vpol/baseline/disallow-host-ports/disallow-host-ports.yaml
+    cis: ["5.2.13"]
+    nist_800_190: ["4.4.2"]
+    nsa_cisa: ["Network separation and hardening: Network policies"]
+    csf: ["PR.IR-01"]
+  disallow-host-process:
+    file: pod-security-vpol/baseline/disallow-host-process/disallow-host-process.yaml
+    cis: ["5.2.11"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Pod security enforcement"]
+    csf: ["PR.PS-01"]
+  disallow-privileged-containers:
+    file: pod-security-vpol/baseline/disallow-privileged-containers/disallow-privileged-containers.yaml
+    cis: ["5.2.2"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Pod security enforcement"]
+    csf: ["PR.PS-01"]
+  disallow-proc-mount:
+    file: pod-security-vpol/baseline/disallow-proc-mount/disallow-proc-mount.yaml
+    cis: []
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  disallow-selinux:
+    file: pod-security-vpol/baseline/disallow-selinux/disallow-selinux.yaml
+    cis: []
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  restrict-seccomp:
+    file: pod-security-vpol/baseline/restrict-seccomp/restrict-seccomp.yaml
+    cis: ["5.7.2"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  restrict-sysctls:
+    file: pod-security-vpol/baseline/restrict-sysctls/restrict-sysctls.yaml
+    cis: []
+    nist_800_190: ["4.4.3", "4.5.2"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+
+  # Pod Security Standards, restricted
+  disallow-capabilities-strict:
+    file: pod-security-vpol/restricted/disallow-capabilities-strict/disallow-capabilities-strict.yaml
+    cis: ["5.2.8", "5.2.10"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  disallow-privilege-escalation:
+    file: pod-security-vpol/restricted/disallow-privilege-escalation/disallow-privilege-escalation.yaml
+    cis: ["5.2.6"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Pod security enforcement"]
+    csf: ["PR.PS-01"]
+  require-run-as-non-root-user:
+    file: pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
+    cis: ["5.2.7"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Non-root containers and rootless container engines"]
+    csf: ["PR.PS-01"]
+  require-run-as-nonroot:
+    file: pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
+    cis: ["5.2.7"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Non-root containers and rootless container engines"]
+    csf: ["PR.PS-01"]
+  restrict-seccomp-strict:
+    file: pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
+    cis: ["5.7.2"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  restrict-volume-types:
+    file: pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
+    cis: ["5.2.12"]
+    nist_800_190: ["4.4.3", "4.5.5"]
+    nsa_cisa: ["Kubernetes Pod security: Pod security enforcement"]
+    csf: ["PR.PS-01"]
+
+  # Best practices
+  check-deprecated-apis:
+    file: best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
+    cis: []
+    nist_800_190: []
+    nsa_cisa: ["Upgrading and application security practices"]
+    csf: ["PR.PS-02"]
+  disallow-container-sock-mounts:
+    file: best-practices-vpol/disallow-cri-sock-mount/disallow-cri-sock-mount.yaml
+    cis: ["5.2.12"]
+    nist_800_190: ["4.4.3", "4.5.5"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  disallow-default-namespace:
+    file: best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
+    cis: ["5.7.1", "5.7.4"]
+    nist_800_190: ["4.3.4"]
+    nsa_cisa: ["Network separation and hardening: Namespaces"]
+    csf: ["PR.AA-05"]
+  disallow-latest-tag:
+    file: best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
+    cis: []
+    nist_800_190: ["4.2.2"]
+    nsa_cisa: ["Upgrading and application security practices"]
+    csf: ["ID.AM-08"]
+  drop-all-capabilities:
+    file: best-practices-vpol/require-drop-all/require-drop-all.yaml
+    cis: ["5.2.10"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  drop-cap-net-raw:
+    file: best-practices-vpol/require-drop-cap-net-raw/require-drop-cap-net-raw.yaml
+    cis: ["5.2.8"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Hardening container environments"]
+    csf: ["PR.PS-01"]
+  require-requests-limits:
+    file: best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
+    cis: []
+    nist_800_190: []
+    nsa_cisa: ["Network separation and hardening: Resource policies"]
+    csf: ["PR.IR-04"]
+  require-ro-rootfs:
+    file: best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
+    cis: ["5.7.3"]
+    nist_800_190: ["4.4.3"]
+    nsa_cisa: ["Kubernetes Pod security: Immutable container file systems"]
+    csf: ["PR.PS-01"]
+  restrict-nodeport:
+    file: best-practices-vpol/restrict-node-port/restrict-node-port.yaml
+    cis: []
+    nist_800_190: ["4.3.3"]
+    nsa_cisa: ["Network separation and hardening: Network policies"]
+    csf: ["PR.IR-01"]
+  restrict-external-ips:
+    file: best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml
+    cis: []
+    nist_800_190: ["4.3.3"]
+    nsa_cisa: ["Network separation and hardening: Network policies"]
+    csf: ["PR.IR-01"]
+
+  # Homelab
+  require-probes:
+    file: ../require-probes.yaml
+    cis: []
+    nist_800_190: []
+    nsa_cisa: []
+    csf: ["PR.IR-03"]
+    # No security framework covers probes: they make Argo CD health, the
+    # PostSync smoke tests and auto-rollback mean "serves requests".
+    reliability_only: Argo CD health and auto-rollback mean something only with probes

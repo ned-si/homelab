@@ -135,6 +135,39 @@ point, a credential or an admission path is added or removed.
 - Planned: a reduced talosconfig on the phone
   (`os:operator`), never the `os:admin` one.
 
+## Controls mapped to frameworks
+
+Each admission control traces to published frameworks;
+`tests/test_security_controls.py` fails when a policy has no mapping, a
+mapping names no policy, or an ID is malformed.
+
+| Boundary | Control | Mapping |
+| --- | --- | --- |
+| Every workload (admission and posture) | Kyverno: the upstream Pod Security Standards baseline and restricted, ten upstream best-practices policies, the homelab `require-probes` ([testing.md](testing.md)) | [controls.yaml](../policies/kyverno/upstream/controls.yaml): CIS Kubernetes Benchmark section 5, NIST SP 800-190 section 4, NSA/CISA Kubernetes Hardening Guide, NIST CSF 2.0 |
+| Supply chain: Renovate to `main` | `disallow-latest-tag`, `check-deprecated-apis`, and the `image-digest` rule of `scripts/ci/repo_policy.py` | same file |
+
+CIS sections 1 to 4 (control plane, etcd, kubelet and their files) are set by
+Talos, not re-implemented here.
+
+Wave 4 baseline (2026-10-16, over `deploy/`; workloads installed from Helm
+charts are not in `deploy/`): the restricted policies report 65 results on 23
+workloads. The baseline policies report one workload,
+`monitoring/lan-inventory` (host network, added capabilities).
+
+| Namespace | Restricted results | Workloads |
+| --- | --- | --- |
+| theater | 33 | 9 |
+| paperless | 6 | 2 |
+| books | 5 | 3 |
+| immich | 4 | 2 |
+| keycloak | 3 | 1 |
+| mealie | 3 | 1 |
+| monitoring | 3 | 1 |
+| syncthing | 3 | 1 |
+| kube-system | 3 | 1 |
+| backup-verify | 1 | 1 |
+| system-upgrade | 1 | 1 |
+
 ## Accepted, not planned
 
 - Disk encryption of the Talos `STATE` and `EPHEMERAL` partitions. The RK1
