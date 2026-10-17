@@ -305,6 +305,28 @@ Rejected: tailnet-only UIs (the first Headlamp setup): two places to look
 for a tool, a VPN on every device that opens one, and a corporate VPN on the
 Mac that overlapped the tailnet range.
 
+## SigNoz login: Keycloak first, Google only on a Workspace domain
+
+SigNoz sits behind the Keycloak gate (oauth2-proxy, group `admins`) like every
+UI, then asks for its own login. Self-registration is closed after setup.
+SigNoz's own login is Google only when the operator's Google account is on a
+Workspace domain he controls: one authenticated domain, that domain, `Enforce
+SSO`, new users as VIEWER. Otherwise it is one local admin with the
+password in SOPS. Either way the admin's email is the operator's real
+address, so a later SSO login lands on the same user.
+
+Why: the free edition of SigNoz has only one SSO method, Google bound to an
+email domain, and it checks the token's `hd` claim. A personal Gmail account
+has no `hd`, so `gmail.com` cannot work, and if it could it would admit any
+Gmail user. A Workspace domain admits every account of that Workspace, which
+for a one-person Workspace is the operator. Keycloak still stops everyone
+else first.
+
+Rejected: OIDC or SAML against Keycloak (Enterprise licence only), oauth2-proxy
+alone (SigNoz has no trusted-header login), and Google as a Keycloak identity
+provider for now (it changes the login of every UI, so it gets its own spec).
+Details: [wave 3 design, answer 11](../.kiro/specs/wave3-network-logs/design.md#answers).
+
 ## Seafile removed
 
 Seafile was removed on 2026-10-16. Nobody used it: shared documents live in
