@@ -15,6 +15,9 @@ spec:
   persistentVolumeReclaimPolicy: Retain
   storageClassName: iscsi
   volumeMode: Filesystem
+  # SELinux label (docs/decisions.md, SELinux labels on CSI volumes).
+  mountOptions:
+    - context=system_u:object_r:ephemeral_t:s0
   claimRef:
     namespace: theater
     name: radarr-config

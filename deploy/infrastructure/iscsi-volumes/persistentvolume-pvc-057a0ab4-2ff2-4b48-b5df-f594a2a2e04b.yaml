@@ -46,6 +46,8 @@ spec:
       portals: ""
       provisioner_driver: freenas-iscsi
     volumeHandle: pvc-057a0ab4-2ff2-4b48-b5df-f594a2a2e04b
+  mountOptions:
+  - context=system_u:object_r:ephemeral_t:s0
   persistentVolumeReclaimPolicy: Retain
   storageClassName: iscsi
   volumeMode: Filesystem
