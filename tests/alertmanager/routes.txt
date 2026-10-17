@@ -74,6 +74,7 @@ null alertname=ServiceHasNoReadyBackend severity=critical namespace=keycloak dep
 null alertname=StatefulSetHasNoReadyReplica severity=critical namespace=syncthing statefulset=syncthing
 null alertname=PodNotReady severity=warning namespace=keycloak pod=keycloak-0 node=homelab-cp-1
 null alertname=PodStuckNotRunning severity=warning namespace=home pod=mosquitto-0 node=homelab-w-1
+null alertname=AuditAVCRateHigh severity=warning node=homelab-cp-1
 # Chart rules without an `action` label stay in Grafana unless named above.
 null alertname=KubePodNotReady severity=warning namespace=keycloak pod=keycloak-0
 null alertname=KubePodCrashLooping severity=warning namespace=keycloak pod=keycloak-db-1

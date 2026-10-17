@@ -1,0 +1,34 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/audit-records.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-audit.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # cp-1 logs 20 AVC records a second from minute 10 on; w-1 stays at 1/s.
+  - interval: 1m
+    input_series:
+      - series: 'vector_audit_records_total{node="homelab-cp-1", type="AVC", pod="vector-a"}'
+        values: '0+60x9 540+1200x60'
+      - series: 'vector_audit_records_total{node="homelab-w-1", type="AVC", pod="vector-b"}'
+        values: '0+60x70'
+      - series: 'vector_audit_records_total{node="homelab-w-1", type="SYSCALL", pod="vector-b"}'
+        values: '0+6000x70'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AuditAVCRateHigh
+        exp_alerts: []
+      - eval_time: 50m
+        alertname: AuditAVCRateHigh
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: auto
+              node: homelab-cp-1
+            exp_annotations:
+              summary: homelab-cp-1 logs over 10 SELinux AVC records a second
+              description: >-
+                Usually a volume without the SELinux label: find the process
+                and device in the AVC records (SigNoz, service auditd) and label
+                the volume (docs/runbooks/pv-selinux-label.md).

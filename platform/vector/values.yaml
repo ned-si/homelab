@@ -177,6 +177,35 @@ customConfig:
             namespace: '{{ "{{" }} kubernetes.pod_namespace {{ "}}" }}'
             source: '{{ "{{" }} log_source {{ "}}" }}'
             parse_failed: '{{ "{{" }} parse_failed {{ "}}" }}'
+    # Talos auditd records by record type (AVC, SYSCALL, BPF, ...):
+    # vector_audit_records_total{node, type}, `node` from the PodMonitor.
+    # Counted, never dropped: SELinux denial bursts stay visible in
+    # Prometheus (AuditAVCRateHigh) and the records stay in SigNoz.
+    # A route, not a filter, abort or missing field: each of those counts the
+    # other events in vector_component_discarded_events_total
+    # (LogPipelineDiscarding); a route's unconsumed `_unmatched` output does
+    # not (checked with Vector 0.59.0). This branch only feeds the counter;
+    # the OTLP sink gets every Talos event from talos_parsed.
+    audit_route:
+      type: route
+      inputs: [talos_parsed]
+      route:
+        auditd: '.service == "auditd"'
+    audit_records:
+      type: remap
+      inputs: [audit_route.auditd]
+      source: |
+        .audit_type = parse_regex(string(.message) ?? "", r'^type=(?P<t>[A-Z_]+)').t ?? "unknown"
+    audit_metrics:
+      type: log_to_metric
+      inputs: [audit_records]
+      metrics:
+        - type: counter
+          field: audit_type
+          name: audit_records_total
+          namespace: vector
+          tags:
+            type: '{{ "{{" }} audit_type {{ "}}" }}'
     # One OTLP log record per event: resource attributes (service.name,
     # k8s.*, host.name, log.source), the parsed fields as record attributes,
     # severity from the `level` field.
@@ -309,5 +338,5 @@ customConfig:
         when_full: drop_newest
     prometheus:
       type: prometheus_exporter
-      inputs: [vector_metrics, parse_metrics]
+      inputs: [vector_metrics, parse_metrics, audit_metrics]
       address: 0.0.0.0:9598

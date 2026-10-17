@@ -1,0 +1,35 @@
+# Talos audit records, counted by Vector (platform/vector/values.yaml,
+# vector_audit_records_total{node, type}; docs/observability.md "Logs").
+#
+#   AuditAVCRateHigh   SELinux AVC records from one node above 10/s for 30 min
+#
+# `action: auto`: dashboard only, no page. The usual cause is a volume
+# without the SELinux label (docs/runbooks/pv-selinux-label.md); on
+# 2026-10-17 ClickHouse's unlabelled volume produced about 1,300 audit
+# records a second.
+#
+# Tests: tests/prometheus/audit_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-audit
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: audit.records
+      rules:
+        - alert: AuditAVCRateHigh
+          expr: sum by (node) (rate(vector_audit_records_total{type="AVC"}[5m])) > 10
+          for: 30m
+          labels:
+            severity: warning
+            action: auto
+          annotations:
+            summary: "{{ $labels.node }} logs over 10 SELinux AVC records a second"
+            description: >-
+              Usually a volume without the SELinux label: find the process
+              and device in the AVC records (SigNoz, service auditd) and label
+              the volume (docs/runbooks/pv-selinux-label.md).

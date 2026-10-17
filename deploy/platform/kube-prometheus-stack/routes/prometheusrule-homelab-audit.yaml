@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-audit
+  namespace: monitoring
+spec:
+  groups:
+  - name: audit.records
+    rules:
+    - alert: AuditAVCRateHigh
+      annotations:
+        description: 'Usually a volume without the SELinux label: find the process
+          and device in the AVC records (SigNoz, service auditd) and label the volume
+          (docs/runbooks/pv-selinux-label.md).'
+        summary: '{{ $labels.node }} logs over 10 SELinux AVC records a second'
+      expr: sum by (node) (rate(vector_audit_records_total{type="AVC"}[5m])) > 10
+      for: 30m
+      labels:
+        action: auto
+        severity: warning
