@@ -221,3 +221,38 @@ login behind Keycloak is not a password nobody remembers and no stranger gets an
 8. WHEN the login method changes, THE run SHALL check it with a real login: a Keycloak
    member of `admins` reaches SigNoz and lands as ADMIN under the email of criterion 3; a
    Keycloak user outside `admins` is refused before SigNoz.
+
+### Requirement 9: SELinux labels on iSCSI volumes, audit records counted
+
+**User story:** As the operator, I want pod volumes to carry the SELinux label Talos
+expects, so that the audit log shows real denials instead of one record set per file
+operation, the log store is not filled by its own writes, and SELinux enforcing (wave 5)
+has one blocker fewer.
+
+#### Acceptance criteria
+
+1. EVERY StorageClass of the iSCSI driver SHALL carry the mount option
+   `context=system_u:object_r:ephemeral_t:s0` (the label Talos gives its own user
+   volumes), and CI SHALL fail when one does not.
+2. THE StorageClasses SHALL be replaced through Argo CD, and the run SHALL first confirm
+   on the cluster that deleting a StorageClass leaves its PersistentVolumes and claims
+   bound.
+3. AN existing PersistentVolume SHALL get the option through git where its manifest is in
+   git (`infrastructure/iscsi-volumes/`), and otherwise through one idempotent script
+   that is a dry run by default, takes one volume per call, prints the options before and
+   after, and is described in a runbook.
+4. THE PersistentVolume of the claim `immich/immich-data`
+   (`pvc-b9d3e7d8-0d3e-43d4-b8d3-8f212ede0ea6`) SHALL NOT be labelled, patched or
+   restarted for this; the script SHALL refuse it by name. The archived Seafile volumes
+   (no pods) are left as they are.
+5. THE rollout SHALL start with the ClickHouse volume and continue only once its pod
+   mounts, the AVC records from its node fall to near zero and SigNoz still ingests and
+   answers queries; then one application at a time, and for a database (CloudNativePG)
+   only after a backup younger than 24 hours, with the database healthy before the next.
+6. IF a labelled volume fails to mount, THEN the run SHALL revert that volume's option at
+   once, restart its pod, stop the rollout and report.
+7. Vector SHALL keep every auditd record and SHALL count them as
+   `vector_audit_records_total{node, type}`.
+8. WHEN AVC records from one node stay above 10 per second for 30 minutes, THE system
+   SHALL raise a warning with `action: auto` (dashboard only, no page), with a promtool
+   test and a `routes.txt` line.
