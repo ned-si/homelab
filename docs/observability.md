@@ -268,6 +268,34 @@ Expected: every pod `Running` (the `signoz-telemetrystore-migrator` Job
 Retention is set once in the UI (Settings → General): logs 15 days, traces
 7 days. SigNoz stores no metrics: Prometheus keeps them.
 
+### SigNoz trial
+
+Trial: 2026-10-17 to 2026-10-31 (14 days from the first day SigNoz
+receives logs from every source). Recording rules in
+`platform/kube-prometheus-stack/routes/signoz-trial.yaml`, panel "SigNoz trial
+gate" on Homelab / Storage. The trial passes only if all hold over the window:
+
+| Criterion | Series | Threshold |
+| --- | --- | --- |
+| ClickHouse working-set memory, p95 | `signoz_trial:clickhouse_memory_p95_bytes` | < 6 GiB |
+| ClickHouse restarts and OOM kills (upgrades aside) | `signoz_trial:clickhouse_restarts` | 0 |
+| ClickHouse volume growth | `signoz_trial:volume_growth_bytes_per_day` | < 2 GiB a day |
+| Volume used at the configured retention | `signoz_trial:volume_projection_ratio` | < 70% |
+| Unparsed log lines | `signoz_trial:parse_failed_ratio` | < 1% |
+| Events Vector discarded | `signoz_trial:discarded_events` | 0 |
+| Sources delivering: pods, Talos services, Talos kernel | `signoz_trial:sources_present` | 3 |
+| The UI loads from the phone | manual | yes |
+
+`signoz_trial:pass` is 1 when the first seven hold. On 2026-10-31: read it
+over the window; if it passed and the phone check did, drop "trial" from this
+page; if not, remove SigNoz and point Vector's sink at Loki (the fallback in
+"Why it is like this").
+
+Two alerts page when the log pipeline goes blind (`action: human`, warning):
+`LogPipelineDiscarding` (Vector discards events for an hour) and
+`SigNozCollectorAbsent` (no collector up for an hour). Nothing else in SigNoz
+pages; its own alert rules are not used.
+
 ## Notifications
 
 The alerts of the paging policy ([sre.md](sre.md#paging)) go as a webhook
@@ -538,6 +566,12 @@ Two failure modes this cluster has had:
 - Parity first: the chart was adopted with its running values, and alerting is
   new behaviour that ships in its own changes
   ([decisions.md](decisions.md#adopt-at-parity-change-afterwards)).
+- SigNoz, not Loki, as the log store: the goal is wide structured events and,
+  later, traces; ClickHouse queries arbitrary fields, Loki indexes only labels.
+  The cost is a heavier stack and a double login (SSO for Keycloak is
+  Enterprise only), hence the 14-day trial with fixed thresholds. Fallback if
+  it fails: Loki single binary on S3, with Vector's `loki` sink; Vector stays.
+  Paging stays in Prometheus: one tested paging path.
 - Hosted ntfy.sh plus an external heartbeat: one person, one phone, no account
   and open source. A self-hosted ntfy was rejected for now: it would go down
   with the cluster it reports on. Pushover was the earlier plan; it needs a

@@ -1,0 +1,91 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-signoz
+  namespace: monitoring
+spec:
+  groups:
+  - interval: 5m
+    name: signoz.trial.raw
+    rules:
+    - expr: max(container_memory_working_set_bytes{namespace="signoz", container="clickhouse"})
+      record: signoz_trial:clickhouse_memory_bytes
+  - interval: 15m
+    name: signoz.trial
+    rules:
+    - expr: quantile_over_time(0.95, signoz_trial:clickhouse_memory_bytes[14d])
+      record: signoz_trial:clickhouse_memory_p95_bytes
+    - expr: |
+        sum(increase(kube_pod_container_status_restarts_total{namespace="signoz", container="clickhouse"}[14d]))
+        or vector(0)
+      record: signoz_trial:clickhouse_restarts
+    - expr: |
+        max(deriv(kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}[1d])) * 86400
+      record: signoz_trial:volume_growth_bytes_per_day
+    - expr: |
+        max(
+          (kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}
+           + 15 * 86400 * clamp_min(deriv(kubelet_volume_stats_used_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}[1d]), 0))
+          / kubelet_volume_stats_capacity_bytes{namespace="signoz", persistentvolumeclaim=~".*clickhouse.*"}
+        )
+      record: signoz_trial:volume_projection_ratio
+    - expr: |
+        sum(increase(vector_log_events_total{parse_failed="true"}[1d]))
+        / sum(increase(vector_log_events_total[1d]))
+      record: signoz_trial:parse_failed_ratio
+    - expr: |
+        sum(increase(vector_component_discarded_events_total[1d])) or vector(0)
+      record: signoz_trial:discarded_events
+    - expr: |
+        count(sum by (source) (increase(vector_log_events_total{source=~"pods|talos-service|talos-kernel"}[1h])) > 0)
+        or vector(0)
+      record: signoz_trial:sources_present
+    - expr: |
+        (
+          (signoz_trial:clickhouse_memory_p95_bytes < bool 6 * 1024 * 1024 * 1024)
+          * on () (signoz_trial:clickhouse_restarts == bool 0)
+          * on () (signoz_trial:volume_growth_bytes_per_day < bool 2 * 1024 * 1024 * 1024)
+          * on () (signoz_trial:volume_projection_ratio < bool 0.7)
+          * on () (signoz_trial:parse_failed_ratio < bool 0.01)
+          * on () (signoz_trial:discarded_events == bool 0)
+          * on () (signoz_trial:sources_present == bool 3)
+        )
+        or vector(0)
+      record: signoz_trial:pass
+  - name: signoz.alerts
+    rules:
+    - alert: LogPipelineDiscarding
+      annotations:
+        description: Logs are being lost between the nodes and SigNoz. Find the component
+          in `vector_component_discarded_events_total` and read `kubectl -n logging
+          logs ds/vector`.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LogPipelineDiscarding.md
+        summary: Vector has been discarding log events for an hour
+      expr: sum(increase(vector_component_discarded_events_total[15m])) > 0
+      for: 1h
+      labels:
+        action: human
+        severity: warning
+    - alert: SigNozCollectorAbsent
+      annotations:
+        description: 'Vector cannot deliver logs: they buffer, then are discarded.
+          Check `kubectl -n signoz get pods` and the collector''s log.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SigNozCollectorAbsent.md
+        summary: No SigNoz collector has been up for an hour
+      expr: absent(up{namespace="signoz", job=~".*otel-collector.*"} == 1)
+      for: 1h
+      labels:
+        action: human
+        severity: warning

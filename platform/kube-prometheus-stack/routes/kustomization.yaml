@@ -27,3 +27,5 @@ resources:
   - hubble-alerts.yaml
   # Would-be drops of the network policy allow-lists (recording rules only).
   - netpol.yaml
+  # The SigNoz trial gate, the log-pipeline alerts and the collector scrape.
+  - signoz-trial.yaml
