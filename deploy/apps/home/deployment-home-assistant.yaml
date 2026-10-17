@@ -49,7 +49,7 @@ spec:
           value: /tmp/uv-cache
         - name: PYTHONPATH
           value: /config/deps
-        image: ghcr.io/home-assistant/home-assistant:2026.10.1@sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0
+        image: ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
@@ -106,7 +106,7 @@ spec:
         command:
         - /bin/sh
         - -euc
-        image: ghcr.io/home-assistant/home-assistant:2026.10.1@sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0
+        image: ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
         imagePullPolicy: IfNotPresent
         name: config
         resources:
@@ -158,7 +158,7 @@ spec:
         env:
         - name: UV_CACHE_DIR
           value: /tmp/uv-cache
-        image: ghcr.io/home-assistant/home-assistant:2026.10.1@sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0
+        image: ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
         imagePullPolicy: IfNotPresent
         name: custom-components
         resources:
