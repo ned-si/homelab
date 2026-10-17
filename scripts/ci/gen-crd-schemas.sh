@@ -39,6 +39,9 @@ TUPPR=0.5.7
 TAILSCALE=v1.104.1
 # The Altinity ClickHouse operator of the SigNoz chart (ClickHouseInstallation).
 CLICKHOUSE_OPERATOR=0.21.2
+# Kyverno ValidatingPolicy and PolicyException (infrastructure/kyverno-policies),
+# at the release of the kyverno chart's appVersion.
+KYVERNO=v1.19.1
 # talos.dev ServiceAccount: Talos installs this CRD itself; the file is its
 # test fixture at the release the nodes run.
 TALOS=v1.14.2
@@ -91,6 +94,9 @@ done
 add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_proxyclasses.yaml"
 add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_connectors.yaml"
 add "https://raw.githubusercontent.com/Altinity/clickhouse-operator/$CLICKHOUSE_OPERATOR/deploy/helm/crds/CustomResourceDefinition-clickhouseinstallations.clickhouse.altinity.com.yaml"
+for k in validatingpolicies policyexceptions; do
+  add "https://raw.githubusercontent.com/kyverno/kyverno/$KYVERNO/config/crds/policies.kyverno.io/policies.kyverno.io_$k.yaml"
+done
 add "https://raw.githubusercontent.com/siderolabs/talos/$TALOS/internal/app/machined/pkg/controllers/k8s/internal/k8stemplates/testdata/talos-service-account-crd.yaml"
 
 gen="$work/gen"

@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    policies.kyverno.io/category: Pod Security Standards (Baseline) in ValidatingPolicy
+    policies.kyverno.io/description: Host namespaces (Process ID namespace, Inter-Process
+      Communication namespace, and network namespace) allow access to shared information
+      and can be used to elevate privileges. Pods should not be allowed access to
+      host namespaces. This policy ensures fields which make use of these host namespaces
+      are unset or set to `false`.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Disallow Host Namespaces in ValidatingPolicy
+  name: disallow-host-namespaces
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: '!(variables.hostNetwork || variables.hostIPC || variables.hostPID)'
+    message: 'Sharing the host namespaces is disallowed. The fields spec.hostNetwork,
+      spec.hostIPC, and spec.hostPID must be unset or set to `false`.         '
+  variables:
+  - expression: object.spec.?hostNetwork.orValue(false)
+    name: hostNetwork
+  - expression: object.spec.?hostIPC.orValue(false)
+    name: hostIPC
+  - expression: object.spec.?hostPID.orValue(false)
+    name: hostPID
+  webhookConfiguration:
+    timeoutSeconds: 3

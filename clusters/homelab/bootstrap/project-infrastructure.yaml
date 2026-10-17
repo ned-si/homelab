@@ -38,6 +38,7 @@ spec:
     - https://democratic-csi.github.io/charts/
     - https://argoproj.github.io/argo-helm
     - https://kubernetes-sigs.github.io/metrics-server/
+    - https://kyverno.github.io/kyverno/
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -72,10 +73,13 @@ spec:
       kind: GatewayClass # the `cilium` GatewayClass
     - group: apiregistration.k8s.io
       kind: APIService # metrics-server: v1beta1.metrics.k8s.io
-    # Webhooks. cert-manager is the only chart in this repo that ships any: its
-    # webhook Deployment validates every Certificate/Issuer, and cainjector
-    # writes the CA bundle into both configurations at runtime (which is why
+    - group: policies.kyverno.io
+      kind: ValidatingPolicy # kyverno-policies/, Audit only
+    # Webhooks. cert-manager's chart ships its own: its webhook Deployment
+    # validates every Certificate/Issuer, and cainjector writes the CA bundle
+    # into both configurations at runtime (which is why
     # bootstrap/argocd-values.yaml also ignores that field when diffing).
+    # Kyverno registers its webhooks at runtime, outside Argo CD.
     # If a future chart wants a webhook, it should have to be added here on
     # purpose.
     - group: admissionregistration.k8s.io

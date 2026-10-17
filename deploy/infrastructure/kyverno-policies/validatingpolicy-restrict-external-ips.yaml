@@ -1,0 +1,45 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/description: This policy restricts the use of externalIPs
+      in Service resources. External IPs can pose security risks and should be carefully
+      controlled.
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/title: Restrict External IPs
+  name: restrict-external-ips
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - services
+  validationActions:
+  - Audit
+  validations:
+  - expression: '!has(object.spec.externalIPs) || size(object.spec.externalIPs) ==
+      0'
+    message: externalIPs are not allowed.
+  webhookConfiguration:
+    timeoutSeconds: 3

@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    kyverno.io/kyverno-version: 1.14.0
+    policies.kyverno.io/category: Pod Security Standards (Baseline) in ValidatingPolicy
+    policies.kyverno.io/description: The seccomp profile must not be explicitly set
+      to Unconfined. This policy,  requiring Kubernetes v1.30 or later, ensures that
+      seccomp is unset or  set to `RuntimeDefault` or `Localhost`.
+    policies.kyverno.io/minversion: 1.17.0
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/title: Restrict Seccomp in ValidatingPolicy
+  name: restrict-seccomp
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+  validationActions:
+  - Audit
+  validations:
+  - expression: "variables.hasValidSeccompProfile && variables.allContainers.all(container,
+      \n  container.?securityContext.?seccompProfile.?type.orValue('Localhost') in
+      variables.allowedProfileTypes)"
+    message: Use of custom Seccomp profiles is disallowed. The field  `securityContext.seccompProfile.type`
+      must be unset or set to `RuntimeDefault` or `Localhost`.
+  variables:
+  - expression: object.spec.containers +  object.spec.?initContainers.orValue([])
+      +  object.spec.?ephemeralContainers.orValue([])
+    name: allContainers
+  - expression: '[''RuntimeDefault'', ''Localhost'']'
+    name: allowedProfileTypes
+  - expression: object.spec.?securityContext.?seccompProfile.?type.orValue('Localhost')
+      in variables.allowedProfileTypes
+    name: hasValidSeccompProfile
+  webhookConfiguration:
+    timeoutSeconds: 3

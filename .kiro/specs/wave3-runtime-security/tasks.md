@@ -15,11 +15,17 @@ agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR 
       `policies/kyverno/upstream/controls.yaml`, `tests/test_security_controls.py`, the
       controls section of `docs/threat-model.md` (with the wave 4 baseline counts). [3.1,
       3.3, 3.4]
-- [ ] 4. PR `feat(policy): Kyverno admission in Audit mode`: namespace `kyverno`, the
+- [x] 4. (#573) PR `feat(policy): Kyverno admission in Audit mode`: namespace `kyverno`, the
       Application (infrastructure layer), values (two controllers, `failurePolicy: Ignore`,
-      timeout, exclusions, JSON logs, digests, resources, probes), AppProject kinds,
-      `policies/kyverno/exceptions/`, the kind preprod cold-start check. Watch the first
-      sync and the background scan. [1.1, 1.3, 1.6, 1.7, 2.1, 2.2]
+      timeout, exclusions, JSON logs, digests, resources, probes), AppProject kinds, the
+      ValidatingPolicy and PolicyException schemas for kubeconform. Watch the first sync
+      and the background scan. [1.1, 1.3, 1.6, 1.7, 2.1]
+      Cold start (1.6): kind preprod installs no Helm chart, so it has no Kyverno webhook to
+      scale to 0; the check is the live read-back that every Kyverno webhook is `Ignore`
+      and skips the excluded namespaces (`docs/architecture.md`).
+- [ ] 4b. PR `feat(policy): PolicyExceptions for the expected findings`:
+      `policies/kyverno/exceptions/` with a `homelab/reason` annotation each, written from
+      the first live background scan, passed to the CLI in `scripts/ci/kyverno.sh`. [2.2]
 - [ ] 5. PR `feat(observability): Kyverno reports on the Security dashboard`:
       kube-state-metrics `customResourceState`, Kyverno scrape, dashboard rows,
       `KyvernoReportsStale` (human, warning) with promtool tests, runbook section,

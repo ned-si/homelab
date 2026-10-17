@@ -74,6 +74,13 @@ def test_every_kyverno_entry_names_a_policy():
         assert (UPSTREAM / entry["file"]).resolve() == policies[name].resolve(), f"{name}: file is {policies[name]}"
 
 
+def test_cluster_runs_every_kyverno_policy():
+    """policies/kyverno/kustomization.yaml (what the cluster syncs) lists every policy file CI runs."""
+    listed = {(KYVERNO / r).resolve() for r in docs(KYVERNO / "kustomization.yaml")[0]["resources"]}
+    files = {p.resolve() for p in kyverno_policies().values()}
+    assert listed == files, f"kustomization.yaml vs policy files: {sorted(str(p) for p in listed ^ files)}"
+
+
 @pytest.mark.parametrize("name", sorted(kyverno_controls()))
 def test_kyverno_ids(name):
     entry = kyverno_controls()[name]

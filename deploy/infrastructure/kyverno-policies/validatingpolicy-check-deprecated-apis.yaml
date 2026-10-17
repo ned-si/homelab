@@ -1,0 +1,140 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  annotations:
+    kyverno.io/kubernetes-version: 1.30+
+    kyverno.io/kyverno-version: 1.14.0
+    policies.kyverno.io/category: Best Practices in VPOL
+    policies.kyverno.io/description: Kubernetes APIs are sometimes deprecated and
+      removed after a few releases. As a best practice, older API versions should
+      be replaced with newer versions. This policy validates for APIs that are deprecated
+      or scheduled for removal.
+    policies.kyverno.io/subject: Kubernetes APIs
+    policies.kyverno.io/title: Check deprecated APIs in VPOL
+  name: check-deprecated-apis
+spec:
+  evaluation:
+    background:
+      enabled: true
+  failurePolicy: Ignore
+  matchConditions:
+  - expression: |-
+      object.apiVersion in [
+
+         'batch/v1beta1',
+         'discovery.k8s.io/v1beta1',
+         'events.k8s.io/v1beta1',
+         'policy/v1beta1',
+         'node.k8s.io/v1beta1',
+         'flowcontrol.apiserver.k8s.io/v1beta1',
+         'flowcontrol.apiserver.k8s.io/v1beta2',
+         'flowcontrol.apiserver.k8s.io/v1beta3',
+         'autoscaling/v2beta2',
+         'storage.k8s.io/v1beta1'
+       ]
+    name: deprecatedAPIVersion
+  matchConstraints:
+    resourceRules:
+    - apiGroups:
+      - batch
+      apiVersions:
+      - v1
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - cronjobs
+    - apiGroups:
+      - discovery.k8s.io
+      apiVersions:
+      - v1
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - endpointslices
+    - apiGroups:
+      - events.k8s.io
+      apiVersions:
+      - v1
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - events
+    - apiGroups:
+      - policy
+      apiVersions:
+      - v1
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - poddisruptionbudgets
+      - podsecuritypolicies
+    - apiGroups:
+      - node.k8s.io
+      apiVersions:
+      - v1
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - runtimeclasses
+    - apiGroups:
+      - flowcontrol.apiserver.k8s.io
+      apiVersions:
+      - v1
+      - v1beta1
+      - v1beta2
+      - v1beta3
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - flowschemas
+      - prioritylevelconfigurations
+    - apiGroups:
+      - autoscaling
+      apiVersions:
+      - v1
+      - v2
+      - v2beta2
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - horizontalpodautoscalers
+    - apiGroups:
+      - storage.k8s.io
+      apiVersions:
+      - v1
+      - v1beta1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - csistoragecapacities
+  validationActions:
+  - Audit
+  validations:
+  - expression: "false"
+    messageExpression: 'string(object.apiVersion) + ''/'' + string(object.kind) +
+      '' is deprecated and will be removed in a future Kubernetes version. See: https://kubernetes.io/docs/reference/using-api/deprecation-guide/'''
+  webhookConfiguration:
+    timeoutSeconds: 3

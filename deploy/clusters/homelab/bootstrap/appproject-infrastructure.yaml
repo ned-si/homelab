@@ -43,6 +43,8 @@ spec:
     kind: GatewayClass
   - group: apiregistration.k8s.io
     kind: APIService
+  - group: policies.kyverno.io
+    kind: ValidatingPolicy
   - group: admissionregistration.k8s.io
     kind: MutatingWebhookConfiguration
   - group: admissionregistration.k8s.io
@@ -66,3 +68,4 @@ spec:
   - https://democratic-csi.github.io/charts/
   - https://argoproj.github.io/argo-helm
   - https://kubernetes-sigs.github.io/metrics-server/
+  - https://kyverno.github.io/kyverno/
