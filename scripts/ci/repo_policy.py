@@ -146,6 +146,9 @@ CODENAMES = {"bookworm", "bullseye", "buster", "trixie", "noble", "jammy", "foca
 BULKY_IMAGES = {"python", "node", "golang", "ubuntu", "debian"}
 # Set by the Gateway on every rule of an HTTPRoute on the https listener.
 ROUTE_HEADERS = {"strict-transport-security", "x-content-type-options"}
+# The SELinux label of every iSCSI volume (docs/decisions.md, SELinux labels on CSI volumes).
+ISCSI_PROVISIONER = "org.democratic-csi.iscsi"
+ISCSI_SELINUX_OPTION = "context=system_u:object_r:ephemeral_t:s0"
 # Homelab alert rules (docs/sre.md, Paging) and their promtool unit tests.
 RULE_DIRS = ("platform/", "apps/")
 PROMTOOL_TESTS = "tests/prometheus"
@@ -381,6 +384,20 @@ class Policy:
                     if missing:
                         self.fail(rule, f"{e['app']}: HTTPRoute {self.ns_of(d, e)}/{self.name_of(d)} rule {i} "
                                         f"does not set {', '.join(missing)} (ResponseHeaderModifier set)")
+
+    def rule_iscsi_selinux_label(self) -> None:
+        # Talos cannot label a volume a CSI driver mounts; the StorageClass's
+        # context= mount option does (docs/decisions.md, SELinux labels on CSI
+        # volumes). Every iSCSI class must carry it.
+        rule = "iscsi-selinux-label"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") != "StorageClass" or d.get("provisioner") != ISCSI_PROVISIONER:
+                    continue
+                self.on(rule)
+                if ISCSI_SELINUX_OPTION not in (d.get("mountOptions") or []):
+                    self.fail(rule, f"{e['app']}: StorageClass {self.name_of(d)} lacks the mount option "
+                                    f"{ISCSI_SELINUX_OPTION}")
 
     def rule_cronjobs(self) -> None:
         non_backup = self.read_list("ci/non-backup-cronjobs.txt")
@@ -775,7 +792,7 @@ class Policy:
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
-                     self.rule_cronjobs,
+                     self.rule_iscsi_selinux_label, self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,

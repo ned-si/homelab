@@ -174,6 +174,20 @@ def test_https_route_needs_security_headers(tmp_path):
     assert policy(tmp_path / "c", renders=[("gw", "2+3", "infrastructure", "gateway", [redirect])]).returncode == 0
 
 
+def test_iscsi_storage_class_needs_selinux_label(tmp_path):
+    sc = {"apiVersion": "storage.k8s.io/v1", "kind": "StorageClass", "metadata": {"name": "iscsi"},
+          "provisioner": "org.democratic-csi.iscsi", "mountOptions": ["nouuid"]}
+    other = {"apiVersion": "storage.k8s.io/v1", "kind": "StorageClass", "metadata": {"name": "nfs"},
+             "provisioner": "nfs.csi.k8s.io"}
+    r = policy(tmp_path, renders=[("democratic-csi", "2+3", "infrastructure", "democratic-csi", [sc, other])])
+    assert [f for f in fails(r) if "iscsi-selinux-label" in f] == [
+        "FAIL iscsi-selinux-label: democratic-csi: StorageClass iscsi lacks the mount option "
+        "context=system_u:object_r:ephemeral_t:s0"]
+    sc["mountOptions"] = ["context=system_u:object_r:ephemeral_t:s0"]
+    r = policy(tmp_path / "b", renders=[("democratic-csi", "2+3", "infrastructure", "democratic-csi", [sc, other])])
+    assert r.returncode == 0 and "iscsi-selinux-label" in r.stdout
+
+
 GUARD_FILES = {"ci/non-backup-cronjobs.txt": "theater/recyclarr\n",
                "ci/guard-modes.txt": "backup-verify/backup-verify-files s3-creds\n"}
 

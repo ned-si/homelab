@@ -813,6 +813,7 @@ is deleted: `Delete` destroys the iSCSI volume, `Retain` keeps it (the PV goes t
 |---|---|
 | StorageClass `iscsi` (default, `infrastructure/democratic-csi/values-iscsi.yaml`) | `Delete` for new volumes. A StorageClass's `reclaimPolicy` is immutable |
 | StorageClass `iscsi-retain` | `Retain` for new volumes. Use it for every new data volume |
+| Both iSCSI StorageClasses | mount option `context=system_u:object_r:ephemeral_t:s0`, the SELinux label of every new volume ([decisions.md](decisions.md#selinux-labels-on-csi-volumes)). Existing PVs get it one at a time, `immich-data` never |
 | Every existing data PV, including `immich-data` and every CNPG volume | `Retain`, patched in place (PVs are provisioned objects, not in git) |
 | `immich-machine-learning-cache`, `jellyfin-cache`, `plex-transcode` | `Delete`: regenerable caches |
 
