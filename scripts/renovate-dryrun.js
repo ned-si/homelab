@@ -9,7 +9,8 @@
  * comment?
  *
  * Usage: node scripts/renovate-dryrun.js
- * Exits 1 if any `# renovate:` annotation fails to yield a match.
+ * Exits 1 if any `# renovate:` annotation fails to yield a match, or if a
+ * data-store image is not held by the data-store majors rule.
  */
 'use strict';
 
@@ -124,5 +125,48 @@ if (suspect.length) {
 }
 if (rc === 0) {
   console.log('\nevery `# renovate:` annotation produced a complete match');
+}
+
+// Every data-store image the cluster runs must stay under the "No automerge
+// for data-store majors" rule: a major rewrites the on-disk format and a revert
+// cannot undo it (#559). The names are the ones Renovate reports as depName; a
+// name that no longer appears in the tree fails too, so the list cannot rot.
+const DATA_STORE_IMAGES = [
+  'ghcr.io/cloudnative-pg/postgresql',
+  'ghcr.io/tensorchord/cloudnative-vectorchord',
+  'docker.io/clickhouse/clickhouse-server',
+  'docker.io/signoz/zookeeper',
+  'valkey/valkey',
+];
+const storeRule = (cfg.packageRules || []).find(
+  (r) => r.description === 'No automerge for data-store majors'
+);
+const storeProblems = [];
+if (
+  !storeRule ||
+  storeRule.automerge !== false ||
+  JSON.stringify(storeRule.matchUpdateTypes) !== '["major"]'
+) {
+  storeProblems.push('rule "No automerge for data-store majors" missing or changed');
+} else {
+  const res = storeRule.matchPackageNames.map((p) => globToRe(p));
+  const tree = files
+    .filter((f) => /\.ya?ml$/.test(f) && fs.existsSync(path.join(root, f)))
+    .map((f) => fs.readFileSync(path.join(root, f), 'utf8'))
+    .join('\n');
+  for (const img of DATA_STORE_IMAGES) {
+    if (!res.some((re) => re.test(img))) storeProblems.push(`${img}: not matched by the rule`);
+    // Chart values carry the image without the docker.io/ prefix.
+    if (!tree.includes(img.replace(/^docker\.io\//, ''))) {
+      storeProblems.push(`${img}: not in the tree any more, drop it from DATA_STORE_IMAGES`);
+    }
+  }
+}
+if (storeProblems.length) {
+  console.log('\nDATA-STORE MAJORS:');
+  storeProblems.forEach((p) => console.log('  ' + p));
+  rc = 1;
+} else {
+  console.log(`every data-store image (${DATA_STORE_IMAGES.length}) holds its majors`);
 }
 process.exit(rc);
