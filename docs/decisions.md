@@ -344,8 +344,13 @@ In enforcing mode those same accesses would fail, so labelled volumes are a
 prerequisite of SELinux enforcing (wave 5, spec `platform-talos` task 13).
 
 Rejected: dropping the records in Vector (hides the cause), turning SELinux
-off (gives up enforcing mode) and `chcon` inside the volumes (a mount
-without `context=` brings the old labels back).
+off (gives up enforcing mode) and `chcon -R` inside the volumes (the
+labels would persist as xattrs, but every volume needs a privileged relabel
+job with its app stopped).
+
+The democratic-csi node plugin carries an `/etc/selinux/config` for this:
+without one, libselinux reports SELinux disabled inside the container and
+libmount silently drops `context=` from the mount.
 Details: [wave 3 design](../.kiro/specs/wave3-network-logs/design.md#decisions).
 
 ## Seafile removed

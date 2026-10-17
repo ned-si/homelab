@@ -256,3 +256,8 @@ has one blocker fewer.
 8. WHEN AVC records from one node stay above 10 per second for 30 minutes, THE system
    SHALL raise a warning with `action: auto` (dashboard only, no page), with a promtool
    test and a `routes.txt` line.
+9. THE iSCSI CSI node plugin SHALL see SELinux as enabled (an `/etc/selinux/config` with
+   exactly `SELINUX=permissive` and `SELINUXTYPE=targeted`, read-only), so that its
+   `mount` keeps the `context=` option. The change SHALL land before the StorageClass
+   change and roll the node plugin one node at a time, with a scratch volume mounted on
+   each node before the next, while no backup Job runs.

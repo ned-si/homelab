@@ -83,8 +83,14 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       #566 (SigNoz sync drift), #568 (no automerge for data-store majors). Open: 7 (needs
       7 days of flows, earliest 2026-10-24), 10c (waits on the operator), 13b, 15
       (2026-10-31). [all]
-- [ ] 17. PR `docs(storage): SELinux labels on iSCSI volumes`: Requirement 9, the design
+- [x] 17. (#576; amended for 9.9) PR `docs(storage): SELinux labels on iSCSI volumes`: Requirement 9, the design
       rows, `docs/decisions.md` (prerequisite of SELinux enforcing), the threat model. [9]
+- [ ] 17b. PR `fix(storage): let the iSCSI node plugin keep SELinux mount options`: the
+      ConfigMap and its read-only `subPath` mount in `values-iscsi.yaml`. Before the
+      roll: `updateStrategy` RollingUpdate with `maxUnavailable: 1`, no backup Job
+      running or due within 15 minutes, `CSIDriver.spec.seLinuxMount` unset or false.
+      During it: one node at a time, a scratch claim mounted on that node before the
+      next, every Argo CD app Healthy, no pod stuck in `ContainerCreating`. [9.9]
 - [ ] 18. PR `feat(storage): SELinux label on the iSCSI StorageClasses`: `mountOptions` and
       `Force=true,Replace=true` in `infrastructure/democratic-csi/values-iscsi.yaml`, a
       repo policy check with tests, the StorageClass table in `docs/backups.md`. Before
