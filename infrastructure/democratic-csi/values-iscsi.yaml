@@ -48,6 +48,20 @@ node:
         value: /usr/local/sbin/iscsiadm
     iscsiDirHostPath: /var/iscsi
     iscsiDirHostPathType: ""
+    # libmount keeps SELinux mount options (`context=`, the StorageClass
+    # label) only when libselinux sees SELinux enabled, which needs an
+    # /etc/selinux/config; the image has none. Found with LIBMOUNT_DEBUG on
+    # 2026-10-17 (resources/selinux-config.yaml, wave 3 design "libmount in
+    # the CSI node plugin").
+    extraVolumeMounts:
+      - name: selinux-config
+        mountPath: /etc/selinux/config
+        subPath: config
+        readOnly: true
+  extraVolumes:
+    - name: selinux-config
+      configMap:
+        name: iscsi-node-selinux-config
 
 driver:
   # Same name as the Secret the chart used to render, so the pods' volume

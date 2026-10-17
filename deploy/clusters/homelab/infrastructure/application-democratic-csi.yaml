@@ -32,6 +32,9 @@ spec:
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
+  - path: deploy/infrastructure/democratic-csi/resources
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
   syncPolicy:
     automated:
       prune: false
