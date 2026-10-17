@@ -109,6 +109,20 @@ otelCollector:
     allowPrivilegeEscalation: false
     capabilities:
       drop: ["ALL"]
+  # The collector serves its own metrics on localhost:8888 by default, which
+  # Prometheus cannot scrape (SigNozCollectorAbsent fired on a running
+  # collector). Merged into the chart's `service.telemetry`, which keeps its
+  # JSON logs.
+  config:
+    service:
+      telemetry:
+        metrics:
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: 0.0.0.0
+                    port: 8888
 
 telemetryStoreMigrator:
   resources:
