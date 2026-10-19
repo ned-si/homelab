@@ -99,7 +99,7 @@ spec:
               # renovate: datasource=github-releases depName=christiaangoossens/hass-oidc-auth
               OIDC_VERSION=v1.2.1
               # renovate: datasource=pypi depName=joserfc
-              JOSERFC_VERSION=1.7.7
+              JOSERFC_VERSION=1.7.5
               cc=/config/custom_components
               mkdir -p "$cc"
               if [ "$(cat "$cc/auth_oidc/.version" 2>/dev/null)" != "$OIDC_VERSION" ]; then
