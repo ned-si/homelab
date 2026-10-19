@@ -1,6 +1,9 @@
 # headlamp.lilalala.com on the shared Gateway, to the oauth2-proxy
 # headlamp-sso (Keycloak, group admins), never to Headlamp directly.
 # external-dns publishes the record from the hostname.
+#
+# Security headers (docs/networking.md, Security headers): the full set; the
+# UI is never framed, so `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -34,6 +37,8 @@ spec:
                 value: "camera=(), microphone=(), payment=(), usb=()"
               - name: Referrer-Policy
                 value: "strict-origin-when-cross-origin"
+              - name: X-Frame-Options
+                value: "DENY"
               - name: Content-Security-Policy
                 value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
       backendRefs:
