@@ -146,7 +146,7 @@ spec:
             secretKeyRef:
               key: dbname
               name: lidarr-postgresql-app
-        image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:da0045903af30080c0b5de29dba7aba9320df787ae0793343c07dafcdf5d84ad
+        image: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:0675340b02be838319b9b6f323c206693e519dcd62ec729d539be9f46bb7a2f9
         name: wait-for-db
         resources:
           limits:
