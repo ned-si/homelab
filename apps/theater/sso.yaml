@@ -16,6 +16,9 @@
 # Plex (the `/` catch-all) and Jellyfin stay off SSO: their TV apps cannot
 # complete an OIDC login. In-cluster API calls (Prowlarr, Bazarr, Recyclarr,
 # the *arr apps to qBittorrent) go pod to pod and never pass the proxy.
+#
+# oauth2-proxy reads the alpha config at start only: bump `config-version`
+# when it changes, to restart the pod.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -82,6 +85,9 @@ data:
           audienceClaims:
             - aud
           insecureSkipNonce: false
+          # Users are created by hand in the admin console without email
+          # verification; access is the group above, never the email.
+          insecureAllowUnverifiedEmail: true
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -104,6 +110,8 @@ spec:
       labels:
         app.kubernetes.io/name: theater-sso
         app.kubernetes.io/component: sso-proxy
+      annotations:
+        homelab.lilalala.com/config-version: "2"
     spec:
       securityContext:
         runAsNonRoot: true

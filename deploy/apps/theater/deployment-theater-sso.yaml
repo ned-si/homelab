@@ -25,6 +25,8 @@ spec:
     type: RollingUpdate
   template:
     metadata:
+      annotations:
+        homelab.lilalala.com/config-version: "2"
       labels:
         app.kubernetes.io/component: sso-proxy
         app.kubernetes.io/name: theater-sso
