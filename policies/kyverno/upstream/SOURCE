@@ -15,6 +15,13 @@
 #                              reads object.spec.template) and accepts one probe
 #                              of three; policies/kyverno/require-probes.yaml
 #                              (readiness and liveness) stays instead
+#   require-drop-cap-net-raw   matches an explicit CAP_NET_RAW or NET_RAW drop
+#                              entry only, so it failed the stricter
+#                              `drop: [ALL]` this repo sets everywhere (upstream
+#                              says it "may not strictly conform to the Pod
+#                              Security Standards"); policies/kyverno/
+#                              drop-cap-net-raw.yaml, which counts ALL, stays
+#                              instead
 #
 # Replaced homelab copies (same findings over deploy/ on 2026-10-16):
 #   disallow-latest-tag  -> best-practices-vpol/disallow-latest-tag (it checks
@@ -45,7 +52,6 @@ bca0762de469053a1404601102d4452830c50277528cced58c0dcfcc4a8b86b4  pod-security-v
 77119e0fb24b15a295d4051eadb9a533a8a4cffe9baddc8c42a7fc82a42a0106  best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
 fc49a94817297938131fb05f4237aaa3107171a7c4a110aad0b0deca1b7ecba2  best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
 72cdada10a0e984c3cdc3820ef496c67d6990872d3a7505d4e2101fa425881d0  best-practices-vpol/require-drop-all/require-drop-all.yaml
-8c97c4bd2ccabcfb57bf2e4c054ac3930feab0a4fcfc9db6f1be69a3554b3e66  best-practices-vpol/require-drop-cap-net-raw/require-drop-cap-net-raw.yaml
 8a5bb51311d3cbf6d6fc69aa37b60e7aa64454f942c550dd7fd2a3df290c5c31  best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
 ca9f26b646a34279fb6428630489e6c6569047476cd5a15b687dd6f1473f021e  best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
 e284b24983335628bbce4e736fade7265cec3fcb7978c56f1f5bda144e4feb38  best-practices-vpol/restrict-node-port/restrict-node-port.yaml
