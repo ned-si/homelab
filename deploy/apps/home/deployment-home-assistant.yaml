@@ -49,6 +49,8 @@ spec:
           value: /tmp/uv-cache
         - name: PYTHONPATH
           value: /config/deps
+        - name: LD_LIBRARY_PATH
+          value: /config/deps/lib
         image: ghcr.io/home-assistant/home-assistant:2026.10.1@sha256:130241f28d01fa80dfa3b44f7d89781c188d8642ecab9024f079f19f9f82baa0
         imagePullPolicy: IfNotPresent
         livenessProbe:
@@ -133,6 +135,16 @@ spec:
           OIDC_VERSION=v1.2.1
           # renovate: datasource=pypi depName=joserfc
           JOSERFC_VERSION=1.7.5
+          # renovate: datasource=github-releases depName=Tasshack/dreame-vacuum
+          DREAME_VERSION=v2.0.2
+          # 0.12.4 is the last release whose musllinux aarch64 wheel is
+          # really musl; from 0.13.0 it is glibc-linked and V8 does not
+          # load (Renovate holds it, renovate.json5).
+          # renovate: datasource=pypi depName=mini-racer
+          MINI_RACER_VERSION=0.12.4
+          # Alpine of the image (/etc/alpine-release); bump both together.
+          LIBATOMIC_APK=v3.24/main/aarch64/libatomic-15.2.0-r5.apk
+          LIBATOMIC_SHA256=31a45fec053c43a006370f83238f16f959838a9a703fbf26bfd1a36da4f538b2
           cc=/config/custom_components
           mkdir -p "$cc"
           if [ "$(cat "$cc/auth_oidc/.version" 2>/dev/null)" != "$OIDC_VERSION" ]; then
@@ -145,13 +157,34 @@ spec:
             rm -rf "$cc/auth_oidc"
             cp -r /tmp/auth_oidc "$cc/auth_oidc"
           fi
-          if [ "$(cat /config/deps/.joserfc 2>/dev/null)" != "$JOSERFC_VERSION" ]; then
+          # dreame_vacuum's other requirements (numpy, pycryptodome,
+          # python-miio, paho-mqtt) are in the image.
+          if [ "$(cat "$cc/dreame_vacuum/.version" 2>/dev/null)" != "$DREAME_VERSION" ]; then
+            rm -rf /tmp/dreame_vacuum /tmp/dreame_vacuum.zip
+            curl -fsSL --retry 3 -m 300 -o /tmp/dreame_vacuum.zip \
+              "https://github.com/Tasshack/dreame-vacuum/releases/download/$DREAME_VERSION/dreame_vacuum.zip"
+            python3 -m zipfile -e /tmp/dreame_vacuum.zip /tmp/dreame_vacuum
+            test -f /tmp/dreame_vacuum/manifest.json
+            echo "$DREAME_VERSION" > /tmp/dreame_vacuum/.version
+            rm -rf "$cc/dreame_vacuum" /tmp/dreame_vacuum.zip
+            cp -r /tmp/dreame_vacuum "$cc/dreame_vacuum"
+          fi
+          deps="joserfc==$JOSERFC_VERSION mini-racer==$MINI_RACER_VERSION $LIBATOMIC_APK"
+          if [ "$(cat /config/deps/.versions 2>/dev/null)" != "$deps" ]; then
             rm -rf /config/deps
             uv pip install --quiet --no-deps --python "$(command -v python3)" \
-              --target /config/deps "joserfc==$JOSERFC_VERSION"
-            echo "$JOSERFC_VERSION" > /config/deps/.joserfc
+              --target /config/deps \
+              "joserfc==$JOSERFC_VERSION" "mini-racer==$MINI_RACER_VERSION"
+            rm -rf /tmp/libatomic /tmp/libatomic.apk
+            mkdir -p /tmp/libatomic /config/deps/lib
+            curl -fsSL --retry 3 -m 60 -o /tmp/libatomic.apk \
+              "https://dl-cdn.alpinelinux.org/alpine/$LIBATOMIC_APK"
+            echo "$LIBATOMIC_SHA256  /tmp/libatomic.apk" | sha256sum -c -
+            tar -xzf /tmp/libatomic.apk -C /tmp/libatomic usr/lib/libatomic.so.1.2.0
+            cp /tmp/libatomic/usr/lib/libatomic.so.1.2.0 /config/deps/lib/libatomic.so.1
+            echo "$deps" > /config/deps/.versions
           fi
-          echo "ok: auth_oidc $OIDC_VERSION, joserfc $JOSERFC_VERSION"
+          echo "ok: auth_oidc $OIDC_VERSION, dreame_vacuum $DREAME_VERSION, $deps"
         command:
         - /bin/sh
         - -euc

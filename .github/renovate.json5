@@ -309,6 +309,15 @@
       allowedVersions: '<1.39.0',
     },
     {
+      // From 0.13.0 the musllinux aarch64 wheel of mini-racer is glibc-linked
+      // (needs ld-linux-aarch64.so.1), so V8 does not load in the Alpine
+      // Home Assistant image (apps/home/home-assistant.yaml). Lift when a
+      // release ships a real musl build.
+      description: 'Hold mini-racer at the last real musl aarch64 wheel',
+      matchPackageNames: ['mini-racer'],
+      allowedVersions: '<0.13.0',
+    },
+    {
       // A CNPG major runs pg_upgrade: new system ID, timeline back to 1. The
       // Barman Cloud plugin does not separate archives, so the upgraded
       // cluster's WAL would overwrite the old timeline-1 files in
