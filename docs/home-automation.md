@@ -43,6 +43,10 @@ Keycloak, through the custom component
 [hass-oidc-auth](https://github.com/christiaangoossens/hass-oidc-auth)
 (`auth_oidc`), pinned by release tag in the `custom-components` init
 container; Renovate bumps it and its one extra Python dependency (joserfc).
+The same container installs `dreame_vacuum` (MOVA robot) and its one missing
+dependency, mini-racer (V8, for the map). mini-racer is held at 0.12.4, the
+last release whose musllinux aarch64 wheel is really musl, and needs
+libatomic from Alpine's package (sha256-pinned, on `LD_LIBRARY_PATH`).
 
 - Client `home-assistant` in realm `homelab`: public, PKCE S256, redirect URI
   `https://home.lilalala.com/auth/oidc/callback` (in
@@ -143,6 +147,7 @@ removes the Pi but costs a new device.
 | Device | Integration | Local or cloud | Setup |
 |---|---|---|---|
 | Philips Hue lights | Philips Hue (bridge) | Local | Fixed IP on the bridge, add the integration by IP, press the bridge button |
+| MOVA V70 robot vacuum | Dreame Vacuum, community (HACS) integration [dreame-vacuum](https://github.com/Tasshack/dreame-vacuum) | Cloud | Add the integration in the UI with the MOVAhome account (the robot's app login); vacuum, map, rooms and consumables show up as entities |
 | Plant sensors (~10, Zigbee) | Zigbee2MQTT, MQTT discovery | Local | Pair in Zigbee2MQTT; moisture and battery show on the "Home" dashboard |
 | Honeywell thermostat | Honeywell evohome or Honeywell Lyric (model decides) | Cloud | Add in the UI with the Honeywell/Resideo account; no local API |
 | Smoke alarms (brand TBD) | Depends on the brand: Zigbee models through Zigbee2MQTT; gateway models through their cloud | Local if Zigbee | Pick a Zigbee model for new purchases |
