@@ -69,6 +69,9 @@ data:
           audienceClaims:
             - aud
           insecureSkipNonce: false
+          # Users are created by hand in the admin console without email
+          # verification; access is the group above, never the email.
+          insecureAllowUnverifiedEmail: true
 kind: ConfigMap
 metadata:
   name: theater-sso
