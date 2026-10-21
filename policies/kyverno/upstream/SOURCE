@@ -30,7 +30,7 @@
 #   disallow-privileged  -> pod-security-vpol/baseline/disallow-privileged-containers
 #   require-resources    -> best-practices-vpol/require-pod-requests-limits
 repo: https://github.com/kyverno/policies
-commit: ec478cb5996376c0d2f09520675805a8e33297c9
+commit: c3b5baab77b7675c4cf81a1bb0e25707bbbf1c42
 cef822fab4d4eac557af5184d924889ee99f99b72c644480913c76de03cc9122  pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
 9cc6c218c0ac3b984809a1e72cb4f708eb864e0a4e6ca02eba93e0d10f88cd84  pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
 2d87b3fea1aa7d4fc7160a3ec4c31bb6dbc86485f318a55cccb5d7d28f7d99d2  pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
