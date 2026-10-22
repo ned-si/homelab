@@ -42,8 +42,27 @@ server:
       # The library PVC is ReadWriteOnce: a second server pod could not mount
       # it. The chart defaults to RollingUpdate.
       strategy: Recreate
+      # Off the control planes when there is room: etcd shares their eMMC and
+      # CPU, and a library scan or thumbnail run takes every core it gets.
+      pod:
+        affinity:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
       containers:
         main:
+          # Peak RSS about 3.2Gi (2026-10-21, thumbnail backlog); the rest of
+          # its working set is page cache. No CPU limit, like the other apps.
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 6Gi
           env:
             # Every asset path in the database starts with this. A different
             # location makes the server rewrite all of them on start.
@@ -67,8 +86,26 @@ machine-learning:
     main:
       # Its model cache PVC is ReadWriteOnce too.
       strategy: Recreate
+      # Off the control planes when there is room: etcd shares their eMMC and
+      # CPU, and a library scan or thumbnail run takes every core it gets.
+      pod:
+        affinity:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                preference:
+                  matchExpressions:
+                    - key: node-role.kubernetes.io/control-plane
+                      operator: DoesNotExist
       containers:
         main:
+          # Peak about 2.4Gi with both SigLIP models loaded.
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
           env:
             MACHINE_LEARNING_PRELOAD__CLIP__TEXTUAL: ViT-B-16-SigLIP-i18n-256__webli
             MACHINE_LEARNING_PRELOAD__CLIP__VISUAL: ViT-B-16-SigLIP-i18n-256__webli
