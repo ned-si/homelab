@@ -24,6 +24,27 @@ own pull request with its own diff, test and rollback
 - Snapshot-then-backup for the two best-effort SQLite databases (Jellyfin,
   Grafana) and a consistent Paperless SQLite copy.
 
+## Secrets
+
+- OpenBao as the issuer of the secrets whose authority is the cluster: random
+  passwords and app API keys, Keycloak client secrets, CNPG users (database
+  static roles), consumed through the External Secrets Operator. The audit
+  device goes to Vector and SigNoz, so every issue and read is logged. SOPS
+  keeps OpenBao's own bootstrap and break-glass secrets.
+- OpenBao auto-unseal with an AWS KMS customer-managed key (about $1/month;
+  unseal calls stay in the free request tier). Raft storage on an iSCSI PVC,
+  not the eMMC. Raft snapshots to S3 with the other backups.
+- Pods assume AWS roles with their service-account tokens
+  (`AssumeRoleWithWebIdentity`): the Talos `service-account-issuer` points at a
+  public OIDC discovery document, registered as an IAM OIDC provider in tofu.
+  That removes the static access keys of `bootstrap/aws-backup` (restic,
+  Barman, verify) and gives OpenBao KMS access without a stored key.
+- Every API key that has an API is created by IaC: Cloudflare tokens
+  (`cloudflare_api_token`), the Tailscale operator client and node auth key
+  (Tailscale provider), a GitHub App instead of the fine-grained tokens.
+  Keys for outside accounts stay in tofu (CI with GitHub OIDC), never minted
+  from inside the cluster. TrueNAS, Plex and Home Assistant tokens stay manual.
+
 ## Delivery
 
 - `task apps:status` still uses namespace `argocd`; move it to `argo`.
