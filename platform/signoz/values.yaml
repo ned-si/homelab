@@ -43,6 +43,10 @@ clickhouse:
       repository: signoz/zookeeper
       # renovate: datasource=docker depName=docker.io/signoz/zookeeper
       tag: 3.9.3@sha256:2982759ec21211d52514154a5c87d2bbe6725d94cfa864cdfea2f7040b7bd365
+    # JVM heap in MB (ZOO_HEAP_SIZE). The chart default, 1024, is larger than
+    # the 512Mi limit, so the JVM grew into an OOM kill; half the limit leaves
+    # room for metaspace, threads and buffers.
+    heapSize: 256
     resources:
       requests:
         cpu: 50m
