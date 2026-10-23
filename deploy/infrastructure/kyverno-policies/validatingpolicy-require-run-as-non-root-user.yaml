@@ -15,9 +15,11 @@ metadata:
     kyverno.io/kubernetes-version: 1.30+
     kyverno.io/kyverno-version: 1.14.0
     policies.kyverno.io/category: Pod Security Standards (Restricted) in ValidatingPolicy
-    policies.kyverno.io/description: Containers must be required to run as non-root
+    policies.kyverno.io/description: 'Containers must be required to run as non-root
       users. This policy ensures `runAsUser` is either unset or set to a number greater
-      than zero.
+      than zero. Pods that set `spec.hostUsers: false` are exempt, as in Pod Security
+      Standards v1.35 and later. Pod Security Admission on earlier Kubernetes versions
+      does not exempt them.'
     policies.kyverno.io/minversion: 1.17.0
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: Pod
@@ -42,17 +44,21 @@ spec:
   validationActions:
   - Audit
   validations:
-  - expression: object.spec.?securityContext.?runAsUser.orValue(1) > 0
+  - expression: variables.userNamespacePod || object.spec.?securityContext.?runAsUser.orValue(1)
+      > 0
     message: Running as root is not allowed. The field spec.securityContext.runAsUser  must
-      be unset or set to a number greater than zero.
-  - expression: "variables.allContainers.all(container, \n  container.?securityContext.?runAsUser.orValue(1)
-      > 0)"
+      be unset or set to a number greater than zero, unless the Pod sets spec.hostUsers
+      to `false`.
+  - expression: "variables.userNamespacePod || variables.allContainers.all(container,
+      \n  container.?securityContext.?runAsUser.orValue(1) > 0)"
     message: Running as root is not allowed. The field spec.containers[*].securityContext.runAsUser,  spec.initContainers[*].securityContext.runAsUser,
       and  spec.ephemeralContainers[*].securityContext.runAsUser must be unset or
-      set to a number greater than zero.
+      set to a number greater than zero, unless the Pod sets spec.hostUsers to `false`.
   variables:
   - expression: object.spec.containers +  object.spec.?initContainers.orValue([])
       +  object.spec.?ephemeralContainers.orValue([])
     name: allContainers
+  - expression: object.spec.?hostUsers.orValue(true) == false
+    name: userNamespacePod
   webhookConfiguration:
     timeoutSeconds: 3

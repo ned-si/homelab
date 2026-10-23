@@ -15,10 +15,13 @@ metadata:
     kyverno.io/kubernetes-version: 1.30+
     kyverno.io/kyverno-version: 1.14.0
     policies.kyverno.io/category: Pod Security Standards (Baseline) in ValidatingPolicy
-    policies.kyverno.io/description: The default /proc masks are set up to reduce
+    policies.kyverno.io/description: 'The default /proc masks are set up to reduce
       attack surface and should be required. This policy ensures nothing but the default
-      procMount can be specified. Note that in order for users to deviate from the
-      `Default` procMount requires setting a feature gate at the API server.
+      procMount can be specified. Pods that set `spec.hostUsers: false` are exempt,
+      as in Pod Security Standards v1.35 and later. Pod Security Admission on earlier
+      Kubernetes versions does not exempt them. The API server accepts a procMount
+      of `Unmasked` only when `spec.hostUsers` is `false`, and only with the `ProcMountType`
+      feature gate, which is on by default from Kubernetes 1.33.'
     policies.kyverno.io/minversion: 1.17.0
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: Pod
@@ -43,12 +46,17 @@ spec:
   validationActions:
   - Audit
   validations:
-  - expression: variables.allContainers.all(container, container.?securityContext.?procMount.orValue('Default')
-      == 'Default')
-    message: Changing the proc mount from the default is not allowed.
+  - expression: |-
+      variables.userNamespacePod || variables.allContainers.all(container,
+
+        container.?securityContext.?procMount.orValue('Default') == 'Default')
+    message: Changing the proc mount from the default is not allowed, unless the Pod
+      sets spec.hostUsers to `false`.
   variables:
   - expression: "object.spec.containers + \n  object.spec.?initContainers.orValue([])
       + \n  object.spec.?ephemeralContainers.orValue([])"
     name: allContainers
+  - expression: object.spec.?hostUsers.orValue(true) == false
+    name: userNamespacePod
   webhookConfiguration:
     timeoutSeconds: 3

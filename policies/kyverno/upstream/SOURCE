@@ -30,23 +30,23 @@
 #   disallow-privileged  -> pod-security-vpol/baseline/disallow-privileged-containers
 #   require-resources    -> best-practices-vpol/require-pod-requests-limits
 repo: https://github.com/kyverno/policies
-commit: c3b5baab77b7675c4cf81a1bb0e25707bbbf1c42
-cef822fab4d4eac557af5184d924889ee99f99b72c644480913c76de03cc9122  pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
+commit: c2e3f5eb0b787a47c509ab8f02620fabf4f4510e
+8dffc4bfa071ccc7e4d93934af2759b64e461e687d40de4ed010d6c04cd8f026  pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
 9cc6c218c0ac3b984809a1e72cb4f708eb864e0a4e6ca02eba93e0d10f88cd84  pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
 2d87b3fea1aa7d4fc7160a3ec4c31bb6dbc86485f318a55cccb5d7d28f7d99d2  pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
 860d61b669f11518aee5406a6a2d8071c0d2c249b3bb8dc4927d82bcd584d4e5  pod-security-vpol/baseline/disallow-host-ports/disallow-host-ports.yaml
-a81ea633d5a3cbdbc96645108d99397a530cdcaa2c37c1099a16935fd21d66ed  pod-security-vpol/baseline/disallow-host-process/disallow-host-process.yaml
+cbd5a10cf6d29bb97fd9f2116503a14c305892078446d1e483ed28b37e631ce4  pod-security-vpol/baseline/disallow-host-process/disallow-host-process.yaml
 cc7246f60220ca668cef9e1b2e9bc67e92185e5765ed9a8d7caed3fb71908e52  pod-security-vpol/baseline/disallow-privileged-containers/disallow-privileged-containers.yaml
-f23d7c55e4727e2846ea770d1f474fd986a44a3919b08a835300e0f2fe953444  pod-security-vpol/baseline/disallow-proc-mount/disallow-proc-mount.yaml
-dfc9fc1b9df62bde03388d7cb80b3d5624943cf130d3e71a11f66db8489226a6  pod-security-vpol/baseline/disallow-selinux/disallow-selinux.yaml
+c27a75d029d95adb091223aca3fa6d32c7b640c23eb380df6420fbc5fb8aaf30  pod-security-vpol/baseline/disallow-proc-mount/disallow-proc-mount.yaml
+f23ec5ccf602ba24d611d84061b05143648c726f3ce59b593a93a978fe2fadbf  pod-security-vpol/baseline/disallow-selinux/disallow-selinux.yaml
 de869805d9d4858c4fd4c126a267224127f0fa27b1b6be10285b1627b2f9e2f0  pod-security-vpol/baseline/restrict-seccomp/restrict-seccomp.yaml
-bca0762de469053a1404601102d4452830c50277528cced58c0dcfcc4a8b86b4  pod-security-vpol/baseline/restrict-sysctls/restrict-sysctls.yaml
-59f73232b267d0239869ee20537e55695f31034fa6a7da4ff9fe239516f6e69e  pod-security-vpol/restricted/disallow-capabilities-strict/disallow-capabilities-strict.yaml
-472536c045db34e54d761902da061116b0f69c0705f4ab61959dfabbe3db55ef  pod-security-vpol/restricted/disallow-privilege-escalation/disallow-privilege-escalation.yaml
-2486acf56ec159257b47beffff851642f83432ad1c1f900133a25ac268495b82  pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
-61b7c5142a719b5c9a0cb8bb99eabcc428e636bbb72386008cb4f09057e985f6  pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
-1373741a65c13b3e6f3c6fd4fca0edcd2ee059d70c4202a1eab51a36c7489264  pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
-36e9017d197f837f03f41d7240fb0d336f553c85b004ae999f9191ade205534c  pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
+c04de70c78e0acad06c34cf30a19b1d613f6882ae360b35bbe0cc1afb2bafd05  pod-security-vpol/baseline/restrict-sysctls/restrict-sysctls.yaml
+485bd12aa15379d66002c072928f6bcde39d11a12a76503ec80948b3b95d99d0  pod-security-vpol/restricted/disallow-capabilities-strict/disallow-capabilities-strict.yaml
+04d168827eb985a293ec5cd29ecb7f122f3308fb1caf53732eb5135ed2500cf3  pod-security-vpol/restricted/disallow-privilege-escalation/disallow-privilege-escalation.yaml
+d50ec688dedd81ec7da979ea891b7f973e156ef3f9f9a219bef02f19ead9e6e2  pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
+c7d1d7428a2beff41de4094118e0ecf66428e3625bfcad49141d2456aba381f9  pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
+49aea03ec625a13384a3c011cb0c2b39a823b79c50882b4fb7cd1b2583967944  pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
+cd81ef066137d7d6ccbe67b577d0eac83ecf5235dde5dec56aae5c959530ea0f  pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
 66a4262e06e72826b312ed0f7162bea5910249a4337dc81be09264f9bd848477  best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
 3d67c209681634471671c3954d7ca4bd7bc79ba31f039b3c6a29d7b75e0d813b  best-practices-vpol/disallow-cri-sock-mount/disallow-cri-sock-mount.yaml
 77119e0fb24b15a295d4051eadb9a533a8a4cffe9baddc8c42a7fc82a42a0106  best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
