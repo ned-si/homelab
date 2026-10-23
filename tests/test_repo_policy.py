@@ -477,6 +477,15 @@ def test_kiro_only_specs_and_steering_tracked(tmp_path):
         "FAIL kiro-tracked: .kiro/settings/mcp.json: only .kiro/specs/ and .kiro/steering/ are tracked under .kiro/"]
 
 
+def test_cilium_explicit_xds(tmp_path):
+    bad = {"infrastructure/cilium/values.yaml": "envoy:\n  enabled: true\n"}
+    good = {"infrastructure/cilium/values.yaml": "envoy:\n  enabled: true\n  # pinned\n  xdsMode: ads\nhubble: {}\n"}
+    assert fails(policy(tmp_path / "bad", files=bad)) == [
+        "FAIL cilium-explicit-xds: infrastructure/cilium/values.yaml: set envoy.xdsMode explicitly "
+        "(the chart default changed in 1.20.4)"]
+    assert fails(policy(tmp_path / "good", files=good)) == []
+
+
 def test_expected_ingresses(tmp_path):
     ing = {"apiVersion": "networking.k8s.io/v1", "kind": "Ingress", "metadata": {"name": "argo", "namespace": "argo"}}
     files = {"ci/expected-ingresses.txt": "# ns/name\nargo/argo\nmealie/mealie\n"}

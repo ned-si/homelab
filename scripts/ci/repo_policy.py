@@ -57,6 +57,9 @@ objects and rule ids only; values are never printed.
                         * on the bucket and its objects, without a condition
   kiro-tracked          no tracked file under .kiro/ outside .kiro/specs/ and
                         .kiro/steering/
+  cilium-explicit-xds   infrastructure/cilium/values.yaml sets envoy.xdsMode: a
+                        chart default change cannot leave the agent and Envoy on
+                        different xDS modes (postmortem 2026-10-23)
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -127,6 +130,7 @@ IPV4 = re.compile(r"(?<![0-9.])(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 # Only a literal IPv4 value counts as "setting" the public address.
 DEFAULT_TARGETS = re.compile(r"--default-targets=(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 AWS_BACKUP_TF = "bootstrap/aws-backup/main.tf"
+CILIUM_VALUES = "infrastructure/cilium/values.yaml"
 # What the backup bucket policy must deny to everyone (docs/backups.md#immutable-versions).
 LOCK_ACTIONS = {"s3:DeleteObjectVersion", "s3:PutBucketVersioning", "s3:DeleteBucket"}
 CI_WORKFLOW = ".github/workflows/ci.yaml"
@@ -587,6 +591,16 @@ class Policy:
                             f"{', '.join(sorted(LOCK_ACTIONS))} to principal * on the bucket and its objects "
                             "without a condition")
 
+    def rule_cilium_explicit_xds(self) -> None:
+        rule = "cilium-explicit-xds"
+        values = self.root / CILIUM_VALUES
+        if not values.is_file():
+            return
+        self.on(rule)
+        envoy = re.search(r"^envoy:\n((?:[ #].*\n|\n)*)", values.read_text(), re.M)
+        if not envoy or not re.search(r"^  xdsMode: \S+", envoy.group(1), re.M):
+            self.fail(rule, f"{CILIUM_VALUES}: set envoy.xdsMode explicitly (the chart default changed in 1.20.4)")
+
     def rule_kiro_tracked(self) -> None:
         rule = "kiro-tracked"
         self.on(rule)
@@ -794,7 +808,7 @@ class Policy:
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
                      self.rule_iscsi_selinux_label, self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
-                     self.rule_backup_bucket_lock, self.rule_kiro_tracked,
+                     self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
