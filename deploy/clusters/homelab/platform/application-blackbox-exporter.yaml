@@ -28,7 +28,7 @@ spec:
       valueFiles:
       - $values/platform/blackbox-exporter/values.yaml
     repoURL: https://prometheus-community.github.io/helm-charts
-    targetRevision: 11.20.0
+    targetRevision: 11.20.2
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
