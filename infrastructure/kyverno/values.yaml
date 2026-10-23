@@ -78,7 +78,7 @@ admissionController:
       registry: ghcr.io
       repository: kyverno/kyverno
       # renovate: datasource=docker depName=ghcr.io/kyverno/kyverno
-      tag: v1.19.1@sha256:b31d8511ae5fd6010e2a01ea72ebae08eb82fa51d91af14a1d9fe989949b4edb
+      tag: v1.19.2@sha256:c8c4dd09e720d2cd7fd24ca73ac28e46651001372f988e0cba3f2f612f04b955
     resources:
       requests:
         cpu: 50m
