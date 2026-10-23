@@ -226,9 +226,16 @@
     {
       // Cilium ships against a specific Gateway API version. If these drift the
       // Gateway stops programming and every HTTPRoute goes dark.
-      description: 'Cilium and Gateway API CRDs move together',
+      //
+      // A broken release takes every hostname down at once
+      // (docs/postmortems/2026-10-23-gateway-cilium-xds.md): wait 3 days so a
+      // regression is reported upstream first, and merge on weekdays during
+      // the day, when a failure is seen. Spec cilium-upgrades, requirement 4.
+      description: 'Cilium and Gateway API CRDs move together, after 3 days, on weekdays',
       groupName: 'cluster networking',
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
+      minimumReleaseAge: '3 days',
+      automergeSchedule: ['* 9-16 * * 1-5'],
     },
     {
       // Every image is pinned by digest, so a tag re-pushed upstream is a
