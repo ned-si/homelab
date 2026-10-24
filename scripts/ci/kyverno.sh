@@ -56,6 +56,12 @@ names=" $(for p in "${policies[@]}"; do yq '.metadata.name' "$p"; done | tr '\n'
 for b in $BLOCKING; do
   [[ "$names" == *" $b "* ]] || { echo "kyverno: BLOCKING policy $b is not in the policy set" >&2; exit 1; }
 done
+# Expected findings (policies/kyverno/exceptions), the same objects the
+# cluster runs.
+exceptions=()
+for e in policies/kyverno/exceptions/*.yaml; do
+  [ "$(basename "$e")" = kustomization.yaml ] || exceptions+=(--exception "$e")
+done
 # `--resource <dir>` does not recurse: pass every file.
 resources=()
 while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -name '*.yaml' -type f | sort)
@@ -71,7 +77,7 @@ while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -nam
 } > "$out/values.yaml"
 echo "== kyverno apply: ${#policies[@]} policies over $((${#resources[@]} / 2)) files in deploy/"
 echo "blocking: $BLOCKING"
-kyverno apply "${policies[@]}" "${resources[@]}" --values-file "$out/values.yaml" \
+kyverno apply "${policies[@]}" "${exceptions[@]}" "${resources[@]}" --values-file "$out/values.yaml" \
   --audit-warn --policy-report --remove-color > "$out/report.yaml" 2> "$out/apply.err"
 if [ "$(yq '.kind' "$out/report.yaml" 2>/dev/null)" != "ClusterReport" ]; then
   echo "kyverno apply produced no report:" >&2

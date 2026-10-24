@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  annotations:
+    homelab/reason: 'The CSI node plugin attaches iSCSI volumes and mounts them on
+      the host: privileged, host PID/network, /dev, /sys and the kubelet directory
+      (democratic-csi chart).'
+  name: democratic-csi-node
+  namespace: kyverno
+spec:
+  matchConditions:
+  - expression: object.metadata.namespace == 'democratic-csi' && object.metadata.name.startsWith('iscsi-democratic-csi-node')
+    name: democratic-csi-node
+  policyRefs:
+  - kind: ValidatingPolicy
+    name: disallow-privileged-containers
+  - kind: ValidatingPolicy
+    name: disallow-capabilities
+  - kind: ValidatingPolicy
+    name: disallow-host-path
+  - kind: ValidatingPolicy
+    name: disallow-host-namespaces

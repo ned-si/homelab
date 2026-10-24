@@ -1,0 +1,28 @@
+# Expected findings of logging/vector: disallow-host-path, disallow-host-
+# namespaces, require-run-as-non-root-user.
+# Matched by namespace and name prefix, so the controller, its ReplicaSets and
+# its pods are covered and nothing else in the namespace is.
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: vector
+  namespace: kyverno
+  annotations:
+    homelab/reason: >-
+      The log agent runs as root with hostNetwork and reads the node's
+      /var/log, /var/lib, /proc and /sys (host paths) to ship pod and
+      node logs (platform/vector/values.yaml).
+spec:
+  policyRefs:
+    - name: disallow-host-path
+      kind: ValidatingPolicy
+    - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: require-run-as-non-root-user
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: vector
+      expression: >-
+        object.metadata.namespace == 'logging' &&
+        object.metadata.name.startsWith('vector')
