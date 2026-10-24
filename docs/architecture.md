@@ -116,13 +116,17 @@ a list is a deliberate edit with the reason on the same line.
 ## Admission policy (Kyverno)
 
 Kyverno runs the same policy files as CI (`policies/kyverno/`, see
-[testing.md](testing.md)), in Audit only: nothing is rejected.
+[testing.md](testing.md)). 16 baseline policies are in Deny: the ones with no
+live finding outside the excluded namespaces once the PolicyExceptions
+(`policies/kyverno/exceptions`) were in, and which block in CI over `deploy/`
+and the rendered Helm apps (`BLOCKING` in `scripts/ci/kyverno.sh`). The rest
+stay in Audit until their reports are clean.
 
 - `infrastructure/kyverno`: the chart, admission and reports controllers only,
   one replica each, namespace `kyverno` (PSA `restricted`).
 - `infrastructure/kyverno-policies`: renders `policies/kyverno` with every
-  policy patched to `validationActions: [Audit]`, `failurePolicy: Ignore` and
-  a 3 s webhook timeout. The vendored files stay byte for byte upstream.
+  policy patched to `validationActions: [Audit]` (the 16 above `[Deny]`),
+  `failurePolicy: Ignore` and a 3 s webhook timeout. The vendored files stay byte for byte upstream.
 - Cold start: every webhook fails open (`forceFailurePolicyIgnore`) and skips
   `kube-system`, `argo`, `cilium`, `kyverno` and `tailscale`, so a missing or
   slow Kyverno never blocks pod creation.

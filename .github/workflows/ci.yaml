@@ -236,8 +236,10 @@ jobs:
 
       # Policy unit tests, then the policies over deploy/. Deny policies
       # block; Audit policies report in the step summary.
-      - name: Kyverno policies (policies/kyverno over deploy/)
+      - name: Kyverno policies (policies/kyverno over deploy/ and the Helm renders)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          KYVERNO_EXTRA: ${{ runner.temp }}/render
         run: scripts/ci/kyverno.sh
 
       # Pins, repository invariants, secrets/leak/placeholder checks, deploy/

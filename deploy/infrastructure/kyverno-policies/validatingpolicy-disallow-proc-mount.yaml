@@ -44,7 +44,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: |-
       variables.userNamespacePod || variables.allContainers.all(container,

@@ -36,7 +36,7 @@ spec:
       resources:
       - services
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: '!has(object.spec.externalIPs) || size(object.spec.externalIPs) ==
       0'
