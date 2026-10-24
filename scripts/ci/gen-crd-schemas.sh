@@ -116,6 +116,36 @@ for url in "${sources[@]}"; do
   (cd "$gen" && FILENAME_FORMAT='{fullgroup}_{kind}_{version}' "$PYTHON" "$work/openapi2jsonschema.py" "$f" >/dev/null)
 done
 
+# openapi2jsonschema.py adds `additionalProperties: false` to every dict that
+# has a `properties` key, including a properties map that holds a field named
+# `properties` (Kyverno PolicyException spec.properties). The result is a
+# property whose schema is `false`, which kubeconform cannot compile and
+# reports as "could not find schema". No CRD field has a boolean schema: drop
+# them.
+"$PYTHON" - "$gen"/*.json <<'PY'
+import json, sys
+def fix(node):
+    if isinstance(node, dict):
+        props = node.get("properties")
+        if isinstance(props, dict):
+            for k in [k for k, v in props.items() if isinstance(v, bool)]:
+                del props[k]
+        for v in node.values():
+            fix(v)
+    elif isinstance(node, list):
+        for v in node:
+            fix(v)
+for path in sys.argv[1:]:
+    with open(path) as f:
+        doc = json.load(f)
+    before = json.dumps(doc, sort_keys=True)
+    fix(doc)
+    if json.dumps(doc, sort_keys=True) != before:
+        with open(path, "w") as f:
+            json.dump(doc, f, indent=2)
+            f.write("\n")
+PY
+
 curl -fsSL -m 120 -o "$work/k8s-apiextensions.json" "$K8S_OPENAPI" || { echo "gen-crd-schemas: fetch failed: $K8S_OPENAPI" >&2; exit 1; }
 echo "$(sha256 "$work/k8s-apiextensions.json")  $K8S_OPENAPI" >> "$work/SOURCES.txt"
 "$PYTHON" "$ROOT/scripts/ci/k8s_openapi_to_schema.py" "$work/k8s-apiextensions.json" "$CRD_DEF" \
