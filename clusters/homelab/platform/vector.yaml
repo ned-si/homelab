@@ -19,7 +19,7 @@ spec:
     - repoURL: https://helm.vector.dev
       chart: vector
       # renovate: datasource=helm depName=vector registryUrl=https://helm.vector.dev
-      targetRevision: 0.59.0
+      targetRevision: 0.60.0
       helm:
         releaseName: vector
         valueFiles:
