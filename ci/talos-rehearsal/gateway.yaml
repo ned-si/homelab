@@ -1,0 +1,40 @@
+# CI rehearsal only (scripts/ci/talos-upgrade-rehearsal.sh): traffic through a
+# Cilium Gateway, the path the shared Gateway serves. Applied after
+# smoke.yaml; the route sends everything to the `smoke` Service. The probe
+# pod dials the Gateway's Service, so a Gateway that is Programmed but has no
+# Envoy listener (2026-10-23, docs/postmortems/2026-10-23-gateway-cilium-xds.md)
+# fails the run. A small LB pool gives the Gateway an address; nothing
+# announces it, the check uses the ClusterIP.
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: rehearsal
+spec:
+  blocks:
+    - cidr: 10.99.0.0/28
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: rehearsal
+  namespace: smoke
+spec:
+  gatewayClassName: cilium
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: smoke
+  namespace: smoke
+spec:
+  parentRefs:
+    - name: rehearsal
+  rules:
+    - backendRefs:
+        - name: smoke
+          port: 80
