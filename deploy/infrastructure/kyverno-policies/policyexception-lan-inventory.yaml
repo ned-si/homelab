@@ -13,7 +13,7 @@ kind: PolicyException
 metadata:
   annotations:
     homelab/reason: 'The LAN inventory scans the home network with ARP from the node:
-      hostNetwork and CAP_NET_RAW as root (platform/lan-inventory/deployment.yaml).'
+      hostNetwork and CAP_NET_RAW as root (platform/lan- inventory/deployment.yaml).'
   name: lan-inventory
   namespace: kyverno
 spec:

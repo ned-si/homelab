@@ -1,4 +1,6 @@
-# Expected findings of democratic-csi/iscsi-democratic-csi-node: disallow-privileged-containers, disallow-capabilities, disallow-host-path, disallow-host-namespaces.
+# Expected findings of democratic-csi/iscsi-democratic-csi-node: disallow-
+# privileged-containers, disallow-capabilities, disallow-host-path,
+# disallow-host-namespaces.
 # Matched by namespace and name prefix, so the controller, its ReplicaSets and
 # its pods are covered and nothing else in the namespace is.
 ---
@@ -9,7 +11,9 @@ metadata:
   namespace: kyverno
   annotations:
     homelab/reason: >-
-      The CSI node plugin attaches iSCSI volumes and mounts them on the host: privileged, host PID/network, /dev, /sys and the kubelet directory (democratic-csi chart).
+      The CSI node plugin attaches iSCSI volumes and mounts them on the
+      host: privileged, host PID/network, /dev, /sys and the kubelet
+      directory (democratic-csi chart).
 spec:
   policyRefs:
     - name: disallow-privileged-containers
