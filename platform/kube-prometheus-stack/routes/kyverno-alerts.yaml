@@ -1,0 +1,37 @@
+# Kyverno (Audit mode): the PolicyReports must stay fresh, or the counts on
+# the Security dashboard and the Deny-readiness they show are stale
+# (spec wave3-runtime-security, requirement 2.5).
+#
+#   KyvernoReportsStale  no background scan for 3h, or no scrape  warning  human
+#
+# The background scan runs every hour (infrastructure/kyverno/values.yaml).
+#
+# Tests: tests/prometheus/kyverno_test.yaml (promtool test rules).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-kyverno
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.kyverno
+      rules:
+        - alert: KyvernoReportsStale
+          expr: |
+            sum(increase(kyverno_controller_reconcile_total{controller_name="background-scan-controller"}[3h])) == 0
+            or
+            absent(kyverno_controller_reconcile_total{controller_name="background-scan-controller"})
+          for: 15m
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md
+            summary: Kyverno has not run a background scan for 3 hours
+            description: >-
+              The PolicyReports, the Security dashboard counts and the
+              Deny-readiness they show are stale. Check the
+              kyverno-reports-controller pod.

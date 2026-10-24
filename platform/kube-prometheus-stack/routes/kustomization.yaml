@@ -18,6 +18,7 @@ resources:
   - alerts.yaml
   - argocd-alerts.yaml
   - outage-alerts.yaml
+  - kyverno-alerts.yaml
   - cilium-monitors.yaml
   - etcd-scrape.yaml
   - nas-alerts.yaml

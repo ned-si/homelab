@@ -99,6 +99,45 @@ prometheus-node-exporter:
 # The claim of the TSDB is pre-created in infrastructure/iscsi-volumes/ and
 # bound to the existing volume; the template below must keep its name (the
 # chart derives it from the release name) and its size.
+# Kyverno's PolicyReport summaries as metrics (spec wave3-runtime-security,
+# requirement 2.3): kyverno_policyreport_summary{namespace, result} and
+# kyverno_clusterpolicyreport_summary{result}, one series per report and
+# result. Kyverno's own per-result counter overflows its cardinality limit,
+# so the reports are the source.
+kube-state-metrics:
+  rbac:
+    extraRules:
+      - apiGroups: [wgpolicyk8s.io]
+        resources: [policyreports, clusterpolicyreports]
+        verbs: [list, watch]
+  customResourceState:
+    enabled: true
+    config:
+      spec:
+        resources:
+          - groupVersionKind: {group: wgpolicyk8s.io, version: v1alpha2, kind: PolicyReport}
+            metricNamePrefix: kyverno_policyreport
+            labelsFromPath:
+              namespace: [metadata, namespace]
+            metrics:
+              - name: summary
+                help: Results of one Kyverno PolicyReport, by result
+                each:
+                  type: Gauge
+                  gauge:
+                    path: [summary]
+                    labelFromKey: result
+          - groupVersionKind: {group: wgpolicyk8s.io, version: v1alpha2, kind: ClusterPolicyReport}
+            metricNamePrefix: kyverno_clusterpolicyreport
+            metrics:
+              - name: summary
+                help: Results of one Kyverno ClusterPolicyReport, by result
+                each:
+                  type: Gauge
+                  gauge:
+                    path: [summary]
+                    labelFromKey: result
+
 prometheus:
   prometheusSpec:
     # 30 days for the SLO window (routes/slo.yaml). At about 0.55 GB/day of

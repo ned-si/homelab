@@ -1,0 +1,49 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/kyverno-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-kyverno.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Scans every hour, then they stop at 2h: fires 3h later plus 15m.
+  - interval: 1m
+    input_series:
+      - series: 'kyverno_controller_reconcile_total{controller_name="background-scan-controller"}'
+        values: '0+10x120 1200x300'
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: KyvernoReportsStale
+        exp_alerts: []
+      - eval_time: 5h30m
+        alertname: KyvernoReportsStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md
+              summary: Kyverno has not run a background scan for 3 hours
+              description: >-
+                The PolicyReports, the Security dashboard counts and the
+                Deny-readiness they show are stale. Check the
+                kyverno-reports-controller pod.
+  # Not scraped at all.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="other"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: KyvernoReportsStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md
+              summary: Kyverno has not run a background scan for 3 hours
+              description: >-
+                The PolicyReports, the Security dashboard counts and the
+                Deny-readiness they show are stale. Check the
+                kyverno-reports-controller pod.

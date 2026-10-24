@@ -1,0 +1,35 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-kyverno
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.kyverno
+    rules:
+    - alert: KyvernoReportsStale
+      annotations:
+        description: The PolicyReports, the Security dashboard counts and the Deny-readiness
+          they show are stale. Check the kyverno-reports-controller pod.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md
+        summary: Kyverno has not run a background scan for 3 hours
+      expr: |
+        sum(increase(kyverno_controller_reconcile_total{controller_name="background-scan-controller"}[3h])) == 0
+        or
+        absent(kyverno_controller_reconcile_total{controller_name="background-scan-controller"})
+      for: 15m
+      labels:
+        action: human
+        severity: warning

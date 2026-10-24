@@ -71,6 +71,7 @@ is the query helper the pages use. When done: `kill "$PF"`.
 
 - [GatewayDown](GatewayDown.md): half or more of the public hostnames down for 5 minutes
 - [HomelabNodeDown](HomelabNodeDown.md): a node NotReady for 15 minutes
+- [KyvernoReportsStale](KyvernoReportsStale.md): no Kyverno background scan for 3 hours
 - [HomelabNASDown](HomelabNASDown.md): the NAS unreachable for 10 minutes
 - [NodeFilesystemReadOnly](NodeFilesystemReadOnly.md): a node filesystem remounted read-only
 - [NodeEmmcWearHigh](NodeEmmcWearHigh.md): an eMMC past 80% of its rated wear
