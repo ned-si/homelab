@@ -28,7 +28,7 @@ spec:
       valueFiles:
       - $values/platform/tailscale-operator/values.yaml
     repoURL: https://pkgs.tailscale.com/helmcharts
-    targetRevision: 1.104.1
+    targetRevision: 1.104.2
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
