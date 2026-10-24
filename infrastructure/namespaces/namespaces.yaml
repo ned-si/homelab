@@ -189,6 +189,8 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
     pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
 ---
 # Tetragon (platform/tetragon). privileged: the agent loads eBPF programs,
 # shares the host PID namespace and mounts /sys/kernel and the BPF filesystem.
