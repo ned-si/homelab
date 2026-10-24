@@ -23,10 +23,13 @@ agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR 
       Cold start (1.6): kind preprod installs no Helm chart, so it has no Kyverno webhook to
       scale to 0; the check is the live read-back that every Kyverno webhook is `Ignore`
       and skips the excluded namespaces (`docs/architecture.md`).
-- [ ] 4b. PR `feat(policy): PolicyExceptions for the expected findings`:
+      First sync follow-up: the app stayed OutOfSync on the empty `labels: {}`
+      of the `kyverno-api` subchart's CRDs; fixed with `kyverno-api.labels`
+      (#673 used the wrong key, #679).
+- [x] 4b. (#674) PR `feat(policy): PolicyExceptions for the expected findings`:
       `policies/kyverno/exceptions/` with a `homelab/reason` annotation each, written from
       the first live background scan, passed to the CLI in `scripts/ci/kyverno.sh`. [2.2]
-- [ ] 5. PR `feat(observability): Kyverno reports on the Security dashboard`:
+- [x] 5. (#675) PR `feat(observability): Kyverno reports on the Security dashboard`:
       kube-state-metrics `customResourceState`, Kyverno scrape, dashboard rows,
       `KyvernoReportsStale` (human, warning) with promtool tests, runbook section,
       `routes.txt` line. [2.3, 2.4, 2.5, 5.3, 5.4]
