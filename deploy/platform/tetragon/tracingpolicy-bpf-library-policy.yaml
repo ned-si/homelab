@@ -1,0 +1,110 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/tetragon
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/tetragon and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: bpf-library-policy
+spec:
+  kprobes:
+  - args:
+    - index: 1
+      type: bpf_attr
+    call: bpf_check
+    syscall: false
+  - args:
+    - index: 0
+      type: perf_event
+    call: security_perf_event_alloc
+    syscall: false
+  - args:
+    - index: 0
+      type: bpf_map
+    call: security_bpf_map_alloc
+    ignore:
+      callNotFound: true
+    syscall: false
+  - args:
+    - index: 0
+      type: bpf_map
+    call: security_bpf_map_create
+    ignore:
+      callNotFound: true
+    syscall: false
+  - args:
+    - index: 0
+      type: file
+    - index: 1
+      type: int
+    call: security_file_permission
+    return: true
+    returnArg:
+      index: 0
+      type: int
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: Prefix
+        values:
+        - /sys/fs/bpf
+      - index: 1
+        operator: Equal
+        values:
+        - "4"
+    - matchArgs:
+      - index: 0
+        operator: Prefix
+        values:
+        - /sys/fs/bpf
+      - index: 1
+        operator: Equal
+        values:
+        - "2"
+    syscall: false
+  - args:
+    - index: 0
+      type: file
+    - index: 1
+      type: uint32
+    - index: 2
+      type: uint32
+    call: security_mmap_file
+    return: true
+    returnArg:
+      index: 0
+      type: int
+    selectors:
+    - matchArgs:
+      - index: 0
+        operator: Prefix
+        values:
+        - /sys/fs/bpf
+      - index: 1
+        operator: Equal
+        values:
+        - "1"
+      - index: 2
+        operator: Mask
+        values:
+        - "1"
+    - matchArgs:
+      - index: 0
+        operator: Prefix
+        values:
+        - /sys/fs/bpf
+      - index: 1
+        operator: Mask
+        values:
+        - "2"
+      - index: 2
+        operator: Mask
+        values:
+        - "1"
+    syscall: false

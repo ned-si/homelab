@@ -1,7 +1,8 @@
 #!/bin/bash
 # kyverno.sh -- policy-as-code over deploy/ with the Kyverno CLI.
 #
-#   1. scripts/kyverno-vendor.sh --check  the upstream files are unchanged
+#   1. scripts/vendor-upstream.sh --check  the vendored Kyverno and Tetragon
+#                                          files are unchanged
 #   2. kyverno test policies/kyverno/tests the policies' own unit tests
 #   3. kyverno apply                       policies/kyverno/*.yaml and the
 #                                          vendored policies/kyverno/upstream
@@ -38,8 +39,9 @@ BLOCKING="disallow-latest-tag disallow-privileged-containers"
 # defaulting (a Service without spec.type is a ClusterIP once stored).
 CLI_GAPS="restrict-nodeport|error: no such key: type"
 
-echo "== scripts/kyverno-vendor.sh --check"
-scripts/kyverno-vendor.sh --check || rc=1
+echo "== scripts/vendor-upstream.sh --check (Kyverno and Tetragon)"
+scripts/vendor-upstream.sh policies/kyverno/upstream --check || rc=1
+scripts/vendor-upstream.sh platform/tetragon/policies --check || rc=1
 
 echo "== kyverno test policies/kyverno/tests"
 kyverno test policies/kyverno/tests --remove-color || rc=1

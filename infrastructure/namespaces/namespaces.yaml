@@ -189,6 +189,21 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
     pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Tetragon (platform/tetragon). privileged: the agent loads eBPF programs,
+# shares the host PID namespace and mounts /sys/kernel and the BPF filesystem.
+# The operator sets a restricted context; warn and audit stay `restricted` to
+# show the agent.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tetragon
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---

@@ -33,7 +33,7 @@ agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR 
       kube-state-metrics `customResourceState`, Kyverno scrape, dashboard rows,
       `KyvernoReportsStale` (human, warning) with promtool tests, runbook section,
       `routes.txt` line. [2.3, 2.4, 2.5, 5.3, 5.4]
-- [ ] 6. PR `feat(security): Tetragon in observe mode`: namespace `tetragon` (privileged,
+- [x] 6. PR `feat(security): Tetragon in observe mode`: namespace `tetragon` (privileged,
       reason), Application, values (export allowlist on tmpfs, metric label filter,
       resources, digests, JSON), vendored library policies with `SOURCE` and
       `controls.yaml`, the enforcement-action check, Renovate manager. Silence `tetragon`

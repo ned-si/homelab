@@ -41,6 +41,8 @@ spec:
     kind: MutatingAdmissionPolicy
   - group: admissionregistration.k8s.io
     kind: MutatingAdmissionPolicyBinding
+  - group: cilium.io
+    kind: TracingPolicy
   description: Shared services - CloudNativePG, observability, Keycloak
   destinations:
   - namespace: '*'
@@ -58,3 +60,4 @@ spec:
   - https://kubernetes-sigs.github.io/headlamp/
   - https://helm.vector.dev
   - https://charts.signoz.io
+  - https://helm.cilium.io

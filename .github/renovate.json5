@@ -192,6 +192,16 @@
       currentValueTemplate: 'main',
       datasourceTemplate: 'git-refs',
     },
+    {
+      customType: 'regex',
+      // The vendored Tetragon library follows the chart's release tag (group
+      // `tetragon` below); renovate-render re-vendors at the new commit.
+      description: 'Vendored cilium/tetragon policy library (platform/tetragon/policies/SOURCE)',
+      managerFilePatterns: ['/(^|/)platform/tetragon/policies/SOURCE$/'],
+      matchStrings: ['\\nref:\\s*(?<currentValue>v[0-9.]+)\\ncommit:\\s*(?<currentDigest>[a-f0-9]{40})\\n'],
+      depNameTemplate: 'cilium/tetragon',
+      datasourceTemplate: 'github-tags',
+    },
   ],
 
   packageRules: [
@@ -224,6 +234,12 @@
       description: 'Make Helm chart PR titles obvious',
       matchDatasources: ['helm'],
       commitMessageTopic: 'chart {{depName}}',
+    },
+    {
+      // The chart, its images and the vendored policy library are one release.
+      description: 'Tetragon chart, images and policy library move together',
+      groupName: 'tetragon',
+      matchPackageNames: ['tetragon', 'cilium/tetragon', 'quay.io/cilium/tetragon', 'quay.io/cilium/tetragon-operator'],
     },
     {
       // Cilium ships against a specific Gateway API version. If these drift the

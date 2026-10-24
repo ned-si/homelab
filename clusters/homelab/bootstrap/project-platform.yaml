@@ -40,6 +40,7 @@ spec:
     - https://kubernetes-sigs.github.io/headlamp/
     - https://helm.vector.dev
     - https://charts.signoz.io
+    - https://helm.cilium.io
   destinations:
     - server: https://kubernetes.default.svc
       namespace: "*"
@@ -68,6 +69,8 @@ spec:
       kind: MutatingAdmissionPolicy # trivy-operator: ExposedSecretReports out of `view`
     - group: admissionregistration.k8s.io
       kind: MutatingAdmissionPolicyBinding # trivy-operator: the policy's binding
+    - group: cilium.io
+      kind: TracingPolicy # tetragon: the vendored library policies, observe only
   # Deliberately NOT here:
   #   Namespace       -- every namespace in the cluster is declared once, in the
   #                      infrastructure layer (infrastructure/namespaces/), so
