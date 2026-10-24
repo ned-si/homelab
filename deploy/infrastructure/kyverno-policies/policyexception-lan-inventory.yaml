@@ -22,6 +22,8 @@ spec:
     name: lan-inventory
   policyRefs:
   - kind: ValidatingPolicy
+    name: disallow-host-ports
+  - kind: ValidatingPolicy
     name: disallow-capabilities
   - kind: ValidatingPolicy
     name: disallow-host-namespaces

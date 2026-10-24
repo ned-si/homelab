@@ -4,7 +4,8 @@
 # renovate-render workflow re-vendors in the same pull request.
 #
 # The files keep upstream's validationActions. CI decides what blocks by
-# policy name (scripts/ci/kyverno.sh); the cluster runs every policy in Audit.
+# policy name (scripts/ci/kyverno.sh); the cluster runs those in Deny, the
+# rest in Audit (infrastructure/kyverno-policies).
 #
 # Not vendored, from best-practices-vpol:
 #   require-labels             needs site configuration (the label set)

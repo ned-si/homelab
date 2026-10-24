@@ -43,7 +43,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: variables.hasVolumes ||  variables.volumesWithHostPath.all(volume,
       !volume.hostPath.path.matches('/var/run/docker.sock'))

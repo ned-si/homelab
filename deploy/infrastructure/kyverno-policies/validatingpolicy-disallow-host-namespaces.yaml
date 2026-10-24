@@ -41,7 +41,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: '!(variables.hostNetwork || variables.hostIPC || variables.hostPID)'
     message: 'Sharing the host namespaces is disallowed. The fields spec.hostNetwork,

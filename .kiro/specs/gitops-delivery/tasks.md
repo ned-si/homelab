@@ -36,6 +36,11 @@ Wave 3 puts Kyverno in the cluster in Audit mode: `.kiro/specs/wave3-*`.
 - [ ] 17. Kyverno Deny in the cluster for the policies CI already denies,
       then the PSS-restricted set; prefer CEL policies Kyverno turns into
       native ValidatingAdmissionPolicies (no webhook in a cold start).
+      - [x] 17a. Deny for the 16 baseline policies with no live finding outside
+        the excluded namespaces (2026-10-24, after the PolicyExceptions);
+        CI blocks on the same 16 over `deploy/` and the rendered Helm apps.
+        (#687)
+      - [ ] 17b. The PSS-restricted set, per policy once its reports are clean.
 - [ ] 18. Image provenance: a Kyverno `ImageValidatingPolicy` in Audit for
       publishers that sign with cosign keyless; unsigned images listed with a
       reason. Weekly CycloneDX SBOM of the running image set, scanned for new

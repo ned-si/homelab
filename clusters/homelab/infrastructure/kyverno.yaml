@@ -1,4 +1,4 @@
-# Kyverno: admission policies in Audit mode (docs/architecture.md#admission-policy-kyverno).
+# Kyverno: admission policies, Audit and 16 in Deny (docs/architecture.md#admission-policy-kyverno).
 # The policies themselves are the `kyverno-policies` Application.
 #
 # SYNC WAVE 26, after everything else in this layer: a cold start never waits

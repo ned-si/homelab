@@ -1,5 +1,5 @@
 # Expected findings of monitoring/kube-prometheus-stack-prometheus-node-
-# exporter: disallow-host-path, disallow-host-namespaces.
+# exporter: disallow-host-ports, disallow-host-path, disallow-host-namespaces.
 # Matched by namespace and name prefix, so the controller, its ReplicaSets and
 # its pods are covered and nothing else in the namespace is.
 ---
@@ -14,6 +14,8 @@ metadata:
       with host PID and network, which is what it measures.
 spec:
   policyRefs:
+    - name: disallow-host-ports
+      kind: ValidatingPolicy
     - name: disallow-host-path
       kind: ValidatingPolicy
     - name: disallow-host-namespaces

@@ -7,7 +7,11 @@ kind: Kustomization
 #
 # The vendored files stay byte for byte upstream; the cluster settings are
 # patched here:
-#   - validationActions [Audit]: nothing is ever rejected;
+#   - validationActions [Audit]; then [Deny] for the policies below, which
+#     had no live finding outside the excluded namespaces on 2026-10-24
+#     (after the PolicyExceptions) and block in CI over deploy/ and the
+#     rendered Helm apps (scripts/ci/kyverno.sh, BLOCKING). Keep the two
+#     lists equal;
 #   - failurePolicy Ignore and a 3 s webhook timeout: an evaluation error or a
 #     slow Kyverno never blocks a request.
 resources:
@@ -29,3 +33,11 @@ patches:
         path: /spec/webhookConfiguration
         value:
           timeoutSeconds: 3
+  - target:
+      group: policies.kyverno.io
+      kind: ValidatingPolicy
+      name: "^(disallow-capabilities|disallow-container-sock-mounts|disallow-default-namespace|disallow-host-namespaces|disallow-host-path|disallow-host-ports|disallow-host-process|disallow-latest-tag|disallow-privileged-containers|disallow-proc-mount|disallow-selinux|require-run-as-non-root-user|restrict-external-ips|restrict-nodeport|restrict-seccomp|restrict-sysctls)$"
+    patch: |-
+      - op: replace
+        path: /spec/validationActions
+        value: [Deny]

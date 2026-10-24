@@ -42,7 +42,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: variables.userNamespacePod || object.spec.?securityContext.?runAsUser.orValue(1)
       > 0
