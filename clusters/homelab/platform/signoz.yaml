@@ -21,7 +21,7 @@ spec:
     - repoURL: https://charts.signoz.io
       chart: signoz
       # renovate: datasource=helm depName=signoz registryUrl=https://charts.signoz.io
-      targetRevision: 0.146.0
+      targetRevision: 0.147.0
       helm:
         releaseName: signoz
         valueFiles:
