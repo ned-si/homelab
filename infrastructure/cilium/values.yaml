@@ -49,6 +49,13 @@ externalIPs:
   enabled: true
 gatewayAPI:
   enabled: true
+# How the agents serve Envoy its configuration. Chart 1.20.4 changed the
+# default from `ads` to none and only the Envoy bootstrap followed: the live
+# agent config kept a Helm-owned `ads`, and the Gateway lost its listeners
+# (docs/postmortems/2026-10-23-gateway-cilium-xds.md). Set here, so the agent
+# config and the Envoy bootstrap always render from one value.
+envoy:
+  xdsMode: ads
 # Serves the Gateway on 192.168.1.254 and the pinned LoadBalancer IPs
 # (infrastructure/cilium/ip-pools.yaml). The Kubernetes API VIP is not
 # Cilium's: Talos announces it (`vip` in talos/talconfig.yaml).
