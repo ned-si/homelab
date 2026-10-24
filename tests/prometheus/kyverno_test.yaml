@@ -28,7 +28,7 @@ tests:
                 The PolicyReports, the Security dashboard counts and the
                 Deny-readiness they show are stale. Check the
                 kyverno-reports-controller pod.
-  # Not scraped at all.
+  # Not scraped at all: absent() carries the selector's label.
   - interval: 1m
     input_series:
       - series: 'up{job="other"}'
@@ -40,6 +40,7 @@ tests:
           - exp_labels:
               severity: warning
               action: human
+              controller_name: background-scan-controller
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md
               summary: Kyverno has not run a background scan for 3 hours
