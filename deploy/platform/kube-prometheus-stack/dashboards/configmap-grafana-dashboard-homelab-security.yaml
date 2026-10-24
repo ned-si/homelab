@@ -1421,7 +1421,11 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(kyverno_policyreport_summary{result=\"fail\"}) + sum(kyverno_clusterpolicyreport_summary{result=\"fail\"} or vector(0))"
+              "expr": "sum(kyverno_policyreport_summary{result=\"fail\"}) + sum(kyverno_clusterpolicyreport_summary{result=\"fail\"} or vector(0))",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              }
             }
           ],
           "options": {
@@ -1457,7 +1461,11 @@ data:
             {
               "refId": "A",
               "expr": "sum by (namespace) (kyverno_policyreport_summary{result=\"fail\"})",
-              "legendFormat": "{{namespace}}"
+              "legendFormat": "{{namespace}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              }
             }
           ],
           "fieldConfig": {
@@ -1491,7 +1499,11 @@ data:
           "targets": [
             {
               "refId": "A",
-              "expr": "sum(increase(kyverno_controller_reconcile_total{controller_name=\"background-scan-controller\"}[1h]))"
+              "expr": "sum(increase(kyverno_controller_reconcile_total{controller_name=\"background-scan-controller\"}[1h]))",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              }
             }
           ],
           "options": {
