@@ -97,8 +97,8 @@ without me, but never during an outage it did not cause.
 2. WHEN Argo CD reports a failed sync or a Degraded app, THE workflow
    `auto-rollback` SHALL open `revert: <title> (auto)` with auto-merge, only
    if the commit is the newest on `main`, under an hour old, touched that
-   app, is not `cilium` or `democratic-csi`, and is not a second automatic
-   revert. (`scripts/ci/auto-rollback-decide.sh`, `tests/bash/test_auto_rollback.sh`)
+   app, is not `cilium` (except a chart patch update, spec cilium-upgrades),
+   `democratic-csi` or `tuppr`, and is not a second automatic revert. (`scripts/ci/auto-rollback-decide.sh`, `tests/bash/test_auto_rollback.sh`)
 3. IF 3 or more apps failed within 10 minutes, a node is NotReady or the NAS
    is unreachable, THEN THE workflow SHALL hold the revert back.
    (`scripts/ci/auto-rollback-guard.sh`)

@@ -138,6 +138,32 @@ expect_eq "long subject: still a revert" revert "$(get action "$o")"
 check "long subject: title under 70 ($t)" [ "${#t}" -lt 70 ]
 check "long title passes check-title.sh" "$REPO_ROOT/scripts/ci/check-title.sh" "$t"
 
+echo "decide: a cilium patch update is reverted, nothing else of cilium"
+# pin <when> <subject> <version>: write the cilium chart pins, commit.
+pin() {
+  local when=$1 subject=$2 v=$3
+  mkdir -p clusters/homelab/infrastructure deploy/clusters/homelab/infrastructure ci
+  printf '      targetRevision: %s\n' "$v" > clusters/homelab/infrastructure/cilium.yaml
+  printf '    targetRevision: %s\n' "$v" > deploy/clusters/homelab/infrastructure/application-cilium.yaml
+  printf 'cilium:\n  version: %s\n' "$v" > ci/helm-releases.yaml
+  git add -A
+  GIT_AUTHOR_DATE="@$when +0000" GIT_COMMITTER_DATE="@$when +0000" git commit -qm "$subject"
+  git rev-parse HEAD
+}
+pin $((T0 + 605)) "chore: cilium pins" 1.20.3 >/dev/null
+c_cpatch=$(pin $((T0 + 610)) "chore(deps): update chart cilium to v1.20.4 (#654)" 1.20.4)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=cilium TRIGGER=on-sync-failed REVISION="$c_cpatch")
+expect_eq "cilium patch update: revert" revert "$(get action "$o")"
+c_cminor=$(pin $((T0 + 620)) "chore(deps): update chart cilium to v1.21.0 (#700)" 1.21.0)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=cilium TRIGGER=on-sync-failed REVISION="$c_cminor")
+expect_eq "cilium minor update: skip" skip "$(get action "$o")"
+c_cval=$(commit $((T0 + 630)) "feat(network): cilium values" infrastructure/cilium/values.yaml)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=cilium TRIGGER=on-sync-failed REVISION="$c_cval")
+expect_eq "cilium values change: skip" skip "$(get action "$o")"
+
 echo "decide: a failing PostSync smoke test (on-sync-failed)"
 # The hook fails the sync of the merge that broke the app: that merge is
 # reverted. The revert's sync runs the hook again; when it fails too, the
