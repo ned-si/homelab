@@ -78,13 +78,23 @@ if [ -n "${KYVERNO_EXTRA:-}" ]; then
   [ -d "$KYVERNO_EXTRA" ] || { echo "kyverno: KYVERNO_EXTRA $KYVERNO_EXTRA is not a directory" >&2; exit 1; }
   # shellcheck disable=SC2086 # one printf argument per namespace
   excl=$(printf '"%s",' $EXCLUDED_NAMESPACES); excl="[${excl%,}]"
-  n=0
+  # The render holds every Application, the hydrated ones too: pass only
+  # objects deploy/ does not have (the CLI refuses a duplicate), keyed by
+  # kind/namespace/name, and each object once.
+  key='([.kind, (.metadata.namespace // ""), .metadata.name] | join("/"))'
+  find deploy -name '*.yaml' -type f -exec yq -N "$key" {} + | jq -R '{(.): true}' | jq -s 'add // {}' > "$out/keys.json"
+  n=0 kept=0
   while IFS= read -r f; do
     n=$((n + 1))
-    yq "select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not)" "$f" > "$out/extra-$n.yaml" 2>/dev/null || continue
-    [ -s "$out/extra-$n.yaml" ] && resources+=(--resource "$out/extra-$n.yaml")
-  done < <(find "$KYVERNO_EXTRA" -name '*.yaml' -type f | sort)
-  echo "kyverno: plus $n rendered files from $KYVERNO_EXTRA (excluded namespaces dropped)"
+    yq "$key as \$k | select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not) | select(load(\"$out/keys.json\") | has(\$k) | not)" \
+      "$f" > "$out/extra-$n.yaml" 2>/dev/null || continue
+    if [ -s "$out/extra-$n.yaml" ] && [ "$(yq -N "$key" "$out/extra-$n.yaml" | grep -c .)" -gt 0 ]; then
+      resources+=(--resource "$out/extra-$n.yaml")
+      kept=$((kept + 1))
+      yq -N "$key" "$out/extra-$n.yaml" | jq -R '{(.): true}' | jq -s --slurpfile old "$out/keys.json" '$old[0] + (add // {})' > "$out/keys.new" && mv "$out/keys.new" "$out/keys.json"
+    fi
+  done < <(find "$KYVERNO_EXTRA" -name manifests.yaml -type f | sort)
+  echo "kyverno: plus $kept of $n rendered files from $KYVERNO_EXTRA (objects already in deploy/ and the excluded namespaces dropped)"
 fi
 # The CLI has no API server to look Namespaces up in: hand it every namespace
 # deploy/ uses, so policies that read namespaceObject can evaluate.
