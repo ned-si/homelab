@@ -1,0 +1,13 @@
+# Expected findings, one PolicyException per workload, each with its
+# `homelab/reason` (spec wave3-runtime-security, requirement 2.2). Kyverno
+# reads exceptions only from the `kyverno` namespace (infrastructure/kyverno/
+# values.yaml, features.policyExceptions). Synced by
+# infrastructure/kyverno-policies; passed to `kyverno apply` by
+# scripts/ci/kyverno.sh.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - democratic-csi-node.yaml
+  - lan-inventory.yaml
+  - node-exporter.yaml
+  - vector.yaml

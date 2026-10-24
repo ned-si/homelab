@@ -12,6 +12,7 @@ kind: Kustomization
 #     slow Kyverno never blocks a request.
 resources:
   - ../../policies/kyverno
+  - ../../policies/kyverno/exceptions
 
 patches:
   - target:

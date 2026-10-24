@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  annotations:
+    homelab/reason: The log agent runs as root with hostNetwork and reads the node's
+      /var/log, /var/lib, /proc and /sys (host paths) to ship pod and node logs (platform/vector/values.yaml).
+  name: vector
+  namespace: kyverno
+spec:
+  matchConditions:
+  - expression: object.metadata.namespace == 'logging' && object.metadata.name.startsWith('vector')
+    name: vector
+  policyRefs:
+  - kind: ValidatingPolicy
+    name: disallow-host-path
+  - kind: ValidatingPolicy
+    name: disallow-host-namespaces
+  - kind: ValidatingPolicy
+    name: require-run-as-non-root-user

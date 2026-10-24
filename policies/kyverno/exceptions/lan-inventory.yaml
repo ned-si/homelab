@@ -1,0 +1,25 @@
+# Expected findings of monitoring/lan-inventory: disallow-capabilities, disallow-host-namespaces, require-run-as-non-root-user.
+# Matched by namespace and name prefix, so the controller, its ReplicaSets and
+# its pods are covered and nothing else in the namespace is.
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: lan-inventory
+  namespace: kyverno
+  annotations:
+    homelab/reason: >-
+      The LAN inventory scans the home network with ARP from the node: hostNetwork and CAP_NET_RAW as root (platform/lan-inventory/deployment.yaml).
+spec:
+  policyRefs:
+    - name: disallow-capabilities
+      kind: ValidatingPolicy
+    - name: disallow-host-namespaces
+      kind: ValidatingPolicy
+    - name: require-run-as-non-root-user
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: lan-inventory
+      expression: >-
+        object.metadata.namespace == 'monitoring' &&
+        object.metadata.name.startsWith('lan-inventory')

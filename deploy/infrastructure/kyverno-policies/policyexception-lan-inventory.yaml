@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  annotations:
+    homelab/reason: 'The LAN inventory scans the home network with ARP from the node:
+      hostNetwork and CAP_NET_RAW as root (platform/lan-inventory/deployment.yaml).'
+  name: lan-inventory
+  namespace: kyverno
+spec:
+  matchConditions:
+  - expression: object.metadata.namespace == 'monitoring' && object.metadata.name.startsWith('lan-inventory')
+    name: lan-inventory
+  policyRefs:
+  - kind: ValidatingPolicy
+    name: disallow-capabilities
+  - kind: ValidatingPolicy
+    name: disallow-host-namespaces
+  - kind: ValidatingPolicy
+    name: require-run-as-non-root-user
