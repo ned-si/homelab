@@ -20,6 +20,12 @@
 # chart (the chart's appVersion is the image tag).
 
 crds:
+  # The chart renders the policies.kyverno.io CRDs with `labels: {}`; the API
+  # server drops an empty map, so Argo CD's diff never converged and the app
+  # stayed OutOfSync from the first sync (2026-10-17). One label makes the map
+  # real.
+  customLabels:
+    app.kubernetes.io/part-of: kyverno
   # A post-upgrade Helm hook that rewrites stored objects to the newest CRD
   # version. Under Argo CD it becomes a Job on every sync. Run it by hand when
   # a Kyverno minor drops a CRD version (release notes).
