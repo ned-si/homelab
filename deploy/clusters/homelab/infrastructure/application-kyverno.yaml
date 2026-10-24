@@ -28,7 +28,7 @@ spec:
       valueFiles:
       - $values/infrastructure/kyverno/values.yaml
     repoURL: https://kyverno.github.io/kyverno/
-    targetRevision: 3.9.1
+    targetRevision: 3.9.2
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
