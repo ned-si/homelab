@@ -50,6 +50,7 @@ ntfy alertname=ArrIndexersFailing severity=warning namespace=theater source=Inde
 ntfy alertname=NASExporterFailing severity=warning
 # A user-facing SLO burn that outlasted the remediation window.
 ntfy alertname=SLOErrorBudgetBurnFastPersistent severity=critical app=auth namespace=keycloak
+ntfy alertname=KyvernoReportsStale severity=warning
 # Every public hostname down: never muted (postmortem 2026-10-23).
 ntfy-urgent alertname=GatewayDown severity=critical
 ntfy alertname=SLOErrorBudgetBurnSlowPersistent severity=warning app=cook namespace=mealie

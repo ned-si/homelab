@@ -1389,6 +1389,138 @@ data:
             "x": 0,
             "y": 63
           }
+        },
+        {
+          "type": "row",
+          "title": "Admission policy (Kyverno, audit)",
+          "collapsed": false,
+          "id": 25,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 69
+          },
+          "panels": []
+        },
+        {
+          "type": "stat",
+          "title": "Failing results",
+          "id": 26,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 0,
+            "y": 70
+          },
+          "description": "Kyverno PolicyReport results with `fail`, all namespaces (Audit: nothing is blocked). The PolicyExceptions in policies/kyverno/exceptions remove the expected ones.",
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(kyverno_policyreport_summary{result=\"fail\"}) + sum(kyverno_clusterpolicyreport_summary{result=\"fail\"} or vector(0))",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              }
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Failing results by namespace",
+          "id": 27,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 12,
+            "x": 6,
+            "y": 70
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (namespace) (kyverno_policyreport_summary{result=\"fail\"})",
+              "legendFormat": "{{namespace}}",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              }
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "options": {
+            "legend": {
+              "displayMode": "table",
+              "placement": "right"
+            }
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Background scans (1h)",
+          "id": 28,
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 18,
+            "y": 70
+          },
+          "description": "Reconciles of the background-scan controller in the last hour. 0 for 3h fires KyvernoReportsStale.",
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(increase(kyverno_controller_reconcile_total{controller_name=\"background-scan-controller\"}[1h]))",
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              }
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ]
+            },
+            "colorMode": "value"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0
+            },
+            "overrides": []
+          }
         }
       ]
     }
