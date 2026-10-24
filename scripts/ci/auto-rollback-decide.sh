@@ -20,7 +20,10 @@
 #      tuppr). A revert of the CNI or the CSI driver is itself a risky deploy
 #      that can take the network or every volume down, and a revert of a
 #      tuppr version would downgrade the nodes (Kubernetes cannot go back a
-#      minor; it is fixed forward), so a person decides;
+#      minor; it is fixed forward), so a person decides. One exception: a
+#      commit that only moves the `cilium` chart within one minor (a patch
+#      update) is reverted like any app, since a patch downgrade is safe and
+#      is the fix (postmortem 2026-10-23, spec cilium-upgrades 6.1);
 #   4. no two automatic reverts in a row: the commit is not itself a revert,
 #      and the commit before it is not an automatic revert (subject ending in
 #      `(auto)`) from the last LOOP_WINDOW seconds (default 24 h);
@@ -76,6 +79,23 @@ main=$(git rev-parse --verify "$MAIN_REF^{commit}") || die "cannot resolve $MAIN
 
 in_list() { case " $2 " in *" $1 "*) return 0 ;; esac; return 1; }
 
+# Is the commit only a cilium chart patch update? Only the chart pin files
+# change, and every changed line is a `targetRevision:`/`version:` of one
+# major.minor.
+CILIUM_PIN_FILES="clusters/homelab/infrastructure/cilium.yaml deploy/clusters/homelab/infrastructure/application-cilium.yaml ci/helm-releases.yaml"
+cilium_patch_bump() {
+  local sha=$1 f minors
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    in_list "$f" "$CILIUM_PIN_FILES" || return 1
+  done < <(git diff-tree --no-commit-id --name-only -r "$sha")
+  git show --format= --unified=0 "$sha" | grep -E '^[-+]' | grep -vE '^(\+\+\+|---) ' |
+    grep -vqE '^[-+][[:space:]]*(targetRevision|version):[[:space:]]*"?[0-9]+\.[0-9]+\.[0-9]+"?[[:space:]]*$' && return 1
+  minors=$(git show --format= --unified=0 "$sha" | grep -E '^[-+][[:space:]]*(targetRevision|version):' |
+    sed -E 's/.*[[:space:]]"?([0-9]+\.[0-9]+)\.[0-9]+"?[[:space:]]*$/\1/' | sort -u)
+  [ -n "$minors" ] && [ "$(wc -l <<<"$minors")" -eq 1 ]
+}
+
 # Drop the " (#123)" suffixes squash merges add, so a revert of a revert does
 # not collect them.
 strip_pr() { sed -E 's/( \(#[0-9]+\))+$//' <<<"$1"; }
@@ -130,7 +150,7 @@ else
     reason="not the newest commit on main (main is at ${main:0:12})"
   elif [ "$age" -ge "$MAX_AGE" ]; then
     reason="merged ${age}s ago, the limit is ${MAX_AGE}s"
-  elif in_list "$APP" "$NO_REVERT_APPS"; then
+  elif in_list "$APP" "$NO_REVERT_APPS" && ! { [ "$APP" = cilium ] && cilium_patch_bump "$sha"; }; then
     reason="$APP is never reverted automatically"
   elif [[ "$lower" == revert* ]]; then
     reason="the commit is itself a revert"
