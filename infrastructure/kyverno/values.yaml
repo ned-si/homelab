@@ -118,10 +118,12 @@ reportsController:
       memory: 256Mi
 
 # The policies.kyverno.io CRDs come from the `kyverno-api` subchart, which
-# renders them with `labels: {}`; the API server drops an empty map, so Argo
+# renders them with `labels: {}` and `annotations: {}`; the API server drops an empty map, so Argo
 # CD's diff never converged and the app stayed OutOfSync from the first sync
 # (2026-10-17). One label makes the map real. (`crds.customLabels` only
 # reaches the `crds` subchart's kyverno.io CRDs.)
 kyverno-api:
   labels:
     app.kubernetes.io/part-of: kyverno
+  annotations:
+    homelab.lilalala.com/source: kyverno-api subchart of the kyverno chart
