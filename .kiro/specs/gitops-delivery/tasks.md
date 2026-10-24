@@ -50,8 +50,8 @@ Wave 3 puts Kyverno in the cluster in Audit mode: `.kiro/specs/wave3-*`.
       converge (apps with data excluded).
 - [ ] 21. Adopt or delete the staged trees `infrastructure/snapshot-controller`
       and `infrastructure/nfs-storage`.
-- [ ] 22. Delete the stale Helm release Secret `kube-system/sh.helm.release.v1.cilium.v1`
-      left by the adopted Cilium release.
+- 22. Stale Helm ownership of the adopted Cilium release: owned by
+      `cilium-upgrades` task 2.
 - [ ] 23. Weekly agent pass: check the docs against the repo and the live
       cluster, and review whether each area is still on the right solution;
       output is pull requests.
