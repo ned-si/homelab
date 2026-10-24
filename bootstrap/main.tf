@@ -109,7 +109,7 @@ resource "helm_release" "argocd" {
   chart      = "argo-cd"
   # Must match the argocd entry of ci/helm-releases.yaml; CI checks it.
   # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
-  version   = "10.10.5"
+  version   = "10.11.1"
   namespace = kubernetes_namespace_v1.argocd.metadata[0].name
 
   values = [file("${path.module}/argocd-values.yaml")]
