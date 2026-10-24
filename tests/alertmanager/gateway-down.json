@@ -1,0 +1,12 @@
+{
+  "description": "The shared Gateway refuses every connection (2026-10-23): one notification, GatewayDown on ntfy-urgent; the per-app SLO burns it causes are inhibited.",
+  "alerts": [
+    {"alertname": "GatewayDown", "severity": "critical"},
+    {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "media", "namespace": "immich"},
+    {"alertname": "SLOErrorBudgetBurnFast", "severity": "critical", "app": "auth", "namespace": "keycloak"},
+    {"alertname": "SLOErrorBudgetBurnFastPersistent", "severity": "critical", "app": "media", "namespace": "immich"},
+    {"alertname": "SLOErrorBudgetBurnFastPersistent", "severity": "critical", "app": "auth", "namespace": "keycloak"}
+  ],
+  "notifications": ["ntfy-urgent GatewayDown"],
+  "uninhibited": ["GatewayDown"]
+}

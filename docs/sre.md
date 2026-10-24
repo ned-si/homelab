@@ -197,6 +197,8 @@ resolved overnight sends nothing; it stays in Alertmanager and Grafana.
 
 What quiet hours do not cover:
 
+- `GatewayDown` (half or more of the public hostnames down): receiver
+  `ntfy-urgent`, the same topic, never muted.
 - healthchecks.io posts to ntfy directly when the heartbeat stops, so a dead
   cluster or a dead house internet still notifies at night.
 - The GitHub Actions failure posts (`dast`, `renovate-render`, `secret-age`, `fuzz`) go to ntfy

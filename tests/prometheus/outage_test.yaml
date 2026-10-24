@@ -106,3 +106,46 @@ tests:
                 The NAS does not power on by itself after a power loss: press
                 its power button. Otherwise check the basement switch and the
                 NAS network link.
+
+  # The Gateway refuses everything from minute 10 (2026-10-23): 3 of 4 probes
+  # fail, GatewayDown after 2m of window plus 5m. One app down alone never
+  # fires it.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="media"}'
+        values: '1x9 0x20'
+      - series: 'probe_success{job="blackbox-public", app="auth"}'
+        values: '1x9 0x20'
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '1x9 0x20'
+      - series: 'probe_success{job="blackbox-public", app="home"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 13m
+        alertname: GatewayDown
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: GatewayDown
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/GatewayDown.md
+              summary: Half or more of the public hostnames are down
+              description: >-
+                3 public hostnames have failed their probe for 5
+                minutes: the shared Gateway, Cilium or the uplink, not one app.
+                Pages through quiet hours.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="media"}'
+        values: '1x9 0x20'
+      - series: 'probe_success{job="blackbox-public", app="auth"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="cook"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: GatewayDown
+        exp_alerts: []

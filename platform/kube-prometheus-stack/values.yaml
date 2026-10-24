@@ -273,6 +273,14 @@ alertmanager:
             - alertname =~ "HomelabNodeNotReady|HomelabNASUnreachable"
           group_by: [alertname]
           repeat_interval: 4h
+        # Every public hostname down at once: pages through quiet hours.
+        # A separate receiver (same topic), so every `ntfy` route still mutes
+        # quiet-hours (scripts/ci/alertmanager-test.sh). Postmortem 2026-10-23.
+        - receiver: ntfy-urgent
+          matchers:
+            - alertname = "GatewayDown"
+          group_by: [alertname]
+          repeat_interval: 1h
         # PAGE: every homelab rule labelled `action: human`.
         - receiver: ntfy
           matchers:
@@ -341,6 +349,11 @@ alertmanager:
                 end_time: "08:00"
             location: Europe/Zurich
     inhibit_rules:
+      # The whole Gateway down: one page, GatewayDown, not one per app.
+      - source_matchers:
+          - alertname = "GatewayDown"
+        target_matchers:
+          - alertname =~ "SLO(ErrorBudget|LatencyBudget)Burn.*"
       - source_matchers:
           - severity = "critical"
         target_matchers:
@@ -424,6 +437,11 @@ alertmanager:
         webhook_configs:
           - url_file: /etc/alertmanager/secrets/alertmanager-notify/heartbeat-url
             send_resolved: false
+      - name: ntfy-urgent
+        webhook_configs:
+          - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-url
+            send_resolved: true
+            timeout: 10s
       - name: ntfy
         webhook_configs:
           - url_file: /etc/alertmanager/secrets/alertmanager-notify/ntfy-url

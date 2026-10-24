@@ -72,3 +72,17 @@ spec:
       labels:
         action: human
         severity: critical
+    - alert: GatewayDown
+      annotations:
+        description: '{{ $value }} public hostnames have failed their probe for 5
+          minutes: the shared Gateway, Cilium or the uplink, not one app. Pages through
+          quiet hours.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/GatewayDown.md
+        summary: Half or more of the public hostnames are down
+      expr: |
+        count(avg_over_time(probe_success{job="blackbox-public"}[2m]) < 0.5)
+          >= 0.5 * count(avg_over_time(probe_success{job="blackbox-public"}[2m]))
+      for: 5m
+      labels:
+        action: human
+        severity: critical
