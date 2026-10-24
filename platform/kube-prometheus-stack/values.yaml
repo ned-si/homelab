@@ -23,6 +23,17 @@
 kubeProxy:
   enabled: false
 
+# The operator's admission webhook gets its certificate from cert-manager, not
+# from the chart's kube-webhook-certgen hook Jobs. Under Argo CD those hooks
+# break: the hook ServiceAccount is both pre- and post-install with
+# hook-succeeded, so Argo deletes it after PreSync and the PostSync
+# admission-patch Job never gets a pod (2026-10-24: the chart 92.11.0 sync
+# hung for 3 hours on it and held every later change).
+prometheusOperator:
+  admissionWebhooks:
+    certManager:
+      enabled: true
+
 # eMMC wear. Talos exposes the eMMC's life_time and pre_eol_info only in
 # sysfs (no metric, and its Read API is admin-only), so a sidecar reads them
 # from node-exporter's read-only /host/sys mount every 5 minutes and writes a
