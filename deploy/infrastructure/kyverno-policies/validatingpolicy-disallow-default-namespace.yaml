@@ -44,7 +44,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: namespaceObject.metadata.name != 'default'
     message: Using 'default' namespace is not allowed.

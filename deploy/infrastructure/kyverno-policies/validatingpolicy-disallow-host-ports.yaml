@@ -39,7 +39,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: "variables.allContainers.all(container, \n  container.?ports.orValue([]).all(port,
       port.?hostPort.orValue(0) == 0))"

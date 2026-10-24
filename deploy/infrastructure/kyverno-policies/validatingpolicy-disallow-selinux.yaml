@@ -40,7 +40,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: "variables.hasValidSELinuxType && variables.allContainerTypes.all(container,
       \n  container.?securityContext.?seLinuxOptions.?type.orValue('') == '' || \n

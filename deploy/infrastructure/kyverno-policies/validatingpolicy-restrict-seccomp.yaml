@@ -40,7 +40,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: "variables.hasValidSeccompProfile && variables.allContainers.all(container,
       \n  container.?securityContext.?seccompProfile.?type.orValue('Localhost') in

@@ -1,4 +1,4 @@
-# Expected findings of logging/vector: disallow-host-path, disallow-host-
+# Expected findings of logging/vector: disallow-host-ports, disallow-host-path, disallow-host-
 # namespaces, require-run-as-non-root-user.
 # Matched by namespace and name prefix, so the controller, its ReplicaSets and
 # its pods are covered and nothing else in the namespace is.
@@ -15,6 +15,8 @@ metadata:
       node logs (platform/vector/values.yaml).
 spec:
   policyRefs:
+    - name: disallow-host-ports
+      kind: ValidatingPolicy
     - name: disallow-host-path
       kind: ValidatingPolicy
     - name: disallow-host-namespaces

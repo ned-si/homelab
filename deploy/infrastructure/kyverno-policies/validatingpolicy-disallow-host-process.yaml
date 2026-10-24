@@ -40,7 +40,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: |-
       object.spec.?securityContext.?windowsOptions.?hostProcess.orValue(false) == false && variables.allContainers.all(container,

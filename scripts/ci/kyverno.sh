@@ -32,9 +32,12 @@ rc=0
 out=$(mktemp -d)
 trap 'rm -rf "$out"' EXIT
 
-# The policies whose violations fail CI (Deny in CI before the upstream set
-# replaced the homelab copies).
-BLOCKING="disallow-latest-tag disallow-privileged-containers"
+# The policies whose violations fail CI: the ones the cluster runs in Deny
+# (infrastructure/kyverno-policies/kustomization.yaml). Keep the lists equal.
+BLOCKING="disallow-capabilities disallow-container-sock-mounts disallow-default-namespace disallow-host-namespaces disallow-host-path disallow-host-ports disallow-host-process disallow-latest-tag disallow-privileged-containers disallow-proc-mount disallow-selinux require-run-as-non-root-user restrict-external-ips restrict-nodeport restrict-seccomp restrict-sysctls"
+# Excluded from admission by the webhook's namespaceSelector
+# (infrastructure/kyverno/values.yaml): not checked here either.
+EXCLUDED_NAMESPACES="kube-system argo cilium kyverno tailscale"
 # One `policy|error message` per line: errors that come from the missing API
 # defaulting (a Service without spec.type is a ClusterIP once stored).
 CLI_GAPS="restrict-nodeport|error: no such key: type"
@@ -68,6 +71,21 @@ done
 resources=()
 while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -name '*.yaml' -type f | sort)
 [ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in deploy/; refusing to pass" >&2; exit 1; }
+# KYVERNO_EXTRA (CI: the render_apps.py output): the Helm-rendered apps, which
+# deploy/ does not hold. Their objects in the excluded namespaces are dropped,
+# as admission never sees them.
+if [ -n "${KYVERNO_EXTRA:-}" ]; then
+  [ -d "$KYVERNO_EXTRA" ] || { echo "kyverno: KYVERNO_EXTRA $KYVERNO_EXTRA is not a directory" >&2; exit 1; }
+  # shellcheck disable=SC2086 # one printf argument per namespace
+  excl=$(printf '"%s",' $EXCLUDED_NAMESPACES); excl="[${excl%,}]"
+  n=0
+  while IFS= read -r f; do
+    n=$((n + 1))
+    yq "select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not)" "$f" > "$out/extra-$n.yaml" 2>/dev/null || continue
+    [ -s "$out/extra-$n.yaml" ] && resources+=(--resource "$out/extra-$n.yaml")
+  done < <(find "$KYVERNO_EXTRA" -name '*.yaml' -type f | sort)
+  echo "kyverno: plus $n rendered files from $KYVERNO_EXTRA (excluded namespaces dropped)"
+fi
 # The CLI has no API server to look Namespaces up in: hand it every namespace
 # deploy/ uses, so policies that read namespaceObject can evaluate.
 {

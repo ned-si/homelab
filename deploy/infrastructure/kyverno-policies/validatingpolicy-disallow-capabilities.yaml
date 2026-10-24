@@ -38,7 +38,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: |-
       variables.allContainers.all(container,
