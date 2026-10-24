@@ -44,7 +44,7 @@ agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR 
       dashboard runtime row, `docs/sre.md` PAGE table. [4.6, 5.1, 5.2, 5.3, 5.4, 5.5]
 - [ ] 8. Observe 24 h, read-only: no runtime alert on known-good actors, Tetragon CPU and
       memory within limits, reports fresh. Record the result here. [4.1, 5.1]
-- [ ] 9. PR `feat(keycloak): brute-force protection and OTP for platform clients`:
+- [x] 9. (#691; 6.2 was #546, 6.3 already in `access.conf`) PR `feat(keycloak): brute-force protection and OTP for platform clients`:
       `platform.conf`, `apply.sh`, `access.conf` (`hubble`, `signoz` gated to `admins`
       when spec `wave3-network-logs` adds them, or here first), direct grants off with the
       PostSync read-back, bash tests, `docs/architecture.md`. [6.1, 6.2, 6.3, 6.4, 6.5]
