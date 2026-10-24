@@ -63,13 +63,13 @@ clickhouse:
       registry: docker.io
       repository: altinity/clickhouse-operator
       # renovate: datasource=docker depName=docker.io/altinity/clickhouse-operator
-      tag: 0.28.0@sha256:573d2f9e20255c507acb998850f5f0031b285e4d8b6a819444d006fde0f0e114
+      tag: 0.28.0@sha256:21c973eddeb378c7bfcab2feda038ad8bd37f9fed0279eeb0b7e02d6d09e9b36
     metricsExporter:
       image:
         registry: docker.io
         repository: altinity/metrics-exporter
         # renovate: datasource=docker depName=docker.io/altinity/metrics-exporter
-        tag: 0.28.0@sha256:fdbed0f5dcbcdb3371bb90e08273fbd9944f04afc28423438af56317f5ea9d60
+        tag: 0.28.0@sha256:6dfa78691ad9337dfbc19be616022804387f6d727d26e5fab4b469b3ba97cdc0
 
 signoz:
   image:
