@@ -48,7 +48,7 @@ Gateway to fail its pull request, not production.
 #### Acceptance criteria
 
 1. WHEN a pull request is a Cilium change, THE Talos upgrade rehearsal SHALL
-   run. (`talos-upgrade-rehearsal.sh plan`, `tests/bash/test_talos_rehearsal_plan.sh`)
+   run. (`talos-upgrade-rehearsal.sh plan`; the `talos-upgrade` job runs on such a PR)
 2. WHEN the rehearsal cluster is up, THE rehearsal SHALL run the Gateway
    smoke through a Gateway with the repo's Cilium values and fail on a refused
    connection or a 5xx. (`talos-upgrade-rehearsal.sh gateway-smoke`)
@@ -75,7 +75,7 @@ failure finds me awake.
 
 1. THE Renovate rule for the Cilium chart and images SHALL set
    `minimumReleaseAge` of 3 days and an `automergeSchedule` on weekdays
-   between 09:00 and 17:00 Europe/Zurich. (`renovate.json5`, `tests/test_renovate_config.py`)
+   between 09:00 and 17:00 Europe/Zurich. (the rule in `renovate.json5`, `renovate-config-validator` in CI)
 
 ### Requirement 5: A Gateway-wide outage reaches the operator at night
 
