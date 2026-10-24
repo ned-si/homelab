@@ -41,7 +41,8 @@ spec:
           for url in "$@"; do
             code=000
             for try in 1 2 3 4 5 6; do
-              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$url") || code=000
+              # shellcheck disable=SC2086 # options split on purpose
+              code=$(curl ${SMOKE_CURL_OPTS:-} -s -o /dev/null -w '%{http_code}' --max-time 5 "$url") || code=000
               case "$code" in 2??|3??) break ;; esac
               [ "$try" -lt 6 ] && sleep 5
             done

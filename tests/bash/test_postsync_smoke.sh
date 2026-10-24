@@ -17,9 +17,22 @@ trap 'rm -rf "$tmp"' EXIT
 CHART_SERVICES="immich/immich-server"
 EXPECTED="deploy/apps/books deploy/apps/home deploy/apps/immich/resources deploy/apps/mealie deploy/apps/paperless deploy/apps/syncthing deploy/apps/theater deploy/platform/keycloak"
 
+# The cilium smoke requests public hostnames through the shared Gateway's
+# Service (curl --connect-to), not an app Service: checked on its own below.
+GATEWAY_HOOK="deploy/infrastructure/cilium-smoke"
+
 echo "rendered hooks"
 found=$(find deploy -name job-postsync-smoke.yaml -type f | sed 's|/job-postsync-smoke.yaml$||' | sort | tr '\n' ' ')
-expect_eq "one hook per user-facing app" "$(tr ' ' '\n' <<<"$EXPECTED" | sort | tr '\n' ' ')" "$found"
+expect_eq "one hook per user-facing app, plus the Gateway hook" "$(tr ' ' '\n' <<<"$EXPECTED $GATEWAY_HOOK" | sort | tr '\n' ' ')" "$found"
+
+f="$GATEWAY_HOOK/job-postsync-smoke.yaml"
+expect_eq "gateway hook: PostSync" PostSync "$(yq '.metadata.annotations["argocd.argoproj.io/hook"]' "$f")"
+expect_eq "gateway hook: --connect-to the shared Gateway" \
+  "--connect-to ::cilium-gateway-shared.gateway.svc.cluster.local:" \
+  "$(yq '.spec.template.spec.containers[0].env[] | select(.name == "SMOKE_CURL_OPTS") | .value' "$f")"
+for url in $(yq '.spec.template.spec.containers[0].args[]' "$f"); do
+  if [[ "$url" =~ ^https://[a-z0-9-]+\.lilalala\.com/ ]]; then ok "gateway hook: $url"; else bad "gateway hook: $url is not a public HTTPS hostname"; fi
+done
 
 for d in $EXPECTED; do
   f="$d/job-postsync-smoke.yaml"
