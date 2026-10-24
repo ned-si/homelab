@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  annotations:
+    homelab/reason: 'The Tetragon agent loads eBPF programs into the kernel: privileged,
+      hostNetwork, and the host''s /sys/kernel, BPF filesystem, /proc and container
+      runtime paths (platform/tetragon/values.yaml).'
+  name: tetragon
+  namespace: kyverno
+spec:
+  matchConditions:
+  - expression: object.metadata.namespace == 'tetragon' && object.metadata.name.startsWith('tetragon')
+    name: tetragon
+  policyRefs:
+  - kind: ValidatingPolicy
+    name: disallow-privileged-containers
+  - kind: ValidatingPolicy
+    name: disallow-host-namespaces
+  - kind: ValidatingPolicy
+    name: disallow-host-path
+  - kind: ValidatingPolicy
+    name: disallow-host-ports

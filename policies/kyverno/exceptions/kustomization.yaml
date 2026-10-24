@@ -10,4 +10,5 @@ resources:
   - democratic-csi-node.yaml
   - lan-inventory.yaml
   - node-exporter.yaml
+  - tetragon.yaml
   - vector.yaml
