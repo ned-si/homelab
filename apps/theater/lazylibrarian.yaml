@@ -53,6 +53,11 @@ data:
     QBITTORRENT.qbittorrent_user=${QBITTORRENT_USER}
     QBITTORRENT.qbittorrent_pass=${QBITTORRENT_PASS}
     QBITTORRENT.qbittorrent_label=ebooks,audiobooks
+    # AudioBook Bay, LazyLibrarian's built-in audiobook provider (no account
+    # needed for search and magnets). The torrent indexers come from Prowlarr.
+    ABB.abb=1
+    ABB.abb_host=audiobookbay.lu
+    ABB.abb_dltypes=A
   apply.py: |
     # Write managed.conf into /config/config.ini; keep every other setting.
     # LazyLibrarian reads keys case-insensitively and writes them lower case.
@@ -95,7 +100,7 @@ spec:
       labels:
         app.kubernetes.io/name: lazylibrarian
       annotations:
-        homelab.lilalala.com/config-version: "2"
+        homelab.lilalala.com/config-version: "3"
     spec:
       securityContext:
         fsGroup: 1000

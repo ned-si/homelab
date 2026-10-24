@@ -55,6 +55,11 @@ data:
     QBITTORRENT.qbittorrent_user=${QBITTORRENT_USER}
     QBITTORRENT.qbittorrent_pass=${QBITTORRENT_PASS}
     QBITTORRENT.qbittorrent_label=ebooks,audiobooks
+    # AudioBook Bay, LazyLibrarian's built-in audiobook provider (no account
+    # needed for search and magnets). The torrent indexers come from Prowlarr.
+    ABB.abb=1
+    ABB.abb_host=audiobookbay.lu
+    ABB.abb_dltypes=A
 kind: ConfigMap
 metadata:
   name: lazylibrarian-config
