@@ -11,9 +11,13 @@
 # or ClusterRole would take the cluster's network down. Remove objects from
 # this chart deliberately, by hand.
 #
-# The helm release Secrets `sh.helm.release.v1.cilium.*` from the bootstrap
-# install remain as stale metadata. Never `helm uninstall cilium`: it deletes
-# the CNI.
+# The bootstrap install's Helm release Secret and `helm` field ownership were
+# removed on 2026-10-24 (cilium-upgrades task 2): a Helm-owned key had
+# survived an upgrade (docs/postmortems/2026-10-23-gateway-cilium-xds.md).
+# Never `helm uninstall cilium`: it deletes the CNI.
+#
+# The third source is the PostSync smoke (infrastructure/cilium-smoke): a
+# request through the shared Gateway after every sync.
 #
 # Upgrade one minor at a time, each its own pull request, together with the
 # Gateway API CRDs it supports (Renovate group "cluster networking").
@@ -39,6 +43,9 @@ spec:
     - repoURL: https://github.com/ned-si/homelab.git
       targetRevision: main
       ref: values
+    - repoURL: https://github.com/ned-si/homelab.git
+      targetRevision: main
+      path: deploy/infrastructure/cilium-smoke
   destination:
     server: https://kubernetes.default.svc
     namespace: kube-system
