@@ -18,7 +18,7 @@ touch "$tmp/https:"
 # run <platform.conf> <clients.conf> [access.conf] -> "rc=<n>" plus the output
 run() {
   local o r=0
-  o=$(cd "$tmp" && CHECK_ONLY=1 KCADM="$tmp/kcadm" PLATFORM_CONF="$1" CLIENTS_CONF="$2" \
+  o=$(cd "$tmp" && CHECK_ONLY=1 KCADM="$tmp/kcadm" CONF="$REALM_DIR/sessions.conf" PLATFORM_CONF="$1" CLIENTS_CONF="$2" \
     ACCESS_CONF="${3:-$REALM_DIR/access.conf}" bash "$REALM_DIR/apply.sh" 2>&1) || r=$?
   printf 'rc=%s %s' "$r" "$o"
 }
@@ -26,6 +26,18 @@ clients() { printf '%s\n' "$@" > "$tmp/clients.conf"; echo "$tmp/clients.conf"; 
 
 o=$(run "$REALM_DIR/platform.conf" "$REALM_DIR/clients.conf")
 expect_contains "repo files pass" "rc=0 ok   static checks" "$o"
+
+# Requirement 6: brute-force detection without a permanent lockout, and the
+# direct-grant allow-list holds client IDs only.
+expect_contains "sessions.conf: brute force on" "bruteForceProtected=true" "$(cat "$REALM_DIR/sessions.conf")"
+expect_contains "sessions.conf: no permanent lockout" "permanentLockout=false" "$(cat "$REALM_DIR/sessions.conf")"
+sed 's/^permanentLockout=false$/permanentLockout=true/' "$REALM_DIR/sessions.conf" > "$tmp/sessions-lockout.conf"
+o=$(cd "$tmp" && CHECK_ONLY=1 KCADM="$tmp/kcadm" CONF="$tmp/sessions-lockout.conf" PLATFORM_CONF="$REALM_DIR/platform.conf" \
+  CLIENTS_CONF="$REALM_DIR/clients.conf" ACCESS_CONF="$REALM_DIR/access.conf" bash "$REALM_DIR/apply.sh" 2>&1) || true
+expect_contains "a permanent lockout fails" "FAIL sessions.conf: permanentLockout=false is required" "$o"
+sed 's/^direct_grant_clients=.*/direct_grant_clients=ok bad;client/' "$REALM_DIR/platform.conf" > "$tmp/platform-dg.conf"
+o=$(run "$tmp/platform-dg.conf" "$REALM_DIR/clients.conf")
+expect_contains "a malformed direct_grant_clients entry fails" "FAIL platform.conf: direct_grant_clients entry is not a client ID: bad;client" "$o"
 expect_eq "no kcadm call in CHECK_ONLY" "" "$(cat "$tmp/kcadm.log" 2>/dev/null || true)"
 expect_contains "paperless has no wildcard" "paperless.redirectUris=https://archive.lilalala.com/accounts/oidc/keycloak/login/callback/" \
   "$(grep '^paperless.redirectUris=' "$REALM_DIR/clients.conf")"

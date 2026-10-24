@@ -127,6 +127,19 @@ for g in $(conf mfa_groups); do
     bad=1
   fi
 done
+for c in $(conf direct_grant_clients); do
+  if ! [[ "$c" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "FAIL platform.conf: direct_grant_clients entry is not a client ID: $c" >&2
+    bad=1
+  fi
+done
+# Brute-force detection stays on and never locks an account for good.
+for want in bruteForceProtected=true permanentLockout=false; do
+  if ! grep -qxF "$want" "$CONF"; then
+    echo "FAIL sessions.conf: $want is required" >&2
+    bad=1
+  fi
+done
 for p in $(conf otp_policy); do
   if ! [[ "$p" =~ ^otpPolicy[A-Za-z]+=[A-Za-z0-9]+$ ]]; then
     echo "FAIL platform.conf: otp_policy entry is not otpPolicy<Field>=<value>: $p" >&2
@@ -502,6 +515,22 @@ loa_rows=$(flow_rows "$FLOW")
 login_cfgs "$FLOW" "$loa_rows" "$FLOW"
 
 kc update "realms/$REALM" -s browserFlow="$FLOW" -s "attributes.\"acr.loa.map\"=\"{\\\"$ACR\\\":1}\""
+
+# --- platform.conf: no password grant except direct_grant_clients --------------
+allowed=" $(conf direct_grant_clients) "
+while IFS=, read -r id cid grants; do
+  [ -n "$id" ] || continue
+  [[ "$allowed" == *" $cid "* ]] && continue
+  if [ "$grants" = true ]; then
+    echo "client $cid: directAccessGrantsEnabled=false"
+    kc update "clients/$id" -r "$REALM" -s directAccessGrantsEnabled=false
+  fi
+done < <(kc get clients -r "$REALM" --format csv --noquotes --fields id,clientId,directAccessGrantsEnabled)
+while IFS=, read -r cid grants; do
+  [ -n "$cid" ] || continue
+  [[ "$allowed" == *" $cid "* ]] && continue
+  check "client $cid.directAccessGrantsEnabled" false "$grants"
+done < <(kc get clients -r "$REALM" --format csv --noquotes --fields clientId,directAccessGrantsEnabled)
 
 # --- platform.conf: clients that must not exist --------------------------------
 for c in $(conf removed_clients); do
