@@ -8,7 +8,9 @@
 #            FROM_KUBERNETES, with the repo's Talos patches, no Flannel and no
 #            kube-proxy; Cilium installed meanwhile with the repo's chart
 #            version and values, the Gateway API CRDs first
-#   smoke    the workload in ci/talos-rehearsal/smoke.yaml, then check it
+#   smoke    the workload in ci/talos-rehearsal/smoke.yaml, then check it;
+#            then a Gateway and HTTPRoute (ci/talos-rehearsal/gateway.yaml)
+#            and a request through the Gateway's Service
 #   upgrade  `talosctl upgrade` node by node to TO_TALOS (if it differs, or
 #            FORCE_TALOS=true), then `talosctl upgrade-k8s --to TO_KUBERNETES`
 #   verify   nodes Ready on the target versions, Cilium OK, smoke answers
@@ -91,6 +93,14 @@ plan() {
     changed=$(git diff --name-only FETCH_HEAD HEAD -- scripts/ci/talos-upgrade-rehearsal.sh ci/talos-rehearsal/)
     if [ "$from_t" != "$to_t" ] || [ "$from_k" != "$to_k" ]; then rehearse=true; fi
     if [ -n "$changed" ]; then rehearse=true force=true; fi
+    # A Cilium change (chart version, values, Gateway API CRDs, Talos
+    # patches) rehearses at the same Talos version, for the Gateway smoke
+    # (spec cilium-upgrades, requirement 2.1).
+    if [ -n "$(git diff --name-only FETCH_HEAD HEAD -- infrastructure/cilium/ infrastructure/gateway-api/ talos/patches/)" ] ||
+      [ "$(git show FETCH_HEAD:ci/helm-releases.yaml | yq '.releases[] | select(.name == "cilium") | .version')" != \
+        "$(yq '.releases[] | select(.name == "cilium") | .version' ci/helm-releases.yaml)" ]; then
+      rehearse=true
+    fi
   fi
   if [ "$EVENT" = workflow_dispatch ]; then
     rehearse=true force=true
@@ -184,6 +194,20 @@ smoke() {
   kubectl -n smoke rollout status deploy/probe --timeout=5m
   retry 120 smoke_check || die "smoke: the Service does not answer"
   log "smoke: the Service answers"
+  kubectl apply -f ci/talos-rehearsal/gateway.yaml >/dev/null
+  kubectl -n smoke wait gateway/rehearsal --for=condition=Programmed --timeout=5m \
+    || die "smoke: the Gateway is not Programmed"
+  retry 120 gateway_check || die "smoke: the Gateway does not answer (no Envoy listener?)"
+  log "smoke: the Gateway answers"
+}
+
+# The probe pod dials the Gateway's Service: Envoy must have a listener and
+# route to the smoke backend.
+gateway_check() {
+  local pod out
+  pod=$(kubectl -n smoke get pod -l app=probe -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) || return 1
+  out=$(kubectl get --raw "/api/v1/namespaces/smoke/pods/$pod:8080/proxy/dial?request=hostname&host=cilium-gateway-rehearsal.smoke.svc.cluster.local&port=80&protocol=http&tries=1" 2>/dev/null) || return 1
+  grep -q '"responses":\["smoke-' <<<"$out"
 }
 
 node_on_talos() { # ip version
