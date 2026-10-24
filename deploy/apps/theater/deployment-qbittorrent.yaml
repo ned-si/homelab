@@ -38,7 +38,7 @@ spec:
           value: "1000"
         - name: UMASK
           value: "002"
-        image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:fd8cccb708b82dc1b262fa6b096e12b97d76c97886320c36be5f3cdee2a797bc
+        image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:bc356f37581c3e6ce11ce3fdd25f08d0f76e21f735f4df5422bab3d2e42e4d76
         imagePullPolicy: Always
         name: qbittorrent
         ports:
