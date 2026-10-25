@@ -37,6 +37,9 @@ tetragon:
     metricsLabelFilter: "namespace,workload,binary"
     serviceMonitor:
       enabled: true
+      # Prometheus selects monitors by this label (repo-policy monitor-selected).
+      extraLabels:
+        release: kube-prometheus-stack
       scrapeInterval: 60s
 
 tetragonOperator:

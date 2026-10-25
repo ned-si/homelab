@@ -37,6 +37,11 @@ immich:
 
 server:
   enabled: true
+  # Prometheus selects monitors by this label (repo-policy monitor-selected).
+  serviceMonitor:
+    main:
+      labels:
+        release: kube-prometheus-stack
   controllers:
     main:
       # The library PVC is ReadWriteOnce: a second server pod could not mount

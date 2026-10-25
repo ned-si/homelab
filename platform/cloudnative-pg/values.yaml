@@ -3,5 +3,8 @@
 replicaCount: 1
 monitoring:
   podMonitorEnabled: true
+  # Prometheus selects monitors by this label (repo-policy monitor-selected).
+  podMonitorAdditionalLabels:
+    release: kube-prometheus-stack
   grafanaDashboard:
     create: true
