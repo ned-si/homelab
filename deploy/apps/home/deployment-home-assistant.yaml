@@ -51,7 +51,7 @@ spec:
           value: /config/deps
         - name: LD_LIBRARY_PATH
           value: /config/deps/lib
-        image: ghcr.io/home-assistant/home-assistant:2026.10.3@sha256:407b89cd11a8cb67d388d21739a226c74acbbebe1ac59e3b83b11b43ce76b98f
+        image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
@@ -108,7 +108,7 @@ spec:
         command:
         - /bin/sh
         - -euc
-        image: ghcr.io/home-assistant/home-assistant:2026.10.3@sha256:407b89cd11a8cb67d388d21739a226c74acbbebe1ac59e3b83b11b43ce76b98f
+        image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
         imagePullPolicy: IfNotPresent
         name: config
         resources:
@@ -191,7 +191,7 @@ spec:
         env:
         - name: UV_CACHE_DIR
           value: /tmp/uv-cache
-        image: ghcr.io/home-assistant/home-assistant:2026.10.3@sha256:407b89cd11a8cb67d388d21739a226c74acbbebe1ac59e3b83b11b43ce76b98f
+        image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
         imagePullPolicy: IfNotPresent
         name: custom-components
         resources:
