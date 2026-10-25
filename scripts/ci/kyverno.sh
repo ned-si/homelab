@@ -67,9 +67,20 @@ exceptions=()
 for e in policies/kyverno/exceptions/*.yaml; do
   [ "$(basename "$e")" = kustomization.yaml ] || exceptions+=(--exception "$e")
 done
-# `--resource <dir>` does not recurse: pass every file.
+# `--resource <dir>` does not recurse: pass every file. A Service without
+# spec.type gets ClusterIP, as the API server defaults it before admission
+# (restrict-nodeport reads the field and errors on its absence): its file goes
+# in as a normalised copy.
 resources=()
-while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -name '*.yaml' -type f | sort)
+d=0
+while IFS= read -r f; do
+  if [ "$(yq -N 'select(.kind == "Service" and .spec.type == null) | .metadata.name' "$f" | grep -c .)" -gt 0 ]; then
+    d=$((d + 1))
+    yq -P '(select(.kind == "Service") | .spec.type) |= (. // "ClusterIP")' "$f" > "$out/deploy-$d.yaml"
+    f="$out/deploy-$d.yaml"
+  fi
+  resources+=(--resource "$f")
+done < <(find deploy -name '*.yaml' -type f | sort)
 [ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in deploy/; refusing to pass" >&2; exit 1; }
 # KYVERNO_EXTRA (CI: the render_apps.py output): the Helm-rendered apps, which
 # deploy/ does not hold. Their objects in the excluded namespaces are dropped,
