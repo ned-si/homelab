@@ -12,6 +12,10 @@ metadata:
   namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "20"
+    # The TracingPolicy CRD defaults fields (maxData, resolve, returnCopy...)
+    # the vendored policies leave out: a server-side diff sees them, a client
+    # one reports the three policies OutOfSync forever.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: platform
   sources:
