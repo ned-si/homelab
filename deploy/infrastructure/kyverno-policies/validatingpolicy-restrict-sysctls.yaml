@@ -42,7 +42,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: "object.spec.?securityContext.?sysctls.orValue([]).all(sysctl, \n
       \ sysctl.?name.orValue('') in variables.allowedSysctls)"

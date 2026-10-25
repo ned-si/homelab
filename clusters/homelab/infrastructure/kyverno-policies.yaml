@@ -1,4 +1,4 @@
-# The Kyverno ValidatingPolicies, Audit only. Source:
+# The Kyverno ValidatingPolicies: Audit, 16 baseline ones in Deny. Source:
 # infrastructure/kyverno-policies (policies/kyverno, the vendored upstream set
 # and the homelab require-probes), rendered into deploy/.
 #

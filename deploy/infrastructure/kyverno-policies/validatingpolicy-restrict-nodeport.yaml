@@ -37,7 +37,7 @@ spec:
       resources:
       - services
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: object.spec.type != 'NodePort'
     message: Services of type NodePort are not allowed.

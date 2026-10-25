@@ -40,7 +40,7 @@ spec:
       resources:
       - pods
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: object.spec.?volumes.orValue([]).all(volume, !has(volume.hostPath))
     message: HostPath volumes are forbidden. The field spec.volumes[*].hostPath must

@@ -22,6 +22,8 @@ spec:
     name: node-exporter
   policyRefs:
   - kind: ValidatingPolicy
+    name: disallow-host-ports
+  - kind: ValidatingPolicy
     name: disallow-host-path
   - kind: ValidatingPolicy
     name: disallow-host-namespaces

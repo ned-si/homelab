@@ -26,7 +26,7 @@ Each step either looks fine or points one layer down.
 2. It answers from inside the cluster (separates "outside" from "the proxy"):
 
    ```sh
-   kubectl run curl --rm -it --restart=Never --image=curlimages/curl -- \
+   kubectl -n monitoring run curl --rm -it --restart=Never --image=curlimages/curl:8.23.0 -- \
      curl -skv -H 'Host: media.lilalala.com' https://cilium-gateway-shared.gateway.svc/
    ```
 
