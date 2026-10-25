@@ -1,0 +1,10 @@
+# The vendored TracingPolicies (policies/, see its SOURCE), rendered into
+# deploy/platform/tetragon and synced by the `tetragon` Application beside the
+# chart. Observe only: no enforcement action (tests/test_security_controls.py).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - policies/privileges/privileges-raise.yaml
+  - policies/modules.yaml
+  - policies/bpf.yaml
+  - policies/library.yaml

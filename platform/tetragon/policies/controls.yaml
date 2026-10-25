@@ -1,0 +1,29 @@
+# MITRE ATT&CK technique and NIST CSF 2.0 subcategory per vendored
+# TracingPolicy. tests/test_security_controls.py fails when a policy has no
+# entry, an entry names no policy, or an ID is malformed. `hooks` maps a hook
+# (kprobe function) of a policy to another technique where the policy covers
+# more than one; the alert rules (platform/tetragon/rules.yaml) use it.
+frameworks:
+  mitre: MITRE ATT&CK for Enterprise (Containers matrix where it has the technique)
+  csf: NIST Cybersecurity Framework 2.0
+
+policies:
+  privileges-raise:
+    file: privileges/privileges-raise.yaml
+    mitre: T1068 # Exploitation for Privilege Escalation: uid/gid set to 0
+    hooks:
+      create_user_ns: T1611 # Escape to Host: unprivileged user namespace
+      security_capset: T1611 # Escape to Host: raised capabilities
+    csf: ["DE.CM-09"]
+  monitor-kernel-modules:
+    file: modules.yaml
+    mitre: T1547.006 # Boot or Logon Autostart Execution: Kernel Modules and Extensions
+    csf: ["DE.CM-09"]
+  bpf-library-policy:
+    file: bpf.yaml
+    mitre: T1014 # Rootkit: an unexpected BPF program or map
+    csf: ["DE.CM-09"]
+  loader:
+    file: library.yaml
+    mitre: T1574.006 # Hijack Execution Flow: Dynamic Linker Hijacking
+    csf: ["DE.CM-09"]

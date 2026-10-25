@@ -24,3 +24,4 @@ resources:
   - vector.yaml
   - hubble-access.yaml
   - signoz.yaml
+  - tetragon.yaml
