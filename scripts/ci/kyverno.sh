@@ -76,7 +76,8 @@ while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -nam
 # as admission never sees them, and null fields too, as the API server drops
 # them before admission (Helm renders `initContainers: null`, which CEL cannot
 # take the size of), and Service spec.type defaulted to ClusterIP as the API
-# server does.
+# server does. Printed as block YAML (-P): yq adds keys to the flow-style
+# renders unquoted, which the CLI, reading them as JSON, rejects.
 if [ -n "${KYVERNO_EXTRA:-}" ]; then
   [ -d "$KYVERNO_EXTRA" ] || { echo "kyverno: KYVERNO_EXTRA $KYVERNO_EXTRA is not a directory" >&2; exit 1; }
   # shellcheck disable=SC2086 # one printf argument per namespace
@@ -89,7 +90,7 @@ if [ -n "${KYVERNO_EXTRA:-}" ]; then
   n=0 kept=0
   while IFS= read -r f; do
     n=$((n + 1))
-    yq "$key as \$k | select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not) | select(load(\"$out/keys.json\") | has(\$k) | not) | del(.. | select(tag == \"!!null\")) | (select(.kind == \"Service\") | .spec.type) |= (. // \"ClusterIP\")" \
+    yq -P "$key as \$k | select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not) | select(load(\"$out/keys.json\") | has(\$k) | not) | del(.. | select(tag == \"!!null\")) | (select(.kind == \"Service\") | .spec.type) |= (. // \"ClusterIP\")" \
       "$f" > "$out/extra-$n.yaml" 2>/dev/null || continue
     if [ -s "$out/extra-$n.yaml" ] && [ "$(yq -N "$key" "$out/extra-$n.yaml" | grep -c .)" -gt 0 ]; then
       resources+=(--resource "$out/extra-$n.yaml")
