@@ -132,6 +132,7 @@ is the query helper the pages use. When done: `kill "$PF"`.
 - [VulnEnrichmentStale](VulnEnrichmentStale.md): no KEV/EPSS enrichment in 3 days
 - [AlertmanagerNotificationsFailing](AlertmanagerNotificationsFailing.md): Alertmanager cannot deliver
 - [AlertmanagerHasNoReceiverConfigured](AlertmanagerHasNoReceiverConfigured.md): Alertmanager sent nothing in 6 hours
+- [TetragonAgentMissing](TetragonAgentMissing.md): a node without a Tetragon agent for 30 minutes
 
 ## Chart rules that page
 
@@ -148,3 +149,10 @@ page nor a row here. The steps for this cluster are:
 | `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck`, `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent` | none | [talos-cheatsheet.md](../../talos-cheatsheet.md#talos-and-kubernetes-upgrades) (watch, pause, recovery) |
 | `KubeJobFailed` of a `*-backup-*` Job | [KubeJobFailed](https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobfailed) | [backups.md](../../backups.md#schedule): the Job's log (`kubectl -n <namespace> logs job/<job_name>`), then a manual run (`kubectl -n <namespace> create job --from=cronjob/<cronjob> <cronjob>-manual`) |
 | Any `critical` rule labelled `category: security` (none today) | the rule's own | [threat-model.md](../../threat-model.md) |
+
+## Security (runtime detections)
+
+- [RuntimeEscapeToHost](RuntimeEscapeToHost.md): a user namespace or capabilities gained (T1611)
+- [RuntimePrivilegeEscalation](RuntimePrivilegeEscalation.md): a process set its uid or gid to root (T1068)
+- [RuntimeKernelModuleLoad](RuntimeKernelModuleLoad.md): a kernel module requested or loaded (T1547.006)
+- [RuntimeUnexpectedBPF](RuntimeUnexpectedBPF.md): an unexpected process loading BPF (T1014)

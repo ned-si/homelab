@@ -1,0 +1,99 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-tetragon
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab.tetragon
+    rules:
+    - expr: |
+        sum by (policy, hook, namespace, workload, binary) (increase(tetragon_policy_events_total[5m])) > 0
+        or
+        sum by (policy, hook, namespace, workload, binary) (tetragon_policy_events_total unless tetragon_policy_events_total offset 5m)
+      record: tetragon:policy_events:increase5m
+    - alert: RuntimeEscapeToHost
+      annotations:
+        description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
+        summary: A process is gaining capabilities or a user namespace (escape to
+          host)
+      expr: |
+        tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:(create_user_ns|security_capset)"}
+        unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+      labels:
+        action: human
+        category: security
+        mitre_technique: T1611
+        severity: critical
+    - alert: RuntimePrivilegeEscalation
+      annotations:
+        description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
+        summary: A process set its uid or gid to root
+      expr: |
+        tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:__sys_set.*"}
+        unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+      labels:
+        action: human
+        category: security
+        mitre_technique: T1068
+        severity: critical
+    - alert: RuntimeKernelModuleLoad
+      annotations:
+        description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
+        summary: A kernel module was requested or loaded
+      expr: |
+        tetragon:policy_events:increase5m{policy="monitor-kernel-modules"}
+        unless tetragon:policy_events:increase5m{namespace="democratic-csi", workload="iscsi-democratic-csi-node"}
+        unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
+      labels:
+        action: human
+        category: security
+        mitre_technique: T1547.006
+        severity: critical
+    - alert: RuntimeUnexpectedBPF
+      annotations:
+        description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeUnexpectedBPF.md
+        summary: An unexpected process is loading BPF
+      expr: |
+        tetragon:policy_events:increase5m{policy="bpf-library-policy"}
+        unless tetragon:policy_events:increase5m{namespace="tetragon", workload="tetragon"}
+        unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
+        unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+      labels:
+        action: human
+        category: security
+        mitre_technique: T1014
+        severity: critical
+    - alert: TetragonAgentMissing
+      annotations:
+        description: 'Runtime detection is blind on {{ $labels.node }}: no runtime
+          alert can fire for it.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TetragonAgentMissing.md
+        summary: Tetragon is not running or not scraped on {{ $labels.node }}
+      expr: |
+        max by (node) (kube_node_info)
+        unless on (node) (up{job="tetragon"} == 1)
+      for: 30m
+      labels:
+        action: human
+        severity: warning

@@ -1,0 +1,194 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/tetragon-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-tetragon.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # The allowlisted actors, as observed on 2026-10-26, all busy: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:__sys_setuid",binary="/usr/bin/runc",node="homelab-w-1"}'
+        values: '0+5x60'
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:security_capset",binary="/usr/bin/runc",node="homelab-w-1"}'
+        values: '0+2x60'
+      - series: 'tetragon_policy_events_total{policy="bpf-library-policy",hook="kprobe:security_bpf_map_create",namespace="tetragon",workload="tetragon",binary="/usr/bin/tetragon",node="homelab-w-1"}'
+        values: '0+40x60'
+      - series: 'tetragon_policy_events_total{policy="bpf-library-policy",hook="kprobe:bpf_check",namespace="kube-system",workload="cilium",binary="/usr/bin/cilium-agent",node="homelab-w-1"}'
+        values: '0+1x60'
+      - series: 'tetragon_policy_events_total{policy="bpf-library-policy",hook="kprobe:bpf_check",binary="/usr/bin/runc",node="homelab-w-1"}'
+        values: '0+1x60'
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_module_request",namespace="democratic-csi",workload="iscsi-democratic-csi-node",binary="/usr/sbin/iscsiadm",node="homelab-w-1"}'
+        values: '0+1x60'
+      # A new allowlisted series (its first event): still nothing.
+      - series: 'tetragon_policy_events_total{policy="bpf-library-policy",hook="kprobe:bpf_check",namespace="kube-system",workload="cilium",binary="/usr/bin/cilium-agent",node="homelab-cp-1"}'
+        values: '_x30 1+0x30'
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: RuntimeEscapeToHost
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: RuntimePrivilegeEscalation
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: RuntimeKernelModuleLoad
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: RuntimeUnexpectedBPF
+        exp_alerts: []
+
+  # A container process sets uid 0: a new series, so its very first sample
+  # pages; it resolves once the 5 minute window has no new event.
+  - interval: 1m
+    input_series:
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:__sys_setuid",namespace="theater",workload="radarr",binary="/usr/bin/su",node="homelab-w-1"}'
+        values: '_x10 1+0x30'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: RuntimePrivilegeEscalation
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: RuntimePrivilegeEscalation
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1068
+              policy: privileges-raise
+              hook: kprobe:__sys_setuid
+              namespace: theater
+              workload: radarr
+              binary: /usr/bin/su
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
+              summary: A process set its uid or gid to root
+              description: kprobe:__sys_setuid by /usr/bin/su in theater/radarr.
+      - eval_time: 20m
+        alertname: RuntimePrivilegeEscalation
+        exp_alerts: []
+
+  # A host binary other than runc creating a user namespace, and capset in a
+  # container: both page, one alert each (grouped by alert name downstream).
+  - interval: 1m
+    input_series:
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:create_user_ns",binary="/tmp/x",node="homelab-cp-2"}'
+        values: '0 1 2 3 4 5 6 7 8 9 10'
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:security_capset",namespace="immich",workload="immich-server",binary="/usr/bin/node",node="homelab-w-1"}'
+        values: '0 0 0 0 0 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: RuntimeEscapeToHost
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1611
+              policy: privileges-raise
+              hook: kprobe:create_user_ns
+              binary: /tmp/x
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
+              summary: A process is gaining capabilities or a user namespace (escape to host)
+              description: kprobe:create_user_ns by /tmp/x in the host.
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1611
+              policy: privileges-raise
+              hook: kprobe:security_capset
+              namespace: immich
+              workload: immich-server
+              binary: /usr/bin/node
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
+              summary: A process is gaining capabilities or a user namespace (escape to host)
+              description: kprobe:security_capset by /usr/bin/node in immich/immich-server.
+      # The same uid-0 hooks, run by runc: allowlisted, and the escape alert
+      # does not take the privilege-escalation hooks.
+      - eval_time: 8m
+        alertname: RuntimePrivilegeEscalation
+        exp_alerts: []
+
+  # A kernel module from a container that is not the iSCSI node plugin.
+  - interval: 1m
+    input_series:
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_read_file",namespace="home",workload="home-assistant",binary="/usr/bin/insmod",node="homelab-w-1"}'
+        values: '0 0 1 1 1 1 1'
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_module_request",namespace="democratic-csi",workload="iscsi-democratic-csi-node",binary="/usr/sbin/iscsiadm",node="homelab-w-1"}'
+        values: '0 0 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: RuntimeKernelModuleLoad
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1547.006
+              policy: monitor-kernel-modules
+              hook: kprobe:security_kernel_read_file
+              namespace: home
+              workload: home-assistant
+              binary: /usr/bin/insmod
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
+              summary: A kernel module was requested or loaded
+              description: kprobe:security_kernel_read_file by /usr/bin/insmod in home/home-assistant.
+
+  # BPF from a container that is neither Tetragon nor Cilium.
+  - interval: 1m
+    input_series:
+      - series: 'tetragon_policy_events_total{policy="bpf-library-policy",hook="kprobe:bpf_check",namespace="theater",workload="qbittorrent",binary="/usr/bin/bpftool",node="homelab-w-1"}'
+        values: '0 0 3 3 3 3 3'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: RuntimeUnexpectedBPF
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1014
+              policy: bpf-library-policy
+              hook: kprobe:bpf_check
+              namespace: theater
+              workload: qbittorrent
+              binary: /usr/bin/bpftool
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeUnexpectedBPF.md
+              summary: An unexpected process is loading BPF
+              description: kprobe:bpf_check by /usr/bin/bpftool in theater/qbittorrent.
+
+  # One node's agent stops being scraped: warning after 30 minutes, for that
+  # node only.
+  - interval: 1m
+    input_series:
+      - series: 'kube_node_info{node="homelab-w-1",job="kube-state-metrics"}'
+        values: '1x60'
+      - series: 'kube_node_info{node="homelab-cp-1",job="kube-state-metrics"}'
+        values: '1x60'
+      - series: 'up{job="tetragon",node="homelab-w-1"}'
+        values: '1x10 0x50'
+      - series: 'up{job="tetragon",node="homelab-cp-1"}'
+        values: '1x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: TetragonAgentMissing
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: TetragonAgentMissing
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+              node: homelab-w-1
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TetragonAgentMissing.md
+              summary: Tetragon is not running or not scraped on homelab-w-1
+              description: >-
+                Runtime detection is blind on homelab-w-1: no runtime
+                alert can fire for it.

@@ -1508,6 +1508,211 @@
         },
         "overrides": []
       }
+    },
+    {
+      "type": "row",
+      "title": "Runtime (Tetragon, observe only)",
+      "collapsed": false,
+      "id": 29,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 76
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Agents up",
+      "id": 30,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 4,
+        "x": 0,
+        "y": 77
+      },
+      "description": "Nodes with a scraped Tetragon agent, of all nodes. Fewer for 30 minutes: TetragonAgentMissing.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=\"tetragon\"} == 1) or vector(0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        }
+      ],
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Policy events by policy and hook",
+      "id": 31,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 20,
+        "x": 4,
+        "y": 77
+      },
+      "description": "Every event of the vendored TracingPolicies, allowlisted actors included. The pages are the Runtime* alerts (tetragon-alerts.yaml), which subtract the allowlists.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (policy, hook) (increase(tetragon_policy_events_total[15m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "{{policy}} {{hook}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "type": "table",
+      "title": "Policy events by actor, last 24 h",
+      "id": 32,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 83
+      },
+      "description": "No namespace: a host process. A new actor here that is not in an alert's allowlist has paged.",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sort_desc(sum by (policy, hook, namespace, workload, binary) (increase(tetragon_policy_events_total[24h])) > 0)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "format": "table",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "type": "timeseries",
+      "title": "Process executions in containers, per second",
+      "id": 33,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 91
+      },
+      "description": "PROCESS_EXEC events outside the host, kube-system and tetragon (the export allowlist). A shell in an app namespace shows as a spike; not an alert (requirement 5.2).",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (rate(tetragon_events_total{type=\"PROCESS_EXEC\", namespace!=\"\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "{{namespace}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Shared-library loads, per second",
+      "id": 34,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 91
+      },
+      "description": "PROCESS_LOADER events of the `loader` policy by namespace; not an alert (requirement 5.2).",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (namespace) (rate(tetragon_events_total{type=\"PROCESS_LOADER\"}[5m]))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "legendFormat": "{{namespace}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "right"
+        }
+      }
     }
   ]
 }
