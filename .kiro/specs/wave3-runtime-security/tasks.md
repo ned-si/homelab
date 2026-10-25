@@ -38,7 +38,7 @@ agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR 
       resources, digests, JSON), vendored library policies with `SOURCE` and
       `controls.yaml`, the enforcement-action check, Renovate manager. Silence `tetragon`
       for the first rollout. [3.2, 3.3, 4.1, 4.2, 4.3, 4.4, 4.5]
-- [ ] 7. PR `feat(security): page on critical runtime detections`: `platform/tetragon/rules.yaml`
+- [x] 7. (#703, the scrape fix #702; the rules are `platform/kube-prometheus-stack/routes/tetragon-alerts.yaml`, next to the other homelab rules) PR `feat(security): page on critical runtime detections`: `platform/tetragon/rules.yaml`
       (the four technique alerts with allowlists, `TetragonAgentMissing`), promtool tests
       with allowlisted negatives, runbook sections, `routes.txt` lines, the Security
       dashboard runtime row, `docs/sre.md` PAGE table. [4.6, 5.1, 5.2, 5.3, 5.4, 5.5]

@@ -1,0 +1,123 @@
+# Tetragon (observe only): page when a container tries to take the node
+# (spec wave3-runtime-security, requirements 4.6 and 5).
+#
+#   RuntimeEscapeToHost         T1611      user namespace without CAP_SYS_ADMIN, capset  critical  human
+#   RuntimePrivilegeEscalation  T1068      uid or gid set to 0                           critical  human
+#   RuntimeKernelModuleLoad     T1547.006  a kernel module requested or loaded           critical  human
+#   RuntimeUnexpectedBPF        T1014      a BPF program or map                          critical  human
+#   TetragonAgentMissing                   a node without a scraped agent for 30 min     warning   human
+#
+# Source: tetragon_policy_events_total{policy, hook, namespace, workload,
+# binary} of the vendored policies (platform/tetragon/policies). Host
+# processes have no namespace label. Shell, /tmp, fileless and library
+# events stay on the Security dashboard (requirement 5.2).
+#
+# ALLOWLISTS: one `unless` line per known-good actor, here and nowhere else
+# (never an edited upstream policy, never a manual silence). A new one comes
+# with its promtool case in tests/prometheus/tetragon_test.yaml. Observed
+# 2026-10-26: Tetragon and cilium-agent load BPF; runc, on the host, sets
+# uid/gid 0, capabilities and cgroup device BPF for every container start.
+#
+# The recording rule counts a series that just appeared as well: the first
+# event of a new actor makes a new series, and increase() needs two samples.
+#
+# Tests: tests/prometheus/tetragon_test.yaml (promtool test rules).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-tetragon
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.tetragon
+      rules:
+        - record: tetragon:policy_events:increase5m
+          expr: |
+            sum by (policy, hook, namespace, workload, binary) (increase(tetragon_policy_events_total[5m])) > 0
+            or
+            sum by (policy, hook, namespace, workload, binary) (tetragon_policy_events_total unless tetragon_policy_events_total offset 5m)
+
+        - alert: RuntimeEscapeToHost
+          expr: |
+            tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:(create_user_ns|security_capset)"}
+            unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+          labels:
+            severity: critical
+            category: security
+            action: human
+            mitre_technique: T1611
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
+            summary: A process is gaining capabilities or a user namespace (escape to host)
+            description: >-
+              {{ $labels.hook }} by {{ $labels.binary }} in
+              {{ with $labels.namespace }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.
+
+        - alert: RuntimePrivilegeEscalation
+          expr: |
+            tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:__sys_set.*"}
+            unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+          labels:
+            severity: critical
+            category: security
+            action: human
+            mitre_technique: T1068
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
+            summary: A process set its uid or gid to root
+            description: >-
+              {{ $labels.hook }} by {{ $labels.binary }} in
+              {{ with $labels.namespace }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.
+
+        - alert: RuntimeKernelModuleLoad
+          expr: |
+            tetragon:policy_events:increase5m{policy="monitor-kernel-modules"}
+            unless tetragon:policy_events:increase5m{namespace="democratic-csi", workload="iscsi-democratic-csi-node"}
+            unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
+          labels:
+            severity: critical
+            category: security
+            action: human
+            mitre_technique: T1547.006
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
+            summary: A kernel module was requested or loaded
+            description: >-
+              {{ $labels.hook }} by {{ $labels.binary }} in
+              {{ with $labels.namespace }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.
+
+        - alert: RuntimeUnexpectedBPF
+          expr: |
+            tetragon:policy_events:increase5m{policy="bpf-library-policy"}
+            unless tetragon:policy_events:increase5m{namespace="tetragon", workload="tetragon"}
+            unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
+            unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+          labels:
+            severity: critical
+            category: security
+            action: human
+            mitre_technique: T1014
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeUnexpectedBPF.md
+            summary: An unexpected process is loading BPF
+            description: >-
+              {{ $labels.hook }} by {{ $labels.binary }} in
+              {{ with $labels.namespace }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.
+
+        - alert: TetragonAgentMissing
+          expr: |
+            max by (node) (kube_node_info)
+            unless on (node) (up{job="tetragon"} == 1)
+          for: 30m
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TetragonAgentMissing.md
+            summary: Tetragon is not running or not scraped on {{ $labels.node }}
+            description: >-
+              Runtime detection is blind on {{ $labels.node }}: no runtime
+              alert can fire for it.

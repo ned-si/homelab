@@ -19,6 +19,8 @@ resources:
   - argocd-alerts.yaml
   - outage-alerts.yaml
   - kyverno-alerts.yaml
+  # Tetragon runtime detections (observe only) and the agent itself.
+  - tetragon-alerts.yaml
   - cilium-monitors.yaml
   - etcd-scrape.yaml
   - nas-alerts.yaml

@@ -60,8 +60,13 @@ ntfy alertname=SLOProbesAbsent severity=warning job=blackbox-public
 ntfy alertname=KubeStateMetricsAbsent severity=critical
 ntfy alertname=AlertmanagerNotificationsFailing severity=critical integration=webhook
 ntfy alertname=LANNewDeviceSeen severity=warning mac=00:11:22:33:44:55
+ntfy alertname=TetragonAgentMissing severity=warning node=homelab-w-1
 # Critical security findings.
 ntfy alertname=SecurityExample severity=critical category=security
+ntfy alertname=RuntimeEscapeToHost severity=critical category=security mitre_technique=T1611 namespace=theater workload=radarr
+ntfy alertname=RuntimePrivilegeEscalation severity=critical category=security mitre_technique=T1068 namespace=theater workload=radarr
+ntfy alertname=RuntimeKernelModuleLoad severity=critical category=security mitre_technique=T1547.006
+ntfy alertname=RuntimeUnexpectedBPF severity=critical category=security mitre_technique=T1014
 #
 # INFO: automation handles it (`action: auto`), Grafana only. The node and
 # NAS alerts also reach the outage guard's topic.
