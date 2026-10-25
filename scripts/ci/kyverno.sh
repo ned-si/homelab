@@ -73,7 +73,9 @@ while IFS= read -r f; do resources+=(--resource "$f"); done < <(find deploy -nam
 [ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in deploy/; refusing to pass" >&2; exit 1; }
 # KYVERNO_EXTRA (CI: the render_apps.py output): the Helm-rendered apps, which
 # deploy/ does not hold. Their objects in the excluded namespaces are dropped,
-# as admission never sees them.
+# as admission never sees them, and null fields too, as the API server drops
+# them before admission (Helm renders `initContainers: null`, which CEL cannot
+# take the size of).
 if [ -n "${KYVERNO_EXTRA:-}" ]; then
   [ -d "$KYVERNO_EXTRA" ] || { echo "kyverno: KYVERNO_EXTRA $KYVERNO_EXTRA is not a directory" >&2; exit 1; }
   # shellcheck disable=SC2086 # one printf argument per namespace
@@ -86,7 +88,7 @@ if [ -n "${KYVERNO_EXTRA:-}" ]; then
   n=0 kept=0
   while IFS= read -r f; do
     n=$((n + 1))
-    yq "$key as \$k | select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not) | select(load(\"$out/keys.json\") | has(\$k) | not)" \
+    yq "$key as \$k | select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not) | select(load(\"$out/keys.json\") | has(\$k) | not) | del(.. | select(tag == \"!!null\"))" \
       "$f" > "$out/extra-$n.yaml" 2>/dev/null || continue
     if [ -s "$out/extra-$n.yaml" ] && [ "$(yq -N "$key" "$out/extra-$n.yaml" | grep -c .)" -gt 0 ]; then
       resources+=(--resource "$out/extra-$n.yaml")
@@ -97,10 +99,12 @@ if [ -n "${KYVERNO_EXTRA:-}" ]; then
   echo "kyverno: plus $kept of $n rendered files from $KYVERNO_EXTRA (objects already in deploy/ and the excluded namespaces dropped)"
 fi
 # The CLI has no API server to look Namespaces up in: hand it every namespace
-# deploy/ uses, so policies that read namespaceObject can evaluate.
+# deploy/ and the kept renders use, so policies that read namespaceObject can
+# evaluate.
 {
   printf 'apiVersion: cli.kyverno.io/v1alpha1\nkind: Value\nmetadata:\n  name: values\nnamespaces:\n'
-  { echo default; find deploy -name '*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ; } \
+  { echo default; find deploy -name '*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ;
+    [ -z "${KYVERNO_EXTRA:-}" ] || find "$out" -name 'extra-*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ; } \
     | grep -v '^$' | sort -u | while IFS= read -r ns; do
       printf -- '- apiVersion: v1\n  kind: Namespace\n  metadata:\n    name: %s\n' "$ns"
     done
