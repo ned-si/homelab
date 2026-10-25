@@ -101,7 +101,10 @@ if [ -n "${KYVERNO_EXTRA:-}" ]; then
   n=0 kept=0
   while IFS= read -r f; do
     n=$((n + 1))
-    yq -P "$key as \$k | select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not) | select(load(\"$out/keys.json\") | has(\$k) | not) | del(.. | select(tag == \"!!null\")) | (select(.kind == \"Service\") | .spec.type) |= (. // \"ClusterIP\")" \
+    # Argo puts the objects a chart leaves without a namespace into the
+    # Application's destination one (render index.json), not `default`.
+    ns=$(jq -r --arg app "$(basename "$(dirname "$f")")" '[.[] | select(.app == $app) | .namespace][0] // ""' "$KYVERNO_EXTRA/index.json")
+    NS=$ns yq -P "(select(.metadata.namespace == null and strenv(NS) != \"\" and (.kind | test(\"^(Pod|Deployment|StatefulSet|DaemonSet|ReplicaSet|Job|CronJob|Service)$\"))) | .metadata.namespace) = strenv(NS) | $key as \$k | select((.metadata.namespace // \"\") as \$ns | $excl | any_c(. == \$ns) | not) | select(load(\"$out/keys.json\") | has(\$k) | not) | del(.. | select(tag == \"!!null\")) | (select(.kind == \"Service\") | .spec.type) |= (. // \"ClusterIP\")" \
       "$f" > "$out/extra-$n.yaml" 2>/dev/null || continue
     if [ -s "$out/extra-$n.yaml" ] && [ "$(yq -N "$key" "$out/extra-$n.yaml" | grep -c .)" -gt 0 ]; then
       resources+=(--resource "$out/extra-$n.yaml")
