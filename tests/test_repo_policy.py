@@ -153,6 +153,17 @@ def test_wildcard_route_needs_controller_none(tmp_path):
     assert policy(tmp_path / "b", renders=[("gateway", "2+3", "infrastructure", "gateway", [route])]).returncode == 0
 
 
+def test_monitor_needs_release_label(tmp_path):
+    sm = {"apiVersion": "monitoring.coreos.com/v1", "kind": "ServiceMonitor",
+          "metadata": {"name": "tetragon", "namespace": "tetragon"}, "spec": {}}
+    r = policy(tmp_path, renders=[("tetragon", "2+3", "platform", "tetragon", [sm])])
+    assert [f for f in fails(r) if "monitor-selected" in f] == [
+        "FAIL monitor-selected: tetragon: ServiceMonitor tetragon/tetragon has no label "
+        "release: kube-prometheus-stack, so Prometheus ignores it"]
+    sm["metadata"]["labels"] = {"release": "kube-prometheus-stack"}
+    assert policy(tmp_path / "b", renders=[("tetragon", "2+3", "platform", "tetragon", [sm])]).returncode == 0
+
+
 def test_https_route_needs_security_headers(tmp_path):
     hdrs = {"type": "ResponseHeaderModifier", "responseHeaderModifier": {"set": [
         {"name": "Strict-Transport-Security", "value": "max-age=31536000"},

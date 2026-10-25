@@ -60,6 +60,10 @@ objects and rule ids only; values are never printed.
   cilium-explicit-xds   infrastructure/cilium/values.yaml sets envoy.xdsMode: a
                         chart default change cannot leave the agent and Envoy on
                         different xDS modes (postmortem 2026-10-23)
+  monitor-selected      every ServiceMonitor, PodMonitor, Probe and PrometheusRule
+                        rendered carries release: kube-prometheus-stack, the label
+                        Prometheus selects them by (unlabelled, Tetragon, Immich
+                        and the CNPG operator were never scraped, 2026-10-26)
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -117,6 +121,8 @@ import app_profiles  # noqa: E402
 LAN_GONE = "192.168." + "2."
 EXCLUDE_ANN = "external-dns.alpha.kubernetes.io/" + "exclude"
 CONTROLLER_ANN = "external-dns.alpha.kubernetes.io/controller"
+MONITOR_KINDS = {"ServiceMonitor", "PodMonitor", "Probe", "PrometheusRule"}
+PROM_RELEASE = "kube-prometheus-stack"
 SYNC_OPTS_ANN = "argocd.argoproj.io/sync-options"
 IMMICH_DB_IMAGE = ("ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1"
                    "@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236")
@@ -601,6 +607,17 @@ class Policy:
         if not envoy or not re.search(r"^  xdsMode: \S+", envoy.group(1), re.M):
             self.fail(rule, f"{CILIUM_VALUES}: set envoy.xdsMode explicitly (the chart default changed in 1.20.4)")
 
+    def rule_monitor_selected(self) -> None:
+        rule = "monitor-selected"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                if d.get("kind") not in MONITOR_KINDS:
+                    continue
+                self.on(rule)
+                if ((d.get("metadata") or {}).get("labels") or {}).get("release") != PROM_RELEASE:
+                    self.fail(rule, f"{e['app']}: {d.get('kind')} {self.ns_of(d, e)}/{self.name_of(d)} has no label "
+                                    f"release: {PROM_RELEASE}, so Prometheus ignores it")
+
     def rule_kiro_tracked(self) -> None:
         rule = "kiro-tracked"
         self.on(rule)
@@ -809,6 +826,7 @@ class Policy:
                      self.rule_iscsi_selinux_label, self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
+                     self.rule_monitor_selected,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
