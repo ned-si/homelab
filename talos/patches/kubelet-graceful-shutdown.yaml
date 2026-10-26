@@ -1,0 +1,15 @@
+# Graceful node shutdown, sized for the single-instance CloudNativePG
+# clusters. On SIGTERM their instance manager tries a smart shutdown for
+# smartShutdownTimeout (180 s, the CNPG default) and then a fast one; the
+# Talos defaults (30 s total, 10 s of it for critical pods) leave regular pods
+# 20 s, so a reboot kills Postgres mid-shutdown and it starts with crash
+# recovery. 240 s with 30 s for critical pods gives regular pods 210 s: the
+# smart shutdown plus 30 s for the fast one and its checkpoint. A pod with a
+# shorter terminationGracePeriodSeconds still stops at its own limit. Talos
+# lets the kubelet delay a shutdown by up to 20 min (its logind
+# InhibitDelayMaxUSec), so the value takes effect as set.
+machine:
+  kubelet:
+    extraConfig:
+      shutdownGracePeriod: 240s
+      shutdownGracePeriodCriticalPods: 30s
