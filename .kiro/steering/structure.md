@@ -37,10 +37,14 @@ Two kinds, the index and the rules in [.kiro/specs/README.md](../specs/README.md
   tasks: `platform-talos`, `gitops-delivery`, `backups-dr`,
   `observability-alerting`, `access-identity`, `media-home`.
 
-New work starts as an issue (`area/*`, `type/*` labels). A `type/spec` issue
-gets a change spec before its first PR; a `type/task` issue is one PR. Tasks
-are ticked with their PR numbers. Deferred or blocked work is an issue with
-that label, never an unticked task. How specs, steering, skills, hooks and
+New work starts as an issue (`area/*`, `type/*` labels) on the
+[board](https://github.com/users/ned-si/projects/1); no issue yet, open one
+first. Picking an issue up moves it to In progress. A `type/spec` issue gets
+a change spec before its first PR; a `type/task` issue is one PR whose body
+says `Closes #<n>`. Tasks are ticked with their PR numbers; the last tick
+sets the spec `done` and closes its issue. Something found on the way that
+is not the task at hand is a new issue, not scope creep. Deferred or blocked
+work is an issue with that label, never an unticked task. How specs, steering, skills, hooks and
 MCP servers fit together:
 [docs/spec-driven-development.md](../../docs/spec-driven-development.md).
 
