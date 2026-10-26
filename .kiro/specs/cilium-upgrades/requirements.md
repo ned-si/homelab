@@ -1,3 +1,9 @@
+---
+kind: change
+status: active
+created: 2026-10-24
+issue: 750
+---
 # Requirements: cilium-upgrades
 
 ## Introduction

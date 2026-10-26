@@ -15,5 +15,5 @@ Each task is one PR or one recorded check. Requirement numbers in brackets.
       8fe11c5: Fuzzing 10, "PythonAtherisFuzzer integration found: tests/fuzz/fuzz.py")
 - [x] 6. Local: the Best Practices passing answers with evidence links for the operator.
       [3.1]
-- [ ] 7. PR (after the badge is granted): the README badge. [3.2]
-- [ ] 8. Later, with the blog image: signed release, provenance, GHCR. [4.2]
+- 7. Moved to the backlog: #748 (README badge once the OpenSSF Best Practices badge is granted).
+- 8. Moved to the backlog: #743 (Signed releases with provenance, on GHCR).

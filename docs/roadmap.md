@@ -1,85 +1,55 @@
 # Roadmap
 
-What the cluster deliberately does not do yet, in rough order. Each line is its
-own pull request with its own diff, test and rollback
+The direction, in a page. The items themselves are issues, one each,
+labelled by area and kind and ordered on the board
+([.kiro/specs/README.md](../.kiro/specs/README.md#the-board)); work in flight
+is a change spec. Each item is its own pull request, or a spec of several,
+with its own diff, test and rollback
 ([decisions.md](decisions.md#adopt-at-parity-change-afterwards)).
 
-## Networking
+## Themes
 
-- Enforce the CiliumNetworkPolicies (`infrastructure/network-policies/`,
-  synced, not enforced), one namespace at a time.
-- Cilium WireGuard transparent encryption
+- **Least privilege at runtime.** Kyverno enforces the 16 baseline policies;
+  next the restricted set and PSA enforce (#724), per-app hardening (#726),
+  default-deny network policies per namespace (#709), image provenance
+  (#725).
+- **Encrypted in transit inside the cluster.** Cilium WireGuard between the
+  nodes (#710), without a service mesh
   ([decisions.md](decisions.md#no-service-mesh)).
+- **Secrets the cluster owns, keys nobody stores.** OpenBao issues the
+  cluster's own secrets through ESO, auto-unsealed by AWS KMS (#713); pods
+  assume AWS roles with their service-account tokens (#714); every API key
+  that has an API is created by IaC (#715). SOPS stays the bootstrap and
+  break-glass store.
+- **One identity.** The Kubernetes API (#711), Headlamp (#712) and Jellyfin
+  (#730) on Keycloak.
+- **Recoverable from git alone.** A monthly rebuild rehearsal in CI and a
+  timed disaster-recovery run (#723); automatic Postgres majors (#745);
+  consistent SQLite backups (#746).
+- **The NAS as a hardened dependency.** Scoped NFS exports and read-only
+  media (#721), the failing cache device and the pending update (#719, #720,
+  #722).
+- **Proven, not assumed.** Chaos experiments tied to the SLOs (#733), a
+  scoped pentest (#718).
 
-## Monitoring
+Issues by area: [networking](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fnetworking),
+[identity](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fidentity),
+[secrets](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fsecrets),
+[security](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fsecurity),
+[nas](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fnas),
+[backups](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fbackups),
+[delivery](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fdelivery),
+[platform](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fplatform),
+[observability](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fobservability),
+[media](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fmedia),
+[home](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fhome).
 
-- Deploy the custom alert rules (`platform/kube-prometheus-stack/routes/alerts.yaml`,
-  [observability.md](observability.md#notifications)).
-
-## Backups
-
-- Automatic Postgres majors: a Renovate major bump also moves the Barman Cloud
-  `serverName` to `<cluster>-pg<major>`, CI checks they agree, then the Renovate
-  cap on CNPG Postgres majors goes ([backups.md](backups.md#why-it-is-like-this)).
-- Snapshot-then-backup for the two best-effort SQLite databases (Jellyfin,
-  Grafana) and a consistent Paperless SQLite copy.
-
-## Secrets
-
-- OpenBao as the issuer of the secrets whose authority is the cluster: random
-  passwords and app API keys, Keycloak client secrets, CNPG users (database
-  static roles), consumed through the External Secrets Operator. The audit
-  device goes to Vector and SigNoz, so every issue and read is logged. SOPS
-  keeps OpenBao's own bootstrap and break-glass secrets.
-- OpenBao auto-unseal with an AWS KMS customer-managed key (about $1/month;
-  unseal calls stay in the free request tier). Raft storage on an iSCSI PVC,
-  not the eMMC. Raft snapshots to S3 with the other backups.
-- Pods assume AWS roles with their service-account tokens
-  (`AssumeRoleWithWebIdentity`): the Talos `service-account-issuer` points at a
-  public OIDC discovery document, registered as an IAM OIDC provider in tofu.
-  That removes the static access keys of `bootstrap/aws-backup` (restic,
-  Barman, verify) and gives OpenBao KMS access without a stored key.
-- Every API key that has an API is created by IaC: Cloudflare tokens
-  (`cloudflare_api_token`), the Tailscale operator client and node auth key
-  (Tailscale provider), a GitHub App instead of the fine-grained tokens.
-  Keys for outside accounts stay in tofu (CI with GitHub OIDC), never minted
-  from inside the cluster. TrueNAS, Plex and Home Assistant tokens stay manual.
-
-## Delivery
-
-- `task apps:status` still uses namespace `argocd`; move it to `argo`.
-
-## Versions
+## Versions Renovate cannot move alone
 
 Renovate automerges every other update on green CI
-([decisions.md](decisions.md#no-human-gates)). What it cannot do alone:
+([decisions.md](decisions.md#no-human-gates)). By hand:
 
 - The Immich database image (VectorChord or PostgreSQL major):
   [runbooks/immich-upgrade.md](runbooks/immich-upgrade.md#updating-the-database-image).
-- external-dns: add `--force-default-targets` before chart 1.16 and later.
-
-## Images: next pins
-
-`democraticcsi/democratic-csi` runs `latest` pinned by digest
-(`infrastructure/democratic-csi/values-iscsi.yaml`), so Renovate cannot offer
-updates. Pin it to a release tag. Every other image carries a version tag and a
-`# renovate:` annotation.
-
-## Hardening
-
-- Probes, security contexts and resources for the workloads adopted at parity
-  (the hardened manifests are in git history: `feat(apps): migrate mealie,
-  paperless, seafile and syncthing`, `feat(apps): pin the theater stack ...`),
-  one app at a time, keeping every PVC name. qBittorrent first: a readiness
-  probe turns its stale-socket fault into a visible failure
-  ([runbook](runbooks/arr-qbittorrent.md)).
-- PSA `enforce` per namespace once its `audit` events are clean.
-- Plex and Jellyfin mount the media share `readOnly`; move the NFS mounts to the
-  `nfs-storage` leaf (`Retain` PVs); scope the NAS exports to the node addresses
-  ([runbook](runbooks/nfs-hardening.md)).
-- Replace the unmanaged `kube-system/snapshot-controller` v6.3.1 with the
-  `snapshot-controller` leaf (v6.3.2) in one change, never beside it.
-
-## Features
-
-- Jellyfin on Keycloak SSO (the TV app keeps Quick Connect or local login).
+- `democraticcsi/democratic-csi` runs `latest` pinned by digest until it is
+  pinned to a release tag (#747).

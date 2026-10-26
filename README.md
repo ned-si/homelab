@@ -210,6 +210,24 @@ for branch protection and for `scripts/pr-merge.sh`.
 
 Every action is pinned to a commit SHA and every tool to a version and checksum.
 
+## How work is planned
+
+From an idea to the cluster, every step leaves a record
+([.kiro/specs/README.md](.kiro/specs/README.md#from-idea-to-done)):
+
+1. **Idea**: an issue, labelled by area (`area/*`) and kind: `type/task`
+   (one PR), `type/spec` (several PRs, needs a design), `type/research`,
+   `type/operator` (hands-on). It sits in Backlog on the
+   [board](https://github.com/users/ned-si/projects/1).
+2. **Spec** (for `type/spec`): a change spec in `.kiro/specs/<name>/`,
+   requirements, design with the rejected alternatives, tasks; its header
+   links the issue. The owner reviews it: Spec drafted.
+3. **Work**: one PR per task, `Spec: <name>#<task>` in its description, CI
+   the gate. In progress.
+4. **Done**: each task ticked with its PR; the last tick sets the spec
+   `done` and closes the issue. The area spec (how the area works today) is
+   updated if the change altered it.
+
 ## How changes reach the cluster
 
 1. Branch from `main`, commit signed Conventional Commits.
@@ -250,6 +268,8 @@ Multi-source ones (the Helm charts) leave `REVISION` empty.
   relies on snapshots taken by hand.
   Data PVs are on reclaim policy `Retain`
   ([details](docs/backups.md#reclaim-policy)).
-- Alerting: Prometheus and Grafana run; Alertmanager delivers to nobody yet
-  ([docs/observability.md](docs/observability.md)).
-- Everything else that is deliberately deferred: [docs/roadmap.md](docs/roadmap.md).
+- Alerting: Alertmanager pages through ntfy when a person has to act, muted
+  23:00 to 08:00 except a full Gateway outage
+  ([docs/sre.md](docs/sre.md#paging)).
+- What is next: the [board](https://github.com/users/ned-si/projects/1) (one issue per item) and the themes in
+  [docs/roadmap.md](docs/roadmap.md); work in flight is in [.kiro/specs/](.kiro/specs/README.md).

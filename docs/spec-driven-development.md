@@ -94,8 +94,17 @@ flowchart TB
 
 ### Specs
 
-One directory per feature or area under [`.kiro/specs/`](../.kiro/specs),
-three files:
+One directory per spec under [`.kiro/specs/`](../.kiro/specs), indexed in its
+[README](../.kiro/specs/README.md). Two kinds, named in a header at the top of
+`requirements.md` (`kind`, `status`, `created`, `closed`, `issue`), which
+repo-policy `spec-lifecycle` checks:
+
+- A change spec is one bounded change. It is `active`, with an issue on the
+  board, until every task is ticked; then `done`, with its closed date.
+- An area spec is `living`: how one area works today, each criterion naming
+  its check, and the area's history as ticked tasks. It holds no open tasks.
+
+Three files each:
 
 - `requirements.md`: an introduction, non-goals, a glossary, then numbered
   requirements, each a user story with acceptance criteria in EARS form.
@@ -281,9 +290,10 @@ abort criteria, where the report goes, and when to stop.
 
 ```mermaid
 flowchart LR
-  A[Steering baseline] --> B[As-is spec per area: Done and Open tasks]
-  B --> C{New work}
-  C --> D[Update or add a spec]
+  A[Idea] --> B[Issue on the board: area and type labels]
+  B --> C{type}
+  C -- task --> G
+  C -- spec --> D[Change spec: active, linked to the issue]
   D --> E[Design review: owner]
   E --> F[Tasks]
   F --> G[Runs: one PR per task]
@@ -291,9 +301,13 @@ flowchart LR
   H -- no --> G
   H -- yes --> I[Merge = deploy]
   I --> J[Tick the task with the PR number]
-  J --> K[The spec evolves]
-  K --> C
+  J --> K{All ticked?}
+  K -- no --> G
+  K -- yes --> L[Spec done, issue closed, area spec updated]
 ```
+
+Area specs (living) describe the result; issues hold everything not started;
+change specs hold everything in flight. Nothing waits as an unticked task.
 
 ### Brownfield retrofit
 
@@ -314,10 +328,17 @@ from what exists:
 Only areas expected to change need a spec. A directory nobody touches does
 not need its behaviour written down twice.
 
+Ten days later (2026-10-26) the area specs had become the backlog: 53 open
+tasks across them, deferred and "later" items among them, and several
+already merged but never ticked. They became `living` (history, no open
+tasks), their open items 41 issues (#709 to #749), and the board took over
+the "what next". See [Lessons learned](#area-specs-that-never-close).
+
 ### New work
 
-1. Update the area's spec, or add one for a feature that spans areas (the
-   Immich 3 migration, each wave 3 branch).
+1. Open an issue, labelled by area and type. A `type/task` is one PR, its
+   description the spec. A `type/spec` gets a change spec (header `active`,
+   `issue: <n>`), named by outcome, before its first PR.
 2. The owner reviews requirements and design, the cheapest place to change
    your mind. Open questions go in `design.md` and are answered from
    upstream docs and read-only checks at the start of the run.
@@ -326,6 +347,8 @@ not need its behaviour written down twice.
 4. Runs execute the tasks. CI is the gate; [`scripts/pr-merge.sh`](../scripts/pr-merge.sh)
    merges only on a green `ci`, signed commits and an up-to-date branch.
 5. Each merged task is ticked with its PR number, in the same PR or the next.
+   The last tick sets `status: done` and `closed:`, closes the issue, and
+   updates the area spec if the change altered how the area works.
 6. When reality disagrees with the spec, the spec changes first, in the
    open, and the decision row keeps the rejected option.
 
@@ -333,6 +356,7 @@ not need its behaviour written down twice.
 
 | Spec artefact | GitOps counterpart |
 | --- | --- |
+| An idea, a deferred item | An issue on the board, `area/*` and `type/*` labels |
 | A task | One pull request, one topic |
 | An acceptance criterion | A CI check, a repo-policy rule, a promtool test, a smoke hook or an alert |
 | Design decision with rejected alternatives | The decisions table, or [docs/decisions.md](decisions.md) for cross-cutting ones |
@@ -362,6 +386,33 @@ not need its behaviour written down twice.
   the rejected option again.
 
 ## Worked examples
+
+### From idea to done: the Cilium upgrades
+
+The whole chain, with the real numbers:
+
+1. **The trigger.** On 2026-10-23 a Renovate patch update of Cilium (1.20.4)
+   changed a chart default and took every public hostname down
+   ([postmortem](postmortems/2026-10-23-gateway-cilium-xds.md)). The revert
+   was the fix (#659); the postmortem's action items were the idea.
+2. **The spec.** [`cilium-upgrades`](../.kiro/specs/cilium-upgrades/)
+   (#662): requirements (an explicit xDS mode, a rehearsal and a smoke test
+   on every Cilium change, a release window, a page when the Gateway is
+   down), the design with what was rejected, and eight tasks. Its issue,
+   #750, sits In progress on the [board](https://github.com/users/ned-si/projects/1).
+3. **The work.** One PR per task, each with `Spec: cilium-upgrades#<n>`:
+   `envoy.xdsMode` and its repo-policy rule (#663), the Renovate window
+   (#665), `GatewayDown` (#669), the PostSync smoke (#670), the auto-revert
+   (#671), the rehearsal smoke (#672). Each merged task was ticked with its
+   number.
+4. **Done.** Task 8 is the update that started it all, re-applied by
+   Renovate through the new rehearsal (#661). When it lands, the header says
+   `status: done`, the issue closes, and
+   [`gitops-delivery`](../.kiro/specs/gitops-delivery/) (the area spec)
+   records the new guarantees.
+
+What did not fit stayed out: Cilium WireGuard came up on the way and is its
+own issue (#710), not a ninth task.
 
 ### (a) The Immich 3 migration
 
@@ -418,8 +469,9 @@ files or a read-only look at the cluster was left out. From
 
 Its [`tasks.md`](../.kiro/specs/gitops-delivery/tasks.md) turns the area's
 history into sixteen ticked lines with their PRs (Renovate automerge #180,
-automatic rollback #181, digest pinning #474, ...), with the open work
-underneath, so a newcomer reads the area in a minute.
+automatic rollback #181, digest pinning #474, ...), so a newcomer reads the
+area in a minute. The open work underneath it moved to issues later (see
+[Lessons learned](#area-specs-that-never-close)).
 
 ### (c) A guardrail born from an incident
 
@@ -475,6 +527,25 @@ point: the spec is the place where the change of mind is written down.
 
 None of this was smooth. Here is what went wrong, roughly in order of how
 silly I felt afterwards.
+
+### Area specs that never close
+
+The as-is retrofit gave each area a spec with Done and Open tasks, and "new
+work in this area adds a task here first". Ten days later the six area specs
+held 53 open tasks between them, plus the roadmap with its own list. Some
+were deferred by design, some waited on hardware, and eight were merged but
+never ticked, because nothing asked for the tick. A spec that cannot finish
+stops meaning anything: "18 of 26" said nothing about whether the area was
+in good shape.
+
+The fix separated the three things the area specs were doing. The
+description of how the area works stays, as a `living` spec with no open
+tasks. The backlog moved to issues, one per item, labelled by area and type,
+ordered on a board. Work in flight is a change spec with a header
+(`active`, `issue`, `created`, then `done` and `closed`), and repo-policy
+`spec-lifecycle` fails CI on a done or living spec with an unticked task.
+Lesson: a spec is for a change, a document is for a system, and a backlog is
+neither.
 
 ### Phantom runs
 
@@ -573,11 +644,18 @@ There is no need to copy all of it. A first week could look like this:
 5. Give the agent read-only credentials for anything live.
 6. Move your longest repeated prompt into a skill.
 7. Tick tasks with PR numbers; when the plan changes, change the spec first.
-8. After a month, write as-is specs for the areas you keep touching.
+8. After a month, write as-is specs for the areas you keep touching, as
+   living descriptions with no open tasks; the backlog goes to issues.
 
 ### Template: requirements.md
 
 ```markdown
+---
+kind: change
+status: active
+created: <YYYY-MM-DD>
+issue: <number>
+---
 # Requirements: <feature>
 
 ## Introduction
@@ -643,7 +721,8 @@ Each task is one PR or one recorded check. Requirement numbers in brackets.
 Rollback path: <the steps, and the criterion that triggers them>. [2.2]
 ```
 
-When a task merges: `- [x] 2. PR ... [1.1, 1.3] (#123)`.
+When a task merges: `- [x] 2. PR ... [1.1, 1.3] (#123)`. When the last one
+does: `status: done` and `closed: <date>` in the requirements header.
 
 ### Template: a steering file
 

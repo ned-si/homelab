@@ -1,6 +1,8 @@
 # Tasks: observability-alerting
 
-Requirement numbers in brackets. New work in this area adds a task here first.
+Requirement numbers in brackets. A living area spec: the history of the area,
+no open tasks. New work is an issue on the board, and a change spec when it
+needs one ([README](../README.md)).
 
 ## Done
 
@@ -31,19 +33,13 @@ Requirement numbers in brackets. New work in this area adds a task here first.
       certificates by CSR and kubelet-serving-cert-approver, applied one node
       at a time after the approver runs. [6.1-6.3] (#522)
 
-## Open
+## Moved to the backlog (2026-10-26)
 
 Wave 3 is specced in `.kiro/specs/wave3-*`: a runbook for every alert,
 latency and backup-freshness SLOs, Hubble relay and UI, Tetragon in observe
 mode, and a log store trial. Not repeated here.
 
-- [ ] 19. Chaos experiments as hypotheses tied to SLOs (Chaos Mesh or
-      LitmusChaos, through Argo CD): kill a pod per app, reboot a node, NAS or
-      iSCSI loss, DNS failure, a CNPG primary failure, the Gateway down. Office
-      hours first, an SLO-burn abort, never on `immich-data` or the NAS
-      itself, a report per run; then a monthly game day.
-- [ ] 20. Wide-event observability trial (Honeycomb-style): OpenTelemetry
-      from the cluster and the Gateway, compared with the Prometheus signals.
-      After everything else is stable.
-- [ ] 21. Tetragon events on the Security dashboard and in the log store,
+- 19. Moved to the backlog: #733 (Chaos experiments tied to SLOs).
+- 20. Moved to the backlog: #734 (Wide-event observability trial).
+- [x] 21. (#703, the Security dashboard row; the export reaches the log store through Vector's `kubernetes_logs` source) Tetragon events on the Security dashboard and in the log store,
       once both exist.

@@ -1,3 +1,8 @@
+---
+kind: area
+status: living
+created: 2026-10-16
+---
 # Requirements: platform-talos (as-is)
 
 ## Introduction

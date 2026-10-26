@@ -31,14 +31,7 @@ PR; CI is the gate; merge with `scripts/pr-merge.sh`.
       RPO table and `docs/backups.md`. No inhibit rule: the expression leaves out a
       CronJob with a failed Job (design, Decisions). [4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 6.1,
       6.2, 6.3] #531
-- [ ] 8. Deferred: not cheap, and it reverses the budget policy (design, Error handling).
-      PR `ci: hold Renovate on an app out of budget and still failing`:
-      `SLOAutomergePause` (promtool tests), the `ntfy-guard` route and its `routes.txt`
-      line, `scripts/ci/error-budget-gate.sh` and its bash test, `ci/slo-app-paths.txt`
-      and repo-policy rule `slo-app-paths`, job `error-budget` in `ci.yaml`,
-      `error-budget-recheck.yaml`, `docs/sre.md`. Skip with a recorded reason per the
-      design's error handling if the guard topic cannot carry the state. [5.1, 5.2, 5.3,
-      5.4, 5.5, 5.6, 6.1, 6.3]
+- 8. Moved to the backlog: #744 (Hold Renovate on an app out of error budget).
 - [x] 9. Live check, read-only: new series present per app and target, no new alert
       firing (the gate checks went with task 8). [3.3, 4.2] 2026-10-16 21:10Z:
       `slo:latency_budget_remaining:ratio_rate30d` for the 7 apps; the ntfy page of a

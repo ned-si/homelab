@@ -1,3 +1,9 @@
+---
+kind: change
+status: done
+created: 2026-10-16
+closed: 2026-10-16
+---
 # Requirements: wave 3 reliability (runbooks and SLO refinements)
 
 ## Introduction

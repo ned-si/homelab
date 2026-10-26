@@ -85,24 +85,26 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       (2026-10-31). [all]
 - [x] 17. (#576; amended for 9.9) PR `docs(storage): SELinux labels on iSCSI volumes`: Requirement 9, the design
       rows, `docs/decisions.md` (prerequisite of SELinux enforcing), the threat model. [9]
-- [ ] 17b. PR `fix(storage): let the iSCSI node plugin keep SELinux mount options`: the
+- [x] 17b. (#578) PR `fix(storage): let the iSCSI node plugin keep SELinux mount options`: the
       ConfigMap and its read-only `subPath` mount in `values-iscsi.yaml`. Before the
       roll: `updateStrategy` RollingUpdate with `maxUnavailable: 1`, no backup Job
       running or due within 15 minutes, `CSIDriver.spec.seLinuxMount` unset or false.
       During it: one node at a time, a scratch claim mounted on that node before the
       next, every Argo CD app Healthy, no pod stuck in `ContainerCreating`. [9.9]
-- [ ] 18. PR `feat(storage): SELinux label on the iSCSI StorageClasses`: `mountOptions` and
+- [x] 18. (#579) PR `feat(storage): SELinux label on the iSCSI StorageClasses`: `mountOptions` and
       `Force=true,Replace=true` in `infrastructure/democratic-csi/values-iscsi.yaml`, a
       repo policy check with tests, the StorageClass table in `docs/backups.md`. Before
       the sync: a scratch
       StorageClass and claim on the cluster prove that deleting a class keeps its
       volumes bound and that a labelled volume mounts as `ephemeral_t`. [9.1, 9.2]
-- [ ] 19. PR `feat(storage): pv-selinux-label script`: `scripts/pv-selinux-label.sh` (dry
+- [x] 19. (#580) PR `feat(storage): pv-selinux-label script`: `scripts/pv-selinux-label.sh` (dry
       run by default, `--apply`, `--revert`, refuses `immich-data` and git-managed
       volumes), its bash test, a runbook. [9.3, 9.4, 9.6]
-- [ ] 20. PR `feat(observability): count auditd records`: the Vector counter, the
+- [x] 20. (#581) PR `feat(observability): count auditd records`: the Vector counter, the
       `AuditAVCRateHigh` rule with a promtool test, `routes.txt`, the Logs section. [9.7,
       9.8]
 - [ ] 21. Roll out: the ClickHouse volume first and its proof (9.5); then one application
       at a time, git-managed volumes by one PR each, the others by the script, databases
       after a fresh backup. Record each volume here. [9.3, 9.5, 9.6]
+      Labelled on 2026-10-26 (`mountOptions` with `context=`): every iSCSI volume
+      but 2 of 3 in `immich` and both in `seafile` (#583 to #587).

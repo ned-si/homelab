@@ -1,6 +1,8 @@
 # Tasks: access-identity
 
-Requirement numbers in brackets. New work in this area adds a task here first.
+Requirement numbers in brackets. A living area spec: the history of the area,
+no open tasks. New work is an issue on the board, and a change spec when it
+needs one ([README](../README.md)).
 
 ## Done
 
@@ -29,34 +31,21 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 26. TOTP for `admins` and the Keycloak admin; the realm Job on its own
       master client; enrol, reset and break-glass runbook. [7.1-7.5] (#546)
 
-## Open
+## Moved to the backlog (2026-10-26)
 
 Wave 3 syncs the Cilium policies unenforced, with Hubble to see drops:
 `.kiro/specs/wave3-*`.
 
-- [ ] 16. Default-deny network policies, one namespace per PR, ingress then
-      egress: mealie, immich, paperless, syncthing, theater, then keycloak,
-      monitoring and argo (policies not written yet for the last three).
-- [ ] 17. Kubernetes API authentication by Keycloak OIDC (Talos
-      `AuthenticationConfiguration`, a ClusterRoleBinding from a Keycloak
-      group); the admin certificate becomes break-glass only. One control
-      plane at a time.
-- [ ] 18. Then Headlamp with per-user OIDC tokens instead of its
-      ServiceAccount.
-- [ ] 19. Keycloak hardening in code: brute-force protection and lockout
+- 16. Moved to the backlog: #709 (Enforce the CiliumNetworkPolicies, one namespace at a time).
+- 17. Moved to the backlog: #711 (Kubernetes API authentication through Keycloak OIDC).
+- 18. Moved to the backlog: #712 (Headlamp with per-user OIDC tokens).
+- [x] 19. (#691) Keycloak hardening in code: brute-force protection and lockout
       settings, direct-access grants off and read back by the PostSync Job
       (OTP for admins: task 26).
-- [ ] 20. External Secrets Operator proof of concept on one app (Mealie);
-      backend to choose: OpenBao with a static seal, Infisical, or Bitwarden
-      Secrets Manager. SOPS stays the bootstrap store.
-- [ ] 21. Phone toolkit: a reduced talosconfig (`os:operator`) for the
-      phone, never the `os:admin` one.
-- [ ] 22. Rotate the values once accepted as exposed (operator-only): the old
-      Cloudflare user token, the NAS root password, the DNS registrar API key.
-- [ ] 23. Scheduled, scoped pentest of the own IPs and domains: authenticated
-      DAST, external port and TLS scans, an in-cluster assessment, a Keycloak
-      review. Guardrails enforced technically (no AWS or NAS admin keys,
-      locked backup versions); written rules of engagement; private report.
+- 20. Moved to the backlog: #713 (OpenBao as the issuer of cluster-owned secrets, through ESO).
+- 21. Moved to the backlog: #716 (A reduced talosconfig for the phone).
+- 22. Moved to the backlog: #717 (Rotate the values once accepted as exposed).
+- 23. Moved to the backlog: #718 (A scheduled, scoped pentest of the own IPs and domains).
 - [x] 26. Headlamp public at `headlamp.lilalala.com` behind Keycloak; the
       tailnet Ingress removed; UIs public, cluster APIs tailnet-only as the
       rule. [4.3, 4.6] (#538)
