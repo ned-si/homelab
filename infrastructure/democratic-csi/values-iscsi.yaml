@@ -11,11 +11,11 @@
 csiDriver:
   name: org.democratic-csi.iscsi
 
-# The driver image, pinned by digest. The chart default is the moving `latest`
-# tag, and Kubernetes pulls `latest` on every pod start, so a restart could
-# bring up a different driver. The digest is the one the running pods use
-# (`latest` on 2026-10-05; no version tag carries it). Changing it restarts
-# the controller and every node pod.
+# The driver image, pinned to a release tag and its digest, so Renovate
+# offers updates. The chart default is the moving `latest`. v1.9.5 replaced
+# `latest@sha256:944d0e65...` (built two hours after v1.9.5 from master, which
+# differed by two README commits). Changing it restarts the controller and
+# every node pod, one node at a time.
 # Since chart 0.15 an image is `{registry, tag}`, rendered as
 # "<registry>:<tag>", so the digest rides in `tag`. The chart default moved to
 # ghcr.io; this stays on the docker.io image the pods run, so the chart bump
@@ -24,7 +24,8 @@ controller:
   driver:
     image:
       registry: docker.io/democraticcsi/democratic-csi
-      tag: latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+      # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
+      tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
 # Talos: there is no iscsiadm in the node image. The iscsi-tools system
 # extension runs iscsid on the host, and the node plugin runs the host's
 # iscsiadm by entering iscsid's namespaces (`nsenter`), which needs the host
@@ -40,7 +41,8 @@ node:
   driver:
     image:
       registry: docker.io/democraticcsi/democratic-csi
-      tag: latest@sha256:944d0e65077efbd9c1fdf23997eec8fac4b4bfb7c3de400f63e33a0a849c5ced
+      # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
+      tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
     extraEnv:
       - name: ISCSIADM_HOST_STRATEGY
         value: nsenter
