@@ -158,6 +158,7 @@ matches against. The ones used here:
 | `homelab-context` | Facts and hard rules: what never to touch, tooling quirks of the operator machine, where read-only credentials live |
 | `run-conventions` | Rules every delegated run follows: shell hygiene, signing, one topic per PR, `scripts/pr-merge.sh`, CI as the gate, backup freshness, the outage guard, "new work starts with a spec" |
 | `safe-change` | Evidence first, dry run, diff against live, explicit rollback |
+| `homelab-debug` | Something is broken: `scripts/triage.sh`, the alert's runbook, hypotheses checked against evidence, read-only; ends with a report and an issue for the check that would have caught it |
 | `talos-ops` | `talosctl` paths, node and BMC slots, etcd snapshots, upgrades through `task talos:*` |
 | `secrets-hygiene` | Scanning, SOPS, history rewrites, public-visibility checks |
 | `tech-docs` | The documentation standard for this repo |

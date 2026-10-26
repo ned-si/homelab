@@ -29,6 +29,18 @@ q 'ALERTS{alertstate="firing", action="human"}'
 Expected: four nodes, then one line per firing paging alert, with its labels. `q '<PromQL>'`
 is the query helper the pages use. When done: `kill "$PF"`.
 
+Then the snapshot, with the alert's name:
+
+```sh
+scripts/triage.sh <AlertName>
+```
+
+It prints the state (`scripts/status.sh`), Warning events of the last 30
+minutes, firing alerts, what merged to `main` in the last 6 hours (most
+breakage follows a merge) and the alert's Confirm section below. Exit 1
+means something is red. With an Argo CD application name instead, it prints
+that application's failing conditions and resources.
+
 - Alertmanager (silences, what is inhibited):
   `kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093`,
   then `http://localhost:9093`.
@@ -42,7 +54,8 @@ is the query helper the pages use. When done: `kill "$PF"`.
   `scripts/maintenance-silence.sh` ([observability.md](../../observability.md#silencing)).
 - `talosctl` needs the LAN; `kubectl` also works over the tailnet
   ([remote-access.md](../../remote-access.md)).
-- A one-screen view without Grafana: `scripts/status.sh`.
+- A one-screen view without Grafana: `scripts/status.sh` (the first part of
+  `scripts/triage.sh`).
 
 ## Automation gave up
 
