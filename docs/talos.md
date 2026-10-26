@@ -232,6 +232,10 @@ Expected: `ok` lines only, the last one `ok  git-ignore rules`, exit 0.
   Images share EPHEMERAL with everything else, so the default start at 85%
   coincides with the default eviction threshold: GC only ran once the node was
   already under DiskPressure and evicting pods.
+- Kubelet graceful node shutdown 240 s, the last 30 s for critical pods
+  (`patches/kubelet-graceful-shutdown.yaml`). The Talos default leaves regular
+  pods 20 s; the single-instance CloudNativePG clusters need up to 180 s for
+  their smart shutdown, then a fast one, to stop Postgres cleanly on a reboot.
 - Kubelet serving certificates from the cluster CA
   (`patches/kubelet-serving-certs.yaml`, `serverTLSBootstrap`), approved by
   `kubelet-serving-cert-approver`, the way the Talos docs describe for

@@ -42,6 +42,7 @@ cniConfig:
 patches:
   - "@./patches/sysctls.yaml"
   - "@./patches/kubelet-image-gc.yaml"
+  - "@./patches/kubelet-graceful-shutdown.yaml"
   - "@./patches/node-ip.yaml"
   - "@./patches/kubelet-serving-certs.yaml"
   # Service logs as JSON to the Vector pod on the node (docs/observability.md, "Logs").
