@@ -5,7 +5,7 @@ Shell: [Before you start](README.md#before-you-start).
 
 ## What it means
 
-A process set its uid or gid to 0 (setuid, setreuid, setresuid, setfsuid and the gid ones), outside the allowlist (runc on the host). Every workload here runs as non-root (Kyverno `require-run-as-non-root-user`, in Deny), so a container becoming root means an exploit or a setuid binary.
+A process set its uid or gid to 0 (setuid, setreuid, setresuid, setfsuid and the gid ones), outside the allowlist (runc, mount and umount on the host). Every workload here runs as non-root (Kyverno `require-run-as-non-root-user`, in Deny), so a container becoming root means an exploit or a setuid binary.
 
 A container entrypoint that starts as root and drops to a user does not trigger it: dropping to non-zero ids is not matched.
 
