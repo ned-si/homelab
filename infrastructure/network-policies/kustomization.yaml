@@ -32,7 +32,7 @@
 # other half (infrastructure/nfs-storage/nfs-volumes.yaml).
 #
 # Not covered: cert-manager, external-dns, gateway, democratic-csi,
-# cnpg-system, monitoring, keycloak, backup-verify, kube-system, argo. They stay
+# monitoring, keycloak, backup-verify, kube-system, argo. They stay
 # allow-all; a mistake there takes out certificates and DNS for the whole site.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

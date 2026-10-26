@@ -152,10 +152,11 @@ spec:
               protocol: TCP
 
     # The CloudNativePG operator: instance-manager API on 8000, plus 5432.
-    # platform/cloudnative-pg/values.yaml -- operator Deployment in cnpg-system.
+    # The operator Deployment runs in namespace immich
+    # (clusters/homelab/platform/cnpg.yaml).
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: cnpg-system
+            io.kubernetes.pod.namespace: immich
             app.kubernetes.io/name: cloudnative-pg
       toPorts:
         - ports:
@@ -232,4 +233,71 @@ spec:
             - port: "5432"
               protocol: TCP
             - port: "8000"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# Added from 7 days of flows (spec wave3-network-logs task 7).
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cnpg-operator
+  namespace: immich
+spec:
+  description: >-
+    The CloudNativePG operator, cluster-wide from this namespace: the instance managers of every namespace, and the Kubernetes API.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Instance-manager status (8000) and checks (5432) of every Cluster:
+    # theater, immich, mealie, keycloak, home, backup-verify's restores (about
+    # 1,100 connections in 7 days). Any namespace: a new Cluster is covered
+    # on arrival, like the instances' own policies.
+    - toEndpoints:
+        - matchExpressions:
+            - key: io.kubernetes.pod.namespace
+              operator: Exists
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "5432"
+              protocol: TCP
+    # Reconciling Clusters, Backups and their Secrets (59 in 7 days).
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: immich-postgres-verify
+  namespace: immich
+spec:
+  description: >-
+    The Immich database accepts the weekly backup-verify reads.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # backup-verify-postgres, Sundays 21:00 UTC (9 in 7 days).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: backup-verify
+      toPorts:
+        - ports:
+            - port: "5432"
               protocol: TCP

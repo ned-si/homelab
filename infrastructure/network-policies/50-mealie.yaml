@@ -101,10 +101,11 @@ spec:
               protocol: TCP
 
     # The CloudNativePG operator: instance-manager API on 8000, plus 5432.
-    # platform/cloudnative-pg/values.yaml -- operator Deployment in cnpg-system.
+    # The operator Deployment runs in namespace immich
+    # (clusters/homelab/platform/cnpg.yaml).
     - fromEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: cnpg-system
+            io.kubernetes.pod.namespace: immich
             app.kubernetes.io/name: cloudnative-pg
       toPorts:
         - ports:
@@ -242,4 +243,63 @@ spec:
       toPorts:
         - ports:
             - port: "443"
+              protocol: TCP
+---
+# ---------------------------------------------------------------------------
+# Added from 7 days of flows (spec wave3-network-logs task 7).
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mealie-postgres-backups
+  namespace: mealie
+spec:
+  description: >-
+    The Mealie database: WAL and base backups to S3, and the weekly backup-verify reads.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # backup-verify-postgres, Sundays 21:00 UTC (28 in 7 days).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: backup-verify
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+  egress:
+    # The Barman Cloud plugin sidecar to S3.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hook-jobs
+  namespace: mealie
+spec:
+  description: >-
+    presync-backup reads backup status from the Kubernetes API.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: presync-backup
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # 12 in 7 days.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
               protocol: TCP

@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: smoke-ingress
+  namespace: theater
+spec:
+  description: Every theater app accepts the postsync-smoke Job on its HTTP port.
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values:
+      - bazarr
+      - jellyfin
+      - lazylibrarian
+      - lidarr
+      - plex
+      - prowlarr
+      - qbittorrent
+      - radarr
+      - sonarr
+      - theater-sso
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: postsync-smoke
+    toPorts:
+    - ports:
+      - port: "6767"
+        protocol: TCP
+      - port: "8096"
+        protocol: TCP
+      - port: "5299"
+        protocol: TCP
+      - port: "8686"
+        protocol: TCP
+      - port: "32400"
+        protocol: TCP
+      - port: "9696"
+        protocol: TCP
+      - port: "8080"
+        protocol: TCP
+      - port: "7878"
+        protocol: TCP
+      - port: "8989"
+        protocol: TCP
+      - port: "4180"
+        protocol: TCP
