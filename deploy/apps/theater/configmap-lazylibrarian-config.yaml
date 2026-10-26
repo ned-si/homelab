@@ -31,6 +31,16 @@ data:
         cp.write(f)
     os.replace(path + ".new", path)
     print("config.ini: managed settings applied")
+    # The Hardcover token lives in users.hc_token; LazyLibrarian uses the
+    # admin's (perms 65535). On a first start the database does not exist
+    # yet: the next restart sets it.
+    import sqlite3
+    db = "/config/lazylibrarian.db"
+    if os.environ.get("HC_TOKEN") and os.path.exists(db):
+        with sqlite3.connect(db) as c:
+            n = c.execute("UPDATE users SET hc_token = ? WHERE perms = 65535",
+                          (os.environ["HC_TOKEN"],)).rowcount
+        print(f"lazylibrarian.db: Hardcover token set for {n} admin user(s)")
   managed.conf: |
     General.launch_browser=0
     General.ebook_dir=/data/books/ingest
@@ -60,6 +70,11 @@ data:
     ABB.abb=1
     ABB.abb_host=audiobookbay.lu
     ABB.abb_dltypes=A
+    # Hardcover as the book metadata source: faster searches than
+    # OpenLibrary. Its token (read:catalog, apps/secrets) is per user in the
+    # database, not here: apply.py writes it to the admin user.
+    API.hc_api=1
+    API.book_api=HardCover
 kind: ConfigMap
 metadata:
   name: lazylibrarian-config
