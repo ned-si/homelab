@@ -37,7 +37,7 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       namespaces; `keycloak` and `backup-verify`; `monitoring` and the exporters;
       `tailscale`, `headlamp`, `hubble`; the wave 3 namespaces (`kyverno`, `tetragon`,
       `logging`, `signoz`). [2.2, 2.3, 2.4, 2.5]
-      - [ ] 7a. Application namespaces (this PR, 2026-10-26): LazyLibrarian, the hook Jobs
+      - [ ] 7a. Application namespaces (#772, 2026-10-26): LazyLibrarian, the hook Jobs
         (presync-backup, postsync-smoke), WAL archiving to S3 and the backup-verify reads
         of the theater and mealie databases, qBittorrent's ICMP errors, and the CNPG
         operator, whose rules named `cnpg-system` while it runs in `immich`. Still
