@@ -64,6 +64,11 @@ objects and rule ids only; values are never printed.
                         rendered carries release: kube-prometheus-stack, the label
                         Prometheus selects them by (unlabelled, Tetragon, Immich
                         and the CNPG operator were never scraped, 2026-10-26)
+  spec-lifecycle        every .kiro/specs/<name>/requirements.md starts with a
+                        header: kind change (status active or done) or area
+                        (status living), a created date; done has a closed date
+                        and no unticked task, living no unticked task, active an
+                        issue; .kiro/specs/README.md links every spec
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -123,6 +128,7 @@ EXCLUDE_ANN = "external-dns.alpha.kubernetes.io/" + "exclude"
 CONTROLLER_ANN = "external-dns.alpha.kubernetes.io/controller"
 MONITOR_KINDS = {"ServiceMonitor", "PodMonitor", "Probe", "PrometheusRule"}
 PROM_RELEASE = "kube-prometheus-stack"
+SPEC_STATES = {("change", "active"), ("change", "done"), ("area", "living")}
 SYNC_OPTS_ANN = "argocd.argoproj.io/sync-options"
 IMMICH_DB_IMAGE = ("ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1"
                    "@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236")
@@ -618,6 +624,42 @@ class Policy:
                     self.fail(rule, f"{e['app']}: {d.get('kind')} {self.ns_of(d, e)}/{self.name_of(d)} has no label "
                                     f"release: {PROM_RELEASE}, so Prometheus ignores it")
 
+    def rule_spec_lifecycle(self) -> None:
+        rule = "spec-lifecycle"
+        specs = sorted({rel.split("/")[2] for rel in self.tracked()
+                        if rel.startswith(".kiro/specs/") and rel.count("/") >= 3})
+        if not specs:
+            return
+        self.on(rule)
+        index = self.root / ".kiro/specs/README.md"
+        index_text = index.read_text() if index.is_file() else ""
+        for name in specs:
+            where = f".kiro/specs/{name}"
+            req = self.root / where / "requirements.md"
+            m = re.match(r"---\n(.*?)\n---\n", req.read_text() if req.is_file() else "", re.S)
+            if not m:
+                self.fail(rule, f"{where}/requirements.md: no header (---, kind, status, created, ---)")
+                continue
+            head = dict(ln.split(":", 1) for ln in m.group(1).splitlines() if ":" in ln)
+            head = {k.strip(): v.strip() for k, v in head.items()}
+            kind, status = head.get("kind"), head.get("status")
+            if (kind, status) not in SPEC_STATES:
+                self.fail(rule, f"{where}: kind {kind!r} with status {status!r}; allowed: "
+                                + ", ".join(f"{k} {s}" for k, s in sorted(SPEC_STATES)))
+            for key in ("created",) + (("closed",) if status == "done" else ()):
+                if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", head.get(key, "")):
+                    self.fail(rule, f"{where}: {key} is not a YYYY-MM-DD date")
+            if status == "active" and not re.fullmatch(r"\d+", head.get("issue", "")):
+                self.fail(rule, f"{where}: an active spec names its issue (issue: <number>)")
+            tasks = self.root / where / "tasks.md"
+            if status in ("done", "living") and tasks.is_file():
+                open_tasks = re.findall(r"^\s*- \[ \] (\S+)", tasks.read_text(), re.M)
+                if open_tasks:
+                    self.fail(rule, f"{where}: status {status} with unticked tasks {', '.join(open_tasks)} "
+                                    "(tick them, or move them to an issue)")
+            if f"]({name}/)" not in index_text:
+                self.fail(rule, f".kiro/specs/README.md does not link {name}/")
+
     def rule_kiro_tracked(self) -> None:
         rule = "kiro-tracked"
         self.on(rule)
@@ -826,7 +868,7 @@ class Policy:
                      self.rule_iscsi_selinux_label, self.rule_cronjobs,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
-                     self.rule_monitor_selected,
+                     self.rule_monitor_selected, self.rule_spec_lifecycle,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,

@@ -164,6 +164,41 @@ def test_monitor_needs_release_label(tmp_path):
     assert policy(tmp_path / "b", renders=[("tetragon", "2+3", "platform", "tetragon", [sm])]).returncode == 0
 
 
+SPEC_INDEX = "# Specs\n\n- [a](a/)\n"
+
+
+def spec_files(header, tasks, index=SPEC_INDEX):
+    return {".kiro/specs/README.md": index,
+            ".kiro/specs/a/requirements.md": header + "# Requirements: a\n",
+            ".kiro/specs/a/tasks.md": tasks}
+
+
+def spec_fails(tmp_path, *args):
+    return [f for f in fails(policy(tmp_path, files=spec_files(*args))) if "spec-lifecycle" in f]
+
+
+def test_spec_lifecycle(tmp_path):
+    active = "---\nkind: change\nstatus: active\ncreated: 2026-10-24\nissue: 750\n---\n"
+    assert spec_fails(tmp_path / "1", active, "- [ ] 1. x\n") == []
+    done = "---\nkind: change\nstatus: done\ncreated: 2026-10-24\nclosed: 2026-10-30\n---\n"
+    assert spec_fails(tmp_path / "2", done, "- [x] 1. (#1) x\n") == []
+    assert spec_fails(tmp_path / "3", done, "- [x] 1. x\n- [ ] 2. y\n") == [
+        "FAIL spec-lifecycle: .kiro/specs/a: status done with unticked tasks 2. "
+        "(tick them, or move them to an issue)"]
+    living = "---\nkind: area\nstatus: living\ncreated: 2026-10-16\n---\n"
+    assert spec_fails(tmp_path / "4", living, "- 3. Moved to the backlog: #9 (z).\n") == []
+    assert spec_fails(tmp_path / "5", "", "") == [
+        "FAIL spec-lifecycle: .kiro/specs/a/requirements.md: no header (---, kind, status, created, ---)"]
+    assert spec_fails(tmp_path / "6", active.replace("issue: 750\n", ""), "") == [
+        "FAIL spec-lifecycle: .kiro/specs/a: an active spec names its issue (issue: <number>)"]
+    assert spec_fails(tmp_path / "7", living.replace("living", "active"), "") == [
+        "FAIL spec-lifecycle: .kiro/specs/a: kind 'area' with status 'active'; allowed: "
+        "area living, change active, change done",
+        "FAIL spec-lifecycle: .kiro/specs/a: an active spec names its issue (issue: <number>)"]
+    assert [f for f in fails(policy(tmp_path / "8", files=spec_files(active, "", "# Specs\n")))
+            if "spec-lifecycle" in f] == ["FAIL spec-lifecycle: .kiro/specs/README.md does not link a/"]
+
+
 def test_https_route_needs_security_headers(tmp_path):
     hdrs = {"type": "ResponseHeaderModifier", "responseHeaderModifier": {"set": [
         {"name": "Strict-Transport-Security", "value": "max-age=31536000"},

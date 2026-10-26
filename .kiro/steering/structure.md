@@ -28,18 +28,21 @@ Layout and reasons: [docs/architecture.md](../../docs/architecture.md).
 
 ## Specs
 
-One spec per area, as-is behaviour plus open tasks. New work starts by
-updating or adding a spec; tasks are ticked with their PR numbers. How specs,
-steering, skills, hooks and MCP servers fit together:
-[docs/spec-driven-development.md](../../docs/spec-driven-development.md).
+Two kinds, the index and the rules in [.kiro/specs/README.md](../specs/README.md)
+(repo-policy `spec-lifecycle` checks them):
 
-- [`platform-talos`](../specs/platform-talos/): nodes, Talos config as code, tuppr upgrades, the CI rehearsal, drift check, eMMC monitoring.
-- [`gitops-delivery`](../specs/gitops-delivery/): Argo CD layers, render in PR, CI gate, Renovate automerge, image pinning and variants, auto-rollback.
-- [`backups-dr`](../specs/backups-dr/): restic, CNPG Barman, the PreSync freshness rule, restore tests, bucket immutability.
-- [`observability-alerting`](../specs/observability-alerting/): SLOs and budgets, paging policy, quiet hours, silences, dashboards.
-- [`access-identity`](../specs/access-identity/): Keycloak realm as code, per-app groups, sessions, Tailscale and Headlamp, secrets.
-- [`media-home`](../specs/media-home/): the theater stack, books, Home Assistant.
-- [`immich-v3-migration`](../specs/immich-v3-migration/): the Immich 3 and VectorChord migration (done).
+- Change specs: one bounded change, `active` with an issue on the board,
+  then `done` with its closed date. Named by outcome.
+- Area specs, `living`: how an area works today and its history, no open
+  tasks: `platform-talos`, `gitops-delivery`, `backups-dr`,
+  `observability-alerting`, `access-identity`, `media-home`.
+
+New work starts as an issue (`area/*`, `type/*` labels). A `type/spec` issue
+gets a change spec before its first PR; a `type/task` issue is one PR. Tasks
+are ticked with their PR numbers. Deferred or blocked work is an issue with
+that label, never an unticked task. How specs, steering, skills, hooks and
+MCP servers fit together:
+[docs/spec-driven-development.md](../../docs/spec-driven-development.md).
 
 ## Rendered manifests
 
@@ -70,5 +73,5 @@ steering, skills, hooks and MCP servers fit together:
   (`media` for Immich, `cook` for Mealie).
 - Commits and pull request titles: Conventional Commits, titles under 70
   characters, every commit signed. Branches: `<type>/<topic>`.
-- Kiro specs: `.kiro/specs/<feature>/` with `requirements.md`, `design.md`,
-  `tasks.md`. Everything else under `.kiro/` is local and git-ignored.
+- Kiro specs: `.kiro/specs/<name>/` with `requirements.md` (and its header),
+  `design.md`, `tasks.md`. Everything else under `.kiro/` is local and git-ignored.

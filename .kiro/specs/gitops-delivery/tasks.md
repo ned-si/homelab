@@ -1,6 +1,8 @@
 # Tasks: gitops-delivery
 
-Requirement numbers in brackets. New work in this area adds a task here first.
+Requirement numbers in brackets. A living area spec: the history of the area,
+no open tasks. New work is an issue on the board, and a change spec when it
+needs one ([README](../README.md)).
 
 ## Done
 
@@ -29,38 +31,26 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 24. repo_policy.py matches API groups exactly; closes its CodeQL
       url-substring alerts. (#542)
 
-## Open
+## Moved to the backlog (2026-10-26)
 
 Wave 3 puts Kyverno in the cluster in Audit mode: `.kiro/specs/wave3-*`.
 
-- [ ] 17. Kyverno Deny in the cluster for the policies CI already denies,
+- [x] 17. (#687 for 17a; 17b moved to #724) Kyverno Deny in the cluster for the policies CI already denies,
       then the PSS-restricted set; prefer CEL policies Kyverno turns into
       native ValidatingAdmissionPolicies (no webhook in a cold start).
       - [x] 17a. Deny for the 16 baseline policies with no live finding outside
         the excluded namespaces (2026-10-24, after the PolicyExceptions);
         CI blocks on the same 16 over `deploy/` and the rendered Helm apps.
         (#687)
-      - [ ] 17b. The PSS-restricted set, per policy once its reports are clean.
-- [ ] 18. Image provenance: a Kyverno `ImageValidatingPolicy` in Audit for
-      publishers that sign with cosign keyless; unsigned images listed with a
-      reason. Weekly CycloneDX SBOM of the running image set, scanned for new
-      CVEs, findings to code scanning and ntfy.
-- [ ] 19. Per-app hardening, one PR per app: requests and a memory limit on
-      every container, probes where missing, non-root and `restricted` Pod
-      Security, `automountServiceAccountToken: false` where unused. Then
-      `require-resources` and `require-probes` move to Deny. Not in the same
-      window as that app's network-policy flip.
-- [ ] 20. Monthly rebuild-from-git rehearsal: a throwaway Talos cluster in CI,
-      `bootstrap/` with test secrets, infrastructure and platform layers
-      converge (apps with data excluded).
-- [ ] 21. Adopt or delete the staged trees `infrastructure/snapshot-controller`
-      and `infrastructure/nfs-storage`.
+      - 17b. Moved to the backlog: #724 (Kyverno: the PSS-restricted policies in Deny, then PSA enforce).
+- 18. Moved to the backlog: #725 (Image provenance and a weekly SBOM).
+- 19. Moved to the backlog: #726 (Per-app hardening: resources, probes, non-root).
+- 20. Moved to the backlog: #723 (Disaster recovery: rebuild from git, rehearsed).
+- 21. Moved to the backlog: #749 (Adopt or delete the staged snapshot-controller and nfs-storage trees).
 - 22. Stale Helm ownership of the adopted Cilium release: owned by
       `cilium-upgrades` task 2.
-- [ ] 23. Weekly agent pass: check the docs against the repo and the live
-      cluster, and review whether each area is still on the right solution;
-      output is pull requests.
-- [ ] 24. Serialise local merges: `pr-merge.sh` takes a lock in the git
+- 23. Moved to the backlog: #727 (A weekly agent pass over docs, repo and cluster).
+- [x] 24. (#543) Serialise local merges: `pr-merge.sh` takes a lock in the git
       common dir, rebases, waits for `ci` and merges inside it, retrying
       when `main` moves (no merge queue on a user-owned repository). [2.3]
       (`tests/bash/test_pr_merge_lock.sh`)

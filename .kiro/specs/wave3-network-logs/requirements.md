@@ -1,3 +1,9 @@
+---
+kind: change
+status: active
+created: 2026-10-16
+issue: 752
+---
 # Requirements: wave 3 network visibility and logs (Hubble, policy audit, SigNoz trial)
 
 ## Introduction

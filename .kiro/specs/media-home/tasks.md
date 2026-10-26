@@ -1,6 +1,8 @@
 # Tasks: media-home
 
-Requirement numbers in brackets. New work in this area adds a task here first.
+Requirement numbers in brackets. A living area spec: the history of the area,
+no open tasks. New work is an issue on the board, and a change spec when it
+needs one ([README](../README.md)).
 
 ## Done
 
@@ -32,18 +34,11 @@ Requirement numbers in brackets. New work in this area adds a task here first.
       whole library (`bazarr-nightly-backfill`). [6.4, 6.7]
 - [x] 23. Subtitle coverage per language on the Usage dashboard. [6.8] (#518)
 
-## Open
+## Moved to the backlog (2026-10-26)
 
-- [ ] 15. Zigbee2MQTT to 1 replica once the coordinator on the Raspberry Pi
-      answers on TCP 20108; back up `zigbee2mqtt-data`.
-- [ ] 16. Frigate NVR for the cameras (storage sizing; check RK3588 NPU/VPU
-      support).
-- [ ] 17. Add the house devices (plant sensors, thermostat, smoke alarms,
-      cameras) as they arrive; Zigbee models preferred.
-- [ ] 18. Jellyfin on Keycloak SSO through its SSO plugin; the TV keeps
-      Quick Connect or a local login.
-- [ ] 19. Seerr as the request front door once others request media: CNPG
-      Postgres, per-user request rules, Keycloak login.
-- [ ] 20. Paperless as the home for all documents: taxonomy, ingestion paths,
-      OCR languages FR, EN, DE, then a bulk import. Its own spec in
-      `.kiro/specs/`.
+- 15. Moved to the backlog: #728 (Zigbee2MQTT to one replica).
+- 16. Moved to the backlog: #729 (Frigate NVR for the cameras).
+- 17. Not a task: devices are added as they arrive ([home-automation.md](../../../docs/home-automation.md)).
+- 18. Moved to the backlog: #730 (Jellyfin on Keycloak SSO).
+- 19. Moved to the backlog: #731 (Seerr as the media request front door).
+- 20. Moved to the backlog: #732 (Paperless as the home for all documents).

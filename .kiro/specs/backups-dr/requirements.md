@@ -1,3 +1,8 @@
+---
+kind: area
+status: living
+created: 2026-10-16
+---
 # Requirements: backups-dr (as-is)
 
 ## Introduction

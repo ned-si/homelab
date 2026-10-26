@@ -1,3 +1,9 @@
+---
+kind: change
+status: active
+created: 2026-10-17
+issue: 751
+---
 # Requirements: wave 3 runtime security (Kyverno audit, Tetragon observe)
 
 ## Introduction

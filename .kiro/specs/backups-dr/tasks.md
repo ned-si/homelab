@@ -1,6 +1,8 @@
 # Tasks: backups-dr
 
-Requirement numbers in brackets. New work in this area adds a task here first.
+Requirement numbers in brackets. A living area spec: the history of the area,
+no open tasks. New work is an issue on the board, and a change spec when it
+needs one ([README](../README.md)).
 
 ## Done
 
@@ -26,18 +28,12 @@ Requirement numbers in brackets. New work in this area adds a task here first.
 - [x] 15. Test the bucket version lock weekly and in CI. [5.2] (#481)
 - [x] 16. Back up `grafana.db` nightly and verify it. [1.1] (#477)
 
-## Open
+## Moved to the backlog (2026-10-26)
 
 Wave 3 adds a backup-freshness SLO: `.kiro/specs/wave3-*`.
 
-- [ ] 17. Remove or replace the failing L2ARC device `nvd0` on the NAS pool.
-- [ ] 18. Apply the pending TrueNAS update (the off-site backup now exists).
-- [ ] 19. Restrict the NFS export `/mnt/homelab/k8s/nfs` to the node addresses
-      ([runbook](../../../docs/runbooks/nfs-hardening.md)).
-- [ ] 20. NAS NVMe cache: read the ARC hit rate and sync-write latency first;
-      a single drive is L2ARC only (never a special vdev), SLOG only with
-      power-loss protection.
-- [ ] 21. DR rehearsal from zero: rebuild the cluster from git and restore
-      the data from S3 end to end, timed against the RTO table in
-      [sre.md](../../../docs/sre.md#rto-per-tier). The CI part is
-      [gitops-delivery](../gitops-delivery/tasks.md) task 20.
+- 17. Moved to the backlog: #719 (NAS: remove or replace the failing L2ARC device nvd0).
+- 18. Moved to the backlog: #720 (NAS: apply the pending TrueNAS update).
+- 19. Moved to the backlog: #721 (NFS hardening: scoped exports, read-only media, Retain PVs).
+- 20. Moved to the backlog: #722 (NAS: decide on the NVMe cache from data).
+- 21. Moved to the backlog: #723 (Disaster recovery: rebuild from git, rehearsed).

@@ -1,6 +1,8 @@
 # Tasks: platform-talos
 
-Requirement numbers in brackets. New work in this area adds a task here first.
+Requirement numbers in brackets. A living area spec: the history of the area,
+no open tasks. New work is an issue on the board, and a change spec when it
+needs one ([README](../README.md)).
 
 ## Done
 
@@ -24,27 +26,13 @@ Requirement numbers in brackets. New work in this area adds a task here first.
       the LAN, the `tag:talos` grant; rolled out node by node (w-1, cp-3,
       cp-2, cp-1) without drain; context `homelab-ts`. [5] (#527)
 
-## Open
+## Moved to the backlog (2026-10-26)
 
-- [ ] 12. Lean Talos audit policy (`apiServer.auditPolicy`): drop read-only
-      system traffic, Metadata for Secrets, RequestResponse for RBAC changes,
-      shipped to the log store chosen in wave 3 (`.kiro/specs/wave3-*`).
-      Rolling apiserver restart, one control plane at a time.
-- [ ] 13. SELinux enforcing, proven in the Talos CI cluster before the nodes.
-      Record in the threat model why STATE/EPHEMERAL encryption is not done
-      without a TPM.
-- [ ] 14. Kubernetes API authentication by Keycloak OIDC (Talos apiServer
-      patch). Tracked in [access-identity](../access-identity/tasks.md).
-- [ ] 15. Revisit NVMe per node once the eMMC `life_time` trend has a few
-      weeks of data.
-- [ ] 16. Seal the Turing Pi BMC credentials.
-- [ ] 18. Set the kubelet's graceful node shutdown explicitly in
-      `talconfig.yaml` (`shutdownGracePeriod`,
-      `shutdownGracePeriodCriticalPods`; Talos defaults 30 s / 10 s today),
-      sized so single-instance Postgres stops cleanly on a reboot.
-- [ ] 19. A drain path for the single-instance CloudNativePG clusters
-      (`nodeMaintenanceWindow` with `reusePVC`, set by the upgrade automation
-      around each node), so upgrades can drain instead of skipping it.
-- [ ] 20. Keep the tailnet addresses out of the cluster discovery data:
-      KubePrism lists them as API endpoints (unreachable, filtered as
-      unhealthy) and `talosctl health` without node lists dials them.
+- 12. Moved to the backlog: #736 (A lean Talos audit policy).
+- 13. Moved to the backlog: #737 (SELinux enforcing on the nodes).
+- 14. Moved to the backlog: #711 (Kubernetes API authentication through Keycloak OIDC).
+- 15. Moved to the backlog: #738 (Revisit NVMe per node from the eMMC wear trend).
+- 16. Moved to the backlog: #739 (Seal the Turing Pi BMC credentials).
+- 18. Moved to the backlog: #740 (Set the kubelet's graceful node shutdown explicitly).
+- 19. Moved to the backlog: #741 (A drain path for the single-instance CNPG clusters).
+- 20. Moved to the backlog: #742 (Keep the tailnet addresses out of cluster discovery).
