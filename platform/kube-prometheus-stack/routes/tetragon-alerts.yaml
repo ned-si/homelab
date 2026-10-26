@@ -16,7 +16,9 @@
 # (never an edited upstream policy, never a manual silence). A new one comes
 # with its promtool case in tests/prometheus/tetragon_test.yaml. Observed
 # 2026-10-26: Tetragon and cilium-agent load BPF; runc, on the host, sets
-# uid/gid 0, capabilities and cgroup device BPF for every container start.
+# uid/gid 0, capabilities and cgroup device BPF for every container start;
+# mount and umount, on the host, set uid/gid 0 for every volume the kubelet
+# mounts (missed by the first baseline, which had no pod start: it paged).
 #
 # The recording rule counts a series that just appeared as well: the first
 # event of a new actor makes a new series, and increase() needs two samples.
@@ -60,6 +62,7 @@ spec:
           expr: |
             tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:__sys_set.*"}
             unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+            unless tetragon:policy_events:increase5m{namespace="", binary=~"/usr/bin/u?mount"}
           labels:
             severity: critical
             category: security

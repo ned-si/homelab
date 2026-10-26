@@ -48,6 +48,7 @@ spec:
       expr: |
         tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:__sys_set.*"}
         unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+        unless tetragon:policy_events:increase5m{namespace="", binary=~"/usr/bin/u?mount"}
       labels:
         action: human
         category: security

@@ -13,6 +13,11 @@ tests:
         values: '0+5x60'
       - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:security_capset",binary="/usr/bin/runc",node="homelab-w-1"}'
         values: '0+2x60'
+      # The kubelet mounting and unmounting volumes (2026-10-26, it paged).
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:__sys_setuid",binary="/usr/bin/mount",node="homelab-w-1"}'
+        values: '0+3x60'
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:__sys_setgid",binary="/usr/bin/umount",node="homelab-w-1"}'
+        values: '0+3x60'
       - series: 'tetragon_policy_events_total{policy="bpf-library-policy",hook="kprobe:security_bpf_map_create",namespace="tetragon",workload="tetragon",binary="/usr/bin/tetragon",node="homelab-w-1"}'
         values: '0+40x60'
       - series: 'tetragon_policy_events_total{policy="bpf-library-policy",hook="kprobe:bpf_check",namespace="kube-system",workload="cilium",binary="/usr/bin/cilium-agent",node="homelab-w-1"}'
@@ -39,10 +44,13 @@ tests:
         exp_alerts: []
 
   # A container process sets uid 0: a new series, so its very first sample
-  # pages; it resolves once the 5 minute window has no new event.
+  # pages; it resolves once the 5 minute window has no new event. The
+  # allowlist is host-only: mount in a container still pages.
   - interval: 1m
     input_series:
       - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:__sys_setuid",namespace="theater",workload="radarr",binary="/usr/bin/su",node="homelab-w-1"}'
+        values: '_x10 1+0x30'
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:__sys_setuid",namespace="theater",workload="radarr",binary="/usr/bin/mount",node="homelab-w-1"}'
         values: '_x10 1+0x30'
     alert_rule_test:
       - eval_time: 9m
@@ -65,6 +73,20 @@ tests:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
               summary: A process set its uid or gid to root
               description: kprobe:__sys_setuid by /usr/bin/su in theater/radarr.
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1068
+              policy: privileges-raise
+              hook: kprobe:__sys_setuid
+              namespace: theater
+              workload: radarr
+              binary: /usr/bin/mount
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
+              summary: A process set its uid or gid to root
+              description: kprobe:__sys_setuid by /usr/bin/mount in theater/radarr.
       - eval_time: 20m
         alertname: RuntimePrivilegeEscalation
         exp_alerts: []
