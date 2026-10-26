@@ -37,6 +37,15 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       namespaces; `keycloak` and `backup-verify`; `monitoring` and the exporters;
       `tailscale`, `headlamp`, `hubble`; the wave 3 namespaces (`kyverno`, `tetragon`,
       `logging`, `signoz`). [2.2, 2.3, 2.4, 2.5]
+      - [ ] 7a. Application namespaces (this PR, 2026-10-26): LazyLibrarian, the hook Jobs
+        (presync-backup, postsync-smoke), WAL archiving to S3 and the backup-verify reads
+        of the theater and mealie databases, qBittorrent's ICMP errors, and the CNPG
+        operator, whose rules named `cnpg-system` while it runs in `immich`. Still
+        uncovered, ports unknown in 45 minutes of events (the metric has none): Plex
+        and Jellyfin to the internet off 443 (209 and 5 in 7 days), qBittorrent to
+        `remote-node` (2,342), Syncthing to the API server (331). Left uncovered on
+        purpose: Syncthing to peers' private addresses (10.0.0.0/8, a LAN device)
+        and NAT-PMP to the host. Next: `netpol-observe.sh` live for those four.
 - [x] 8. (design.md, Answers) Answer open questions 5 to 7 (ClickHouse on the RK3588 first; stop the logs part
       here if it fails). [5.1, 5.5, 6.1]
 - [x] 9. (#535, #549) PR `feat(observability): Vector agent for pod logs`: namespace `logging`, Vector
