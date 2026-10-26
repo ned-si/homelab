@@ -42,7 +42,7 @@ spec:
           value: "002"
         - name: LIDARR__SERVER__URLBASE
           value: /arr/lidarr
-        image: ghcr.io/hotio/lidarr:release-3.1.0.4875@sha256:30d6a81bb5a491f9fd4f6bc4bbfcf948c0a3d4fe68cb237c5284796dbaacb59e
+        image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:b42de4fad70771133180518c34e80bd0372d7c763a2d369df4c32c309c4d14df
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 6
