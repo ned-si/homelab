@@ -89,6 +89,7 @@ cat > "$tmp/bin/talosctl" <<'FAKE'
 # in etcd-unhealthy.
 echo "talosctl $*" >> "$STATUS_FIX/calls.log"
 [ "$1" = -n ] && [ "${*:3}" = "get services etcd -o json" ] || { echo "fake talosctl: unexpected call: $*" >&2; exit 1; }
+[ -n "${STATUS_TALOS_FAIL:-}" ] && { echo "error constructing client: talos config file is empty" >&2; exit 1; }
 h=true
 grep -qxF "$2" "$STATUS_FIX/etcd-unhealthy" 2>/dev/null && h=false
 echo "{\"metadata\":{\"id\":\"etcd\"},\"spec\":{\"healthy\":$h,\"running\":true}}"
@@ -216,5 +217,12 @@ expect_eq "nothing else" 3 "$(jq '.problems | length' <<<"$js")"
 echo "usage"
 rc=0; "$STATUS" --bogus >/dev/null 2>&1 || rc=$?
 expect_eq "unknown flag exits 64" 64 "$rc"
+
+echo "talosctl cannot reach any node"
+mkfix
+rc=0; out=$(STATUS_TALOS_FAIL=1 "$STATUS" 2>&1) || rc=$?
+expect_eq "exit 1" 1 "$rc"
+expect_contains "etcd unreadable, not 0/3" "etcd health unreadable (talosctl: no node answered" "$out"
+case "$out" in *"etcd 0/"*) bad "no 0/N count" ;; *) ok "no 0/N count" ;; esac
 
 finish

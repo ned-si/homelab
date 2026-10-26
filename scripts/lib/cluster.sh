@@ -42,15 +42,18 @@ talos_cp_ips() {
 # `[{endpoint: "https://<ip>:2379", health: true|false}, ...]`. Talos runs etcd
 # as a system service, not a pod. Prints the JSON array, or nothing.
 etcd_health_json() {
-  local out ip h arr='[]'
+  local out ip h arr='[]' answered=0
   command -v talosctl >/dev/null 2>&1 || return 1
   out=$(talos_cp_ips)
   [ -n "$out" ] || return 1
   for ip in $out; do
     h=$(talos -n "$ip" get services etcd -o json </dev/null 2>/dev/null | jq -r '.spec.healthy == true' 2>/dev/null)
+    [ -n "$h" ] && answered=1
     [ "$h" = true ] || h=false
     arr=$(jq -c --arg e "https://$ip:2379" --argjson h "$h" '. + [{endpoint: $e, health: $h}]' <<<"$arr")
   done
+  # No node answered: the client (TALOSCONFIG, network), not etcd.
+  [ "$answered" = 1 ] || return 1
   printf '%s\n' "$arr"
 }
 
