@@ -387,6 +387,33 @@ the "what next". See [Lessons learned](#area-specs-that-never-close).
 
 ## Worked examples
 
+### From idea to done: the Cilium upgrades
+
+The whole chain, with the real numbers:
+
+1. **The trigger.** On 2026-10-23 a Renovate patch update of Cilium (1.20.4)
+   changed a chart default and took every public hostname down
+   ([postmortem](postmortems/2026-10-23-gateway-cilium-xds.md)). The revert
+   was the fix (#659); the postmortem's action items were the idea.
+2. **The spec.** [`cilium-upgrades`](../.kiro/specs/cilium-upgrades/)
+   (#662): requirements (an explicit xDS mode, a rehearsal and a smoke test
+   on every Cilium change, a release window, a page when the Gateway is
+   down), the design with what was rejected, and eight tasks. Its issue,
+   #750, sits In progress on the [board](https://github.com/users/ned-si/projects/1).
+3. **The work.** One PR per task, each with `Spec: cilium-upgrades#<n>`:
+   `envoy.xdsMode` and its repo-policy rule (#663), the Renovate window
+   (#665), `GatewayDown` (#669), the PostSync smoke (#670), the auto-revert
+   (#671), the rehearsal smoke (#672). Each merged task was ticked with its
+   number.
+4. **Done.** Task 8 is the update that started it all, re-applied by
+   Renovate through the new rehearsal (#661). When it lands, the header says
+   `status: done`, the issue closes, and
+   [`gitops-delivery`](../.kiro/specs/gitops-delivery/) (the area spec)
+   records the new guarantees.
+
+What did not fit stayed out: Cilium WireGuard came up on the way and is its
+own issue (#710), not a ninth task.
+
 ### (a) The Immich 3 migration
 
 Immich 3 needs the VectorChord extension; the database still ran pgvecto.rs,

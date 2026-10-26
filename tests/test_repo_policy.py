@@ -518,7 +518,8 @@ def test_cnpg_backup_missing_object_store_fails(tmp_path):
 
 
 def test_kiro_only_specs_and_steering_tracked(tmp_path):
-    files = {".kiro/specs/f/tasks.md": "x\n", ".kiro/steering/tech.md": "x\n", ".kiro/settings/mcp.json": "{}\n"}
+    files = {**spec_files("---\nkind: change\nstatus: active\ncreated: 2026-10-24\nissue: 1\n---\n", "x\n"),
+             ".kiro/steering/tech.md": "x\n", ".kiro/settings/mcp.json": "{}\n"}
     assert fails(policy(tmp_path, files=files)) == [
         "FAIL kiro-tracked: .kiro/settings/mcp.json: only .kiro/specs/ and .kiro/steering/ are tracked under .kiro/"]
 

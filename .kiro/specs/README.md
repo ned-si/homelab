@@ -28,7 +28,24 @@ issue labelled `type/task`), research (`type/research`) and hands-on work by
 the owner (`type/operator`). Deferred work is an issue labelled `deferred`
 with the reason, never an unticked task.
 
+## From idea to done
+
+| Step | Where | Board column |
+| --- | --- | --- |
+| 1. An idea, a deferred item, a postmortem action | An issue: `area/*`, `type/*`, `blocked` or `deferred` if it waits | Backlog |
+| 2. Picked up, `type/task` | Straight to step 4: the PR description is the spec | In progress |
+| 2. Picked up, `type/spec` | A change spec: `requirements.md` (header `active`, `issue: <n>`), `design.md`, `tasks.md` | Spec drafted |
+| 3. The owner reviews requirements and design | Review comments, then the spec PR merges | Spec drafted |
+| 4. One PR per task | `Spec: <name>#<task>` (or `No-spec: <reason>`), CI the gate, `scripts/pr-merge.sh` | In progress |
+| 5. Each PR merged | The task ticked with its PR number | In progress |
+| 6. The last task ticked | Header `status: done`, `closed: <date>`; the issue closes; the area spec updated if the area changed | Done |
+
+Anything learned on the way that is not this spec's job becomes a new issue
+(step 1), not a task here.
+
 ## The board
+
+[github.com/users/ned-si/projects/1](https://github.com/users/ned-si/projects/1), linked to the repository.
 
 Every idea starts as an issue ([open issues](https://github.com/ned-si/homelab/issues)),
 labelled by area (`area/*`) and by kind (`type/spec`, `type/task`,
