@@ -131,6 +131,9 @@ repos:
     rev: v0.11.0.1
     hooks:
       - id: shellcheck
+        # -x, like scripts/ci/shellcheck-all.sh: the bash tests source
+        # tests/bash/lib.sh, which a commit rarely stages too.
+        args: [-x]
 
   # THE ONLY OpenTofu FORMAT CHECK. `task lint:tofu` invokes this hook rather
   # than running its own `tofu fmt -check`, because two commands meant two
