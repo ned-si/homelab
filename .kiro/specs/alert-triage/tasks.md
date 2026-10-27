@@ -12,11 +12,12 @@ One PR per task, in order; each is safe on its own.
       has bash, kubectl, jq, git, curl, sha256sum, paste and timeout (checked
       2026-10-27). The run against the cluster happens in task 5 under the
       snapshot ServiceAccount, not with the operator's kubeconfig. [4.4]
+- [x] 3. triage.sh reads Alertmanager over HTTP (`AM_URL`; unset, through
+      the kube-apiserver's service proxy, for a local run); status.sh
+      reports `unavailable (no exec)` for a forbidden exec; bash tests. [4.1]
 
 ## Open
 
-- [ ] 3. triage.sh reads Alertmanager over HTTP; status.sh reports
-      `unavailable (no exec)` for a forbidden exec; bash tests. [4.1]
 - [ ] 4. The receiver (`platform/alert-triage/receiver/`, Python, stdlib):
       webhook handler, alert-name check, incident ID, Job templates, message
       builder, JSON logs, unittest; remove `scripts/alert-triage.sh` and its

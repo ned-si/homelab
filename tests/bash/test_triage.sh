@@ -14,11 +14,20 @@ echo "$*" >> "$FAKE_DIR/kubectl.log"
 case "$*" in
   *"get application "*) f=app ;;
   *"get events"*) f=events ;;
-  *"amtool alert query"*) f=alerts ;;
+  *"--raw /api/v1/namespaces/monitoring/services/http:kube-prometheus-stack-alertmanager:9093/proxy/api/v2/alerts?"*) f=alerts ;;
   *) exit 2 ;;
 esac
 [ -f "$FAKE_DIR/$f.json" ] || exit 1
 cat "$FAKE_DIR/$f.json"
+FAKE
+# Fake curl: the Alertmanager API at $AM_URL; logs the calls.
+cat > "$tmp/curl" <<'FAKE'
+#!/bin/bash
+echo "$*" >> "$FAKE_DIR/curl.log"
+case "$*" in
+  *"http://am.test:9093/api/v2/alerts?active=true&silenced=false&inhibited=false") cat "$FAKE_DIR/alerts.json" ;;
+  *) exit 22 ;;
+esac
 FAKE
 cat > "$tmp/git" <<'FAKE'
 #!/bin/bash
@@ -31,8 +40,8 @@ cat > "$tmp/status" <<'FAKE'
 cat "$FAKE_DIR/status.txt"
 exit "$(cat "$FAKE_DIR/status.rc")"
 FAKE
-chmod +x "$tmp/kubectl" "$tmp/git" "$tmp/status"
-export FAKE_DIR="$tmp" KUBECTL="$tmp/kubectl" GIT="$tmp/git" STATUS="$tmp/status"
+chmod +x "$tmp/kubectl" "$tmp/curl" "$tmp/git" "$tmp/status"
+export FAKE_DIR="$tmp" KUBECTL="$tmp/kubectl" CURL="$tmp/curl" GIT="$tmp/git" STATUS="$tmp/status"
 
 recent=$(date -u -v-5M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
 old="2026-01-01T00:00:00Z"
@@ -99,5 +108,25 @@ case "$(cat "$tmp/kubectl.log")" in
   *" delete "*|*" apply "*|*" patch "*|*" edit "*) bad "only read-only kubectl calls" ;;
   *) ok "only read-only kubectl calls" ;;
 esac
+case "$(cat "$tmp/kubectl.log")" in
+  *" exec "*) bad "no kubectl exec" ;;
+  *) ok "no kubectl exec" ;;
+esac
+
+# 5. In the cluster: AM_URL is read directly, not through the apiserver.
+healthy
+: > "$tmp/kubectl.log"
+echo '[{"labels":{"alertname":"GatewayDown","severity":"critical","action":"human"},"startsAt":"2026-10-26T20:00:00Z","status":{"silencedBy":[],"inhibitedBy":[]}}]' > "$tmp/alerts.json"
+out=$(AM_URL=http://am.test:9093/ bash "$SCRIPT")
+expect_contains "alerts read from AM_URL" "GatewayDown severity=critical action=human" "$out"
+case "$(cat "$tmp/kubectl.log")" in
+  *"--raw"*) bad "AM_URL set: no apiserver proxy call" ;;
+  *) ok "AM_URL set: no apiserver proxy call" ;;
+esac
+
+# 6. An unreachable Alertmanager is reported, not an empty list.
+out=$(AM_URL=http://down.test:9093 bash "$SCRIPT"); rc=$?
+expect_contains "unreachable Alertmanager" "== Firing alerts (unavailable: the Alertmanager API)" "$out"
+expect_eq "an unreachable Alertmanager is a finding" 1 "$rc"
 
 finish
