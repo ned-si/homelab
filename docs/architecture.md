@@ -66,6 +66,7 @@ Sync waves inside `infrastructure`:
 | 10 | `external-dns` | |
 | 15 | `gateway` | The shared entrypoint |
 | 20 | `democratic-csi` | StorageClasses before any PVC in later layers |
+| 25 | `iscsi-volumes`, `nfs-storage` | Static `Retain` PVs (and the NFS PVCs) before the apps claim them |
 | 26 | `kyverno` | Last: nothing in a cold start waits on it |
 | 27 | `kyverno-policies` | Needs the ValidatingPolicy CRD |
 
@@ -75,11 +76,6 @@ Sync waves inside `infrastructure`:
 On a cold start `cnpg` and `barman-cloud-plugin` fail once with `no matches for kind "PodMonitor"`,
 because the Prometheus CRDs arrive with `kube-prometheus-stack` at wave 10. The
 retry policy on every Application (5 tries, 5 s doubling to 3 min) absorbs it.
-
-Written but not in any layer yet (each is a behaviour change with its own pull
-request): `infrastructure/snapshot-controller`, `infrastructure/nfs-storage`,
-`infrastructure/network-policies` (Application files in
-`clusters/homelab/infrastructure/`, not listed in its `kustomization.yaml`).
 
 ### Sync policy
 
@@ -102,7 +98,7 @@ Each layer has an `AppProject`. None wildcards cluster-scoped kinds:
 
 - `infrastructure`: an enumerated `clusterResourceWhitelist` (Namespace,
   PersistentVolume, ClusterIssuer, the two Cilium kinds, CRDs, ClusterRole and
-  binding, CSIDriver, StorageClass, VolumeSnapshotClass, GatewayClass,
+  binding, CSIDriver, StorageClass, GatewayClass,
   ValidatingPolicy, the webhook and admission-policy kinds), each entry
   commented with what needs it.
 - `platform`: a shorter enumerated list.

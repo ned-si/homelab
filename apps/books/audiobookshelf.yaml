@@ -94,8 +94,8 @@ spec:
         - name: config
           persistentVolumeClaim:
             claimName: audiobookshelf-config
-        # Inline, like the theater apps: infrastructure/nfs-storage/ is not
-        # deployed. SITE-SPECIFIC: the NAS address.
+        # Inline, like the theater apps, until the NFS hardening (#721) moves
+        # them to the nfs-storage PVCs. SITE-SPECIFIC: the NAS address.
         - name: library
           nfs:
             server: 192.168.1.228

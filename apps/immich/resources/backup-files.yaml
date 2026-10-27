@@ -173,8 +173,9 @@ spec:
 #   what the S3 repository above is for.
 #
 # Note this is a nightly SECOND copy, and is separate from the instant
-# copy-on-write rollback points taken by scripts/pre-upgrade-snapshot.sh. The
-# snapshot is for "undo the last hour"; this is for "the volume itself is wrong".
+# copy-on-write ZFS snapshots of the zvol taken on the TrueNAS before a risky
+# change. The snapshot is for "undo the last hour"; this is for "the volume
+# itself is wrong".
 #
 # This repository is not on S3, so the Glacier IR minimum does not apply and it
 # keeps its own nightly forget + prune.
@@ -298,9 +299,8 @@ spec:
                 claimName: immich-data
                 readOnly: true
             # The backup dataset, mounted inline. The PV/PVC pair in
-            # infrastructure/nfs-storage/backup-volume.yaml is the alternative
-            # once that leaf is deployed; until then an inline volume needs no
-            # cluster-scoped object, which the apps project cannot create.
+            # infrastructure/nfs-storage/backup-volume.yaml (claim
+            # `backup-local`) replaces it with the NFS hardening (#721).
             - name: backups
               nfs:
                 server: 192.168.1.228 # SITE-SPECIFIC

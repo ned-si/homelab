@@ -878,26 +878,10 @@ relation and the extension set against live, then deletes it.
 
 These dumps live on one machine. Copy them elsewhere to make them a backup.
 
-Before a risky change:
-
-```sh
-task backup:pre-upgrade -- immich-v3      # dumps + VolumeSnapshots, tagged
-task backup:snapshots                     # list rollback points
-task backup:drop-snapshots -- immich-v3   # once the change is confirmed good
-```
-
-A `VolumeSnapshot` on ZFS is copy-on-write: instant and initially free. Rollback is
-not automated; the script prints the commands. It needs the `VolumeSnapshot` CRDs,
-a snapshot controller and the `iscsi` VolumeSnapshotClass from democratic-csi.
-Today the controller is an unmanaged `kube-system/snapshot-controller` v6.3.1;
-`infrastructure/snapshot-controller/` is written to replace it and not enabled.
-Check before relying on a snapshot:
-
-```sh
-kubectl get volumesnapshotclass
-```
-
-Expected: one row, `iscsi`, driver `org.democratic-csi.iscsi`.
+Before a risky change, the rollback point is `task backup:dump` plus a ZFS
+snapshot of the affected zvols, taken on the TrueNAS. A ZFS snapshot is
+copy-on-write: instant and initially free. The cluster has no `VolumeSnapshot`
+CRDs or snapshot controller, so there are no CSI snapshots.
 
 ## Setting it up from scratch
 
@@ -1165,7 +1149,8 @@ kubectl -n backup-verify logs job/<job> -c report
   saves nothing.
 - **No quiescing.** Argo CD `selfHeal` reverts any scale-down. Live SQLite copies
   are documented as possibly torn instead, and Jellyfin's gets its own
-  `jellyfin-db-besteffort` tag. The proper fix is snapshot-then-backup (CSI
-  `VolumeSnapshot` or VolSync), not built yet.
+  `jellyfin-db-besteffort` tag. The fix is a sqlite3 online backup (`.backup`)
+  before restic (#746), not built yet. No CSI snapshots: the volume-level
+  rollback point is a ZFS snapshot on the TrueNAS.
 - **The media library is not backed up.** About 9.5 TB of re-acquirable content;
   off-site storage and egress cost more than it is worth.

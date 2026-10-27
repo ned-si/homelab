@@ -33,7 +33,6 @@ CILIUM_OLD=v1.16.3
 CILIUM_NEW=v1.17.18
 GATEWAY_API=v1.2.0
 PROM_OPERATOR=v0.94.1
-SNAPSHOTTER=v6.3.2
 BARMAN=v0.15.1
 TUPPR=0.5.7
 TAILSCALE=v1.104.1
@@ -86,9 +85,6 @@ for v in $CILIUM_OLD $CILIUM_NEW; do
 done
 add "https://github.com/kubernetes-sigs/gateway-api/releases/download/$GATEWAY_API/experimental-install.yaml"
 add "https://github.com/prometheus-operator/prometheus-operator/releases/download/$PROM_OPERATOR/stripped-down-crds.yaml"
-for k in volumesnapshotclasses volumesnapshotcontents volumesnapshots; do
-  add "https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/$SNAPSHOTTER/client/config/crd/snapshot.storage.k8s.io_$k.yaml"
-done
 add "https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/$BARMAN/manifest.yaml"
 for k in kubernetesupgrades talosupgrades; do
   add "https://raw.githubusercontent.com/home-operations/tuppr/$TUPPR/config/crd/bases/tuppr.home-operations.com_$k.yaml"

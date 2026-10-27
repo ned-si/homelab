@@ -48,8 +48,8 @@
 #     Syncthing and is why none of their backup jobs quiesce either.
 #
 #   SNAPSHOT FIRST (VolumeSnapshot -> temporary PVC -> restic).
-#     Correct, and the CSI machinery exists (infrastructure/snapshot-controller/,
-#     VolumeSnapshotClass `iscsi`). But a pod's volumes are fixed at creation, so
+#     Correct, but the cluster runs no snapshot controller and has no
+#     VolumeSnapshot CRDs. Even with them, a pod's volumes are fixed at creation, so
 #     a single Job cannot create a snapshot and then mount it. Doing it properly
 #     needs an orchestrator that creates a snapshot, waits for readyToUse,
 #     creates a PVC from it, creates a SECOND Job, waits for that, and cleans up

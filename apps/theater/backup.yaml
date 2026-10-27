@@ -33,8 +33,8 @@
 #   jellyfin-db-besteffort  not consistent, tagged so (see the jellyfin job).
 #
 # Apps are not scaled down for the backup: selfHeal reverts `replicas: 0`
-# within seconds. CSI snapshot-then-backup is the fix for the one
-# inconsistent tag (platform/kube-prometheus-stack/routes/grafana-backup.yaml).
+# within seconds. A sqlite3 online backup (`.backup`) before restic is the
+# fix for the one inconsistent tag (#746).
 #
 # Not backed up:
 #
@@ -852,8 +852,8 @@ spec:
 #
 # Jellyfin core has no consistent export, the restic image has no sqlite3,
 # and selfHeal prevents scaling down. At risk if torn: accounts, watch state,
-# playback positions; not media or server settings. CSI snapshot-then-backup
-# would fix it (platform/kube-prometheus-stack/routes/grafana-backup.yaml).
+# playback positions; not media or server settings. A sqlite3 online backup
+# (`.backup`) before restic would fix it (#746).
 apiVersion: batch/v1
 kind: CronJob
 metadata:

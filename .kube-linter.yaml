@@ -95,12 +95,12 @@ customChecks: []
 #     paperless valkey Deployment -- is a manifest fix.
 #
 #   unset-memory-requirements
-#     2 findings, both in vendored upstream bundles
-#     (deploy/platform/barman-cloud-plugin, deploy/infrastructure/snapshot-controller).
+#     1 finding, in a vendored upstream bundle
+#     (deploy/platform/barman-cloud-plugin).
 #     Everything this repo authors already sets memory requests AND limits, so
 #     this is the closest of the advisory checks to being promotable. The route
 #     is `checks.ignorePaths` -- kube-linter's own path exclusion -- scoped to
-#     those two directories. Not done here only because the action resolves
+#     that directory. Not done here only because the action resolves
 #     `version: latest` and viper silently ignores config keys it does not know,
 #     so an unsupported `ignorePaths` would look like it worked and turn the gate
 #     red. Verify the flag exists (`kube-linter lint --help | grep ignore-paths`)

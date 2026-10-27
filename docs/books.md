@@ -122,5 +122,5 @@ The audiobook and podcast files are not backed up, like the media library.
   unrelated stacks in one Application.
 - The NFS volume mounts the share root and pods narrow it with `subPath`,
   because the export is known to work at that path (the theater apps use it).
-  Inline rather than a PV: the `infrastructure/nfs-storage/` layer is not
-  deployed yet, and the theater apps are inline too.
+  Inline rather than a PV, like the theater apps; the NFS hardening
+  (#721) moves both to the `infrastructure/nfs-storage/` PVCs.

@@ -25,7 +25,7 @@ There are two NFS exports and only one of them is scoped.
 | Dataset | Export | Consumers |
 |---|---|---|
 | `homelab/k8s/nfs` → `/mnt/homelab/k8s/nfs` | **open to the whole LAN.** This is the open item | the media library, `theater` |
-| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the CronJob `immich/immich-library-backup-local`, which mounts it inline (`apps/immich/resources/backup-files.yaml`) and writes the NAS restic repository of the photo library; later also the `nfs-storage` backup tier (`infrastructure/nfs-storage/backup-volume.yaml`, not enabled) |
+| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the CronJob `immich/immich-library-backup-local`, which mounts it inline (`apps/immich/resources/backup-files.yaml`) and writes the NAS restic repository of the photo library; the `nfs-storage` leaf declares its PV/PVC pairs (`infrastructure/nfs-storage/backup-volume.yaml`), not mounted by anything yet |
 
 `infrastructure/nfs-storage/backup-volume.yaml` explains why they are separate
 datasets: separate snapshot schedules and compression, separate fill-up risk,

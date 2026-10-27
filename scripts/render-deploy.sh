@@ -71,9 +71,8 @@
 #
 # RETRIES, AND WHY ONLY FOR SOME DIRECTORIES
 #
-# Three kustomizations resolve remote URLs at render time:
-# infrastructure/gateway-api, infrastructure/snapshot-controller and
-# platform/barman-cloud-plugin. A github.com blip therefore fails a CI job that
+# Two kustomizations resolve remote URLs at render time:
+# infrastructure/gateway-api and platform/barman-cloud-plugin. A github.com blip therefore fails a CI job that
 # has nothing to do with networking. Those directories -- and only those, keyed
 # off an actual URL in the kustomization rather than off a name list or an
 # error-message regex -- are retried with backoff, and a final failure is
