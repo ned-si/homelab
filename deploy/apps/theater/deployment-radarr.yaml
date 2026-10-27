@@ -69,7 +69,7 @@ spec:
               name: radarr-postgresql-app
         - name: RADARR__SERVER__URLBASE
           value: /arr/radarr
-        image: ghcr.io/hotio/radarr:release-6.4.4.10685@sha256:c85e3a435039ab24ea668e8b6dd8b02484a3969e89c1a3093fc3e85eac10f15c
+        image: ghcr.io/hotio/radarr:release-6.4.4.10685@sha256:c1d51587b2c86479f2dcfc3f3ccec7f242279ae37a985a095a01c0501438187d
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 6
