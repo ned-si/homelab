@@ -3,7 +3,7 @@
 #
 #   RuntimeEscapeToHost         T1611      user namespace without CAP_SYS_ADMIN, capset  critical  human
 #   RuntimePrivilegeEscalation  T1068      uid or gid set to 0                           critical  human
-#   RuntimeKernelModuleLoad     T1547.006  a kernel module requested or loaded           critical  human
+#   RuntimeKernelModuleLoad     T1547.006  a kernel module loaded from a file            critical  human
 #   RuntimeUnexpectedBPF        T1014      a BPF program or map                          critical  human
 #   TetragonAgentMissing                   a node without a scraped agent for 30 min     warning   human
 #
@@ -56,6 +56,8 @@ spec:
           expr: |
             tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:(create_user_ns|security_capset)"}
             unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+            unless tetragon:policy_events:increase5m{namespace=~"immich|paperless", workload="valkey", binary="/bin/setpriv"}
+            unless tetragon:policy_events:increase5m{namespace="syncthing", workload="syncthing", binary="/usr/sbin/setcap"}
           labels:
             severity: critical
             category: security
@@ -74,6 +76,7 @@ spec:
             tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:__sys_set.*"}
             unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
             unless tetragon:policy_events:increase5m{namespace="", binary=~"/usr/bin/u?mount"}
+            unless tetragon:policy_events:increase5m{namespace="theater", workload="plex", binary="/usr/lib/plexmediaserver/Plex Tuner Service"}
           labels:
             severity: critical
             category: security
@@ -87,9 +90,14 @@ spec:
               {{ with $labels.namespace }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}
               on {{ $labels.node }}.
 
+        # Pages on an explicit load (finit_module reading a module file, what
+        # insmod or a rootkit does). The kernel's own autoload requests
+        # (security_kernel_module_request: a socket of an unloaded family, the
+        # first one on a fresh node, from almost every Go binary) stay on the
+        # Security dashboard only.
         - alert: RuntimeKernelModuleLoad
           expr: |
-            tetragon:policy_events:increase5m{policy="monitor-kernel-modules"}
+            tetragon:policy_events:increase5m{policy="monitor-kernel-modules", hook="kprobe:security_kernel_read_file"}
             unless tetragon:policy_events:increase5m{namespace="democratic-csi", workload="iscsi-democratic-csi-node"}
             unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
             unless on (node) tetragon:node_booted_recently
@@ -100,7 +108,7 @@ spec:
             mitre_technique: T1547.006
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
-            summary: A kernel module was requested or loaded
+            summary: A kernel module was loaded from a file
             description: >-
               {{ $labels.hook }} by {{ $labels.binary }} in
               {{ with $labels.namespace }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}

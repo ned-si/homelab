@@ -167,5 +167,5 @@ page nor a row here. The steps for this cluster are:
 
 - [RuntimeEscapeToHost](RuntimeEscapeToHost.md): a user namespace or capabilities gained (T1611)
 - [RuntimePrivilegeEscalation](RuntimePrivilegeEscalation.md): a process set its uid or gid to root (T1068)
-- [RuntimeKernelModuleLoad](RuntimeKernelModuleLoad.md): a kernel module requested or loaded (T1547.006)
+- [RuntimeKernelModuleLoad](RuntimeKernelModuleLoad.md): a kernel module loaded from a file (T1547.006)
 - [RuntimeUnexpectedBPF](RuntimeUnexpectedBPF.md): an unexpected process loading BPF (T1014)
