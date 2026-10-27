@@ -85,12 +85,14 @@ data:
             o.g("immich_assets", "Assets in Immich, by type.", s.get(t, 0), type=t.rstrip("s"))
         o.g("immich_usage_bytes", "Bytes used by all Immich assets.", s.get("usage", 0))
         for u in s.get("usageByUser", []):
-            user = u.get("userName") or u.get("userId", "unknown")
+            # Names are not unique in Immich; the id keeps two users apart.
+            uid = u.get("userId", "unknown")
+            user = u.get("userName") or uid
             for t in ("photos", "videos"):
-                o.g("immich_user_assets", "Assets per Immich user, by type.", u.get(t, 0), user=user, type=t.rstrip("s"))
-            o.g("immich_user_usage_bytes", "Bytes used per Immich user.", u.get("usage", 0), user=user)
+                o.g("immich_user_assets", "Assets per Immich user, by type.", u.get(t, 0), user=user, user_id=uid, type=t.rstrip("s"))
+            o.g("immich_user_usage_bytes", "Bytes used per Immich user.", u.get("usage", 0), user=user, user_id=uid)
             if u.get("quotaSizeInBytes"):
-                o.g("immich_user_quota_bytes", "Storage quota per Immich user.", u["quotaSizeInBytes"], user=user)
+                o.g("immich_user_quota_bytes", "Storage quota per Immich user.", u["quotaSizeInBytes"], user=user, user_id=uid)
 
 
     def jellyfin(o: Out, k: str) -> None:
@@ -172,5 +174,5 @@ data:
         ThreadingHTTPServer(("", PORT), Handler).serve_forever()
 kind: ConfigMap
 metadata:
-  name: usage-exporter-5245t5c2mk
+  name: usage-exporter-db8tctm527
   namespace: monitoring
