@@ -149,8 +149,15 @@ notifications:
         send:
           - argo-degraded-sync-failed
     trigger.on-health-degraded: |
-      - description: The Application's health is Degraded.
-        when: app.status?.health?.status == 'Degraded'
+      # Degraded for 5 minutes, as ArgoCDAppDegraded: a single-replica
+      # StatefulSet restarting (Prometheus replaying its WAL) is Degraded
+      # for about a minute and is not a bad merge. The controller
+      # re-evaluates on every app refresh (3 min), so a real failure
+      # still dispatches within 8 minutes of turning Degraded.
+      - description: The Application's health has been Degraded for 5 minutes.
+        when: >-
+          app.status?.health?.status == 'Degraded' &&
+          time.Now().Sub(time.Parse(app.status.health.lastTransitionTime)).Minutes() >= 5
         oncePer: >-
           [app.status?.operationState?.syncResult?.revision,
           app.status?.operationState?.syncResult?.revisions,
