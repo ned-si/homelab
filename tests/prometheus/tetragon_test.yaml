@@ -69,10 +69,11 @@ tests:
               namespace: theater
               workload: radarr
               binary: /usr/bin/su
+              node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
               summary: A process set its uid or gid to root
-              description: kprobe:__sys_setuid by /usr/bin/su in theater/radarr.
+              description: kprobe:__sys_setuid by /usr/bin/su in theater/radarr on homelab-w-1.
           - exp_labels:
               severity: critical
               category: security
@@ -83,10 +84,11 @@ tests:
               namespace: theater
               workload: radarr
               binary: /usr/bin/mount
+              node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
               summary: A process set its uid or gid to root
-              description: kprobe:__sys_setuid by /usr/bin/mount in theater/radarr.
+              description: kprobe:__sys_setuid by /usr/bin/mount in theater/radarr on homelab-w-1.
       - eval_time: 20m
         alertname: RuntimePrivilegeEscalation
         exp_alerts: []
@@ -111,10 +113,11 @@ tests:
               policy: privileges-raise
               hook: kprobe:create_user_ns
               binary: /tmp/x
+              node: homelab-cp-2
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
               summary: A process is gaining capabilities or a user namespace (escape to host)
-              description: kprobe:create_user_ns by /tmp/x in the host.
+              description: kprobe:create_user_ns by /tmp/x in the host on homelab-cp-2.
           - exp_labels:
               severity: critical
               category: security
@@ -125,10 +128,11 @@ tests:
               namespace: immich
               workload: immich-server
               binary: /usr/bin/node
+              node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
               summary: A process is gaining capabilities or a user namespace (escape to host)
-              description: kprobe:security_capset by /usr/bin/node in immich/immich-server.
+              description: kprobe:security_capset by /usr/bin/node in immich/immich-server on homelab-w-1.
       # The same uid-0 hooks, run by runc: allowlisted, and the escape alert
       # does not take the privilege-escalation hooks.
       - eval_time: 8m
@@ -156,10 +160,46 @@ tests:
               namespace: home
               workload: home-assistant
               binary: /usr/bin/insmod
+              node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
               summary: A kernel module was requested or loaded
-              description: kprobe:security_kernel_read_file by /usr/bin/insmod in home/home-assistant.
+              description: kprobe:security_kernel_read_file by /usr/bin/insmod in home/home-assistant on homelab-w-1.
+
+  # Module requests on a node in its first 15 minutes after boot (udev, the
+  # kernel, the starting control plane during a tuppr Talos upgrade) do not
+  # page; the same request on a node up for days does.
+  - interval: 1m
+    input_series:
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_module_request",binary="/usr/bin/udevadm",node="homelab-cp-3"}'
+        values: '_x2 1+0x10'
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_module_request",binary="/usr/bin/udevadm",node="homelab-w-1"}'
+        values: '_x2 1+0x10'
+      - series: 'node_boot_time_seconds{instance="192.168.1.239:9100"}'
+        values: '0+0x12'
+      - series: 'node_boot_time_seconds{instance="192.168.1.240:9100"}'
+        values: '-864000+0x12'
+      - series: 'kube_node_info{node="homelab-cp-3",internal_ip="192.168.1.239",job="kube-state-metrics"}'
+        values: '1+0x12'
+      - series: 'kube_node_info{node="homelab-w-1",internal_ip="192.168.1.240",job="kube-state-metrics"}'
+        values: '1+0x12'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: RuntimeKernelModuleLoad
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1547.006
+              policy: monitor-kernel-modules
+              hook: kprobe:security_kernel_module_request
+              binary: /usr/bin/udevadm
+              node: homelab-w-1
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
+              summary: A kernel module was requested or loaded
+              description: kprobe:security_kernel_module_request by /usr/bin/udevadm in the host on homelab-w-1.
 
   # BPF from a container that is neither Tetragon nor Cilium.
   - interval: 1m
@@ -180,10 +220,11 @@ tests:
               namespace: theater
               workload: qbittorrent
               binary: /usr/bin/bpftool
+              node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeUnexpectedBPF.md
               summary: An unexpected process is loading BPF
-              description: kprobe:bpf_check by /usr/bin/bpftool in theater/qbittorrent.
+              description: kprobe:bpf_check by /usr/bin/bpftool in theater/qbittorrent on homelab-w-1.
 
   # One node's agent stops being scraped: warning after 30 minutes, for that
   # node only.
