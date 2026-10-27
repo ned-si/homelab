@@ -1,0 +1,44 @@
+---
+# renovate-next: one Renovate pull request rebased at a time
+# (scripts/ci/renovate-next.sh). Renovate rebases on conflicts only
+# (`rebaseWhen: conflicted` in .github/renovate.json5); after each push to
+# main this ticks the rebase checkbox of the next pull request, so CI runs on
+# the one that merges next instead of on every open one. The schedule
+# restarts the train when nothing was pushed, after a failed ci for example.
+name: renovate-next
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+# One decision at a time; a push during a run queues behind it.
+concurrency:
+  group: renovate-next
+  cancel-in-progress: false
+
+jobs:
+  next:
+    name: Rebase the next Renovate pull request
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Pick and rebase
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          line=$(scripts/ci/renovate-next.sh)
+          echo "$line"
+          echo "$line" >> "$GITHUB_STEP_SUMMARY"
