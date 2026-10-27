@@ -150,7 +150,7 @@ spec:
       containers:
         - name: sonarr
           # renovate: datasource=docker depName=ghcr.io/hotio/sonarr
-          image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:08871e735b1bfd4bc3fc3cfa65f6f928989cdbd458812aff789537d4ce0c795f
+          image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:37181160b3d2de46557622564d8a6f5e1ed3ce97d4724194be69a9a5341a97d1
           imagePullPolicy: Always
           env:
             - name: TZ
