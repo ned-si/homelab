@@ -175,8 +175,8 @@ database majors.
 ## Automatic rollback
 
 Argo CD Notifications sends a GitHub `repository_dispatch` (`argo-degraded`)
-when any Application's sync fails or its health turns Degraded
-(`bootstrap/argocd-values.yaml`), once per Application and revision, with the
+when any Application's sync fails or its health stays Degraded for 5 minutes
+(`bootstrap/argocd-values.yaml`; a pod restart is Degraded for a minute), once per Application and revision, with the
 revision of that Application's last sync. `.github/workflows/auto-rollback.yaml`
 then opens a revert pull request titled `revert: <title> (auto)`, label
 `auto-rollback`, with auto-merge on, but only when every guard rail in
