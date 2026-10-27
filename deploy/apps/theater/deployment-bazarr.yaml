@@ -37,7 +37,7 @@ spec:
           value: "1000"
         - name: UMASK
           value: "002"
-        image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:f2f6b7616610249bf9cd1ff5b3c596e135be26caf4e0e6b5428a76efa6fa269e
+        image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:86b76c5c66a839ca6f6dd15ddb16b43f074dc71d41907b720e176bdede4b6562
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
@@ -77,7 +77,7 @@ spec:
         envFrom:
         - secretRef:
             name: bazarr
-        image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:f2f6b7616610249bf9cd1ff5b3c596e135be26caf4e0e6b5428a76efa6fa269e
+        image: ghcr.io/hotio/bazarr:release-1.6.2@sha256:86b76c5c66a839ca6f6dd15ddb16b43f074dc71d41907b720e176bdede4b6562
         imagePullPolicy: IfNotPresent
         name: seed-config
         resources:
