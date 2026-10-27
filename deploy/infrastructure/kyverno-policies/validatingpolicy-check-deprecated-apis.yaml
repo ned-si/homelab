@@ -19,6 +19,7 @@ metadata:
       removed after a few releases. As a best practice, older API versions should
       be replaced with newer versions. This policy validates for APIs that are deprecated
       or scheduled for removal.
+    policies.kyverno.io/minversion: 1.19.1
     policies.kyverno.io/subject: Kubernetes APIs
     policies.kyverno.io/title: Check deprecated APIs in VPOL
   name: check-deprecated-apis
@@ -133,7 +134,7 @@ spec:
   validationActions:
   - Audit
   validations:
-  - expression: "false"
+  - expression: '''deprecated-api'' in exceptions.allowedValues || false'
     messageExpression: 'string(object.apiVersion) + ''/'' + string(object.kind) +
       '' is deprecated and will be removed in a future Kubernetes version. See: https://kubernetes.io/docs/reference/using-api/deprecation-guide/'''
   webhookConfiguration:

@@ -48,12 +48,12 @@ de0810c3ac91f1bbda3ff29345a1a9dd906222a47809ed32e93f7123c0baec21  pod-security-v
 48f85e8f09fd41afe159f960cb9d16a193acfa07b8bd9c15a30b69eb9805e727  pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
 fd22b77d67e01e17e4f0083f605736adce25f4a4486e90879a3350a9e918b0ac  pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
 3d00ca7fe7224a0ce8f24582ece94912722322704eec97509195417f4f7119b0  pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
-66a4262e06e72826b312ed0f7162bea5910249a4337dc81be09264f9bd848477  best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
-3d67c209681634471671c3954d7ca4bd7bc79ba31f039b3c6a29d7b75e0d813b  best-practices-vpol/disallow-cri-sock-mount/disallow-cri-sock-mount.yaml
-77119e0fb24b15a295d4051eadb9a533a8a4cffe9baddc8c42a7fc82a42a0106  best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
+ff3381547d52102aae74e8426bc0aa2c9eb11ce473bc2af1380a6b3dcff9caeb  best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
+82c6b67c48d5176622d82470f45c8f6626cbcf884438a7b31d154b69a2f71c53  best-practices-vpol/disallow-cri-sock-mount/disallow-cri-sock-mount.yaml
+f383d4237bad7936551cad44d0a9a52dfeb69cc79db8e64b2bdde6c4f4820870  best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
 cabf42f219d7c3a8f82a3d4a2515b03a0ecab5957e3f74298071d5c353c30c2b  best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
 93e0cfdd016e323bc652f9b5ef8d58ce7748512f69f25c5fd7e19cea0cd11cae  best-practices-vpol/require-drop-all/require-drop-all.yaml
 499f6171267d08054e284fa90b0df91368dcd5cce0173dfbf4ed608f038bc0f8  best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
 f55a343212e3ae130e95e1d18b99941feec8d51eacc85e03d7ab84e1e24bcd4d  best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
-e284b24983335628bbce4e736fade7265cec3fcb7978c56f1f5bda144e4feb38  best-practices-vpol/restrict-node-port/restrict-node-port.yaml
-720a019bb32f7d12e1efac8b6cd3694852f5a9d4a2ae566ad40eb56b5cb11c66  best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml
+dabef699f5559e91651e71a16c215b52d3886a9603db93bd75550287554f7290  best-practices-vpol/restrict-node-port/restrict-node-port.yaml
+b7404489e14219b6b30c9a12ee57943e2ef25e778a301bbc03f98836f9d202cd  best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml
