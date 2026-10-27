@@ -1,8 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-10-17
-issue: 751
+closed: 2026-10-27
 ---
 # Requirements: wave 3 runtime security (Kyverno audit, Tetragon observe)
 

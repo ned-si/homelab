@@ -67,7 +67,6 @@ Change specs, active:
 | [alert-triage](alert-triage/) | 2026-10-27 | #762 | task 2: the image for the CronJob |
 | [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | #750 | task 8: Cilium 1.20.4 through the rehearsal |
 | [wave3-network-logs](wave3-network-logs/) | 2026-10-16 | #752 | allow-lists from flows, the SigNoz trial, the SELinux label rollout |
-| [wave3-runtime-security](wave3-runtime-security/) | 2026-10-17 | #751 | the 24 h Tetragon observation |
 
 Change specs, done:
 
@@ -76,6 +75,7 @@ Change specs, done:
 | [immich-v3-migration](immich-v3-migration/) | 2026-10-16 | 2026-10-16 |
 | [scorecard-hardening](scorecard-hardening/) | 2026-10-16 | 2026-10-26 |
 | [wave3-reliability](wave3-reliability/) | 2026-10-16 | 2026-10-16 |
+| [wave3-runtime-security](wave3-runtime-security/) | 2026-10-17 | 2026-10-27 |
 
 Area specs, living (the as-is retrofit of 2026-10-16, #506):
 

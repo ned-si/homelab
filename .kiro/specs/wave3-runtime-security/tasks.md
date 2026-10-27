@@ -42,10 +42,17 @@ agents, run `scripts/maintenance-silence.sh <namespace> <duration> "<reason, PR 
       (the four technique alerts with allowlists, `TetragonAgentMissing`), promtool tests
       with allowlisted negatives, runbook sections, `routes.txt` lines, the Security
       dashboard runtime row, `docs/sre.md` PAGE table. [4.6, 5.1, 5.2, 5.3, 5.4, 5.5]
-- [ ] 8. Observe 24 h, read-only: no runtime alert on known-good actors, Tetragon CPU and
+- [x] 8. Observe 24 h, read-only: no runtime alert on known-good actors, Tetragon CPU and
       memory within limits, reports fresh. Record the result here. [4.1, 5.1]
+      Result (2026-10-27): no runtime page from 2026-10-26 10:13Z to the Talos 1.14.5
+      rollout at 09:59Z. The rollout restarted every pod, and the restarts paged:
+      udevadm and container autoload requests, valkey `setpriv`, syncthing `setcap`, the
+      Plex Tuner. #787 (no module-load page in a node's first 15 min) and #790 (explicit
+      loads only, the restart actors allowlisted) fixed that, with promtool cases for each;
+      nothing fired after #790 synced at 11:49Z. Tetragon 9-32m CPU and 143-161Mi per
+      node (limit 512Mi), no restarts; 790 Kyverno reports, newest within the hour.
 - [x] 9. (#691; 6.2 was #546, 6.3 already in `access.conf`) PR `feat(keycloak): brute-force protection and OTP for platform clients`:
       `platform.conf`, `apply.sh`, `access.conf` (`hubble`, `signoz` gated to `admins`
       when spec `wave3-network-logs` adds them, or here first), direct grants off with the
       PostSync read-back, bash tests, `docs/architecture.md`. [6.1, 6.2, 6.3, 6.4, 6.5]
-- [ ] 10. Tick this file and record the PR numbers. [all]
+- [x] 10. Tick this file and record the PR numbers. [all]
