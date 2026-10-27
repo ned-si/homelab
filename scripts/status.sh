@@ -239,7 +239,8 @@ fi
 step "Nodes"
 show '.nodes[] | [(if .ready and (.unschedulable | not) then "ok" else "bad" end),
   "\(.name)  \(if .ready then "Ready" else "NotReady" end)\(if .unschedulable then ",cordoned" else "" end)  \(.ip)  \(.kubelet)  \(.kernel)  \(.runtime)"] | @tsv'
-show '.etcd | [(if .healthy != null and .healthy == .members then "ok" else "bad" end), "etcd \(.healthy // "?")/\(.members // "?") healthy"],
+show '.etcd | [(if .healthy != null and .healthy == .members then "ok" else "bad" end),
+    (if .healthy == null then "etcd health unreadable (talosctl: no node answered, check TALOSCONFIG)" else "etcd \(.healthy)/\(.members) healthy" end)],
   [(if .vip_reachable then "ok" else "bad" end), "API VIP \(.vip):6443 \(if .vip_reachable then "reachable" else "UNREACHABLE" end)"] | @tsv'
 
 step "Argo CD"
