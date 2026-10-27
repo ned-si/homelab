@@ -5,7 +5,7 @@ Shell: [Before you start](README.md#before-you-start).
 
 ## What it means
 
-A kernel module was requested or loaded outside the allowlist (the democratic-csi iSCSI node plugin and cilium-agent). A rootkit loads as a module; Talos loads its own at boot, before Tetragon runs.
+A kernel module was requested or loaded outside the allowlist (the democratic-csi iSCSI node plugin and cilium-agent). Requests on a node in its first 15 minutes after boot do not page (`tetragon:node_booted_recently`): udev, the kernel and the starting control plane request modules then, on every reboot and Talos upgrade. A rootkit loads as a module; one loaded in that window shows on the Security dashboard but does not page.
 
 A node that just rebooted may load a module late (a new NIC driver after a Talos upgrade): that is a host process with a Talos binary.
 

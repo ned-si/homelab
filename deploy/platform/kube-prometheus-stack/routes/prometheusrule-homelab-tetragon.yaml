@@ -20,14 +20,20 @@ spec:
   - name: homelab.tetragon
     rules:
     - expr: |
-        sum by (policy, hook, namespace, workload, binary) (increase(tetragon_policy_events_total[5m])) > 0
+        sum by (policy, hook, namespace, workload, binary, node) (increase(tetragon_policy_events_total[5m])) > 0
         or
-        sum by (policy, hook, namespace, workload, binary) (tetragon_policy_events_total unless tetragon_policy_events_total offset 5m)
+        sum by (policy, hook, namespace, workload, binary, node) (tetragon_policy_events_total unless tetragon_policy_events_total offset 5m)
       record: tetragon:policy_events:increase5m
+    - expr: |
+        (
+          (time() - label_replace(node_boot_time_seconds, "internal_ip", "$1", "instance", "(.+):[0-9]+")) < 900
+        ) * on (internal_ip) group_left (node) max by (internal_ip, node) (kube_node_info)
+      record: tetragon:node_booted_recently
     - alert: RuntimeEscapeToHost
       annotations:
         description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
-          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }} on {{ $labels.node
+          }}.'
         runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
         summary: A process is gaining capabilities or a user namespace (escape to
           host)
@@ -42,7 +48,8 @@ spec:
     - alert: RuntimePrivilegeEscalation
       annotations:
         description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
-          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }} on {{ $labels.node
+          }}.'
         runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimePrivilegeEscalation.md
         summary: A process set its uid or gid to root
       expr: |
@@ -57,13 +64,15 @@ spec:
     - alert: RuntimeKernelModuleLoad
       annotations:
         description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
-          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }} on {{ $labels.node
+          }}.'
         runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
         summary: A kernel module was requested or loaded
       expr: |
         tetragon:policy_events:increase5m{policy="monitor-kernel-modules"}
         unless tetragon:policy_events:increase5m{namespace="democratic-csi", workload="iscsi-democratic-csi-node"}
         unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
+        unless on (node) tetragon:node_booted_recently
       labels:
         action: human
         category: security
@@ -72,7 +81,8 @@ spec:
     - alert: RuntimeUnexpectedBPF
       annotations:
         description: '{{ $labels.hook }} by {{ $labels.binary }} in {{ with $labels.namespace
-          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}.'
+          }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }} on {{ $labels.node
+          }}.'
         runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeUnexpectedBPF.md
         summary: An unexpected process is loading BPF
       expr: |
