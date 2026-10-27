@@ -40,6 +40,8 @@ spec:
       expr: |
         tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:(create_user_ns|security_capset)"}
         unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
+        unless tetragon:policy_events:increase5m{namespace=~"immich|paperless", workload="valkey", binary="/bin/setpriv"}
+        unless tetragon:policy_events:increase5m{namespace="syncthing", workload="syncthing", binary="/usr/sbin/setcap"}
       labels:
         action: human
         category: security
@@ -56,6 +58,7 @@ spec:
         tetragon:policy_events:increase5m{policy="privileges-raise", hook=~"kprobe:__sys_set.*"}
         unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
         unless tetragon:policy_events:increase5m{namespace="", binary=~"/usr/bin/u?mount"}
+        unless tetragon:policy_events:increase5m{namespace="theater", workload="plex", binary="/usr/lib/plexmediaserver/Plex Tuner Service"}
       labels:
         action: human
         category: security
@@ -67,9 +70,9 @@ spec:
           }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }} on {{ $labels.node
           }}.'
         runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
-        summary: A kernel module was requested or loaded
+        summary: A kernel module was loaded from a file
       expr: |
-        tetragon:policy_events:increase5m{policy="monitor-kernel-modules"}
+        tetragon:policy_events:increase5m{policy="monitor-kernel-modules", hook="kprobe:security_kernel_read_file"}
         unless tetragon:policy_events:increase5m{namespace="democratic-csi", workload="iscsi-democratic-csi-node"}
         unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
         unless on (node) tetragon:node_booted_recently

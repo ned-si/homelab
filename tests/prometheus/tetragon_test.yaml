@@ -163,17 +163,17 @@ tests:
               node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
-              summary: A kernel module was requested or loaded
+              summary: A kernel module was loaded from a file
               description: kprobe:security_kernel_read_file by /usr/bin/insmod in home/home-assistant on homelab-w-1.
 
-  # Module requests on a node in its first 15 minutes after boot (udev, the
+  # Module loads on a node in its first 15 minutes after boot (udev, the
   # kernel, the starting control plane during a tuppr Talos upgrade) do not
   # page; the same request on a node up for days does.
   - interval: 1m
     input_series:
-      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_module_request",binary="/usr/bin/udevadm",node="homelab-cp-3"}'
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_read_file",binary="/usr/bin/udevadm",node="homelab-cp-3"}'
         values: '_x2 1+0x10'
-      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_module_request",binary="/usr/bin/udevadm",node="homelab-w-1"}'
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_read_file",binary="/usr/bin/udevadm",node="homelab-w-1"}'
         values: '_x2 1+0x10'
       - series: 'node_boot_time_seconds{instance="192.168.1.239:9100"}'
         values: '0+0x12'
@@ -193,13 +193,53 @@ tests:
               action: human
               mitre_technique: T1547.006
               policy: monitor-kernel-modules
-              hook: kprobe:security_kernel_module_request
+              hook: kprobe:security_kernel_read_file
               binary: /usr/bin/udevadm
               node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeKernelModuleLoad.md
-              summary: A kernel module was requested or loaded
-              description: kprobe:security_kernel_module_request by /usr/bin/udevadm in the host on homelab-w-1.
+              summary: A kernel module was loaded from a file
+              description: kprobe:security_kernel_read_file by /usr/bin/udevadm in the host on homelab-w-1.
+
+  # Restart noise that does not page: an autoload request from any pod, a
+  # valkey entrypoint dropping capabilities with setpriv, Plex's tuner
+  # service setting its uid. The same capset from another binary pages.
+  - interval: 1m
+    input_series:
+      - series: 'tetragon_policy_events_total{policy="monitor-kernel-modules",hook="kprobe:security_kernel_module_request",namespace="kube-system",workload="coredns",binary="/coredns",node="homelab-w-1"}'
+        values: '_x2 1+0x10'
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:security_capset",namespace="immich",workload="valkey",binary="/bin/setpriv",node="homelab-w-1"}'
+        values: '_x2 1+0x10'
+      - series: "tetragon_policy_events_total{policy=\"privileges-raise\",hook=\"kprobe:__sys_setuid\",namespace=\"theater\",workload=\"plex\",\
+          binary=\"/usr/lib/plexmediaserver/Plex Tuner Service\",node=\"homelab-w-1\"}"
+        values: '_x2 1+0x10'
+      - series: 'tetragon_policy_events_total{policy="privileges-raise",hook="kprobe:security_capset",namespace="immich",workload="valkey",binary="/bin/sh",node="homelab-w-1"}'
+        values: '_x2 1+0x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: RuntimeKernelModuleLoad
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: RuntimePrivilegeEscalation
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: RuntimeEscapeToHost
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              category: security
+              action: human
+              mitre_technique: T1611
+              policy: privileges-raise
+              hook: kprobe:security_capset
+              namespace: immich
+              workload: valkey
+              binary: /bin/sh
+              node: homelab-w-1
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/RuntimeEscapeToHost.md
+              summary: A process is gaining capabilities or a user namespace (escape to host)
+              description: kprobe:security_capset by /bin/sh in immich/valkey on homelab-w-1.
 
   # BPF from a container that is neither Tetragon nor Cilium.
   - interval: 1m
