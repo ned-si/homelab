@@ -280,15 +280,11 @@ misconfigurations:
       - "deploy/apps/mealie/deployment-mealie.yaml"
       - "deploy/apps/paperless/deployment-paperless.yaml"
       - "deploy/apps/syncthing/statefulset-syncthing.yaml"
-      # Vendored upstream: the CSI external-snapshotter release manifest, not
-      # written here. Same class as the barman plugin above.
-      - "deploy/infrastructure/snapshot-controller/deployment-snapshot-controller.yaml"
     statement: >-
       linuxserver/hotio-style images start s6 as root and drop to PUID/PGID 1000;
       runAsNonRoot breaks the entrypoint before the app starts. Mitigated by
       pod-level fsGroup and the namespace PUID/PGID/UMASK contract. Enumerated per
       file so a workload that CAN satisfy the check is not covered by accident.
-      snapshot-controller is vendored upstream.
     expired_at: 2027-03-01
 
   # Parity ports (ADR 0002): these workloads are byte-equal to the running

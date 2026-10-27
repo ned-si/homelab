@@ -37,8 +37,6 @@ spec:
     kind: CSIDriver
   - group: storage.k8s.io
     kind: StorageClass
-  - group: snapshot.storage.k8s.io
-    kind: VolumeSnapshotClass
   - group: gateway.networking.k8s.io
     kind: GatewayClass
   - group: apiregistration.k8s.io
