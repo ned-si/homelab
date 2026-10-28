@@ -17,7 +17,7 @@ talosVersion: v1.14.5
 # this version before any node does. tuppr applies a change to the running
 # cluster (platform/tuppr/upgrades/kubernetes-upgrade.yaml, kept equal by CI).
 # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
-kubernetesVersion: v1.37.1
+kubernetesVersion: v1.37.2
 
 # The API VIP (Layer2VIPConfig on the control planes, below), not a node IP.
 endpoint: https://192.168.1.11:6443
