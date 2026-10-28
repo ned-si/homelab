@@ -134,7 +134,7 @@ spec:
           # renovate: datasource=github-releases depName=christiaangoossens/hass-oidc-auth
           OIDC_VERSION=v1.2.1
           # renovate: datasource=pypi depName=joserfc
-          JOSERFC_VERSION=1.7.5
+          JOSERFC_VERSION=1.7.7
           # renovate: datasource=github-releases depName=Tasshack/dreame-vacuum
           DREAME_VERSION=v2.0.2
           # 0.12.4 is the last release whose musllinux aarch64 wheel is
