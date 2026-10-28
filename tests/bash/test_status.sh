@@ -129,6 +129,7 @@ EOF
   cat > "$FIX/cronjobs.json" <<'EOF'
 {"items":[
  {"metadata":{"namespace":"mealie","name":"mealie-backup"},"spec":{"suspend":false},"status":{"lastSuccessfulTime":"2026-09-21T02:00:00Z","lastScheduleTime":"2026-09-21T02:00:00Z"}},
+ {"metadata":{"namespace":"backup-verify","name":"backup-verify-files"},"spec":{"suspend":false},"status":{"lastSuccessfulTime":"2026-09-17T22:00:00Z","lastScheduleTime":"2026-09-17T22:00:00Z"}},
  {"metadata":{"namespace":"theater","name":"recyclarr-sync"},"spec":{},"status":{}}]}
 EOF
   printf 'immich\timmich-config\tOpaque\t2026-09-01T00:00:00Z\nimmich\timmich-db-app\tkubernetes.io/basic-auth\t2026-01-01T00:00:00Z\n' > "$FIX/secrets.tsv"
@@ -150,7 +151,7 @@ expect_contains "CNPG" "CNPG 1 clusters healthy" "$out"
 expect_contains "cert days" "gateway/wildcard  59d" "$out"
 expect_contains "route" "1 HTTPRoutes Accepted: media" "$out"
 expect_contains "LB" "LB 192.0.2.201  syncthing/syncthing-protocol" "$out"
-expect_contains "backup age" "1 backup CronJobs, oldest last success 12h ago" "$out"
+expect_contains "backup age (the weekly restore test is not stale at 88h)" "2 backup CronJobs, oldest last success 88h ago" "$out"
 expect_contains "NAS" "NAS 192.0.2.228:3260 open" "$out"
 expect_contains "WAN matches" "= --default-targets in infrastructure/external-dns/values.yaml" "$out"
 expect_contains "Immich counts" "Immich  image 100  video 10" "$out"
@@ -168,7 +169,7 @@ expect_eq "immich images" 100 "$(jq .immich.image <<<"$js")"
 expect_eq "wan match" true "$(jq .wan.match <<<"$js")"
 expect_eq "wan in git" "$GIT_WAN" "$(jq -r .wan.in_git <<<"$js")"
 expect_eq "no failed reads" 0 "$(jq '.errors | length' <<<"$js")"
-expect_eq "every section present" "argo,backups,certificates,cnpg,errors,etcd,gateway,generated,immich,nas,nodes,pods,problems,pvcs,schema,secrets,wan" \
+expect_eq "every section present" "argo,backups,certificates,cnpg,errors,etcd,gateway,generated,immich,in_cluster,nas,nodes,pods,problems,pvcs,schema,secrets,wan" \
   "$(jq -r 'keys | join(",")' <<<"$js")"
 
 echo "read-only"
@@ -224,5 +225,20 @@ rc=0; out=$(STATUS_TALOS_FAIL=1 "$STATUS" 2>&1) || rc=$?
 expect_eq "exit 1" 1 "$rc"
 expect_contains "etcd unreadable, not 0/3" "etcd health unreadable (talosctl: no node answered" "$out"
 case "$out" in *"etcd 0/"*) bad "no 0/N count" ;; *) ok "no 0/N count" ;; esac
+
+
+echo "in cluster (the alert-triage snapshot Job)"
+mkfix
+: > "$FIX/calls.log"
+rc=0; out=$(IN_CLUSTER=1 STATUS_TALOS_FAIL=1 STATUS_FAIL_GET=secrets "$STATUS" --no-color 2>&1) || rc=$?
+expect_eq "host-only checks are not problems" 0 "$rc"
+expect_contains "etcd skipped" "etcd and API VIP unavailable (in cluster)" "$out"
+expect_contains "NAS skipped" "NAS unavailable (in cluster)" "$out"
+expect_contains "WAN skipped" "WAN unavailable (in cluster)" "$out"
+expect_contains "Secrets skipped" "Secrets unavailable (in cluster)" "$out"
+case "$(cat "$FIX/calls.log")" in
+  *talosctl*|*"nc "*|*ipify*|*ifconfig.me*|*"get secrets"*) bad "no talosctl, nc, WAN or Secret call" ;;
+  *) ok "no talosctl, nc, WAN or Secret call" ;;
+esac
 
 finish

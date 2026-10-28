@@ -18,6 +18,11 @@
 # bounded (kubectl --request-timeout, talosctl under a 20 s alarm, nc -G,
 # curl -m).
 #
+# IN_CLUSTER=1 (the alert-triage snapshot Job): the checks that need the
+# operator's machine (talosctl and the API VIP, the NAS ports, the WAN
+# lookups) and the Secret list (the Job's ServiceAccount reads no Secrets)
+# are skipped and printed as `unavailable (in cluster)`, not as problems.
+#
 # Exit 0 when nothing is red, 1 when something is (a kubectl read that fails
 # counts), 64 on a usage error.
 # --json prints one JSON document instead of the text view.
@@ -42,11 +47,13 @@ done
 # shellcheck source=scripts/lib/cluster.sh
 . "$ROOT/scripts/lib/cluster.sh"
 
+IN_CLUSTER=${IN_CLUSTER:-0}
 API_VIP=${STATUS_API_VIP:-192.168.1.11}
 NAS_HOST=${STATUS_NAS_HOST:-192.168.1.228}
 NAS_PORTS=${STATUS_NAS_PORTS:-"3260 2049"}
 CERT_WARN_DAYS=${STATUS_CERT_WARN_DAYS:-21}
 BACKUP_MAX_H=${STATUS_BACKUP_MAX_H:-26}
+VERIFY_MAX_H=${STATUS_VERIFY_MAX_H:-192}
 NOW=${STATUS_NOW:-$(date -u +%s)}
 
 command -v jq >/dev/null 2>&1 || die "jq not found"
@@ -83,8 +90,11 @@ jq -c '[.items[] | {name: .metadata.name,
     os: .status.nodeInfo.osImage, runtime: .status.nodeInfo.containerRuntimeVersion,
     ip: ([.status.addresses[]? | select(.type == "InternalIP") | .address][0])}]' "$T/nodes.raw" > "$T/nodes.json"
 
-etcd=$(etcd_health_json) || etcd=null
-vip=false; tcp_open "$API_VIP" 6443 && vip=true
+etcd=null; vip=false
+if [ "$IN_CLUSTER" != 1 ]; then
+  etcd=$(etcd_health_json) || etcd=null
+  tcp_open "$API_VIP" 6443 && vip=true
+fi
 jq -n --argjson e "$etcd" --arg ip "$API_VIP" --argjson vip "$vip" \
   '{members: (if $e == null then null else ($e | length) end),
     healthy: (if $e == null then null else ([$e[] | select(.health == true)] | length) end),
@@ -134,15 +144,19 @@ jq -n -c --slurpfile g "$T/gw.raw" --slurpfile r "$T/routes.raw" --slurpfile s "
       | {svc: "\(.metadata.namespace)/\(.metadata.name)", ips: [.status.loadBalancer.ingress[]?.ip // empty]}]}' > "$T/gateway.json"
 
 getj cj.raw cronjobs -A
-jq -c --argjson now "$NOW" --argjson max "$BACKUP_MAX_H" '[.items[] | select(.metadata.name | test("backup"))
+# Backups run daily (BACKUP_MAX_H); the restore tests in backup-verify run
+# weekly (VERIFY_MAX_H, 8 days).
+jq -c --argjson now "$NOW" --argjson daily "$BACKUP_MAX_H" --argjson weekly "$VERIFY_MAX_H" '[.items[] | select(.metadata.name | test("backup"))
     | {ns: .metadata.namespace, name: .metadata.name, suspended: (.spec.suspend // false),
        last_success: (.status.lastSuccessfulTime // null), last_schedule: (.status.lastScheduleTime // null),
        active: ((.status.active // []) | length)}
     | . + {age_h: (if .last_success then (($now - (.last_success | fromdateiso8601)) / 3600 | floor) else null end)}
+    | (if .ns == "backup-verify" then $weekly else $daily end) as $max
     | . + {stale: ((.suspended | not) and (.age_h == null or .age_h > $max))}]
     | sort_by(.ns, .name)' "$T/cj.raw" > "$T/backups.json"
 
 nas='[]'
+[ "$IN_CLUSTER" = 1 ] && NAS_PORTS=""
 for p in $NAS_PORTS; do
   o=false; tcp_open "$NAS_HOST" "$p" && o=true
   nas=$(jq -c --argjson p "$p" --argjson o "$o" '. + [{port: $p, open: $o}]' <<<"$nas")
@@ -150,8 +164,11 @@ done
 jq -n -c --arg h "$NAS_HOST" --argjson ports "$nas" '{host: $h, ports: $ports}' > "$T/nas.json"
 
 git_wan=$(wan_in_git "$ROOT")
-w1=$(curl -sS -m 10 https://api.ipify.org 2>/dev/null | tr -d '[:space:]')
-w2=$(curl -sS -m 10 https://ifconfig.me 2>/dev/null | tr -d '[:space:]')
+w1=""; w2=""
+if [ "$IN_CLUSTER" != 1 ]; then
+  w1=$(curl -sS -m 10 https://api.ipify.org 2>/dev/null | tr -d '[:space:]')
+  w2=$(curl -sS -m 10 https://ifconfig.me 2>/dev/null | tr -d '[:space:]')
+fi
 is_ipv4 "$w1" || w1=""
 is_ipv4 "$w2" || w2=""
 cur=""
@@ -172,7 +189,9 @@ printf '%s\n' "${immich:-null}" > "$T/immich.json"
 
 # Names, types and timestamps only: kubectl filters server output to these
 # fields, so no Secret value reaches this script.
-if ! k get secrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.type}{"\t"}{.metadata.creationTimestamp}{"\n"}{end}' \
+if [ "$IN_CLUSTER" = 1 ]; then
+  : > "$T/secrets.tsv"
+elif ! k get secrets -A -o jsonpath='{range .items[*]}{.metadata.namespace}{"\t"}{.metadata.name}{"\t"}{.type}{"\t"}{.metadata.creationTimestamp}{"\n"}{end}' \
   2> "$T/secrets.err" > "$T/secrets.tsv"; then
   read_failed "secrets -A" "$T/secrets.err"
   : > "$T/secrets.tsv"
@@ -189,16 +208,16 @@ jq -n -c \
   --slurpfile certs "$T/certs.json" --slurpfile gateway "$T/gateway.json" --slurpfile backups "$T/backups.json" \
   --slurpfile nas "$T/nas.json" --slurpfile wan "$T/wan.json" --slurpfile immich "$T/immich.json" \
   --slurpfile secrets "$T/secrets.json" --slurpfile errors "$T/errors.json" \
-  --argjson now "$NOW" --argjson certwarn "$CERT_WARN_DAYS" '
-  {schema: 1, generated: ($now | todate),
+  --argjson now "$NOW" --argjson certwarn "$CERT_WARN_DAYS" --argjson ic "$([ "$IN_CLUSTER" = 1 ] && echo true || echo false)" '
+  {schema: 1, generated: ($now | todate), in_cluster: $ic,
    nodes: $nodes[0], etcd: $etcd[0], argo: $argo[0], pods: $pods[0], pvcs: $pvc[0], cnpg: $cnpg[0],
    certificates: $certs[0], gateway: $gateway[0], backups: $backups[0], nas: $nas[0], wan: $wan[0],
    immich: $immich[0], secrets: $secrets[0], errors: $errors[0]}
   | .problems = ([
       (.errors[]),
       (.nodes[] | select((.ready | not) or .unschedulable) | "node \(.name) not Ready or cordoned"),
-      (if .etcd.healthy == null then "etcd health unreadable" elif .etcd.healthy < .etcd.members then "etcd \(.etcd.healthy)/\(.etcd.members) healthy" else empty end),
-      (if .etcd.vip_reachable then empty else "API VIP \(.etcd.vip):6443 unreachable" end),
+      (if $ic then empty elif .etcd.healthy == null then "etcd health unreadable" elif .etcd.healthy < .etcd.members then "etcd \(.etcd.healthy)/\(.etcd.members) healthy" else empty end),
+      (if $ic or .etcd.vip_reachable then empty else "API VIP \(.etcd.vip):6443 unreachable" end),
       (.argo.bad[] | "Application \(.name) \(.sync)/\(.health)"),
       (.pods.bad[] | "pod \(.ns)/\(.name) \(.phase) \(.reason)"),
       (.pvcs.not_bound[] | "PVC \(.ns)/\(.name) \(.phase)"),
@@ -208,7 +227,7 @@ jq -n -c \
       (.gateway.routes[] | select(.accepted | not) | "HTTPRoute \(.ns)/\(.name) not Accepted"),
       (.backups[] | select(.stale) | "backup \(.ns)/\(.name) last success \(.age_h // "never")h ago"),
       (.nas.ports[] | select(.open | not) | "NAS \($nas[0].host):\(.port) closed"),
-      (if .wan.match == false then "WAN \(.wan.current) != --default-targets \(.wan.in_git)" else empty end)
+      (if (.wan.match == false) and ($ic | not) then "WAN \(.wan.current) != --default-targets \(.wan.in_git)" else empty end)
     ])' > "$T/status.json"
 
 if [ "$JSON" = 1 ]; then
@@ -239,9 +258,9 @@ fi
 step "Nodes"
 show '.nodes[] | [(if .ready and (.unschedulable | not) then "ok" else "bad" end),
   "\(.name)  \(if .ready then "Ready" else "NotReady" end)\(if .unschedulable then ",cordoned" else "" end)  \(.ip)  \(.kubelet)  \(.kernel)  \(.runtime)"] | @tsv'
-show '.etcd | [(if .healthy != null and .healthy == .members then "ok" else "bad" end),
+show 'if .in_cluster then ["info", "etcd and API VIP unavailable (in cluster)"] | @tsv else .etcd | [(if .healthy != null and .healthy == .members then "ok" else "bad" end),
     (if .healthy == null then "etcd health unreadable (talosctl: no node answered, check TALOSCONFIG)" else "etcd \(.healthy)/\(.members) healthy" end)],
-  [(if .vip_reachable then "ok" else "bad" end), "API VIP \(.vip):6443 \(if .vip_reachable then "reachable" else "UNREACHABLE" end)"] | @tsv'
+  [(if .vip_reachable then "ok" else "bad" end), "API VIP \(.vip):6443 \(if .vip_reachable then "reachable" else "UNREACHABLE" end)"] | @tsv end'
 
 step "Argo CD"
 show '.argo | if (.bad | length) == 0 then ["ok", "\(.total) Applications Synced/Healthy"] | @tsv
@@ -258,6 +277,7 @@ show '.pvcs.not_bound[] | ["bad", "  \(.ns)/\(.name) \(.phase)"] | @tsv'
 show '[.cnpg[] | select(.phase != "Cluster in healthy state")] as $b
   | if ($b | length) == 0 then ["ok", "CNPG \(.cnpg | length) clusters healthy"] | @tsv
     else ($b[] | ["bad", "CNPG \(.ns)/\(.name)  \(.ready)/\(.instances)  \(.phase)"] | @tsv) end'
+show 'select(.in_cluster) | ["info", "NAS unavailable (in cluster)"] | @tsv'
 show '.nas | .host as $h | .ports[] | [(if .open then "ok" else "bad" end), "NAS \($h):\(.port) \(if .open then "open" else "CLOSED" end)"] | @tsv'
 show 'if .immich == null then ["warn", "Immich counts unavailable"] else ["info", "Immich  \(.immich | to_entries | map("\(.key) \(.value)") | join("  "))"] end | @tsv'
 
@@ -281,11 +301,12 @@ show '[.backups[] | select(.suspended | not)] as $live
     (.backups[] | select(.active > 0) | ["info", "\(.ns)/\(.name)  running now"] | @tsv)'
 
 step "WAN"
-show '.wan | if .current == null then ["warn", "current WAN unknown (ipify=\(.sources.ipify) ifconfig.me=\(.sources.ifconfig_me)); git has \(.in_git)"]
+show 'if .in_cluster then ["info", "WAN unavailable (in cluster)"] else (.wan | if .current == null then ["warn", "current WAN unknown (ipify=\(.sources.ipify) ifconfig.me=\(.sources.ifconfig_me)); git has \(.in_git)"]
   elif .match then ["ok", "WAN \(.current) = --default-targets in infrastructure/external-dns/values.yaml"]
-  else ["bad", "WAN \(.current) != --default-targets \(.in_git): docs/runbooks/wan-ip-change.md"] end | @tsv'
+  else ["bad", "WAN \(.current) != --default-targets \(.in_git): docs/runbooks/wan-ip-change.md"] end) end | @tsv'
 
 step "Secrets (names and ages only)"
+show 'select(.in_cluster) | ["info", "Secrets unavailable (in cluster)"] | @tsv'
 show '["info", "\([.secrets[].count] | add // 0) Secrets in \(.secrets | length) namespaces; oldest per namespace:"] | @tsv'
 show '[.secrets[] | {ns, name: .oldest.name, age_d: .oldest.age_d}] | sort_by(-.age_d) | .[0:3][]
   | ["info", "  \(.age_d)d  \(.ns)/\(.name)"] | @tsv'
