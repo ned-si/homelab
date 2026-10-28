@@ -256,6 +256,8 @@
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
       minimumReleaseAge: '3 days',
       automergeSchedule: ['* 9-16 * * 1-5'],
+      // scripts/ci/renovate-next.sh rebases it inside that window only.
+      addLabels: ['automerge-weekdays'],
     },
     {
       // Every image is pinned by digest, so a tag re-pushed upstream is a
@@ -313,6 +315,8 @@
       ],
       matchUpdateTypes: ['major'],
       automerge: false,
+      // scripts/ci/renovate-next.sh neither turns auto-merge on nor rebases it.
+      addLabels: ['no-automerge'],
     },
     {
       // Talos and Kubernetes: talosVersion / kubernetesVersion in

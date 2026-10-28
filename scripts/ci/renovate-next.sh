@@ -11,9 +11,12 @@
 # time. Renovate rebases and signs it, CI runs once, auto-merge merges it, the
 # push to main runs this again.
 #
-# Considered: open, not draft, by Renovate, with auto-merge on (the pull
-# requests that wait for a human, cilium for one, are left alone). Oldest
-# first.
+# Considered: open, not draft, by Renovate, oldest first. Renovate does not
+# always turn GitHub auto-merge on (#837), so this does it for every
+# candidate that lacks it. Left alone: the label `no-automerge` (the
+# exceptions in .github/renovate.json5, data-store majors), and the label
+# `automerge-weekdays` (cilium) outside Monday-Friday 9:00-16:59
+# Europe/Zurich, Renovate's automergeSchedule for it.
 #
 #   1. Something is already moving: a rebase is requested (box ticked), or a
 #      pull request is up to date with main and its `ci` check is queued or
@@ -22,8 +25,10 @@
 #      gets its box ticked. A failed `ci` waits for Renovate's next update or
 #      a human; it does not block the others.
 #
-# Prints one line, what it did and why. Environment: REPO (owner/name),
-# GH (default gh), DRY_RUN (1: decide, change nothing). Needs gh and jq.
+# Prints one line per auto-merge turned on, then one line, what it did and
+# why. Environment: REPO (owner/name), GH (default gh), DRY_RUN (1: decide,
+# change nothing), NOW (`<weekday 1-7> <hour>`, default the time in
+# Europe/Zurich; for tests). Needs gh and jq.
 set -euo pipefail
 
 : "${REPO:?}"
@@ -32,15 +37,32 @@ DRY_RUN=${DRY_RUN:-0}
 BOX='- [ ] <!-- rebase-check -->'
 TICKED='- [x] <!-- rebase-check -->'
 
+NOW=${NOW:-$(TZ=Europe/Zurich date +'%u %H')}
+read -r dow hour <<<"$NOW"
+weekdays=false
+if [ "$dow" -le 5 ] && [ "$((10#$hour))" -ge 9 ] && [ "$((10#$hour))" -le 16 ]; then weekdays=true; fi
+
 prs=$($GH pr list --repo "$REPO" --author app/renovate --state open --limit 100 \
-  --json number,isDraft,autoMergeRequest,createdAt,headRefOid,body,statusCheckRollup)
+  --json number,isDraft,autoMergeRequest,createdAt,headRefOid,body,statusCheckRollup,labels)
+prs=$(jq --argjson wd "$weekdays" '[.[] | select(.isDraft | not)
+  | ([.labels[]?.name]) as $l
+  | select($l | index("no-automerge") | not)
+  | select($wd or ($l | index("automerge-weekdays") | not))]' <<<"$prs")
+
+for n in $(jq -r '.[] | select(.autoMergeRequest == null) | .number' <<<"$prs"); do
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "#$n: would turn auto-merge on (dry run)"
+  else
+    $GH pr merge "$n" --repo "$REPO" --auto --squash >/dev/null
+    echo "#$n: auto-merge turned on"
+  fi
+done
 
 # One line per candidate, oldest first: number, head SHA, ci state, ticked.
 # The ci state is the conclusion when the check completed, else its status
 # (QUEUED, IN_PROGRESS, ...), MISSING when there is no `ci` check yet.
 rows=$(jq -r --arg ticked "$TICKED" '
-  [.[] | select(.isDraft | not) | select(.autoMergeRequest != null)]
-  | sort_by(.createdAt)[]
+  sort_by(.createdAt)[]
   | [ .number, .headRefOid,
       ([.statusCheckRollup[]? | select(.name == "ci")] | last
         | if . == null then "MISSING"
@@ -50,7 +72,7 @@ rows=$(jq -r --arg ticked "$TICKED" '
   | @tsv' <<<"$prs")
 
 if [ -z "$rows" ]; then
-  echo "no Renovate pull request with auto-merge open"
+  echo "no Renovate pull request to merge"
   exit 0
 fi
 
