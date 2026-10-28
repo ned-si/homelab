@@ -13,7 +13,9 @@
 # namespace (names and ages only; values are never read into this script).
 #
 # Read-only: kubectl get / exec of a read-only psql
-# (default_transaction_read_only=on), `talosctl get services etcd` on each
+# (default_transaction_read_only=on; where exec is forbidden, as for the
+# alert-triage ServiceAccount, the counts print `unavailable (no exec)`
+# and the run goes on), `talosctl get services etcd` on each
 # control plane, nc -z, two HTTPS calls for the WAN address. Every call is
 # bounded (kubectl --request-timeout, talosctl under a 20 s alarm, nc -G,
 # curl -m).
@@ -181,9 +183,11 @@ immich=null
 pod=$(k -n immich get pod -l cnpg.io/cluster=immich-db,role=primary -o name 2>/dev/null | head -n 1)
 if [ -n "$pod" ]; then
   rows=$(k -n immich exec "${pod#pod/}" -c postgres -- env PGOPTIONS='-c default_transaction_read_only=on' \
-    psql -d app -tAc 'select type, count(*) from asset where "deletedAt" is null group by type' 2>/dev/null)
-  immich=$(printf '%s\n' "$rows" | awk -F'|' 'NF == 2 && $2 ~ /^[0-9]+$/ { printf "%s\t%s\n", $1, $2 }' \
+    psql -d app -tAc 'select type, count(*) from asset where "deletedAt" is null group by type' 2> "$T/immich.err")
+  if grep -qi forbidden "$T/immich.err"; then immich='"no exec"'
+  else immich=$(printf '%s\n' "$rows" | awk -F'|' 'NF == 2 && $2 ~ /^[0-9]+$/ { printf "%s\t%s\n", $1, $2 }' \
     | jq -R -c 'split("\t") | {(.[0] | ascii_downcase): (.[1] | tonumber)}' | jq -c -s 'if length == 0 then null else add end')
+  fi
 fi
 printf '%s\n' "${immich:-null}" > "$T/immich.json"
 
@@ -279,7 +283,8 @@ show '[.cnpg[] | select(.phase != "Cluster in healthy state")] as $b
     else ($b[] | ["bad", "CNPG \(.ns)/\(.name)  \(.ready)/\(.instances)  \(.phase)"] | @tsv) end'
 show 'select(.in_cluster) | ["info", "NAS unavailable (in cluster)"] | @tsv'
 show '.nas | .host as $h | .ports[] | [(if .open then "ok" else "bad" end), "NAS \($h):\(.port) \(if .open then "open" else "CLOSED" end)"] | @tsv'
-show 'if .immich == null then ["warn", "Immich counts unavailable"] else ["info", "Immich  \(.immich | to_entries | map("\(.key) \(.value)") | join("  "))"] end | @tsv'
+show 'if .immich == null then ["warn", "Immich counts unavailable"]
+  elif (.immich | type) == "string" then ["info", "Immich counts unavailable (\(.immich))"] else ["info", "Immich  \(.immich | to_entries | map("\(.key) \(.value)") | join("  "))"] end | @tsv'
 
 step "Certificates"
 show '.certificates[] | [(if (.ready | not) then "bad" elif .days != null and .days < $certwarn then "warn" else "ok" end),

@@ -88,5 +88,5 @@ spec:
       serviceAccountName: usage-exporter
       volumes:
       - configMap:
-          name: usage-exporter-5245t5c2mk
+          name: usage-exporter-db8tctm527
         name: app
