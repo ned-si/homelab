@@ -63,20 +63,20 @@ clickhouse:
       registry: docker.io
       repository: altinity/clickhouse-operator
       # renovate: datasource=docker depName=docker.io/altinity/clickhouse-operator
-      tag: 0.28.0@sha256:1aac6ea05b973d2de2c1c9491be3090448c202e88ea963bd1303adc6c8d76b44
+      tag: 0.28.0@sha256:706e2f2a143c22f3f8668423ad33c705109b199e858dc734c6d026944fccf6ae
     metricsExporter:
       image:
         registry: docker.io
         repository: altinity/metrics-exporter
         # renovate: datasource=docker depName=docker.io/altinity/metrics-exporter
-        tag: 0.28.0@sha256:7598bb34cc0738d25d101ebec0aee0baf40da17a7ff82340c3b79b388bfcf0d7
+        tag: 0.28.0@sha256:8170d805cd375724d38305edeaf6f202f549113090b3dc7a126426b8863444ce
 
 signoz:
   image:
     registry: docker.io
     repository: signoz/signoz
     # renovate: datasource=docker depName=docker.io/signoz/signoz
-    tag: v0.148.0@sha256:6585f5cd48cc00b7718435379ebe69b78949c5a3ba4b5a3aabf166d4d321e505
+    tag: v0.147.0@sha256:f60a66839f466a4433c8e807ccaaae8c91d70be06ca1c95dba5389648796c51b
   # Metadata (users, dashboards, saved views): backed up nightly to S3
   # (platform/signoz/resources/backup.yaml), so the volume itself is plain
   # `iscsi`. The chart's global.storageClass wins over this key anyway.
