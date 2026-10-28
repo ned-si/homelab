@@ -14,15 +14,21 @@
 # others still run.
 #
 # Exit 0: nothing found. Exit 1: at least one finding, status.sh red
-# included. Read-only: status.sh, kubectl get and exec of `amtool alert
-# query` only, and `git fetch`.
+# included. Read-only: status.sh, kubectl get, one GET of the Alertmanager
+# API and `git fetch`; no exec, so it runs under a ServiceAccount without
+# `pods/exec` (spec alert-triage).
 #
-# Environment: KUBECTL (default `kubectl`), GIT (default `git`), STATUS
+# Environment: AM_URL (Alertmanager base URL, as in the cluster:
+# http://kube-prometheus-stack-alertmanager.monitoring:9093; unset, the API
+# is read through the kube-apiserver's service proxy), KUBECTL (default
+# `kubectl`), CURL (default `curl`), GIT (default `git`), STATUS
 # (default scripts/status.sh), SINCE_MERGES
 # (default `6 hours ago`), EVENTS_MINUTES (default 30), for tests.
 set -uo pipefail
 
 KUBECTL=${KUBECTL:-kubectl}
+CURL=${CURL:-curl}
+AM_URL=${AM_URL:-}
 GIT=${GIT:-git}
 SINCE_MERGES=${SINCE_MERGES:-6 hours ago}
 EVENTS_MINUTES=${EVENTS_MINUTES:-30}
@@ -53,13 +59,21 @@ if events=$($KUBECTL get events -A --field-selector type=Warning -o json 2>/dev/
     | "\(.involvedObject.namespace // "-")/\(.involvedObject.kind)/\(.involvedObject.name) \(.reason) x\(.total): \(.message | gsub("\n"; " ") | .[0:160])"' <<<"$events")"
 else unavailable "Warning events" "kubectl get events"; fi
 
-if alerts=$($KUBECTL -n monitoring exec sts/alertmanager-kube-prometheus-stack-alertmanager -c alertmanager -- \
-    amtool alert query --alertmanager.url=http://localhost:9093 -o json 2>/dev/null); then
+am_query='api/v2/alerts?active=true&silenced=false&inhibited=false'
+am_alerts() {
+  if [ -n "$AM_URL" ]; then
+    $CURL -fsS -m 10 "${AM_URL%/}/$am_query"
+  else
+    $KUBECTL get --request-timeout=10s --raw \
+      "/api/v1/namespaces/monitoring/services/http:kube-prometheus-stack-alertmanager:9093/proxy/$am_query"
+  fi
+}
+if alerts=$(am_alerts 2>/dev/null) && jq -e 'type == "array"' <<<"$alerts" >/dev/null 2>&1; then
   section "Firing alerts" "$(jq -r '.[] | select(.labels.alertname != "Watchdog" and .labels.alertname != "InfoInhibitor")
     | select((.status.silencedBy | length) == 0 and (.status.inhibitedBy | length) == 0)
     | "\(.labels.alertname) severity=\(.labels.severity // "-") action=\(.labels.action // "-") since=\(.startsAt[0:16])"
       + ([.labels | to_entries[] | select(.key | IN("namespace","name","node","app","pod","workload","binary")) | " \(.key)=\(.value)"] | join(""))' <<<"$alerts")"
-else unavailable "Firing alerts" "amtool in the Alertmanager pod"; fi
+else unavailable "Firing alerts" "the Alertmanager API"; fi
 
 # Informational: merges are context, not findings.
 $GIT -C "$root" fetch -q origin main 2>/dev/null || true

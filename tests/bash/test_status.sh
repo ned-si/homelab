@@ -66,6 +66,8 @@ case "$s" in
   "get cronjobs -A -o json") cat "$f/cronjobs.json" ;;
   "-n immich get pod -l cnpg.io/cluster=immich-db,role=primary -o name") echo "pod/immich-db-1" ;;
   "-n immich exec immich-db-1 -c postgres -- env PGOPTIONS=-c default_transaction_read_only=on psql -d app -tAc "*)
+    # STATUS_NO_EXEC: exec is forbidden, as for the alert-triage ServiceAccount.
+    [ -n "${STATUS_NO_EXEC:-}" ] && { echo 'Error from server (Forbidden): pods "immich-db-1" is forbidden: cannot create resource "pods/exec"' >&2; exit 1; }
     printf 'IMAGE|100\nVIDEO|10\n' ;;
   *) echo "fake kubectl: unexpected call: $s" >&2; exit 1 ;;
 esac
@@ -224,5 +226,12 @@ rc=0; out=$(STATUS_TALOS_FAIL=1 "$STATUS" 2>&1) || rc=$?
 expect_eq "exit 1" 1 "$rc"
 expect_contains "etcd unreadable, not 0/3" "etcd health unreadable (talosctl: no node answered" "$out"
 case "$out" in *"etcd 0/"*) bad "no 0/N count" ;; *) ok "no 0/N count" ;; esac
+
+
+echo "exec forbidden (the alert-triage ServiceAccount)"
+mkfix
+rc=0; out=$(STATUS_NO_EXEC=1 "$STATUS" --no-color 2>&1) || rc=$?
+expect_eq "a forbidden exec is not a problem" 0 "$rc"
+expect_contains "counts say why" "Immich counts unavailable (no exec)" "$out"
 
 finish
