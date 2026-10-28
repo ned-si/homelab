@@ -73,8 +73,6 @@ spec:
       kind: APIService # metrics-server: v1beta1.metrics.k8s.io
     - group: policies.kyverno.io
       kind: ValidatingPolicy # kyverno-policies/, Audit only
-    - group: policies.kyverno.io
-      kind: DeletingPolicy # kyverno-policies/delete-shutdown-pods.yaml
     # Webhooks. cert-manager's chart ships its own: its webhook Deployment
     # validates every Certificate/Issuer, and cainjector writes the CA bundle
     # into both configurations at runtime (which is why
