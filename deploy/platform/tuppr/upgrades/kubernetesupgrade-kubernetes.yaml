@@ -28,4 +28,4 @@ spec:
     namespace: argo
     timeout: 15m
   kubernetes:
-    version: v1.37.1
+    version: v1.37.2
