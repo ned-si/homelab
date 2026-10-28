@@ -12,9 +12,8 @@
 #   - no Helm hooks: Argo CD would run them on every sync.
 #
 # Off to save memory on the SBCs: the background controller (generate and
-# mutate-existing policies, none here). The cleanup controller runs the
-# DeletingPolicies (infrastructure/kyverno-policies/delete-shutdown-pods.yaml).
-# The reports controller runs the hourly background
+# mutate-existing policies, none here) and the cleanup controller (cleanup
+# policies, none here). The reports controller runs the hourly background
 # scan and writes the wgpolicyk8s.io PolicyReports.
 #
 # Images are pinned by digest; Renovate moves tag and digest together with the
@@ -91,26 +90,7 @@ backgroundController:
   enabled: false
 
 cleanupController:
-  enabled: true
-  replicas: 1
-  image:
-    registry: ghcr.io
-    repository: kyverno/cleanup-controller
-    # renovate: datasource=docker depName=ghcr.io/kyverno/cleanup-controller
-    tag: v1.19.2@sha256:d7340aa7c9315080c3dafa7b765d090ced37353e89e5cd7a3f9ac69e8fb532b2
-  rbac:
-    clusterRole:
-      # What the DeletingPolicies delete; the chart grants no deletes.
-      extraResources:
-        - apiGroups: [""]
-          resources: [pods]
-          verbs: [get, list, watch, delete]
-  resources:
-    requests:
-      cpu: 20m
-      memory: 64Mi
-    limits:
-      memory: 128Mi
+  enabled: false
 
 reportsController:
   replicas: 1

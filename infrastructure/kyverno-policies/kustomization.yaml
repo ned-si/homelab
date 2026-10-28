@@ -17,8 +17,6 @@ kind: Kustomization
 resources:
   - ../../policies/kyverno
   - ../../policies/kyverno/exceptions
-  # Cluster housekeeping, not an admission policy: not run by CI over deploy/.
-  - delete-shutdown-pods.yaml
 
 patches:
   - target:

@@ -38,8 +38,7 @@ TUPPR=0.5.7
 TAILSCALE=v1.104.1
 # The Altinity ClickHouse operator of the SigNoz chart (ClickHouseInstallation).
 CLICKHOUSE_OPERATOR=0.21.2
-# Kyverno ValidatingPolicy, PolicyException and DeletingPolicy
-# (infrastructure/kyverno-policies),
+# Kyverno ValidatingPolicy and PolicyException (infrastructure/kyverno-policies),
 # at the release of the kyverno chart's appVersion.
 KYVERNO=v1.19.1
 # Tetragon TracingPolicy (platform/tetragon), at the chart's release.
@@ -93,7 +92,7 @@ done
 add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_proxyclasses.yaml"
 add "https://raw.githubusercontent.com/tailscale/tailscale/$TAILSCALE/cmd/k8s-operator/deploy/crds/tailscale.com_connectors.yaml"
 add "https://raw.githubusercontent.com/Altinity/clickhouse-operator/$CLICKHOUSE_OPERATOR/deploy/helm/crds/CustomResourceDefinition-clickhouseinstallations.clickhouse.altinity.com.yaml"
-for k in validatingpolicies policyexceptions deletingpolicies; do
+for k in validatingpolicies policyexceptions; do
   add "https://raw.githubusercontent.com/kyverno/kyverno/$KYVERNO/config/crds/policies.kyverno.io/policies.kyverno.io_$k.yaml"
 done
 add "https://raw.githubusercontent.com/cilium/tetragon/$TETRAGON/pkg/k8s/apis/cilium.io/client/crds/v1alpha1/cilium.io_tracingpolicies.yaml"
