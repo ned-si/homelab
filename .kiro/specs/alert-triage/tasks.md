@@ -15,13 +15,16 @@ One PR per task, in order; each is safe on its own.
 - [x] 3. triage.sh reads Alertmanager over HTTP (`AM_URL`; unset, through
       the kube-apiserver's service proxy, for a local run); status.sh
       reports `unavailable (no exec)` for a forbidden exec; bash tests. [4.1]
+- [x] 4. The receiver (`platform/alert-triage/receiver/receiver.py`,
+      stdlib): webhook handler, alert-name check, incident ID, Job
+      templates, JSON logs, pytest. The message builder is in the Job
+      (`scripts/alert-triage-job.sh`, bash test): the Job has the counts,
+      the receiver never sees the snapshot. The Job sets `IN_CLUSTER=1` for
+      status.sh (#822). `scripts/alert-triage.sh` and its test removed.
+      [1.1, 1.3, 2.1, 3.1, 3.2, 4.3]
 
 ## Open
 
-- [ ] 4. The receiver (`platform/alert-triage/receiver/`, Python, stdlib):
-      webhook handler, alert-name check, incident ID, Job templates, message
-      builder, JSON logs, unittest; remove `scripts/alert-triage.sh` and its
-      test. No cluster objects yet. [1.1, 1.3, 2.1, 3.1, 3.2, 4.3]
 - [ ] 5. Namespace `alert-triage`: Deployment, Service, the ServiceAccounts
       and Roles, the empty fix table, the Kyverno policy with its CLI test,
       the CiliumNetworkPolicies, and the Alertmanager route (`action=human`,

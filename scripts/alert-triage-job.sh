@@ -34,6 +34,8 @@ if ! [[ $ALERTNAME =~ ^[A-Za-z0-9]+$ ]] || ! [[ $INCIDENT_ID =~ ^[0-9a-f]{16}$ ]
   exit 1
 fi
 
+# In the Job: status.sh skips the checks that need the operator's machine.
+export IN_CLUSTER=1
 out=$("$TRIAGE" "$ALERTNAME" 2>&1); rc=$?
 while IFS= read -r line; do log snapshot "$line"; done <<<"$out"
 
