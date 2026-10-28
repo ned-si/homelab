@@ -9,7 +9,8 @@ SRC = Path(__file__).resolve().parent.parent / "platform" / "usage-exporter" / "
 ANSWERS = {
     "/api/server/statistics": {"photos": 10, "videos": 2, "usage": 1000, "usageByUser": [
         {"userId": "u1", "userName": "alice", "photos": 7, "videos": 1, "usage": 600, "quotaSizeInBytes": None},
-        {"userId": "u2", "userName": "bob", "photos": 3, "videos": 1, "usage": 400, "quotaSizeInBytes": 5000}]},
+        {"userId": "u2", "userName": "bob", "photos": 3, "videos": 1, "usage": 400, "quotaSizeInBytes": 5000},
+        {"userId": "u3", "userName": "bob", "photos": 0, "videos": 0, "usage": 0, "quotaSizeInBytes": None}]},
     "/Items/Counts": {"MovieCount": 5, "SeriesCount": 2, "EpisodeCount": 40, "ItemCount": 47},
     "/Sessions": [{"UserName": "alice", "NowPlayingItem": {"Type": "Movie"}},
                   {"UserName": "alice", "NowPlayingItem": {"Type": "Episode"}},
@@ -37,10 +38,11 @@ def metrics(text: str) -> dict[str, float]:
 def test_both_sources(monkeypatch):
     m = metrics(load(monkeypatch, IMMICH_API_KEY="k1", JELLYFIN_API_KEY="k2").collect())
     assert m['immich_assets{type="photo"}'] == 10
-    assert m['immich_user_assets{type="video",user="bob"}'] == 1
-    assert m['immich_user_usage_bytes{user="alice"}'] == 600
-    assert m['immich_user_quota_bytes{user="bob"}'] == 5000
-    assert 'immich_user_quota_bytes{user="alice"}' not in m
+    assert m['immich_user_assets{type="video",user="bob",user_id="u2"}'] == 1
+    assert m['immich_user_assets{type="video",user="bob",user_id="u3"}'] == 0
+    assert m['immich_user_usage_bytes{user="alice",user_id="u1"}'] == 600
+    assert m['immich_user_quota_bytes{user="bob",user_id="u2"}'] == 5000
+    assert 'immich_user_quota_bytes{user="alice",user_id="u1"}' not in m
     assert m['jellyfin_items{type="movie"}'] == 5
     assert m['jellyfin_items{type="item"}'] == 47
     assert m["jellyfin_streams"] == 2
