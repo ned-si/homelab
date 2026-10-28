@@ -19,6 +19,7 @@ set -euo pipefail
 case "$1 $2" in
   "pr list") cat "$FAKE/prs.json" ;;
   "api repos/o/r/compare/"*) sha=${2##*...}; cat "$FAKE/behind/$sha" ;;
+  "pr merge") echo "$*" >"$FAKE/merge-$3" ;;
   "api -X")
     n=${4##*/}
     cat >"$FAKE/patch-$n"
@@ -33,7 +34,7 @@ export FAKE
 BOX='- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box'
 TICKED='- [x] <!-- rebase-check -->If you want to rebase/retry this PR, check this box'
 
-# pr <number> <created> <sha> <ci: SUCCESS|FAILURE|IN_PROGRESS|none> [ticked] [draft] [manual]
+# pr <number> <created> <sha> <ci: SUCCESS|FAILURE|IN_PROGRESS|none> [ticked] [draft] [manual] [label]
 pr() {
   local body draft=false am='{"enabledAt":"x"}' checks
   case "$4" in
@@ -45,17 +46,19 @@ pr() {
   [ "${5:-}" = ticked ] && body=$TICKED
   [ "${6:-}" = draft ] && draft=true
   [ "${7:-}" = manual ] && am=null
+  local labels='[]'
+  [ -n "${8:-}" ] && labels="[{\"name\":\"$8\"}]"
   jq -n --argjson n "$1" --arg c "$2" --arg s "$3" --arg b "intro
 $body
-outro" --argjson d "$draft" --argjson a "$am" --argjson k "$checks" \
-    '{number: $n, createdAt: $c, headRefOid: $s, body: $b, isDraft: $d, autoMergeRequest: $a, statusCheckRollup: $k}'
+outro" --argjson d "$draft" --argjson a "$am" --argjson k "$checks" --argjson l "$labels" \
+    '{number: $n, createdAt: $c, headRefOid: $s, body: $b, isDraft: $d, autoMergeRequest: $a, statusCheckRollup: $k, labels: $l}'
 }
 setup() { # <pr json>...
-  rm -f "$FAKE"/patch-*
+  rm -f "$FAKE"/patch-* "$FAKE"/merge-*
   jq -s . <<<"$*" >"$FAKE/prs.json"
 }
 behind() { echo "$2" >"$FAKE/behind/$1"; }
-run() { REPO=o/r GH="$tmp/gh" "$NEXT" 2>&1; }
+run() { REPO=o/r GH="$tmp/gh" NOW="${NOW:-3 10}" "$NEXT" 2>&1; }
 
 echo "renovate-next"
 
@@ -81,9 +84,22 @@ expect_eq "a requested rebase holds the train" "#12: rebase already requested; w
 setup "$(pr 11 2026-10-01 a1 FAILURE)" "$(pr 12 2026-10-02 b2 SUCCESS)"
 expect_eq "a failed ci is skipped, the next one goes" "#12: rebase requested" "$(run)"
 
-setup "$(pr 11 2026-10-01 a1 SUCCESS x draft)" "$(pr 10 2026-09-30 b2 SUCCESS x x manual)"
-expect_eq "drafts and pull requests without auto-merge are left alone" \
-  "no Renovate pull request with auto-merge open" "$(run)"
+setup "$(pr 11 2026-10-01 a1 SUCCESS x draft)"
+expect_eq "drafts are left alone" "no Renovate pull request to merge" "$(run)"
+
+setup "$(pr 10 2026-09-30 a1 SUCCESS x x manual)"
+expect_eq "auto-merge turned on, then rebased" "#10: auto-merge turned on
+#10: rebase requested" "$(run)"
+expect_eq "squash auto-merge" "pr merge 10 --repo o/r --auto --squash" "$(cat "$FAKE/merge-10")"
+
+setup "$(pr 10 2026-09-30 a1 SUCCESS x x manual no-automerge)" "$(pr 12 2026-10-02 b2 SUCCESS)"
+expect_eq "no-automerge is left alone" "#12: rebase requested" "$(run)"
+expect_eq "no-automerge gets no auto-merge" "no" "$([ -e "$FAKE/merge-10" ] && echo yes || echo no)"
+
+setup "$(pr 10 2026-09-30 a1 SUCCESS x x x automerge-weekdays)" "$(pr 12 2026-10-02 b2 SUCCESS)"
+expect_eq "automerge-weekdays waits outside the window" "#12: rebase requested" "$(NOW='6 10' run)"
+expect_eq "automerge-weekdays goes inside the window" "#10: rebase requested" "$(NOW='2 16' run)"
+expect_eq "automerge-weekdays waits in the evening" "#12: rebase requested" "$(NOW='2 17' run)"
 
 setup "$(pr 13 2026-10-03 c3 FAILURE)"
 expect_eq "nothing behind and nothing running: nothing to do" \
