@@ -8,11 +8,12 @@
 #      from main with scripts/talos-genconfig.sh, as `task talos:genconfig`
 #      does with talos/talsecret.sops.yaml. The age key never enters the
 #      cluster; same secrets in, same bytes out.
-#   4. Compare sha256 per node (see norm) and push talos_config_drift{node} (1 = differs
+#   4. Ask Talos per node (`apply-config --dry-run`, applies nothing) and
+#      push talos_config_drift{node} (1 = differs
 #      from main) and the run timestamp to the Pushgateway.
 #
 # Configs and secrets stay in a memory-backed emptyDir and are never printed;
-# the log shows node names, match or drift, and hash prefixes.
+# the log shows node names, match or drift, and the size of a diff.
 set -euo pipefail
 
 REPO=${REPO:-ned-si/homelab}
@@ -61,15 +62,11 @@ TALOS_SECRET_FILE="$work/secrets.yaml" TALOS_OUT_DIR="$work/gen" \
 # one lacks; drop blank lines before a document separator on both sides. The
 # Tailscale auth key is sealed in talos/talenv.sops.yaml and renders as a
 # placeholder here: its value is masked on both sides.
-norm() {
-  # Comments are dropped: the running config carries Talos' documentation
-  # comments since 2026-10-28, the rendered one does not. A comment is a line
-  # that starts with `#`, or ` # ` and what follows it.
-  sed -E 's/TS_AUTHKEY=.*/TS_AUTHKEY=-/; /^[[:space:]]*#/d; s/[[:space:]]+#[[:space:]].*$//' "$1" |
-    awk '/^$/ { n++; next } { if ($0 != "---") for (; n > 0; n--) print ""; n = 0; print }
-         END { for (; n > 0; n--) print "" }' | sha256sum | cut -c1-64
-}
-
+# Compared by Talos itself: `apply-config --dry-run` parses both configs and
+# reports "No changes." when they mean the same, whatever the layout. A byte
+# comparison broke on 2026-10-28, when the stored configs gained Talos'
+# documentation comments and a different layout. --dry-run applies nothing;
+# the diff is not logged (it can hold secrets), only its size.
 metrics="$work/metrics.txt"
 {
   echo "# TYPE talos_config_drift gauge"
@@ -77,14 +74,14 @@ metrics="$work/metrics.txt"
 } > "$metrics"
 drift=0
 while read -r host ip; do
-  want=$(norm "$work/gen/homelab-$host.yaml")
-  have=$(norm "$work/live/$host.yaml")
-  if [ "$want" = "$have" ]; then
-    v=0; echo "talos-drift: $host ($ip) matches main (${have:0:12})"
+  out=$(talosctl -n "$ip" apply-config -f "$work/gen/homelab-$host.yaml" --dry-run 2>&1)
+  if grep -q '^No changes\.$' <<< "$out"; then
+    v=0; echo "talos-drift: $host ($ip) matches main"
   else
     v=1; drift=$((drift + 1))
-    echo "talos-drift: $host ($ip) DRIFT: running ${have:0:12}, main renders ${want:0:12}"
+    echo "talos-drift: $host ($ip) DRIFT: $(grep -c . <<< "$out") line(s) of diff from main"
   fi
+  unset out
   echo "talos_config_drift{node=\"$host\"} $v" >> "$metrics"
 done <<< "$nodes"
 {
