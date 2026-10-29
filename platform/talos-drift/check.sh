@@ -39,13 +39,15 @@ cd "$work/src"/*/
 nodes=$(awk '/^ *- hostname:/ {h=$3} /^ *ipAddress:/ {print h, $2}' talos/talconfig.yaml)
 [ -n "$nodes" ] || { echo "talos-drift: no nodes in talos/talconfig.yaml" >&2; exit 1; }
 
+# The running config may carry Talos' documentation comments
+# (`type: controlplane # Defines the role ...`), as it has since 2026-10-28.
 cp_live=""
 while read -r host ip; do
   # $(...) drops every trailing newline; printf puts back the one the file has.
   spec=$(talosctl -n "$ip" get machineconfig v1alpha1 -o jsonpath='{.spec}')
   printf '%s\n' "$spec" > "$work/live/$host.yaml"
   unset spec
-  if [ -z "$cp_live" ] && grep -qE '^ +type: controlplane$' "$work/live/$host.yaml"; then
+  if [ -z "$cp_live" ] && grep -qE '^ +type: controlplane( +#.*)?$' "$work/live/$host.yaml"; then
     cp_live="$work/live/$host.yaml"
   fi
 done <<< "$nodes"
