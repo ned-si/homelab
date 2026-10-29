@@ -58,10 +58,18 @@ talosctl gen secrets --from-controlplane-config "$cp_live" -o "$work/secrets.yam
 TALOS_SECRET_FILE="$work/secrets.yaml" TALOS_OUT_DIR="$work/gen" \
   scripts/talos-genconfig.sh > /dev/null
 
-# The running config has a blank line before the first `---` that the rendered
-# one lacks; drop blank lines before a document separator on both sides. The
-# Tailscale auth key is sealed in talos/talenv.sops.yaml and renders as a
-# placeholder here: its value is masked on both sides.
+# The Tailscale auth key is sealed in talos/talenv.sops.yaml and renders as a
+# placeholder here, so the running node's value is copied into the rendered
+# config before the comparison (key_from_live); it is never printed.
+key_from_live() { # <live> <rendered>
+  K=$(grep -m 1 -o 'TS_AUTHKEY=[^"[:space:]]*' "$1" || true) awk '
+    ENVIRON["K"] != "" && match($0, /TS_AUTHKEY=[^"[:space:]]*/) {
+      $0 = substr($0, 1, RSTART - 1) ENVIRON["K"] substr($0, RSTART + RLENGTH)
+    }
+    { print }
+  ' "$2" > "$2.tmp" && mv -f "$2.tmp" "$2"
+}
+
 # Compared by Talos itself: `apply-config --dry-run` parses both configs and
 # reports "No changes." when they mean the same, whatever the layout. A byte
 # comparison broke on 2026-10-28, when the stored configs gained Talos'
@@ -74,6 +82,7 @@ metrics="$work/metrics.txt"
 } > "$metrics"
 drift=0
 while read -r host ip; do
+  key_from_live "$work/live/$host.yaml" "$work/gen/homelab-$host.yaml"
   out=$(talosctl -n "$ip" apply-config -f "$work/gen/homelab-$host.yaml" --dry-run 2>&1)
   if grep -q '^No changes\.$' <<< "$out"; then
     v=0; echo "talos-drift: $host ($ip) matches main"
