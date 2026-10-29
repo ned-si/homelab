@@ -76,7 +76,7 @@ signoz:
     registry: docker.io
     repository: signoz/signoz
     # renovate: datasource=docker depName=docker.io/signoz/signoz
-    tag: v0.148.0@sha256:6585f5cd48cc00b7718435379ebe69b78949c5a3ba4b5a3aabf166d4d321e505
+    tag: v0.148.1@sha256:a7d1a968a1f7f65c518106150ac05424ca8e91c52d7076077dfce034980e9c34
   # Metadata (users, dashboards, saved views): backed up nightly to S3
   # (platform/signoz/resources/backup.yaml), so the volume itself is plain
   # `iscsi`. The chart's global.storageClass wins over this key anyway.
