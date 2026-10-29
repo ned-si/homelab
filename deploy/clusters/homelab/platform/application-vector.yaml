@@ -28,7 +28,7 @@ spec:
       valueFiles:
       - $values/platform/vector/values.yaml
     repoURL: https://helm.vector.dev
-    targetRevision: 0.60.0
+    targetRevision: 0.61.0
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
