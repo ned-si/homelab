@@ -24,11 +24,7 @@ work=${WORK_DIR:?}
 # busybox wget (the image has no curl).
 get() { wget -q -T 60 -O - "$@"; }
 
-# The commit of main from the git smart-HTTP ref list, not the REST API: the
-# API's unauthenticated quota (60/h per IP) is shared with github-exporter
-# and ran out on 2026-10-29 (403), which failed the run.
-sha=$(get "https://github.com/$REPO.git/info/refs?service=git-upload-pack" |
-  awk '$2 == "refs/heads/main" { print substr($1, length($1) - 39) }')
+sha=$(get --header 'Accept: application/vnd.github.sha' "https://api.github.com/repos/$REPO/commits/main")
 case "$sha" in *[!0-9a-f]* | "") echo "talos-drift: bad commit id from GitHub" >&2; exit 1 ;; esac
 mkdir -p "$work/src" "$work/live"
 get "https://codeload.github.com/$REPO/tar.gz/$sha" | tar -xz -C "$work/src"
