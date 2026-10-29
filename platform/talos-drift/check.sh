@@ -62,7 +62,10 @@ TALOS_SECRET_FILE="$work/secrets.yaml" TALOS_OUT_DIR="$work/gen" \
 # Tailscale auth key is sealed in talos/talenv.sops.yaml and renders as a
 # placeholder here: its value is masked on both sides.
 norm() {
-  sed 's/TS_AUTHKEY=.*/TS_AUTHKEY=-/' "$1" |
+  # Comments are dropped: the running config carries Talos' documentation
+  # comments since 2026-10-28, the rendered one does not. A comment is a line
+  # that starts with `#`, or ` # ` and what follows it.
+  sed -E 's/TS_AUTHKEY=.*/TS_AUTHKEY=-/; /^[[:space:]]*#/d; s/[[:space:]]+#[[:space:]].*$//' "$1" |
     awk '/^$/ { n++; next } { if ($0 != "---") for (; n > 0; n--) print ""; n = 0; print }
          END { for (; n > 0; n--) print "" }' | sha256sum | cut -c1-64
 }
