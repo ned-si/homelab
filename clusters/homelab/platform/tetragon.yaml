@@ -22,7 +22,7 @@ spec:
     - repoURL: https://helm.cilium.io
       chart: tetragon
       # renovate: datasource=helm depName=tetragon registryUrl=https://helm.cilium.io
-      targetRevision: 1.7.1
+      targetRevision: 1.8.0
       helm:
         releaseName: tetragon
         valueFiles:
