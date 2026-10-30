@@ -28,7 +28,7 @@ spec:
       valueFiles:
       - $values/platform/aws-exporter/values.yaml
     repoURL: https://prometheus-community.github.io/helm-charts
-    targetRevision: 0.48.0
+    targetRevision: 0.49.0
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
