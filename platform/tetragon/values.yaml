@@ -17,7 +17,7 @@ tetragon:
   image:
     repository: quay.io/cilium/tetragon
     # renovate: datasource=docker depName=quay.io/cilium/tetragon
-    tag: v1.7.1@sha256:afc9458ba4bc3f2795da3df6b03d88ce50e175ac3903027de8036e2046b84a02
+    tag: v1.8.0@sha256:5ed9088a1582131d71b06c98e0d549a37a71ae63ab13aabefc7a47553c822a9d
   resources:
     requests:
       cpu: 50m
@@ -46,7 +46,7 @@ tetragonOperator:
   image:
     repository: quay.io/cilium/tetragon-operator
     # renovate: datasource=docker depName=quay.io/cilium/tetragon-operator
-    tag: v1.7.1@sha256:cd8b71f6860e4b969c195baa52ddf337505098157e0123577f2db3328b591379
+    tag: v1.8.0@sha256:af2b6f0a8609d66190f1d5bbdea38a160d5460f2ea416beea42a615aadd8b35a
   resources:
     requests:
       cpu: 10m
