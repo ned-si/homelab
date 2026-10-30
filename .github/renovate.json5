@@ -262,6 +262,12 @@
       groupName: 'cluster networking',
       matchDepNames: ['cilium', 'kubernetes-sigs/gateway-api'],
       minimumReleaseAge: '3 days',
+      // Open the pull request at once instead of after the 3 days; the
+      // `renovate/stability-days` status stays pending until then, and
+      // scripts/ci/renovate-next.sh neither turns auto-merge on nor rebases
+      // it meanwhile (it comments why).
+      internalChecksFilter: 'none',
+      prCreation: 'immediate',
       automergeSchedule: ['* 9-16 * * 1-5'],
       // scripts/ci/renovate-next.sh rebases it inside that window only.
       addLabels: ['automerge-weekdays'],
