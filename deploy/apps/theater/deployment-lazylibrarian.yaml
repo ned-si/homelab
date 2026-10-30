@@ -39,7 +39,7 @@ spec:
           value: "1000"
         - name: UMASK
           value: "002"
-        image: lscr.io/linuxserver/lazylibrarian:998c2418-ls385@sha256:bf00c285c64b014125e8d4589bd057759d352b684a25c65d3b0a1cc0f9647822
+        image: lscr.io/linuxserver/lazylibrarian:8c70ea4d-ls386@sha256:d4322e9e164bddfa225aa5d3436a313eece521a14bb987d2abcde37878f2bc74
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 5
@@ -79,7 +79,7 @@ spec:
         envFrom:
         - secretRef:
             name: lazylibrarian
-        image: lscr.io/linuxserver/lazylibrarian:998c2418-ls385@sha256:bf00c285c64b014125e8d4589bd057759d352b684a25c65d3b0a1cc0f9647822
+        image: lscr.io/linuxserver/lazylibrarian:8c70ea4d-ls386@sha256:d4322e9e164bddfa225aa5d3436a313eece521a14bb987d2abcde37878f2bc74
         imagePullPolicy: IfNotPresent
         name: apply-config
         resources:
