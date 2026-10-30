@@ -238,6 +238,13 @@
       commitMessageTopic: 'chart {{depName}}',
     },
     {
+      // "chart prometheus-yet-another-cloudwatch-exporter" alone puts the
+      // title at 79 characters (#878); YACE is the project's own short name.
+      description: 'Short topic for the YACE chart',
+      matchDepNames: ['prometheus-yet-another-cloudwatch-exporter'],
+      commitMessageTopic: 'chart yace',
+    },
+    {
       // The chart, its images and the vendored policy library are one release.
       description: 'Tetragon chart, images and policy library move together',
       groupName: 'tetragon',
