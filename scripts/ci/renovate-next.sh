@@ -16,7 +16,9 @@
 # candidate that lacks it. Left alone: the label `no-automerge` (the
 # exceptions in .github/renovate.json5, data-store majors), and the label
 # `automerge-weekdays` (cilium) outside Monday-Friday 9:00-16:59
-# Europe/Zurich, Renovate's automergeSchedule for it.
+# Europe/Zurich, Renovate's automergeSchedule for it. A pull request whose
+# `renovate/stability-days` status is pending (minimumReleaseAge) is not
+# merged either; it gets one comment saying so, and joins once it passes.
 #
 #   1. Something is already moving: a rebase is requested (box ticked), or a
 #      pull request is up to date with main and its `ci` check is queued or
@@ -43,7 +45,22 @@ weekdays=false
 if [ "$dow" -le 5 ] && [ "$((10#$hour))" -ge 9 ] && [ "$((10#$hour))" -le 16 ]; then weekdays=true; fi
 
 prs=$($GH pr list --repo "$REPO" --author app/renovate --state open --limit 100 \
-  --json number,isDraft,autoMergeRequest,createdAt,headRefOid,body,statusCheckRollup,labels)
+  --json number,isDraft,autoMergeRequest,createdAt,headRefOid,body,statusCheckRollup,labels,comments)
+# Waiting for minimumReleaseAge: one comment, then left alone until it passes.
+WAIT_MARK='<!-- renovate-next:release-age -->'
+for n in $(jq -r --arg m "$WAIT_MARK" '.[]
+    | select([.statusCheckRollup[]? | select(.context == "renovate/stability-days" and .state != "SUCCESS")] | length > 0)
+    | select([.comments[]?.body | contains($m)] | any | not) | .number' <<<"$prs"); do
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "#$n: would comment: waiting for its release age (dry run)"
+  else
+    $GH pr comment "$n" --repo "$REPO" --body "**[automation]** Not mergeable yet: the release is younger than \`minimumReleaseAge\` (.github/renovate.json5), so \`renovate/stability-days\` is pending. The Renovate train (scripts/ci/renovate-next.sh) turns auto-merge on and rebases it once that check passes.
+$WAIT_MARK" >/dev/null
+    echo "#$n: commented: waiting for its release age"
+  fi
+done
+prs=$(jq '[.[] | select([.statusCheckRollup[]? | select(.context == "renovate/stability-days" and .state != "SUCCESS")] | length == 0)]' <<<"$prs")
+
 prs=$(jq --argjson wd "$weekdays" '[.[] | select(.isDraft | not)
   | ([.labels[]?.name]) as $l
   | select($l | index("no-automerge") | not)

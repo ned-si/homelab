@@ -20,6 +20,7 @@ case "$1 $2" in
   "pr list") cat "$FAKE/prs.json" ;;
   "api repos/o/r/compare/"*) sha=${2##*...}; cat "$FAKE/behind/$sha" ;;
   "pr merge") echo "$*" >"$FAKE/merge-$3" ;;
+  "pr comment") echo "$*" >"$FAKE/comment-$3" ;;
   "api -X")
     n=${4##*/}
     cat >"$FAKE/patch-$n"
@@ -54,7 +55,7 @@ outro" --argjson d "$draft" --argjson a "$am" --argjson k "$checks" --argjson l 
     '{number: $n, createdAt: $c, headRefOid: $s, body: $b, isDraft: $d, autoMergeRequest: $a, statusCheckRollup: $k, labels: $l}'
 }
 setup() { # <pr json>...
-  rm -f "$FAKE"/patch-* "$FAKE"/merge-*
+  rm -f "$FAKE"/patch-* "$FAKE"/merge-* "$FAKE"/comment-*
   jq -s . <<<"$*" >"$FAKE/prs.json"
 }
 behind() { echo "$2" >"$FAKE/behind/$1"; }
@@ -111,5 +112,22 @@ expect_eq "an up-to-date green pull request does not block (auto-merge owns it)"
 setup "$(pr 11 2026-10-01 a1 SUCCESS)"
 expect_eq "dry run changes nothing" "#11: would request a rebase (dry run)" "$(DRY_RUN=1 run)"
 expect_eq "dry run wrote no patch" "no" "$([ -e "$FAKE/patch-11" ] && echo yes || echo no)"
+
+# Release age pending: commented once, no auto-merge, no rebase.
+young() { # <pr json> <state> [commented]: add the stability status (and the comment)
+  local c='[]'
+  [ "${3:-}" = commented ] && c='[{"body":"x <!-- renovate-next:release-age -->"}]'
+  jq --arg s "$2" --argjson c "$c" '.statusCheckRollup += [{"context":"renovate/stability-days","state":$s}] | .comments = $c' <<<"$1"
+}
+setup "$(young "$(pr 10 2026-09-30 a1 SUCCESS x x manual)" PENDING)" "$(pr 12 2026-10-02 b2 SUCCESS)"
+expect_eq "release age pending: comment, then the next one" "#10: commented: waiting for its release age
+#12: rebase requested" "$(run)"
+expect_eq "release age pending: no auto-merge" "no" "$([ -e "$FAKE/merge-10" ] && echo yes || echo no)"
+expect_contains "the comment says why" "minimumReleaseAge" "$(cat "$FAKE/comment-10")"
+setup "$(young "$(pr 10 2026-09-30 a1 SUCCESS x x manual)" PENDING commented)"
+expect_eq "commented once" "no Renovate pull request to merge" "$(run)"
+setup "$(young "$(pr 10 2026-09-30 a1 SUCCESS x x manual)" SUCCESS commented)"
+expect_eq "release age passed: it joins the train" "#10: auto-merge turned on
+#10: rebase requested" "$(run)"
 
 finish
