@@ -29,7 +29,7 @@ spec:
           # kubectl on Alpine: the script needs a shell, registry.k8s.io/kubectl
           # has none.
           # renovate: datasource=docker depName=alpine/kubectl
-          image: alpine/kubectl:1.37.1
+          image: alpine/kubectl:1.37.2
           command: ["/bin/sh", "/scripts/presync-backup.sh"]
           env:
             - name: HOME
