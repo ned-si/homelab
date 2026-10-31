@@ -41,7 +41,7 @@ spec:
           value: immich-db
         - name: ALWAYS_FRESH
           value: "true"
-        image: alpine/kubectl:1.37.1
+        image: alpine/kubectl:1.37.2
         name: backup
         resources:
           limits:

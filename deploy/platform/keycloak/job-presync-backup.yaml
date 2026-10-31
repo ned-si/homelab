@@ -41,7 +41,7 @@ spec:
           value: keycloak-db
         - name: IMAGE_CHECKS
           value: clusters.postgresql.cnpg.io/keycloak-db
-        image: alpine/kubectl:1.37.1
+        image: alpine/kubectl:1.37.2
         name: backup
         resources:
           limits:

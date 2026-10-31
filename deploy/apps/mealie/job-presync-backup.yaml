@@ -41,7 +41,7 @@ spec:
           value: mealie-backup
         - name: IMAGE_CHECKS
           value: clusters.postgresql.cnpg.io/mealie-postgresql
-        image: alpine/kubectl:1.37.1
+        image: alpine/kubectl:1.37.2
         name: backup
         resources:
           limits:

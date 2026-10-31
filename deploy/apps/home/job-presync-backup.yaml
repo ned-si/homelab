@@ -41,7 +41,7 @@ spec:
           value: home-assistant-backup
         - name: IMAGE_CHECKS
           value: clusters.postgresql.cnpg.io/home-assistant-postgresql
-        image: alpine/kubectl:1.37.1
+        image: alpine/kubectl:1.37.2
         name: backup
         resources:
           limits:
