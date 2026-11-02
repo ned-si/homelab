@@ -39,11 +39,13 @@ spec:
               # `init` is idempotent-by-failure: it errors if the repo already
               # exists, which is the normal case after the first run.
               restic init 2>/dev/null || true
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
 
               # Thumbnails and transcodes are excluded because Immich
               # regenerates them from originals -- backing them up would
               # roughly double the bill for data that is derived.
-              restic backup /data \
+              restic backup --retry-lock 30m /data \
                 --tag immich-library \
                 --host immich \
                 --exclude '**/.tmp/**' \
@@ -54,7 +56,8 @@ spec:
               # Cheap structural check on every run. The real verification
               # (actually restoring data) is a separate CronJob:
               # platform/backup-verify/.
-              restic check --with-cache
+              restic unlock
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo

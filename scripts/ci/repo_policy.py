@@ -38,6 +38,13 @@ objects and rule ids only; values are never printed.
                         guarded (initContainers[0] pending-guard, see
                         check_guard); ci/guard-modes.txt entries exist and use a
                         known mode
+  restic-locks          every CronJob with a RESTIC_REPOSITORY sets
+                        failedJobsHistoryLimit >= 1; in every rendered CronJob
+                        command and ConfigMap script, `restic backup|check|forget|
+                        prune|ls` carries --retry-lock on its line (or --no-lock),
+                        `check`/`forget`/`prune` follow a `restic unlock` (or a
+                        forget/prune), `backup` comes after one, and no unlock
+                        uses --remove-all (docs/backups.md#locks)
   root-profiles         clusters/homelab/root.yaml and bootstrap/root-app.yaml pass
                         `root` and are the same Application;
                         clusters/homelab/legacy/all-apps.yaml passes `legacy-root`
@@ -174,6 +181,11 @@ RUNBOOK_BASE = "https://github.com/ned-si/homelab/blob/main/" + RUNBOOK_DIR + "/
 AM_ROUTES = "tests/alertmanager/routes.txt"
 # The restic CronJobs the backup-freshness SLO watches (docs/sre.md, RPO).
 BACKUP_SLO_TARGETS = "platform/kube-prometheus-stack/routes/backup-slo-targets.yaml"
+# restic lock handling (docs/backups.md#locks): commands that take a lock, and
+# those whose lock is exclusive.
+RESTIC_CMD = re.compile(r"(?:^|\$\()restic\s+([a-z]+)\b")
+RESTIC_LOCKING = {"backup", "check", "forget", "prune", "ls"}
+RESTIC_EXCLUSIVE = {"check", "forget", "prune"}
 
 
 class Policy:
@@ -468,6 +480,35 @@ class Policy:
                 self.fail("guard-modes", f"ci/guard-modes.txt: {key} has unknown mode '{mode}'")
             if key not in seen_guarded:
                 self.fail("guard-modes", f"ci/guard-modes.txt: {key} is not a rendered guarded CronJob (stale entry)")
+
+    def rule_restic_locks(self) -> None:
+        rule = "restic-locks"
+        for e in self.entries():
+            for d in self.docs_of(e):
+                kind = d.get("kind")
+                where = f"{e['app']}: {kind} {self.ns_of(d, e)}/{self.name_of(d)}"
+                texts = []
+                if kind == "ConfigMap":
+                    texts = [(f"{where} key {k}", v) for k, v in sorted((d.get("data") or {}).items())
+                             if isinstance(v, str)]
+                elif kind == "CronJob":
+                    spec = d.get("spec") or {}
+                    pod = (((spec.get("jobTemplate") or {}).get("spec") or {}).get("template") or {}).get("spec") or {}
+                    containers = pod.get("containers") or []
+                    if any("RESTIC_REPOSITORY" in {v.get("name") for v in c.get("env") or []} for c in containers):
+                        self.on(rule)
+                        limit = spec.get("failedJobsHistoryLimit")
+                        if not isinstance(limit, int) or limit < 1:
+                            self.fail(rule, f"{where}: failedJobsHistoryLimit is not at least 1")
+                    for c in (pod.get("initContainers") or []) + containers:
+                        words = [str(x) for x in (c.get("command") or []) + (c.get("args") or [])]
+                        texts.append((f"{where} container {c.get('name')}", "\n".join(words)))
+                for label, text in texts:
+                    problems = check_restic_locks(text)
+                    if problems or RESTIC_CMD.search(text):
+                        self.on(rule)
+                    for p in problems:
+                        self.fail(rule, f"{label}: {p}")
 
     def rule_root_profiles(self) -> None:
         found = {}
@@ -865,7 +906,7 @@ class Policy:
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
-                     self.rule_iscsi_selinux_label, self.rule_cronjobs,
+                     self.rule_iscsi_selinux_label, self.rule_cronjobs, self.rule_restic_locks,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
                      self.rule_monitor_selected, self.rule_spec_lifecycle,
@@ -958,6 +999,35 @@ def lock_statement(stmt: str) -> bool:
         return False
     return any(hcl_strings(p, "type") == ["*"] and hcl_strings(p, "identifiers") == ["*"]
                for p in hcl_blocks(stmt, "principals"))
+
+
+def check_restic_locks(text: str) -> list[str]:
+    """The restic lock contract for one script (docs/backups.md#locks)."""
+    problems = []
+    last = None
+    unlocked = False
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = raw.strip()
+        if line.startswith("#"):
+            continue
+        for m in RESTIC_CMD.finditer(line):
+            sub = m.group(1)
+            if sub == "unlock":
+                if "--remove-all" in line:
+                    problems.append(f"line {n}: restic unlock --remove-all also removes live locks")
+                last, unlocked = "unlock", True
+                continue
+            if sub not in RESTIC_LOCKING or "--no-lock" in line:
+                continue
+            if "--retry-lock" not in line:
+                problems.append(f"line {n}: restic {sub} without --retry-lock on the same line")
+            if sub in RESTIC_EXCLUSIVE and last not in ("unlock", "forget", "prune"):
+                problems.append(f"line {n}: restic {sub} is not preceded by restic unlock")
+            if sub == "backup" and not unlocked:
+                problems.append(f"line {n}: restic backup before any restic unlock")
+            if sub != "ls":
+                last = sub
+    return problems
 
 
 def check_guard(cj: dict, mode: str | None) -> list[str]:

@@ -60,12 +60,15 @@ spec:
               args:
                 - |
                   restic init 2>/dev/null || true
-                  restic backup /data \
+                  # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+                  restic unlock
+                  restic backup --retry-lock 30m /data \
                     --tag audiobookshelf \
                     --host books \
                     --exclude /data/metadata/cache \
                     --exclude /data/metadata/logs
-                  restic check --with-cache
+                  restic unlock
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/books/configs
@@ -157,15 +160,18 @@ spec:
               args:
                 - |
                   restic init 2>/dev/null || true
-                  restic backup /library \
+                  # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+                  restic unlock
+                  restic backup --retry-lock 30m /library \
                     --tag calibre-library \
                     --host books
-                  restic backup /config \
+                  restic backup --retry-lock 30m /config \
                     --tag calibre-web \
                     --host books \
                     --exclude /config/log \
                     --exclude /config/.cache
-                  restic check --with-cache
+                  restic unlock
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/books/configs
@@ -251,12 +257,13 @@ spec:
               command: ["/bin/sh", "-euo", "pipefail", "-c"]
               args:
                 - |
-                  restic forget \
+                  restic unlock
+                  restic forget --retry-lock 30m \
                     --host books \
                     --keep-within 3m \
                     --keep-monthly 12 \
                     --prune
-                  restic check --with-cache
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/books/configs

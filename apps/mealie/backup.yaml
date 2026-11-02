@@ -126,25 +126,28 @@ spec:
               args:
                 - |
                   restic init 2>/dev/null || true
+                  # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+                  restic unlock
 
                   # The dump first and in its own snapshot, so it can be
                   # restored without pulling the image library out of Glacier to
                   # get at it. It is also the half that holds the work you did:
                   # every recipe you typed in.
-                  restic backup /dumps \
+                  restic backup --retry-lock 30m /dumps \
                     --tag mealie-data \
                     --tag mealie-postgres \
                     --host mealie \
                     --verbose
 
-                  restic backup /data \
+                  restic backup --retry-lock 30m /data \
                     --tag mealie-data \
                     --tag mealie-files \
                     --host mealie \
                     --exclude '**/.temp/**' \
                     --verbose
 
-                  restic check --with-cache
+                  restic unlock
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/mealie/data
@@ -237,13 +240,14 @@ spec:
               command: ["/bin/sh", "-euo", "pipefail", "-c"]
               args:
                 - |
-                  restic forget \
+                  restic unlock
+                  restic forget --retry-lock 30m \
                     --host mealie \
                     --keep-within 3m \
                     --keep-monthly 12 \
                     --prune
 
-                  restic check --with-cache
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/mealie/data

@@ -37,8 +37,10 @@ spec:
           - args:
             - |
               restic init 2>/dev/null || true
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
 
-              restic backup /data \
+              restic backup --retry-lock 30m /data \
                 --tag immich-library \
                 --host immich \
                 --exclude '**/.tmp/**' \
@@ -49,14 +51,15 @@ spec:
               # Longer retention than the S3 copy: local storage is 16TB of
               # already-paid-for pool, so depth here is nearly free and gives
               # more room to notice a problem that started weeks ago.
-              restic forget \
+              restic unlock
+              restic forget --retry-lock 30m \
                 --tag immich-library \
                 --keep-daily 14 \
                 --keep-weekly 8 \
                 --keep-monthly 6 \
                 --prune
 
-              restic check --with-cache
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo

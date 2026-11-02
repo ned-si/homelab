@@ -33,6 +33,8 @@ spec:
           - args:
             - |
               restic init 2>/dev/null || true
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
 
               # Consistent SQLite snapshot. `sqlite3 .backup` uses SQLite's
               # backup API, which cooperates with the running writer -- unlike
@@ -43,7 +45,7 @@ spec:
               # rather than silently producing a corrupt one.
               if command -v sqlite3 >/dev/null 2>&1; then
                 sqlite3 /data/db.sqlite3 ".backup '/tmp/db-consistent.sqlite3'"
-                restic backup /tmp/db-consistent.sqlite3 \
+                restic backup --retry-lock 30m /tmp/db-consistent.sqlite3 \
                   --tag paperless-db --host paperless
                 rm -f /tmp/db-consistent.sqlite3
               else
@@ -53,17 +55,18 @@ spec:
               fi
 
               # The documents. These are the irreplaceable part.
-              restic backup /media \
+              restic backup --retry-lock 30m /media \
                 --tag paperless-media --host paperless --verbose
 
               # The database + index, excluding regenerable derivatives.
-              restic backup /data \
+              restic backup --retry-lock 30m /data \
                 --tag paperless-data --host paperless \
                 --exclude '**/index/**' \
                 --exclude '**/thumbnails/**' \
                 --verbose
 
-              restic check --with-cache
+              restic unlock
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo

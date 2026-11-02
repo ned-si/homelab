@@ -60,6 +60,8 @@ spec:
               args:
                 - |
                   restic init 2>/dev/null || true
+                  # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+                  restic unlock
                   DB_FILES=""
                   for f in /data/signoz.db /data/signoz.db-wal /data/signoz.db-shm; do
                     [ -f "$f" ] && DB_FILES="$DB_FILES $f"
@@ -70,15 +72,16 @@ spec:
                     exit 1
                   fi
                   echo "database snapshot covers:$DB_FILES"
-                  restic backup $DB_FILES \
+                  restic backup --retry-lock 30m $DB_FILES \
                     --tag signoz-db-besteffort \
                     --host signoz \
                     --verbose
-                  restic forget \
+                  restic unlock
+                  restic forget --retry-lock 30m \
                     --host signoz \
                     --keep-daily 7 --keep-weekly 4 --keep-monthly 6 \
                     --prune
-                  restic check --with-cache
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/signoz/metadata

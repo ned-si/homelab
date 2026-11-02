@@ -36,12 +36,15 @@ spec:
           - args:
             - |
               restic init 2>/dev/null || true
-              restic backup /data \
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
+              restic backup --retry-lock 30m /data \
                 --tag audiobookshelf \
                 --host books \
                 --exclude /data/metadata/cache \
                 --exclude /data/metadata/logs
-              restic check --with-cache
+              restic unlock
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo
