@@ -251,6 +251,14 @@
       matchPackageNames: ['tetragon', 'cilium/tetragon', 'quay.io/cilium/tetragon', 'quay.io/cilium/tetragon-operator'],
     },
     {
+      // One Tailscale release: the operator chart, the operator image and the
+      // proxy image (platform/tailscale-operator/values.yaml). Two PRs for
+      // v1.104.4 (#928, #931) before this rule.
+      description: 'Tailscale operator chart and images move together',
+      groupName: 'tailscale',
+      matchPackageNames: ['tailscale-operator', 'tailscale/k8s-operator', 'tailscale/tailscale'],
+    },
+    {
       // Cilium ships against a specific Gateway API version. If these drift the
       // Gateway stops programming and every HTTPRoute goes dark.
       //
