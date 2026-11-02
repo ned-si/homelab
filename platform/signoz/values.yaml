@@ -69,7 +69,7 @@ clickhouse:
         registry: docker.io
         repository: altinity/metrics-exporter
         # renovate: datasource=docker depName=docker.io/altinity/metrics-exporter
-        tag: 0.28.0@sha256:fe15c1cdd80464a69c70c1daf3764e4933002a42e02a79f3c7166ea8158b8497
+        tag: 0.28.0@sha256:4483120550a7ea04b02e108a491ff5b51a8ae1d25cc8f2cb40d298c55b9ba5e6
 
 signoz:
   image:
