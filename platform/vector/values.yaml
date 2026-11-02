@@ -42,13 +42,15 @@ securityContext:
     drop: ["ALL"]
 
 # 256Mi was OOM-killed on start, while the pods source catches up on every
-# existing file under /var/log/pods; steady state is 70-100Mi.
+# existing file under /var/log/pods; steady state is 70-100Mi. 512Mi was
+# OOM-killed on 2026-11-02 on cp-3, catching up four days of logs after the
+# Vector 0.61 config failure (#901, #903).
 resources:
   requests:
     cpu: 20m
     memory: 128Mi
   limits:
-    memory: 512Mi
+    memory: 1Gi
 
 tolerations:
   # Logs of the control planes too.
