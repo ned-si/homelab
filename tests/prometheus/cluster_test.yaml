@@ -197,7 +197,7 @@ tests:
       - series: 'kubelet_volume_stats_capacity_bytes{namespace="cook", persistentvolumeclaim="data-ok"}'
         values: '100x40'
       - series: 'kubelet_volume_stats_available_bytes{namespace="monitoring", persistentvolumeclaim="prometheus-db-0"}'
-        values: '10x40'
+        values: '8x40'
       - series: 'kubelet_volume_stats_capacity_bytes{namespace="monitoring", persistentvolumeclaim="prometheus-db-0"}'
         values: '100x40'
     alert_rule_test:
@@ -269,9 +269,10 @@ tests:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusTsdbVolumeNearlyFull.md
               summary: "Prometheus TSDB volume is nearly full"
               description: >-
-                retentionSize (20GiB) is meant to keep this from happening inside
-                the 25Gi volume. If it has, the WAL or a compaction is using the
-                headroom. Grow the volume -- `iscsi` allows expansion -- rather
+                retentionSize (34GiB, WAL included) is meant to keep this from
+                happening inside the 40Gi volume. If it has, a compaction or files
+                Prometheus does not count are using the headroom. Grow the volume
+                -- `iscsi` allows expansion -- rather
                 than cutting retention, and see the comment on retentionSize in
                 platform/kube-prometheus-stack/values.yaml.
       - eval_time: 2h

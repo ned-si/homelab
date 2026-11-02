@@ -551,9 +551,10 @@ scripts/slo-latency-thresholds.sh 14
 # then "data=<days>d", the days of probe data the figures cover
 ```
 
-Prometheus keeps `retention: 30d` capped by `retentionSize: 20GiB` on a 25Gi
-volume. At about 0.55 GB of blocks a day, 30 days take about 17 GB; the rest
-of the volume is for the WAL and compaction.
+Prometheus keeps `retention: 30d` capped by `retentionSize: 34GiB` on a 40Gi
+volume. At about 0.81 GiB of blocks a day, 30 days take about 24 GiB.
+`retentionSize` counts the WAL and the head chunks too; the last 6 GiB of the
+volume are for compactions.
 
 The rules are unit-tested: `scripts/ci/promtool-check.sh` runs `promtool check
 rules` on every rendered PrometheusRule and `promtool test rules` on

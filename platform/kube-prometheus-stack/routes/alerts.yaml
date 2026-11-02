@@ -255,15 +255,17 @@ spec:
           # takes the monitoring system down -- and a monitoring system that has
           # stopped ingesting cannot alert on anything, including itself.
           #
-          # retentionSize is 20GiB inside a 25Gi volume. That headroom is for
-          # the WAL and for compaction, which retentionSize does not count. If
-          # this fires, the volume is being used by something other than the
-          # blocks Prometheus is accounting for.
+          # retentionSize is 34GiB inside a 40Gi volume and counts the blocks,
+          # the WAL and the head chunks, so at the cap about 15% stays free. A
+          # compaction keeps its source blocks and the new block on disk
+          # together (blocks span up to 54h here, about 1.8GiB), a dip to about
+          # 10%. Below 10% for 15m, something retentionSize does not count is
+          # using the volume, such as a compaction that never finished.
           expr: |
             (
               kubelet_volume_stats_available_bytes{namespace="monitoring", persistentvolumeclaim=~"prometheus-.*"}
               / kubelet_volume_stats_capacity_bytes
-            ) < 0.12
+            ) < 0.10
           for: 15m
           labels:
             severity: critical
@@ -272,9 +274,10 @@ spec:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusTsdbVolumeNearlyFull.md
             summary: "Prometheus TSDB volume is nearly full"
             description: >-
-              retentionSize (20GiB) is meant to keep this from happening inside
-              the 25Gi volume. If it has, the WAL or a compaction is using the
-              headroom. Grow the volume -- `iscsi` allows expansion -- rather
+              retentionSize (34GiB, WAL included) is meant to keep this from
+              happening inside the 40Gi volume. If it has, a compaction or files
+              Prometheus does not count are using the headroom. Grow the volume
+              -- `iscsi` allows expansion -- rather
               than cutting retention, and see the comment on retentionSize in
               platform/kube-prometheus-stack/values.yaml.
 
