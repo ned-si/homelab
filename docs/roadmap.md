@@ -35,11 +35,11 @@ with its own diff, test and rollback
   and security signals, or not (#801); Prometheus keeps its 30 days (#905,
   #922).
 - **Elastic where it can be.** HPA for the stateless workloads, KEDA for
-  event-driven scaling and scale to zero of idle apps, VPA recommendations
-  to size requests; bursting to cloud nodes stays a research note (#917).
-- **Pages a person can close.** One push per problem (#915), and an
-  acknowledgement from the phone: an action on the ntfy push that opens a
-  prefilled Alertmanager silence behind Keycloak (#916).
+  event-driven scaling, VPA recommendations to size requests; no scale to
+  zero (seconds of delay on the first request to save a few hundred MiB);
+  bursting to cloud nodes stays a research note (#917).
+- **One push per problem** (#915). No acknowledgement button: neither ntfy
+  nor Alertmanager has one built in, and it is not worth building (#916).
 - **The NAS as a hardened dependency.** Scoped NFS exports and read-only
   media (#721), the failing cache device and the pending update (#719, #720,
   #722).
