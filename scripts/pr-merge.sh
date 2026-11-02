@@ -40,13 +40,20 @@
 #      this repository authored by the gh user; never update-branch) and
 #      waits for `ci` on the new head. Then it merges. If main moved again
 #      (Renovate), it starts over inside the same lock, at most 3 times.
+#   4. While it holds the lock it pauses the Renovate train: it sets the
+#      repository variable RENOVATE_TRAIN_PAUSED to "<pr> <utc time>",
+#      re-sets it every 10 min, deletes it before it releases the lock, and
+#      starts the renovate-next workflow after each change.
+#      scripts/ci/renovate-next.sh then ticks nothing and turns GitHub
+#      auto-merge off on the open Renovate pull requests, and turns it back
+#      on once the variable is gone. A pause older than 90 min is ignored.
 #
 # Exit codes: 0 merged / would merge, 2 refused, 1 operational error (lock or
 # ci wait timed out, main kept moving), 64 usage.
 # Environment: GH_VAR_REPO / PR_MERGE_REPO (default ned-si/homelab),
 # PR_MERGE_REMOTE (default origin), PR_MERGE_POLL (seconds between polls, 30),
 # PR_MERGE_LOCK_WAIT (seconds, 3600), PR_MERGE_LOCK_STALE_MIN (minutes, 30),
-# PR_MERGE_CI_TIMEOUT (seconds, 2700).
+# PR_MERGE_CI_TIMEOUT (seconds, 2700), PR_MERGE_PAUSE_REFRESH (seconds, 600).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -64,6 +71,8 @@ POLL=${PR_MERGE_POLL:-30}
 LOCK_WAIT=${PR_MERGE_LOCK_WAIT:-3600}
 LOCK_STALE_MIN=${PR_MERGE_LOCK_STALE_MIN:-30}
 CI_TIMEOUT=${PR_MERGE_CI_TIMEOUT:-2700}
+PAUSE_REFRESH=${PR_MERGE_PAUSE_REFRESH:-600}
+PAUSE_VAR=RENOVATE_TRAIN_PAUSED
 MAX_RETRIES=3
 
 dry_run=0
@@ -122,6 +131,37 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+# --- Renovate train pause ---------------------------------------------------------
+paused=0
+paused_at=0
+train_kick() {
+  gh workflow run renovate-next.yaml --repo "$REPO" >/dev/null 2>&1 \
+    || log "warning: cannot start the renovate-next workflow"
+}
+train_pause() {
+  if gh variable set "$PAUSE_VAR" --repo "$REPO" \
+       --body "$pr $(date -u +%Y-%m-%dT%H:%M:%SZ)" >/dev/null 2>&1; then
+    paused_at=$(now)
+    if [ "$paused" = 0 ]; then
+      paused=1
+      log "paused the Renovate train ($PAUSE_VAR)"
+      train_kick
+    fi
+  else
+    log "warning: cannot set $PAUSE_VAR; the Renovate train is not paused"
+  fi
+}
+train_resume() {
+  [ "$paused" = 1 ] || return 0
+  paused=0
+  if gh variable delete "$PAUSE_VAR" --repo "$REPO" >/dev/null 2>&1; then
+    log "resumed the Renovate train"
+  else
+    log "warning: cannot delete $PAUSE_VAR; the train ignores it after 90 min"
+  fi
+  train_kick
+}
 
 # --- merge lock -----------------------------------------------------------------
 owner_field() { # name -> value from the lock's owner file
@@ -182,6 +222,7 @@ lock_acquire() { # branch
       printf 'pid=%s\npr=%s\nbranch=%s\nstarted=%s\n' "$$" "$pr" "$1" \
         "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$LOCK_DIR/owner"
       log "took the merge lock $LOCK_DIR"
+      train_pause
       return 0
     fi
     if lock_stale; then
@@ -201,12 +242,17 @@ lock_acquire() { # branch
   done
 }
 lock_refresh() {
-  if [ "$lock_held" = 1 ]; then touch "$LOCK_DIR/owner" 2>/dev/null || true; fi
+  if [ "$lock_held" = 1 ]; then
+    touch "$LOCK_DIR/owner" 2>/dev/null || true
+    if [ "$paused" = 1 ] && [ $(( $(now) - paused_at )) -ge "$PAUSE_REFRESH" ]; then train_pause; fi
+  fi
 }
 lock_release() {
   if [ "$lock_held" = 1 ]; then
-    # Never remove a lock another run took after breaking ours.
+    # Never remove a lock (or the pause) another run took after breaking ours.
+    # The pause goes first, so the next holder's pause is not deleted.
     if [ "$(owner_field pid)" = "$$" ]; then
+      train_resume
       rm -rf "$LOCK_DIR"
       log "released the merge lock"
     fi

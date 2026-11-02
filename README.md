@@ -241,6 +241,14 @@ From an idea to the cluster, every step leaves a record
    merges, retrying up to 3 times if `main` moves again. A waiting run logs
    the holder once a minute and gives up after 60 minutes; a lock whose
    process is gone, or that was not refreshed for 30 minutes, is broken.
+   While it holds the lock it pauses the Renovate train
+   ([`renovate-next`](.github/workflows/renovate-next.yaml)) with the
+   repository variable `RENOVATE_TRAIN_PAUSED` (`<pr> <utc time>`): the
+   train then rebases nothing and turns GitHub auto-merge off on the open
+   Renovate pull requests, so no update moves `main` under the merge. The
+   variable is deleted when the lock is released, on failure too, and the
+   next train run turns auto-merge back on. The train ignores a pause older
+   than 90 minutes (its `pr-merge.sh` died).
 4. That is the deployment. Every Application tracks `main`, so Argo CD
    applies the merge within its sync interval (3 minutes), Argo CD's own
    release included. Rollback is a revert pull request, opened automatically

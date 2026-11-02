@@ -27,10 +27,19 @@
 #      gets its box ticked. A failed `ci` waits for Renovate's next update or
 #      a human; it does not block the others.
 #
-# Prints one line per auto-merge turned on, then one line, what it did and
-# why. Environment: REPO (owner/name), GH (default gh), DRY_RUN (1: decide,
-# change nothing), NOW (`<weekday 1-7> <hour>`, default the time in
-# Europe/Zurich; for tests). Needs gh and jq.
+# Paused: scripts/pr-merge.sh sets the repository variable
+# RENOVATE_TRAIN_PAUSED ("<pr> <utc time>") while it holds its merge lock, so
+# Renovate merges do not move main under the pull request it is merging.
+# Then nothing is ticked and GitHub auto-merge is turned off on every open
+# Renovate pull request; the first run after the variable is deleted turns it
+# back on, as below. A pause older than PAUSE_STALE_MIN (90) minutes is
+# ignored: its pr-merge run died.
+#
+# Prints one line per auto-merge turned on or off, then one line, what it did
+# and why. Environment: REPO (owner/name), GH (default gh), DRY_RUN (1:
+# decide, change nothing), RENOVATE_TRAIN_PAUSED (the variable's value),
+# PAUSE_STALE_MIN, NOW (`<weekday 1-7> <hour>`, default the time in
+# Europe/Zurich) and NOW_EPOCH (default now; both for tests). Needs gh and jq.
 set -euo pipefail
 
 : "${REPO:?}"
@@ -46,6 +55,32 @@ if [ "$dow" -le 5 ] && [ "$((10#$hour))" -ge 9 ] && [ "$((10#$hour))" -le 16 ]; 
 
 prs=$($GH pr list --repo "$REPO" --author app/renovate --state open --limit 100 \
   --json number,isDraft,autoMergeRequest,createdAt,headRefOid,body,statusCheckRollup,labels,comments)
+
+PAUSED=${RENOVATE_TRAIN_PAUSED:-}
+PAUSE_STALE_MIN=${PAUSE_STALE_MIN:-90}
+NOW_EPOCH=${NOW_EPOCH:-$(date +%s)}
+if [ -n "$PAUSED" ]; then
+  read -r pause_pr pause_at _ <<<"$PAUSED"
+  # No parseable time (set by hand): paused until deleted.
+  since=$(jq -rn --arg t "${pause_at:-}" 'try ($t | fromdateiso8601) catch empty')
+  if [ -n "$since" ] && [ $((NOW_EPOCH - since)) -gt $((PAUSE_STALE_MIN * 60)) ]; then
+    echo "pause by PR #$pause_pr since $pause_at is older than $PAUSE_STALE_MIN min; ignored"
+  else
+    failed=0
+    for n in $(jq -r '.[] | select(.autoMergeRequest != null) | .number' <<<"$prs"); do
+      if [ "$DRY_RUN" = 1 ]; then
+        echo "#$n: would turn auto-merge off (dry run)"
+      elif $GH pr merge "$n" --repo "$REPO" --disable-auto >/dev/null; then
+        echo "#$n: auto-merge turned off"
+      else
+        echo "#$n: cannot turn auto-merge off"
+        failed=1
+      fi
+    done
+    echo "paused by pr-merge ($PAUSED); nothing rebased"
+    exit "$failed"
+  fi
+fi
 # Waiting for minimumReleaseAge: one comment, then left alone until it passes.
 WAIT_MARK='<!-- renovate-next:release-age -->'
 for n in $(jq -r --arg m "$WAIT_MARK" '.[]

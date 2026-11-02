@@ -31,7 +31,11 @@ case "$1 $2" in
     echo "begin" >> "$d/merges.log"
     sleep "$FAKE_MERGE_SLEEP"
     echo "end" >> "$d/merges.log"
+    [ "${FAKE_MERGE_RC:-0}" = 0 ] || exit "$FAKE_MERGE_RC"
     echo "merged"; exit 0 ;;
+  "variable set"|"variable delete"|"workflow run")
+    echo "$*" >> "$d/train.log"
+    exit "${FAKE_VAR_RC:-0}" ;;
 esac
 case "$*" in
   "api repos/ned-si/homelab/commits/"*"/check-runs"*)
@@ -85,6 +89,44 @@ expect_contains "free lock -> took the lock" "took the merge lock $LOCK" "$out"
 expect_contains "free lock -> released" "released the merge lock" "$out"
 expect_contains "free lock -> merged" "merged PR #7 (squash)" "$out"
 if [ -e "$LOCK" ]; then bad "lock dir removed after the merge"; else ok "lock dir removed after the merge"; fi
+
+# --- the Renovate train is paused while the lock is held
+train() { [ -f "$FAKE_GH_DIR/train.log" ] || return 0; sed -E 's/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]{8}Z/<t>/' "$FAKE_GH_DIR/train.log" | tr '\n' '|'; }
+TRAIN_OK="variable set RENOVATE_TRAIN_PAUSED --repo ned-si/homelab --body 7 <t>|workflow run renovate-next.yaml --repo ned-si/homelab|variable delete RENOVATE_TRAIN_PAUSED --repo ned-si/homelab|workflow run renovate-next.yaml --repo ned-si/homelab|"
+rm -f "$FAKE_GH_DIR/train.log"
+run_merge 7
+expect_eq "merge -> paused, then resumed, train started each time" "$TRAIN_OK" "$(train)"
+expect_contains "merge -> logs the pause" "paused the Renovate train (RENOVATE_TRAIN_PAUSED)" "$out"
+expect_contains "merge -> logs the resume" "resumed the Renovate train" "$out"
+case "$out" in
+  *"paused the Renovate train"*"squash-merging"*"resumed the Renovate train"*"released the merge lock"*)
+    ok "merge -> paused before the merge, resumed before the lock is released" ;;
+  *) bad "merge -> paused before the merge, resumed before the lock is released" ;;
+esac
+
+rm -f "$FAKE_GH_DIR/train.log"
+rc=0
+out=$(cd "$tmp/work" && FAKE_MERGE_RC=1 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
+expect_eq "failed merge -> exit 1" 1 "$rc"
+expect_eq "failed merge -> the pause is still cleared" "$TRAIN_OK" "$(train)"
+if [ -e "$LOCK" ]; then bad "failed merge -> lock released"; else ok "failed merge -> lock released"; fi
+
+rm -f "$FAKE_GH_DIR/train.log"
+rc=0
+out=$(cd "$tmp/work" && PR_MERGE_PAUSE_REFRESH=0 FAKE_MERGE_RC=1 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
+expect_contains "refresh due -> the pause is set again" "variable set RENOVATE_TRAIN_PAUSED --repo ned-si/homelab --body 7 <t>|workflow run renovate-next.yaml --repo ned-si/homelab|variable set RENOVATE_TRAIN_PAUSED" "$(train)"
+
+rm -f "$FAKE_GH_DIR/train.log"
+rc=0
+out=$(cd "$tmp/work" && FAKE_VAR_RC=1 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
+expect_eq "variables API down -> still merges" 0 "$rc"
+expect_contains "variables API down -> warns" "warning: cannot set RENOVATE_TRAIN_PAUSED; the Renovate train is not paused" "$out"
+expect_eq "variables API down -> nothing to clear" "variable set RENOVATE_TRAIN_PAUSED --repo ned-si/homelab --body 7 <t>|" "$(train)"
+
+rm -f "$FAKE_GH_DIR/train.log"
+rc=0
+out=$(cd "$tmp/work" && bash "$REPO_ROOT/scripts/pr-merge.sh" --dry-run 7 2>&1) || rc=$?
+expect_eq "dry run -> the train is not touched" "" "$(train)"
 
 # --- stale: owner pid gone
 dead=$(bash -c 'echo $$')
