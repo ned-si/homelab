@@ -1,8 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-10-16
-issue: 752
+closed: 2026-11-02
 ---
 # Requirements: wave 3 network visibility and logs (Hubble, policy audit, SigNoz trial)
 
