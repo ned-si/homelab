@@ -177,7 +177,8 @@ prometheus:
     # check (platform/backup-verify/alerts.yaml). Blocks grew about 1.06
     # GiB/day (2026-11-02), so 20GiB held only 16.6 days; after the apiserver
     # drop above about 0.81 GiB/day, 30 days = about 24 GiB. retentionSize
-    # caps the blocks at 34GiB, leaving about 6Gi for the WAL and compaction.
+    # caps the blocks, the WAL and the head chunks together at 34GiB (85% of
+    # the volume, the upstream maximum), leaving about 6Gi for compactions.
     # Watch prometheus_tsdb_lowest_timestamp_seconds: it must stay 30 days old.
     #
     # The operator does not resize the PVC. The claim is declared in git
