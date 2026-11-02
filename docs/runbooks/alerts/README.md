@@ -103,6 +103,7 @@ that application's failing conditions and resources.
 - [PersistentVolumeCriticallyFull](PersistentVolumeCriticallyFull.md): a PVC over 95% full
 - [PersistentVolumeFillingUp](PersistentVolumeFillingUp.md): a PVC full within 24 hours
 - [PrometheusTsdbVolumeNearlyFull](PrometheusTsdbVolumeNearlyFull.md): the Prometheus volume nearly full
+- [PrometheusRetentionCutBySize](PrometheusRetentionCutBySize.md): Prometheus keeps under 29 days, retentionSize deletes blocks
 - [NodeFilesystemNearlyFull](NodeFilesystemNearlyFull.md): a node filesystem over 85% full
 - [NodeFilesystemCriticallyFull](NodeFilesystemCriticallyFull.md): a node filesystem over 92% full
 - [NodeFilesystemInodesNearlyFull](NodeFilesystemInodesNearlyFull.md): a node filesystem under 10% free inodes

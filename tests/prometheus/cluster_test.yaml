@@ -278,6 +278,70 @@ tests:
         alertname: PersistentVolumeFillingUp
         exp_alerts: []
 
+  # Prometheus retention. Cut: the TSDB is 5 days old and retentionSize
+  # deleted a block at 2d.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_size_retentions_total{namespace="monitoring", pod="prometheus-0", instance="10.0.0.1:9090"}'
+        values: '0x2880 1x4320'
+      - series: 'prometheus_tsdb_lowest_timestamp_seconds{namespace="monitoring", pod="prometheus-0", instance="10.0.0.1:9090"}'
+        values: '0x7200'
+    alert_rule_test:
+      - eval_time: 2d
+        alertname: PrometheusRetentionCutBySize
+        exp_alerts: []
+      - eval_time: 2d30m
+        alertname: PrometheusRetentionCutBySize
+        exp_alerts: []
+      - eval_time: 5d
+        alertname: PrometheusRetentionCutBySize
+        exp_alerts:
+          - exp_labels:
+              namespace: monitoring
+              pod: prometheus-0
+              instance: 10.0.0.1:9090
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusRetentionCutBySize.md
+              summary: "Prometheus keeps only 5d 0h 0m 0s of data: retentionSize is cutting it"
+              description: >-
+                retentionSize deleted blocks in the last 4 days and the oldest
+                sample is younger than 29 days, so the 30-day SLO windows are
+                short. Grow the volume and retentionSize, or drop unused series.
+
+  # Refilling: the old pod (10.0.0.1) cut by size until 1d, the new pod
+  # (10.0.0.2, from 2d) holds 3 days and deletes nothing. No alert.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_size_retentions_total{namespace="monitoring", pod="prometheus-0", instance="10.0.0.1:9090"}'
+        values: '0x1440 1x1440'
+      - series: 'prometheus_tsdb_lowest_timestamp_seconds{namespace="monitoring", pod="prometheus-0", instance="10.0.0.1:9090"}'
+        values: '0x2880'
+      - series: 'prometheus_tsdb_size_retentions_total{namespace="monitoring", pod="prometheus-0", instance="10.0.0.2:9090"}'
+        values: '_x2880 0x4320'
+      - series: 'prometheus_tsdb_lowest_timestamp_seconds{namespace="monitoring", pod="prometheus-0", instance="10.0.0.2:9090"}'
+        values: '_x2880 172800x4320'
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PrometheusRetentionCutBySize
+        exp_alerts: []
+      - eval_time: 5d
+        alertname: PrometheusRetentionCutBySize
+        exp_alerts: []
+
+  # Healthy: 35 days kept, so a size deletion cuts nothing the SLOs need.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_tsdb_size_retentions_total{namespace="monitoring", pod="prometheus-0", instance="10.0.0.1:9090"}'
+        values: '0x2880 1x4320'
+      - series: 'prometheus_tsdb_lowest_timestamp_seconds{namespace="monitoring", pod="prometheus-0", instance="10.0.0.1:9090"}'
+        values: '-2592000+0x7200'
+    alert_rule_test:
+      - eval_time: 5d
+        alertname: PrometheusRetentionCutBySize
+        exp_alerts: []
+
   # wal loses 6 bytes of 100 per hour from 50 free: full within 24h.
   - interval: 1m
     input_series:
