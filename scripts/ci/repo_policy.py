@@ -67,6 +67,17 @@ objects and rule ids only; values are never printed.
   cilium-explicit-xds   infrastructure/cilium/values.yaml sets envoy.xdsMode: a
                         chart default change cannot leave the agent and Envoy on
                         different xDS modes (postmortem 2026-10-23)
+  appproject-kinds      every object rendered by an Application of a rendered
+                        AppProject is permitted by that project, as Argo CD
+                        checks it at sync: a cluster-scoped kind is in
+                        clusterResourceWhitelist (and not in its blacklist), a
+                        namespaced kind passes namespaceResourceWhitelist /
+                        Blacklist, and the Application's and every namespaced
+                        object's namespace match a project destination (#820).
+                        Scope comes from the built-in kinds, the rendered CRDs
+                        and ci/crd-scopes.txt (CRDs an operator installs at
+                        runtime); a kind none of them knows fails, and so does a
+                        stale or contradicted list entry
   monitor-selected      every ServiceMonitor, PodMonitor, Probe and PrometheusRule
                         rendered carries release: kube-prometheus-stack, the label
                         Prometheus selects them by (unlabelled, Tetragon, Immich
@@ -124,6 +135,7 @@ import json
 import re
 import subprocess
 import sys
+from fnmatch import fnmatchcase
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -134,6 +146,40 @@ LAN_GONE = "192.168." + "2."
 EXCLUDE_ANN = "external-dns.alpha.kubernetes.io/" + "exclude"
 CONTROLLER_ANN = "external-dns.alpha.kubernetes.io/controller"
 MONITOR_KINDS = {"ServiceMonitor", "PodMonitor", "Probe", "PrometheusRule"}
+# Kubernetes API groups served by the apiserver itself; any other group needs a CRD.
+BUILTIN_GROUPS = {"", "admissionregistration.k8s.io", "apiextensions.k8s.io", "apiregistration.k8s.io", "apps",
+                  "authentication.k8s.io", "authorization.k8s.io", "autoscaling", "batch", "certificates.k8s.io",
+                  "coordination.k8s.io", "discovery.k8s.io", "events.k8s.io", "flowcontrol.apiserver.k8s.io",
+                  "internal.apiserver.k8s.io", "networking.k8s.io", "node.k8s.io", "policy",
+                  "rbac.authorization.k8s.io", "resource.k8s.io", "scheduling.k8s.io", "storage.k8s.io",
+                  "storagemigration.k8s.io"}
+# The cluster-scoped kinds of those groups; every other built-in kind is namespaced.
+BUILTIN_CLUSTER_KINDS = {
+    ("", "Namespace"), ("", "Node"), ("", "PersistentVolume"), ("", "ComponentStatus"),
+    ("admissionregistration.k8s.io", "MutatingWebhookConfiguration"),
+    ("admissionregistration.k8s.io", "ValidatingWebhookConfiguration"),
+    ("admissionregistration.k8s.io", "ValidatingAdmissionPolicy"),
+    ("admissionregistration.k8s.io", "ValidatingAdmissionPolicyBinding"),
+    ("admissionregistration.k8s.io", "MutatingAdmissionPolicy"),
+    ("admissionregistration.k8s.io", "MutatingAdmissionPolicyBinding"),
+    ("apiextensions.k8s.io", "CustomResourceDefinition"), ("apiregistration.k8s.io", "APIService"),
+    ("authentication.k8s.io", "TokenReview"), ("authentication.k8s.io", "SelfSubjectReview"),
+    ("authorization.k8s.io", "SubjectAccessReview"), ("authorization.k8s.io", "SelfSubjectAccessReview"),
+    ("authorization.k8s.io", "SelfSubjectRulesReview"),
+    ("certificates.k8s.io", "CertificateSigningRequest"), ("certificates.k8s.io", "ClusterTrustBundle"),
+    ("flowcontrol.apiserver.k8s.io", "FlowSchema"), ("flowcontrol.apiserver.k8s.io", "PriorityLevelConfiguration"),
+    ("internal.apiserver.k8s.io", "StorageVersion"),
+    ("networking.k8s.io", "IngressClass"), ("networking.k8s.io", "IPAddress"), ("networking.k8s.io", "ServiceCIDR"),
+    ("node.k8s.io", "RuntimeClass"),
+    ("rbac.authorization.k8s.io", "ClusterRole"), ("rbac.authorization.k8s.io", "ClusterRoleBinding"),
+    ("resource.k8s.io", "DeviceClass"), ("resource.k8s.io", "ResourceSlice"), ("resource.k8s.io", "DeviceTaintRule"),
+    ("scheduling.k8s.io", "PriorityClass"),
+    ("storage.k8s.io", "CSIDriver"), ("storage.k8s.io", "CSINode"), ("storage.k8s.io", "StorageClass"),
+    ("storage.k8s.io", "VolumeAttachment"), ("storage.k8s.io", "VolumeAttributesClass"),
+    ("storagemigration.k8s.io", "StorageVersionMigration"),
+}
+CRD_SCOPES = "ci/crd-scopes.txt"
+DEFAULT_SERVER = "https://kubernetes.default.svc"
 PROM_RELEASE = "kube-prometheus-stack"
 SPEC_STATES = {("change", "active"), ("change", "done"), ("area", "living")}
 SYNC_OPTS_ANN = "argocd.argoproj.io/sync-options"
@@ -665,6 +711,97 @@ class Policy:
                     self.fail(rule, f"{e['app']}: {d.get('kind')} {self.ns_of(d, e)}/{self.name_of(d)} has no label "
                                     f"release: {PROM_RELEASE}, so Prometheus ignores it")
 
+    def rule_appproject_kinds(self) -> None:
+        rule = "appproject-kinds"
+        projects: dict[str, dict] = {}
+        apps: dict[str, dict] = {}
+        crds: dict[tuple[str, str], str] = {}
+        for e in self.entries():
+            for d in self.docs_of(e):
+                group, kind = self.group_of(d), d.get("kind")
+                if group == "argoproj.io" and kind == "AppProject":
+                    projects[self.name_of(d)] = d.get("spec") or {}
+                elif group == "argoproj.io" and kind == "Application":
+                    apps[self.name_of(d)] = d.get("spec") or {}
+                elif group == "apiextensions.k8s.io" and kind == "CustomResourceDefinition":
+                    s = d.get("spec") or {}
+                    crds[(str(s.get("group") or ""), str((s.get("names") or {}).get("kind") or ""))] = \
+                        str(s.get("scope") or "")
+        if not projects:
+            return
+        self.on(rule)
+        listed: dict[tuple[str, str], str] = {}
+        for ln in self.read_list(CRD_SCOPES) or []:
+            parts = ln.split("#", 1)[0].split()
+            if len(parts) != 3 or parts[2] not in ("Cluster", "Namespaced"):
+                self.fail(rule, f"{CRD_SCOPES}: malformed line '{ln}' (want: <group> <Kind> Cluster|Namespaced)")
+                continue
+            listed[(parts[0], parts[1])] = parts[2]
+        used: set[tuple[str, str]] = set()
+
+        def scope(gk: tuple[str, str]) -> str | None:
+            if gk[0] in BUILTIN_GROUPS:
+                return "Cluster" if gk in BUILTIN_CLUSTER_KINDS else "Namespaced"
+            if gk in crds:
+                return crds[gk]
+            if gk in listed:
+                used.add(gk)
+                return listed[gk]
+            return None
+
+        for e in self.entries():
+            spec = apps.get(e["app"])
+            if spec is None:
+                continue
+            pname = spec.get("project") or "default"
+            proj = projects.get(pname)
+            if proj is None:
+                continue
+            dest = spec.get("destination") or {}
+            app_ns = str(dest.get("namespace") or "")
+            where = f"{e['app']} (project {pname})"
+            if not destination_permitted(proj, dest, app_ns):
+                self.fail(rule, f"{where}: destination namespace {app_ns or '(none)'} is not in the AppProject "
+                                "destinations")
+            bad_kinds: dict[tuple[str, str, str, str], list[str]] = {}
+            bad_ns: dict[str, list[str]] = {}
+            for d in self.docs_of(e):
+                gk = (self.group_of(d), str(d.get("kind") or ""))
+                sc = scope(gk)
+                if sc is None:
+                    bad_kinds.setdefault((*gk, "unknown", ""), []).append(self.name_of(d))
+                    continue
+                if not kind_permitted(proj, gk, sc == "Namespaced"):
+                    prefix = "cluster" if sc == "Cluster" else "namespace"
+                    why = f"is in the AppProject {prefix}ResourceBlacklist" \
+                        if in_resource_list(gk, proj.get(f"{prefix}ResourceBlacklist") or []) \
+                        else f"is not in the AppProject {prefix}ResourceWhitelist"
+                    bad_kinds.setdefault((*gk, sc, why), []).append(self.name_of(d))
+                if sc == "Namespaced":
+                    ns = str((d.get("metadata") or {}).get("namespace") or app_ns)
+                    if ns and not destination_permitted(proj, dest, ns):
+                        bad_ns.setdefault(ns, []).append(f"{gk[1]} {self.name_of(d)}")
+            for (group, kind, sc, why), names in sorted(bad_kinds.items()):
+                label = f"{group or 'core'}/{kind}"
+                objs = f"{names[0]}" + (f" and {len(names) - 1} more" if len(names) > 1 else "")
+                if sc == "unknown":
+                    self.fail(rule, f"{where}: {label} ({objs}) has no known scope: no rendered CRD and no "
+                                    f"{CRD_SCOPES} entry")
+                else:
+                    self.fail(rule, f"{where}: {'cluster-scoped' if sc == 'Cluster' else 'namespaced'} {label} "
+                                    f"({objs}) {why}")
+            for ns, objs in sorted(bad_ns.items()):
+                more = f" and {len(objs) - 1} more" if len(objs) > 1 else ""
+                self.fail(rule, f"{where}: namespace {ns} ({objs[0]}{more}) is not in the AppProject destinations")
+        for gk, sc in sorted(listed.items()):
+            name = f"{CRD_SCOPES}: {gk[0]} {gk[1]}"
+            if gk in crds:
+                self.fail(rule, f"{name} is a rendered CRD (scope {crds[gk]}); drop the entry")
+            elif gk[0] in BUILTIN_GROUPS:
+                self.fail(rule, f"{name} is a built-in group; drop the entry")
+            elif gk not in used:
+                self.fail(rule, f"{name} is not a rendered kind (stale entry)")
+
     def rule_spec_lifecycle(self) -> None:
         rule = "spec-lifecycle"
         specs = sorted({rel.split("/")[2] for rel in self.tracked()
@@ -909,7 +1046,7 @@ class Policy:
                      self.rule_iscsi_selinux_label, self.rule_cronjobs, self.rule_restic_locks,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
-                     self.rule_monitor_selected, self.rule_spec_lifecycle,
+                     self.rule_monitor_selected, self.rule_appproject_kinds, self.rule_spec_lifecycle,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
@@ -1096,6 +1233,38 @@ def k8s_minor(version: str) -> tuple[str, str] | None:
     """('1', '37') for 1.37, 1.37.1 or v1.37.1; None for anything else."""
     m = K8S_MINOR.match(version.strip())
     return (m.group(1), m.group(2)) if m else None
+
+
+def in_resource_list(gk: tuple[str, str], items: list) -> bool:
+    """Argo CD's isResourceInList: group and kind both glob-match one entry."""
+    return any(fnmatchcase(gk[0], str(i.get("group") or "")) and fnmatchcase(gk[1], str(i.get("kind") or ""))
+               for i in items or [] if isinstance(i, dict))
+
+
+def kind_permitted(proj: dict, gk: tuple[str, str], namespaced: bool) -> bool:
+    """Argo CD's AppProject.IsGroupKindPermitted: an unset namespaced whitelist allows every kind, an empty one
+    none; an empty cluster whitelist allows no kind."""
+    if namespaced:
+        wl = proj.get("namespaceResourceWhitelist")
+        ok = wl is None or (len(wl) > 0 and in_resource_list(gk, wl))
+        return ok and not in_resource_list(gk, proj.get("namespaceResourceBlacklist") or [])
+    return in_resource_list(gk, proj.get("clusterResourceWhitelist") or []) \
+        and not in_resource_list(gk, proj.get("clusterResourceBlacklist") or [])
+
+
+def destination_permitted(proj: dict, dest: dict, namespace: str) -> bool:
+    """An AppProject destination glob-matches the Application's server (or cluster name) and `namespace`."""
+    server, name = dest.get("server"), dest.get("name")
+    if server is None and name is None:
+        server = DEFAULT_SERVER
+    for item in proj.get("destinations") or []:
+        if not isinstance(item, dict) or not fnmatchcase(namespace, str(item.get("namespace") or "")):
+            continue
+        if server is not None and item.get("server") and fnmatchcase(str(server), str(item["server"])):
+            return True
+        if name is not None and item.get("name") and fnmatchcase(str(name), str(item["name"])):
+            return True
+    return False
 
 
 def wal_archiver(cluster: dict) -> dict | None:
