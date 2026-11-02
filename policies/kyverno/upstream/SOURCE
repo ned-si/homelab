@@ -53,7 +53,7 @@ ff3381547d52102aae74e8426bc0aa2c9eb11ce473bc2af1380a6b3dcff9caeb  best-practices
 f383d4237bad7936551cad44d0a9a52dfeb69cc79db8e64b2bdde6c4f4820870  best-practices-vpol/disallow-default-namespace/disallow-default-namespace.yaml
 cabf42f219d7c3a8f82a3d4a2515b03a0ecab5957e3f74298071d5c353c30c2b  best-practices-vpol/disallow-latest-tag/disallow-latest-tag.yaml
 93e0cfdd016e323bc652f9b5ef8d58ce7748512f69f25c5fd7e19cea0cd11cae  best-practices-vpol/require-drop-all/require-drop-all.yaml
-499f6171267d08054e284fa90b0df91368dcd5cce0173dfbf4ed608f038bc0f8  best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
+afbbb3dcd6c04774e3d9e8e1aa94633b6cf9bf11d6a24f3da71b188e1073c2b6  best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
 f55a343212e3ae130e95e1d18b99941feec8d51eacc85e03d7ab84e1e24bcd4d  best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
 dabef699f5559e91651e71a16c215b52d3886a9603db93bd75550287554f7290  best-practices-vpol/restrict-node-port/restrict-node-port.yaml
 b7404489e14219b6b30c9a12ee57943e2ef25e778a301bbc03f98836f9d202cd  best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml
