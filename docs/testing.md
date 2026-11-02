@@ -48,7 +48,16 @@ Expected: every hook `Passed` (or `Skipped` when no file matches).
   - unit tests: `pytest tests` (render, repo policy, workflow entry points,
     pre-commit parity) and `tests/run-bash-tests.sh` (`tests/bash/`,
     `tests/smoke/`: auto-rollback decisions, pins, merge script, PostSync hook
-    script)
+    script, Vector config check)
+  - `scripts/ci/vector-validate.sh`: the Vector config. The chart is not
+    rendered into `deploy/` and passes `customConfig` through Helm `tpl`, so
+    the script runs `helm template` at the Application's chart version with
+    its values, takes `vector.yaml` from the ConfigMap and runs
+    `vector validate --no-environment` in the image the DaemonSet runs
+    (`image.tag` and `image.sha` in `platform/vector/values.yaml`). A chart
+    or image bump is checked with its own binary; an invalid config (a VRL
+    error such as E103) fails, warnings do not. Locally, without Docker:
+    `VECTOR_BIN=<vector of the same version> scripts/ci/vector-validate.sh`.
   - render every Application, kubeconform against pinned schemas
   - `scripts/ci/kyverno.sh`: the vendor check, the policy unit tests in
     `policies/kyverno/tests/`, then the policies in `policies/kyverno/` and
