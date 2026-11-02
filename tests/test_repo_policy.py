@@ -54,7 +54,7 @@ def cronjob(name="backup", ns="mealie", suspend=True, guard=True, containers=1, 
     else:
         pod["initContainers"].insert(0, dump)
     return {"apiVersion": "batch/v1", "kind": "CronJob", "metadata": {"name": name, "namespace": ns},
-            "spec": {"suspend": suspend, "schedule": "0 3 * * *",
+            "spec": {"suspend": suspend, "schedule": "0 3 * * *", "failedJobsHistoryLimit": 1,
                      "jobTemplate": {"spec": {"template": {"spec": pod}}}}}
 
 
@@ -314,6 +314,65 @@ def test_cronjobs_outside_apps_platform_and_legacy_are_ignored(tmp_path):
     r = policy(tmp_path, renders=[("legacy/all-apps", "1", None, "argo", [job]),
                                   ("infra-x", "2+3", "infrastructure", "kube-system", [job])])
     assert r.returncode == 0, r.stdout
+
+
+RESTIC_GOOD = """restic init 2>/dev/null || true
+# a comment: restic backup /x
+restic unlock
+restic backup --retry-lock 30m /data \\
+  --tag t
+restic unlock
+restic check --retry-lock 30m --with-cache
+files=$(restic ls --retry-lock 30m latest)
+"""
+PRUNE_GOOD = """restic unlock
+restic forget --retry-lock 30m --keep-monthly 12 --prune
+restic check --retry-lock 30m
+"""
+
+
+def restic_job(script, **kw):
+    job = cronjob(suspend=False, guard=False, **kw)
+    c = job["spec"]["jobTemplate"]["spec"]["template"]["spec"]["containers"][0]
+    c["command"], c["args"] = ["/bin/sh", "-c"], [script]
+    return job
+
+
+def restic_tree(tmp_path, docs):
+    return policy(tmp_path, renders=[("infra-x", "2+3", "infrastructure", "default", docs)])
+
+
+def test_restic_locks_pass(tmp_path):
+    cm = {"kind": "ConfigMap", "metadata": {"name": "s", "namespace": "default"}, "data": {"p.sh": PRUNE_GOOD}}
+    r = restic_tree(tmp_path, [restic_job(RESTIC_GOOD), cm])
+    assert r.returncode == 0, r.stdout
+    assert "restic-locks" in r.stdout
+
+
+@pytest.mark.parametrize("script,needle", [
+    (RESTIC_GOOD.replace("backup --retry-lock 30m", "backup"), "restic backup without --retry-lock"),
+    (RESTIC_GOOD.replace("ls --retry-lock 30m", "ls"), "restic ls without --retry-lock"),
+    (RESTIC_GOOD.replace("restic unlock\nrestic check", "restic check"), "restic check is not preceded by restic unlock"),
+    (RESTIC_GOOD.replace("restic unlock\nrestic backup", "restic backup"), "restic backup before any restic unlock"),
+    (PRUNE_GOOD.replace("restic unlock\n", ""), "restic forget is not preceded by restic unlock"),
+    (PRUNE_GOOD.replace("restic unlock", "restic unlock --remove-all"), "--remove-all"),
+])
+def test_restic_locks_script_failures(tmp_path, script, needle):
+    cm = {"kind": "ConfigMap", "metadata": {"name": "s", "namespace": "default"}, "data": {"p.sh": script}}
+    for docs in ([restic_job(script)], [restic_job(RESTIC_GOOD), cm]):
+        r = restic_tree(tmp_path / str(len(docs)), docs)
+        assert any("restic-locks" in f and needle in f for f in fails(r)), r.stdout
+
+
+@pytest.mark.parametrize("limit", [0, None])
+def test_restic_locks_failed_jobs_history(tmp_path, limit):
+    job = restic_job(RESTIC_GOOD)
+    if limit is None:
+        del job["spec"]["failedJobsHistoryLimit"]
+    else:
+        job["spec"]["failedJobsHistoryLimit"] = limit
+    r = restic_tree(tmp_path, [job])
+    assert any("restic-locks" in f and "failedJobsHistoryLimit" in f for f in fails(r)), r.stdout
 
 
 @pytest.mark.parametrize("fixture,needle", [

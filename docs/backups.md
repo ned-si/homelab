@@ -207,10 +207,40 @@ the NAS:
 | 06:00 | `signoz/signoz-backup` (keeps its own 7 daily / 4 weekly / 6 monthly; no prune job) |
 | 1st of the month, 12:00–13:45 | `*-prune`: syncthing 12:00, mealie 12:15, paperless 12:30, theater 13:00, books 13:15, immich 13:30, home 13:45 |
 
-The theater jobs share one repository and restic takes an exclusive lock for
-`backup`, hence the spacing. Each nightly job ends with
-`restic check`. The running set is listed in `ci/active-cronjobs.txt`; CI fails any
+The theater jobs share one repository. Each nightly job ends with
+`restic check`, which takes an exclusive lock ([Locks](#locks)), except the
+theater jobs that run `backup-config.sh`: `theater-config-backup-jellyfin`
+checks their repository. The running set is listed in `ci/active-cronjobs.txt`; CI fails any
 other rendered CronJob that is not suspended.
+
+### Locks
+
+restic locks a repository for every command: `backup` and `ls` take a shared
+lock, `check`, `forget` and `prune` an exclusive one. A live process refreshes
+its lock every 5 minutes. restic calls a lock stale when it has not been
+refreshed for 30 minutes, or when it was taken on the same host by a process
+that no longer runs. A stale lock still blocks: a dead shared lock stops every
+`check` and `prune`, a dead exclusive lock stops everything.
+
+Every restic CronJob therefore:
+
+- runs `restic unlock` after `restic init`, and again right before its first
+  `check` or `forget`. Plain `unlock` removes stale locks only, so a job
+  that is still running keeps its lock. `--remove-all` is never used;
+- passes `--retry-lock 30m` to `backup`, `check`, `forget` and `ls`, so a live
+  lock held by another job makes it wait up to 30 minutes instead of failing;
+- keeps `failedJobsHistoryLimit: 5`, so a failed run's logs can be read.
+
+repo-policy rule `restic-locks` checks all three on the rendered CronJobs and
+their scripts. The restore tests in `backup-verify` read with `--no-lock` and
+never unlock.
+
+A one-off restic writer (a pod started by hand to upload a dump, for example)
+must run `restic unlock` when it ends, or simply not exist: an upload belongs in
+a CronJob, run with `kubectl create job --from=cronjob/<name>`. On 2026-10-17
+`immich-library-backup` saved its snapshot and then failed at `restic check` on
+the lock of such a pod, dead since the morning before (#919). The reasons are in
+[decisions.md](decisions.md#restic-stale-locks).
 
 The restore tests run on weekend evenings, outside this window and one at a
 time: `backup-verify-lock` Saturday 20:00, `backup-verify-files` Saturday

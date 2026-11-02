@@ -39,6 +39,8 @@ spec:
               # `init` is idempotent-by-failure: it errors if the repo
               # already exists, which is the normal case after run one.
               restic init 2>/dev/null || true
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
 
               # TWO SEPARATE SNAPSHOTS, with different tags, so a restore
               # knows what it is getting rather than having to guess.
@@ -54,7 +56,7 @@ spec:
               #
               # Splitting them matters: a single snapshot containing both
               # would inherit the weaker guarantee for all of it.
-              restic backup /data \
+              restic backup --retry-lock 30m /data \
                 --tag grafana-config \
                 --host grafana \
                 --exclude '/data/grafana.db' \
@@ -96,17 +98,18 @@ spec:
               # Unquoted on purpose: word-splitting is how the list becomes
               # separate arguments. The paths are literals above, so there is
               # nothing to split badly.
-              restic backup $DB_FILES \
+              restic backup --retry-lock 30m $DB_FILES \
                 --tag grafana-db-besteffort \
                 --host grafana \
                 --verbose
 
-              restic forget \
+              restic unlock
+              restic forget --retry-lock 30m \
                 --host grafana \
                 --keep-daily 7 --keep-weekly 4 --keep-monthly 6 \
                 --prune
 
-              restic check --with-cache
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo

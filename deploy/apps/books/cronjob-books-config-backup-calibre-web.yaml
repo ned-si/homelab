@@ -36,15 +36,18 @@ spec:
           - args:
             - |
               restic init 2>/dev/null || true
-              restic backup /library \
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
+              restic backup --retry-lock 30m /library \
                 --tag calibre-library \
                 --host books
-              restic backup /config \
+              restic backup --retry-lock 30m /config \
                 --tag calibre-web \
                 --host books \
                 --exclude /config/log \
                 --exclude /config/.cache
-              restic check --with-cache
+              restic unlock
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo

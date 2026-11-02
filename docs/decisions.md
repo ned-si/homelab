@@ -403,3 +403,23 @@ Rejected: leaving the master realm password-only (the most powerful login
 stays the weakest), OTP for every `homelab` user (the household does not use
 authenticator apps), and removing OTP from the master `direct grant` flow so
 the Job could keep the password (a password grant would bypass the OTP).
+
+## Restic stale locks
+
+Every restic CronJob removes stale locks itself: plain `restic unlock` after
+`restic init` and before its first `check` or `forget`, and `--retry-lock 30m`
+on every command that takes a lock ([backups.md](backups.md#locks)).
+
+Why: on 2026-10-17 `immich-library-backup` failed at `restic check` on the
+lock of a one-off pod that had died the day before (#919), and the lock had
+to be removed by hand. `restic unlock` without flags removes only the locks
+restic itself calls stale (not refreshed for 30 minutes; live processes
+refresh every 5), so it is deterministic and cannot break a running job. The
+wait in `--retry-lock` covers the other case, a live lock held by a
+neighbouring job.
+
+Rejected: reporting stale locks and leaving them for the operator (a page for
+something a fixed rule can clear, and the backup still fails that night),
+`unlock --remove-all` (removes live locks too and can corrupt a running
+prune), and a custom age threshold such as 6 hours (restic has no flag for
+it, and a script that parses lock files would duplicate restic's own rule).

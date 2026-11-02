@@ -36,9 +36,11 @@ spec:
           - args:
             - |
               restic init 2>/dev/null || true
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
 
               # 1. CONSISTENT: the XML configuration and plugin settings.
-              restic backup /config \
+              restic backup --retry-lock 30m /config \
                 --tag theater-configs \
                 --tag jellyfin-config \
                 --host theater \
@@ -62,7 +64,7 @@ spec:
               #    `|| true`: a missing -wal is normal in rollback-journal
               #    mode, and a glob that matches nothing must not fail the
               #    whole job and skip the check below.
-              restic backup /config/data \
+              restic backup --retry-lock 30m /config/data \
                 --tag theater-configs \
                 --tag jellyfin-db-besteffort \
                 --host theater \
@@ -73,7 +75,8 @@ spec:
               # 3. Structural check of the WHOLE repository, once per
               #    night, from the last job. Retention is monthly, in
               #    theater-configs-prune.
-              restic check --with-cache
+              restic unlock
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo

@@ -26,6 +26,8 @@ data:
     # Idempotent-by-failure: `init` errors if the repository already exists,
     # which is the normal case from the second run onwards.
     restic init 2>/dev/null || true
+    # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+    restic unlock
 
     echo "=== ${TAG}: backing up ${SRC} ==="
 
@@ -39,7 +41,7 @@ data:
     #                    forget-and-prune.sh keys on to give each app its own
     #                    retention budget. Without the per-app tag in the
     #                    grouping, all six would share one.
-    restic backup "$SRC" \
+    restic backup --retry-lock 30m "$SRC" \
       --tag theater-configs \
       --tag "$TAG" \
       --host theater \
@@ -140,7 +142,8 @@ data:
     # total, so depth is nearly free, and a bad *arr configuration change (a
     # mangled quality profile, a deleted indexer) is the kind of thing noticed
     # weeks later.
-    restic forget \
+    restic unlock
+    restic forget --retry-lock 30m \
       --host theater \
       --group-by host,paths,tags \
       --keep-within 3m \
@@ -149,7 +152,7 @@ data:
 
     # Structural check after the prune. Actually restoring data is a separate
     # CronJob: platform/backup-verify/.
-    restic check --with-cache
+    restic check --retry-lock 30m --with-cache
 kind: ConfigMap
 metadata:
   name: theater-backup-scripts

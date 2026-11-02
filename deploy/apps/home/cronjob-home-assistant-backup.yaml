@@ -37,11 +37,13 @@ spec:
           - args:
             - |
               restic init 2>/dev/null || true
-              restic backup /dumps \
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
+              restic backup --retry-lock 30m /dumps \
                 --tag home-assistant \
                 --tag home-assistant-postgres \
                 --host home
-              restic backup /config \
+              restic backup --retry-lock 30m /config \
                 --tag home-assistant \
                 --tag home-assistant-config \
                 --host home \
@@ -49,7 +51,8 @@ spec:
                 --exclude /config/deps \
                 --exclude /config/tts \
                 --exclude /config/.cache
-              restic check --with-cache
+              restic unlock
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo

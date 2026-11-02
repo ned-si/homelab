@@ -10,8 +10,10 @@
 # Standard; scripts/check-restic-repos.sh keeps the two lists equal.
 #
 # One job per volume: each /config is ReadWriteOnce on its app's node, so
-# each job carries a podAffinity to that app. Jobs start ten minutes apart
-# because restic takes an exclusive repository lock for `backup`.
+# each job carries a podAffinity to that app. Jobs start ten minutes apart.
+# `backup` takes a shared repository lock, `check` and `forget` an exclusive
+# one; every command waits up to 30 minutes for a live lock (--retry-lock,
+# docs/backups.md#locks).
 # `forget --prune` runs monthly in theater-configs-prune: it holds the lock
 # much longer, and packs move to Glacier IR (90-day minimum billing), so
 # pruning nightly saves nothing.
@@ -69,6 +71,8 @@ data:
     # Idempotent-by-failure: `init` errors if the repository already exists,
     # which is the normal case from the second run onwards.
     restic init 2>/dev/null || true
+    # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+    restic unlock
 
     echo "=== ${TAG}: backing up ${SRC} ==="
 
@@ -82,7 +86,7 @@ data:
     #                    forget-and-prune.sh keys on to give each app its own
     #                    retention budget. Without the per-app tag in the
     #                    grouping, all six would share one.
-    restic backup "$SRC" \
+    restic backup --retry-lock 30m "$SRC" \
       --tag theater-configs \
       --tag "$TAG" \
       --host theater \
@@ -124,7 +128,8 @@ data:
     # total, so depth is nearly free, and a bad *arr configuration change (a
     # mangled quality profile, a deleted indexer) is the kind of thing noticed
     # weeks later.
-    restic forget \
+    restic unlock
+    restic forget --retry-lock 30m \
       --host theater \
       --group-by host,paths,tags \
       --keep-within 3m \
@@ -133,7 +138,7 @@ data:
 
     # Structural check after the prune. Actually restoring data is a separate
     # CronJob: platform/backup-verify/.
-    restic check --with-cache
+    restic check --retry-lock 30m --with-cache
 
   # Logical dumps of the four *arr databases: pg_dump in an initContainer
   # (CNPG postgres image) writes to an emptyDir that the restic container
@@ -901,9 +906,11 @@ spec:
               args:
                 - |
                   restic init 2>/dev/null || true
+                  # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+                  restic unlock
 
                   # 1. CONSISTENT: the XML configuration and plugin settings.
-                  restic backup /config \
+                  restic backup --retry-lock 30m /config \
                     --tag theater-configs \
                     --tag jellyfin-config \
                     --host theater \
@@ -927,7 +934,7 @@ spec:
                   #    `|| true`: a missing -wal is normal in rollback-journal
                   #    mode, and a glob that matches nothing must not fail the
                   #    whole job and skip the check below.
-                  restic backup /config/data \
+                  restic backup --retry-lock 30m /config/data \
                     --tag theater-configs \
                     --tag jellyfin-db-besteffort \
                     --host theater \
@@ -938,7 +945,8 @@ spec:
                   # 3. Structural check of the WHOLE repository, once per
                   #    night, from the last job. Retention is monthly, in
                   #    theater-configs-prune.
-                  restic check --with-cache
+                  restic unlock
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/theater/configs

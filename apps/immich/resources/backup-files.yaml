@@ -86,11 +86,13 @@ spec:
                   # `init` is idempotent-by-failure: it errors if the repo already
                   # exists, which is the normal case after the first run.
                   restic init 2>/dev/null || true
+                  # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+                  restic unlock
 
                   # Thumbnails and transcodes are excluded because Immich
                   # regenerates them from originals -- backing them up would
                   # roughly double the bill for data that is derived.
-                  restic backup /data \
+                  restic backup --retry-lock 30m /data \
                     --tag immich-library \
                     --host immich \
                     --exclude '**/.tmp/**' \
@@ -101,7 +103,8 @@ spec:
                   # Cheap structural check on every run. The real verification
                   # (actually restoring data) is a separate CronJob:
                   # platform/backup-verify/.
-                  restic check --with-cache
+                  restic unlock
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/immich/library
@@ -233,8 +236,10 @@ spec:
               args:
                 - |
                   restic init 2>/dev/null || true
+                  # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+                  restic unlock
 
-                  restic backup /data \
+                  restic backup --retry-lock 30m /data \
                     --tag immich-library \
                     --host immich \
                     --exclude '**/.tmp/**' \
@@ -245,14 +250,15 @@ spec:
                   # Longer retention than the S3 copy: local storage is 16TB of
                   # already-paid-for pool, so depth here is nearly free and gives
                   # more room to notice a problem that started weeks ago.
-                  restic forget \
+                  restic unlock
+                  restic forget --retry-lock 30m \
                     --tag immich-library \
                     --keep-daily 14 \
                     --keep-weekly 8 \
                     --keep-monthly 6 \
                     --prune
 
-                  restic check --with-cache
+                  restic check --retry-lock 30m --with-cache
               env:
                 # A plain filesystem path, not an s3: URL. No credentials, no
                 # endpoint, no egress.
@@ -358,14 +364,15 @@ spec:
               command: ["/bin/sh", "-euo", "pipefail", "-c"]
               args:
                 - |
-                  restic forget \
+                  restic unlock
+                  restic forget --retry-lock 30m \
                     --host immich \
                     --tag immich-library \
                     --keep-within 3m \
                     --keep-monthly 12 \
                     --prune
 
-                  restic check --with-cache
+                  restic check --retry-lock 30m --with-cache
               env:
                 - name: RESTIC_REPOSITORY
                   value: s3:https://s3.eu-central-1.amazonaws.com/ned-si-homelab-backups/immich/library

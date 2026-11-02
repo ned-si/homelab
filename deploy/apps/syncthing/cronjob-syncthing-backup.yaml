@@ -36,6 +36,8 @@ spec:
           - args:
             - |
               restic init 2>/dev/null || true
+              # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
+              restic unlock
 
               # An INCLUDE-list expressed as excludes, which is the only
               # form restic offers. The exclusions are the rebuildable
@@ -47,7 +49,7 @@ spec:
               # matching today's version would silently start capturing a
               # live database on the next major bump -- the failure mode
               # being avoided.
-              restic backup /data \
+              restic backup --retry-lock 30m /data \
                 --tag syncthing-data \
                 --tag syncthing-identity \
                 --host syncthing \
@@ -61,7 +63,8 @@ spec:
                 --exclude '/data/panic-*.log' \
                 --verbose
 
-              restic check --with-cache
+              restic unlock
+              restic check --retry-lock 30m --with-cache
 
               # ONE ASSERTION, because a backup of the wrong thing is the
               # risk here rather than a torn write.
@@ -71,7 +74,7 @@ spec:
               # while backing up nothing that matters. `restic ls` of the
               # snapshot just written is cheap and catches that.
               echo "--- verifying the snapshot contains the identity files ---"
-              files=$(restic ls --tag syncthing-identity latest)
+              files=$(restic ls --retry-lock 30m --tag syncthing-identity latest)
               for want in config.xml cert.pem key.pem; do
                 if printf '%s\n' "$files" | grep -q "/${want}\$"; then
                   echo "    ok      ${want}"

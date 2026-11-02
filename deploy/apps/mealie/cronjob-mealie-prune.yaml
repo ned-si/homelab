@@ -28,13 +28,14 @@ spec:
           containers:
           - args:
             - |
-              restic forget \
+              restic unlock
+              restic forget --retry-lock 30m \
                 --host mealie \
                 --keep-within 3m \
                 --keep-monthly 12 \
                 --prune
 
-              restic check --with-cache
+              restic check --retry-lock 30m --with-cache
             command:
             - /bin/sh
             - -euo
