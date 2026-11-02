@@ -7,6 +7,7 @@
 #                tofu fmt + validate
 #   render       unit tests, promtool (rule checks and rule unit tests),
 #                Alertmanager routing and inhibition tests,
+#                the Vector config (`vector validate`),
 #                render, kubeconform, Kyverno policies over deploy/,
 #                repo-policy (pins, invariants,
 #                secrets/leak/placeholder checks, deploy/ matches sources,
@@ -32,6 +33,8 @@
 #   - every remote `uses:` is a 40-hex commit SHA with a `# vX.Y.Z` comment;
 #   - every binary is downloaded by exact version and verified against the
 #     sha256 below (scripts/ci/install-tool.sh), never `latest`;
+#   - vector runs from the image the DaemonSet runs, pinned by tag and digest
+#     in platform/vector/values.yaml (scripts/ci/vector-validate.sh);
 #   - Python tools come from ci/requirements-ci.txt with `--require-hashes`;
 #   - core Kubernetes schemas come from one pinned commit, CRD schemas from the
 #     vendored ci/schemas/ (no -ignore-missing-schemas).
@@ -220,6 +223,13 @@ jobs:
       - name: Alertmanager routing (amtool + replayed outages)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: scripts/ci/alertmanager-test.sh
+
+      # The Vector chart is not rendered into deploy/ and passes customConfig
+      # through Helm `tpl`: compile the rendered config with the image the
+      # DaemonSet runs, so a chart or image bump is checked with its binary.
+      - name: Vector config (vector validate in the pinned image)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/vector-validate.sh
 
       # Rendered once; kubeconform and repo-policy read the same directory.
       - name: Render every Application in scope
