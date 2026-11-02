@@ -91,6 +91,7 @@ spec:
       expr: |
         tetragon:policy_events:increase5m{policy="bpf-library-policy"}
         unless tetragon:policy_events:increase5m{namespace="tetragon", workload="tetragon"}
+        unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/tetragon"}
         unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
         unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
       labels:
