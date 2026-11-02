@@ -7,7 +7,9 @@ Shell: [Before you start](README.md#before-you-start).
 
 A device with a fixed vendor MAC (`mac`) answered ARP at `ip` and was not
 seen in the 30 days before. That is new hardware on the LAN, not a phone
-rotating its private address. The alert resolves by itself after an hour.
+rotating its private address. It pushes once per device: missed scans do not
+resolve and re-fire it (`keep_firing_for: 1h`). It resolves by itself about
+two hours after the device first answered.
 
 ## Confirm
 
@@ -35,7 +37,7 @@ node or NAS card).
 
 ## Resolved when
 
-You know what the device is. The alert clears an hour after it fired.
+You know what the device is. The alert clears about two hours after it fired.
 
 ## Links
 

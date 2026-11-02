@@ -15,7 +15,9 @@ tests:
   # The scanner runs from t=0. The router answers throughout; a TV appears
   # at 2h (inside the first day: no alert). At 25h a new fixed-MAC device
   # appears, and a known phone (seen since 1h) rotates its private MAC on the
-  # same IP: only the fixed MAC raises an alert.
+  # same IP: only the fixed MAC raises an alert. The new device misses two
+  # scans right after it appears: the alert keeps firing through the gap
+  # (no second push) and resolves an hour after its last true evaluation.
   - interval: 5m
     input_series:
       - series: 'lan_inventory_devices'
@@ -27,7 +29,7 @@ tests:
       - series: 'lan_device_present{mac="a8:00:00:00:00:02", ip="192.168.1.60", random_mac="false"}'
         values: '_x23 1x376'
       - series: 'lan_device_present{mac="a8:00:00:00:00:04", ip="192.168.1.62", random_mac="false"}'
-        values: '_x299 1x100'
+        values: '_x299 1 _x2 1x97'
       - series: 'lan_device_present{mac="da:00:00:00:00:03", ip="192.168.1.61", random_mac="true"}'
         values: '_x11 1x287'
       - series: 'lan_device_present{mac="de:00:00:00:00:05", ip="192.168.1.61", random_mac="true"}'
@@ -39,6 +41,26 @@ tests:
       - eval_time: 24h50m
         alertname: LANNewDeviceSeen
         exp_alerts: []
+      - eval_time: 25h05m
+        alertname: LANNewDeviceSeen
+        exp_alerts: &new_device
+          - exp_labels:
+              mac: a8:00:00:00:00:04
+              ip: 192.168.1.62
+              random_mac: "false"
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANNewDeviceSeen.md
+              summary: "New device on the LAN: a8:00:00:00:00:04 at 192.168.1.62"
+              description: >-
+                a8:00:00:00:00:04 answered ARP at 192.168.1.62 and was not
+                seen in the last 30 days. Its MAC is a fixed vendor address, so
+                this is new hardware, not a phone rotating its private address.
+                If it is not yours, find it in the router's DHCP list and block it.
+      - eval_time: 26h10m
+        alertname: LANNewDeviceSeen
+        exp_alerts: *new_device
       - eval_time: 25h10m
         alertname: LANNewDeviceSeen
         exp_alerts:
@@ -56,7 +78,7 @@ tests:
                 seen in the last 30 days. Its MAC is a fixed vendor address, so
                 this is new hardware, not a phone rotating its private address.
                 If it is not yours, find it in the router's DHCP list and block it.
-      - eval_time: 26h10m
+      - eval_time: 27h
         alertname: LANNewDeviceSeen
         exp_alerts: []
       - eval_time: 26h10m

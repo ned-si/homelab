@@ -53,6 +53,7 @@ spec:
         max by (mac, ip, random_mac) (lan_device_present{random_mac="false"})
         unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)
         and on () (count(lan_inventory_devices offset 1d) > 0)
+      keep_firing_for: 1h
       labels:
         action: human
         severity: warning
