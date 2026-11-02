@@ -31,13 +31,15 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       the Network dashboard row, `docs/networking.md`. [3.1, 3.2, 3.3, 3.4]
 - [x] 6. (#533) PR `feat(network): netpol-observe script`: `scripts/netpol-observe.sh` and its
       bash test. [2.3]
-- [ ] 7. Observe 7 days, then one PR per namespace group, `feat(network): allow-lists for
+- [x] 7. Moved to #709 on 2026-11-02, not done here (deferred work is an issue):
+      observe 7 days, then one PR per namespace group, `feat(network): allow-lists for
       <namespaces> from observed flows`: regenerated or new files with one comment per
       rule, switch pairs in `90-enforcement.yaml` all false. Groups: application
       namespaces; `keycloak` and `backup-verify`; `monitoring` and the exporters;
       `tailscale`, `headlamp`, `hubble`; the wave 3 namespaces (`kyverno`, `tetragon`,
       `logging`, `signoz`). [2.2, 2.3, 2.4, 2.5]
-      - [ ] 7a. Application namespaces (#772, 2026-10-26): LazyLibrarian, the hook Jobs
+      - [x] 7a. Application namespaces (#772, 2026-10-26; the uncovered flows below
+        moved to #709): LazyLibrarian, the hook Jobs
         (presync-backup, postsync-smoke), WAL archiving to S3 and the backup-verify reads
         of the theater and mealie databases, qBittorrent's ICMP errors, and the CNPG
         operator, whose rules named `cnpg-system` while it runs in `immich`. Still
@@ -60,7 +62,8 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       row, `docs/decisions.md`. Register the organisation and the admin, close
       self-registration; ask the operator for his login email and whether his Google
       account is on a Workspace domain. [8.1, 8.2, 8.3]
-- [ ] 10c. PR `feat(observability): SigNoz admin under the operator's identity`: the admin
+- [x] 10c. Moved to #920 on 2026-11-02 (waits on the operator and on #801), not done
+      here. PR `feat(observability): SigNoz admin under the operator's identity`: the admin
       email changed to his address, the SOPS password re-sealed, the runbook (break-glass
       `/login?password=Y`); with a Workspace domain also the OAuth client in SOPS and the
       authenticated domain set through the API. Check the login matrix of 8.8. [8.3, 8.4,
@@ -77,16 +80,18 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
       guard, `ci/active-cronjobs.txt`, `ci/guard-modes.txt`, `docs/backups.md` (metadata
       backed up, ClickHouse disposable); rehearse one restore into a scratch namespace and
       write it down. [6.1, 6.2, 6.3, 6.4]
-- [ ] 13b. The restore rehearsal of task 13, not done yet: it needs a nightly snapshot of
+- [x] 13b. Moved to #920 on 2026-11-02, not done here. The restore rehearsal of task 13: it needs a nightly snapshot of
       the real organisation (the first is 2026-10-17 06:00 UTC) and a scratch SigNoz. [6.4]
 - [x] 14. (#564) PR `feat(observability): SigNoz trial gate`: `platform/signoz/rules.yaml` (trial
       recording rules, `signoz_trial:pass`, `LogPipelineDiscarding`,
       `SigNozCollectorAbsent`) with promtool tests, runbook sections, `routes.txt` lines,
       the dashboard panel, start and end dates and thresholds in
       `docs/observability.md`. [7.1, 7.2, 7.3, 7.6]
-- [ ] 15. On the end date: read `signoz_trial:pass` over the trial window and the phone
-      check; PR `docs(observability): SigNoz trial result` that either drops "trial" or
-      removes SigNoz and records the Loki fallback. [7.4, 7.5]
+- [x] 15. Moved to #801 on 2026-11-02, not done here: the trial ended 2026-10-31 with no
+      result PR, and #801 (SigNoz as the single place for observability and security)
+      asks the larger question. On the end date: read `signoz_trial:pass` over the trial
+      window and the phone check; PR `docs(observability): SigNoz trial result` that
+      either drops "trial" or removes SigNoz and records the Loki fallback. [7.4, 7.5]
 - [x] 16. Tick this file and record the PR numbers. Also merged for this spec: #544
       (relay peers alert counts IDLE), #551 (would-be drops scoped), #560 (Vector memory),
       #566 (SigNoz sync drift), #568 (no automerge for data-store majors). Open: 7 (needs
