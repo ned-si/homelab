@@ -180,9 +180,10 @@ prometheus:
     # caps the blocks at 34GiB, leaving about 6Gi for the WAL and compaction.
     # Watch prometheus_tsdb_lowest_timestamp_seconds: it must stay 30 days old.
     #
-    # The operator does not resize the PVC: after a change to `storage`, patch
-    # prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0
-    # to the same size (`iscsi` allows expansion; online, no restart).
+    # The operator does not resize the PVC. The claim is declared in git
+    # (infrastructure/iscsi-volumes/monitoring-prometheus-db.yaml): change its
+    # request and the PV's capacity there to the same size, and the CSI
+    # resizer grows the zvol and the filesystem online, no restart.
     retention: 30d
     retentionSize: 34GiB
     storageSpec:

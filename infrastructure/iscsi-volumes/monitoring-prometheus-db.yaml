@@ -15,8 +15,12 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
+  # 15Gi in the claim until 2026-11-02, while the zvol and its filesystem
+  # had been grown to 25Gi by hand; 40Gi for the 30-day retention
+  # (platform/kube-prometheus-stack/values.yaml). Grown through the claim
+  # below: the CSI resizer expands the zvol, then the filesystem online.
   capacity:
-    storage: 15Gi
+    storage: 40Gi
   accessModes:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
@@ -76,4 +80,4 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 15Gi
+      storage: 40Gi

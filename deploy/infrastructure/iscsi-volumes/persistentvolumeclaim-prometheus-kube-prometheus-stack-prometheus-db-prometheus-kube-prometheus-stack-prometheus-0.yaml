@@ -27,6 +27,6 @@ spec:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 15Gi
+      storage: 40Gi
   storageClassName: iscsi
   volumeName: pvc-9e4a302a-8b0a-4642-a4e8-1b55c2d64f72
