@@ -27,7 +27,7 @@ one Keycloak single sign-on, and it is public as an implementation example.
 | Device sync | Syncthing |
 | Home | Home Assistant, Mosquitto, Zigbee2MQTT |
 | Identity | Keycloak, realm `homelab`, per-app access by group |
-| Operator tools | Argo CD, Grafana, Headlamp (public behind Keycloak, group `admins`) |
+| Operator tools | Argo CD, Grafana, Headlamp, Hubble, SigNoz (public behind Keycloak, group `admins`, TOTP) |
 
 The current list with namespaces and hostnames is the Services table in
 [README.md](../../README.md#services). Plex and Jellyfin stay off SSO so the

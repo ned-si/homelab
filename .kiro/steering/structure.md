@@ -8,8 +8,8 @@ inclusion: always
 | Path | Holds |
 | --- | --- |
 | `clusters/homelab/` | Argo CD objects only: `root.yaml`, the AppProjects, the three layers, one Application file per app (`<layer>/<app>.yaml`) |
-| `infrastructure/` | Layer 1: namespaces, Cilium config, Gateway, cert-manager, external-dns, democratic-csi |
-| `platform/` | Layer 2: CloudNativePG, Keycloak, monitoring, exporters, tuppr, backup-verify, Tailscale, Headlamp |
+| `infrastructure/` | Layer 1: namespaces, Cilium config, Gateway, network policies, cert-manager, external-dns, democratic-csi, Kyverno and its policies |
+| `platform/` | Layer 2: CloudNativePG, Keycloak, monitoring, exporters, tuppr, backup-verify, Tailscale, Headlamp, Hubble, Tetragon, Vector, SigNoz, alert-triage |
 | `apps/` | Layer 3: one directory per app (manifests and Helm values) |
 | `*/secrets/` | SOPS-encrypted Secrets for that layer, with a `.example` template each |
 | `components/` | Kustomize Components shared by apps (`postsync-smoke`, `presync-backup`) |
