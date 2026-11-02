@@ -117,8 +117,14 @@ the Cilium agents or applies Talos config; take an etcd snapshot before `task ta
 - [x] 20. (#581) PR `feat(observability): count auditd records`: the Vector counter, the
       `AuditAVCRateHigh` rule with a promtool test, `routes.txt`, the Logs section. [9.7,
       9.8]
-- [ ] 21. Roll out: the ClickHouse volume first and its proof (9.5); then one application
+- [x] 21. Roll out: the ClickHouse volume first and its proof (9.5); then one application
       at a time, git-managed volumes by one PR each, the others by the script, databases
       after a fresh backup. Record each volume here. [9.3, 9.5, 9.6]
       Labelled on 2026-10-26 (`mountOptions` with `context=`): every iSCSI volume
-      but 2 of 3 in `immich` and both in `seafile` (#583 to #587).
+      but 2 of 3 in `immich` and both in `seafile` (#583 to #587). `immich-db`
+      (`pvc-617cafe8-1e6b-41a9-8ede-57d3093ca183`) on 2026-11-02 14:13Z with the
+      script, after the daily base backup of 00:00Z: the new pod mounts
+      `/var/lib/postgresql/data` with `context=system_u:object_r:ephemeral_t:s0`,
+      the cluster healthy at 14:16Z, Immich answering. Left out on purpose:
+      `immich-data` (decision, the script refuses it) and the two archived
+      `seafile` volumes (no pods).
