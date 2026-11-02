@@ -21,12 +21,12 @@ Application in `clusters/homelab/`, images by digest in the manifests.
 | File backups | restic to S3 (the photo library also to the NAS); weekly restore tests; old object versions locked | [backups](../../docs/backups.md) |
 | TLS and DNS | cert-manager (Let's Encrypt, DNS-01 on Cloudflare); external-dns, upsert only | [networking](../../docs/networking.md) |
 | Identity | Keycloak, OIDC per app, access by group | [architecture](../../docs/architecture.md#per-app-access) |
-| Remote access | Tailscale operator with the Kubernetes API proxy; web UIs (Headlamp) public behind Keycloak | [remote-access](../../docs/remote-access.md) |
-| Observability | kube-prometheus-stack; Alertmanager -> ntfy; healthchecks.io heartbeat; SLOs as recording rules | [observability](../../docs/observability.md), [sre](../../docs/sre.md) |
+| Remote access | Tailscale operator with the Kubernetes API proxy and the Talos API; web UIs (Argo CD, Grafana, Headlamp, Hubble, SigNoz) public behind Keycloak, admins with TOTP | [remote-access](../../docs/remote-access.md) |
+| Observability | kube-prometheus-stack (30-day metrics); Alertmanager -> ntfy (`action: human` pages only); healthchecks.io heartbeat; SLOs as recording rules; Vector -> SigNoz for pod and Talos logs (on trial, #801); Hubble for flows | [observability](../../docs/observability.md), [sre](../../docs/sre.md) |
 | Automation | Renovate automerge on green CI; automatic rollback on a degraded sync, with an outage guard | [decisions](../../docs/decisions.md#automatic-rollback) |
 | Cloud resources | OpenTofu under `bootstrap/`, applied by the `tofu` workflow through GitHub OIDC | [bootstrap](../../docs/bootstrap.md) |
 | Secrets | SOPS with one age key, decrypted by KSOPS in Argo CD | [secrets](../../docs/secrets.md) |
-| Policy | Kyverno policies run in CI over `deploy/`; kube-linter; Trivy | [testing](../../docs/testing.md) |
+| Policy | Kyverno in CI over `deploy/` and in the cluster (baseline policies in Deny, PolicyExceptions per workload); Tetragon runtime detection in observe mode; Cilium network policies (app allow-lists in audit); kube-linter; Trivy | [testing](../../docs/testing.md) |
 
 ## Checks
 
