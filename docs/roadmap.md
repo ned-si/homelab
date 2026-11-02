@@ -24,13 +24,29 @@ with its own diff, test and rollback
 - **One identity.** The Kubernetes API (#711), Headlamp (#712) and Jellyfin
   (#730) on Keycloak.
 - **Recoverable from git alone.** A monthly rebuild rehearsal in CI and a
-  timed disaster-recovery run (#723); automatic Postgres majors (#745);
-  consistent SQLite backups (#746).
+  timed disaster-recovery run (#723); a written strategy around it: the
+  scenarios (node, NAS, house, cloud account), RPO, RTO and measured MTTR
+  per tier, and cold, warm or hot standby compared on cost, with the choice
+  and its reasons (#918); automatic Postgres majors (#745); consistent
+  SQLite backups (#746); no stale restic lock can fail a backup (#919).
+- **Only the data we use, in as few places as possible.** Every metric and
+  log answers a question (an SLO, an alert, a runbook, a detection, an
+  audit) or is dropped or sampled; SigNoz as the one place for reliability
+  and security signals, or not (#801); Prometheus keeps its 30 days (#905,
+  #922).
+- **Elastic where it can be.** HPA for the stateless workloads, KEDA for
+  event-driven scaling and scale to zero of idle apps, VPA recommendations
+  to size requests; bursting to cloud nodes stays a research note (#917).
+- **Pages a person can close.** One push per problem (#915), and an
+  acknowledgement from the phone: an action on the ntfy push that opens a
+  prefilled Alertmanager silence behind Keycloak (#916).
 - **The NAS as a hardened dependency.** Scoped NFS exports and read-only
   media (#721), the failing cache device and the pending update (#719, #720,
   #722).
-- **Proven, not assumed.** Chaos experiments tied to the SLOs (#733), a
-  scoped pentest (#718).
+- **Proven, not assumed.** Chaos experiments tied to the SLOs (#733); a
+  scoped, technical pentest with a written report per run, from outside
+  (the own IPs and domains) and from inside (the LAN, a compromised pod, a
+  stolen session), its findings as issues (#718).
 
 Issues by area: [networking](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fnetworking),
 [identity](https://github.com/ned-si/homelab/issues?q=is%3Aopen+label%3Aarea%2Fidentity),
