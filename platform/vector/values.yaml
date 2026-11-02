@@ -214,7 +214,7 @@ customConfig:
       inputs: [parsed]
       source: |
         # One OTLP log record per event (codec otlp of the opentelemetry sink).
-        ts = to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds") ?? to_unix_timestamp(now(), unit: "nanoseconds")
+        ts, _err = to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds")
         attrs = {}
         if is_object(.attributes) { attrs = object!(.attributes) }
         level = downcase(string(attrs.level || attrs.lvl || attrs.severity || .level || "") ?? "")
@@ -262,7 +262,7 @@ customConfig:
       inputs: [talos_parsed]
       source: |
         # One OTLP log record per event (codec otlp of the opentelemetry sink).
-        ts = to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds") ?? to_unix_timestamp(now(), unit: "nanoseconds")
+        ts, _err = to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds")
         attrs = {}
         if is_object(.attributes) { attrs = object!(.attributes) }
         level = downcase(string(attrs.level || attrs.lvl || attrs.severity || .level || "") ?? "")
