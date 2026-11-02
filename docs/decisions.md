@@ -119,7 +119,11 @@ majors of stateful data stores (Postgres, ClickHouse, ZooKeeper, Valkey/Redis,
 MariaDB/MySQL: the pull request opens, a person merges it, because a store that
 has run on the new major cannot go back; ClickHouse 26 for SigNoz, #559, was
 the case), and versions a consumer does not support yet. Policy gates, once they exist, are Kyverno
-policies, not approvals.
+policies, not approvals. The pre-commit hooks, dev tooling that is not
+deployed, come as one pull request on Mondays,
+because `renovatebot/pre-commit-hooks` released several times a day and each
+merge moved `main` under the pull requests waiting for `ci` (#921); it
+automerges like the rest.
 
 Why: one operator, and the goal is a system that updates and heals at any time.
 An approval queue only ages until someone clicks it.

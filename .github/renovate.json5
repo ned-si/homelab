@@ -259,6 +259,18 @@
       matchPackageNames: ['tailscale-operator', 'tailscale/k8s-operator', 'tailscale/tailscale'],
     },
     {
+      // Dev tooling only, nothing deployed. renovatebot/pre-commit-hooks
+      // releases several times a day (7 merges from 2026-11-01 to 11-02) and
+      // each merge moved main under the pull requests waiting for ci (#921).
+      // One pull request for every hook, opened and updated on Mondays only
+      // (Europe/Zurich); it still automerges on green ci.
+      description: 'pre-commit hooks: one pull request a week',
+      matchManagers: ['pre-commit'],
+      groupName: 'pre-commit hooks',
+      separateMinorPatch: false,
+      schedule: ['* * * * 1'],
+    },
+    {
       // Cilium ships against a specific Gateway API version. If these drift the
       // Gateway stops programming and every HTTPRoute goes dark.
       //

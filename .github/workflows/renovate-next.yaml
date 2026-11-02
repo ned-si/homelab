@@ -5,6 +5,8 @@
 # main this ticks the rebase checkbox of the next pull request, so CI runs on
 # the one that merges next instead of on every open one. The schedule
 # restarts the train when nothing was pushed, after a failed ci for example.
+# scripts/pr-merge.sh pauses it (repository variable RENOVATE_TRAIN_PAUSED)
+# and starts it by workflow_dispatch when it pauses and resumes it.
 name: renovate-next
 
 on:
@@ -38,6 +40,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
+          # Set by scripts/pr-merge.sh while it holds its merge lock.
+          RENOVATE_TRAIN_PAUSED: ${{ vars.RENOVATE_TRAIN_PAUSED }}
         run: |
           line=$(scripts/ci/renovate-next.sh)
           echo "$line"

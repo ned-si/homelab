@@ -130,4 +130,40 @@ setup "$(young "$(pr 10 2026-09-30 a1 SUCCESS x x manual)" SUCCESS commented)"
 expect_eq "release age passed: it joins the train" "#10: auto-merge turned on
 #10: rebase requested" "$(run)"
 
+# Paused by pr-merge (RENOVATE_TRAIN_PAUSED): no tick, auto-merge off.
+pause_at=2026-11-02T10:00:00Z
+pause_epoch=$(jq -rn --arg t "$pause_at" '$t | fromdateiso8601')
+paused_run() { # <minutes since the pause>
+  RENOVATE_TRAIN_PAUSED="907 $pause_at" NOW_EPOCH=$((pause_epoch + $1 * 60)) run
+}
+setup "$(pr 11 2026-10-01 a1 SUCCESS)" "$(pr 12 2026-10-02 b2 SUCCESS x x manual)"
+expect_eq "paused: auto-merge off, nothing rebased" "#11: auto-merge turned off
+paused by pr-merge (907 $pause_at); nothing rebased" "$(paused_run 5)"
+expect_eq "paused: disable-auto" "pr merge 11 --repo o/r --disable-auto" "$(cat "$FAKE/merge-11")"
+expect_eq "paused: no rebase requested" "no" "$([ -e "$FAKE/patch-11" ] && echo yes || echo no)"
+expect_eq "paused: no auto-merge turned on" "no" "$([ -e "$FAKE/merge-12" ] && echo yes || echo no)"
+
+setup "$(pr 11 2026-10-01 a1 SUCCESS)"
+expect_eq "paused at 90 min: still paused" "#11: auto-merge turned off
+paused by pr-merge (907 $pause_at); nothing rebased" "$(paused_run 90)"
+
+setup "$(pr 11 2026-10-01 a1 SUCCESS x x manual)"
+expect_eq "stale pause: ignored, the train runs" "pause by PR #907 since $pause_at is older than 90 min; ignored
+#11: auto-merge turned on
+#11: rebase requested" "$(paused_run 91)"
+expect_eq "stale pause: auto-merge back on" "pr merge 11 --repo o/r --auto --squash" "$(cat "$FAKE/merge-11")"
+
+setup "$(pr 11 2026-10-01 a1 SUCCESS)"
+expect_eq "pause without a time: paused" "#11: auto-merge turned off
+paused by pr-merge (by hand); nothing rebased" "$(RENOVATE_TRAIN_PAUSED='by hand' run)"
+
+setup "$(pr 11 2026-10-01 a1 SUCCESS)"
+expect_eq "paused dry run: changes nothing" "#11: would turn auto-merge off (dry run)
+paused by pr-merge (907 $pause_at); nothing rebased" "$(DRY_RUN=1 paused_run 5)"
+expect_eq "paused dry run: no call" "no" "$([ -e "$FAKE/merge-11" ] && echo yes || echo no)"
+
+setup "$(pr 11 2026-10-01 a1 SUCCESS x x manual)"
+expect_eq "resumed (no variable): auto-merge back on" "#11: auto-merge turned on
+#11: rebase requested" "$(RENOVATE_TRAIN_PAUSED='' run)"
+
 finish
