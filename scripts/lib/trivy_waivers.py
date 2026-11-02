@@ -130,9 +130,9 @@ def main() -> int:
         print(f"{ANN_WARN}{message}")
 
     if unscoped:
-        # Informational, never fatal. AVD-KSV-0014 is deliberately unscoped and
-        # the file explains why, so failing on this would be wrong. Printing it
-        # keeps the count visible so it cannot grow unnoticed.
+        # Informational, never fatal: an unscoped entry can be a deliberate
+        # decision the file explains. Printing it keeps the count visible so
+        # it cannot grow unnoticed.
         print(
             f"\nunscoped waivers (apply repo-wide): {', '.join(sorted(unscoped))}\n"
             f"  Each one is a claim that the finding is never worth fixing ANYWHERE.\n"

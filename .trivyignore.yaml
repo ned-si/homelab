@@ -54,37 +54,41 @@ misconfigurations:
   # CRITICAL -- vendored upstream RBAC
   # =========================================================================
   # Both are ClusterRole/plugin-barman-cloud, from the plugin's own release
-  # bundle. platform/barman-cloud-plugin/kustomization.yaml has exactly one
-  # resource: the v0.12.0 manifest.yaml. This is the plugin author's RBAC, and
-  # what editing it breaks is Postgres backups -- including Immich's database.
+  # bundle (the manifest.yaml pinned in platform/barman-cloud-plugin, v0.15.1
+  # at the last review). This is the plugin author's RBAC, and what editing it
+  # breaks is Postgres backups -- including Immich's database.
   #
-  # The real verbs are narrower than the findings' wording:
-  #     secrets            create, delete, get, list, watch  (no update, no *)
-  #     roles/rolebindings create, get, list                 (no delete, no *)
-  # KSV-0050 enumerates the verb set it TESTS for; the role holds only `create`.
+  # The verbs, as rendered:
+  #     secrets            create, delete, get, list, watch        (no update, no *)
+  #     roles/rolebindings create, get, list, patch, update, watch (no delete, no *)
   #
-  # It needs both: it creates the per-Cluster credential and TLS Secrets for its
-  # CNPG-I connection, and per-Cluster Role/RoleBinding so each instance can read
-  # its own ObjectStore config.
+  # Why: for each CNPG Cluster the plugin creates a Role `<cluster>-barman-cloud`
+  # in the Cluster's namespace granting get/list/watch on its ObjectStores and
+  # their credential Secrets (upstream internal/cnpgi/operator/specs/role.go),
+  # and keeps it in step with the ObjectStore list. RBAC escalation prevention
+  # means the plugin must hold get/list/watch on secrets itself. Which code
+  # path uses create/delete on secrets is not verified (#951).
   #
   # Residual risk, accepted not dismissed: compromise of that pod reads and
   # creates Secrets cluster-wide and creates RBAC. Bounded by the pin, and by
   # Renovate grouping it with the cloudnative-pg chart so the bump is one
-  # reviewable PR.
+  # reviewable PR. Narrowing the binding to the six namespaces that use the
+  # plugin is issue #951.
   #
-  # SHORT EXPIRY ON PURPOSE -- three months, not twelve. A CRITICAL waiver should
-  # force a re-read at a cadence closer to the upstream release cycle, and the
-  # question to ask is whether the plugin has gained a namespace-scoped install.
+  # KSV-0050 is reported by Trivy 0.70.0 (the CI pin) but no longer by 0.76.
+  # Re-check both on a Trivy bump and drop the entry once it stops matching.
   - id: AVD-KSV-0041
     paths:
       - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"
     statement: >-
-      Vendored upstream ClusterRole (plugin-barman-cloud v0.12.0). Needs
-      create/delete/get/list/watch on secrets to manage its own per-Cluster
-      credential and TLS secrets; no update/patch and no wildcard. Not editable
-      without patching an upstream release bundle and breaking Postgres backups.
-      Re-read on the next plugin bump.
-    expired_at: 2026-12-01
+      Vendored upstream ClusterRole (plugin-barman-cloud release bundle).
+      create/delete/get/list/watch on secrets, no update/patch, no wildcard.
+      get/list/watch it must hold to grant each CNPG Cluster's namespaced Role
+      read on its ObjectStore credential Secrets (RBAC escalation prevention);
+      create/delete ship in the upstream bundle, their use is checked in #951.
+      Editing it means patching the upstream bundle and risks Postgres
+      backups. Re-read on every plugin bump.
+    expired_at: 2027-05-01
   # The restore tests read each source database as its owner, so they `get` the
   # CNPG -app Secrets by name: resourceNames
   # lists eight Secrets, verb `get` only, no list or watch.
@@ -101,11 +105,12 @@ misconfigurations:
     paths:
       - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"
     statement: >-
-      Same vendored upstream ClusterRole. Holds only create/get/list on
-      roles/rolebindings -- no update, no delete, no wildcard -- to create
-      per-Cluster RBAC so each Postgres instance can read its own ObjectStore.
-      Re-read on the next plugin bump.
-    expired_at: 2026-12-01
+      Same vendored upstream ClusterRole. create/get/list/patch/update/watch on
+      roles and rolebindings, no delete, no bind/escalate, no wildcard: it
+      creates and updates one Role and RoleBinding per CNPG Cluster so the
+      instance can read its own ObjectStore. Narrowing the binding: #951.
+      Re-read on every plugin bump.
+    expired_at: 2027-05-01
 
   # =========================================================================
   # FALSE POSITIVE -- proven
@@ -207,34 +212,31 @@ misconfigurations:
       rewriting the drill to connect over the Service instead.
     expired_at: 2027-03-01
 
-  # S3 encryption mode. Already a documented decision at
-  # bootstrap/aws-backup/main.tf:103 -- SSE-S3 because restic encrypts
-  # client-side and SSE-KMS bills per request, which on WAL archiving means per
-  # segment forever.
+  # S3 encryption mode of the live backup bucket (ned-si-homelab-backups).
+  # The comment above aws_s3_bucket_server_side_encryption_configuration in
+  # bootstrap/aws-backup/main.tf records the choice: SSE-S3 (AES256, bucket key
+  # on) because restic encrypts client-side.
   #
-  # What that comment does not say, and what this finding is actually about: the
-  # barman/Postgres objects are NOT client-side encrypted, so for those SSE-S3 is
-  # the only encryption at rest and AWS holds the key.
+  # What this finding is actually about: the CNPG objects under
+  # cnpg/<serverName>/{base,wals}/ are NOT client-side encrypted, so for those
+  # SSE-S3 is the only encryption at rest and AWS holds the key.
   #
-  # Two ways to close it once the bucket exists -- `tofu apply` has never run,
-  # every destinationPath still says homelab-backups-REPLACE-ME:
-  #   - SSE-KMS with a CMK, accepting per-segment cost and a second key whose
-  #     loss destroys the Postgres backups
-  #   - barman's own `encryption` setting, giving those objects the property
-  #     restic already has, at no AWS cost
-  # The second is probably right, and is a change to the CNPG Cluster specs.
+  # barman-cloud cannot close it: its `encryption` setting only picks the S3
+  # server-side mode (AES256 or aws:kms), and client-side encryption is an open
+  # upstream request (EnterpriseDB/barman#1155). The fix is a customer managed
+  # KMS key as the bucket default, with S3 Bucket Keys to keep the request cost
+  # near zero: issue #952, applied through the tofu workflow on a weekday.
   #
-  # Expiry is short because this is a real gap awaiting a decision, not a
-  # permanent exemption.
+  # A real gap awaiting that change, not a permanent exemption.
   - id: AVD-AWS-0132
     paths:
       - "bootstrap/aws-backup/main.tf"
     statement: >-
-      SSE-S3 chosen deliberately (main.tf:103) because restic encrypts
-      client-side and SSE-KMS bills per WAL segment. Open gap: barman/Postgres
-      objects are not client-side encrypted. Preferred fix is barman's own
-      encryption setting rather than a CMK. Blocked on the bucket existing.
-    expired_at: 2026-12-01
+      Backup bucket default encryption is SSE-S3. restic objects are
+      client-side encrypted; the CNPG base backups and WAL are not, and
+      barman-cloud offers only server-side modes. Open gap, fix planned as a
+      customer managed KMS key with S3 Bucket Keys (#952).
+    expired_at: 2027-05-01
 
   # Same rule, different bucket and a different answer. The state bucket only
   # ever stores OpenTofu ciphertext: state and plans are encrypted client-side
@@ -329,24 +331,77 @@ misconfigurations:
       policies/.
     expired_at: 2027-04-01
 
-  # readOnlyRootFilesystem. Several upstream images (Keycloak, the *arr apps,
-  # Plex, Seafile, Paperless, Mealie) write to their own filesystem at runtime
-  # with no way to relocate it, so enforcing this would mean forking every image.
+  # readOnlyRootFilesystem. The upstream app images below write to their own
+  # filesystem at runtime with no way to relocate it, so enforcing this would
+  # mean forking every image.
   #
   # .kube-linter.yaml holds the SAME position for `no-read-only-root-fs`, which is
   # advisory there rather than blocking. One control, one answer, both files.
   #
-  # NOT scoped by path, and this is the one bare id here. Unlike KSV-0118 the
-  # affected set is nearly every workload including the two backup-verify drills,
-  # so an enumeration would be a list of the whole repository that goes stale on
-  # every addition -- which is worse than no scope, because a stale path list
-  # fails open silently. The delta gate in scripts/trivy-gate.sh is what catches a
-  # NEW workload that drops the flag.
+  # ENUMERATED FILE BY FILE, like KSV-0118. A bare id suppressed the finding in
+  # the baseline scan too, so the delta gate never saw a new workload without
+  # the flag. With paths, a new or renamed workload reports again and has to
+  # set the flag or be listed here. A stale path only stops matching.
+  #
+  # Deliberately not listed: apps/paperless/backup.yaml (ours, fixable: #953).
+  # It stays a visible pre-existing HIGH finding in the gate summary.
   - id: AVD-KSV-0014
+    paths:
+      - "apps/books/audiobookshelf.yaml"
+      - "apps/books/calibre-web.yaml"
+      - "apps/mealie/deployment.yaml"
+      - "apps/paperless/deployment.yaml"
+      - "apps/syncthing/statefulset.yaml"
+      - "apps/theater/bazarr.yaml"
+      - "apps/theater/jellyfin.yaml"
+      - "apps/theater/lazylibrarian.yaml"
+      - "apps/theater/lidarr.yaml"
+      - "apps/theater/plex.yaml"
+      - "apps/theater/prowlarr.yaml"
+      - "apps/theater/qbittorrent.yaml"
+      - "apps/theater/radarr.yaml"
+      - "apps/theater/sonarr.yaml"
+      - "deploy/apps/books/deployment-audiobookshelf.yaml"
+      - "deploy/apps/books/deployment-calibre-web.yaml"
+      - "deploy/apps/mealie/deployment-mealie.yaml"
+      - "deploy/apps/paperless/deployment-paperless.yaml"
+      - "deploy/apps/syncthing/statefulset-syncthing.yaml"
+      - "deploy/apps/theater/deployment-bazarr.yaml"
+      - "deploy/apps/theater/deployment-jellyfin.yaml"
+      - "deploy/apps/theater/deployment-lazylibrarian.yaml"
+      - "deploy/apps/theater/deployment-lidarr.yaml"
+      - "deploy/apps/theater/deployment-plex.yaml"
+      - "deploy/apps/theater/deployment-prowlarr.yaml"
+      - "deploy/apps/theater/deployment-qbittorrent.yaml"
+      - "deploy/apps/theater/deployment-radarr.yaml"
+      - "deploy/apps/theater/deployment-sonarr.yaml"
     statement: >-
-      Upstream images (Keycloak, *arr, Plex, Seafile, Paperless, Mealie) write to
-      their own root filesystem with no relocation option. Matches the advisory
-      stance on no-read-only-root-fs in .kube-linter.yaml. Deliberately unscoped:
-      the affected set is most of the repo, so a path list would go stale and fail
-      open. New occurrences are caught by the delta gate instead.
+      Upstream app images (*arr, Plex, Jellyfin, qBittorrent, Audiobookshelf,
+      Calibre-Web, Mealie, Paperless, Syncthing) write to their own root
+      filesystem with no relocation option. Matches the advisory stance on
+      no-read-only-root-fs in .kube-linter.yaml. Enumerated per file so a new
+      workload reports.
     expired_at: 2027-03-01
+  # Parity ports (ADR 0002), same set and same reason as the KSV-0118 parity
+  # entry above: setting the flag changes the pod template and restarts them.
+  - id: AVD-KSV-0014
+    paths:
+      - "apps/immich/resources/valkey.yaml"
+      - "apps/paperless/valkey.yaml"
+      - "platform/keycloak/deployment.yaml"
+      - "deploy/apps/immich/resources/deployment-valkey.yaml"
+      - "deploy/apps/paperless/deployment-valkey.yaml"
+      - "deploy/platform/keycloak/deployment-keycloak.yaml"
+    statement: >-
+      Workloads ported unchanged from the running cluster (valkey x2,
+      Keycloak) set no readOnlyRootFilesystem; setting it restarts them, so it
+      ships with the hardening change, not with the parity adoption.
+    expired_at: 2027-01-31
+  - id: AVD-KSV-0014
+    paths:
+      - "policies/kyverno/tests/resources.yaml"
+    statement: >-
+      Kyverno policy test fixtures set no securityContext on purpose: each one
+      isolates the field its policy tests. Never applied; no Application syncs
+      policies/.
+    expired_at: 2027-04-01
