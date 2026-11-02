@@ -23,6 +23,23 @@
 kubeProxy:
   enabled: false
 
+# The apiserver job was 148k of 343k head series (2026-11-02). These nine
+# histograms (about 82k series) feed no rule, alert or dashboard, here or in
+# the chart's default rules, which use apiserver_request_sli_duration_seconds
+# and apiserver_request_duration_seconds (kept). Dropped at scrape time so the
+# 30-day retention fits (prometheusSpec below).
+kubeApiServer:
+  serviceMonitor:
+    metricRelabelings:
+      # The chart default (setting the list replaces it): drop the noisy
+      # buckets of the request and etcd duration histograms.
+      - action: drop
+        regex: (etcd_request|apiserver_request_slo|apiserver_request_sli|apiserver_request)_duration_seconds_bucket;(0\.15|0\.2|0\.3|0\.35|0\.4|0\.45|0\.6|0\.7|0\.8|0\.9|1\.25|1\.5|1\.75|2|3|3\.5|4|4\.5|6|7|8|9|15|20|40|45|50)(\.0)?
+        sourceLabels: [__name__, le]
+      - sourceLabels: [__name__]
+        regex: (apiserver_watch_events_dispatch_duration_seconds|apiserver_watch_list_duration_seconds|apiserver_storage_list_duration_seconds|apiserver_request_body_size_bytes|apiserver_watch_cache_read_wait_seconds|apiserver_response_sizes|apiserver_watch_cache_initialization_duration_seconds|apiserver_watch_events_sizes|etcd_request_duration_seconds)_bucket
+        action: drop
+
 # The operator's admission webhook gets its certificate from cert-manager, not
 # from the chart's kube-webhook-certgen hook Jobs. Under Argo CD those hooks
 # break: the hook ServiceAccount is both pre- and post-install with
@@ -156,15 +173,19 @@ kube-state-metrics:
 
 prometheus:
   prometheusSpec:
-    # 30 days for the SLO window (routes/slo.yaml). At about 0.55 GB/day of
-    # blocks (2026-10) that is about 17 GB. retentionSize caps the blocks at
-    # 20GiB, leaving about 5Gi of the volume for the WAL and compaction.
+    # 30 days for the SLO window (routes/slo.yaml) and the 30-day restic-data
+    # check (platform/backup-verify/alerts.yaml). Blocks grew about 1.06
+    # GiB/day (2026-11-02), so 20GiB held only 16.6 days; after the apiserver
+    # drop above about 0.81 GiB/day, 30 days = about 24 GiB. retentionSize
+    # caps the blocks at 34GiB, leaving about 6Gi for the WAL and compaction.
+    # Watch prometheus_tsdb_lowest_timestamp_seconds: it must stay 30 days old.
     #
-    # The operator does not resize the PVC: after a change to `storage`, patch
-    # prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-0
-    # to the same size (`iscsi` allows expansion; online, no restart).
+    # The operator does not resize the PVC. The claim is declared in git
+    # (infrastructure/iscsi-volumes/monitoring-prometheus-db.yaml): change its
+    # request and the PV's capacity there to the same size, and the CSI
+    # resizer grows the zvol and the filesystem online, no restart.
     retention: 30d
-    retentionSize: 20GiB
+    retentionSize: 34GiB
     storageSpec:
       volumeClaimTemplate:
         spec:
@@ -172,7 +193,7 @@ prometheus:
             - "ReadWriteOnce"
           resources:
             requests:
-              storage: 25Gi
+              storage: 40Gi
 
 grafana:
   defaultDashboardsTimezone: browser
