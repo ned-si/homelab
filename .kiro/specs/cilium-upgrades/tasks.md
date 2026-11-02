@@ -24,8 +24,6 @@ One PR per task, in order; each is safe on its own.
       SLO burns, runbook. [5.1, 5.2, 7.1] (#669)
 - [x] 7. Auto-revert a failed Cilium patch update; gitops-delivery Req 4.2
       updated in the same PR. [6.1] (#671)
-
-## Open
-
-- [ ] 8. Re-apply Cilium 1.20.4 (the Renovate PR, after tasks 2–5); the
-      rehearsal must pass. [2.2]
+- [x] 8. Re-apply Cilium 1.20.4 (the Renovate PR, after tasks 2–5); the
+      rehearsal must pass. [2.2] (#661; live on all four nodes, checked
+      2026-11-02)

@@ -65,13 +65,13 @@ Change specs, active:
 | Spec | Created | Issue | Open |
 | --- | --- | --- | --- |
 | [alert-triage](alert-triage/) | 2026-10-27 | #762 | task 5: the cluster objects and the route |
-| [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | #750 | task 8: Cilium 1.20.4 through the rehearsal |
-| [wave3-network-logs](wave3-network-logs/) | 2026-10-16 | #752 | allow-lists from flows, the SigNoz trial, the SELinux label rollout |
+| [wave3-network-logs](wave3-network-logs/) | 2026-10-16 | #752 | task 21: the SELinux label of the immich-db volume |
 
 Change specs, done:
 
 | Spec | Created | Closed |
 | --- | --- | --- |
+| [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | 2026-11-02 |
 | [immich-v3-migration](immich-v3-migration/) | 2026-10-16 | 2026-10-16 |
 | [scorecard-hardening](scorecard-hardening/) | 2026-10-16 | 2026-10-26 |
 | [wave3-reliability](wave3-reliability/) | 2026-10-16 | 2026-10-16 |

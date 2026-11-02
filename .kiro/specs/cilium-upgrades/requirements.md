@@ -1,8 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-10-24
-issue: 750
+closed: 2026-11-02
 ---
 # Requirements: cilium-upgrades
 
