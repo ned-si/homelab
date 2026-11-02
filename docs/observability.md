@@ -171,7 +171,7 @@ minutes:
 
 | Alert | Fires when | Severity |
 | --- | --- | --- |
-| `LANNewDeviceSeen` | a fixed (vendor) MAC answers that did not answer in the 30 days before the last hour; quiet during the first day of data; resolves after an hour | `warning` |
+| `LANNewDeviceSeen` | a fixed (vendor) MAC answers that did not answer in the 30 days before the last hour; quiet during the first day of data; held through missed scans (`keep_firing_for: 1h`), so one push per device; resolves about two hours later | `warning` |
 | `LANInventoryFailing` | no completed scan for 30m | `warning` |
 | `LANInventoryAbsent` | no `lan_inventory_devices` for 30m | `warning` |
 
