@@ -1,5 +1,7 @@
 # Expected findings of tetragon/tetragon (the agent DaemonSet):
-# disallow-privileged-containers, disallow-host-namespaces, disallow-host-path,
+# disallow-privileged-containers (chart up to 1.7), disallow-capabilities
+# (chart 1.8: not privileged, adds SYS_ADMIN, SYS_PTRACE, SYS_RESOURCE,
+# DAC_OVERRIDE and SYSLOG), disallow-host-namespaces, disallow-host-path,
 # disallow-host-ports. Matched by namespace and name prefix; the operator
 # Deployment (tetragon-operator) needs none of them but shares the prefix.
 ---
@@ -10,12 +12,15 @@ metadata:
   namespace: kyverno
   annotations:
     homelab/reason: >-
-      The Tetragon agent loads eBPF programs into the kernel: privileged,
-      hostNetwork, and the host's /sys/kernel, BPF filesystem, /proc and
-      container runtime paths (platform/tetragon/values.yaml).
+      The Tetragon agent loads eBPF programs into the kernel: privileged (or,
+      from chart 1.8, the capabilities it needs for that), hostNetwork, and
+      the host's /sys/kernel, BPF filesystem, /proc and container runtime
+      paths (platform/tetragon/values.yaml).
 spec:
   policyRefs:
     - name: disallow-privileged-containers
+      kind: ValidatingPolicy
+    - name: disallow-capabilities
       kind: ValidatingPolicy
     - name: disallow-host-namespaces
       kind: ValidatingPolicy

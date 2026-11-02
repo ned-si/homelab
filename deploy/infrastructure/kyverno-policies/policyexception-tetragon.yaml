@@ -12,9 +12,9 @@ apiVersion: policies.kyverno.io/v1
 kind: PolicyException
 metadata:
   annotations:
-    homelab/reason: 'The Tetragon agent loads eBPF programs into the kernel: privileged,
-      hostNetwork, and the host''s /sys/kernel, BPF filesystem, /proc and container
-      runtime paths (platform/tetragon/values.yaml).'
+    homelab/reason: 'The Tetragon agent loads eBPF programs into the kernel: privileged
+      (or, from chart 1.8, the capabilities it needs for that), hostNetwork, and the
+      host''s /sys/kernel, BPF filesystem, /proc and container runtime paths (platform/tetragon/values.yaml).'
   name: tetragon
   namespace: kyverno
 spec:
@@ -24,6 +24,8 @@ spec:
   policyRefs:
   - kind: ValidatingPolicy
     name: disallow-privileged-containers
+  - kind: ValidatingPolicy
+    name: disallow-capabilities
   - kind: ValidatingPolicy
     name: disallow-host-namespaces
   - kind: ValidatingPolicy
