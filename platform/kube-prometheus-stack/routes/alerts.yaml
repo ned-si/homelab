@@ -278,6 +278,38 @@ spec:
               than cutting retention, and see the comment on retentionSize in
               platform/kube-prometheus-stack/values.yaml.
 
+        - alert: PrometheusRetentionCutBySize
+          # retentionSize deleting blocks before `retention: 30d` does, so the
+          # 30-day SLO windows (routes/slo.yaml) and the 30-day restic-data
+          # check see less than 30 days. It kept 16.6 days for two weeks
+          # unnoticed (#905).
+          #
+          # Both halves are needed: a TSDB younger than 29 days with no size
+          # deletion is refilling after a wipe and fixes itself; a size
+          # deletion with 29+ days kept is harmless. 4d because blocks compact
+          # up to 10% of the retention (3 days), so a steady size cut deletes
+          # one block about every 3 days and a 1d window would flap. `and`
+          # matches on every label, `instance` included: a restarted pod's
+          # old series do not count against the new one.
+          #
+          # `action: human`: nothing grows the volume or lowers ingestion on
+          # its own.
+          expr: |
+            (time() - prometheus_tsdb_lowest_timestamp_seconds) < 29 * 86400
+            and
+            increase(prometheus_tsdb_size_retentions_total[4d]) > 0
+          for: 1h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusRetentionCutBySize.md
+            summary: "Prometheus keeps only {{ $value | humanizeDuration }} of data: retentionSize is cutting it"
+            description: >-
+              retentionSize deleted blocks in the last 4 days and the oldest
+              sample is younger than 29 days, so the 30-day SLO windows are
+              short. Grow the volume and retentionSize, or drop unused series.
+
         - alert: NodeFilesystemNearlyFull
           # The nodes boot from a 29 GB eMMC that holds kubelet and containerd.
           # Full means no image pulls, no new containers, no logs, while the

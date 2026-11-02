@@ -181,6 +181,22 @@ spec:
       labels:
         action: human
         severity: critical
+    - alert: PrometheusRetentionCutBySize
+      annotations:
+        description: retentionSize deleted blocks in the last 4 days and the oldest
+          sample is younger than 29 days, so the 30-day SLO windows are short. Grow
+          the volume and retentionSize, or drop unused series.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusRetentionCutBySize.md
+        summary: 'Prometheus keeps only {{ $value | humanizeDuration }} of data: retentionSize
+          is cutting it'
+      expr: |
+        (time() - prometheus_tsdb_lowest_timestamp_seconds) < 29 * 86400
+        and
+        increase(prometheus_tsdb_size_retentions_total[4d]) > 0
+      for: 1h
+      labels:
+        action: human
+        severity: warning
     - alert: NodeFilesystemNearlyFull
       annotations:
         description: On these nodes the eMMC holds the kubelet and containerd data
