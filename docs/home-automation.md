@@ -47,6 +47,10 @@ The same container installs `dreame_vacuum` (MOVA robot) and its one missing
 dependency, mini-racer (V8, for the map). mini-racer is held at 0.12.4, the
 last release whose musllinux aarch64 wheel is really musl, and needs
 libatomic from Alpine's package (sha256-pinned, on `LD_LIBRARY_PATH`).
+uv installs both from Home Assistant's musllinux wheel index first
+(`UV_EXTRA_INDEX_URL` in the image), and fails when that index has not built
+a release yet, so Renovate opens their updates only 3 days after the PyPI
+release (`minimumReleaseAge`, `.github/renovate.json5`).
 
 - Client `home-assistant` in realm `homelab`: public, PKCE S256, redirect URI
   `https://home.lilalala.com/auth/oidc/callback` (in
