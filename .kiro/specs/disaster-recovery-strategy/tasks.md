@@ -3,7 +3,9 @@
 One PR per task, in order; each is safe on its own. Requirement numbers in
 brackets. Each PR carries `Spec: disaster-recovery-strategy#<task>`. The
 PR of the last task to merge sets the spec `done` and closes #918; the
-`backups-dr` area spec update is in task 9.
+`backups-dr` area spec update is in task 9. The `docs/` pages that tasks
+1, 7 and 8 write follow tech-docs: tables for mappings, reasoning in
+prose.
 
 ## Open
 
@@ -92,14 +94,17 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       `bootstrap.recovery` and new `serverName`s; the external-dns target
       as a value); `components/site-dr-drill` (the requirement 8 switches:
       the network-policy exception for OIDC to the Gateway node, no
-      tailnet, no notifications, cert-manager without external-dns, its
+      tailnet, no notifications and `AlertmanagerHasNoReceiverConfigured`
+      patched out, cert-manager without external-dns, its
       issuer reading the Secret `cloudflare-drill-token` that the drill
       script creates; `dr-mode: drill` on the CSI volume tags; the drill copies of the Secrets sealed to the real
       and rehearsal keys, with no Cloudflare token among them); a
       `.sops.yaml` rule for those copies; `clusters/dr/`; the DR render;
       repo-policy over it (the switches, the rehearsal-key recipients, no
       Cloudflare token in the drill component, the `dr-mode` value per
-      render, both fence objects, none of the left-out rules, no `tuppr`
+      render, `AlertmanagerHasNoReceiverConfigured` absent from the drill
+      render and present in the site render, `BackupLockCheckStale` and
+      `VulnEnrichmentStale` kept in both, both fence objects, none of the left-out rules, no `tuppr`
       or `talos-drift` Application, no `postgres` term in
       `BackupVerifyMissing`, no Probe
       target in `192.168.1.0/24`, `cronjob-active` and `backup-slo-targets`
@@ -107,7 +112,7 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       attachments of `m7g.2xlarge` minus the interface, the root volume and
       a margin of 3); `task render:check` proving the home render
       unchanged. No CoreDNS change: drill name resolution is task 9's Talos
-      patch. [8.2, 8.3, 8.4, 8.7, 8.8, 8.9, 10.4, 10.9, 10.10]
+      patch. [8.2, 8.3, 8.4, 8.7, 8.8, 8.9, 10.4, 10.9, 10.10, 10.11]
 - [ ] 8. The DR module: `bootstrap/dr-cloud/` for AWS `eu-central-1` (the
       state workspaces `drill` and `site`, any other refused by a
       `lifecycle.precondition` on `terraform_data.workspace_guard`, the
@@ -131,29 +136,38 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       `ci/dr-site-lost.txt` is on `origin/main` and the `site` state is
       empty); `talos/dr/talconfig.yaml`
       with its own secrets and schematic, the Gateway node label, no static
-      hosts, checked by `scripts/ci/talos-validate.sh`; `tofu fmt -check`
+      hosts, the endpoint on the first control plane's private address and
+      every node's public address in `additionalApiServerCertSans` and
+      `additionalMachineCertSans`, checked by `scripts/ci/talos-validate.sh`; `tofu fmt -check`
       and `tofu validate` in `ci`; the module kept out of the `tofu`
       workflow's plan and apply; the daily leftover check in the `tofu`
       schedule with `ci/dr-site-lost.txt` as the real-loss switch and its
       four failure cases (the last: a `dr-mode` other than `drill` or
       `site`), its test and repo-policy `dr-site-lost`, and the
-      read permissions it needs on the plan role in `bootstrap/github-oidc`;
+      read permissions it needs on the plan role in `bootstrap/github-oidc`,
+      a plan-only module: applied by hand with
+      `scripts/tofu.sh bootstrap/github-oidc apply` right after the merge,
+      and the next daily run shown green;
       `docs/runbooks/site-lost.md` with the declaration rule and the file,
       the apply command with `TF_WORKSPACE=site` and the source of each
       input on a fresh machine, the restore order with the upgrade to the
       DR schematic and step 8's re-apply with `operator_cidr` empty once
-      the tailnet is up, step 8a (`backup-verify-files` with
-      `DATA_CHECK=always`, then the alert gate), Talos and Kubernetes
+      the tailnet is up, step 8a (one run each of `backup-verify-files`
+      with `DATA_CHECK=always`, `backup-verify-lock` and `vuln-enrich`,
+      then the alert gate on the home routing tree), Talos and Kubernetes
       upgrades by hand from `talos/dr/`, the capacity fallbacks, the move to the Full
       shape for a loss longer than two weeks, and the return home
       (`tofu destroy` in `site`, `dr-sweep.sh --delete --return-home`,
       then the pull request removing the file); a `tofu plan` in `default`
       shown failing; a one-hour smoke run of the DR shape in `drill` and
       `site` side by side (apply both, nodes `Ready`, NLB targets healthy,
-      destroy both, sweep; about $0.90) that seeds the `dr-site` tag key, then the key activated as a
+      destroy both, sweep; about $0.90), then one hour of the Full shape
+      in `drill` (etcd formed over the private endpoint, `kubectl` and
+      `talosctl` on every node's public address without a certificate
+      error, destroy, sweep; about $0.76), which seeds the `dr-site` tag key, then the key activated as a
       cost allocation tag in the operator's one-time set-up. Monday to
       Friday, daytime. [1.4, 1.5, 7.4, 8.1, 8.8, 10.1, 10.2, 10.3, 10.5,
-      10.6, 10.7, 10.8, 10.11]
+      10.6, 10.7, 10.8, 10.11, 10.12]
 - [ ] 9. First DR drill (#723, part 2): `scripts/dr-rehearsal.sh` (preflight
       for requirement 8, the rehearsal key only; writes
       `talos/dr/drill/static-hosts.yaml`, one `StaticHostConfig` with the
@@ -164,11 +178,17 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       per-drill Cloudflare token created with the nodes' addresses and a
       12 h expiry, written to the Secret `cloudflare-drill-token`; at step
       4, a pod in `default` fails to reach `169.254.169.254` while the EBS
-      CSI controller is Running; at step 8a, `backup-verify-files` with
-      `DATA_CHECK=always`, then the alert gate: `ALERTS{action="human"}`,
+      CSI controller is Running; at step 8a, one run each of
+      `backup-verify-files` with `DATA_CHECK=always`, `backup-verify-lock`
+      and `vuln-enrich`, then the alert gate: every `ALERTS` series,
       firing and pending, on the DR Prometheus at least 15 minutes after
-      step 7, the row `partial` with the alert names and an issue per rule
-      when it is not empty; on exit, the token deleted, `tofu destroy`
+      step 7, its labels run through `amtool config routes test` on the
+      home Alertmanager config rendered from `values.yaml`, the row
+      `partial` with the alert names and an issue per rule when any
+      reaches `ntfy` or `ntfy-urgent`; `amtool` checked in the preflight,
+      and a bash test of the gate with a stub Prometheus answer holding an
+      `etcdNoLeader`, a `KubeJobFailed` of a `-backup-` Job and an
+      `action: auto` alert (two page, one does not); on exit, the token deleted, `tofu destroy`
       in the `drill` workspace and `scripts/dr-sweep.sh --delete`; every
       `tofu` call with `TF_WORKSPACE=drill`; a bash test, run with
       `TF_WORKSPACE=site` exported and a stub `tofu`, that every call, the

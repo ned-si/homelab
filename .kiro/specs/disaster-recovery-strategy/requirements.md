@@ -394,8 +394,9 @@ design work on the day of the loss and costs nothing until then.
 6. THE runbook `docs/runbooks/site-lost.md` SHALL give the restore order:
    the declaration, the module, Talos and the upgrade to the DR schematic,
    Argo CD, the infrastructure layer, `keycloak-db` and Keycloak, tier 1, tier 2,
-   backups with new `serverName`s (real loss), the restore-test run and
-   the alert gate (requirement 10.11), then `tofu destroy` (drill).
+   backups with new `serverName`s (real loss), the restore-test,
+   lock-test and `vuln-enrich` runs and the alert gate (requirement
+   10.11), then `tofu destroy` (drill).
    (review; the first drill)
 7. THE runbook SHALL name the command that applies the module and, for
    each input (the AWS sign-in for the state backend and the DR site, the
@@ -437,13 +438,24 @@ design work on the day of the loss and costs nothing until then.
     guard is not held by an absent NAS. (repo-policy over the DR render,
     with `cronjob-active` and `backup-slo-targets` reading
     `ci/dr-active-cronjobs.txt`)
-11. AFTER the restore order, in a drill and in a real loss, THE DR
-    Prometheus SHALL hold no `action: human` alert, firing or pending,
-    once `backup-verify-files` has run with `DATA_CHECK=always`; IF one
-    does, THEN the drill's row SHALL be `partial` and its pull request
-    SHALL list each alert and open an issue per rule.
-    (`scripts/dr-rehearsal.sh` step 8a; `docs/runbooks/site-lost.md`
-    step 8a)
+11. AFTER the restore order, in a drill and in a real loss, and once
+    `backup-verify-files` (with `DATA_CHECK=always`), `backup-verify-lock`
+    and `vuln-enrich` have each run once, THE DR Prometheus SHALL hold no
+    alert, firing or pending, that the home Alertmanager routing tree
+    (`platform/kube-prometheus-stack/values.yaml`) sends to `ntfy` or
+    `ntfy-urgent`, decided by `amtool config routes test` on each alert's
+    labels; IF one does, THEN the drill's row SHALL be `partial` and its
+    pull request SHALL list each alert and open an issue per rule. THE
+    drill render SHALL NOT hold `AlertmanagerHasNoReceiverConfigured`,
+    since requirement 8.3 leaves it no receiver; the site render SHALL
+    keep it. (`scripts/dr-rehearsal.sh` step 8a;
+    `docs/runbooks/site-lost.md` step 8a; repo-policy over both renders)
+12. THE Kubernetes endpoint of the DR cluster SHALL be a node's private
+    address, and every node's public address SHALL be in the API server's
+    and the Talos API's certificate names, so the nodes talk over the VPC
+    and the operator reaches both APIs from `var.operator_cidr` without a
+    certificate error, in both shapes. (`talos/dr/talconfig.yaml`; the
+    task 8 smoke run, the Full shape included)
 
 ## Decided questions
 
