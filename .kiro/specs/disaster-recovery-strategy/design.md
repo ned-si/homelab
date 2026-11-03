@@ -28,6 +28,14 @@ on-demand list prices without VAT, read on 2026-11-03 from the providers'
 own price lists ([Sources](#sources)); task 9 prices AWS again in its
 calculator after the first drill.
 
+This is the strategy and a generic design, not an implementation plan:
+implementation comes much later (operator, 2026-11-03). The mechanisms
+below are the intended shape. File names, rule names, versions and prices
+are as of 2026-11-03, and each task re-reads them before it starts. The
+points the last review left open are listed in
+[To settle at implementation](#to-settle-at-implementation); the task that
+names them settles them.
+
 ## Scenarios
 
 The proposed "Disaster scenarios" table for `docs/sre.md` (task 1).
@@ -1544,3 +1552,40 @@ Each entry gives the decision, the alternative rejected, and the reason.
   (task 9).
 
 Decisions on the former open questions: [requirements.md](requirements.md#decided-questions).
+
+## To settle at implementation
+
+The seventh review's findings got a proposed fix in this design, but no
+further review round (operator, 2026-11-03: a generic spec is enough). The
+task named in brackets checks each point against the repository of its day
+and settles it in its pull request.
+
+1. Rules that fire on a fresh DR Prometheus. Re-derive the list from
+   `platform/`: every `absent` or `absent_over_time` rule fed by a CronJob
+   or the Pushgateway, and every rule that counts receiver traffic. Today
+   that is `BackupVerifyMissing`, `BackupLockCheckStale`,
+   `VulnEnrichmentStale` and, in a drill, `AlertmanagerHasNoReceiverConfigured`.
+   Choose per rule between a one-off run at step 8a, a patch in the overlay
+   and an in-cluster sink, and name each in the overlay and in repo-policy
+   ([Rules that start true](#rules-that-start-true)). [tasks 7, 9]
+2. The alert gate's selector. `ALERTS{action="human"}` misses the pages
+   routed by name: etcd, `KubeJobFailed` of `-backup-` Jobs, critical
+   `category: security` alerts, tuppr, `GatewayDown`. Confirm that
+   `amtool config routes test` on the home config catches all of them, and
+   decide how the gate treats inhibition. Fallback: the explicit matchers,
+   with a repo-policy check that keeps them in step with `values.yaml`
+   ([Alert gate](#alert-gate)). [task 9]
+3. Plan-only modules. The `tofu` workflow applies only
+   `bootstrap/aws-backup`. Check that this still holds, and apply the plan
+   role's new read permissions in `bootstrap/github-oidc` by hand with
+   `scripts/tofu.sh` before the leftover check runs. [task 8]
+4. The Kubernetes endpoint. Proposed: a private address, with every
+   public address in the Talos and API server cert SANs. Confirm in the
+   Full shape, not only the DR shape ([Talos](#talos)). [task 8]
+5. CNPG in a drill. Recovery reads Barman through the plugin in
+   `externalClusters`, so a drill drops only the `isWALArchiver` entry.
+   Check against `verify-postgres.sh` and the plugin version of the day.
+   [task 7]
+6. Tables against prose. This design still argues inside some tables, and
+   it is long. The `docs/` pages keep tables for mappings and put reasoning
+   in prose. [tasks 1, 7, 8]

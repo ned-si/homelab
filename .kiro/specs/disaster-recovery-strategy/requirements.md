@@ -517,3 +517,8 @@ the DR schematic, with no image built or kept; the Gateway sits behind a
 Network Load Balancer created by the module, not the AWS Load Balancer
 Controller; drill name resolution is a Talos `StaticHostConfig` patch, and
 Talos's CoreDNS stays.
+
+The spec is generic: implementation comes much later (operator,
+2026-11-03). Details the last review left open are listed in
+[To settle at implementation](design.md#to-settle-at-implementation), each
+with the task that settles it.

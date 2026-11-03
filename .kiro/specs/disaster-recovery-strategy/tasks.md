@@ -7,6 +7,12 @@ PR of the last task to merge sets the spec `done` and closes #918; the
 1, 7 and 8 write follow tech-docs: tables for mappings, reasoning in
 prose.
 
+The design is generic, and implementation comes much later. Before it
+starts, each task re-reads the files, rules and versions it names, and
+settles the items of design.md's
+[To settle at implementation](design.md#to-settle-at-implementation) that
+point at it.
+
 ## Open
 
 - [ ] 1. Record the strategy: the `docs/decisions.md` entry "Disaster
@@ -19,7 +25,9 @@ prose.
       conditions); the "Disaster scenarios" table in `docs/sre.md` with
       RPO and RTO per tier and an MTTR column reading "not measured"; the
       "Off-site inventory" and the "Rehearsal calendar" in
-      `docs/backups.md`; the roadmap theme pointed at this spec. [1.1, 1.2, 2.1, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 5.4, 6.1]
+      `docs/backups.md`; the roadmap theme pointed at this spec. Settle
+      item 6 of [To settle at implementation](design.md#to-settle-at-implementation).
+      [1.1, 1.2, 2.1, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 5.4, 6.1]
 - [ ] 2. The rehearsal record: `ci/dr-scenarios.tsv`, `ci/dr-rehearsals.tsv`
       (with `cost` and `currency` columns), `scripts/dr-mttr.sh` with its
       bash test; repo-policy rules `dr-rehearsals`, `dr-runbooks` and
@@ -112,7 +120,9 @@ prose.
       attachments of `m7g.2xlarge` minus the interface, the root volume and
       a margin of 3); `task render:check` proving the home render
       unchanged. No CoreDNS change: drill name resolution is task 9's Talos
-      patch. [8.2, 8.3, 8.4, 8.7, 8.8, 8.9, 10.4, 10.9, 10.10, 10.11]
+      patch. Settle items 1, 5 and 6 of
+      [To settle at implementation](design.md#to-settle-at-implementation).
+      [8.2, 8.3, 8.4, 8.7, 8.8, 8.9, 10.4, 10.9, 10.10, 10.11]
 - [ ] 8. The DR module: `bootstrap/dr-cloud/` for AWS `eu-central-1` (the
       state workspaces `drill` and `site`, any other refused by a
       `lifecycle.precondition` on `terraform_data.workspace_guard`, the
@@ -165,8 +175,10 @@ prose.
       in `drill` (etcd formed over the private endpoint, `kubectl` and
       `talosctl` on every node's public address without a certificate
       error, destroy, sweep; about $0.76), which seeds the `dr-site` tag key, then the key activated as a
-      cost allocation tag in the operator's one-time set-up. Monday to
-      Friday, daytime. [1.4, 1.5, 7.4, 8.1, 8.8, 10.1, 10.2, 10.3, 10.5,
+      cost allocation tag in the operator's one-time set-up. Settle items
+      3, 4 and 6 of
+      [To settle at implementation](design.md#to-settle-at-implementation).
+      Monday to Friday, daytime. [1.4, 1.5, 7.4, 8.1, 8.8, 10.1, 10.2, 10.3, 10.5,
       10.6, 10.7, 10.8, 10.11, 10.12]
 - [ ] 9. First DR drill (#723, part 2): `scripts/dr-rehearsal.sh` (preflight
       for requirement 8, the rehearsal key only; writes
@@ -199,8 +211,10 @@ prose.
       measured values; the cost estimate in `docs/decisions.md` priced again
       in the AWS Pricing Calculator and checked against the drill's bill;
       the `backups-dr` area spec updated (scenarios,
-      the off-site inventory, the calendar, the DR site). Closes #723.
-      Monday to Friday, daytime.
+      the off-site inventory, the calendar, the DR site). Settle items 1
+      and 2 of
+      [To settle at implementation](design.md#to-settle-at-implementation)
+      before the first drill. Closes #723. Monday to Friday, daytime.
       [2.4, 7.3, 7.4, 8.1, 8.5, 8.6, 8.8, 8.9, 10.8, 10.9, 10.11]
 - [ ] 10. First node-replacement rehearsal: `homelab-w-1` reflashed with
       [node-replacement.md](../../../docs/runbooks/node-replacement.md),
