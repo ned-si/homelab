@@ -50,11 +50,9 @@ The reader has no add right, so an upload with the reader's session is
 refused. No other way in is built: the consume volume stays as it is, and
 another way in is a new issue.
 
-No source tag. Paperless records a web upload as an API upload, the same
-source as the import script and the canary, so a workflow cannot tell them
-apart. Imported documents carry `import:<source>` (see [Import](#import)),
-so a document without it came through the web app; a `source:web` tag
-would add nothing.
+No source tag. There is one way in, and imported documents carry
+`import:<source>` (see [Import](#import)), so a document without it came
+through the web app; a `source:web` tag would add nothing.
 
 ## Settings
 
@@ -204,7 +202,7 @@ nothing after it gives the view back.
 
 | Order | Workflow | Trigger, filter | Actions |
 | --- | --- | --- | --- |
-| 10 | share | Consumption started, API upload (the web app, the import script, the canary) | view for group `readers` (the owner stays the uploader) |
+| 10 | share | Consumption started, sources Web UI (the web app) and API upload (the import script, the canary) | view for group `readers` (the owner stays the uploader) |
 | 20 | tax-relevant | Document added, type Tax, Statement, Payslip or Insurance | tag `tax-relevant` |
 | 90 | private | Document added and Document updated, has tag `private` | remove view and change for group `readers` |
 

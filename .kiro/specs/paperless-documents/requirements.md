@@ -281,7 +281,7 @@ with the reason. Each one is a line in git, so changing it later is one PR.
 | Topic | Decision | Reason |
 | --- | --- | --- |
 | Way in (operator, 2026-11-03) | The web app only, at `https://archive.lilalala.com`, from a phone or a computer; plus the one-off import of existing files | The web app works on the phone, so nothing else is needed day to day |
-| Source tags | None. Imported documents carry `import:<source>`; every other document came through the web app | With one way in, a source tag says nothing. Paperless records a web upload as an API upload, like the import script and the canary, so a workflow could not tell them apart anyway |
+| Source tags | None. Imported documents carry `import:<source>`; every other document came through the web app | With one way in, and imports already tagged `import:<source>`, a source tag says nothing |
 | Who files documents | One editor (the operator), one reader (the other adult of the household) | The operator manages the documents; the reader only reads them |
 | Sharing default | The reader sees every document unless the editor tags it `private` | Household documents concern both adults, and per-type privacy would also hide the reader's own letters; the reverse (private by default, shared by a tag) is one workflow change in git |
 | Who edits the taxonomy | Git owns types, tags, custom fields, workflows and saved views; the editor edits documents and correspondents | Changes are reviewed and backed up in git; an agent turns a request into a PR |
