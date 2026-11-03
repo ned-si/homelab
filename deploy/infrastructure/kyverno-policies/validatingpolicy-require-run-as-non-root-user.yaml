@@ -19,7 +19,8 @@ metadata:
       users. This policy ensures `runAsUser` is either unset or set to a number greater
       than zero. Pods that set `spec.hostUsers: false` are exempt, as in Pod Security
       Standards v1.35 and later. Pod Security Admission on earlier Kubernetes versions
-      does not exempt them.'
+      does not exempt them. Missing or null init and ephemeral container lists are
+      treated as empty.'
     policies.kyverno.io/minversion: 1.19.1
     policies.kyverno.io/severity: medium
     policies.kyverno.io/subject: Pod
@@ -91,8 +92,9 @@ spec:
   variables:
   - expression: object.spec.?jobTemplate.?spec.?template.?spec.orValue( object.spec.?template.?spec.orValue(object.spec))
     name: podSpec
-  - expression: variables.podSpec.containers + variables.podSpec.?initContainers.orValue([])
-      + variables.podSpec.?ephemeralContainers.orValue([])
+  - expression: 'variables.podSpec.containers + (variables.podSpec.?initContainers.orValue([])
+      == null ? [] : variables.podSpec.?initContainers.orValue([])) + (variables.podSpec.?ephemeralContainers.orValue([])
+      == null ? [] : variables.podSpec.?ephemeralContainers.orValue([]))'
     name: allContainers
   - expression: variables.podSpec.?hostUsers.orValue(true) == false
     name: userNamespacePod
