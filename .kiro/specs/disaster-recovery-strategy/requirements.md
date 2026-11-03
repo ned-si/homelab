@@ -23,7 +23,14 @@ This spec writes the strategy down: the scenarios and their responses, the
 targets per tier, the site option and the reasons for it, the off-site
 inventory, and a rehearsal calendar whose measured times replace the
 estimates on the Homelab / Data protection dashboard. The rebuild-from-git
-rehearsal (#723) is part of it (tasks 6 and 8), not a separate spec.
+rehearsal (#723) is part of it (tasks 6 and 9), not a separate spec.
+
+The site option is decided (operator, 2026-11-03): no hot or warm site. The
+DR site is cold and in the cloud: an OpenTofu module, `bootstrap/dr-cloud/`,
+that is applied only when the house is lost or during a drill. It creates
+arm64 nodes for Talos at a cloud provider, and the existing GitOps tree
+deploys onto them with a site overlay. A timed drill applies it, restores,
+measures and destroys it.
 
 Non-goals:
 - Protecting the media library (about 9.5 TB, re-acquirable, not backed up
@@ -49,7 +56,15 @@ Non-goals:
   scenario that has not been rehearsed shows "not measured".
 - **Cold site**: nothing runs outside the house. A loss is answered by a
   rebuild from git and the off-site backups onto hardware that is bought or
-  rented after the loss.
+  rented after the loss. Here: cloud nodes created by the DR module.
+- **DR module**: the OpenTofu module `bootstrap/dr-cloud/`. Its state is
+  empty in normal times; `tofu apply` creates the DR site's network, nodes
+  and addresses, `tofu destroy` removes them.
+- **Site overlay**: the set of patches and components that turns the home
+  tree into the DR tree (storage, addresses, the Gateway, the parts that need
+  the NAS). The apps' own manifests do not change.
+- **Drill**: a rehearsal of the house-lost scenario on the DR site: apply the
+  DR module, rebuild, restore, measure, destroy.
 - **Warm site**: a small standby cluster that runs all the time outside the
   house and restores the latest backups on a schedule.
 - **Hot site**: a live replica outside the house, fed continuously, ready to
@@ -117,9 +132,9 @@ hopes.
 4. THE estimates in [backups.md](../../../docs/backups.md#rpo-and-rto),
    [sre.md](../../../docs/sre.md#rto-per-tier) and the runbooks ("about 45
    minutes", "about 1.5 h") SHALL be replaced by the measured value once a
-   rehearsal has measured it. (tasks 8 and 9)
+   rehearsal has measured it. (tasks 9 and 10)
 
-### Requirement 3: The site option is chosen on cost, RTO and effort
+### Requirement 3: The site option is chosen on cost against value
 
 **User story:** As the operator, I want cold, warm and hot compared on
 numbers, the choice recorded with its reasons, and the conditions that would
@@ -127,15 +142,24 @@ change it.
 
 #### Acceptance criteria
 
-1. THE design SHALL compare the cold, warm and hot options on standing cost
-   per month, cost per rehearsal or incident, RTO in the house-lost scenario,
-   and effort to build and run. (design.md, "Site options")
-2. THE page `docs/decisions.md` SHALL have an entry for the chosen option:
-   the decision, why, the options rejected, and the measured conditions under
+1. THE design SHALL compare the cold, warm and hot options on cost per month
+   at AWS (`eu-central-1`), Google Cloud (`europe-west3`, `europe-west6`) and
+   Hetzner, cost per drill, RTO in the house-lost scenario, and effort to
+   build and run. Every price SHALL name its source and the date it was read.
+   (design.md, "Cost estimate" and "Site options")
+2. THE cost estimate SHALL be sized from the live cluster: CPU and memory
+   requests and usage, the claims' sizes and use, the media library, and the
+   measured egress; every assumption SHALL be stated. (design.md, "What the
+   cluster uses")
+3. THE page `docs/decisions.md` SHALL have an entry "Disaster recovery: a
+   cold site in the cloud, built on demand": the decision, the monthly cost of
+   each option against the value of what is hosted and the RPO and RTO per
+   tier from `docs/sre.md`, the options rejected, and the conditions under
    which it is reviewed. (task 1)
-3. WHEN two consecutive full rehearsals exceed the tier 1 RTO of the
-   house-lost scenario, THE decision SHALL be reviewed in one pull request
-   that changes `docs/decisions.md`. (the decision entry; the rehearsal PR)
+4. WHEN two consecutive drills exceed the tier 1 RTO of the house-lost
+   scenario, or a new price estimate changes the order of the options, THE
+   decision SHALL be reviewed in one pull request that changes
+   `docs/decisions.md`. (the decision entry; the drill PR)
 
 ### Requirement 4: What must exist off-site, per scenario
 
@@ -177,10 +201,11 @@ within a day.
    and `bootstrap/github-oidc`, re-seal the keys, move every `serverName` and
    re-seed the Immich repository, and SHALL state the target: backups fresh
    again within 24 h. (review; the yearly tabletop in the calendar)
-3. WHERE the operator agrees (open question 4), THE Immich library and a
-   logical dump of every database SHALL also go to a second provider outside
-   the AWS account, verified weekly like the S3 repositories.
-   (`backup-verify`, `scripts/restic-targets.txt`)
+3. WHERE the recovery provider is not AWS (open question 1), THE Immich
+   library and a logical dump of every database SHALL also go to that
+   provider's object storage, verified weekly like the S3 repositories;
+   WHERE it is AWS, the gap SHALL stay named in the off-site inventory with
+   a `deferred` issue. (`backup-verify`, `scripts/restic-targets.txt`)
 
 ### Requirement 6: Rehearsals on a calendar, results on the dashboard
 
@@ -194,9 +219,9 @@ time is a fact with a date.
    scenario, interval, where it runs and what it measures; live-cluster
    rehearsals run Monday to Friday in the daytime, Zurich time. (review)
 2. EVERY rehearsal SHALL add a row to `ci/dr-rehearsals.tsv`: scenario, date,
-   result, duration per tier, RPO reached per data class, and the pull
-   request or run. (repo-policy `dr-rehearsals`: known scenarios, dates,
-   numbers)
+   result, duration per tier, RPO reached per data class, the cost and its
+   currency (drills: from the provider's bill), and the pull request or run.
+   (repo-policy `dr-rehearsals`: known scenarios, dates, numbers)
 3. THE Homelab / Data protection dashboard SHALL show per scenario the last
    rehearsal, its result, the duration per tier against the RTO, the MTTR,
    and the next due date. (`platform/kube-prometheus-stack/dashboards/homelab-data-protection.json`)
@@ -221,10 +246,15 @@ off-site backups are enough to rebuild everything, and how long it takes.
    in GitHub: a CronJob in `backup-verify` reads the run and its step times
    from the public GitHub API and pushes them.
    (`platform/backup-verify/dr-rehearsal-report.yaml`)
-3. TWICE A YEAR, A full rehearsal SHALL rebuild the cluster on the DR site
-   from git and restore every tier from the off-site backups, the whole
-   Immich library included, timed per tier. (`scripts/dr-rehearsal.sh`, a row
-   in `ci/dr-rehearsals.tsv`)
+3. ON THE CALENDAR (open question 4), A drill SHALL apply the DR module,
+   rebuild the cluster from git, restore every tier from the off-site
+   backups, the whole Immich library included, time each step from the
+   declaration to each tier's probes green, and destroy every resource it
+   created, also when it fails. (`scripts/dr-rehearsal.sh`, a row in
+   `ci/dr-rehearsals.tsv`)
+4. EACH drill SHALL record its cost from the provider's bill, found by the
+   label or tag `dr-drill=<date>` on every resource the module creates.
+   (`ci/dr-rehearsals.tsv`; the module's default tags)
 
 ### Requirement 8: A rehearsal cannot touch production
 
@@ -264,32 +294,61 @@ there.
    access is still set up. (`scripts/dr-offsite-check.sh` prompt; a row in
    `ci/dr-rehearsals.tsv`)
 
+### Requirement 10: The DR site is a module applied only on loss or drill
+
+**User story:** As the operator, I want one `tofu apply` to create the DR
+site and the existing GitOps tree to deploy onto it, so a rebuild needs no
+design work on the day of the loss and costs nothing until then.
+
+#### Acceptance criteria
+
+1. THE module `bootstrap/dr-cloud/` SHALL create the network, arm64 nodes
+   running Talos at the recovery provider, their public addresses, the
+   firewall, and the permission the provider's CSI driver needs; and nothing
+   else. Block volumes SHALL come from the CSI driver when a claim asks.
+   (`tofu validate` in CI; review)
+2. THE `tofu` workflow SHALL NOT plan or apply the module; CI SHALL run
+   `tofu fmt -check` and `tofu validate` on it.
+   (`.github/workflows/tofu.yaml`, `.github/workflows/ci.yaml`)
+3. IF the module's state holds resources older than 24 h and no real loss is
+   declared, THEN the daily `tofu` run SHALL fail and notify ntfy once.
+   (`.github/workflows/tofu.yaml`; its test)
+4. THE DR site SHALL deploy from the same sources as home: only the site
+   overlay differs, and the home render SHALL not change because of it.
+   (`task render:check`; repo-policy over the DR render)
+5. THE Talos and Kubernetes APIs of the DR nodes SHALL accept connections
+   only from `var.operator_cidr` until the nodes join the tailnet; a drill
+   never opens them wider. (the module's firewall; review)
+6. THE runbook `docs/runbooks/site-lost.md` SHALL give the restore order:
+   the module, Talos, Argo CD, the infrastructure layer, `keycloak-db` and
+   Keycloak, tier 1, tier 2, then backups with new `serverName`s (real loss)
+   or `tofu destroy` (drill). (review; the first drill)
+
 ## Open questions
 
 The operator decides these in review; the design assumes the first option
 of each until then.
 
-1. Site option: cold, with an on-demand rebuild on rented arm64 nodes
-   (recommended), rather than warm or hot?
-2. House-lost RTO: keep 24 h for tiers 0 and 1 and 72 h for tier 2 (the
-   existing "restore from backup" values), or set a looser target for a site
-   loss?
-3. DR provider: a non-AWS provider such as Hetzner Cloud (survives the AWS
-   account loss, pays S3 egress), or EC2 Graviton in `eu-central-1` (no S3
-   transfer charge, lost with the account)?
-4. A second off-site copy outside the AWS account for the Immich library and
-   the database dumps (task 5): build it now, or defer it as an issue?
-5. Full rehearsals with the real age key on rented nodes destroyed afterwards
-   (tests the real path), or with a rehearsal key and re-sealed test secrets
-   (the key never leaves the Mac)?
-6. Operator unavailable: who gets password-manager emergency access, and is a
-   printed instruction kept outside the house? Names stay out of git.
-7. Where do the recovery codes for the password manager, the AWS root MFA and
+1. Recovery provider: Hetzner (cheapest always on, survives the loss of the
+   AWS account, CAX servers shown as unavailable to order on 2026-11-03),
+   AWS `eu-central-1` (cheapest drill, lost with the AWS account) or Google
+   Cloud (dearest, no advantage beyond independence from AWS)? Figures in
+   [design.md](design.md#cost-estimate). The answer also places the second
+   off-site copy of requirement 5.3.
+2. Where do the recovery codes for the password manager, the AWS root MFA and
    GitHub live outside the house, since a fire takes the phone and the Mac?
-8. Calendar: node replacement and the full rebuild twice a year, the
-   break-glass check quarterly, tabletops yearly. Acceptable?
-9. #723: tracked as tasks 6 and 8 here and closed by task 8, rather than a
-   spec of its own?
-10. StorageClasses at the DR site: reuse the names `iscsi` and `iscsi-retain`
-    on local storage (no app manifest changes), or site-specific classes with
-    a patch per app?
+3. Operator unavailable: who gets password-manager emergency access, and is a
+   printed instruction kept outside the house? Names stay out of git.
+4. Drill calendar: the drill twice a year (May and November), node
+   replacement twice a year, the break-glass check quarterly, tabletops
+   yearly. Acceptable?
+5. Rehearsal key: drills with the real age key on nodes destroyed afterwards
+   (tests the real path), or with a rehearsal key and re-sealed test secrets
+   (the real key never leaves the Mac and the password manager)?
+
+Settled in the operator's review of 2026-11-03: no hot or warm site; a cold
+site in the cloud built by `bootstrap/dr-cloud/`, rehearsed as a timed drill
+with its cost tracked. Settled in the design, on the recommended default:
+the house-lost RTO keeps 24 h for tiers 0 and 1 and 72 h for tier 2; #723 is
+tasks 6 and 9 here; the DR site reuses the StorageClass names `iscsi` and
+`iscsi-retain`.
