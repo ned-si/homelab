@@ -53,14 +53,16 @@ storage on the TrueNAS pool.
 | Argo CD: a second server, repo-server and ApplicationSet controller | 376 MiB | none |
 | Controllers: cert-manager (3), Kyverno (3), metrics-server, democratic-csi controller, CloudNativePG operator | 878 MiB | none |
 | Alertmanager, blackbox exporter | 91 MiB | none |
-| Subtotal | 3973 MiB (3.9 GiB) | 35 GiB |
+| A replica of `immich-db` (open question 6) | 342 MiB | 5 GiB |
+| Grafana: a second pod and a two-instance `grafana-postgresql` (open question 7) | 530 MiB | 10 GiB |
+| Subtotal | 4845 MiB (4.7 GiB) | 50 GiB |
 | A second Immich machine learning | 2395 MiB | none (cache: open question 1) |
-| Total | 6368 MiB (6.2 GiB) | 35 GiB |
+| Total | 7240 MiB (7.1 GiB) | 50 GiB |
 
 KEDA and the VPA recommender are new components, not copies; their memory
 requests together stay under 1 GiB (requirement 11.2).
 
-Against the nodes: 6.2 GiB is 7% of the 94.2 GiB available now, and 7% of
+Against the nodes: 7.1 GiB is 8% of the 94.2 GiB available now, and 8% of
 the 84.9 GiB sum of the 7-day lows. With one node down, the other three
 keep at least 62 GiB available at their lows; the lost node's pods (at
 most 8.0 GiB) and every addition fit with more than 45 GiB left. Memory is
@@ -109,7 +111,9 @@ outage, and a database that survives its node.
 ### Recommendation
 
 HA wherever the cost is in the table above, which is every capable
-workload but two; the exclusions are justified in the last column.
+workload but Prometheus (open question 4); `immich-db` waits for its
+SELinux relabel (open question 6), and Grafana gains a database to become
+capable (open question 7).
 
 | Workload | Class | Recommendation | Extra memory | Why |
 | --- | --- | --- | --- | --- |
@@ -129,8 +133,9 @@ workload but two; the exclusions are justified in the last column.
 | Alertmanager | active-active | 2 | 63 MiB | gossip cluster deduplicates notifications; a silence survives a pod restart (storage is an `emptyDir` today) |
 | `blackbox-exporter` | active-active | 2 | 28 MiB | the probes measure the SLOs |
 | App databases: `home-assistant`, `mealie`, `sonarr`, `radarr`, `lidarr`, `prowlarr` | active-passive | `instances: 2` | 883 MiB, 30 GiB NAS | the apps stay at one replica, but the database no longer restarts with its node, and backups run from the standby; small cost |
-| `immich-machine-learning` | active-active | 2 to 3 (KEDA) | 2395 MiB | the largest item; open question 5 |
-| `immich-db` | active-passive | excluded, 1 | (342 MiB, 5 GiB NAS) | Immich server stays at one replica, so a replica keeps nothing up; the pinned image is under the hard rule (changes through a spec, with a fresh backup) and its SELinux relabel is pending |
+| `immich-machine-learning` | active-active | 2 to 3 (KEDA) | 2395 MiB | the largest item; a spread across nodes puts replicas on control planes, which its affinity avoids today; open question 5 |
+| `immich-db` | active-passive | `instances: 2`, `pending` until its SELinux relabel (#752) | 342 MiB, 5 GiB NAS | as for the app databases: it no longer restarts with its node, and backups run from the standby; same pinned image; open question 6 |
+| Grafana | active-active once on PostgreSQL | 2, with `grafana-postgresql` at `instances: 2` | 530 MiB, 10 GiB NAS | the cheapest enabler; open question 7 |
 | Prometheus | active-active | excluded, 1 | (5033 MiB, 40 GiB NAS) | an empty TSDB on the second replica pages falsely on 30-day windows for 30 days; open question 4 |
 
 ## Inventory
@@ -143,9 +148,9 @@ rest stay at one replica.
 
 | Workload | Why | What would make it possible |
 | --- | --- | --- |
-| `immich-server` | the 2 TiB library `immich-data` is `ReadWriteOnce` | Immich runs several server processes given a shared library, so the library on a `ReadWriteMany` volume (NFS); a one-way move of the photo library, its own spec |
+| `immich-server` | the 2 TiB library `immich-data` is `ReadWriteOnce`. `ReadWriteOnce` binds the volume to one node, not one pod, so two server pods held on the library's node by a required pod affinity would survive a pod crash and a rolling update. Rejected: it gives no node HA (requirement 2.2), both pods still stop when that node is drained or lost, and it costs a second pod of 1568 MiB (7-day peak) for the pod-level case that a restart already covers in under a minute | Immich runs several server processes given a shared library, so the library on a `ReadWriteMany` volume (NFS); a one-way move of the photo library, its own spec |
 | Valkey (`immich`, `paperless`) | job queue and Celery broker in memory; a second instance is a second, empty store | Valkey with Sentinel (three sentinels) and Sentinel-aware clients; not worth it for a queue that refills |
-| `paperless` | SQLite on `paperless-data`; one container runs the web server, worker, scheduler and consumer | PostgreSQL (a CloudNativePG cluster), the media on `ReadWriteMany`, and the web server split from the worker |
+| `paperless` | SQLite on `paperless-data`; one container runs the web server, worker, scheduler and consumer | PostgreSQL (a CloudNativePG cluster), the media on `ReadWriteMany`, and the web server split from the worker; a one-way migration, outside this spec (open question 7) |
 | `mealie` | data directory (images, backups) on a 100Gi `ReadWriteOnce` volume; the database is already PostgreSQL | the data directory on `ReadWriteMany`, if upstream supports more than one instance (not documented) |
 | `home-assistant` | one instance by design; the recorder is already on PostgreSQL | nothing upstream |
 | `mosquitto` | the open-source broker has no clustering | a broker with clustering |
@@ -161,7 +166,6 @@ rest stay at one replica.
 
 | Workload | Why | What would make it possible |
 | --- | --- | --- |
-| Grafana | SQLite on a 1Gi `ReadWriteOnce` volume; no SLO | a PostgreSQL database (a CloudNativePG cluster) |
 | Argo CD application controller | replicas shard by cluster, and there is one cluster | nothing; a restart resumes reconciliation |
 | `argocd-redis` | a cache; HA is the `redis-ha` chart, three Redis and three HAProxy pods | not worth it for a cache |
 | `argocd-notifications-controller` | one replica, no leader election; a restart delays an auto-rollback dispatch | nothing upstream |
@@ -188,7 +192,9 @@ HPA candidate; as a DaemonSet it is not one.
 | `ci/ha-inventory.yaml` | one entry per workload: kind, namespace, name, class, reason, `enabler` for `none`, `excluded`, `pending`, `hpa` |
 | `scripts/ci/repo_policy.py` | rules `ha-inventory`, `ha-replicas`, `autoscale-floor`, `autoscale-targets`, `vpa-recommend-only`, `vpa-coverage`, `container-requests`, over the rendered objects; tests in `tests/` |
 | PodDisruptionBudgets, topology spread | next to each HA workload's manifests, or the chart's values (`podDisruptionBudget`, `topologySpreadConstraints`, `replicas`) |
-| `platform/keycloak/` | HPA, PDB, spread, `spec.replicas` out of git; the cache settings unchanged |
+| `platform/keycloak/` | HPA, PDB, spread, `spec.replicas` out of git, CPU and memory requests (the Deployment has no `resources` today); a headless Service `keycloak-discovery` with `publishNotReadyAddresses: true` and `-Djgroups.dns.query=keycloak-discovery.keycloak.svc.cluster.local`; `KC_CACHE` and `KC_CACHE_STACK` unchanged |
+| `platform/blackbox-exporter/probes/probes.yaml` | a public target `https://headlamp.lilalala.com/ping` (oauth2-proxy, as for `hubble`) |
+| `platform/kube-prometheus-stack/values.yaml` (Grafana) | 2 replicas, `database` settings for `grafana-postgresql`, no persistence; a CloudNativePG cluster `grafana-postgresql` in `monitoring` with the Barman Cloud plugin like the others (open question 7) |
 | CloudNativePG clusters | `instances: 2`, `affinity.podAntiAffinityType: required` |
 | `bootstrap/argocd-values.yaml` | `server.replicas: 2`, `repoServer.replicas: 2`, `applicationSet.replicas: 2` with leader election on, PDBs |
 | `infrastructure/cert-manager/`, `infrastructure/kyverno/`, `infrastructure/metrics-server/`, `infrastructure/democratic-csi/`, `infrastructure/cilium/values.yaml` (Hubble) | replicas, PDBs and spread through chart values |
@@ -202,18 +208,50 @@ HPA candidate; as a DaemonSet it is not one.
 | `platform/kube-prometheus-stack/values.yaml` | `kube-state-metrics.customResourceState`: `kube_vpa_recommendation_target` and `kube_vpa_recommendation_upper_bound{namespace, verticalpodautoscaler, container, resource}`, plus the RBAC rule to list VPAs |
 | `scripts/vpa-requests.sh` | the sizing table of requirement 8.1, from Prometheus |
 | Grafana, Homelab / Automation | panels: replicas per HA workload, KEDA and VPA component health (INFO) |
-| `apps/immich/values.yaml`, `apps/immich/resources/` | the machine-learning cache volume (open question 1), the ScaledObject |
+| `apps/immich/values.yaml`, `apps/immich/resources/` | the machine-learning cache volume (open question 1), its spread and CPU limit (open question 5), the ScaledObject |
+| `infrastructure/network-policies/20-immich.yaml` | ingress to Valkey on 6379 from the KEDA operator in `keda` |
+
+## KEDA trigger for Immich machine learning
+
+Immich 3.x queues its jobs in Valkey with BullMQ, prefix `immich_bull`.
+The server calls machine learning from three queues: `smartSearch` (CLIP
+embeddings), `faceDetection` and `ocr` (`immich_queues_smart_search_active`,
+`immich_queues_face_detection_active` and `immich_queues_ocr_active` in
+Prometheus on 2026-11-03). A waiting job sits in the list
+`immich_bull:<queue>:wait`, so its length is the backlog that machine
+learning has not yet served.
+
+| Setting | Value | Why |
+| --- | --- | --- |
+| Scaler | `redis`, `address: valkey.immich.svc.cluster.local:6379`, no auth (Valkey has no password; the namespace policy is the boundary) | reads the backlog directly; no exporter to add |
+| Triggers | one per queue, `listName` `immich_bull:smartSearch:wait`, `immich_bull:faceDetection:wait`, `immich_bull:ocr:wait` | KEDA takes the highest replica count of its triggers |
+| `listLength` | `"100"` per replica | 3 replicas once one list holds more than 200 waiting jobs, which only a library scan or a bulk upload produces |
+| Floor, ceiling | `minReplicaCount: 2`, `maxReplicaCount: 3` | requirement 5, and 3 fits with one node down |
+| Polling | `pollingInterval: 30` | a scan lasts hours; 30 s is plenty |
+| Scale-in | `advanced.horizontalPodAutoscalerConfig.behavior.scaleDown.stabilizationWindowSeconds: 300` | `cooldownPeriod` only applies to scaling to and from zero, which is not used |
+| Fallback | `failureThreshold: 3`, `replicas: 2` | requirement 10.3: Valkey down holds the floor |
+
+Task 16 first lists the key names read-only (`valkey-cli --scan --pattern
+'immich_bull:*:wait'`), since the prefix is Immich's and not part of an
+API. A third pod helps only if the server sends it work: the per-queue
+concurrency in Immich's job settings must exceed what two pods serve. If
+the scan check shows no shorter drain with 3 replicas, the ScaledObject is
+dropped and machine learning stays at a fixed 2.
 
 ## Decisions
 
 | Decision | Rejected | Why |
 | --- | --- | --- |
 | HA where the app supports it; `none` documented with its enabler | shared volumes to force HA on every app | the operator's direction; a standby sharing a `ReadWriteOnce` iSCSI volume cannot run on another node, and SQLite apps are single-writer |
-| `whenUnsatisfiable: DoNotSchedule` | `ScheduleAnyway` | two replicas on one node do not survive that node; four nodes leave room for two pods, three during a rolling update, with one node down |
+| `whenUnsatisfiable: DoNotSchedule`, `nodeTaintsPolicy: Honor` | `ScheduleAnyway`; the default `nodeTaintsPolicy: Ignore` | two replicas on one node do not survive that node. With `Ignore`, a cordoned node stays a domain with zero pods, so at 3 replicas a rollout's surge pod would stay Pending until tuppr uncordons it; with `Honor` the three schedulable nodes are the domains and the surge fits |
 | PDB `maxUnavailable: 1` on HA workloads only | `minAvailable: 1` everywhere | on a one-replica workload it blocks tuppr's drain |
 | Keycloak on the JGroups `kubernetes` stack, already configured | `jdbc-ping`, Keycloak's default since 26.1 | the operator's direction; Keycloak 26.x deprecates the `kubernetes` stack, so the move is #968, and a release that removes it fails the 2-member check of task 8 |
+| A discovery Service `keycloak-discovery` with `publishNotReadyAddresses: true` | DNS discovery on the HTTP Service `keycloak` | `keycloak` lists ready pods only, so two pods starting together (a full restart, or a node loss with the other pod Pending) each see an empty list and form two clusters until MERGE3 joins them; the Keycloak operator creates the same kind of Service |
 | CloudNativePG asynchronous replication | synchronous (`synchronous.number: 1`) | with one replica, a synchronous commit waits on it; failover loses at most the replica's lag, and WAL is archived to S3 |
-| `immich-db` and Prometheus excluded | HA everywhere | the reasons in the recommendation; open question 4 for Prometheus |
+| Prometheus excluded | two replicas | the reasons in the recommendation; open question 4 |
+| `immich-db` at `instances: 2` after its relabel | excluded; before the relabel | the same case as the app databases; a new instance on an unlabelled volume would need relabelling too; open question 6 |
+| Immich ML: a CPU limit of 4 cores, spread across nodes | `ScheduleAnyway` on the worker; no limit | node HA needs a second node, and only control planes are left; the limit keeps a scan from starving etcd; open question 5 |
+| KEDA `redis` scaler on the BullMQ wait lists | a `prometheus` scaler; CPU | Immich exports `immich_queues_<queue>_active` (jobs in progress, capped by the queue's concurrency) but no waiting count; the lists are the backlog itself; [KEDA trigger](#keda-trigger-for-immich-machine-learning) |
 | Argo CD: server, repo-server, ApplicationSet controller at 2; the rest at 1 | the `redis-ha` chart and controller sharding | about 0.4 GiB buys the UI and rendering; six more pods for a cache is not cheap |
 | `minReplicas` / `minReplicaCount` 2, `maxReplicas` 3 | scale to zero with the KEDA HTTP add-on; a floor of 1 | the operator's decisions: HA floor 2, no scale to zero; 3 fits with one node down |
 | VPA `updateMode: "Off"`, recommender only | `Auto` or `InPlaceOrRecreate` | changing requests restarts `Recreate` pods outside a pull request and outside the weekday window; sizing stays a reviewed diff ([decisions.md](../../../docs/decisions.md#main-is-production)) |
@@ -240,6 +278,11 @@ HPA candidate; as a DaemonSet it is not one.
 - KEDA operator or metrics API server down: KEDA's HPA keeps the last
   replica count; `fallback.replicas: 2` applies once the trigger has failed
   3 times.
+- Valkey unreachable from `keda` (restart, or the `immich` policy): the
+  trigger fails and the fallback holds 2 replicas.
+- Keycloak pods split into two clusters after a start together: MERGE3
+  joins them; the `keycloak-discovery` Service makes it rare, and the
+  task 8 check deletes both pods together to prove it.
 - A pod Pending (no room or no node for the spread): the other replica
   keeps serving; `PodPendingTooLong` is INFO.
 - A change that breaks an app: the PostSync smoke or the degraded sync
@@ -250,7 +293,7 @@ HPA candidate; as a DaemonSet it is not one.
 
 - Requirements 1, 2.1 to 2.4, 4.1, 5, 6, 7.1 to 7.3, 8.3, 9.1: the
   repo-policy rules in CI, each with a passing and a failing fixture.
-- Requirements 2.5, 3.2, 3.3, 4.2, 9.2, 10.1, 10.2, 12.1, 12.3: recorded
+- Requirements 2.5, 3.2, 3.3, 4.2, 9.2, 10.1, 10.2, 10.4, 12.1, 12.3: recorded
   checks in tasks.md.
 - Requirement 7.4: recorded check in task 3, one series per covered
   container.
@@ -275,5 +318,5 @@ Limits: the data stays on the NAS, and iSCSI or NFS over the WAN is not an
 option, so only the stateless workloads could move. Pods on that node
 would reach Keycloak, the databases and the Gateway over the house uplink,
 and the cluster would gain a node outside the house, in a cloud account.
-At today's load (29 GiB used of about 122 GiB, 6.2 GiB more with HA) there
+At today's load (29 GiB used of about 122 GiB, 7.1 GiB more with HA) there
 is no case for it. If it becomes one, it is its own `type/research` issue.

@@ -34,17 +34,23 @@ its workloads from `ci/ha-inventory.yaml`.
 - [ ] 6. Weekday. The SSO proxies and frontends: HPAs (2 to 3) for
       `theater-sso`, `headlamp-sso`, `hubble-sso` and `headlamp`;
       `hubble-ui` and `hubble-relay` at 2 in the Cilium values; spread,
-      PDBs, `spec.replicas` out of git, CPU requests from 7-day peaks.
-      Recorded check: no failed probe of `theater` over a scale-out and
-      back. [2.1, 2.2, 2.3, 6.1, 6.3, 8.2, 9.1, 12.1]
+      PDBs, `spec.replicas` out of git, CPU requests from 7-day peaks; the
+      public probe `https://headlamp.lilalala.com/ping` in
+      `platform/blackbox-exporter/probes/probes.yaml`. Recorded check: no
+      failed probe of `theater` over a scale-out and back. [2.1, 2.2, 2.3,
+      2.5, 6.1, 6.3, 8.2, 9.1, 12.1]
 - [ ] 7. Weekday. `keycloak-db` at `instances: 2`, required anti-affinity.
       Recorded: the replica streaming, its memory and NAS storage. [4.1,
       4.3]
 - [ ] 8. Weekday. Keycloak: HPA 2 to 3, spread, PDB, `spec.replicas` out
-      of git. Recorded checks: a cluster view of 2 members in the Keycloak
-      log; a pod deleted, a session opened before still valid and a new
-      login through the other pod; no failed probe of `auth`. [2.1, 2.2,
-      2.3, 3.1, 3.2, 3.3, 9.1, 12.1]
+      of git; CPU and memory requests from the 7-day peak (the Deployment
+      has none); the headless Service `keycloak-discovery` with
+      `publishNotReadyAddresses: true` and `-Djgroups.dns.query` pointed at
+      it. Recorded checks: a cluster view of 2 members in the Keycloak log,
+      after one pod is deleted and after both are deleted together; a pod
+      deleted, a session opened before still valid and a new login through
+      the other pod; no failed probe of `auth`. [2.1, 2.2, 2.3, 3.1, 3.2,
+      3.3, 8.2, 9.1, 12.1]
 - [ ] 9. Weekday. Infrastructure controllers at 2 with PDBs and spread:
       cert-manager (controller, cainjector, webhook), Kyverno (admission,
       reports, cleanup), metrics-server, and the democratic-csi controller
@@ -60,29 +66,52 @@ its workloads from `ci/ha-inventory.yaml`.
 - [ ] 12. Weekday. The six app databases (`home-assistant`, `mealie`,
       `sonarr`, `radarr`, `lidarr`, `prowlarr`) at `instances: 2`, required
       anti-affinity. Recorded: memory and NAS storage added. [4.1, 4.3]
-- [ ] 13. Weekday. The Immich machine-learning cache off `ReadWriteOnce`,
+- [ ] 13. Weekday. Grafana, as open question 7 is answered: a
+      CloudNativePG cluster `grafana-postgresql` in `monitoring` at
+      `instances: 2` with the Barman Cloud plugin, Grafana at 2 replicas on
+      it with spread and a PDB, its persistence and the `grafana-backup`
+      CronJob removed. Recorded: memory and NAS storage added, dashboards
+      present, an operator login through Keycloak. (If the answer is no,
+      the inventory entry stays `none`.) [2.1, 2.2, 2.3, 4.1, 4.3]
+- [ ] 14. Weekday. `immich-db` at `instances: 2`, required anti-affinity,
+      same pinned image, as open question 6 is answered and after its
+      SELinux relabel (#752); a fresh backup first. Recorded: the replica
+      streaming, its memory and NAS storage. (If the answer is no, the
+      entry becomes `excluded`.) [4.1, 4.3]
+- [ ] 15. Weekday. The Immich machine-learning cache off `ReadWriteOnce`,
       as open question 1 is answered. [6.1]
-- [ ] 14. Weekday. ScaledObject for `immich-machine-learning` on the
-      queues that call it, `minReplicaCount: 2`, `maxReplicaCount: 3`,
-      `fallback.replicas: 2`, as open question 5 is answered. The PR
-      records the image's compressed arm64 size and `/var` free on every
-      node. Recorded check: a library scan moves it to 3 and back to 2, no
-      failed probe of `media`. [10.2, 10.3, 11.1, 11.3, 12.1]
-- [ ] 15. Weekday. Drain test, under a maintenance silence: drain the
+- [ ] 16. Weekday. ScaledObject for `immich-machine-learning` as in
+      design.md (KEDA trigger): `redis` triggers on the `smartSearch`,
+      `faceDetection` and `ocr` wait lists after their names are listed
+      read-only, `minReplicaCount: 2`, `maxReplicaCount: 3`,
+      `fallback.replicas: 2`; the Valkey ingress from `keda` in
+      `20-immich.yaml`; spread and the CPU limit as open question 5 is
+      answered. The PR records the image's compressed arm64 size and
+      `/var` free on every node. Recorded checks: the ScaledObject `Ready`,
+      no Hubble drop from `keda`; a library scan moves it to 3 and back to
+      2, the queue drains faster at 3 (or the ScaledObject goes and ML
+      stays at 2), no failed probe of `media`. [10.2, 10.3, 10.4, 11.1,
+      11.3, 12.1]
+- [ ] 17. Weekday. Drain test, under a maintenance silence: drain the
       node of the `keycloak-db` primary and uncordon it. Recorded checks:
       `probe_success` of `auth`, `headlamp`, `hubble` and `argo` over the
       drain; the switchover of `keycloak-db`; the memory requests at every
       HA workload's maximum against three nodes' allocatable. [2.5, 4.2,
       9.2]
-- [ ] 16. Weekday. Requests and limits of the platform layer from the
+- [ ] 18. Weekday. Requests and limits of the platform layer from the
       script's output, after 8 days of history. [8.2]
-- [ ] 17. Weekday. Requests and limits of `theater` and `books` from the
+- [ ] 19. Weekday. Requests and limits of `theater` and `books` from the
       script's output. [8.2]
-- [ ] 18. Weekday. Requests and limits of the other apps (`immich`,
+- [ ] 20. Weekday. Requests and limits of the other apps (`immich`,
       `mealie`, `paperless`, `syncthing`, `home`) from the script's output;
       repo-policy rule `container-requests`. [8.2, 8.3]
-- [ ] 19. Docs as built: `docs/architecture.md` (HA classes, scaled
+- [ ] 21. Docs as built: `docs/architecture.md` (HA classes, scaled
       workloads), `docs/decisions.md` ("No scale to zero", "HA where an app
-      supports it"), the roadmap theme, the `platform-talos` area spec;
-      `ha-inventory` fails on a `pending` entry; header `status: done`,
-      issue #917 closed. [1.3, 13.1]
+      supports it"), the roadmap theme, and the area specs this changes:
+      `platform-talos` (spread and PDBs under tuppr's drains),
+      `access-identity` (the Keycloak cluster), `backups-dr` (CloudNativePG
+      replicas, backups from the standby, `grafana-postgresql`),
+      `gitops-delivery` (Argo CD HA), `observability-alerting`
+      (Alertmanager cluster, the `headlamp` probe); `ha-inventory` fails on
+      a `pending` entry; header `status: done`, issue #917 closed. [1.3,
+      13.1]

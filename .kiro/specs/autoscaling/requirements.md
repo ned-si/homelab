@@ -33,9 +33,9 @@ to the first request to save a few hundred MiB.
 
 What it costs and what it buys, measured on 2026-11-03
 ([design.md: Cost and benefit](design.md#cost-and-benefit)): the HA additions
-take about 6.2 GiB of memory at their 7-day peaks (3.9 GiB without a second
+take about 7.1 GiB of memory at their 7-day peaks (4.7 GiB without a second
 Immich machine-learning pod), against 94 GiB available on the four nodes,
-and 35 GiB on the NAS. Over the 14 days before, each public app failed its
+and 50 GiB on the NAS. Over the 14 days before, each public app failed its
 probe for 162 to 173 minutes, and 155 of those minutes were outages of every
 app at once (WAN, router or Gateway). Pod-level HA addresses the remaining 7
 to 18 minutes per app and the restarts of future drains and upgrades; it
@@ -58,8 +58,9 @@ Non-goals:
 - Scale to zero, the KEDA HTTP add-on, or any scale-from-zero proxy.
 - VPA modes that act (`Initial`, `Recreate`, `InPlaceOrRecreate`, `Auto`),
   the VPA updater and admission controller.
-- Making an app HA that the inventory classes `none`. The inventory says
-  what would make each possible; each enabler is its own issue if wanted.
+- Making an app HA that the inventory classes `none`, except Grafana
+  (open question 7). The inventory says what would make each possible;
+  any other enabler is its own issue.
 - Moving the Immich library (`immich-data`) off `ReadWriteOnce`.
 - HA of the NAS, the Turing Pi board, power, the router or the uplink;
   disaster recovery is #918.
@@ -128,8 +129,11 @@ keep answering while a node is drained, upgraded or lost.
    (repo-policy `ha-replicas`)
 2. EVERY HA workload SHALL spread its pods across nodes:
    `topologySpreadConstraints` on `kubernetes.io/hostname`, `maxSkew: 1`,
-   `whenUnsatisfiable: DoNotSchedule`, or a required pod anti-affinity on
-   the same key where a chart offers only that. (repo-policy `ha-replicas`)
+   `whenUnsatisfiable: DoNotSchedule`, `nodeTaintsPolicy: Honor` (a
+   cordoned or failed node is then not a domain, so a rollout surge at 3
+   replicas during a drain still schedules), or a required pod
+   anti-affinity on the same key where a chart offers only that.
+   (repo-policy `ha-replicas`)
 3. EVERY HA workload SHALL have a PodDisruptionBudget with
    `maxUnavailable: 1`. (repo-policy `ha-replicas`)
 4. A workload that is not an HA workload SHALL NOT have a
@@ -139,7 +143,8 @@ keep answering while a node is drained, upgraded or lost.
    path is all HA workloads (`auth`, `headlamp`, `hubble`, `argo`) SHALL
    record no failed probe, except at most one of `auth` while `keycloak-db`
    switches over. (recorded check in the drain task: `probe_success` over
-   the drain)
+   the drain; the `headlamp` probe, oauth2-proxy's `/ping`, is added by
+   task 6)
 
 ### Requirement 3: Keycloak is a two-member cluster
 
@@ -152,8 +157,11 @@ able to log in, while one Keycloak pod restarts.
    with `minReplicas: 2` and `maxReplicas: 3`. (repo-policy `ha-replicas`,
    `autoscale-floor`)
 2. THE Keycloak pods SHALL form one Infinispan cluster through the JGroups
-   `kubernetes` stack (DNS discovery on the headless Service `keycloak`).
-   (recorded check: the Keycloak log shows a cluster view of 2 members)
+   `kubernetes` stack, with DNS discovery on a headless Service
+   `keycloak-discovery` that sets `publishNotReadyAddresses: true`, so two
+   pods starting at once find each other. (recorded check: the Keycloak
+   log shows a cluster view of 2 members, after one pod is deleted and
+   after both are deleted together)
 3. WHEN one Keycloak pod is deleted, a session opened before SHALL stay
    valid and a new login SHALL succeed. (recorded check in the Keycloak
    task)
@@ -165,9 +173,10 @@ its node, without waiting for its volume to move.
 
 #### Acceptance criteria
 
-1. EVERY CloudNativePG cluster except `immich-db` SHALL set `instances: 2`
-   and `affinity.podAntiAffinityType: required`. (repo-policy
-   `ha-replicas`)
+1. EVERY CloudNativePG cluster SHALL set `instances: 2` and
+   `affinity.podAntiAffinityType: required`. `immich-db` stays `pending`
+   until its SELinux relabel (#752) is done, and becomes `excluded` if
+   open question 6 is answered no. (repo-policy `ha-replicas`)
 2. WHEN the primary's node is drained, THE cluster SHALL switch over to the
    replica, and its app SHALL reconnect with no manual step. (recorded
    check in the database task: `cnpg_pg_replication_is_wal_receiver_up`,
@@ -281,12 +290,21 @@ follow the length of that queue, not its CPU.
    `kubectl get apiservice v1beta1.external.metrics.k8s.io` is
    `Available`)
 2. THE Immich machine-learning Deployment SHALL scale between 2 and 3
-   replicas on the depth of the Immich job queues that call it, through one
-   ScaledObject. (repo-policy `autoscale-targets`; recorded check in
-   tasks.md: a library scan moves it to 3 and back to 2)
+   replicas through one ScaledObject with KEDA `redis` triggers on the
+   length of the BullMQ wait lists of the queues that call it
+   (`immich_bull:smartSearch:wait`, `immich_bull:faceDetection:wait`,
+   `immich_bull:ocr:wait` in Valkey), `listLength: "100"` per replica, and
+   a scale-down stabilization window of 300 s.
+   ([design.md: KEDA trigger](design.md#keda-trigger-for-immich-machine-learning);
+   repo-policy `autoscale-targets`; recorded check in tasks.md: a library
+   scan moves it to 3 and back to 2)
 3. IF a ScaledObject's trigger fails 3 times in a row, THEN KEDA SHALL hold
    the workload at 2 replicas (`fallback.replicas: 2`).
    (repo-policy `autoscale-floor`)
+4. THE `immich` network policy SHALL allow the KEDA operator in `keda` to
+   reach Valkey on 6379, and nothing else in `immich`.
+   (`infrastructure/network-policies/20-immich.yaml`; recorded check: the
+   ScaledObject is `Ready` and no Hubble drop from `keda` to `immich`)
 
 ### Requirement 11: It fits the hardware
 
@@ -384,6 +402,31 @@ Each names the default this spec assumes until it is answered.
 5. Immich machine learning at a floor of 2 costs about 2.3 GiB and a copy
    of its image on a second node's eMMC, for a service that serves smart
    search and the face and CLIP jobs (uploads and browsing do not wait on
-   it).
-   Default: floor 2, as for every HA-capable workload. Or a floor of 1 as
-   a justified exclusion?
+   it). It also moves machine learning onto control planes: today
+   `apps/immich/values.yaml` prefers the worker because etcd shares the
+   control planes' eMMC and CPU, and a library scan takes every core it
+   gets. With one worker, a spread across nodes puts the second pod, and
+   the third during a scan, on a control plane.
+   Default: floor 2, as for every HA-capable workload, spread across nodes,
+   the worker still preferred for the first pod, and a CPU limit of 4 of
+   the 8 cores on the machine-learning container (an exception to "no CPU
+   limit"), so a scan leaves etcd and the API server half the node. Or
+   `ScheduleAnyway`, so the replicas stack on the worker (pod HA only, no
+   node HA)? Or a floor of 1 as a justified exclusion?
+6. `immich-db` replica: `instances: 2` costs about 342 MiB and 5 GiB on
+   the NAS, uses the same pinned image (the hard rule on its image is
+   untouched), and means the database no longer restarts with its node,
+   as for the six app databases. It waits for the `immich-db` SELinux
+   relabel (#752), which needs its own weekday window, and takes a fresh
+   backup first (the Immich database rule). Default: yes, task 14 after
+   the relabel. Or excluded at one instance?
+7. Grafana, the cheapest `none` with an enabler: a CloudNativePG cluster
+   `grafana-postgresql` at `instances: 2` (about 220 MiB, 10 GiB on the
+   NAS) and a second Grafana pod (about 310 MiB) make it `active-active`.
+   The database starts empty: dashboards and datasources are provisioned
+   from git, users come back through Keycloak at their next login, and the
+   `grafana-backup` CronJob of the SQLite file goes. Default: yes, task 13.
+   Paperless is the other supported enabler (PostgreSQL, the media on
+   `ReadWriteMany`, the web server split from the worker), a one-way
+   migration of the document archive; default: not in this spec, its own
+   `type/spec` issue if wanted.
