@@ -52,8 +52,12 @@ Non-goals:
   ([sre.md](../../../docs/sre.md#rpo)).
 - **RTO**: the longest a tier may stay down in a scenario.
 - **MTTR**: the mean of the measured durations of the last three rehearsals of
-  a scenario, per tier, from the rehearsal record. Never estimated: a
-  scenario that has not been rehearsed shows "not measured".
+  a scenario, per tier, from the rehearsal record. A duration runs from the
+  declaration to the tier's DR probes green. Never estimated: a scenario
+  that has not been rehearsed shows "not measured".
+- **DR probe**: a public blackbox probe run against the DR site's Gateway
+  with the public host name (`curl --resolve`), so it measures the DR site
+  even while public DNS points home.
 - **Cold site**: nothing runs outside the house. A loss is answered by a
   rebuild from git and the off-site backups onto hardware that is bought or
   rented after the loss. Here: cloud nodes created by the DR module.
@@ -249,8 +253,8 @@ off-site backups are enough to rebuild everything, and how long it takes.
 3. ON THE CALENDAR (open question 4), A drill SHALL apply the DR module,
    rebuild the cluster from git, restore every tier from the off-site
    backups, the whole Immich library included, time each step from the
-   declaration to each tier's probes green, and destroy every resource it
-   created, also when it fails. (`scripts/dr-rehearsal.sh`, a row in
+   declaration to each tier's DR probes green, and destroy every resource
+   it created, also when it fails. (`scripts/dr-rehearsal.sh`, a row in
    `ci/dr-rehearsals.tsv`)
 4. EACH drill SHALL record its cost from the provider's bill, found by the
    label or tag `dr-drill=<date>` on every resource the module creates.
@@ -268,13 +272,21 @@ without changing anything at home or in the backups.
    preflight)
 2. A REHEARSAL cluster SHALL run no backup CronJob unsuspended, and no CNPG
    Cluster with a WAL archiver. (repo-policy over the rehearsal render)
-3. A REHEARSAL cluster SHALL NOT write DNS (no external-dns), SHALL NOT
-   notify (no ntfy receiver, no healthchecks.io ping, no Argo CD
-   notifications to GitHub) and SHALL NOT join the tailnet under a production
-   name. (repo-policy over the rehearsal render)
+3. A REHEARSAL cluster SHALL NOT write DNS records other than the
+   `_acme-challenge` TXT records of cert-manager's DNS-01 challenges (no
+   external-dns; open question 6), SHALL NOT notify (no ntfy receiver, no
+   healthchecks.io ping, no Argo CD notifications to GitHub) and SHALL NOT
+   join the tailnet. (repo-policy over the rehearsal render)
 4. THE DR site in a real loss SHALL back up with new `serverName`s and new
    restic hosts, so its archives never overwrite the home cluster's.
    (`docs/runbooks/site-lost.md`)
+5. INSIDE a rehearsal cluster, every `lilalala.com` name SHALL resolve to the
+   DR Gateway, so OIDC clients reach the DR Keycloak and never the
+   production one. (repo-policy over the rehearsal render: the CoreDNS
+   block is present; the drill checks it from a pod)
+6. A REHEARSAL SHALL measure the DR site with DR probes only; the public
+   probes, which still reach home, SHALL NOT count.
+   (`scripts/dr-rehearsal.sh`)
 
 ### Requirement 9: The household is not stranded without the operator
 
@@ -304,9 +316,9 @@ design work on the day of the loss and costs nothing until then.
 
 1. THE module `bootstrap/dr-cloud/` SHALL create the network, arm64 nodes
    running Talos at the recovery provider, their public addresses, the
-   firewall, and the permission the provider's CSI driver needs; and nothing
-   else. Block volumes SHALL come from the CSI driver when a claim asks.
-   (`tofu validate` in CI; review)
+   firewall, the permission the provider's CSI driver needs and, on Google
+   Cloud, the Talos image; and nothing else. Block volumes SHALL come from
+   the CSI driver when a claim asks. (`tofu validate` in CI; review)
 2. THE `tofu` workflow SHALL NOT plan or apply the module; CI SHALL run
    `tofu fmt -check` and `tofu validate` on it.
    (`.github/workflows/tofu.yaml`, `.github/workflows/ci.yaml`)
@@ -317,12 +329,20 @@ design work on the day of the loss and costs nothing until then.
    overlay differs, and the home render SHALL not change because of it.
    (`task render:check`; repo-policy over the DR render)
 5. THE Talos and Kubernetes APIs of the DR nodes SHALL accept connections
-   only from `var.operator_cidr` until the nodes join the tailnet; a drill
-   never opens them wider. (the module's firewall; review)
+   only from `var.operator_cidr` until the nodes join the tailnet; in a
+   drill, the Gateway and Syncthing ports SHALL also accept connections
+   from `var.operator_cidr` only. (the module's firewall; review)
 6. THE runbook `docs/runbooks/site-lost.md` SHALL give the restore order:
-   the module, Talos, Argo CD, the infrastructure layer, `keycloak-db` and
-   Keycloak, tier 1, tier 2, then backups with new `serverName`s (real loss)
-   or `tofu destroy` (drill). (review; the first drill)
+   the Talos image where the provider needs one, the module, Talos, Argo
+   CD, the infrastructure layer, `keycloak-db` and Keycloak, tier 1, tier 2,
+   then backups with new `serverName`s (real loss) or `tofu destroy`
+   (drill). (review; the first drill)
+7. THE runbook SHALL name the command that applies the module and, for
+   each input (the state backend, the state passphrase, the age key, the
+   recovery provider's credentials), where it comes from on a fresh
+   machine without the Mac; the quarterly break-glass check SHALL run
+   `tofu plan` on the module from those sources.
+   (`docs/runbooks/site-lost.md`; `scripts/dr-offsite-check.sh`)
 
 ## Open questions
 
@@ -345,10 +365,19 @@ of each until then.
 5. Rehearsal key: drills with the real age key on nodes destroyed afterwards
    (tests the real path), or with a rehearsal key and re-sealed test secrets
    (the real key never leaves the Mac and the password manager)?
+6. Drill certificates: real Let's Encrypt certificates through DNS-01, as at
+   home (the OIDC clients trust the DR Keycloak unchanged; cert-manager
+   writes `_acme-challenge` TXT records in the production zone with the
+   Cloudflare token), or a drill CA mounted into each OIDC client (no write
+   to the zone, no Cloudflare token in the drill; one patch per client,
+   each with its own trust setting)? With a rehearsal key (question 5),
+   the first option also needs the Cloudflare token sealed to that key.
 
 Settled in the operator's review of 2026-11-03: no hot or warm site; a cold
 site in the cloud built by `bootstrap/dr-cloud/`, rehearsed as a timed drill
 with its cost tracked. Settled in the design, on the recommended default:
 the house-lost RTO keeps 24 h for tiers 0 and 1 and 72 h for tier 2; #723 is
 tasks 6 and 9 here; the DR site reuses the StorageClass names `iscsi` and
-`iscsi-retain`.
+`iscsi-retain`; the DR shape leaves out theater, SigNoz and the Home
+Assistant stack; `immich-data` is 500Gi on the DR site; Talos images are
+built on the day, not kept at the provider.
