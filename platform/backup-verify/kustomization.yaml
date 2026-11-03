@@ -3,7 +3,16 @@
 # script change reaches the next run.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: backup-verify
+# Everything in backup-verify, except the source Roles in rbac.yaml, which set
+# their own namespace (a plain `namespace:` would move them here).
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: NamespaceTransformer
+    metadata:
+      name: backup-verify
+      namespace: backup-verify
+    unsetOnly: true
 
 resources:
   - rbac.yaml

@@ -1055,7 +1055,8 @@ kubectl -n backup-verify create job --from=cronjob/backup-verify-postgres verify
 
 To add a target, add a line to the matching file in
 `platform/backup-verify/scripts/`; a new Postgres cluster also needs its Cluster
-and `-app` Secret names in ClusterRole `backup-verify-sources` (`rbac.yaml`). A
+and `-app` Secret names in the Role `backup-verify-source` of its namespace
+(`rbac.yaml`; a new namespace gets its own Role and RoleBinding). A
 removed target keeps its last result in the Pushgateway and goes stale after 8
 days; delete its group:
 
