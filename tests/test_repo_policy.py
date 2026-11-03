@@ -164,6 +164,132 @@ def test_monitor_needs_release_label(tmp_path):
     assert policy(tmp_path / "b", renders=[("tetragon", "2+3", "platform", "tetragon", [sm])]).returncode == 0
 
 
+def project(name, cluster, namespaced=None, namespaces=("*",)):
+    spec = {"destinations": [{"server": "https://kubernetes.default.svc", "namespace": n} for n in namespaces],
+            "clusterResourceWhitelist": cluster}
+    if namespaced is not None:
+        spec["namespaceResourceWhitelist"] = namespaced
+    return {"apiVersion": "argoproj.io/v1alpha1", "kind": "AppProject",
+            "metadata": {"name": name, "namespace": "argo"}, "spec": spec}
+
+
+def application(name, proj, ns):
+    return {"apiVersion": "argoproj.io/v1alpha1", "kind": "Application", "metadata": {"name": name, "namespace": "argo"},
+            "spec": {"project": proj, "destination": {"server": "https://kubernetes.default.svc", "namespace": ns}}}
+
+
+def obj(api, kind, name, ns=None):
+    meta = {"name": name, **({"namespace": ns} if ns else {})}
+    return {"apiVersion": api, "kind": kind, "metadata": meta}
+
+
+DELETING = obj("policies.kyverno.io/v1", "DeletingPolicy", "delete-shutdown-pods")
+CR = obj("rbac.authorization.k8s.io/v1", "ClusterRole", "reader")
+INFRA = project("infrastructure", [{"group": "rbac.authorization.k8s.io", "kind": "ClusterRole"}])
+WILD = [{"group": "*", "kind": "*"}]
+
+
+def project_tree(tmp_path, projects, leaf_docs, leaf=("kyverno-policies", "infrastructure", "kyverno"), files=None,
+                 crds=()):
+    app, proj, ns = leaf
+    return policy(tmp_path, files=files, renders=[
+        ("root", "2", None, "argo", projects),
+        ("layer-x", "2", None, "argo", [application(app, proj, ns)]),
+        ("crds", "2+3", "infrastructure", "kube-system", list(crds)),
+        (app, "2+3", proj, ns, leaf_docs)])
+
+
+def crd(group, kind, scope):
+    return {"apiVersion": "apiextensions.k8s.io/v1", "kind": "CustomResourceDefinition",
+            "metadata": {"name": f"{kind.lower()}s.{group}"},
+            "spec": {"group": group, "names": {"kind": kind}, "scope": scope}}
+
+
+def kind_fails(r):
+    return [f for f in fails(r) if "appproject-kinds" in f]
+
+
+def test_appproject_kinds_catch_820(tmp_path):
+    """#820: a cluster-scoped DeletingPolicy that the infrastructure project did not list."""
+    pol_crd = crd("policies.kyverno.io", "DeletingPolicy", "Cluster")
+    r = project_tree(tmp_path, [INFRA], [DELETING, CR], crds=[pol_crd])
+    assert kind_fails(r) == [
+        "FAIL appproject-kinds: kyverno-policies (project infrastructure): cluster-scoped "
+        "policies.kyverno.io/DeletingPolicy (delete-shutdown-pods) is not in the AppProject "
+        "clusterResourceWhitelist"], r.stdout
+    fixed = copy.deepcopy(INFRA)
+    fixed["spec"]["clusterResourceWhitelist"].append({"group": "policies.kyverno.io", "kind": "DeletingPolicy"})
+    assert project_tree(tmp_path / "b", [fixed], [DELETING, CR], crds=[pol_crd]).returncode == 0
+
+
+def test_appproject_kinds_scope_needs_crd_or_list(tmp_path):
+    r = project_tree(tmp_path, [INFRA], [DELETING])
+    assert kind_fails(r) == [
+        "FAIL appproject-kinds: kyverno-policies (project infrastructure): policies.kyverno.io/DeletingPolicy "
+        "(delete-shutdown-pods) has no known scope: no rendered CRD and no ci/crd-scopes.txt entry"], r.stdout
+    listed = {"ci/crd-scopes.txt": "# runtime CRDs\npolicies.kyverno.io DeletingPolicy Cluster  # kyverno\n"}
+    r = project_tree(tmp_path / "b", [INFRA], [DELETING], files=listed)
+    assert "is not in the AppProject clusterResourceWhitelist" in "".join(kind_fails(r)), r.stdout
+    listed_ns = {"ci/crd-scopes.txt": "policies.kyverno.io DeletingPolicy Namespaced\n"}
+    assert project_tree(tmp_path / "c", [INFRA], [DELETING], files=listed_ns).returncode == 0
+
+
+def test_appproject_kinds_stale_scope_entries(tmp_path):
+    files = {"ci/crd-scopes.txt": "cilium.io CiliumNode Cluster\npolicies.kyverno.io DeletingPolicy Cluster\n"
+                                  "apps Deployment Namespaced\nbogus line\n"}
+    r = project_tree(tmp_path, [INFRA], [CR], files=files, crds=[crd("policies.kyverno.io", "DeletingPolicy", "Cluster")])
+    assert kind_fails(r) == [
+        "FAIL appproject-kinds: ci/crd-scopes.txt: malformed line 'bogus line' (want: <group> <Kind> Cluster|Namespaced)",
+        "FAIL appproject-kinds: ci/crd-scopes.txt: apps Deployment is a built-in group; drop the entry",
+        "FAIL appproject-kinds: ci/crd-scopes.txt: cilium.io CiliumNode is not a rendered kind (stale entry)",
+        "FAIL appproject-kinds: ci/crd-scopes.txt: policies.kyverno.io DeletingPolicy is a rendered CRD "
+        "(scope Cluster); drop the entry"], r.stdout
+
+
+def test_appproject_kinds_apps_project(tmp_path):
+    """The apps project: no cluster-scoped kind, namespaced wildcard, listed namespaces only."""
+    apps = project("apps", [], WILD, namespaces=("mealie", "immich"))
+    cm = obj("v1", "ConfigMap", "cfg")
+    leaf = ("mealie", "apps", "mealie")
+    assert project_tree(tmp_path, [apps], [cm, obj("v1", "Secret", "s", "immich")], leaf=leaf).returncode == 0
+    r = project_tree(tmp_path / "b", [apps], [cm, CR, obj("v1", "Namespace", "mealie"),
+                                              obj("v1", "Secret", "s", "theater"), obj("v1", "Secret", "t", "theater")],
+                     leaf=leaf)
+    assert kind_fails(r) == [
+        "FAIL appproject-kinds: mealie (project apps): cluster-scoped core/Namespace (mealie) is not in "
+        "the AppProject clusterResourceWhitelist",
+        "FAIL appproject-kinds: mealie (project apps): cluster-scoped rbac.authorization.k8s.io/ClusterRole "
+        "(reader) is not in the AppProject clusterResourceWhitelist",
+        "FAIL appproject-kinds: mealie (project apps): namespace theater (Secret s and 1 more) is not in the "
+        "AppProject destinations"], r.stdout
+    r = project_tree(tmp_path / "c", [apps], [cm], leaf=("paperless", "apps", "paperless"))
+    assert kind_fails(r) == [
+        "FAIL appproject-kinds: paperless (project apps): destination namespace paperless is not in the AppProject "
+        "destinations",
+        "FAIL appproject-kinds: paperless (project apps): namespace paperless (ConfigMap cfg) is not in the "
+        "AppProject destinations"], r.stdout
+
+
+@pytest.mark.parametrize("namespaced,ok", [(None, True), (WILD, True), ([], False),
+                                           ([{"group": "", "kind": "Config*"}], True),
+                                           ([{"group": "apps", "kind": "*"}], False)])
+def test_appproject_kinds_namespaced_whitelist(tmp_path, namespaced, ok):
+    proj = project("platform", [], namespaced)
+    r = project_tree(tmp_path, [proj], [obj("v1", "ConfigMap", "cfg")], leaf=("vector", "platform", "logging"))
+    assert (kind_fails(r) == []) is ok, r.stdout
+
+
+def test_appproject_kinds_blacklist_and_unknown_project(tmp_path):
+    proj = project("platform", WILD)
+    proj["spec"]["clusterResourceBlacklist"] = [{"group": "rbac.authorization.k8s.io", "kind": "*"}]
+    r = project_tree(tmp_path, [proj], [CR], leaf=("vector", "platform", "logging"))
+    assert kind_fails(r) == [
+        "FAIL appproject-kinds: vector (project platform): cluster-scoped rbac.authorization.k8s.io/ClusterRole "
+        "(reader) is in the AppProject clusterResourceBlacklist"], r.stdout
+    # An Application of a project that is not rendered (the built-in default) is not checked.
+    assert project_tree(tmp_path / "b", [proj], [CR], leaf=("vector", "default", "logging")).returncode == 0
+
+
 SPEC_INDEX = "# Specs\n\n- [a](a/)\n"
 
 

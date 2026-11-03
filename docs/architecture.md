@@ -109,6 +109,12 @@ and names the kind. That is why `infrastructure/network-policies/` uses
 namespaced `CiliumNetworkPolicy`, not `CiliumClusterwideNetworkPolicy`. Widening
 a list is a deliberate edit with the reason on the same line.
 
+CI runs the same check before merge (repo-policy `appproject-kinds`): every
+rendered object must pass its Application's AppProject, kinds and namespaces.
+The scope of a custom kind comes from its rendered CRD; kinds whose CRD an
+operator installs at runtime (Cilium, Tetragon, Talos) are listed in
+`ci/crd-scopes.txt`.
+
 ## Admission policy (Kyverno)
 
 Kyverno runs the same policy files as CI (`policies/kyverno/`, see

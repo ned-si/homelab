@@ -1,0 +1,8 @@
+# Scope of the custom resource kinds that are rendered but whose CRD is not:
+# an operator installs it at runtime (repo-policy appproject-kinds).
+# <group> <Kind> Cluster|Namespaced   # who installs the CRD
+cilium.io CiliumLoadBalancerIPPool Cluster      # cilium-operator
+cilium.io CiliumL2AnnouncementPolicy Cluster    # cilium-operator
+cilium.io CiliumNetworkPolicy Namespaced        # cilium-operator
+cilium.io TracingPolicy Cluster                 # tetragon-operator
+talos.dev ServiceAccount Namespaced             # Talos (kubernetesTalosAPIAccess)
