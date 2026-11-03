@@ -14,16 +14,6 @@ metadata:
   name: plugin-barman-cloud
 rules:
 - apiGroups:
-  - ""
-  resources:
-  - secrets
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
   - barmancloud.cnpg.io
   resources:
   - objectstores
@@ -69,9 +59,6 @@ rules:
   - rolebindings
   - roles
   verbs:
-  - create
   - get
   - list
-  - patch
-  - update
   - watch

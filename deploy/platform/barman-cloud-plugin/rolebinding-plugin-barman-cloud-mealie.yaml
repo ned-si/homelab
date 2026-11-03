@@ -1,0 +1,23 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/barman-cloud-plugin
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/barman-cloud-plugin and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: plugin-barman-cloud-mealie
+  namespace: mealie
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: plugin-barman-cloud-mealie
+subjects:
+- kind: ServiceAccount
+  name: plugin-barman-cloud
+  namespace: immich
