@@ -65,7 +65,7 @@ Change specs, active:
 | Spec | Created | Issue | Open |
 | --- | --- | --- | --- |
 | [alert-triage](alert-triage/) | 2026-10-27 | #762 | task 5: the cluster objects and the route |
-| [paperless-documents](paperless-documents/) | 2026-11-03 | #732 | all 13 tasks; task 1, the Seafile archive, before 2026-11-16 |
+| [paperless-documents](paperless-documents/) | 2026-11-03 | #732 | all 14 tasks; task 1, the Seafile archive, by 2026-11-16 at the latest |
 
 Change specs, done:
 
