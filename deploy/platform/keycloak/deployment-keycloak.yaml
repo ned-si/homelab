@@ -33,12 +33,8 @@ spec:
         command:
         - /opt/keycloak/bin/kc.sh
         env:
-        - name: JAVA_OPTS_APPEND
-          value: -Djgroups.dns.query=keycloak
         - name: KC_CACHE
           value: ispn
-        - name: KC_CACHE_STACK
-          value: kubernetes
         - name: KC_DB
           value: postgres
         - name: KC_DB_URL
