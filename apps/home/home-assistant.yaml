@@ -105,7 +105,7 @@ spec:
               # renovate: datasource=pypi depName=joserfc
               JOSERFC_VERSION=1.8.0
               # renovate: datasource=github-releases depName=Tasshack/dreame-vacuum
-              DREAME_VERSION=v2.0.2
+              DREAME_VERSION=v2.0.3
               # 0.12.4 is the last release whose musllinux aarch64 wheel is
               # really musl; from 0.13.0 it is glibc-linked and V8 does not
               # load (Renovate holds it, renovate.json5).
