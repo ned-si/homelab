@@ -9,7 +9,9 @@ Talos and the existing GitOps tree go onto them with a site overlay, the
 data comes back from the S3 bucket, and the cluster comes home later by the
 same path. A timed drill applies the module, restores, measures and
 destroys it, and records its MTTR and its cost. Hot and warm sites are
-rejected on cost ([Site options](#site-options)).
+rejected on cost ([Site options](#site-options)). The recovery provider is
+Hetzner: the cheapest in the estimate that survives the loss of the AWS
+account ([Recovery provider](#recovery-provider)).
 
 Every response is rehearsed on a calendar, the measured times go into one
 file in git, and a CronJob puts them on the Homelab / Data protection
@@ -127,13 +129,26 @@ Storage:
 
 Volume attach limits, which the CSI drivers report to the scheduler:
 
-| Provider | Node | Limit | DR shape needs |
-| --- | --- | --- | --- |
-| AWS | `m7g.2xlarge` | 28 attachments shared by the network interfaces, the root volume and the EBS volumes | 15 volumes, 1 interface |
-| Google Cloud | `c4a-standard-8` | 16 Hyperdisk volumes, the boot disk included | 15 plus the boot disk |
-| Hetzner | `CAX41` | 16 volumes; the root disk is local | 15 |
+| Provider | Node | Limit | DR shape needs | Free slots |
+| --- | --- | --- | --- | --- |
+| AWS | `m7g.2xlarge` | 28 attachments shared by the network interfaces, the root volume and the EBS volumes | 15 volumes, 1 interface, the root volume | 11 |
+| Google Cloud | `c4a-standard-8` | 16 Hyperdisk volumes, the boot disk included | 15 plus the boot disk | 0 |
+| Hetzner (chosen) | `CAX41` | 16 volumes; the root disk is local | 15 | 1 |
 
-The Full shape spreads its 35 claims over 4 nodes.
+The 15 are the 14 claims of the DR shape and the ebook library claim. The
+DR shape therefore leaves out the one workload that adds claims at run
+time: `backup-verify`'s weekly Postgres restore (`scripts/verify-postgres.sh`
+creates one `iscsi` volume per restored cluster). Its restic checks stay;
+they restore into an `emptyDir`. On Hetzner the free slot is the margin for
+a volume that is being replaced; on Google Cloud there is none, which is
+one more reason against it.
+
+A loss expected to last more than two weeks moves to the Full shape
+(`var.shape = "full"`): 4 nodes and 64 slots for the 35 claims, enough for
+the Postgres restore and for the media library volume when theater comes
+back. Repo-policy over the DR render counts its claims against the chosen
+provider's limit minus one free slot, so a new claim in an app fails CI
+before it fails a drill.
 
 Egress: 200 GiB a month, the measured 108 GiB doubled for margin; 1 TiB a
 month as the heavy-streaming case. qBittorrent seeding stays off in the
@@ -151,6 +166,7 @@ Cloud, and fits in Hetzner's included 20 TB.
 | Public IPv4 | $0.005/h | $0.005/h | included in the server prices above |
 | Internet egress | 100 GB a month free, then $0.09/GB up to 10 TB | Standard Tier: 200 GiB a month free, then $0.085/GiB | 20 TB per server included, then €1/TB |
 | Reading the S3 bucket | Glacier IR retrieval $0.03/GB; no transfer charge inside `eu-central-1` | retrieval plus S3 internet egress $0.09/GB | retrieval plus S3 internet egress $0.09/GB |
+| Object storage for the second copy | not used | Cloud Storage Standard, regional: $0.020 or $0.022/GiB-month (the page's two regional price groups) | Object Storage: €6.49/month base, 1 TB of storage and 1 TB of egress included; reads from servers in the same network zone free |
 
 Every AWS and Google Cloud figure above is the provider's own published
 price for the region; nothing is an estimate or a regional factor.
@@ -171,6 +187,8 @@ risk the drill has to test.
 | Warm standby: DR shape always on, without media | $369/month | $392/month | €88/month |
 | **DR drill**, 8 h, DR shape, whole bucket read | **$12 per drill** | **$39 per drill** | **€1.04 + $35 per drill** |
 | DR drill per month, two drills a year | $2/month | $7/month | €0.17 + $6/month |
+| **Second off-site copy** (requirement 5.3), standing, about 350 GiB | none: a second copy in the same account protects nothing; the gap stays named | **about $8/month** (Standard, regional) | **€6.49/month** (Object Storage base price, 1 TB included) |
+| **Cold site, per month in normal times** (drills plus the second copy) | **$2/month** | **about $15/month** | **€6.66 + $6/month** |
 
 Always on, Full shape, line by line (per month):
 
@@ -210,6 +228,12 @@ server, or a 1 GiB object for an hour.
 - One zone. The house is one site; a DR site in two zones would protect
   against a loss nobody has here.
 - The S3 bucket's own cost does not change: backups keep going to it.
+- The second copy holds the Immich library's restic repository and a
+  logical dump of every database: the bucket's 299 GiB today
+  (`aws_s3_bucket_size_bytes_average`), rounded up to 350 GiB. At Google
+  Cloud, 350 GiB at the higher regional price is $7.70 a month; the page's
+  text does not say which group `europe-west3` is in, so the figure is
+  rounded up to $8. At Hetzner it fits the base price until it passes 1 TB.
 - The drill reads the whole bucket once (264 GiB in Glacier IR, 35 GiB in
   Standard, `aws_s3_bucket_size_bytes_average`), before AWS's 100 GB of free
   egress, which would lower the cross-provider figures by about $9.
@@ -250,11 +274,16 @@ Read on 2026-11-03, from the providers' own price lists.
     external IPv4 on a standard VM $0.005/h.
   - Zones per series: [Regions and zones](https://docs.cloud.google.com/compute/docs/regions-zones);
     disks per machine type: [General-purpose machine family](https://docs.cloud.google.com/compute/docs/general-purpose-machines).
+  - [Cloud Storage pricing](https://cloud.google.com/storage/pricing):
+    regional Standard storage $0.000027397 or $0.000030137 per GiB-hour
+    ($0.020 or $0.022 per GiB-month).
   - Calculator for task 9: [Google Cloud pricing calculator](https://cloud.google.com/products/calculator).
 - Hetzner: [cost-optimized cloud servers](https://www.hetzner.com/cloud/cost-optimized/)
   (CAX prices with IPv4, hourly and monthly, after the price adjustment of
   15 June 2026); [block storage](https://www.hetzner.com/cloud/block-storage/)
-  (up to 16 volumes per server). Hetzner's pages render the volume and
+  (up to 16 volumes per server); [Object Storage](https://www.hetzner.com/storage/object-storage/)
+  (€6.49 a month base price with 1 TB of storage and 1 TB of egress,
+  €0.0104 an hour until the cap). Hetzner's pages render the volume and
   traffic prices in the browser only, so those two come from the
   [costgoat Hetzner calculator](https://costgoat.com/pricing/hetzner)
   (updated 2026-10-20); task 9 checks them in the Hetzner console.
@@ -286,8 +315,8 @@ it needs the photos to exist.
 | | Cold, home hardware only (before this spec) | Cold in the cloud, on demand (chosen) | Warm | Hot |
 | --- | --- | --- | --- | --- |
 | What runs outside the house | nothing | nothing; `bootstrap/dr-cloud/` creates the nodes after a loss or for a drill | the DR shape all the time, restoring the latest backups on a schedule; Postgres as CNPG replica clusters replaying WAL from S3 | the Full shape, fed continuously, with DNS failover |
-| Cost a month, on top of S3 ($3.07 in October 2026, $5.40 forecast for November) | none | none in normal times; drills $2 (AWS), $7 (Google Cloud), about $6 (Hetzner) a month at two a year | $369 (AWS), $392 (Google Cloud), €88 (Hetzner), plus the scheduled restores | at least $631 (AWS), $663 (Google Cloud), €132 (Hetzner), plus replication traffic |
-| A year | none | about $24 (AWS) to $78 (Google Cloud) of drills | $4,425 (AWS), $4,701 (Google Cloud), €1,050 (Hetzner) | at least $7,577 (AWS), $7,956 (Google Cloud), €1,586 (Hetzner) |
+| Cost a month, on top of S3 ($3.07 in October 2026, $5.40 forecast for November) | none | no compute in normal times; drills $2 (AWS), $7 (Google Cloud), €0.17 plus $6 (Hetzner) a month at two a year; plus the second off-site copy where the provider is not AWS: about $8 (Google Cloud), €6.49 (Hetzner) | $369 (AWS), $392 (Google Cloud), €88 (Hetzner), plus the scheduled restores | at least $631 (AWS), $663 (Google Cloud), €132 (Hetzner), plus replication traffic |
+| A year | none | about $24 (AWS), $174 (Google Cloud: $78 of drills, $96 of second copy), €80 plus $70 (Hetzner: €2 and $70 of drills, €78 of second copy) | $4,425 (AWS), $4,701 (Google Cloud), €1,050 (Hetzner) | at least $7,577 (AWS), $7,956 (Google Cloud), €1,586 (Hetzner) |
 | Cost of a 3-day loss | the hardware | about $44 (AWS DR shape: 72 h of node, storage and IPv4 plus the bucket read) or €9 plus $35 (Hetzner) | small: the data is already there | none |
 | House-lost RTO | hardware lead time (days to weeks) plus an untimed rebuild | 24 h target for tiers 0 and 1, measured by the drill | hours: switch DNS, catch up the files written since the last scheduled restore | minutes |
 | RPO in a house loss | 24 h promised; achieved: Postgres about 5 min, files 24 h | the same | the same | Postgres seconds; files depend on the sync |
@@ -312,14 +341,43 @@ Cold in the cloud, on demand. The operator ruled out hot and warm on
   one-NAS design cannot do without rewriting most apps.
 - Cold with home hardware only cannot be rehearsed and has no RTO anyone can
   state. It stays the way home is rebuilt after a DR period.
-- Cold in the cloud costs nothing until it is used. A drill costs $12 to $39,
-  a three-day loss about $44 (AWS) or €9 plus $35 (Hetzner).
+- Cold in the cloud runs no compute until it is used. A drill costs $12 to
+  $39, a three-day loss about $44 (AWS) or €9 plus $35 (Hetzner). The one
+  standing cost is the second off-site copy at the recovery provider,
+  €6.49 a month at Hetzner.
 
 Review it, in one pull request that changes `docs/decisions.md`, when two
 consecutive drills exceed the tier 1 RTO of the house-lost scenario, when a
 new estimate changes the order of the options, when the household asks for
 a shorter outage, or when the recovery provider stops offering hourly arm64
 servers.
+
+### Recovery provider
+
+Hetzner, decided 2026-11-03 by the rule "the cheapest in the cost table
+that survives the loss of the AWS account":
+
+- AWS is the cheapest drill ($12) but is lost with the AWS account, the
+  scenario where the DR site and the second off-site copy matter most.
+- Of the two that survive it, Hetzner costs €132 a month always on against
+  $663 at Google Cloud, €1.04 plus $35 a drill against $39, and €6.49 a
+  month for the second copy against about $8.
+- Hetzner's volumes allow 16 per server with a local root disk, which
+  leaves the DR shape one free slot; `c4a-standard-8` leaves none.
+
+Its risks, and what answers them:
+
+- CAX servers showed as "currently unavailable" on the order page on
+  2026-11-03. The module takes the location as a variable (Nuremberg,
+  Falkenstein, Helsinki), and the drill proves on the day whether one can
+  be ordered. A drill that cannot order a CAX server in any location fails,
+  and its pull request opens the issue for a second provider module
+  (requirement 2.3), Google Cloud C4A being the next in the table.
+- Hetzner has no image import: the Talos image is built on the day
+  ([Talos](#talos)).
+- The bucket read crosses the internet ($35 a drill). In a real loss the
+  Immich library can come from the second copy at Hetzner instead, which
+  is read inside Hetzner's network for free.
 
 ## The DR module
 
@@ -346,9 +404,10 @@ It works, with three amendments:
    modules it names (`bootstrap/aws-backup`, `bootstrap/github-oidc`,
    `bootstrap/tofu-state`). `bootstrap/dr-cloud/` stays out of that list; CI
    runs `tofu fmt -check` and `tofu validate` on it. A daily check fails, and
-   so notifies ntfy, when the module's state holds resources older than 24 h
+   so notifies ntfy, when the module's state, or the Hetzner project
+   `homelab-dr` ([The drill](#the-drill)), holds resources older than 24 h
    and no real loss is declared, so a forgotten drill does not run up
-   close to $400 a month.
+   €88 a month (DR shape at Hetzner).
 
 The module's state lives in the existing state bucket. If the AWS account is
 gone too, the state is empty anyway in normal times: `tofu init` with a
@@ -359,9 +418,9 @@ local backend starts from nothing.
 | Resource | AWS | Google Cloud | Hetzner |
 | --- | --- | --- | --- |
 | Network | a VPC, one public subnet, a security group | a VPC network, a subnet, firewall rules | a private network, a firewall |
-| Nodes | the Talos arm64 AMI for the region published by Sidero Labs (default schematic), moved to the DR schematic after boot ([Talos](#talos)) | a `google_compute_image` from the Image Factory `gcp` arm64 disk with the DR schematic, uploaded to a bucket by `scripts/dr-image.sh` before `tofu apply` | a snapshot of the Image Factory `hcloud` arm64 image with the DR schematic, built by `scripts/dr-image.sh` before `tofu apply` |
+| Nodes | the Talos arm64 AMI for the region published by Sidero Labs (default schematic), moved to the DR schematic after boot ([Talos](#talos)) | a bucket, the Image Factory `gcp` arm64 disk with the DR schematic as an object in it (downloaded by `scripts/dr-image.sh gcp` before `tofu apply`) and a `google_compute_image` from it, all three in the module's state | a snapshot of the Image Factory `hcloud` arm64 image with the DR schematic, built by `scripts/dr-image.sh hcloud` before `tofu apply`, and adopted by the module ([Talos](#talos)) |
 | Addresses | an Elastic IP on the Gateway node; a public IPv4 on each node for egress | a static external IP on the Gateway node, ephemeral ones on the others, Standard Tier | the servers' own IPv4 |
-| CSI permission | an instance profile with the EBS CSI driver policy | a node service account with the Compute storage role | an API token for `hcloud-csi`, from the password manager, passed as a variable, never in git |
+| CSI permission | an instance profile with the EBS CSI driver policy | a node service account with the Compute storage role | an API token of the `homelab-dr` project for `hcloud-csi`, from the password manager, passed as a variable, never in git |
 | Firewall | 50000 (Talos) and 6443 (Kubernetes) from `var.operator_cidr` only; 80, 443 and 22000 from anywhere in a real loss, from `var.operator_cidr` only in a drill (`var.drill`) | the same | the same |
 | Labels | `dr-drill=<date>` on every resource, for the drill's cost | the same | the same |
 | Outputs | node addresses, the Gateway address | the same | the same |
@@ -384,19 +443,43 @@ local backend starts from nothing.
     to the Factory installer of the DR schematic: one reboot per node,
     timed as step 2a of the restore order.
   - Google Cloud: `scripts/dr-image.sh gcp` downloads the Factory
-    `gcp-arm64.raw.tar.gz` and uploads it to a bucket; the module creates
-    the image from it.
-  - Hetzner: Hetzner has no image import. `scripts/dr-image.sh hcloud`
-    writes the Factory `hcloud` arm64 image to a snapshot from a temporary
-    arm64 server in rescue mode (`hcloud-upload-image`) and deletes the
-    server; the module finds the snapshot by its label. It needs a CAX
-    server to be orderable, the same risk as the DR node itself.
+    `gcp-arm64.raw.tar.gz`; the module uploads it to its own bucket and
+    creates the image from it, so `tofu destroy` removes the bucket, the
+    object and the image.
+  - Hetzner (chosen): Hetzner has no image import. `scripts/dr-image.sh
+    hcloud` writes the Factory `hcloud` arm64 image to a snapshot from a
+    temporary arm64 server in rescue mode (`hcloud-upload-image`), labels
+    it `dr-drill=<date>`, deletes the server and prints the snapshot ID.
+    The module takes the ID as `var.talos_snapshot_id` and adopts the
+    snapshot in a `terraform_data` resource with a destroy-time
+    `local-exec` (`hcloud image delete <id>`), so the snapshot is in the
+    module's state: `tofu destroy` deletes it and the leftover check sees
+    it. It needs a CAX server to be orderable, the same risk as the DR
+    node itself.
 - Images are built on the day, not kept. A stored image costs cents a
   month but has to be rebuilt on every Talos bump, and would be the one
   standing resource of a site that is otherwise empty. The image step is
   timed (step 1a), and the drill shows whether keeping one is worth it.
+  The drill's exit trap also runs `scripts/dr-image.sh hcloud --delete`,
+  which deletes every snapshot labelled `dr-drill=<date>`, for a drill that
+  fails between the image step and `tofu apply`.
 - A drill uses the same schematic, but its config carries no Tailscale auth
   key, so no node joins the tailnet (requirement 8.3).
+- Name resolution in a drill: `talos/dr/drill/static-hosts.yaml`, a
+  drill-only patch with one `StaticHostConfig` document whose `name` is the
+  Gateway node's private address and whose `hostnames` are every
+  `lilalala.com` name in the DR render's HTTPRoutes, like
+  `talos/patches/talosctl/tailnet-hosts.yaml` at home.
+  `scripts/dr-rehearsal.sh` writes it from the module's outputs and the
+  render, and adds it with `--config-patch` at step 2. Talos's host DNS
+  answers static host entries for pods since Talos v1.14.0
+  ([siderolabs/talos#13347](https://github.com/siderolabs/talos/pull/13347),
+  which closed [#13141](https://github.com/siderolabs/talos/issues/13141));
+  the cluster runs v1.14.5. Talos's CoreDNS stays, and with
+  `forwardKubeDNSToHost` at its default it forwards to the host DNS, so
+  every pod resolves those names to the DR Gateway from the first boot,
+  before Argo CD runs. `talos/dr/talconfig.yaml` itself carries no static
+  hosts: a real loss keeps Talos's CoreDNS and public DNS unchanged.
 - No Talos VIP: it needs a shared L2 segment, which cloud networks do not
   give. The Kubernetes endpoint is the first control plane's address (Full
   shape) or the single node (DR shape). In-cluster clients do not depend on
@@ -410,7 +493,7 @@ local backend starts from nothing.
 | --- | --- | --- | --- |
 | Kubernetes API for Cilium | KubePrism `localhost:7445` | unchanged | none |
 | Pod networking | Cilium in its default tunnel mode | unchanged; a tunnel works in any cloud network | none |
-| LoadBalancer addresses | LB-IPAM pools `192.168.1.200-227` and `.254`, L2 announcements | none: cloud networks do not deliver addresses announced by ARP from a node | overlay: L2 announcements off, pools out, the Gateway on the host network of the Gateway node (`gatewayAPI.hostNetwork`) |
+| LoadBalancer addresses | LB-IPAM pools `192.168.1.200-227` and `.254`, L2 announcements | none: cloud networks do not deliver addresses announced by ARP from a node | overlay: a DR values file for the `cilium` release (`infrastructure/cilium/values-dr.yaml`): L2 announcements off, pools out, the Gateway on the host network (`gatewayAPI.hostNetwork.enabled: true`) of the Gateway node only (`gatewayAPI.hostNetwork.nodes.matchLabels`, a label the DR talhelper config sets on that node), and `envoy.securityContext.capabilities.keepCapNetBindService: true`, without which Envoy cannot bind the listeners on 80 and 443 (`infrastructure/gateway/gateway.yaml`) |
 | Syncthing protocol (`.201`), qBittorrent seed (`.200`) | pinned LoadBalancer addresses | Syncthing on hostPort 22000 of the Gateway node; qBittorrent not deployed | overlay patches, and a PolicyException `syncthing-dr` for `disallow-host-ports`, matched by namespace `syncthing` and name prefix `syncthing` like `policies/kyverno/exceptions/lan-inventory.yaml`; the Kyverno baseline denies host ports otherwise |
 | Storage | democratic-csi iSCSI on the NAS; classes `iscsi` and `iscsi-retain` | the EBS, GCE PD or `hcloud-csi` driver; two classes with the same names, Delete and Retain, both with `allowVolumeExpansion: true` | overlay: democratic-csi, `iscsi-volumes`, `nfs-storage` and `truenas-exporter` out; the provider's driver and classes in |
 | Pinned volumes | static PVs in `infrastructure/iscsi-volumes/`; `volumeName` in the claims of Mealie, Paperless, Syncthing and the theater apps | dynamic | overlay removes `volumeName` from those claims |
@@ -420,9 +503,9 @@ local backend starts from nothing.
 | The NAS's own backups | `backup-local` PVs: the second Immich repository, `backup-verify`'s copy | none | overlay: the NAS targets out |
 | NAS alerts | `HomelabNASDown`, `NASPool*` | would page for a NAS that is gone | overlay: those rules out |
 | DNS | external-dns `--default-targets` set to the WAN IP, upsert-only | the Gateway address from the module (real loss); external-dns not deployed (drill) | overlay value |
-| Resolution of `*.lilalala.com` inside the cluster | public DNS: the WAN address, back in through the Gateway | real loss: public DNS, which points at the DR Gateway. Drill: public DNS still points home, so CoreDNS answers every `lilalala.com` name with the DR Gateway node's private address | drill component: the DR Talos config disables Talos's CoreDNS (`cluster.coreDNS.disabled`) and the component deploys CoreDNS with a `template` block for `lilalala.com`. Talos's host DNS does not serve static host entries to CoreDNS ([siderolabs/talos#13141](https://github.com/siderolabs/talos/issues/13141)), so it has to be CoreDNS |
+| Resolution of `*.lilalala.com` inside the cluster | public DNS: the WAN address, back in through the Gateway | real loss: public DNS, which points at the DR Gateway. Drill: public DNS still points home, so the nodes' host DNS answers every `lilalala.com` name with the DR Gateway node's private address | none in GitOps: the drill-only Talos patch `talos/dr/drill/static-hosts.yaml` ([Talos](#talos)); Talos's CoreDNS is kept in both modes |
 | OIDC | every client uses the issuer `https://auth.lilalala.com/realms/homelab` (Argo CD, Grafana, Headlamp, Immich, Mealie, Paperless) | the DR Keycloak, through the resolution above; never the production Keycloak | drill component: the egress rules that allow Keycloak through `world` (`infrastructure/network-policies/20-immich.yaml` describes the split-horizon case) get the Gateway node as well |
-| TLS | cert-manager, DNS-01 on Cloudflare | real loss: unchanged. Drill: the same Let's Encrypt DNS-01 certificates, so the OIDC clients trust the DR Keycloak with no CA change; cert-manager writes only `_acme-challenge` TXT records (requirement 8.3; open question 6) | none (real loss); drill component: cert-manager without external-dns |
+| TLS | cert-manager, DNS-01 on Cloudflare | real loss: unchanged. Drill: the same Let's Encrypt DNS-01 certificates, so the OIDC clients trust the DR Keycloak with no CA change; cert-manager writes only `_acme-challenge` TXT records (requirement 8.3), with a drill Cloudflare token ([The drill](#the-drill)) | none (real loss); drill component: cert-manager without external-dns, its token Secret the drill one |
 | Tailnet | nodes join as `talos-<node>`; the operator's API proxy | real loss: `talos-dr-<n>` and `homelab-dr`; drill: no join (requirement 8) | the DR talhelper config; overlay |
 | Argo CD bootstrap | `bootstrap/` with `kubeconfig_path`, `repo_url`, the root Application | the same module; `kubeconfig_path` to the DR kubeconfig, the root Application pointing at the DR render | a tfvars file |
 | Postgres | CNPG clusters on their existing volumes | `bootstrap.recovery` from the Barman archive; new `serverName` (real loss) or no plugin (drill) | overlay patch per cluster |
@@ -433,8 +516,9 @@ two pinned services are exposed, the CSI driver behind the two StorageClass
 names, the size of `immich-data`, the external-dns target, the set of
 components and apps (the NAS-bound ones and the ones the DR shape leaves
 out), each CNPG cluster's bootstrap and `serverName`, and the rehearsal
-switches (name resolution, the network-policy exception, no tailnet, no
-notifications). Everything else stays as it is: the apps' manifests and
+switches (the network-policy exception, no tailnet, no notifications, the
+Secrets sealed to the rehearsal key). Name resolution in a drill is a Talos
+patch, outside the GitOps tree. Everything else stays as it is: the apps' manifests and
 charts, the Kyverno policies (plus the `syncthing-dr` exception), the
 Keycloak realm, the alert rules (minus the NAS ones).
 
@@ -457,8 +541,8 @@ source that does not need it:
 | `tofu`, `talhelper`, `talosctl`, `kubectl`, `sops` | the versions pinned in `.github/workflows/ci.yaml` (`TOFU_VERSION`, `TALHELPER_VERSION`, and so on) |
 | The SOPS age key | the password manager, written to `~/.config/sops/age/keys.txt` |
 | `TOFU_STATE_PASSPHRASE` | the password manager, written to `secrets.local.env` in the clone (git-ignored), where `scripts/tofu.sh` reads it |
-| The state backend, S3 `ned-si-homelab-tofu-state` | `aws login --profile homelab --region eu-central-1`: a browser sign-in with the AWS account's credentials and MFA (break-glass items; open question 2) |
-| The recovery provider | AWS: the same `aws login` session, whose identity must be allowed to create EC2, VPC and IAM instance-profile resources. Hetzner: an API token from the password manager, exported as `HCLOUD_TOKEN`. Google Cloud: `gcloud auth application-default login` with the recovery account. |
+| The state backend, S3 `ned-si-homelab-tofu-state` | `aws login --profile homelab --region eu-central-1`: a browser sign-in with the AWS account's credentials and MFA (break-glass items: [Break-glass and emergency access](#break-glass-and-emergency-access)) |
+| The recovery provider, Hetzner | a read-write API token of the `homelab-dr` project from the password manager, exported as `HCLOUD_TOKEN`; the Hetzner account's own sign-in and second factor are break-glass items ([Off-site inventory](#off-site-inventory)) |
 
 ```sh
 git clone https://github.com/ned-si/homelab && cd homelab
@@ -484,17 +568,17 @@ The order of `docs/runbooks/site-lost.md`; the drill timestamps every step.
 | Step | What | Done when | Timer |
 | --- | --- | --- | --- |
 | 0 | Declare the site lost (requirement 1.4) | the declaration | T0 |
-| 1a | Hetzner and Google Cloud: `scripts/dr-image.sh <provider>` | the image exists | image |
+| 1a | Hetzner: `scripts/dr-image.sh hcloud` (Google Cloud: `scripts/dr-image.sh gcp`, the download only) | the snapshot ID printed | image |
 | 1 | `tofu apply` in `bootstrap/dr-cloud/` ([Applying the module](#applying-the-module)) | nodes running, outputs printed | provision |
-| 2 | `talhelper genconfig` with `talos/dr/`, `talosctl apply-config`, `talosctl bootstrap`, `talosctl kubeconfig` | every node `Ready` | Talos |
+| 2 | `talhelper genconfig` with `talos/dr/`, `talosctl apply-config` (a drill adds `--config-patch @talos/dr/drill/static-hosts.yaml`), `talosctl bootstrap`, `talosctl kubeconfig` | every node `Ready`; in a drill, `auth.lilalala.com` resolves to the DR Gateway from a pod | Talos |
 | 2a | AWS: `talhelper gencommand upgrade` with `talos/dr/`, one node at a time | every node on the DR schematic and `Ready` | Talos |
-| 3 | `tofu apply` in `bootstrap/` with the DR tfvars: Argo CD, the age key, the root Application | Argo CD syncing | Argo CD |
+| 3 | `tofu apply` in `bootstrap/` with the DR tfvars: Argo CD, the age key (a drill: the rehearsal key), the root Application | Argo CD syncing | Argo CD |
 | 4 | Infrastructure layer: Cilium, cert-manager, the CSI driver, the Gateway | the layer Healthy | tier 0 |
 | 5 | CNPG operator; `keycloak-db` recovered from Barman; Keycloak | `auth` DR probe green | tier 1 starts |
 | 6 | `immich-db` from Barman; the Immich library from restic `immich/library` into `immich-data` (about 300 GiB, the long step); Paperless and Syncthing from restic | `media`, `archive` and `syncthing` DR probes green | tier 1 |
 | 7 | Mealie and the remaining databases; the books apps | `cook` DR probe green | tier 2 |
 | 8 | Real loss: backups on with new `serverName`s and restic hosts; external-dns points the public names at the Gateway address | `BackupNotFresh` clear | |
-| 9 | Drill: write the row, then `tofu destroy` | the module's state empty | cost |
+| 9 | Drill: write the row, then `tofu destroy` and `scripts/dr-image.sh hcloud --delete` | the module's state and the `homelab-dr` project empty | cost |
 
 A DR probe is the public blackbox probe of that name
 (`platform/blackbox-exporter/probes/probes.yaml`), run from the operator's
@@ -506,23 +590,56 @@ measure the home cluster, so only the DR probes count.
 
 Each restic restore runs as a Job before its app starts: an Argo CD PreSync
 hook in the DR overlay, with the image and repository settings of
-`backup-verify`. The Immich restore is the step to watch: inside
-`eu-central-1` it reads S3 at network speed; from another provider it
-crosses the internet. Neither is measured yet; the first drill measures it.
+`backup-verify`. The Immich restore is the step to watch: from Hetzner,
+reading S3 crosses the internet; reading the second copy in Hetzner's
+Object Storage stays in its network. Neither is measured yet; the first
+drill measures the S3 path, the one that works whichever copy survives.
 
 ### The drill
 
 - `scripts/dr-rehearsal.sh <provider>`: preflight (requirement 8: the
-  verifier key only, the drill component in the render), `tofu apply`, the
-  restore order above with a timestamp per step, then `tofu destroy` in an
-  exit trap, whatever happened.
+  verifier key only, the drill component in the render, the static-host
+  patch listing every HTTPRoute host name of the render), the image step,
+  `tofu apply`, the restore order above with a timestamp per step, then
+  an exit trap, whatever happened: `tofu destroy` (network, nodes,
+  addresses, the adopted snapshot), then `scripts/dr-image.sh hcloud
+  --delete`, which deletes every volume and snapshot left in the Hetzner
+  project. That covers a snapshot that `tofu apply` never adopted and the
+  volumes the CSI driver created, which no tofu state holds and which the
+  `iscsi-retain` class keeps after their claims are gone.
+- One Hetzner project, `homelab-dr`, holds the DR site and nothing else,
+  so "everything in the project" is the drill's resource set: the exit
+  trap deletes by project, the bill is read by project, and the daily
+  leftover check lists the project's servers, volumes and snapshots with a
+  read-only token for that project only (an Actions secret), next to the
+  module's state.
+- The rehearsal key. A drill never gets the real age key. It uses a
+  separate age key, kept in the password manager next to the real one:
+  `components/site-dr-drill/secrets/` holds a copy of each Secret the DR
+  render needs, sealed to the real key and the rehearsal key, and the
+  bootstrap gives Argo CD the rehearsal key only. Every copy holds test
+  values except three that read real data or certificates: the verifier S3
+  key (read-only), `RESTIC_PASSWORD`, and the drill Cloudflare token. A
+  drill node that leaks the rehearsal key leaks read access to the backups
+  and a zone token that can be revoked on its own, never the writer keys,
+  the cluster secrets or the home tokens. The real key's path is still
+  proven: the quarterly break-glass check decrypts a sealed file with the
+  password-manager copy, and a real loss uses `talos/dr/` with that key.
+- Certificates: Let's Encrypt through DNS-01, as at home, so the six OIDC
+  clients (Argo CD, Grafana, Headlamp, Immich, Mealie, Paperless) trust the
+  DR Keycloak unchanged and the drill tests the path a real loss takes. The
+  token is a drill-only Cloudflare API token with DNS edit on the one zone,
+  not the cert-manager token of home, so it can be revoked without touching
+  home. A drill CA was rejected: one trust patch per client, in four
+  different mechanisms, plus a CA in every browser used for the checks,
+  and a path that a real loss never takes.
 - MTTR: T0 to each tier's DR probes green, written per tier to
   `ci/dr-rehearsals.tsv`. The mean of the last three passing drills is the
   MTTR column in `docs/sre.md`.
 - The drill site is reachable only from `var.operator_cidr`, and a browser
   check during a drill needs `/etc/hosts` entries on the operator's machine
   for the drill's duration; without them the browser logs in at home.
-- Certificates: the drill requests the same names as home from Let's
+- Certificate limits: the drill requests the same names as home from Let's
   Encrypt, which allows 5 certificates for one exact set of names a week.
   Two drills a year and the home renewals stay far below it.
 - Cost: a few days later, the bill for the resources labelled
@@ -545,28 +662,63 @@ never by value.
 | `talosconfig` | the password manager, `~/homelab-backups/talos/`; regenerated by `task talos:genconfig` from `talos/talsecret.sops.yaml` and the age key | all | all | password manager, or git and the age key | all | password manager |
 | `RESTIC_PASSWORD` | `platform/secrets/s3-backup.sops.yaml` (git, needs the age key), the password manager | all | all | password manager, or git and the age key | all | password manager |
 | `TOFU_STATE_PASSPHRASE` | the password manager, the Mac's working copy; the Actions secret cannot be read back | all | all | password manager | not needed: the state is gone with the account | password manager |
-| Recovery provider API credentials | the password manager (open question 1 names the provider) | not needed | all | password manager | all | password manager |
+| Hetzner `homelab-dr` API tokens (read-write for the module and `hcloud-csi`, read-only for the leftover check) | the password manager; the read-only one also as an Actions secret | not needed | all | password manager | all | password manager |
+| Rehearsal age key | the password manager, the Mac while a drill runs | not needed | all | password manager | all | not needed |
+| Recovery codes and second factors: GitHub recovery codes, a second MFA device on the AWS root user (a TOTP seed), Hetzner and Cloudflare recovery codes | the password manager, folder `homelab break-glass`, one item each | all | all | password manager | all | emergency access |
+| The password manager's own recovery (its recovery code for the second factor, the emergency kit) | a printed sealed envelope held by the emergency contact, outside the house | all | all | the envelope | all | the envelope |
+| Second off-site copy at Hetzner Object Storage (requirement 5.3, task 5): Immich restic repository and a dump of every database | Hetzner Object Storage, bucket in the `homelab-dr` project | all | all | Hetzner | Hetzner | Hetzner, with `RESTIC_PASSWORD` |
 | Immich library | live on the NAS, the NAS restic repository, S3 `immich/library` | all | S3 | S3 | live and the NAS copy | S3 or the NAS, with `RESTIC_PASSWORD` |
 | Databases | live on the NAS; Barman WAL and base backups in S3 `cnpg/`; `pg_dump` of Mealie, Home Assistant and the four *arr clusters in restic; dumps by hand on the Mac | all | S3 | S3 | live, and the Mac's dumps if recent | S3 |
 | Cluster configuration | git on GitHub, every clone | all | all | GitHub | all | GitHub |
-| Break-glass credentials | the password manager | all | all | password manager, if its own recovery is outside the house (open question 2) | all | emergency access |
+| Break-glass credentials | the password manager | all | all | password manager, through the envelope if the phone is gone | all | emergency access |
 
-Gaps:
+Gaps until the tasks land:
 
 - **The AWS account and the house together.** The Immich library and every
   database exist only in S3 once the house is gone; `immich-db` and
-  `keycloak-db` have no logical dump at all, only Barman. Task 5 adds a
-  second copy at the recovery provider when it is not AWS (requirement 5.3).
-- **The recovery of the password manager.** Its master password, its second
-  factor and the AWS root MFA must not all depend on a phone in the house
-  (open question 2).
-- **Emergency access.** Not set up yet; task 4 adds it to the break-glass
-  check (open question 3).
+  `keycloak-db` have no logical dump at all, only Barman. Task 5 adds the
+  second copy at Hetzner (requirement 5.3).
+- **Recovery codes, the envelope and emergency access.** Not set up yet;
+  task 4 sets them up and adds them to the break-glass check
+  ([Break-glass and emergency access](#break-glass-and-emergency-access)).
+
+### Break-glass and emergency access
+
+Decided 2026-11-03, on the operator's direction: documented locations in
+the password manager plus an emergency contact.
+
+- Every recovery code and second factor a recovery needs is an item in the
+  password manager's folder `homelab break-glass`. The inventory above names
+  the items; git never holds a value. The AWS root user gets a second MFA
+  device (AWS allows several per root user), a TOTP seed in that folder, so
+  a burnt phone does not lock the account.
+- The password manager is then the single way in, so its own recovery must
+  not depend on the house: its second-factor recovery code and its
+  emergency kit are printed, sealed in an envelope and held by the
+  emergency contact, outside the house. The master password stays in the
+  operator's head.
+- The emergency contact is a trusted person outside the household, named
+  only in the password manager. They get the password manager's emergency
+  access, view only, to the `homelab break-glass` folder and the items
+  `docs/runbooks/operator-unavailable.md` needs, with a 2-day wait: short
+  next to the household's 7-day target, long enough for the operator to
+  refuse a request made by mistake. The household gets a printed copy of
+  that runbook.
+- Trade-off: the root MFA seed in the same vault as the root password makes
+  the vault one factor for AWS. It already holds the age key, which opens
+  every backup, so the vault is the keystone either way; its own
+  protection (master password, second factor, the envelope) is what
+  matters.
+- The quarterly break-glass check confirms each item exists and signs in
+  with it, and that emergency access is still granted; the yearly
+  walk-through (December) confirms with the emergency contact that the
+  envelope is still sealed and in their keeping.
 
 ## Rehearsal calendar
 
-The proposed calendar for `docs/backups.md` (task 1; open question 4). Live
-work keeps the operator's rule: Monday to Friday, daytime, Zurich.
+The calendar for `docs/backups.md` (task 1), decided 2026-11-03 as
+proposed. Live work keeps the operator's rule: Monday to Friday, daytime,
+Zurich.
 
 | Rehearsal | Scenario | Interval | Where | Measures |
 | --- | --- | --- | --- | --- |
@@ -574,9 +726,9 @@ work keeps the operator's rule: Monday to Friday, daytime, Zurich.
 | `dr-rebuild` CI (#723, task 6) | tier 0 from git | monthly, first Tuesday | GitHub Actions, Talos in QEMU | time from empty nodes to infrastructure and platform Healthy, without data; a lower bound for tier 0 |
 | Break-glass check (task 4) | the house, the AWS account, the operator | quarterly: January, April, July, October | the Mac and the password manager | each item of the inventory works; emergency access still set up |
 | Node replacement (task 10) | one node | twice a year: March and September, `homelab-w-1` first, then a control plane in turn | home cluster | reset to `Ready`, and to every tier 1 probe green |
-| DR drill (#723, task 9) | the NAS, the house | twice a year: May and November | the DR module at the recovery provider | each step and tier against its RTO, the full Immich restore, the RPO reached, the cost |
-| AWS account tabletop | the AWS account | yearly, June | desk: walk `docs/runbooks/aws-account-lost.md`; with a second copy, restore a sample from it | pass or fail, and the steps that did not match |
-| Operator walk-through | the operator | yearly, December | the trusted person, with `docs/runbooks/operator-unavailable.md` | one album and one document restored to a laptop |
+| DR drill (#723, task 9) | the NAS, the house | twice a year: May and November | the DR module at Hetzner | each step and tier against its RTO, the full Immich restore, the RPO reached, the cost |
+| AWS account tabletop | the AWS account | yearly, June | desk: walk `docs/runbooks/aws-account-lost.md`; restore a sample from the Hetzner copy | pass or fail, and the steps that did not match |
+| Operator walk-through | the operator | yearly, December | the emergency contact, with `docs/runbooks/operator-unavailable.md` | one album and one document restored to a laptop; the envelope still sealed |
 
 ## Measurement
 
@@ -634,11 +786,12 @@ tier, the MTTR, the last drill's cost and the next due date.
 | `platform/backup-verify/alerts.yaml`, `tests/prometheus/dr_rehearsal_test.yaml`, `tests/alertmanager/routes.txt`, `docs/runbooks/alerts/DRRehearsalOverdue.md` | the overdue alert | 3 |
 | `platform/kube-prometheus-stack/dashboards/homelab-data-protection.json` | the "Disaster recovery" row | 3 |
 | `scripts/dr-offsite-check.sh`, `docs/runbooks/operator-unavailable.md` | the break-glass check, the household runbook | 4 |
-| `docs/runbooks/aws-account-lost.md`; the second copy at the recovery provider | the AWS scenario | 5 |
+| `docs/runbooks/aws-account-lost.md`; the second copy in Hetzner Object Storage, verified weekly by `backup-verify` | the AWS scenario | 5 |
 | `.github/workflows/dr-rebuild.yaml` | monthly rebuild in CI, on the QEMU harness of `scripts/ci/talos-upgrade-rehearsal.sh` | 6 |
-| `components/site-dr` (with the `immich-data` size and the `syncthing-dr` PolicyException), `components/site-dr-drill` (CoreDNS for `lilalala.com`, the network-policy exception), `clusters/dr/`, the DR render, repo-policy over it | the site overlay | 7 |
-| `bootstrap/dr-cloud/` (with `backend_override.tf.example`), `scripts/dr-image.sh`, `talos/dr/talconfig.yaml`, the leftover check in `.github/workflows/tofu.yaml`, `tofu validate` in `ci`, `docs/runbooks/site-lost.md` | the DR module | 8 |
-| `scripts/dr-rehearsal.sh` | the timed drill, preflight for requirement 8, the DR probes, destroy on exit | 9 |
+| `components/site-dr` (with the `immich-data` size and the `syncthing-dr` PolicyException), `infrastructure/cilium/values-dr.yaml` (host-network Gateway on the labelled node, `keepCapNetBindService`), `components/site-dr-drill` (the network-policy exception, the Secrets sealed to the rehearsal key, no notifications), `clusters/dr/`, the DR render, repo-policy over it (requirement 8 switches, claims against the attach limit) | the site overlay | 7 |
+| `bootstrap/dr-cloud/` for Hetzner (with `backend_override.tf.example` and the adopted snapshot), `scripts/dr-image.sh`, `talos/dr/talconfig.yaml`, the leftover check in `.github/workflows/tofu.yaml` (state and the `homelab-dr` project), `tofu validate` in `ci`, `docs/runbooks/site-lost.md` | the DR module | 8 |
+| `scripts/dr-rehearsal.sh`, `talos/dr/drill/static-hosts.yaml` (written by the script) | the timed drill, preflight for requirement 8, drill name resolution, the DR probes, destroy and project sweep on exit | 9 |
+| `.kiro/specs/backups-dr/` | the area spec updated: scenarios, the off-site inventory, the calendar, the DR site | 9 |
 
 ## Decisions
 
@@ -648,8 +801,13 @@ tier, the MTTR, the last drill's cost and the next due date.
 | Volumes from the provider's CSI driver | volumes created by the module | claim sizes stay in git; no static PV per volume |
 | The DR site reuses the StorageClass names `iscsi` and `iscsi-retain` | site-specific classes and a patch per app | no app manifest changes; the class names describe home, the overlay says what backs them |
 | `immich-data` at 500Gi on the DR site, grown online | the 2Ti in git | 2 TiB of cloud SSD costs $147 a month more on AWS for 1.5 TiB nobody uses; cloud volumes grow online but never shrink |
-| Talos images built from the Image Factory on the day | images kept at each provider | no standing resource, no rebuild on every Talos bump; the step is timed, and the drill shows whether it is too slow |
-| Drill certificates from Let's Encrypt DNS-01, as at home | a drill CA mounted into every OIDC client; Let's Encrypt staging | the clients trust the DR Keycloak with no per-app change, and the drill tests the real path; the cost is `_acme-challenge` TXT records in the production zone (open question 6) |
+| Recovery provider: Hetzner | AWS `eu-central-1`; Google Cloud C4A | the cheapest that survives the loss of the AWS account ([Recovery provider](#recovery-provider)) |
+| Talos images built from the Image Factory on the day, and owned by the module's state | images kept at each provider; a snapshot found by label outside the state | no standing resource, no rebuild on every Talos bump; in the state, `tofu destroy` and the leftover check cover it; the step is timed, and the drill shows whether it is too slow |
+| Drill name resolution by a drill-only Talos `StaticHostConfig` patch | disabling Talos's CoreDNS and deploying a replacement from the drill component | Talos v1.14 host DNS serves static hosts to pods; the patch works from the first boot, while a replacement CoreDNS synced by Argo CD needs cluster DNS to exist first; the real-loss config stays untouched |
+| The DR shape without `backup-verify`'s Postgres restore; the Full shape for a loss longer than two weeks | a larger single node | the DR shape fills 15 of Hetzner's 16 volume slots, and the restore adds one per cluster; a long loss needs the Full shape's capacity anyway |
+| Drills with a separate rehearsal key and drill copies of the Secrets | the real age key on the drill nodes | a leak from a drill node exposes read access to the backups and a revocable zone token, not every secret in git; the real key is proven by the break-glass check |
+| Drill certificates from Let's Encrypt DNS-01, as at home, with a drill-only Cloudflare token | a drill CA mounted into every OIDC client; Let's Encrypt staging | the clients trust the DR Keycloak with no per-app change, and the drill tests the real path; the cost is `_acme-challenge` TXT records in the production zone, written with a token that is revoked on its own |
+| Recovery codes in the password manager, its own recovery in an envelope with the emergency contact | codes on paper in the house; a second password manager | one documented place for every code; the one thing that cannot live in the vault, the vault's own recovery, lives outside the house |
 | DR probes with `curl --resolve` against the DR Gateway | the public blackbox probes | during a drill the public names point home, so the public probes would measure home and always pass |
 | The house-lost RTO keeps 24 h (tiers 0 and 1) and 72 h (tier 2) | a looser target for a site loss | the existing "restore from backup" values; the drill shows whether they hold, and a miss opens an issue instead of moving the target |
 | The module is never applied by CI | applying it from the `tofu` workflow | an apply on merge or a drift run would create the DR site and its bill |
@@ -667,10 +825,12 @@ tier, the MTTR, the last drill's cost and the next due date.
   trap runs `tofu destroy` either way.
 - `tofu destroy` fails or the Mac dies during a drill: the daily leftover
   check fails the `tofu` run after 24 h and notifies ntfy; the runbook's
-  last step is a manual `tofu destroy`.
+  last steps are a manual `tofu destroy` and `scripts/dr-image.sh hcloud
+  --delete`.
 - The provider has no capacity for the requested type: the module takes the
   type and location as variables; the runbook lists the fallbacks (another
-  location, the next size up, another provider's module).
+  Hetzner location, the next size up). No CAX server in any location fails
+  the drill and opens the issue for a Google Cloud module.
 - The GitHub API is unreachable or rate-limited: the CronJob pushes the TSV
   values and skips the CI runs; `dr-rebuild` then goes overdue by the normal
   rule.
@@ -694,12 +854,13 @@ tier, the MTTR, the last drill's cost and the next due date.
   dashboard.
 - Requirements 8, 10.4: repo-policy over the DR render, `task render:check`
   for the home render, the drill preflight refusing to start with a writer
-  key present, and the drill checking from a pod, before step 5, that
-  `auth.lilalala.com` resolves to the DR Gateway.
+  key present or with a render host name missing from the static-host
+  patch, and the drill checking from a pod, at step 2 and before Argo CD,
+  that `auth.lilalala.com` resolves to the DR Gateway.
 - Requirement 10.7: the break-glass check's `tofu plan` (task 4).
 - Requirements 10.1, 10.2, 10.3: `tofu validate` in CI; the leftover check's
   test.
 - Requirements 2.4, 7.3, 7.4, 10.5, 10.6: the first drill's pull request
   (task 9).
 
-Open questions: [requirements.md](requirements.md#open-questions).
+Decisions on the former open questions: [requirements.md](requirements.md#decided-questions).

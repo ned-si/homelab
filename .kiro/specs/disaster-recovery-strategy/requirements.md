@@ -205,11 +205,10 @@ within a day.
    and `bootstrap/github-oidc`, re-seal the keys, move every `serverName` and
    re-seed the Immich repository, and SHALL state the target: backups fresh
    again within 24 h. (review; the yearly tabletop in the calendar)
-3. WHERE the recovery provider is not AWS (open question 1), THE Immich
-   library and a logical dump of every database SHALL also go to that
-   provider's object storage, verified weekly like the S3 repositories;
-   WHERE it is AWS, the gap SHALL stay named in the off-site inventory with
-   a `deferred` issue. (`backup-verify`, `scripts/restic-targets.txt`)
+3. THE Immich library and a logical dump of every database SHALL also go
+   to the recovery provider's object storage (Hetzner Object Storage, in
+   the `homelab-dr` project), verified weekly like the S3 repositories.
+   (`backup-verify`, `scripts/restic-targets.txt`)
 
 ### Requirement 6: Rehearsals on a calendar, results on the dashboard
 
@@ -250,7 +249,7 @@ off-site backups are enough to rebuild everything, and how long it takes.
    in GitHub: a CronJob in `backup-verify` reads the run and its step times
    from the public GitHub API and pushes them.
    (`platform/backup-verify/dr-rehearsal-report.yaml`)
-3. ON THE CALENDAR (open question 4), A drill SHALL apply the DR module,
+3. TWICE A YEAR (May and November), A drill SHALL apply the DR module,
    rebuild the cluster from git, restore every tier from the off-site
    backups, the whole Immich library included, time each step from the
    declaration to each tier's DR probes green, and destroy every resource
@@ -273,8 +272,8 @@ without changing anything at home or in the backups.
 2. A REHEARSAL cluster SHALL run no backup CronJob unsuspended, and no CNPG
    Cluster with a WAL archiver. (repo-policy over the rehearsal render)
 3. A REHEARSAL cluster SHALL NOT write DNS records other than the
-   `_acme-challenge` TXT records of cert-manager's DNS-01 challenges (no
-   external-dns; open question 6), SHALL NOT notify (no ntfy receiver, no
+   `_acme-challenge` TXT records of cert-manager's DNS-01 challenges, made
+   with a drill-only Cloudflare token (no external-dns), SHALL NOT notify (no ntfy receiver, no
    healthchecks.io ping, no Argo CD notifications to GitHub) and SHALL NOT
    join the tailnet. (repo-policy over the rehearsal render)
 4. THE DR site in a real loss SHALL back up with new `serverName`s and new
@@ -282,11 +281,23 @@ without changing anything at home or in the backups.
    (`docs/runbooks/site-lost.md`)
 5. INSIDE a rehearsal cluster, every `lilalala.com` name SHALL resolve to the
    DR Gateway, so OIDC clients reach the DR Keycloak and never the
-   production one. (repo-policy over the rehearsal render: the CoreDNS
-   block is present; the drill checks it from a pod)
+   production one. Talos's CoreDNS SHALL stay enabled, in a drill and in a
+   real loss; the drill gets the names from a drill-only Talos
+   `StaticHostConfig` patch applied at boot. (`scripts/dr-rehearsal.sh`
+   preflight: every HTTPRoute host name of the DR render is in the patch;
+   the drill checks it from a pod before Argo CD is installed)
 6. A REHEARSAL SHALL measure the DR site with DR probes only; the public
    probes, which still reach home, SHALL NOT count.
    (`scripts/dr-rehearsal.sh`)
+7. A REHEARSAL cluster SHALL get the rehearsal age key, never the real
+   one; the Secrets it needs SHALL be drill copies sealed to that key,
+   holding test values except the verifier S3 key, `RESTIC_PASSWORD` and
+   the drill Cloudflare token. (`scripts/dr-rehearsal.sh` preflight;
+   repo-policy: `components/site-dr-drill/secrets/` sealed to the
+   rehearsal key)
+8. WHEN a drill ends, pass or fail, THE `homelab-dr` Hetzner project SHALL
+   hold no server, volume or snapshot. (the drill's exit trap; the daily
+   leftover check)
 
 ### Requirement 9: The household is not stranded without the operator
 
@@ -301,9 +312,10 @@ there.
    renewed, and how to restore the photo library and the documents to a
    laptop with restic. It names no person and holds no value. (review;
    tech-docs checklist)
-2. THE password manager SHALL give a trusted person emergency access to the
-   items that runbook needs; the quarterly break-glass check confirms the
-   access is still set up. (`scripts/dr-offsite-check.sh` prompt; a row in
+2. THE password manager SHALL give the emergency contact view-only
+   emergency access, after a 2-day wait, to the `homelab break-glass`
+   folder and the items that runbook needs; the quarterly break-glass check
+   confirms the access is still set up. (`scripts/dr-offsite-check.sh` prompt; a row in
    `ci/dr-rehearsals.tsv`)
 
 ### Requirement 10: The DR site is a module applied only on loss or drill
@@ -315,14 +327,16 @@ design work on the day of the loss and costs nothing until then.
 #### Acceptance criteria
 
 1. THE module `bootstrap/dr-cloud/` SHALL create the network, arm64 nodes
-   running Talos at the recovery provider, their public addresses, the
-   firewall, the permission the provider's CSI driver needs and, on Google
-   Cloud, the Talos image; and nothing else. Block volumes SHALL come from
-   the CSI driver when a claim asks. (`tofu validate` in CI; review)
+   running Talos at Hetzner, in the `homelab-dr` project, their public
+   addresses, the firewall, the permission the CSI driver needs, and hold
+   the Talos snapshot in its state; and nothing else. Block volumes SHALL
+   come from the CSI driver when a claim asks. (`tofu validate` in CI;
+   review)
 2. THE `tofu` workflow SHALL NOT plan or apply the module; CI SHALL run
    `tofu fmt -check` and `tofu validate` on it.
    (`.github/workflows/tofu.yaml`, `.github/workflows/ci.yaml`)
-3. IF the module's state holds resources older than 24 h and no real loss is
+3. IF the module's state, or the `homelab-dr` project (servers, volumes,
+   snapshots), holds resources older than 24 h and no real loss is
    declared, THEN the daily `tofu` run SHALL fail and notify ntfy once.
    (`.github/workflows/tofu.yaml`; its test)
 4. THE DR site SHALL deploy from the same sources as home: only the site
@@ -344,34 +358,42 @@ design work on the day of the loss and costs nothing until then.
    `tofu plan` on the module from those sources.
    (`docs/runbooks/site-lost.md`; `scripts/dr-offsite-check.sh`)
 
-## Open questions
+## Decided questions
 
-The operator decides these in review; the design assumes the first option
-of each until then.
+None is open. The operator asked on 2026-11-03 for each remaining question
+to be decided on a reasoned default; the reasons are in
+[design.md](design.md).
 
-1. Recovery provider: Hetzner (cheapest always on, survives the loss of the
-   AWS account, CAX servers shown as unavailable to order on 2026-11-03),
-   AWS `eu-central-1` (cheapest drill, lost with the AWS account) or Google
-   Cloud (dearest, no advantage beyond independence from AWS)? Figures in
-   [design.md](design.md#cost-estimate). The answer also places the second
-   off-site copy of requirement 5.3.
-2. Where do the recovery codes for the password manager, the AWS root MFA and
-   GitHub live outside the house, since a fire takes the phone and the Mac?
-3. Operator unavailable: who gets password-manager emergency access, and is a
-   printed instruction kept outside the house? Names stay out of git.
-4. Drill calendar: the drill twice a year (May and November), node
-   replacement twice a year, the break-glass check quarterly, tabletops
-   yearly. Acceptable?
-5. Rehearsal key: drills with the real age key on nodes destroyed afterwards
-   (tests the real path), or with a rehearsal key and re-sealed test secrets
-   (the real key never leaves the Mac and the password manager)?
-6. Drill certificates: real Let's Encrypt certificates through DNS-01, as at
-   home (the OIDC clients trust the DR Keycloak unchanged; cert-manager
-   writes `_acme-challenge` TXT records in the production zone with the
-   Cloudflare token), or a drill CA mounted into each OIDC client (no write
-   to the zone, no Cloudflare token in the drill; one patch per client,
-   each with its own trust setting)? With a rehearsal key (question 5),
-   the first option also needs the Cloudflare token sealed to that key.
+1. Recovery provider: **Hetzner**, the cheapest in the cost table that
+   survives the loss of the AWS account (€132 a month always on, €1.04
+   plus $35 a drill, €6.49 a month for the second off-site copy of
+   requirement 5.3, in Hetzner Object Storage). CAX servers showed as
+   unavailable to order on 2026-11-03; the drill tests it, and a drill
+   that cannot order one opens the issue for a Google Cloud module.
+   ([Recovery provider](design.md#recovery-provider))
+2. Recovery codes: **items in the password manager**, folder `homelab
+   break-glass`, one per code, named in the off-site inventory; a second
+   AWS root MFA device as a TOTP seed in that folder; the password
+   manager's own recovery code and emergency kit printed, sealed and held
+   by the emergency contact outside the house.
+   ([Break-glass and emergency access](design.md#break-glass-and-emergency-access))
+3. Operator unavailable: **an emergency contact**, a trusted person outside
+   the household named only in the password manager, with view-only
+   emergency access to the break-glass folder after a 2-day wait, and the
+   envelope; the household keeps a printed copy of
+   `docs/runbooks/operator-unavailable.md`. (same section)
+4. Drill calendar: **as proposed**: the DR drill in May and November,
+   node replacement in March and September, the break-glass check
+   quarterly, the AWS tabletop in June, the operator walk-through in
+   December, `dr-rebuild` monthly. ([Rehearsal calendar](design.md#rehearsal-calendar))
+5. Rehearsal key: **a separate rehearsal age key**, with drill copies of
+   the Secrets sealed to it; the real key never reaches a drill node
+   (requirement 8.7). ([The drill](design.md#the-drill))
+6. Drill certificates: **Let's Encrypt through DNS-01, as at home**, with a
+   drill-only Cloudflare token sealed to the rehearsal key; the OIDC
+   clients trust the DR Keycloak unchanged. A drill CA was rejected: a
+   trust patch per client and a path a real loss never takes.
+   ([The drill](design.md#the-drill))
 
 Settled in the operator's review of 2026-11-03: no hot or warm site; a cold
 site in the cloud built by `bootstrap/dr-cloud/`, rehearsed as a timed drill
@@ -379,5 +401,8 @@ with its cost tracked. Settled in the design, on the recommended default:
 the house-lost RTO keeps 24 h for tiers 0 and 1 and 72 h for tier 2; #723 is
 tasks 6 and 9 here; the DR site reuses the StorageClass names `iscsi` and
 `iscsi-retain`; the DR shape leaves out theater, SigNoz and the Home
-Assistant stack; `immich-data` is 500Gi on the DR site; Talos images are
-built on the day, not kept at the provider.
+Assistant stack, and `backup-verify`'s Postgres restore (attach limit);
+a loss longer than two weeks moves to the Full shape; `immich-data` is
+500Gi on the DR site; Talos images are built on the day and held in the
+module's state, not kept at the provider; drill name resolution is a
+Talos `StaticHostConfig` patch, and Talos's CoreDNS stays.
