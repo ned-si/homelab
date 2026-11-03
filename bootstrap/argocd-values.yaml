@@ -74,8 +74,6 @@ configs:
     reposerver.log.level: info
     reposerver.parallelism.limit: 0
     server.basehref: /
-    server.dex.server: https://argocd-dex-server:5556
-    server.dex.server.strict.tls: false
     server.disable.auth: false
     server.enable.gzip: true
     # TLS ends at the edge (the shared Gateway); argocd-server serves plain
@@ -92,8 +90,11 @@ configs:
   secret:
     createSecret: true
 
+# No Dex: argocd-server talks to Keycloak directly through oidc.config, and
+# argocd-cm has no dex.config, so a Dex server would serve nothing. With Dex
+# off the chart also leaves server.dex.server out of argocd-cmd-params-cm.
 dex:
-  enabled: true
+  enabled: false
 
 # Argo CD Notifications reports a failed sync or a Degraded Application to
 # GitHub as a `repository_dispatch` (event type `argo-degraded`), which runs
