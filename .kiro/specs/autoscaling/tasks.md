@@ -12,7 +12,7 @@ its workloads from `ci/ha-inventory.yaml`.
       `ha-replicas`, `autoscale-floor`, `autoscale-targets` and
       `vpa-recommend-only` over the rendered objects, with a passing and a
       failing fixture each; they pass on `main`. [1.1, 1.2, 2.1, 2.2, 2.3,
-      2.4, 4.1, 5.1, 5.2, 6.1, 6.2, 6.3, 7.1, 7.2, 10.3, 11.2]
+      2.4, 2.6, 4.1, 5.1, 5.2, 6.1, 6.2, 6.3, 7.1, 7.2, 10.3, 11.2]
 - [ ] 2. VPA recommender: Application `vpa` in the platform layer, chart
       values with the updater and admission controller disabled, namespace
       `vpa`, CRD schemas in `ci/schemas/`. The PR records the image's
@@ -66,32 +66,50 @@ its workloads from `ci/ha-inventory.yaml`.
 - [ ] 12. Weekday. The six app databases (`home-assistant`, `mealie`,
       `sonarr`, `radarr`, `lidarr`, `prowlarr`) at `instances: 2`, required
       anti-affinity. Recorded: memory and NAS storage added. [4.1, 4.3]
-- [ ] 13. Weekday. Grafana, as open question 7 is answered: a
+- [ ] 13. Weekday. Grafana on PostgreSQL (answered question 11): a
       CloudNativePG cluster `grafana-postgresql` in `monitoring` at
-      `instances: 2` with the Barman Cloud plugin, Grafana at 2 replicas on
-      it with spread and a PDB, its persistence and the `grafana-backup`
-      CronJob removed. Recorded: memory and NAS storage added, dashboards
-      present, an operator login through Keycloak. (If the answer is no,
-      the inventory entry stays `none`.) [2.1, 2.2, 2.3, 4.1, 4.3]
+      `instances: 2` with the Barman Cloud plugin, its backup-SLO target
+      and restore test like the other clusters; Grafana at 2 replicas on
+      it with spread and a PDB; its persistence and the `grafana-backup`
+      CronJob removed, with what refers to them:
+      `ci/active-cronjobs.txt`,
+      `platform/kube-prometheus-stack/routes/backup-slo-targets.yaml`, the
+      `grafana-db` line of `platform/backup-verify/scripts/restic-targets.txt`,
+      the comment in `scripts/set-backup-target.sh`, `grafana/data` in
+      `restic_repos` of `bootstrap/aws-backup/main.tf` marked `# retained`
+      (its snapshots keep the old `grafana.db`), and the Grafana rows of
+      `docs/backups.md`, `docs/observability.md` and `docs/secrets.md`
+      (`agent-readonly` now kept in `grafana-postgresql`). After the sync,
+      `agent-readonly` re-created as Viewer with a new token through the
+      Grafana API, the token written to its file under
+      `~/homelab-backups/agent/` and never printed. Recorded: memory and
+      NAS storage added, dashboards present, an operator login through
+      Keycloak, a read-only query with the new token. [2.1, 2.2, 2.3, 2.6,
+      4.1, 4.3]
 - [ ] 14. Weekday. `immich-db` at `instances: 2`, required anti-affinity,
-      same pinned image, as open question 6 is answered and after its
-      SELinux relabel (#752); a fresh backup first. Recorded: the replica
-      streaming, its memory and NAS storage. (If the answer is no, the
-      entry becomes `excluded`.) [4.1, 4.3]
-- [ ] 15. Weekday. The Immich machine-learning cache off `ReadWriteOnce`,
-      as open question 1 is answered. [6.1]
+      same pinned image (answered question 10); a fresh backup first.
+      Recorded: the replica streaming, its memory and NAS storage. [4.1,
+      4.3]
+- [ ] 15. Weekday. Immich machine learning at 2 replicas (answered
+      questions 5 and 9): the cache on a static `ReadWriteMany` NFS volume
+      on the NAS, `strategy: RollingUpdate` with `maxSurge: 1` and
+      `maxUnavailable: 0` instead of `Recreate`, spread across nodes with
+      the worker preferred, a PDB, a CPU request from the 7-day peak and a
+      CPU limit of 4 cores. The PR records the image's compressed arm64
+      size and `/var` free on every node. Recorded checks: a rollout keeps
+      one pod Ready throughout; smart search answers; no failed probe of
+      `media`. [2.1, 2.2, 2.3, 2.6, 6.1, 11.3, 12.3]
 - [ ] 16. Weekday. ScaledObject for `immich-machine-learning` as in
       design.md (KEDA trigger): `redis` triggers on the `smartSearch`,
       `faceDetection` and `ocr` wait lists after their names are listed
       read-only, `minReplicaCount: 2`, `maxReplicaCount: 3`,
-      `fallback.replicas: 2`; the Valkey ingress from `keda` in
-      `20-immich.yaml`; spread and the CPU limit as open question 5 is
-      answered. The PR records the image's compressed arm64 size and
-      `/var` free on every node. Recorded checks: the ScaledObject `Ready`,
-      no Hubble drop from `keda`; a library scan moves it to 3 and back to
-      2, the queue drains faster at 3 (or the ScaledObject goes and ML
-      stays at 2), no failed probe of `media`. [10.2, 10.3, 10.4, 11.1,
-      11.3, 12.1]
+      `fallback.replicas: 2`; `spec.replicas` out of git; the Valkey
+      ingress from `keda` in `20-immich.yaml`. The PR records `/var` free
+      on every node. Recorded checks: the ScaledObject `Ready`, the flow
+      from `keda` to Valkey allowed by the new rule (requirement 10.4); a
+      library scan moves it to 3 and back to 2, the queue drains faster at
+      3 (or the ScaledObject goes and ML stays at 2), no failed probe of
+      `media`. [6.3, 10.2, 10.3, 10.4, 11.3, 12.1]
 - [ ] 17. Weekday. Drain test, under a maintenance silence: drain the
       node of the `keycloak-db` primary and uncordon it. Recorded checks:
       `probe_success` of `auth`, `headlamp`, `hubble` and `argo` over the

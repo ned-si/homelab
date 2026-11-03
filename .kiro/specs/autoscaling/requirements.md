@@ -37,9 +37,13 @@ take about 7.1 GiB of memory at their 7-day peaks (4.7 GiB without a second
 Immich machine-learning pod), against 94 GiB available on the four nodes,
 and 50 GiB on the NAS. Over the 14 days before, each public app failed its
 probe for 162 to 173 minutes, and 155 of those minutes were outages of every
-app at once (WAN, router or Gateway). Pod-level HA addresses the remaining 7
-to 18 minutes per app and the restarts of future drains and upgrades; it
-does nothing for the NAS, the Turing Pi board, power or the uplink.
+app at once (WAN, router or Gateway), out of reach of pod-level HA. Of the
+remaining 7 to 18 minutes per app, only `auth` has a request path that this
+spec makes fully HA; `media`, `cook`, `theater` and `home` keep
+single-replica backends. What HA buys is drains, upgrades and deploys of the
+login path, the SSO proxies, the operator UIs and the cluster controllers
+without an outage, and databases that survive their node. It does nothing
+for the NAS, the Turing Pi board, power or the uplink.
 
 Constraints, from [tech.md](../../steering/tech.md#constraints) and the
 cluster:
@@ -59,7 +63,7 @@ Non-goals:
 - VPA modes that act (`Initial`, `Recreate`, `InPlaceOrRecreate`, `Auto`),
   the VPA updater and admission controller.
 - Making an app HA that the inventory classes `none`, except Grafana
-  (open question 7). The inventory says what would make each possible;
+  (answered question 11). The inventory says what would make each possible;
   any other enabler is its own issue.
 - Moving the Immich library (`immich-data`) off `ReadWriteOnce`.
 - HA of the NAS, the Turing Pi board, power, the router or the uplink;
@@ -145,6 +149,9 @@ keep answering while a node is drained, upgraded or lost.
    switches over. (recorded check in the drain task: `probe_success` over
    the drain; the `headlamp` probe, oauth2-proxy's `/ping`, is added by
    task 6)
+6. EVERY HA Deployment SHALL use the `RollingUpdate` strategy, not
+   `Recreate`, so a rollout never stops every replica at once.
+   (repo-policy `ha-replicas`)
 
 ### Requirement 3: Keycloak is a two-member cluster
 
@@ -174,9 +181,9 @@ its node, without waiting for its volume to move.
 #### Acceptance criteria
 
 1. EVERY CloudNativePG cluster SHALL set `instances: 2` and
-   `affinity.podAntiAffinityType: required`. `immich-db` stays `pending`
-   until its SELinux relabel (#752) is done, and becomes `excluded` if
-   open question 6 is answered no. (repo-policy `ha-replicas`)
+   `affinity.podAntiAffinityType: required`, `immich-db` included (its
+   volume was relabelled on 2026-11-02; a fresh backup comes first).
+   (repo-policy `ha-replicas`)
 2. WHEN the primary's node is drained, THE cluster SHALL switch over to the
    replica, and its app SHALL reconnect with no manual step. (recorded
    check in the database task: `cnpg_pg_replication_is_wal_receiver_up`,
@@ -302,9 +309,13 @@ follow the length of that queue, not its CPU.
    the workload at 2 replicas (`fallback.replicas: 2`).
    (repo-policy `autoscale-floor`)
 4. THE `immich` network policy SHALL allow the KEDA operator in `keda` to
-   reach Valkey on 6379, and nothing else in `immich`.
+   reach Valkey on 6379, and nothing else in `immich`. Until `immich`
+   enforces its policies (`enableDefaultDeny: false` today), Valkey is
+   reachable from every namespace, so the absence of drops proves nothing.
    (`infrastructure/network-policies/20-immich.yaml`; recorded check: the
-   ScaledObject is `Ready` and no Hubble drop from `keda` to `immich`)
+   ScaledObject is `Ready`, and `hubble observe` shows the flow from `keda`
+   to Valkey with `ingress_allowed_by` naming the `immich` policy, or the
+   check is recorded once `immich` enforces)
 
 ### Requirement 11: It fits the hardware
 
@@ -362,7 +373,7 @@ twice, what scales, on what, and why the rest does not.
 
 ## Answered questions
 
-From the operator's review on 2026-11-03:
+No question is open. From the operator's review on 2026-11-03:
 
 1. HPA floor: `minReplicas: 2` for every HA-capable workload; Keycloak
    runs 2 replicas at least (requirements 3, 5).
@@ -376,57 +387,58 @@ From the operator's review on 2026-11-03:
    only active-passive is supported, decided per app in the HA inventory
    ([design.md: Inventory](design.md#inventory)).
 
-## Open questions
+Decided on 2026-11-03, the operator accepting the defaults this spec
+proposed:
 
-Each names the default this spec assumes until it is answered.
-
-1. Immich machine-learning cache: two replicas cannot share the 10Gi
-   `ReadWriteOnce` `iscsi` cache. Default: a static `ReadWriteMany` NFS
-   volume on the NAS, which uses no eMMC. Alternative: an `emptyDir` on the
-   eMMC (models downloaded again by every pod, on the scarce eMMC).
-2. Paging: no page when the KEDA operator or the VPA recommender is down
-   (default), because a failed autoscaler leaves the replica counts as
-   they are. Or a page like `TupprOperatorAbsent`?
-3. Sizing restarts pods: most apps use `Recreate`, so a requests change is
-   a short outage of that app (seconds to a minute of failed probes).
-   Default: three pull requests (the platform layer; theater and books; the
-   other apps), each merged on a weekday in the daytime. Or one per
-   namespace?
-4. Prometheus stays at one replica (default): a second replica costs about
+5. Immich machine-learning cache: two replicas cannot share the 10Gi
+   `ReadWriteOnce` `iscsi` cache, so it moves to a static `ReadWriteMany`
+   NFS volume on the NAS, which uses no eMMC (task 15). Rejected: an
+   `emptyDir`, which downloads the models again in every pod, onto the
+   scarce eMMC.
+6. Paging: no page when the KEDA operator or the VPA recommender is down,
+   because a failed autoscaler leaves the replica counts as they are; their
+   health is INFO on the Homelab / Automation dashboard (requirement 12.2).
+7. Sizing restarts pods: most apps use `Recreate`, so a requests change is
+   a short outage of that app (seconds to a minute of failed probes). Three
+   pull requests (the platform layer; theater and books; the other apps),
+   each merged on a weekday in the daytime (tasks 18 to 20).
+8. Prometheus stays at one replica (`excluded`): a second costs about
    5 GiB of memory and 40 GiB on the NAS, starts with an empty TSDB, so its
    30-day SLO and backup-window alerts would page falsely for 30 days, and
    Grafana would read either replica at random. The healthchecks.io
-   watchdog already pages when Prometheus or Alertmanager stops. The
-   alternative is two replicas behind a Thanos querier that deduplicates,
-   its own spec. Is one replica acceptable here?
-5. Immich machine learning at a floor of 2 costs about 2.3 GiB and a copy
-   of its image on a second node's eMMC, for a service that serves smart
-   search and the face and CLIP jobs (uploads and browsing do not wait on
-   it). It also moves machine learning onto control planes: today
-   `apps/immich/values.yaml` prefers the worker because etcd shares the
-   control planes' eMMC and CPU, and a library scan takes every core it
-   gets. With one worker, a spread across nodes puts the second pod, and
-   the third during a scan, on a control plane.
-   Default: floor 2, as for every HA-capable workload, spread across nodes,
-   the worker still preferred for the first pod, and a CPU limit of 4 of
-   the 8 cores on the machine-learning container (an exception to "no CPU
-   limit"), so a scan leaves etcd and the API server half the node. Or
-   `ScheduleAnyway`, so the replicas stack on the worker (pod HA only, no
-   node HA)? Or a floor of 1 as a justified exclusion?
-6. `immich-db` replica: `instances: 2` costs about 342 MiB and 5 GiB on
-   the NAS, uses the same pinned image (the hard rule on its image is
-   untouched), and means the database no longer restarts with its node,
-   as for the six app databases. It waits for the `immich-db` SELinux
-   relabel (#752), which needs its own weekday window, and takes a fresh
-   backup first (the Immich database rule). Default: yes, task 14 after
-   the relabel. Or excluded at one instance?
-7. Grafana, the cheapest `none` with an enabler: a CloudNativePG cluster
-   `grafana-postgresql` at `instances: 2` (about 220 MiB, 10 GiB on the
-   NAS) and a second Grafana pod (about 310 MiB) make it `active-active`.
-   The database starts empty: dashboards and datasources are provisioned
-   from git, users come back through Keycloak at their next login, and the
-   `grafana-backup` CronJob of the SQLite file goes. Default: yes, task 13.
-   Paperless is the other supported enabler (PostgreSQL, the media on
-   `ReadWriteMany`, the web server split from the worker), a one-way
-   migration of the document archive; default: not in this spec, its own
-   `type/spec` issue if wanted.
+   watchdog already pages when Prometheus or Alertmanager stops. Two
+   replicas behind a Thanos querier that deduplicates would be its own
+   spec.
+9. Immich machine learning: floor 2, spread across nodes, the worker still
+   preferred for the first pod, `RollingUpdate` (`maxSurge: 1`,
+   `maxUnavailable: 0`) once the cache leaves `ReadWriteOnce`, and a CPU
+   limit of 4 of the 8 cores on the machine-learning container (an
+   exception to "no CPU limit"), so a library scan leaves etcd and the API
+   server half of a control plane (tasks 15, 16). It costs about 2.3 GiB
+   and a copy of its image on a second node's eMMC. Rejected:
+   `ScheduleAnyway`, which stacks the replicas on the worker (no node HA),
+   and a floor of 1.
+10. `immich-db` replica: `instances: 2`, about 342 MiB and 5 GiB on the
+    NAS, the same pinned image (the hard rule on its image is untouched),
+    with a fresh backup first (task 14). Its volume was relabelled on
+    2026-11-02, so nothing else waits.
+11. Grafana moves to a CloudNativePG cluster `grafana-postgresql` at
+    `instances: 2` (about 220 MiB, 10 GiB on the NAS) with a second Grafana
+    pod (about 310 MiB), which makes it `active-active` (task 13). The new
+    database starts empty. Dashboards and datasources are provisioned from
+    git and users come back through Keycloak at their next login, but
+    `grafana.db` also holds what Grafana cannot provision: the service
+    account `agent-readonly` and its token (the identity of the Grafana MCP
+    server and of the agents' read-only checks), annotations, stars and
+    user preferences. Task 13 re-creates `agent-readonly` as Viewer with a
+    new token through the Grafana API and writes the token to its file
+    under `~/homelab-backups/agent/` (mode 600, never printed); until then
+    the old token gets 401s. Annotations, stars and preferences are lost:
+    no script writes annotations, so they are the few added by hand, and
+    the last `grafana/data` snapshot keeps the SQLite file readable.
+    Rejected: a scripted migration of `grafana.db` into PostgreSQL, since
+    Grafana ships no tool for it and the schema is version-specific, for a
+    handful of rows. Paperless, the other supported enabler (PostgreSQL,
+    the media on `ReadWriteMany`, the web server split from the worker), is
+    a one-way migration of the document archive and stays out of this
+    spec; its own `type/spec` issue if wanted.

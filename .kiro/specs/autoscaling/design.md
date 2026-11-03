@@ -53,10 +53,10 @@ storage on the TrueNAS pool.
 | Argo CD: a second server, repo-server and ApplicationSet controller | 376 MiB | none |
 | Controllers: cert-manager (3), Kyverno (3), metrics-server, democratic-csi controller, CloudNativePG operator | 878 MiB | none |
 | Alertmanager, blackbox exporter | 91 MiB | none |
-| A replica of `immich-db` (open question 6) | 342 MiB | 5 GiB |
-| Grafana: a second pod and a two-instance `grafana-postgresql` (open question 7) | 530 MiB | 10 GiB |
+| A replica of `immich-db` (answered question 10) | 342 MiB | 5 GiB |
+| Grafana: a second pod and a two-instance `grafana-postgresql` (answered question 11) | 530 MiB | 10 GiB |
 | Subtotal | 4845 MiB (4.7 GiB) | 50 GiB |
-| A second Immich machine learning | 2395 MiB | none (cache: open question 1) |
+| A second Immich machine learning | 2395 MiB | none (the cache moves to NFS: answered question 5) |
 | Total | 7240 MiB (7.1 GiB) | 50 GiB |
 
 KEDA and the VPA recommender are new components, not copies; their memory
@@ -111,9 +111,9 @@ outage, and a database that survives its node.
 ### Recommendation
 
 HA wherever the cost is in the table above, which is every capable
-workload but Prometheus (open question 4); `immich-db` waits for its
-SELinux relabel (open question 6), and Grafana gains a database to become
-capable (open question 7).
+workload but Prometheus (answered question 8); Grafana gains a database to
+become capable (answered question 11). The answered questions are in
+[requirements.md](requirements.md#answered-questions).
 
 | Workload | Class | Recommendation | Extra memory | Why |
 | --- | --- | --- | --- | --- |
@@ -133,10 +133,10 @@ capable (open question 7).
 | Alertmanager | active-active | 2 | 63 MiB | gossip cluster deduplicates notifications; a silence survives a pod restart (storage is an `emptyDir` today) |
 | `blackbox-exporter` | active-active | 2 | 28 MiB | the probes measure the SLOs |
 | App databases: `home-assistant`, `mealie`, `sonarr`, `radarr`, `lidarr`, `prowlarr` | active-passive | `instances: 2` | 883 MiB, 30 GiB NAS | the apps stay at one replica, but the database no longer restarts with its node, and backups run from the standby; small cost |
-| `immich-machine-learning` | active-active | 2 to 3 (KEDA) | 2395 MiB | the largest item; a spread across nodes puts replicas on control planes, which its affinity avoids today; open question 5 |
-| `immich-db` | active-passive | `instances: 2`, `pending` until its SELinux relabel (#752) | 342 MiB, 5 GiB NAS | as for the app databases: it no longer restarts with its node, and backups run from the standby; same pinned image; open question 6 |
-| Grafana | active-active once on PostgreSQL | 2, with `grafana-postgresql` at `instances: 2` | 530 MiB, 10 GiB NAS | the cheapest enabler; open question 7 |
-| Prometheus | active-active | excluded, 1 | (5033 MiB, 40 GiB NAS) | an empty TSDB on the second replica pages falsely on 30-day windows for 30 days; open question 4 |
+| `immich-machine-learning` | active-active | 2 to 3 (KEDA) | 2395 MiB | the largest item; a spread across nodes puts replicas on control planes, which its affinity avoids today; `RollingUpdate` once the cache is on NFS, a CPU limit of 4 cores; answered questions 5 and 9 |
+| `immich-db` | active-passive | `instances: 2`, after a fresh backup | 342 MiB, 5 GiB NAS | as for the app databases: it no longer restarts with its node, and backups run from the standby; same pinned image; its volume was relabelled on 2026-11-02; answered question 10 |
+| Grafana | active-active once on PostgreSQL | 2, with `grafana-postgresql` at `instances: 2` | 530 MiB, 10 GiB NAS | the cheapest enabler; `agent-readonly` and its token re-created on the new database; answered question 11 |
+| Prometheus | active-active | excluded, 1 | (5033 MiB, 40 GiB NAS) | an empty TSDB on the second replica pages falsely on 30-day windows for 30 days; answered question 8 |
 
 ## Inventory
 
@@ -150,7 +150,7 @@ rest stay at one replica.
 | --- | --- | --- |
 | `immich-server` | the 2 TiB library `immich-data` is `ReadWriteOnce`. `ReadWriteOnce` binds the volume to one node, not one pod, so two server pods held on the library's node by a required pod affinity would survive a pod crash and a rolling update. Rejected: it gives no node HA (requirement 2.2), both pods still stop when that node is drained or lost, and it costs a second pod of 1568 MiB (7-day peak) for the pod-level case that a restart already covers in under a minute | Immich runs several server processes given a shared library, so the library on a `ReadWriteMany` volume (NFS); a one-way move of the photo library, its own spec |
 | Valkey (`immich`, `paperless`) | job queue and Celery broker in memory; a second instance is a second, empty store | Valkey with Sentinel (three sentinels) and Sentinel-aware clients; not worth it for a queue that refills |
-| `paperless` | SQLite on `paperless-data`; one container runs the web server, worker, scheduler and consumer | PostgreSQL (a CloudNativePG cluster), the media on `ReadWriteMany`, and the web server split from the worker; a one-way migration, outside this spec (open question 7) |
+| `paperless` | SQLite on `paperless-data`; one container runs the web server, worker, scheduler and consumer | PostgreSQL (a CloudNativePG cluster), the media on `ReadWriteMany`, and the web server split from the worker; a one-way migration, outside this spec (answered question 11) |
 | `mealie` | data directory (images, backups) on a 100Gi `ReadWriteOnce` volume; the database is already PostgreSQL | the data directory on `ReadWriteMany`, if upstream supports more than one instance (not documented) |
 | `home-assistant` | one instance by design; the recorder is already on PostgreSQL | nothing upstream |
 | `mosquitto` | the open-source broker has no clustering | a broker with clustering |
@@ -194,7 +194,7 @@ HPA candidate; as a DaemonSet it is not one.
 | PodDisruptionBudgets, topology spread | next to each HA workload's manifests, or the chart's values (`podDisruptionBudget`, `topologySpreadConstraints`, `replicas`) |
 | `platform/keycloak/` | HPA, PDB, spread, `spec.replicas` out of git, CPU and memory requests (the Deployment has no `resources` today); a headless Service `keycloak-discovery` with `publishNotReadyAddresses: true` and `-Djgroups.dns.query=keycloak-discovery.keycloak.svc.cluster.local`; `KC_CACHE` and `KC_CACHE_STACK` unchanged |
 | `platform/blackbox-exporter/probes/probes.yaml` | a public target `https://headlamp.lilalala.com/ping` (oauth2-proxy, as for `hubble`) |
-| `platform/kube-prometheus-stack/values.yaml` (Grafana) | 2 replicas, `database` settings for `grafana-postgresql`, no persistence; a CloudNativePG cluster `grafana-postgresql` in `monitoring` with the Barman Cloud plugin like the others (open question 7) |
+| `platform/kube-prometheus-stack/values.yaml` (Grafana) | 2 replicas, `database` settings for `grafana-postgresql`, no persistence; a CloudNativePG cluster `grafana-postgresql` in `monitoring` with the Barman Cloud plugin like the others; the `grafana-backup` CronJob and its references removed (task 13); `agent-readonly` re-created through the Grafana API (answered question 11) |
 | CloudNativePG clusters | `instances: 2`, `affinity.podAntiAffinityType: required` |
 | `bootstrap/argocd-values.yaml` | `server.replicas: 2`, `repoServer.replicas: 2`, `applicationSet.replicas: 2` with leader election on, PDBs |
 | `infrastructure/cert-manager/`, `infrastructure/kyverno/`, `infrastructure/metrics-server/`, `infrastructure/democratic-csi/`, `infrastructure/cilium/values.yaml` (Hubble) | replicas, PDBs and spread through chart values |
@@ -208,7 +208,7 @@ HPA candidate; as a DaemonSet it is not one.
 | `platform/kube-prometheus-stack/values.yaml` | `kube-state-metrics.customResourceState`: `kube_vpa_recommendation_target` and `kube_vpa_recommendation_upper_bound{namespace, verticalpodautoscaler, container, resource}`, plus the RBAC rule to list VPAs |
 | `scripts/vpa-requests.sh` | the sizing table of requirement 8.1, from Prometheus |
 | Grafana, Homelab / Automation | panels: replicas per HA workload, KEDA and VPA component health (INFO) |
-| `apps/immich/values.yaml`, `apps/immich/resources/` | the machine-learning cache volume (open question 1), its spread and CPU limit (open question 5), the ScaledObject |
+| `apps/immich/values.yaml`, `apps/immich/resources/` | machine learning: the cache on a static `ReadWriteMany` NFS volume, `strategy: RollingUpdate` (`maxSurge: 1`, `maxUnavailable: 0`) instead of `Recreate`, 2 replicas, spread, PDB, a CPU limit of 4 cores (answered questions 5 and 9); the ScaledObject |
 | `infrastructure/network-policies/20-immich.yaml` | ingress to Valkey on 6379 from the KEDA operator in `keda` |
 
 ## KEDA trigger for Immich machine learning
@@ -223,7 +223,7 @@ learning has not yet served.
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| Scaler | `redis`, `address: valkey.immich.svc.cluster.local:6379`, no auth (Valkey has no password; the namespace policy is the boundary) | reads the backlog directly; no exporter to add |
+| Scaler | `redis`, `address: valkey.immich.svc.cluster.local:6379`, no auth (Valkey has no password). `immich` runs with `enableDefaultDeny: false`, so Valkey is reachable from every namespace today; the new rule becomes the boundary once `immich` enforces (wave3-network-logs) | reads the backlog directly; no exporter to add |
 | Triggers | one per queue, `listName` `immich_bull:smartSearch:wait`, `immich_bull:faceDetection:wait`, `immich_bull:ocr:wait` | KEDA takes the highest replica count of its triggers |
 | `listLength` | `"100"` per replica | 3 replicas once one list holds more than 200 waiting jobs, which only a library scan or a bulk upload produces |
 | Floor, ceiling | `minReplicaCount: 2`, `maxReplicaCount: 3` | requirement 5, and 3 fits with one node down |
@@ -248,9 +248,12 @@ dropped and machine learning stays at a fixed 2.
 | Keycloak on the JGroups `kubernetes` stack, already configured | `jdbc-ping`, Keycloak's default since 26.1 | the operator's direction; Keycloak 26.x deprecates the `kubernetes` stack, so the move is #968, and a release that removes it fails the 2-member check of task 8 |
 | A discovery Service `keycloak-discovery` with `publishNotReadyAddresses: true` | DNS discovery on the HTTP Service `keycloak` | `keycloak` lists ready pods only, so two pods starting together (a full restart, or a node loss with the other pod Pending) each see an empty list and form two clusters until MERGE3 joins them; the Keycloak operator creates the same kind of Service |
 | CloudNativePG asynchronous replication | synchronous (`synchronous.number: 1`) | with one replica, a synchronous commit waits on it; failover loses at most the replica's lag, and WAL is archived to S3 |
-| Prometheus excluded | two replicas | the reasons in the recommendation; open question 4 |
-| `immich-db` at `instances: 2` after its relabel | excluded; before the relabel | the same case as the app databases; a new instance on an unlabelled volume would need relabelling too; open question 6 |
-| Immich ML: a CPU limit of 4 cores, spread across nodes | `ScheduleAnyway` on the worker; no limit | node HA needs a second node, and only control planes are left; the limit keeps a scan from starving etcd; open question 5 |
+| Prometheus excluded | two replicas | the reasons in the recommendation; answered question 8 |
+| `immich-db` at `instances: 2` | excluded at one instance | the same case as the app databases; its volume is relabelled, and the new instance's volume gets the label from the StorageClass; answered question 10 |
+| Immich ML: a CPU limit of 4 cores, spread across nodes | `ScheduleAnyway` on the worker; no limit | node HA needs a second node, and only control planes are left; the limit keeps a scan from starving etcd; answered question 9 |
+| Immich ML: `RollingUpdate`, `maxSurge: 1`, `maxUnavailable: 0` | `Recreate` | `Recreate` stops both replicas on every image bump, and Renovate bumps the Immich tag often; the RWX cache allows two pods at once; the surge pod fits a third node, even during a drain |
+| HA Deployments roll, `Recreate` rejected by `ha-replicas` (requirement 2.6) | the rule on autoscaler targets only | an HA Deployment on `Recreate` has no HA across rollouts; no other HA Deployment in `deploy/` sets it, so the rule costs nothing elsewhere |
+| Grafana on an empty `grafana-postgresql`, `agent-readonly` re-created | a scripted migration of `grafana.db` into PostgreSQL | Grafana ships no migration tool and its schema is version-specific; what is lost is the service account (re-created by task 13), hand-made annotations, stars and preferences; the old SQLite file stays in the `grafana/data` snapshots; answered question 11 |
 | KEDA `redis` scaler on the BullMQ wait lists | a `prometheus` scaler; CPU | Immich exports `immich_queues_<queue>_active` (jobs in progress, capped by the queue's concurrency) but no waiting count; the lists are the backlog itself; [KEDA trigger](#keda-trigger-for-immich-machine-learning) |
 | Argo CD: server, repo-server, ApplicationSet controller at 2; the rest at 1 | the `redis-ha` chart and controller sharding | about 0.4 GiB buys the UI and rendering; six more pods for a cache is not cheap |
 | `minReplicas` / `minReplicaCount` 2, `maxReplicas` 3 | scale to zero with the KEDA HTTP add-on; a floor of 1 | the operator's decisions: HA floor 2, no scale to zero; 3 fits with one node down |
@@ -262,7 +265,7 @@ dropped and machine learning stays at a fixed 2.
 | KEDA installed with the HA work, for Immich machine learning on queue depth | waiting for a second target; an HPA on its CPU | the operator's decision; ML CPU lags the queue |
 | One autoscaler per Deployment | KEDA and an HPA on the same target | KEDA creates its own HPA; two HPAs on one target fight |
 | `spec.replicas` dropped from git for scaled workloads | `ignoreDifferences` everywhere | the object in git then says what the cluster runs; `ignoreDifferences` only where a chart always renders `replicas` |
-| No new page | a page when KEDA or VPA is down | a failed autoscaler leaves the replica counts as they are ([sre.md](../../../docs/sre.md#paging)); open question 2 |
+| No new page | a page when KEDA or VPA is down | a failed autoscaler leaves the replica counts as they are ([sre.md](../../../docs/sre.md#paging)); answered question 6 |
 | KEDA and VPA in the platform layer | infrastructure | they need metrics-server (infrastructure) and serve the apps layer; nothing in a cold start waits for them |
 
 ## Error handling
@@ -283,6 +286,10 @@ dropped and machine learning stays at a fixed 2.
 - Keycloak pods split into two clusters after a start together: MERGE3
   joins them; the `keycloak-discovery` Service makes it rare, and the
   task 8 check deletes both pods together to prove it.
+- `grafana-postgresql` restored from S3 or rebuilt empty: `agent-readonly`
+  comes back with the database when restored; on an empty database it is
+  re-created as in task 13, and the Grafana MCP server gets 401s until
+  then.
 - A pod Pending (no room or no node for the spread): the other replica
   keeps serving; `PodPendingTooLong` is INFO.
 - A change that breaks an app: the PostSync smoke or the degraded sync
@@ -291,7 +298,7 @@ dropped and machine learning stays at a fixed 2.
 
 ## Verification
 
-- Requirements 1, 2.1 to 2.4, 4.1, 5, 6, 7.1 to 7.3, 8.3, 9.1: the
+- Requirements 1, 2.1 to 2.4, 2.6, 4.1, 5, 6, 7.1 to 7.3, 8.3, 9.1: the
   repo-policy rules in CI, each with a passing and a failing fixture.
 - Requirements 2.5, 3.2, 3.3, 4.2, 9.2, 10.1, 10.2, 10.4, 12.1, 12.3: recorded
   checks in tasks.md.
@@ -302,6 +309,31 @@ dropped and machine learning stays at a fixed 2.
 - Requirements 4.3, 11: recorded in each pull request that adds a replica
   or an image.
 - Requirement 12.2: `scripts/ci/alertmanager-test.sh` unchanged and green.
+
+## To settle at implementation
+
+The spec is the plan; these details are settled in the task's pull
+request, with what was found recorded there.
+
+- Task 9: whether the democratic-csi CSI sidecars run with leader
+  election; if not, the controller's inventory entry becomes `none` with
+  that reason.
+- Task 13: the CPU and memory requests of `grafana-postgresql`, its
+  backup-SLO target and restore test in the form the other clusters use,
+  and whether `agent-readonly` is re-created by a small script or by
+  documented API calls in `docs/secrets.md`.
+- Task 15: the NFS export and path of the machine-learning cache on the
+  NAS, and the egress rule to the NAS if `immich` lacks one; whether the
+  image on a third node during a surge keeps `/var` above 5 GiB
+  (requirement 11.3), else `maxSurge: 0` with `maxUnavailable: 1`.
+- Task 16: the BullMQ key names, listed read-only before the triggers are
+  written; Immich's per-queue concurrency, which must exceed what two pods
+  serve for a third to help; and how the Valkey rule is proven: the flow's
+  `ingress_allowed_by` naming the `immich` policy, as the would-be-drop
+  count of wave3-network-logs reads it, otherwise the check recorded once
+  `immich` enforces (requirement 10.4).
+- Tasks 18 to 20: the exact requests, from the script's output after 8
+  days of VPA history.
 
 ## Research note: cloud-burst nodes
 
