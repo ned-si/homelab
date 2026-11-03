@@ -64,8 +64,9 @@ waits for the taxonomy answer.
       owned by the editor; a matrix with a throwaway reader and a throwaway
       unlisted account: the reader sees an uploaded document and a
       correspondent the editor created (after a configuration run), cannot
-      upload (`403`) or change anything; a document tagged `private` at
-      upload, and one tagged `private` later, disappear for the reader; a
+      upload (`403`) or change anything; a document uploaded through the
+      web app and then tagged `private` by the editor disappears for the
+      reader; a
       document whose `private` tag is removed is readable again after the
       nightly run; the unlisted account sees nothing. Users deleted
       afterwards. Also check whether `/api/` accepts the local admin

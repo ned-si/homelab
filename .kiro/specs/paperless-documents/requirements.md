@@ -236,8 +236,9 @@ the reader read them, with the same login as every other app.
 4. EVERY document SHALL be owned by the editor and viewable by the group
    `readers`, unless it carries the tag `private`. The one exception is the
    ingest canary's page (Requirement 7.2), owned by the user `canary` for
-   the minutes it exists. WHEN the tag `private` is set, at upload or any
-   time later, THE `readers` view SHALL be removed. THE tag SHALL be the
+   the minutes it exists. A new upload is viewable by the readers until the
+   editor tags it `private`. WHEN the tag `private` is set, THE `readers`
+   view SHALL be removed. THE tag SHALL be the
    only way to hide a document: the nightly run gives the readers' view
    back to every document without `private`, so a hide made in the
    permissions dialog lasts until the next night. (test: a matrix with a
@@ -283,7 +284,7 @@ with the reason. Each one is a line in git, so changing it later is one PR.
 | Way in (operator, 2026-11-03) | The web app only, at `https://archive.lilalala.com`, from a phone or a computer; plus the one-off import of existing files | The web app works on the phone, so nothing else is needed day to day |
 | Source tags | None. Imported documents carry `import:<source>`; every other document came through the web app | With one way in, and imports already tagged `import:<source>`, a source tag says nothing |
 | Who files documents | One editor (the operator), one reader (the other adult of the household) | The operator manages the documents; the reader only reads them |
-| Sharing default | The reader sees every document unless the editor tags it `private` | Household documents concern both adults, and per-type privacy would also hide the reader's own letters; the reverse (private by default, shared by a tag) is one workflow change in git |
+| Sharing default | The reader sees every document unless the editor tags it `private`. The web app's upload sends only the file, so a new upload is visible to the reader from consumption until the editor tags it `private` | Household documents concern both adults, and per-type privacy would also hide the reader's own letters; the reverse (private by default, shared by a tag) is one workflow change in git |
 | Who edits the taxonomy | Git owns types, tags, custom fields, workflows and saved views; the editor edits documents and correspondents | Changes are reviewed and backed up in git; an agent turns a request into a PR |
 | OCR languages (operator, 2026-11-03) | `fra+eng+spa+deu`, in that order | Mostly French and English, sometimes Spanish and German. Tesseract treats the first language as the primary one and falls back to the others in the order given, so the order follows how often each language appears. Four languages make each page slower to OCR on the RK1 than one and load four models; task 2 measures time and peak memory against `fra` alone, the canary watches the time |
 | Other sources | Whatever the operator drops into the local import directory, one subdirectory per source; the Seafile export first | The operator knows where his files are; the script does the rest |
