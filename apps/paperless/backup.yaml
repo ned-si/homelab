@@ -126,8 +126,11 @@ spec:
                   memory: 256Mi
                 limits:
                   memory: 1Gi
+              # restic writes only to RESTIC_CACHE_DIR (/cache) and the
+              # temp dir (/tmp, also sqlite3's target), both emptyDirs.
               securityContext:
                 allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
                 capabilities:
                   drop: ["ALL"]
           volumes:

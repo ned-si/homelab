@@ -309,9 +309,6 @@ misconfigurations:
   # the baseline scan too, so the delta gate never saw a new workload without
   # the flag. With paths, a new or renamed workload reports again and has to
   # set the flag or be listed here. A stale path only stops matching.
-  #
-  # Deliberately not listed: apps/paperless/backup.yaml (ours, fixable: #953).
-  # It stays a visible pre-existing HIGH finding in the gate summary.
   - id: AVD-KSV-0014
     paths:
       - "apps/books/audiobookshelf.yaml"
