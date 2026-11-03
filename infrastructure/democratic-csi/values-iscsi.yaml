@@ -26,6 +26,12 @@ controller:
       registry: docker.io/democraticcsi/democratic-csi
       # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
       tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
+  # No CSI snapshots: the cluster has no snapshot.storage.k8s.io CRDs and no
+  # snapshot-controller, and backups are restic and Barman (docs/backups.md).
+  # The chart's default sidecar only looped on "could not find the requested
+  # resource" (#944). Re-enable together with the CRDs and the controller.
+  externalSnapshotter:
+    enabled: false
 # Talos: there is no iscsiadm in the node image. The iscsi-tools system
 # extension runs iscsid on the host, and the node plugin runs the host's
 # iscsiadm by entering iscsid's namespaces (`nsenter`), which needs the host
