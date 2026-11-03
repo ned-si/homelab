@@ -89,18 +89,6 @@ misconfigurations:
       Editing it means patching the upstream bundle and risks Postgres
       backups. Re-read on every plugin bump.
     expired_at: 2027-05-01
-  # The restore tests read each source database as its owner, so they `get` the
-  # CNPG -app Secrets by name: resourceNames
-  # lists eight Secrets, verb `get` only, no list or watch.
-  - id: AVD-KSV-0041
-    paths:
-      - "platform/backup-verify/rbac.yaml"
-      - "deploy/platform/backup-verify/clusterrole-backup-verify-sources.yaml"
-    statement: >-
-      get on eight named Secrets (the source databases' credentials), no list,
-      watch or write. The restore tests count the source rows read-only to
-      compare them with the restore. Re-read when a target is added.
-    expired_at: 2027-04-01
   - id: AVD-KSV-0050
     paths:
       - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"

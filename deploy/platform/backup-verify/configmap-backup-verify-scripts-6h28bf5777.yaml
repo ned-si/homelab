@@ -53,8 +53,8 @@ data:
     }
   postgres-targets.txt: |
     # Weekly CNPG restores (verify-postgres.sh), one at a time: <namespace> <cluster>.
-    # A new line also needs the cluster's name in both resourceNames lists of
-    # ClusterRole backup-verify-sources (rbac.yaml).
+    # A new line also needs the cluster's name in both resourceNames lists of the
+    # Role backup-verify-source in its namespace (rbac.yaml).
     immich immich-db
     keycloak keycloak-db
     mealie mealie-postgresql
@@ -672,5 +672,5 @@ data:
     exit "$rc"
 kind: ConfigMap
 metadata:
-  name: backup-verify-scripts-52kmhh4dd4
+  name: backup-verify-scripts-6h28bf5777
   namespace: backup-verify

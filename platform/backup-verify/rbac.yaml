@@ -1,7 +1,6 @@
 # backup-verify-postgres creates and deletes its restore Clusters in this
-# namespace only. Outside it, it can read the source Clusters and their -app
-# Secrets by name,
-# nothing else.
+# namespace only. In each source namespace a Role lets it `get` that
+# namespace's source Clusters and their -app Secrets by name, nothing else.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -37,21 +36,144 @@ subjects:
     name: backup-verify
     namespace: backup-verify
 ---
-# resourceNames, not one Role per source namespace: `get` on these names only.
-# A cluster added to scripts/postgres-targets.txt needs its name in both lists.
+# One Role and RoleBinding per source namespace, `get` on its own Clusters
+# and -app Secrets by name. A cluster added to scripts/postgres-targets.txt
+# needs its Cluster and -app Secret names in its namespace's Role here; a new
+# namespace needs its own Role and RoleBinding.
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: backup-verify-sources
+  name: backup-verify-source
+  namespace: immich
 rules:
   - apiGroups: ["postgresql.cnpg.io"]
     resources: ["clusters"]
     verbs: ["get"]
     resourceNames:
       - immich-db
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - immich-db-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-verify-source
+  namespace: immich
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-verify-source
+subjects:
+  - kind: ServiceAccount
+    name: backup-verify
+    namespace: backup-verify
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-verify-source
+  namespace: keycloak
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]
+    resourceNames:
       - keycloak-db
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - keycloak-db-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-verify-source
+  namespace: keycloak
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-verify-source
+subjects:
+  - kind: ServiceAccount
+    name: backup-verify
+    namespace: backup-verify
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-verify-source
+  namespace: mealie
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]
+    resourceNames:
       - mealie-postgresql
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - mealie-postgresql-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-verify-source
+  namespace: mealie
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-verify-source
+subjects:
+  - kind: ServiceAccount
+    name: backup-verify
+    namespace: backup-verify
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-verify-source
+  namespace: home
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]
+    resourceNames:
       - home-assistant-postgresql
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      - home-assistant-postgresql-app
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: backup-verify-source
+  namespace: home
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: backup-verify-source
+subjects:
+  - kind: ServiceAccount
+    name: backup-verify
+    namespace: backup-verify
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: backup-verify-source
+  namespace: theater
+rules:
+  - apiGroups: ["postgresql.cnpg.io"]
+    resources: ["clusters"]
+    verbs: ["get"]
+    resourceNames:
       - sonarr-postgresql
       - radarr-postgresql
       - lidarr-postgresql
@@ -60,23 +182,20 @@ rules:
     resources: ["secrets"]
     verbs: ["get"]
     resourceNames:
-      - immich-db-app
-      - keycloak-db-app
-      - mealie-postgresql-app
-      - home-assistant-postgresql-app
       - sonarr-postgresql-app
       - radarr-postgresql-app
       - lidarr-postgresql-app
       - prowlarr-postgresql-app
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
-  name: backup-verify-sources
+  name: backup-verify-source
+  namespace: theater
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: backup-verify-sources
+  kind: Role
+  name: backup-verify-source
 subjects:
   - kind: ServiceAccount
     name: backup-verify
