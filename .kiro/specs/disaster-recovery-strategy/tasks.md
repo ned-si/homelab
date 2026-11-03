@@ -72,11 +72,19 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       (`gatewayAPI.hostNetwork.nodes.matchLabels`) and
       `envoy.securityContext.capabilities.keepCapNetBindService: true` for
       80 and 443; Syncthing on a hostPort with the `syncthing-dr`
-      PolicyException; the NAS-bound components and alerts out; theater,
+      PolicyException; the NAS-bound components out, with
+      `HomelabNASUnreachable` and `HomelabNASDown` patched out of
+      `homelab-outage` (`routes/outage-alerts.yaml`) and `homelab-nas`
+      (`routes/nas-alerts.yaml`) whole; theater,
       SigNoz with Vector, `lan-inventory`, the Home Assistant stack and
       `backup-verify`'s Postgres restore out, with the rules
-      `homelab-signoz` (`routes/signoz-trial.yaml`) and
-      `routes/lan-alerts.yaml`; `volumeName` removed; the ebook library claim; CNPG
+      `homelab-signoz` (`routes/signoz-trial.yaml`),
+      `routes/lan-alerts.yaml` and the `SLOTargetProbeAbsent` rules of
+      `cinema` and `theater`; the `internal-tcp`, `dns-router` and
+      `public-https-gated` Probes out and the `cinema`, `home` and
+      `signoz` targets of `public-https`; `ci/dr-active-cronjobs.txt` and
+      `components/site-dr/backup-slo-targets.yaml` with its 7 backup
+      CronJobs in place of the home targets; `volumeName` removed; the ebook library claim; CNPG
       `bootstrap.recovery` and new `serverName`s; the external-dns target
       as a value); `components/site-dr-drill` (the requirement 8 switches:
       the network-policy exception for OIDC to the Gateway node, no
@@ -87,14 +95,19 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       `.sops.yaml` rule for those copies; `clusters/dr/`; the DR render;
       repo-policy over it (the switches, the rehearsal-key recipients, no
       Cloudflare token in the drill component, the `dr-mode` value per
-      render, both fence objects, none of the left-out rules, the claims against the 28
+      render, both fence objects, none of the left-out rules, no Probe
+      target in `192.168.1.0/24`, `cronjob-active` and `backup-slo-targets`
+      with `ci/dr-active-cronjobs.txt`, the claims against the 28
       attachments of `m7g.2xlarge` minus the interface, the root volume and
       a margin of 3); `task render:check` proving the home render
       unchanged. No CoreDNS change: drill name resolution is task 9's Talos
-      patch. [8.2, 8.3, 8.4, 8.7, 8.8, 8.9, 10.4, 10.9]
+      patch. [8.2, 8.3, 8.4, 8.7, 8.8, 8.9, 10.4, 10.9, 10.10]
 - [ ] 8. The DR module: `bootstrap/dr-cloud/` for AWS `eu-central-1` (the
-      state workspaces `drill` and `site`, any other refused, the drill
-      switches derived from the name; VPC, public subnet and internet
+      state workspaces `drill` and `site`, any other refused by a
+      `lifecycle.precondition` on `terraform_data.workspace_guard`, the
+      drill switches derived from the name; every name from `local.prefix`
+      (`homelab-dr-<workspace>`) or `name_prefix`, with repo-policy
+      `dr-cloud-names`; VPC, public subnet and internet
       gateway; `m7g` nodes for the Full and DR shapes from Sidero Labs'
       Talos arm64 AMI, IMDSv2 with hop limit 2; the NLB
       `homelab-dr-<workspace>` with one Elastic IP and listeners on 80, 443
@@ -116,18 +129,20 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       and `tofu validate` in `ci`; the module kept out of the `tofu`
       workflow's plan and apply; the daily leftover check in the `tofu`
       schedule with `ci/dr-site-lost.txt` as the real-loss switch and its
-      three failure cases, its test and repo-policy `dr-site-lost`, and the
+      four failure cases (the last: a `dr-mode` other than `drill` or
+      `site`), its test and repo-policy `dr-site-lost`, and the
       read permissions it needs on the plan role in `bootstrap/github-oidc`;
       `docs/runbooks/site-lost.md` with the declaration rule and the file,
-      the apply command in the `site` workspace and the source of each
+      the apply command with `TF_WORKSPACE=site` and the source of each
       input on a fresh machine, the restore order with the upgrade to the
       DR schematic and step 8's re-apply with `operator_cidr` empty once
       the tailnet is up, the capacity fallbacks, the move to the Full
       shape for a loss longer than two weeks, and the return home
       (`tofu destroy` in `site`, `dr-sweep.sh --delete --return-home`,
-      then the pull request removing the file); a one-hour smoke run of the DR shape
-      (apply, nodes `Ready`, NLB targets healthy, destroy, sweep; about
-      $0.45) that seeds the `dr-site` tag key, then the key activated as a
+      then the pull request removing the file); a `tofu plan` in `default`
+      shown failing; a one-hour smoke run of the DR shape in `drill` and
+      `site` side by side (apply both, nodes `Ready`, NLB targets healthy,
+      destroy both, sweep; about $0.90) that seeds the `dr-site` tag key, then the key activated as a
       cost allocation tag in the operator's one-time set-up. Monday to
       Friday, daytime. [1.4, 1.5, 7.4, 8.1, 8.8, 10.1, 10.2, 10.3, 10.5,
       10.6, 10.7, 10.8]
@@ -142,9 +157,10 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       12 h expiry, written to the Secret `cloudflare-drill-token`; at step
       4, a pod in `default` fails to reach `169.254.169.254` while the EBS
       CSI controller is Running; on exit, the token deleted, `tofu destroy`
-      in the `drill` workspace, selected by name, and
-      `scripts/dr-sweep.sh --delete`; a bash test that the trap never
-      selects `site`);
+      in the `drill` workspace and `scripts/dr-sweep.sh --delete`; every
+      `tofu` call with `TF_WORKSPACE=drill`; a bash test, run with
+      `TF_WORKSPACE=site` exported and a stub `tofu`, that every call, the
+      trap's included, gets `drill`);
       every tier restored, the whole Immich library included; MTTR per tier
       and the drill's cost from the bill in `ci/dr-rehearsals.tsv`; the
       estimates in `docs/backups.md` and `docs/sre.md` replaced by the

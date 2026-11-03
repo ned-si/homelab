@@ -355,9 +355,14 @@ design work on the day of the loss and costs nothing until then.
    Gateway node, the security groups, the instance profile the EBS CSI
    driver needs, and nothing else, every resource tagged
    `dr-site=homelab-dr` and `dr-mode=<workspace>`. A drill SHALL apply in
-   the state workspace `drill` and a real loss in `site`; the module SHALL
-   refuse any other workspace. Block volumes SHALL come from the EBS CSI
-   driver when a claim asks. (`tofu validate` in CI; review)
+   the state workspace `drill` and a real loss in `site`; `plan` and
+   `apply` SHALL fail in any other workspace (a `lifecycle.precondition`,
+   not a `check` block, which only warns). Every named resource SHALL
+   carry the workspace in its name or use `name_prefix`, so a `drill` and
+   a `site` can exist at the same time. Block volumes SHALL come from the
+   EBS CSI driver when a claim asks. (`tofu validate` in CI; a `tofu plan`
+   in `default` fails; repo-policy `dr-cloud-names`; the task 8 smoke run
+   with both workspaces applied; review)
 2. THE `tofu` workflow SHALL NOT plan or apply the module; CI SHALL run
    `tofu fmt -check` and `tofu validate` on it.
    (`.github/workflows/tofu.yaml`, `.github/workflows/ci.yaml`)
@@ -368,8 +373,10 @@ design work on the day of the loss and costs nothing until then.
    (a drill lasts at most 12 h), OR a resource tagged `dr-mode=site`, or
    an EBS volume tagged `ebs.csi.aws.com/cluster=true` without `dr-mode`,
    is older than 24 h and the file is absent, OR the file is older than
-   24 h and no resource tagged `dr-mode=site` exists. A drill SHALL refuse
-   to start while the file exists.
+   24 h and no resource tagged `dr-mode=site` exists, OR, at any age, a
+   resource tagged `dr-site=homelab-dr` has no `dr-mode` or one other than
+   `drill` and `site`, or a CSI volume has a `dr-mode` other than those
+   two. A drill SHALL refuse to start while the file exists.
    (`.github/workflows/tofu.yaml`, `scripts/dr-sweep.sh --check`; their
    tests; repo-policy `dr-site-lost`)
 4. THE DR site SHALL deploy from the same sources as home: only the site
@@ -397,7 +404,8 @@ design work on the day of the loss and costs nothing until then.
    (`docs/runbooks/site-lost.md`; `scripts/dr-offsite-check.sh`)
 8. THE drill's cleanup SHALL NOT be able to delete the real-loss site,
    whether the declaration has merged or not: the drill's exit trap SHALL
-   run `tofu destroy` in the `drill` workspace only;
+   run `tofu destroy` in the `drill` workspace only, with `TF_WORKSPACE=drill`
+   set on the call, whatever the shell exported;
    `scripts/dr-sweep.sh --delete` SHALL delete only detached EBS volumes
    tagged `dr-mode=drill`. THE only path to the site's volumes SHALL be
    `scripts/dr-sweep.sh --delete --return-home`, which SHALL refuse unless
@@ -407,12 +415,24 @@ design work on the day of the loss and costs nothing until then.
    bash test: `--delete` leaves `dr-mode=site` volumes, volumes without
    `dr-mode` and attached volumes; `--return-home` refuses without the
    declaration or with a non-empty `site` state; `scripts/dr-rehearsal.sh`
-   and its test: the trap never selects `site`)
+   and its test, run with `TF_WORKSPACE=site` exported: every `tofu` call,
+   the trap's included, gets `TF_WORKSPACE=drill`)
 9. ON the DR site, only the EBS CSI driver's pods SHALL reach the
    instance metadata address `169.254.169.254`, where the instance
    profile's credentials are served; every other pod SHALL be denied by
    Cilium. (`components/site-dr`; repo-policy over the DR render; the
    drill checks it from a pod at step 4)
+10. THE DR render SHALL hold no alert rule, probe target or
+    backup-freshness target for a component, an app or a LAN address it
+    does not run: its backup targets SHALL come from its own active-CronJob
+    list, `ci/dr-active-cronjobs.txt`; the NAS rules of `homelab-outage`,
+    the PrometheusRules `homelab-nas` and `homelab-signoz`,
+    `lan-alerts.yaml`, the `SLOTargetProbeAbsent` rules of left-out apps,
+    and every Probe target in `192.168.1.0/24` SHALL be out, so no page
+    fires for what is not there and the auto-rollback outage guard is not
+    held by an absent NAS. (repo-policy over the DR render, with
+    `cronjob-active` and `backup-slo-targets` reading
+    `ci/dr-active-cronjobs.txt`)
 
 ## Decided questions
 
