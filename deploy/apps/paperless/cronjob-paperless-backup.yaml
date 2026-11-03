@@ -94,6 +94,7 @@ spec:
               capabilities:
                 drop:
                 - ALL
+              readOnlyRootFilesystem: true
             volumeMounts:
             - mountPath: /media
               name: media
