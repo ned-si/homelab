@@ -23,7 +23,7 @@ editor's phone app ──editor's API token────────────�
 editor's devices ──Syncthing folder──▶ NFS inbox ──polling────────────┤
 scanner (if any) ──scan to mail──▶ mailbox ◀──IMAPS every 10 min──────┤
                                                                       ▼
-                                  Paperless (consume, OCR fra+deu+eng, matching,
+                                  Paperless (consume, OCR fra+eng+spa+deu, matching,
                                   workflows: owner = editor, view = readers, private)
                                                          │
              02:30 paperless-backup, one Job, in order:
@@ -141,7 +141,7 @@ Environment changes in `apps/paperless/deployment.yaml`:
 
 | Variable | Value | Why | Task |
 | --- | --- | --- | --- |
-| `PAPERLESS_OCR_LANGUAGE` | `fra+deu+eng` (open question 3) | the household's languages, French first; all three are in the image, so `PAPERLESS_OCR_LANGUAGES` stays unset | 2 |
+| `PAPERLESS_OCR_LANGUAGE` | `fra+eng+spa+deu` (decided 2026-11-03) | the household's languages, most frequent first: Tesseract treats the first as primary; all four are in the image, so `PAPERLESS_OCR_LANGUAGES` stays unset | 2 |
 | `PAPERLESS_TIME_ZONE` | `Europe/Zurich` | creation dates near midnight land on the right day | 2 |
 | `PAPERLESS_DATE_ORDER` | `DMY` | explicit (today's default) | 2 |
 | `PAPERLESS_FILENAME_FORMAT` | `{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent }} {{ title }}` | readable files in the media volume and the export | 2 |
@@ -159,6 +159,8 @@ data, which is why it comes before the import.
 
 **This is a proposal for the operator to adjust** (open question 1). Names
 are in English; the matching keywords cover French, German and English.
+Spanish documents are rare, so the editor types them by hand; Spanish
+keywords and corpus texts are added in git if they become common.
 
 ### Matching rules for the keywords
 
@@ -589,8 +591,11 @@ The CiliumNetworkPolicies get the canary's egress to the Pushgateway
   export delays the snapshot. The backup SLO's freshness window (24 h)
   absorbs it; a Job that runs past its `activeDeadlineSeconds` fails and
   pages.
-- **OCR load.** Three languages slow OCR. The RK1 has 8 cores; a bulk
-  import runs in daytime batches and the canary shows the effect.
+- **OCR load.** Four languages make Tesseract slower per page than one,
+  and the RK1 (8 arm64 cores) runs everything else too. Task 2 times one
+  page with `fra+eng+spa+deu` against `fra` alone; the canary watches the
+  5-minute limit; a bulk import runs in daytime batches. If pages run too
+  slow, dropping the least used language is one line in git.
 - **NFS.** The inbox depends on the NAS like the media library; a NAS
   outage already pages (`HomelabNASUnreachable`, `HomelabNASDown`).
 - **Forged mail.** See [Mail](#mail); the residual risk is in

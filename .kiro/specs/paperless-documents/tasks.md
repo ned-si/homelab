@@ -4,8 +4,8 @@ One PR per task, in order unless a task says otherwise; each is safe on its
 own. Tasks that restart Paperless or write to the cluster or the NAS run on
 a weekday, during the day (Zurich). Open questions and decided defaults are
 in [requirements.md](requirements.md#open-questions); task 3 waits for the
-taxonomy answer and task 9 for the mailbox answer. Tasks 2 and 4 ship the
-proposed answers to the languages and sharing questions when none comes.
+taxonomy answer and task 9 for the mailbox answer. Task 4 ships the
+proposed answer to the sharing question when none comes.
 
 ## Open
 
@@ -21,10 +21,11 @@ proposed answers to the languages and sharing questions when none comes.
       `docs/decisions.md` with the outcome. If it cannot finish by Monday
       2026-11-16, the PR extends the zvol retention date instead.
       Independent of the other tasks. [6.1, 6.4]
-- [ ] 2. Settings: `PAPERLESS_OCR_LANGUAGE=fra+deu+eng` (open question 3),
+- [ ] 2. Settings: `PAPERLESS_OCR_LANGUAGE=fra+eng+spa+deu`,
       `PAPERLESS_TIME_ZONE=Europe/Zurich`, `PAPERLESS_DATE_ORDER=DMY`,
-      `PAPERLESS_FILENAME_FORMAT`. Check: a French, a German and an English
-      test page are OCRed and findable; the one existing document is renamed
+      `PAPERLESS_FILENAME_FORMAT`. Check: a French, an English, a Spanish
+      and a German test page are OCRed and findable; the OCR time of one
+      page with the four languages and with `fra` alone is in the PR; the one existing document is renamed
       on disk. [5.1, 5.6]
 - [ ] 3. Configuration as code: `apps/paperless/config/paperless.json`
       (document types, tags, custom fields, saved views, the workflows

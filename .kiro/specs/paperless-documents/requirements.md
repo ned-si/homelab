@@ -17,7 +17,7 @@ ends up scattered and gets lost.
 
 This spec makes Paperless the one home for the household's documents: easy
 ways in (phone, a synced folder, mail, a scanner if there is one), OCR in
-French, English and German, a taxonomy with matching rules, the import of
+French, English, Spanish and German, a taxonomy with matching rules, the import of
 existing documents, access through Keycloak for one editor and one reader,
 backups whose restore is tested end to end, and a plain-file export so the
 documents are never locked in.
@@ -155,15 +155,14 @@ in Paperless.
 
 ### Requirement 5: OCR, dates and taxonomy fit the household
 
-**User story:** As the editor, I want documents in French, English and
-German read correctly and filed by who sent them and what they are, so
+**User story:** As the editor, I want documents in French, English,
+Spanish and German read correctly and filed by who sent them and what they are, so
 search and filters work without manual typing.
 
 #### Acceptance criteria
 
-1. Paperless SHALL OCR with the languages of open question 3 (default
-   `PAPERLESS_OCR_LANGUAGE=fra+deu+eng`), and SHALL use the time zone
-   `Europe/Zurich` and day-month-year dates.
+1. Paperless SHALL OCR with `PAPERLESS_OCR_LANGUAGE=fra+eng+spa+deu`,
+   and SHALL use the time zone `Europe/Zurich` and day-month-year dates.
 2. THE document types, tags, custom fields, workflows and saved views SHALL
    be defined in git and applied by a Job, idempotently; a run on an
    unchanged configuration changes nothing. Git owns them: the editor and
@@ -334,12 +333,7 @@ the requirement or task it names.
    mail)? Which sender addresses count as household, and what DMARC policy
    does each sender domain publish (`p=none` domains stay a residual risk)?
    Should a mail without attachments be filed too (as an `.eml` document)?
-3. **OCR languages** (Requirement 5.1, task 2): the proposed answer is
-   `fra+deu+eng`, French first. All three are in the image; each extra
-   language slows OCR and can lower accuracy, and a garbled document is the
-   signal to revisit. Add Italian (`ita`, also in the image), yes or no?
-   Without an answer, task 2 ships the proposed answer.
-4. **Sharing default** (Requirement 9.4, task 4): the proposed answer is
+3. **Sharing default** (Requirement 9.4, task 4): the proposed answer is
    that the reader sees every document unless the editor tags it
    `private`, because household documents concern both adults and
    per-type privacy would also hide the reader's own medical letters. The
@@ -355,6 +349,7 @@ with the reason. Each one is a line in git, so changing it later is one PR.
 | --- | --- | --- |
 | Who files documents | One editor (the operator), one reader (the other adult of the household) | The operator manages the documents; the reader only reads them |
 | Who edits the taxonomy | Git owns types, tags, custom fields, workflows and saved views; the editor edits documents and correspondents | Changes are reviewed and backed up in git; an agent turns a request into a PR |
+| OCR languages (operator, 2026-11-03) | `fra+eng+spa+deu`, in that order | Mostly French and English, sometimes Spanish and German. Tesseract treats the first language as the primary one and falls back to the others in the order given, so the order follows how often each language appears. Four languages make each page slower to OCR on the RK1 than one; the canary and task 2 measure it |
 | Scanner | None assumed: the phone app is the scanner. Task 10 is a planned, optional task: it runs if a scanner is in use, through scan to mail; otherwise task 14 ticks it as not needed | Scan to mail needs no SMB share or new NAS user |
 | Phone app | The first app in the [design table](design.md#phone) that logs in with a token against 3.4.1 on the editor's phone | A working token login is the only hard requirement |
 | Other sources | Whatever the operator drops into the local import directory, one subdirectory per source; the Seafile export first | The operator knows where his files are; the script does the rest |
