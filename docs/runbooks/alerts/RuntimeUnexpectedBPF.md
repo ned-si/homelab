@@ -5,7 +5,7 @@ Shell: [Before you start](README.md#before-you-start).
 
 ## What it means
 
-A BPF program or map was loaded outside the allowlist (Tetragon, cilium-agent and runc on the host, which loads the cgroup device filter for every container). BPF can hide processes and traffic.
+A BPF program or map was loaded outside the allowlist (Tetragon, also as the host binary `/usr/bin/tetragon`, which is how the chart 1.8 agent's startup loads are counted; cilium-agent; runc on the host, which loads the cgroup device filter for every container). BPF can hide processes and traffic.
 
 A Cilium or Tetragon update that runs BPF from a new helper binary or workload name shows up here first.
 

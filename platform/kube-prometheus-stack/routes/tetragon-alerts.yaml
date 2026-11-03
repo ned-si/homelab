@@ -19,6 +19,9 @@
 # uid/gid 0, capabilities and cgroup device BPF for every container start;
 # mount and umount, on the host, set uid/gid 0 for every volume the kubelet
 # mounts (missed by the first baseline, which had no pod start: it paged).
+# From chart 1.8 (unprivileged agent, 2026-11-02) the agent's own BPF loads
+# at startup carry no namespace: allowlisted as the host binary
+# /usr/bin/tetragon, which Talos does not ship (it paged).
 #
 # The recording rule counts a series that just appeared as well: the first
 # event of a new actor makes a new series, and increase() needs two samples.
@@ -118,6 +121,7 @@ spec:
           expr: |
             tetragon:policy_events:increase5m{policy="bpf-library-policy"}
             unless tetragon:policy_events:increase5m{namespace="tetragon", workload="tetragon"}
+            unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/tetragon"}
             unless tetragon:policy_events:increase5m{namespace="kube-system", workload="cilium"}
             unless tetragon:policy_events:increase5m{namespace="", binary="/usr/bin/runc"}
           labels:
