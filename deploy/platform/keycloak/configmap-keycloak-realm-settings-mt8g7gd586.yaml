@@ -925,7 +925,7 @@ data:
     # (level 1, max age below). These clients request ACR `platform` (level 1) by
     # default; an SSO cookie whose level-1 login is older than the max age does
     # not satisfy it, so Keycloak shows the login form. Clients that request no
-    # ACR (Immich, Mealie, Paperless, Seafile) are satisfied by the cookie alone.
+    # ACR (Immich, Mealie, Paperless) are satisfied by the cookie alone.
 
     # 12 hours.
     loa_max_age=43200
@@ -1030,5 +1030,5 @@ data:
     minimumQuickLoginWaitSeconds=60
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-6g2c65g8cd
+  name: keycloak-realm-settings-mt8g7gd586
   namespace: keycloak

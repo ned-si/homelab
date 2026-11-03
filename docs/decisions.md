@@ -365,12 +365,17 @@ belongs in Paperless. It was the most complex app here (its own MariaDB and
 memcached, its configuration inside the volume instead of git, a pinned
 MariaDB 10.11 and a manual port to Seafile 12 ahead).
 
-Kept as an archive: the restic repository `seafile/shared` (no new snapshots,
-no prune, under the bucket policy; the last snapshots are `34f34ea0`, the
-MariaDB dump, and `8838dac0`, the data and its configuration), and the two
-zvols behind the PVs `pvc-2b0f41c1-041d-47a5-81cc-16371f05ea21` and
-`pvc-2ed5ccbe-1e8d-4ab4-9ba1-8ac0bd74a126` with their claims in namespace
-`seafile`. Delete the volumes after 2026-11-16 if nobody asks for them.
+The archive kept at removal was deleted on 2026-11-03 by operator decision:
+it held nothing but a few test files. That archive was the restic repository
+`seafile/shared`, the namespace `seafile` with its two claims, and the zvols
+behind the PVs `pvc-2b0f41c1-041d-47a5-81cc-16371f05ea21` and
+`pvc-2ed5ccbe-1e8d-4ab4-9ba1-8ac0bd74a126`.
+
+The bucket policy denies `s3:DeleteObjectVersion` to everyone, so deleting
+the repository only adds delete markers. Its object versions stay locked
+until the `expire-noncurrent-versions` lifecycle rule removes them 30 days
+later, like any pruned restic pack. This is expected: the policy stays as it
+is ([backups.md](backups.md#immutable-versions)).
 
 Rejected: upgrading to Seafile 12 to keep a file share no one opens.
 

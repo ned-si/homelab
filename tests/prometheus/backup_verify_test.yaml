@@ -36,8 +36,7 @@ tests:
                 Runbook: docs/backups.md#when-a-restore-test-fails
 
   # Last successes stay at t=0. The weekly check goes stale after 8 days, the
-  # monthly pack read only after 36. A removed target (seafile-data) never
-  # fires.
+  # monthly pack read only after 36.
   - interval: 1h
     input_series:
       - series: 'backup_verify_last_success_timestamp_seconds{check="restic", target="plex"}'
@@ -45,8 +44,6 @@ tests:
       - series: 'backup_verify_last_success_timestamp_seconds{check="restic-data", target="theater"}'
         values: '0x900'
       - series: 'backup_verify_last_success_timestamp_seconds{check="postgres", target="immich-db"}'
-        values: '0x900'
-      - series: 'backup_verify_last_success_timestamp_seconds{check="restic", target="seafile-data"}'
         values: '0x900'
     alert_rule_test:
       - eval_time: 8d

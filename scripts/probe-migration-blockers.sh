@@ -18,12 +18,12 @@ kubectl get crd clusters.postgresql.cnpg.io -o json 2>/dev/null \
   | grep -o '"barmanObjectStore"' | head -1 || echo "  barmanObjectStore NOT in schema"
 
 s "EXISTING DEPLOYMENT STRATEGIES (why Recreate is rejected)"
-for ns in seafile keycloak paperless mealie theater immich; do
+for ns in keycloak paperless mealie theater immich; do
   kubectl -n "$ns" get deploy -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}  strategy={.spec.strategy.type}  rollingUpdate={.spec.strategy.rollingUpdate}{"\n"}{end}' 2>/dev/null
 done
 
 s "EXISTING SELECTORS (immutable - which of mine collide?)"
-for ns in seafile keycloak paperless mealie theater syncthing; do
+for ns in keycloak paperless mealie theater syncthing; do
   kubectl -n "$ns" get deploy,statefulset -o jsonpath='{range .items[*]}{.kind}/{.metadata.namespace}/{.metadata.name}  selector={.spec.selector.matchLabels}{"\n"}{end}' 2>/dev/null
 done
 

@@ -78,7 +78,7 @@ null alertname=SLOErrorBudgetBurnSlow severity=warning app=cook namespace=mealie
 null alertname=SLOLatencyBudgetBurnSlow severity=warning app=archive namespace=paperless
 null alertname=ArgoCDAppDegraded severity=critical name=keycloak namespace=keycloak
 null alertname=ArgoCDSyncFailed severity=warning name=keycloak namespace=keycloak
-null alertname=ArgoCDAppOutOfSync severity=warning name=seafile namespace=seafile
+null alertname=ArgoCDAppOutOfSync severity=warning name=syncthing namespace=syncthing
 null alertname=ServiceHasNoReadyBackend severity=critical namespace=keycloak deployment=keycloak
 null alertname=StatefulSetHasNoReadyReplica severity=critical namespace=syncthing statefulset=syncthing
 null alertname=PodNotReady severity=warning namespace=keycloak pod=keycloak-0 node=homelab-cp-1

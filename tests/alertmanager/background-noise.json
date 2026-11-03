@@ -5,8 +5,8 @@
     {"alertname": "KubeJobFailed", "severity": "warning", "namespace": "theater", "job_name": "qbittorrent-private-seed-29868120"},
     {"alertname": "KubePodCrashLooping", "severity": "warning", "namespace": "home", "pod": "mosquitto-0"},
     {"alertname": "ArgoCDAppDegraded", "severity": "critical", "name": "home", "namespace": "home"},
-    {"alertname": "ArgoCDAppOutOfSync", "severity": "warning", "name": "seafile", "namespace": "seafile"},
-    {"alertname": "SLOErrorBudgetBurnSlow", "severity": "warning", "app": "drive", "namespace": "seafile"},
+    {"alertname": "ArgoCDAppOutOfSync", "severity": "warning", "name": "syncthing", "namespace": "syncthing"},
+    {"alertname": "SLOErrorBudgetBurnSlow", "severity": "warning", "app": "syncthing", "namespace": "syncthing"},
     {"alertname": "PodNotReady", "severity": "warning", "namespace": "immich", "pod": "immich-ml-0", "node": "homelab-w-1"},
     {"alertname": "CPUThrottlingHigh", "severity": "info", "namespace": "immich", "pod": "immich-ml-0"},
     {"alertname": "TupprUpgradeBlocked", "severity": "warning", "name": "cluster"}
