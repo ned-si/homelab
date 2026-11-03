@@ -9,13 +9,15 @@ PR of the last task to merge sets the spec `done` and closes #918; the
 
 - [ ] 1. Record the strategy: the `docs/decisions.md` entry "Disaster
       recovery: a cold site in the cloud, built on demand" (the decision;
-      the monthly cost of cold, warm and hot at AWS, Google Cloud and
-      Hetzner against the value of what is hosted and the RPO and RTO per
-      tier; warm and hot rejected; the review conditions); the "Disaster
-      scenarios" table in `docs/sre.md` with RPO and RTO per tier and an
-      MTTR column reading "not measured"; the "Off-site inventory" and the
-      "Rehearsal calendar" in `docs/backups.md`; the roadmap theme pointed
-      at this spec. [1.1, 1.2, 2.1, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 6.1]
+      the monthly cost of cold, warm and hot at AWS, with Google Cloud and
+      Hetzner for comparison, against the value of what is hosted and the
+      RPO and RTO per tier; warm and hot rejected; AWS as the one recovery
+      provider; the accepted risk that losing the AWS account with the
+      house loses the backups, and its mitigation; the review
+      conditions); the "Disaster scenarios" table in `docs/sre.md` with
+      RPO and RTO per tier and an MTTR column reading "not measured"; the
+      "Off-site inventory" and the "Rehearsal calendar" in
+      `docs/backups.md`; the roadmap theme pointed at this spec. [1.1, 1.2, 2.1, 3.1, 3.2, 3.3, 3.4, 4.1, 4.2, 5.4, 6.1]
 - [ ] 2. The rehearsal record: `ci/dr-scenarios.tsv`, `ci/dr-rehearsals.tsv`
       (with `cost` and `currency` columns), `scripts/dr-mttr.sh` with its
       bash test; repo-policy rules `dr-rehearsals`, `dr-runbooks` and
@@ -32,19 +34,25 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       matches `.sops.yaml` and decrypts a sealed file, `talosconfig` reaches a
       node, `RESTIC_PASSWORD` opens `immich/library` with the verifier key,
       the state passphrase decrypts a state file; prompts for the AWS root
-      sign-in, the Hetzner sign-in, each item of the `homelab break-glass`
-      folder and the emergency access; `tofu plan` on `bootstrap/dr-cloud/`
-      from the password-manager copies once task 8 has merged);
+      sign-in with the second MFA device, the AWS payment method's expiry,
+      each item of the `homelab break-glass` folder and the emergency
+      access; `tofu plan` on `bootstrap/dr-cloud/` from the
+      password-manager copies once task 8 has merged);
       `docs/runbooks/operator-unavailable.md`; the operator's one-time
       set-up listed in the pull request (the folder, the second AWS root
-      MFA device, the envelope, emergency access with a 2-day wait); the
-      first run recorded. [4.3, 4.4, 9.1, 9.2, 10.7]
-- [ ] 5. AWS account lost: `docs/runbooks/aws-account-lost.md` (new
-      account, `bootstrap/tofu-state`, `bootstrap/aws-backup`,
+      MFA device, the root mailbox's recovery codes, the Cloudflare
+      token-creator token, the envelope with the two-step login recovery
+      code, emergency access with a 2-day wait); the first run recorded.
+      [4.3, 4.4, 5.3, 9.1, 9.2, 10.7]
+- [ ] 5. AWS account lost or locked out: `docs/runbooks/aws-account-lost.md`
+      (lockout first: lost MFA device, lost root password through the
+      mailbox, suspended for billing; a closed account reopened within the
+      90-day post-closure period; then the rebuild in a new account:
+      `bootstrap/tofu-state`, `bootstrap/aws-backup`,
       `bootstrap/github-oidc`, re-sealed keys, new `serverName`s, the Immich
-      re-seed, the 24 h target); the second copy of the Immich library and
-      of a dump of every database in Hetzner Object Storage (project
-      `homelab-dr`), verified weekly by `backup-verify`. [5.1, 5.2, 5.3]
+      re-seed, the 24 h target; a house lost at the same time waits for
+      access, with the accepted-risk note). No second copy outside AWS.
+      [5.1, 5.2, 5.3]
 - [ ] 6. Monthly rebuild from git in CI (#723, part 1):
       `.github/workflows/dr-rebuild.yaml` on the Talos QEMU harness of
       `scripts/ci/talos-upgrade-rehearsal.sh`, test secrets sealed to a CI
@@ -52,7 +60,11 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       [7.1, 7.2]
 - [ ] 7. The site overlay, without any cloud resource: `components/site-dr`
       (storage behind the `iscsi` and `iscsi-retain` names with volume
-      expansion, backed by `hcloud-csi`; `immich-data` at 500Gi;
+      expansion, backed by the `aws-ebs-csi-driver` chart: gp3, encrypted,
+      `WaitForFirstConsumer`, the home mount options,
+      `controller.region: eu-central-1` and
+      `controller.extraVolumeTags: {dr-site: homelab-dr}`); `immich-data`
+      at 500Gi;
       `infrastructure/cilium/values-dr.yaml` with the Gateway on the host
       network of the labelled Gateway node only
       (`gatewayAPI.hostNetwork.nodes.matchLabels`) and
@@ -64,48 +76,64 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       `bootstrap.recovery` and new `serverName`s; the external-dns target
       as a value); `components/site-dr-drill` (the requirement 8 switches:
       the network-policy exception for OIDC to the Gateway node, no
-      tailnet, no notifications, cert-manager without external-dns, the
-      drill copies of the Secrets sealed to the real and rehearsal keys,
-      with the drill Cloudflare token); a `.sops.yaml` rule for those
-      copies; `clusters/dr/`; the DR render; repo-policy over it (the
-      switches, the rehearsal-key recipients, the claims against
-      Hetzner's 16-volume limit minus one free slot); `task render:check`
-      proving the home render unchanged. No CoreDNS change: drill name
-      resolution is task 9's Talos patch. [8.2, 8.3, 8.4, 8.7, 10.4]
-- [ ] 8. The DR module: `bootstrap/dr-cloud/` for Hetzner, project
-      `homelab-dr` (network, CAX nodes for the Full and DR shapes,
-      addresses, firewall limited to `var.operator_cidr` and, in a drill,
-      the Gateway ports too, the `hcloud-csi` token, the `dr-drill` label,
-      the Talos snapshot adopted from `var.talos_snapshot_id` with a
-      destroy-time delete, `backend_override.tf.example`);
-      `scripts/dr-image.sh hcloud` (build, label, print the ID; `--delete`
-      sweeps the project's volumes and snapshots); `talos/dr/talconfig.yaml`
+      tailnet, no notifications, cert-manager without external-dns, its
+      issuer reading the Secret `cloudflare-drill-token` that the drill
+      script creates; the drill copies of the Secrets sealed to the real
+      and rehearsal keys, with no Cloudflare token among them); a
+      `.sops.yaml` rule for those copies; `clusters/dr/`; the DR render;
+      repo-policy over it (the switches, the rehearsal-key recipients, no
+      Cloudflare token in the drill component, the claims against the 28
+      attachments of `m7g.2xlarge` minus the interface, the root volume and
+      a margin of 3); `task render:check` proving the home render
+      unchanged. No CoreDNS change: drill name resolution is task 9's Talos
+      patch. [8.2, 8.3, 8.4, 8.7, 8.9, 10.4]
+- [ ] 8. The DR module: `bootstrap/dr-cloud/` for AWS `eu-central-1` (VPC,
+      public subnet and internet gateway; `m7g` nodes for the Full and DR
+      shapes from Sidero Labs' Talos arm64 AMI, IMDSv2 with hop limit 2;
+      the NLB with one Elastic IP and listeners on 80, 443 and 22000 to the
+      Gateway node; security groups limited to `var.operator_cidr` and, in
+      a drill, at the NLB for the Gateway ports too; the instance profile
+      with `AmazonEBSCSIDriverPolicy`; `default_tags` `dr-site=homelab-dr`
+      and `dr-drill=<date>`; `backend_override.tf.example`);
+      `scripts/dr-sweep.sh` (`--check` lists, `--delete` removes the EBS
+      volumes tagged `dr-site=homelab-dr` or `ebs.csi.aws.com/cluster=true`
+      and fails on any other tagged resource left); `talos/dr/talconfig.yaml`
       with its own secrets and schematic, the Gateway node label, no static
       hosts, checked by `scripts/ci/talos-validate.sh`; `tofu fmt -check`
       and `tofu validate` in `ci`; the module kept out of the `tofu`
-      workflow's plan and apply, and the daily leftover check over the
-      state and the project (read-only project token as an Actions
-      secret); `docs/runbooks/site-lost.md` with the declaration rule, the
-      apply command and the source of each input on a fresh machine, the
-      restore order with the image step, the capacity fallbacks, the move
-      to the Full shape for a loss longer than two weeks, and the return
-      home. [1.4, 1.5, 8.1, 8.8, 10.1, 10.2, 10.3, 10.5, 10.6, 10.7]
+      workflow's plan and apply; the daily leftover check in the `tofu`
+      schedule with `ci/dr-site-lost.txt` as the real-loss switch, its
+      test and repo-policy `dr-site-lost`, and the read permissions it
+      needs on the plan role in `bootstrap/github-oidc`;
+      `docs/runbooks/site-lost.md` with the declaration rule and the file,
+      the apply command and the source of each input on a fresh machine,
+      the restore order with the upgrade to the DR schematic, the capacity
+      fallbacks, the move to the Full shape for a loss longer than two
+      weeks, and the return home; a one-hour smoke run of the DR shape
+      (apply, nodes `Ready`, NLB targets healthy, destroy, sweep; about
+      $0.45) that seeds the `dr-site` tag key, then the key activated as a
+      cost allocation tag in the operator's one-time set-up. Monday to
+      Friday, daytime. [1.4, 1.5, 7.4, 8.1, 8.8, 10.1, 10.2, 10.3, 10.5,
+      10.6, 10.7]
 - [ ] 9. First DR drill (#723, part 2): `scripts/dr-rehearsal.sh` (preflight
       for requirement 8, the rehearsal key only; writes
       `talos/dr/drill/static-hosts.yaml`, one `StaticHostConfig` with the
       Gateway node's private address and every HTTPRoute host name of the
       DR render, applied with `--config-patch`, and checks from a pod that
       `auth.lilalala.com` resolves to it before Argo CD; the DR probes with
-      `curl --resolve` against the DR Gateway; a timestamp per step;
-      `tofu destroy` and `scripts/dr-image.sh hcloud --delete` on exit);
+      `curl --resolve` against the DR Gateway; a timestamp per step; the
+      per-drill Cloudflare token created with the nodes' addresses and a
+      12 h expiry, written to the Secret `cloudflare-drill-token`; on exit,
+      the token deleted, `tofu destroy` and `scripts/dr-sweep.sh --delete`);
       every tier restored, the whole Immich library included; MTTR per tier
       and the drill's cost from the bill in `ci/dr-rehearsals.tsv`; the
       estimates in `docs/backups.md` and `docs/sre.md` replaced by the
       measured values; the cost estimate in `docs/decisions.md` priced again
-      in the Hetzner console; the `backups-dr` area spec updated (scenarios,
+      in the AWS Pricing Calculator and checked against the drill's bill;
+      the `backups-dr` area spec updated (scenarios,
       the off-site inventory, the calendar, the DR site). Closes #723.
       Monday to Friday, daytime.
-      [2.4, 7.3, 7.4, 8.1, 8.5, 8.6, 8.8]
+      [2.4, 7.3, 7.4, 8.1, 8.5, 8.6, 8.8, 8.9]
 - [ ] 10. First node-replacement rehearsal: `homelab-w-1` reflashed with
       [node-replacement.md](../../../docs/runbooks/node-replacement.md),
       timed to `Ready` and to every tier 1 probe green; the line recorded; the

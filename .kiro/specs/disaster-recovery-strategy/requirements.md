@@ -147,8 +147,8 @@ change it.
 #### Acceptance criteria
 
 1. THE design SHALL compare the cold, warm and hot options on cost per month
-   at AWS (`eu-central-1`), Google Cloud (`europe-west3`, `europe-west6`) and
-   Hetzner, cost per drill, RTO in the house-lost scenario, and effort to
+   at AWS (`eu-central-1`, the recovery provider), and for comparison
+   Google Cloud (`europe-west3`, `europe-west6`) and Hetzner, cost per drill, RTO in the house-lost scenario, and effort to
    build and run. Every price SHALL name its source and the date it was read.
    (design.md, "Cost estimate" and "Site options")
 2. THE cost estimate SHALL be sized from the live cluster: CPU and memory
@@ -178,8 +178,11 @@ works.
    age key, `RESTIC_PASSWORD`, `TOFU_STATE_PASSPHRASE`, the Immich library,
    every database, every break-glass credential) and one column per scenario
    naming the copy that survives it. (review)
-2. EACH item SHALL have at least one copy outside the house and outside the
-   AWS account, or the row SHALL name the gap and its issue. (review)
+2. EACH item SHALL have at least one copy outside the house, and each item
+   other than the backups themselves SHALL also have one outside the AWS
+   account, or the row SHALL name the gap and its issue. The backups (the
+   Immich library, the databases) have no copy outside the AWS account by
+   decision (requirement 5.4). (review)
 3. QUARTERLY, THE break-glass check SHALL prove each copy works: the age key
    from the password manager decrypts a sealed file, the `talosconfig` copy
    reaches a node, `RESTIC_PASSWORD` opens `immich/library`, the state
@@ -205,10 +208,18 @@ within a day.
    and `bootstrap/github-oidc`, re-seal the keys, move every `serverName` and
    re-seed the Immich repository, and SHALL state the target: backups fresh
    again within 24 h. (review; the yearly tabletop in the calendar)
-3. THE Immich library and a logical dump of every database SHALL also go
-   to the recovery provider's object storage (Hetzner Object Storage, in
-   the `homelab-dr` project), verified weekly like the S3 repositories.
-   (`backup-verify`, `scripts/restic-targets.txt`)
+3. THE AWS account SHALL be protected against lockout, since the backups
+   have no copy outside it (an accepted risk, operator 2026-11-03): the
+   root user with two MFA devices, one of them a TOTP seed in the password
+   manager's `homelab break-glass` folder; the recovery codes of the root
+   user's mailbox in the same folder; the payment method valid for the
+   next 6 months at each quarterly break-glass check. The runbook SHALL
+   cover a locked or suspended account and the reopening of a closed one
+   within the 90-day post-closure period before a rebuild in a new
+   account. (`scripts/dr-offsite-check.sh` prompts; `docs/runbooks/aws-account-lost.md`)
+4. THE page `docs/decisions.md` SHALL state the accepted risk: losing the
+   AWS account together with the house loses the photo library and every
+   database. (task 1)
 
 ### Requirement 6: Rehearsals on a calendar, results on the dashboard
 
@@ -255,9 +266,11 @@ off-site backups are enough to rebuild everything, and how long it takes.
    declaration to each tier's DR probes green, and destroy every resource
    it created, also when it fails. (`scripts/dr-rehearsal.sh`, a row in
    `ci/dr-rehearsals.tsv`)
-4. EACH drill SHALL record its cost from the provider's bill, found by the
-   label or tag `dr-drill=<date>` on every resource the module creates.
-   (`ci/dr-rehearsals.tsv`; the module's default tags)
+4. EACH drill SHALL record its cost from the AWS bill: the cost allocation
+   tag `dr-site=homelab-dr` (on every resource the module creates and every
+   volume the EBS CSI driver creates) over the drill's days, plus the
+   bucket's Glacier IR retrieval. The tag key SHALL be active before the
+   first drill. (`ci/dr-rehearsals.tsv`; the module's default tags; task 8)
 
 ### Requirement 8: A rehearsal cannot touch production
 
@@ -273,7 +286,8 @@ without changing anything at home or in the backups.
    Cluster with a WAL archiver. (repo-policy over the rehearsal render)
 3. A REHEARSAL cluster SHALL NOT write DNS records other than the
    `_acme-challenge` TXT records of cert-manager's DNS-01 challenges, made
-   with a drill-only Cloudflare token (no external-dns), SHALL NOT notify (no ntfy receiver, no
+   with the drill's own Cloudflare token (requirement 8.9; no
+   external-dns), SHALL NOT notify (no ntfy receiver, no
    healthchecks.io ping, no Argo CD notifications to GitHub) and SHALL NOT
    join the tailnet. (repo-policy over the rehearsal render)
 4. THE DR site in a real loss SHALL back up with new `serverName`s and new
@@ -291,13 +305,20 @@ without changing anything at home or in the backups.
    (`scripts/dr-rehearsal.sh`)
 7. A REHEARSAL cluster SHALL get the rehearsal age key, never the real
    one; the Secrets it needs SHALL be drill copies sealed to that key,
-   holding test values except the verifier S3 key, `RESTIC_PASSWORD` and
-   the drill Cloudflare token. (`scripts/dr-rehearsal.sh` preflight;
+   holding test values except the verifier S3 key and `RESTIC_PASSWORD`.
+   (`scripts/dr-rehearsal.sh` preflight;
    repo-policy: `components/site-dr-drill/secrets/` sealed to the
    rehearsal key)
-8. WHEN a drill ends, pass or fail, THE `homelab-dr` Hetzner project SHALL
-   hold no server, volume or snapshot. (the drill's exit trap; the daily
-   leftover check)
+8. WHEN a drill ends, pass or fail, `eu-central-1` SHALL hold no instance,
+   load balancer, Elastic IP or EBS volume tagged `dr-site=homelab-dr`, and
+   no EBS volume tagged `ebs.csi.aws.com/cluster=true`; the EBS CSI driver
+   SHALL tag every volume it creates with `dr-site=homelab-dr`
+   (`extraVolumeTags`). (the drill's exit trap, `scripts/dr-sweep.sh`; the
+   daily leftover check)
+9. A DRILL's Cloudflare token SHALL be created for that drill, limited to
+   the drill nodes' public addresses, expire within 12 h, be deleted when
+   the drill ends, and never be written to git. (`scripts/dr-rehearsal.sh`;
+   repo-policy: no Cloudflare token in `components/site-dr-drill/`)
 
 ### Requirement 9: The household is not stranded without the operator
 
@@ -313,10 +334,11 @@ there.
    laptop with restic. It names no person and holds no value. (review;
    tech-docs checklist)
 2. THE password manager SHALL give the emergency contact view-only
-   emergency access, after a 2-day wait, to the `homelab break-glass`
-   folder and the items that runbook needs; the quarterly break-glass check
-   confirms the access is still set up. (`scripts/dr-offsite-check.sh` prompt; a row in
-   `ci/dr-rehearsals.tsv`)
+   emergency access after a 2-day wait. That access covers the operator's
+   whole individual vault, not only the `homelab break-glass` folder, and
+   the design states it as accepted. The quarterly break-glass check
+   confirms the access is still set up. (`scripts/dr-offsite-check.sh`
+   prompt; a row in `ci/dr-rehearsals.tsv`)
 
 ### Requirement 10: The DR site is a module applied only on loss or drill
 
@@ -326,34 +348,42 @@ design work on the day of the loss and costs nothing until then.
 
 #### Acceptance criteria
 
-1. THE module `bootstrap/dr-cloud/` SHALL create the network, arm64 nodes
-   running Talos at Hetzner, in the `homelab-dr` project, their public
-   addresses, the firewall, the permission the CSI driver needs, and hold
-   the Talos snapshot in its state; and nothing else. Block volumes SHALL
-   come from the CSI driver when a claim asks. (`tofu validate` in CI;
-   review)
+1. THE module `bootstrap/dr-cloud/` SHALL create, in AWS `eu-central-1`,
+   the network, Graviton nodes booting the Talos arm64 AMI that Sidero Labs
+   publishes, a Network Load Balancer with one Elastic IP in front of the
+   Gateway node, the security groups, the instance profile the EBS CSI
+   driver needs, and nothing else, every resource tagged
+   `dr-site=homelab-dr`. Block volumes SHALL come from the EBS CSI driver
+   when a claim asks. (`tofu validate` in CI; review)
 2. THE `tofu` workflow SHALL NOT plan or apply the module; CI SHALL run
    `tofu fmt -check` and `tofu validate` on it.
    (`.github/workflows/tofu.yaml`, `.github/workflows/ci.yaml`)
-3. IF the module's state, or the `homelab-dr` project (servers, volumes,
-   snapshots), holds resources older than 24 h and no real loss is
-   declared, THEN the daily `tofu` run SHALL fail and notify ntfy once.
-   (`.github/workflows/tofu.yaml`; its test)
+3. A real loss SHALL be declared by the file `ci/dr-site-lost.txt` (the
+   UTC date and the tracking issue), added by step 0 of `site-lost.md` and
+   removed by the return home. IF resources tagged `dr-site=homelab-dr`
+   (or EBS volumes tagged `ebs.csi.aws.com/cluster=true`) are older than
+   24 h and the file is absent, OR the file is older than 24 h and no such
+   resource exists, THEN the daily `tofu` run SHALL fail and notify ntfy
+   once. A drill SHALL refuse to start while the file exists.
+   (`.github/workflows/tofu.yaml`, `scripts/dr-sweep.sh --check`; their
+   tests; repo-policy `dr-site-lost`)
 4. THE DR site SHALL deploy from the same sources as home: only the site
    overlay differs, and the home render SHALL not change because of it.
    (`task render:check`; repo-policy over the DR render)
 5. THE Talos and Kubernetes APIs of the DR nodes SHALL accept connections
    only from `var.operator_cidr` until the nodes join the tailnet; in a
    drill, the Gateway and Syncthing ports SHALL also accept connections
-   from `var.operator_cidr` only. (the module's firewall; review)
+   from `var.operator_cidr` only, at the NLB's security group, and the
+   nodes SHALL accept them only from the NLB. (the module's security
+   groups; review)
 6. THE runbook `docs/runbooks/site-lost.md` SHALL give the restore order:
-   the Talos image where the provider needs one, the module, Talos, Argo
-   CD, the infrastructure layer, `keycloak-db` and Keycloak, tier 1, tier 2,
+   the declaration, the module, Talos and the upgrade to the DR schematic,
+   Argo CD, the infrastructure layer, `keycloak-db` and Keycloak, tier 1, tier 2,
    then backups with new `serverName`s (real loss) or `tofu destroy`
    (drill). (review; the first drill)
 7. THE runbook SHALL name the command that applies the module and, for
-   each input (the state backend, the state passphrase, the age key, the
-   recovery provider's credentials), where it comes from on a fresh
+   each input (the AWS sign-in for the state backend and the DR site, the
+   state passphrase, the age key), where it comes from on a fresh
    machine without the Mac; the quarterly break-glass check SHALL run
    `tofu plan` on the module from those sources.
    (`docs/runbooks/site-lost.md`; `scripts/dr-offsite-check.sh`)
@@ -364,23 +394,27 @@ None is open. The operator asked on 2026-11-03 for each remaining question
 to be decided on a reasoned default; the reasons are in
 [design.md](design.md).
 
-1. Recovery provider: **Hetzner**, the cheapest in the cost table that
-   survives the loss of the AWS account (€132 a month always on, €1.04
-   plus $35 a drill, €6.49 a month for the second off-site copy of
-   requirement 5.3, in Hetzner Object Storage). CAX servers showed as
-   unavailable to order on 2026-11-03; the drill tests it, and a drill
-   that cannot order one opens the issue for a Google Cloud module.
-   ([Recovery provider](design.md#recovery-provider))
+1. Recovery provider: **AWS `eu-central-1`**, the operator's decision of
+   2026-11-03: one provider, the one that holds the backups; no second
+   copy outside AWS. $659 a month always on (Full shape), $12.27 a drill,
+   $2 a month at two drills a year. Google Cloud and Hetzner stay in the
+   cost tables for comparison. The accepted risk: losing the AWS account
+   with the house loses the backups; root MFA on two devices and recovery
+   codes off-site mitigate it (requirement 5.3).
+   ([Recovery provider](design.md#recovery-provider),
+   [Accepted risk](design.md#accepted-risk-one-account))
 2. Recovery codes: **items in the password manager**, folder `homelab
    break-glass`, one per code, named in the off-site inventory; a second
-   AWS root MFA device as a TOTP seed in that folder; the password
-   manager's own recovery code and emergency kit printed, sealed and held
-   by the emergency contact outside the house.
+   AWS root MFA device as a TOTP seed in that folder; the recovery codes
+   of the AWS root user's mailbox there too; the password manager's own
+   two-step login recovery code printed, sealed and held by the emergency
+   contact outside the house.
    ([Break-glass and emergency access](design.md#break-glass-and-emergency-access))
 3. Operator unavailable: **an emergency contact**, a trusted person outside
    the household named only in the password manager, with view-only
-   emergency access to the break-glass folder after a 2-day wait, and the
-   envelope; the household keeps a printed copy of
+   emergency access after a 2-day wait, which covers the whole individual
+   vault (accepted: the contact is trusted with the age key anyway), and
+   the envelope; the household keeps a printed copy of
    `docs/runbooks/operator-unavailable.md`. (same section)
 4. Drill calendar: **as proposed**: the DR drill in May and November,
    node replacement in March and September, the break-glass check
@@ -389,11 +423,15 @@ to be decided on a reasoned default; the reasons are in
 5. Rehearsal key: **a separate rehearsal age key**, with drill copies of
    the Secrets sealed to it; the real key never reaches a drill node
    (requirement 8.7). ([The drill](design.md#the-drill))
-6. Drill certificates: **Let's Encrypt through DNS-01, as at home**, with a
-   drill-only Cloudflare token sealed to the rehearsal key; the OIDC
-   clients trust the DR Keycloak unchanged. A drill CA was rejected: a
-   trust patch per client and a path a real loss never takes.
-   ([The drill](design.md#the-drill))
+6. Drill certificates: **Let's Encrypt through DNS-01, as at home**, with
+   a Cloudflare token created for each drill, limited to the drill nodes'
+   addresses, expiring after 12 h and deleted on exit, never in git; the
+   OIDC clients trust the DR Keycloak unchanged. A drill CA was rejected:
+   a trust patch per client and a path a real loss never takes.
+   ([The drill's Cloudflare token](design.md#the-drills-cloudflare-token))
+7. Real-loss declaration: **the file `ci/dr-site-lost.txt`**, added in a
+   pull request at step 0 of `site-lost.md`, which the daily leftover
+   check reads. ([Leftover check and the real-loss declaration](design.md#leftover-check-and-the-real-loss-declaration))
 
 Settled in the operator's review of 2026-11-03: no hot or warm site; a cold
 site in the cloud built by `bootstrap/dr-cloud/`, rehearsed as a timed drill
@@ -403,6 +441,8 @@ tasks 6 and 9 here; the DR site reuses the StorageClass names `iscsi` and
 `iscsi-retain`; the DR shape leaves out theater, SigNoz and the Home
 Assistant stack, and `backup-verify`'s Postgres restore (attach limit);
 a loss longer than two weeks moves to the Full shape; `immich-data` is
-500Gi on the DR site; Talos images are built on the day and held in the
-module's state, not kept at the provider; drill name resolution is a
-Talos `StaticHostConfig` patch, and Talos's CoreDNS stays.
+500Gi on the DR site; the nodes boot Sidero Labs' AMI and are upgraded to
+the DR schematic, with no image built or kept; the Gateway sits behind a
+Network Load Balancer created by the module, not the AWS Load Balancer
+Controller; drill name resolution is a Talos `StaticHostConfig` patch, and
+Talos's CoreDNS stays.
