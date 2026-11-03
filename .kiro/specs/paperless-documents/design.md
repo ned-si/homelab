@@ -14,7 +14,7 @@
 | Ways in | web upload only; no mail account, no scanner path, nothing writes to the consume volume |
 | Backup | `paperless-backup` 02:30 to restic `paperless/media` (tags `paperless-media`, `paperless-data`), monthly `paperless-prune`; the restic image has no `sqlite3`, so the `paperless-db` branch never runs and `db.sqlite3` is copied live inside `paperless-data`, where it can be torn (#746) |
 | Restore test | `backup-verify` weekly sample: `paperless-media`, `paperless-data` with `/data/db.sqlite3`; monthly pack read |
-| Network | CiliumNetworkPolicy `paperless`: ingress from the Gateway, egress DNS, intra-namespace, TCP 443 to the world |
+| Network | CiliumNetworkPolicy `paperless`: ingress from the Gateway, egress DNS, intra-namespace, TCP 443 to the world; audit mode only (`enforce-default-deny` off in both directions), so it blocks nothing. `backup-verify` has no policy |
 
 ## Shape
 
@@ -84,6 +84,10 @@ Paperless `USERMAP_UID` default), so files keep one owner.
 Paperless deletes a file once consumed, and Syncthing propagates the
 deletion to the editor's devices. Each device keeps it in "trash can" file
 versioning for 30 days; the cluster's side of the folder has no versioning.
+Syncthing's watcher does not see Paperless' deletions either (they arrive
+through another NFS client), so the cluster's side of the folder gets
+`rescanIntervalS` 60 instead of the default 3600; the folder is almost
+always empty, so the rescan costs nothing.
 
 Rejected: a second Syncthing inside the `paperless` namespace sharing the
 iSCSI consume volume. It avoids NFS, but adds a device identity to pair on
@@ -116,14 +120,23 @@ feed a crafted PDF to Ghostscript and Tesseract. Mitigations:
   household sender domain;
 - every mail document carries `inbox` until the editor reviews it;
 - the parsers run in the Paperless container: unprivileged, Kyverno
-  baseline, egress limited by the CiliumNetworkPolicy.
+  baseline.
+
+Egress is not a mitigation today. The `paperless` namespace is in audit
+mode (`enforce-default-deny` in
+`infrastructure/network-policies/90-enforcement.yaml` has `ingress: false`
+and `egress: false`), so a crafted PDF that compromises Ghostscript or
+Tesseract has unrestricted egress. Switching it on is step 4 of the
+namespace rollout in that file, not part of this spec.
 
 The residual risk (a sender domain with `p=none`, a provider that accepts a
-forged sender, a leaked address) gets a row in `docs/threat-model.md` in the
-closing task.
+forged sender, a leaked address, a compromised parser with open egress)
+gets a row in `docs/threat-model.md` in the closing task.
 
 The CiliumNetworkPolicy `paperless` gets one egress rule: TCP 993 to the
-world (the provider's address is not stable enough for a CIDR).
+world (the provider's address is not stable enough for a CIDR). It is
+load-bearing only once egress enforcement is on; it is added now so the
+allow-list is complete when that happens.
 
 ### Scanner
 
@@ -214,9 +227,14 @@ The corpus test decides whether a keyword is specific enough; the table
 changes when a corpus text shows a collision.
 
 "Forever" means no `Retain until` date. A nightly run of the configuration
-script sets `Retain until` = creation date + the type's period on documents
-that have a type and no date, and the saved view "Retention expired" lists
-the documents past it. Deleting stays a person's decision; deleted
+script recomputes `Retain until` on every document from its current type
+and creation date: creation date + the type's period, or no date for a
+"forever" type or a document without a type. It writes only the documents
+whose date differs, so a document re-typed from Receipt to Contract loses
+its date, and one whose creation date is corrected gets a new one, by the
+next morning. A date set by hand is overwritten: there is no manual
+override. The saved view "Retention expired" lists the documents past
+their date. Deleting stays a person's decision; deleted
 documents stay in the trash for 30 days (`EMPTY_TRASH_DELAY`).
 
 ### Tags
@@ -233,8 +251,9 @@ matches a Swiss QR-bill with a `Regex`
 (`Zahlteil|Section paiement|Payment part|Sezione pagamento`);
 `tax-relevant` is added by a workflow to the types Tax, Statement, Payslip
 and Insurance. `private` never matches: the editor sets it. The
-`import:<source>` and folder-name tags of the import are created by the
-import script (see [Import](#import)).
+`import:<source>` tags are in `paperless.json` like every other tag, one per
+import source (`import:seafile` first), and `apply.py` creates them without
+an owner; the import script only attaches them (see [Import](#import)).
 
 ### Custom fields
 
@@ -293,7 +312,10 @@ the tag does not give the view back by itself: the nightly configuration
 run reconciles the readers' view on every document (view for `readers` if
 and only if the document has no `private` tag), so a document made public
 again is readable the next morning, or at once through the document's
-permissions dialog. The workflow that carries the editor's username comes
+permissions dialog. The same pass reverts the other direction: removing
+the readers' view in the permissions dialog lasts until the next night, so
+the `private` tag is the only way to hide a document, and
+`docs/paperless.md` says so. The workflow that carries the editor's username comes
 from the SOPS part of the configuration
 ([Configuration as code](#configuration-as-code)).
 
@@ -301,8 +323,9 @@ from the SOPS part of the configuration
 
 Git owns the document types, tags, custom fields, storage paths (none
 today), saved views and workflows. The editor changes documents and
-correspondents; both groups have view rights on the rest and no change
-rights, so a sync never reverts an edit made in the UI. A new tag or a
+correspondents; both groups have view rights on the types, tags, custom
+fields and saved views, none on workflows, and no change rights, so a sync
+never reverts an edit made in the UI. A new tag or a
 better keyword is an issue or a PR, which an agent can do.
 
 `apps/paperless/config/paperless.json`: the objects above, with the
@@ -327,6 +350,8 @@ object is hidden from users without a grant on it. `apply.py` therefore:
   sees them (both groups do; unlisted accounts have no model permissions);
 - puts the listed accounts into `editors` and `readers`, and removes
   accounts that are no longer listed from both;
+- reports every account other than `nedsi-admin`, `automation` and
+  `canary` that has the superuser flag or direct model permissions;
 - grants view for `readers` on every correspondent that lacks it, without
   reading or changing names (a permissions-only pass, so names stay out of
   git and out of the Job's log);
@@ -339,8 +364,8 @@ request it sends.
 It runs:
 
 - as an Argo CD PostSync Job after each sync of `paperless`;
-- nightly in `--nightly` mode (the `Retain until` dates, the correspondent
-  and document permission passes).
+- nightly in `--nightly` mode (the `Retain until` recomputation, the
+  correspondent and document permission passes).
 
 Failure semantics. A failed PostSync hook marks the sync failed, and the
 automatic rollback reverts the merge. That is intended for a configuration
@@ -389,8 +414,10 @@ phone token reaches documents and correspondents only; administration goes
 through `nedsi-admin`.
 
 The 5 existing accounts predate the groups. Task 4 puts the editor's and
-the reader's accounts into their groups from the list in `paperless-config`
-and removes the superuser flag from the editor's account if it is set.
+the reader's accounts into their groups from the list in `paperless-config`,
+lists the superuser flag and direct model permissions of every account,
+and clears both on every account other than `nedsi-admin` (the editor's
+included).
 Before the flag goes, task 4 proves the break-glass path: `nedsi-admin`
 reaches the admin with `PAPERLESS_REDIRECT_LOGIN_TO_SSO` set. If the
 redirect hides the local login, the recovery is `python3 manage.py shell`
@@ -457,13 +484,22 @@ with the outcome.
 The local import directory is `~/homelab-backups/paperless-import/`, one
 subdirectory per source (`seafile/` from task 1, then whatever the operator
 adds: a Mac folder, a cloud drive download, scanned boxes). The subdirectory
-name becomes the `import:<source>` tag.
+name, which goes into git and so must be generic (`seafile`, `mac`,
+`scans`), becomes the `import:<source>` tag. Task 12 adds the tags of the
+sources present then to `paperless.json`; a source added later gets its
+tag in a one-line PR before its batch. `apply.py` creates them without an
+owner, so the reader sees them and the editor needs no right to create
+tags.
 
 `scripts/paperless-import.py` (stdlib): walks one source subdirectory,
-uploads each file through `/api/documents/post_document/` with the editor's
-token, tags `source:import`, `import:<source>` and one tag per folder name,
+looks up `source:import` and `import:<source>` by name and stops before the
+first upload if either is missing, uploads each file through
+`/api/documents/post_document/` with the editor's token and both tags,
 follows each consumption task to its result, and writes a local report
-(created, duplicate, failed with reason). It prints counts only. Re-running
+(path, document id, created, duplicate, failed with reason). Folder names
+do not become tags: they would add unreviewed tags owned by the editor,
+which the reader cannot see and `apply.py` reports as unmanaged; the path
+in the local report keeps the old structure. It prints counts only. Re-running
 it is safe: Paperless refuses duplicates by checksum. Batches go in during
 the day, a few hundred files at a time, so OCR does not starve the node.
 
@@ -501,9 +537,21 @@ root, and `/media` stays read-only: the exporter runs with Django's
 `--skip-checks`. Task 5 verifies on 3.4.1 that `document_exporter` accepts
 `--skip-checks` and starts with these mounts; if not, the fallback is
 `paperless-media` read-write in init container 2 (same node, RWO). One
-edge remains: a document purged from the trash between the copy and the
-export leaves a row without a file. Only the canary purges at once, and
-its schedule avoids 02:00 to 04:00.
+edge remains: a row in the copy whose file is gone from `/media` by the
+time the exporter reaches it. That happens when a document is purged from
+the trash, or renamed on disk by `PAPERLESS_FILENAME_FORMAT` after an edit
+of its title, correspondent, type or date, between the copy and the end of
+the export. Only the canary purges at once, and its schedule avoids 02:00
+to 04:00; an edit at that hour is rare. The Job sets `backoffLimit: 1`, so
+it reruns once from a fresh copy; a second failure pages through
+`KubeJobFailed`.
+
+The counts. `export-meta.json`, `manifest.json` and the restore test's
+import count all count the documents the exporter exports. Paperless' trash
+is a soft delete, and the default document manager hides trashed
+documents, so the count in `export-meta.json` uses that manager, the same
+set the exporter walks. Task 6 checks on 3.4.1 that the exporter skips the
+trash, and runs its check with a non-empty trash.
 
 Size. The export holds the same kinds of files as `paperless-media`
 (originals, archived PDFs, thumbnails), so `paperless-export` gets the same
@@ -521,8 +569,10 @@ Losing it loses only the mail credential in old exports, which a new app
 password replaces.
 
 The restore test runs no worker and no beat, so the imported mail account
-is never polled. The `backup-verify` CiliumNetworkPolicy gets no TCP 993
-egress either. If `document_importer` needs a broker, task 6 adds a
+is never polled. That is the only guard: `backup-verify` has no
+CiliumNetworkPolicy (`infrastructure/network-policies/kustomization.yaml`
+lists it as not covered), so its pods have open egress. If
+`document_importer` needs a broker, task 6 adds a
 throwaway Valkey in the same pod, still with no worker.
 
 The export is where "never locked in" comes from: `restic restore --tag
@@ -553,7 +603,9 @@ paperless-export|s3:paperless/media|paperless-export|/export/manifest.json
 ## Findable within N minutes
 
 The canary `paperless-canary` (every 6 hours at 01:00, 07:00, 13:00 and
-19:00, clear of the 02:30 backup; paperless image, user `canary`): draws a one-page image with a random token, converts it to PDF
+19:00, clear of the 02:30 backup; paperless image, user `canary`): draws a
+one-page image with a random 12-digit token in a large font (digits only,
+so no look-alike letters such as `0/O` or `1/l/I`), converts it to PDF
 (PIL and `img2pdf`, both in the image) so OCR has to read it, uploads it,
 polls `/api/documents/?query=<token>` until found, records the seconds,
 deletes the document and empties it from the trash, and pushes
@@ -571,8 +623,11 @@ The canary covers API, queue, OCR and index. The transport legs (Syncthing,
 mail polling) are tested by hand once in their tasks; the 10-page and mail
 numbers of Requirement 10 are checked there too.
 
-The CiliumNetworkPolicies get the canary's egress to the Pushgateway
-(`backup-verify`, TCP 9091) and its ingress there.
+The CiliumNetworkPolicy `paperless` gets the canary's egress to the
+Pushgateway (`backup-verify`, TCP 9091), so the allow-list is complete when
+egress enforcement is switched on. `backup-verify` has no policy, so there
+is no ingress rule to add. The CronJob is listed in
+`ci/active-cronjobs.txt`.
 
 ## Risks
 
@@ -592,8 +647,11 @@ The CiliumNetworkPolicies get the canary's egress to the Pushgateway
   absorbs it; a Job that runs past its `activeDeadlineSeconds` fails and
   pages.
 - **OCR load.** Four languages make Tesseract slower per page than one,
-  and the RK1 (8 arm64 cores) runs everything else too. Task 2 times one
-  page with `fra+eng+spa+deu` against `fra` alone; the canary watches the
+  and the RK1 (8 arm64 cores) runs everything else too. Tesseract loads
+  all four models for every page, and the Deployment sets no memory
+  request or limit. Task 2 measures the OCR time and the container's peak
+  memory for one page and for a 10-page file with `fra+eng+spa+deu`
+  against `fra` alone, and sets a memory request from the result; the canary watches the
   5-minute limit; a bulk import runs in daytime batches. If pages run too
   slow, dropping the least used language is one line in git.
 - **NFS.** The inbox depends on the NAS like the media library; a NAS

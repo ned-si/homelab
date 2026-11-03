@@ -127,8 +127,11 @@ to one address, so bills that come by mail are filed too.
    tagged `source:mail` and `inbox`, and THE mail SHALL be moved to a
    `Processed` folder.
 4. THE mailbox credentials SHALL live only in a SOPS Secret; the
-   CiliumNetworkPolicy `paperless` SHALL allow IMAPS egress (TCP 993) and
-   nothing else new.
+   CiliumNetworkPolicy `paperless` SHALL list IMAPS egress (TCP 993) and
+   nothing else new, so its allow-list is complete when the namespace's
+   egress enforcement is switched on. Today `paperless` is in audit mode
+   (`enforce-default-deny` in `90-enforcement.yaml`) and the policy blocks
+   nothing; this spec does not count it as a control.
 5. Paperless SHALL NOT read a household member's personal mailbox.
 6. BECAUSE the sender filter trusts the `From` header, THE mailbox address
    SHALL NOT be published anywhere (it lives only in SOPS and the household's
@@ -166,8 +169,9 @@ search and filters work without manual typing.
 2. THE document types, tags, custom fields, workflows and saved views SHALL
    be defined in git and applied by a Job, idempotently; a run on an
    unchanged configuration changes nothing. Git owns them: the editor and
-   the readers get view rights on them and no change rights, so the Job
-   never reverts an edit made in the UI. (test: the apply script's unit
+   the readers get view rights on the document types, tags, custom fields
+   and saved views, no rights on workflows (Requirement 9.2), and no change
+   rights on any of them, so the Job never reverts an edit made in the UI. (test: the apply script's unit
    tests and a second run reporting 0 changes)
 3. Correspondents SHALL NOT be in git: they are real names (banks,
    insurers, authorities). The editor creates and edits them in Paperless;
@@ -184,8 +188,13 @@ search and filters work without manual typing.
    fail on an unquoted phrase, a shared keyword or a corpus text whose
    match differs from its expected type)
 5. EVERY document SHALL get a `Retain until` date from its document type, or
-   none for documents kept forever; a saved view SHALL list the documents
-   whose date has passed. Deleting them stays a manual act.
+   none for documents kept forever or without a type; a saved view SHALL
+   list the documents whose date has passed. THE date SHALL be recomputed
+   every night from the document's current type and creation date, so a
+   re-typed or re-dated document gets the right date (or none) by the next
+   morning; a date set by hand is overwritten. Deleting stays a manual act.
+   (test: the apply script's unit tests re-type a Receipt to a Contract,
+   which clears the date, and move a creation date, which moves it)
 6. THE stored file names SHALL be readable: year, document type, date,
    correspondent and title, from one global `PAPERLESS_FILENAME_FORMAT`; no
    storage paths.
@@ -207,8 +216,11 @@ Paperless, so there is one place to look.
 2. THE files the operator places in the local import directory (the Seafile
    export and any other source, one subdirectory per source) SHALL be
    imported by a script through the API, owned by the editor, tagged
-   `source:import` and `import:<source>`, with each folder name of their
-   path as a tag.
+   `source:import` and `import:<source>`. Both tags are defined in git and
+   created by the configuration Job without an owner, like every tag; the
+   import script only attaches existing tags and stops before the first
+   upload if the source's tag does not exist. Folder names do not become
+   tags; each file's path stays in the local report.
 3. AFTER each import batch, THE number of files in SHALL equal the documents
    created plus the duplicates Paperless refused plus the failures, and
    every failure SHALL be listed for the operator. One pull request records
@@ -238,10 +250,11 @@ just files in a bucket.
 3. `backup-verify` SHALL restore the latest `paperless-export` snapshot
    every month and import it into a throwaway Paperless that runs only
    `migrate`, `document_importer` and a document count (no web server, no
-   Celery worker or beat, no IMAP egress, so it never polls the real
-   mailbox), and push the result to the Pushgateway; the imported document
-   count SHALL equal the count in the export's `manifest.json` and the
-   count in the database copy the export was taken from.
+   Celery worker or beat, so it never polls the real mailbox), and push the
+   result to the Pushgateway; the imported document count SHALL equal the
+   count in the export's `manifest.json` and the count in the database copy
+   the export was taken from, all three counted over the documents the
+   exporter exports (documents in the trash are not counted).
 4. IF the restore test fails or has not succeeded for 35 days, THEN an
    alert SHALL page with a runbook.
 5. THE weekly sample SHALL cover `paperless-media`, `paperless-data` and
@@ -293,7 +306,10 @@ the reader read them, with the same login as every other app.
    ingest canary's page (Requirement 10.3), owned by the user `canary` for
    the minutes it exists. WHEN the tag `private`
    is set, at consumption or any time later, THE `readers` view SHALL be
-   removed. (test: a matrix with a throwaway reader, as in PR #468, deleted
+   removed. THE tag SHALL be the only way to hide a document: the nightly
+   run gives the readers' view back to every document without `private`,
+   so a hide made in the permissions dialog lasts until the next night.
+   (test: a matrix with a throwaway reader, as in PR #468, deleted
    afterwards)
 5. THE document types, tags, custom fields and saved views SHALL be created
    without an owner, and every correspondent SHALL be viewable by the group
@@ -333,12 +349,6 @@ the requirement or task it names.
    mail)? Which sender addresses count as household, and what DMARC policy
    does each sender domain publish (`p=none` domains stay a residual risk)?
    Should a mail without attachments be filed too (as an `.eml` document)?
-3. **Sharing default** (Requirement 9.4, task 4): the proposed answer is
-   that the reader sees every document unless the editor tags it
-   `private`, because household documents concern both adults and
-   per-type privacy would also hide the reader's own medical letters. The
-   alternative is the reverse: private by default, shared by a tag. Without
-   an answer, task 4 ships the proposed answer.
 
 ## Decided defaults
 
@@ -348,8 +358,9 @@ with the reason. Each one is a line in git, so changing it later is one PR.
 | Topic | Decision | Reason |
 | --- | --- | --- |
 | Who files documents | One editor (the operator), one reader (the other adult of the household) | The operator manages the documents; the reader only reads them |
+| Sharing default | The reader sees every document unless the editor tags it `private` | Household documents concern both adults, and per-type privacy would also hide the reader's own letters; the reverse (private by default, shared by a tag) is one workflow change in git |
 | Who edits the taxonomy | Git owns types, tags, custom fields, workflows and saved views; the editor edits documents and correspondents | Changes are reviewed and backed up in git; an agent turns a request into a PR |
-| OCR languages (operator, 2026-11-03) | `fra+eng+spa+deu`, in that order | Mostly French and English, sometimes Spanish and German. Tesseract treats the first language as the primary one and falls back to the others in the order given, so the order follows how often each language appears. Four languages make each page slower to OCR on the RK1 than one; the canary and task 2 measure it |
+| OCR languages (operator, 2026-11-03) | `fra+eng+spa+deu`, in that order | Mostly French and English, sometimes Spanish and German. Tesseract treats the first language as the primary one and falls back to the others in the order given, so the order follows how often each language appears. Four languages make each page slower to OCR on the RK1 than one and load four models; task 2 measures time and peak memory against `fra` alone, the canary watches the time |
 | Scanner | None assumed: the phone app is the scanner. Task 10 is a planned, optional task: it runs if a scanner is in use, through scan to mail; otherwise task 14 ticks it as not needed | Scan to mail needs no SMB share or new NAS user |
 | Phone app | The first app in the [design table](design.md#phone) that logs in with a token against 3.4.1 on the editor's phone | A working token login is the only hard requirement |
 | Other sources | Whatever the operator drops into the local import directory, one subdirectory per source; the Seafile export first | The operator knows where his files are; the script does the rest |
