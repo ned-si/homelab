@@ -223,19 +223,22 @@ misconfigurations:
   #
   # barman-cloud cannot close it: its `encryption` setting only picks the S3
   # server-side mode (AES256 or aws:kms), and client-side encryption is an open
-  # upstream request (EnterpriseDB/barman#1155). The fix is a customer managed
-  # KMS key as the bucket default, with S3 Bucket Keys to keep the request cost
-  # near zero: issue #952, applied through the tofu workflow on a weekday.
+  # upstream request (EnterpriseDB/barman#1155). A customer managed KMS key was
+  # proposed in #952 and declined by the operator (2026-11-03): AWS keeps
+  # managing the key, nobody here has to. The CNPG objects rely on SSE-S3 plus
+  # the bucket policy and the version lock.
   #
-  # A real gap awaiting that change, not a permanent exemption.
+  # Accepted risk by operator decision. Revisit if barman-cloud gains
+  # client-side encryption.
   - id: AVD-AWS-0132
     paths:
       - "bootstrap/aws-backup/main.tf"
     statement: >-
-      Backup bucket default encryption is SSE-S3. restic objects are
-      client-side encrypted; the CNPG base backups and WAL are not, and
-      barman-cloud offers only server-side modes. Open gap, fix planned as a
-      customer managed KMS key with S3 Bucket Keys (#952).
+      Backup bucket default encryption is SSE-S3, by operator decision (#952,
+      2026-11-03: no customer managed key). restic objects are client-side
+      encrypted; the CNPG base backups and WAL rely on SSE-S3, the bucket
+      policy and the version lock. Revisit if barman-cloud gains client-side
+      encryption.
     expired_at: 2027-05-01
 
   # Same rule, different bucket and a different answer. The state bucket only
