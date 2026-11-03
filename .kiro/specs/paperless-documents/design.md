@@ -7,11 +7,11 @@
 | Image | `ghcr.io/paperless-ngx/paperless-ngx:3.4.1`, one replica, SQLite (journal mode `wal`), Valkey queue |
 | URL, login | `archive.lilalala.com`, Keycloak only (`PAPERLESS_REDIRECT_LOGIN_TO_SSO`, auto signup), groups `admins` and `family` (`access.conf`, PR #468) |
 | Volumes | `paperless-data` 4Gi (27M used), `paperless-media` 100Gi (1 MiB used), `paperless-consume` 10Gi (empty), all iSCSI |
-| Content | 1 document, 0 correspondents, document types, tags, storage paths, workflows, mail accounts; 5 user accounts |
+| Content | 1 document, 0 correspondents, document types, tags, storage paths, workflows; 5 user accounts |
 | OCR | `eng` only; the image ships `deu eng fra ita osd spa` |
 | Time zone, dates | `UTC`, `DMY` |
 | File names | default (`FILENAME_FORMAT` unset: numeric names) |
-| Ways in | web upload only; no mail account, no scanner path, nothing writes to the consume volume |
+| Ways in | web upload only; nothing writes to the consume volume |
 | Backup | `paperless-backup` 02:30 to restic `paperless/media` (tags `paperless-media`, `paperless-data`), monthly `paperless-prune`; the restic image has no `sqlite3`, so the `paperless-db` branch never runs and `db.sqlite3` is copied live inside `paperless-data`, where it can be torn (#746) |
 | Restore test | `backup-verify` weekly sample: `paperless-media`, `paperless-data` with `/data/db.sqlite3`; monthly pack read |
 | Network | CiliumNetworkPolicy `paperless`: ingress from the Gateway, egress DNS, intra-namespace, TCP 443 to the world; audit mode only (`enforce-default-deny` off in both directions), so it blocks nothing. `backup-verify` has no policy |
@@ -19,139 +19,42 @@
 ## Shape
 
 ```
-editor's phone app ──editor's API token───────────────────────────────┐
-editor's devices ──Syncthing folder──▶ NFS inbox ──polling────────────┤
-scanner (if any) ──scan to mail──▶ mailbox ◀──IMAPS every 10 min──────┤
-                                                                      ▼
-                                  Paperless (consume, OCR fra+eng+spa+deu, matching,
-                                  workflows: owner = editor, view = readers, private)
-                                                         │
+editor ──Keycloak──▶ web app (phone or computer browser) ──upload──┐
+operator's Mac ──scripts/paperless-import.py, one-off──────────────┤
+                                                                   ▼
+                       Paperless (consume, OCR fra+eng+spa+deu, matching,
+                       workflows: view = readers, private)
+                                              │
              02:30 paperless-backup, one Job, in order:
                    1. consistent SQLite copy
                    2. document_exporter --passphrase ─▶ PVC paperless-export
                    3. restic: db + media + data + export ─▶ restic paperless/media
              monthly backup-verify ── restore paperless-export ─▶ throwaway Paperless (no worker), document_importer, counts
              every 6 h paperless-canary ── generated PDF ─▶ API ─▶ search ─▶ Pushgateway
-reader ──Keycloak──▶ web UI or app, view only
+reader ──Keycloak──▶ web app, view only
 ```
 
-## Ways in
+## Way in: the web app
 
-Every way in belongs to the editor, and every document gets the same owner,
-the editor: the `owner` workflow sets it for the consume folder and mail,
-and API uploads use the editor's token. The reader files nothing.
+The editor uploads through the Paperless web app at
+`https://archive.lilalala.com` (operator decision, 2026-11-03), logged in
+through Keycloak like every app. On a computer: the upload button or drag
+and drop onto the dashboard. On a phone: the same page in the browser,
+whose file picker offers a file or a new photo from the camera. Nothing is
+installed on the phone and no credential is stored there beyond the
+browser's Keycloak session.
 
-### Phone
+The web app uploads through `/api/documents/post_document/` with the
+logged-in session, so every upload is owned by the uploader: the editor.
+The reader has no add right, so an upload with the reader's session is
+refused. No other way in is built: the consume volume stays as it is, and
+another way in is a new issue.
 
-A Paperless client app with an API token. Users log in through Keycloak
-and have no local password, so the token (web UI, My Profile, API token) is
-the only credential the app holds. Paperless keeps one token per user, so
-revoking it after a lost phone cuts off every device of that user and, for
-the editor, the import script, until each gets the new token. The
-editor is not a superuser, so a stolen phone token cannot reach users,
-groups or settings. The reader may use the same app with a token of the
-reader's own account, which can only read. The first app in this table that
-logs in with a token against 3.4.1 on the editor's phone is used (task 8):
-
-| App | Platforms | Upload | Share sheet |
-| --- | --- | --- | --- |
-| Paperless Mobile | Android, iOS | camera scan, files | yes |
-| Swift Paperless | iOS | camera scan, files | yes |
-| PaperNext | Android, iOS | camera scan, files | check |
-| QuickScan | iOS | scanner app with Paperless API upload | yes |
-
-Task 8 records the choice and the setup in `docs/paperless.md`. A workflow
-tags uploads through the API `source:phone`.
-
-### Inbox folder
-
-A TrueNAS dataset `homelab/k8s/nfs/paperless-inbox`, exported over NFS to
-the four node addresses only (`192.168.1.247`, `.238`, `.239`, `.240`),
-mounted by two static PersistentVolumes with `Retain`, as in
-`infrastructure/nfs-storage/nfs-volumes.yaml`:
-
-- in `syncthing`, at `/var/syncthing/paperless-inbox`;
-- in `paperless`, at `/data/consume` (replacing the iSCSI
-  `paperless-consume`, which stays `Retain` until a later issue releases
-  it), with `PAPERLESS_CONSUMER_POLLING=30` (inotify does not see NFS
-  changes).
-
-The dataset is one Syncthing folder, shared with the editor's devices only.
-It is defined in the Syncthing GUI and lives in its `config.xml` (backed up
-as `syncthing-identity`). Both pods run as uid 1000 (Syncthing `PUID`,
-Paperless `USERMAP_UID` default), so files keep one owner.
-
-Paperless deletes a file once consumed, and Syncthing propagates the
-deletion to the editor's devices. Each device keeps it in "trash can" file
-versioning for 30 days; the cluster's side of the folder has no versioning.
-Syncthing's watcher does not see Paperless' deletions either (they arrive
-through another NFS client), so the cluster's side of the folder gets
-`rescanIntervalS` 60 instead of the default 3600; the folder is almost
-always empty, so the rescan costs nothing.
-
-Rejected: a second Syncthing inside the `paperless` namespace sharing the
-iSCSI consume volume. It avoids NFS, but adds a device identity to pair on
-every device and a second protocol address and port forward. Rejected: a
-bridge Job that uploads from the Syncthing volume through the API; more
-code for the same result.
-
-### Mail
-
-A dedicated mailbox (open question 2), never anyone's own. Paperless stores
-its mail account in its database; the configuration Job creates it from the
-SOPS Secret `paperless-mail` (host, port 993, user, app password, the
-household sender addresses). A Paperless mail rule has a single
-`filter_from` value, so `apply.py` creates one rule per household sender
-address, all with the same settings: attachments only (PDF and images),
-action "move to folder `Processed`", tags `source:mail` and `inbox`, and
-"assign owner from rule" (`assign_owner_from_rule`) off, so the `owner`
-workflow alone decides who owns a mail document. The mail account and the
-rules are created with `owner: null`, so the editor's view right on mail
-rules shows them. The tags come from the rules, so no workflow tags mail.
-Mail from anyone else matches no rule and stays unread. `PAPERLESS_EMAIL_TASK_CRON` keeps its default,
-every 10 minutes.
-
-The sender filter compares the `From` header, which a sender can forge.
-Anyone who knows the address could then place a document in the archive and
-feed a crafted PDF to Ghostscript and Tesseract. Mitigations:
-
-- the address is never published: it lives only in SOPS and the
-  household's address books;
-- the provider honours DMARC on inbound mail, so a forged sender on a
-  household domain that publishes `p=quarantine` or `p=reject` does not
-  arrive. Domains with `p=none`, which large free-mail providers publish,
-  get no protection from DMARC; the mail task's PR lists the policy of each
-  household sender domain;
-- every mail document carries `inbox` until the editor reviews it;
-- the parsers run in the Paperless container: unprivileged, Kyverno
-  baseline.
-
-Egress is not a mitigation today. The `paperless` namespace is in audit
-mode (`enforce-default-deny` in
-`infrastructure/network-policies/90-enforcement.yaml` has `ingress: false`
-and `egress: false`), so a crafted PDF that compromises Ghostscript or
-Tesseract has unrestricted egress. Switching it on is step 4 of the
-namespace rollout in that file, not part of this spec.
-
-The residual risk (a sender domain with `p=none`, a provider that accepts a
-forged sender, a leaked address, a compromised parser with open egress)
-gets a row in `docs/threat-model.md` in the closing task.
-
-The CiliumNetworkPolicy `paperless` gets one egress rule: TCP 993 to the
-world (the provider's address is not stable enough for a CIDR). It is
-load-bearing only once egress enforcement is on; it is added now so the
-allow-list is complete when that happens.
-
-### Scanner
-
-None is assumed: the phone app is the scanner. Task 10 is a planned,
-optional task: if a scanner is in use, it sends through the mailbox (scan
-to mail), with a mail rule `scanner` filtered on the scanner's sender
-address. It has the settings of the other mail rules except its tags,
-`source:scan` and `inbox` (not `source:mail`). The owner comes from the
-`owner` workflow, as for all mail. If there is no scanner
-when task 14 starts, task 14 ticks task 10 as not needed. Scan to an SMB folder is left out: it needs an SMB share and a
-NAS user for one device.
+No source tag. Paperless records a web upload as an API upload, the same
+source as the import script and the canary, so a workflow cannot tell them
+apart. Imported documents carry `import:<source>` (see [Import](#import)),
+so a document without it came through the web app; a `source:web` tag
+would add nothing.
 
 ## Settings
 
@@ -163,7 +66,6 @@ Environment changes in `apps/paperless/deployment.yaml`:
 | `PAPERLESS_TIME_ZONE` | `Europe/Zurich` | creation dates near midnight land on the right day | 2 |
 | `PAPERLESS_DATE_ORDER` | `DMY` | explicit (today's default) | 2 |
 | `PAPERLESS_FILENAME_FORMAT` | `{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent }} {{ title }}` | readable files in the media volume and the export | 2 |
-| `PAPERLESS_CONSUMER_POLLING` | `30` | NFS inbox | 7 |
 
 `PAPERLESS_SOCIAL_ACCOUNT_DEFAULT_GROUPS` stays unset: a new Keycloak login
 gets no group, and the configuration Job puts listed accounts into their
@@ -248,7 +150,7 @@ documents stay in the trash for 30 days (`EMPTY_TRASH_DELAY`).
 | --- | --- |
 | Area | `housing`, `car`, `health`, `finance`, `insurance`, `work`, `utilities`, `telecom`, `travel`, `family` |
 | State | `inbox` (Paperless' inbox tag, removed after review), `to-pay`, `tax-relevant`, `private` |
-| Source | `source:phone`, `source:folder`, `source:mail`, `source:scan`, `source:import`, `import:<source>` |
+| Import | `import:<source>`, one per import source (no source tags: [Way in](#way-in-the-web-app)) |
 
 Area tags match on keywords under the same rules (for example `utilities`:
 `électricité Strom electricity "eau potable" Wasserversorgung`); `to-pay`
@@ -302,11 +204,8 @@ nothing after it gives the view back.
 
 | Order | Workflow | Trigger, filter | Actions |
 | --- | --- | --- | --- |
-| 10 | owner | Consumption started, consume folder and mail fetch | owner = the editor; view for group `readers` |
-| 15 | share-api | Consumption started, API upload | view for group `readers` (the owner stays the uploader) |
-| 20 | source-folder | Consumption started, consume folder | tag `source:folder` |
-| 40 | source-phone | Consumption started, API upload | tag `source:phone` |
-| 60 | tax-relevant | Document added, type Tax, Statement, Payslip or Insurance | tag `tax-relevant` |
+| 10 | share | Consumption started, API upload (the web app, the import script, the canary) | view for group `readers` (the owner stays the uploader) |
+| 20 | tax-relevant | Document added, type Tax, Statement, Payslip or Insurance | tag `tax-relevant` |
 | 90 | private | Document added and Document updated, has tag `private` | remove view and change for group `readers` |
 
 The `private` workflow fires on every edit of a private document, so
@@ -318,9 +217,9 @@ again is readable the next morning, or at once through the document's
 permissions dialog. The same pass reverts the other direction: removing
 the readers' view in the permissions dialog lasts until the next night, so
 the `private` tag is the only way to hide a document, and
-`docs/paperless.md` says so. The workflow that carries the editor's username comes
-from the SOPS part of the configuration
-([Configuration as code](#configuration-as-code)).
+`docs/paperless.md` says so. No workflow sets the owner: every upload is
+made as the editor (or as `canary`), so the uploader is already the right
+owner.
 
 ## Configuration as code
 
@@ -331,10 +230,9 @@ fields and saved views, none on workflows, and no change rights, so a sync
 never reverts an edit made in the UI. A new tag or a
 better keyword is an issue or a PR, which an agent can do.
 
-`apps/paperless/config/paperless.json`: the objects above, with the
-workflows that carry no personal data. The SOPS Secret `paperless-config`
-holds the personal part (the editor's and the reader's usernames, the
-household sender addresses) as one key, `config.json`, whose single
+`apps/paperless/config/paperless.json`: the objects above, workflows
+included. The SOPS Secret `paperless-config` holds the personal part (the
+editor's and the reader's usernames) as one key, `config.json`, whose single
 encrypted value is a JSON document. SOPS here encrypts values and leaves
 keys readable, so no username is ever a key.
 
@@ -351,8 +249,6 @@ object is hidden from users without a grant on it. `apply.py` therefore:
 - creates and updates document types, tags, custom fields and saved views
   with `owner: null`, so every account with the model's view permission
   sees them (both groups do; unlisted accounts have no model permissions);
-- creates and updates the mail account and the mail rules with
-  `owner: null` too, the rules with `assign_owner_from_rule` off;
 - puts the listed accounts into `editors` and `readers`, and removes
   accounts that are no longer listed from both;
 - reports every account other than `nedsi-admin`, `automation` and
@@ -406,17 +302,17 @@ Paperless there are two roles:
 
 | Who | Paperless account | Rights | Sees |
 | --- | --- | --- | --- |
-| Editor (the operator) | own Keycloak account, group `editors`, no superuser flag | view, add, change, delete documents and correspondents; view types, tags, custom fields, saved views, mail rules | every document (owner of all) |
+| Editor (the operator) | own Keycloak account, group `editors`, no superuser flag | view, add, change, delete documents and correspondents; view types, tags, custom fields, saved views | every document (owner of all) |
 | Reader | own Keycloak account, group `readers` | view documents, correspondents, types, tags, custom fields, saved views | every document without `private` |
 | Any other Keycloak login | created on first login, no group | none | nothing |
 | `nedsi-admin` | local superuser, break-glass | all | everything; password in `paperless-secrets` |
 | `automation` | superuser, API token only | all | everything (the nightly passes) |
 | `canary` | no group; its own model permissions to add, view and delete documents | as listed | its own canary documents |
 
-Neither group has rights on users, groups, workflows, mail accounts or
-settings. The editor's day-to-day account is not a superuser, so a lost
-phone token reaches documents and correspondents only; administration goes
-through `nedsi-admin`.
+Neither group has rights on users, groups, workflows or settings. The
+editor's day-to-day account is not a superuser, so a stolen editor session
+reaches documents and correspondents only; administration goes through
+`nedsi-admin`.
 
 The 5 existing accounts predate the groups. Task 4 puts the editor's and
 the reader's accounts into their groups from the list in `paperless-config`,
@@ -424,7 +320,7 @@ lists the superuser flag and direct model permissions of every account,
 and clears both on every account other than `nedsi-admin`, `automation`
 and `canary` (the editor's included), the same exemptions as `apply.py`'s
 report. `automation` keeps its superuser flag, which the PostSync Job and
-the nightly passes need, and `canary` (task 11) keeps its direct
+the nightly passes need, and `canary` (task 7) keeps its direct
 permissions.
 Before the flag goes, task 4 proves the break-glass path: `nedsi-admin`
 reaches the admin with `PAPERLESS_REDIRECT_LOGIN_TO_SSO` set. If the
@@ -437,21 +333,19 @@ operator, since it cannot be undone.
 What one editor removes. With every document owned by one account, the
 document's owner can always see every type, tag and correspondent, so
 matching never misses an object because of its owner. There is no second
-owner whose correspondents the first cannot see, and the scanner needs no
-owner of its own: the consume folder and mail get the editor from the
-`owner` workflow, and API uploads (the phone, the import script) use the
-editor's token. The remaining
-visibility question is the reader's, and `owner: null` on the taxonomy plus
-the correspondent pass answer it.
+owner whose correspondents the first cannot see: the web app and the
+import script both upload as the editor. The remaining visibility question
+is the reader's, and `owner: null` on the taxonomy plus the correspondent
+pass answer it.
 
 Group sync from Keycloak (`PAPERLESS_SOCIAL_ACCOUNT_SYNC_GROUPS`) is not
 needed: Keycloak decides who logs in, and the member list in SOPS decides
 the Paperless role.
 
-The API is public at `archive.lilalala.com/api/` and accepts tokens without
-Keycloak; that is what the phone apps need. Task 8 (phone and API) checks
-whether it also accepts the local admin password over basic auth from the
-internet; if so, that is a new security issue, not part of this spec.
+The API is public at `archive.lilalala.com/api/`, because the web app runs
+on it. Task 4 checks whether it also accepts the local admin password over
+basic auth from the internet; if so, that is a new security issue, not
+part of this spec.
 
 ## Import
 
@@ -491,19 +385,21 @@ with the outcome.
 
 The local import directory is `~/homelab-backups/paperless-import/`, one
 subdirectory per source (`seafile/` from task 1, then whatever the operator
-adds: a Mac folder, a cloud drive download, scanned boxes). The subdirectory
-name, which goes into git and so must be generic (`seafile`, `mac`,
-`scans`), becomes the `import:<source>` tag. Task 12 adds the tags of the
+adds: a Mac folder, a cloud drive download, an external disk). The
+subdirectory name, which goes into git and so must be generic (`seafile`,
+`mac`, `drive`), becomes the `import:<source>` tag. Task 8 adds the tags of the
 sources present then to `paperless.json`; a source added later gets its
 tag in a one-line PR before its batch. `apply.py` creates them without an
 owner, so the reader sees them and the editor needs no right to create
 tags.
 
 `scripts/paperless-import.py` (stdlib): walks one source subdirectory,
-looks up `source:import` and `import:<source>` by name and stops before the
-first upload if either is missing, uploads each file through
-`/api/documents/post_document/` with the editor's token and both tags,
-follows each consumption task to its result, and writes a local report
+looks up `import:<source>` by name and stops before the first upload if it
+is missing, uploads each file through `/api/documents/post_document/` with
+the tag, as the editor (an API token of the editor's account, read from the
+environment, created in the web UI for the batches of task 9 and deleted
+after the last one), follows each consumption task to its result, and
+writes a local report
 (path, document id, created, duplicate, failed with reason). Folder names
 do not become tags: they would add unreviewed tags owned by the editor,
 which the reader cannot see and `apply.py` reports as unmanaged; the path
@@ -539,7 +435,7 @@ consistent copy while Paperless keeps writing.
 Why the exporter reads the copy. The copy keeps WAL mode, so its reader
 also needs a writable directory, which the emptyDir gives. The copy, the
 export and the `export-meta.json` count then come from one point in time,
-so a mail fetch or a phone upload at 02:30 cannot make the restore test's
+so an upload at 02:30 cannot make the restore test's
 counts differ. Paperless' startup path check also wants a writable media
 root, and `/media` stays read-only: the exporter runs with Django's
 `--skip-checks`. Task 5 verifies on 3.4.1 that `document_exporter` accepts
@@ -571,17 +467,15 @@ from the Mac; it would give a CronJob `pods/exec` rights in the namespace.
 The export passphrase is in the SOPS Secret `paperless-export` (key
 `passphrase`), with a copy in `backup-verify` for the restore test, and no
 other copy. It encrypts only the sensitive fields of `manifest.json` (the
-mail account password, social account tokens): the documents and all other
+social account tokens of the Keycloak logins): the documents and all other
 metadata stay plain, so the export is readable without the passphrase.
-Losing it loses only the mail credential in old exports, which a new app
-password replaces.
+Losing it loses only those fields in old exports, which a new Keycloak
+login replaces.
 
-The restore test runs no worker and no beat, so the imported mail account
-is never polled. That is the only guard: `backup-verify` has no
-CiliumNetworkPolicy (`infrastructure/network-policies/kustomization.yaml`
-lists it as not covered), so its pods have open egress. If
-`document_importer` needs a broker, task 6 adds a
-throwaway Valkey in the same pod, still with no worker.
+The restore test runs no web server, worker or beat: it needs only
+`migrate`, the importer and a count. If `document_importer` needs a
+broker, task 6 adds a throwaway Valkey in the same pod, still with no
+worker.
 
 The export is where "never locked in" comes from: `restic restore --tag
 paperless-export` gives plain files and a JSON manifest without Paperless.
@@ -612,24 +506,24 @@ paperless-export|s3:paperless/media|paperless-export|/export/manifest.json
 
 The canary `paperless-canary` (every 6 hours at 01:00, 07:00, 13:00 and
 19:00, clear of the 02:30 backup; paperless image, user `canary`): draws a
-one-page image with a random 12-digit token in a large font (digits only,
+one-page image with a random 12-digit number in a large font (digits only,
 so no look-alike letters such as `0/O` or `1/l/I`), converts it to PDF
 (PIL and `img2pdf`, both in the image) so OCR has to read it, uploads it,
-polls `/api/documents/?query=<token>` until found, records the seconds,
+polls `/api/documents/?query=<number>` until found, records the seconds,
 deletes the document and empties it from the trash, and pushes
 `paperless_canary_success` and `paperless_canary_duration_seconds` to the
 Pushgateway in `backup-verify`. Two alerts, each with a promtool test and a
 runbook: `PaperlessIngestFailing` (no success for 13 hours) and
 `PaperlessIngestSlow` (above 300 s twice in a row). Both `action: human`.
 
-The canary uploads through the API as `canary`, so it owns its page and can
-delete it: the `owner` workflow only acts on the consume folder and mail.
-`share-api` lets the readers see the page for the minutes it exists; it is
-a generated page with a random token, so that is accepted.
+The canary uploads through the API as `canary`, with the API token in the
+SOPS Secret `paperless-canary`, so it owns its page and can delete it. The
+`share` workflow lets the readers see the page for the minutes it exists;
+it is a generated page with a random number, so that is accepted.
 
-The canary covers API, queue, OCR and index. The transport legs (Syncthing,
-mail polling) are tested by hand once in their tasks; the 10-page and mail
-numbers of Requirement 10 are checked there too.
+The canary covers the API, the queue, OCR and the index: the path a web
+upload takes once it leaves the browser. The 10-page number of
+Requirement 7.1 is checked by hand in task 2.
 
 The CiliumNetworkPolicy `paperless` gets the canary's egress to the
 Pushgateway (`backup-verify`, TCP 9091), so the allow-list is complete when
@@ -662,10 +556,6 @@ is no ingress rule to add. The CronJob is listed in
   against `fra` alone, and sets a memory request from the result; the canary watches the
   5-minute limit; a bulk import runs in daytime batches. If pages run too
   slow, dropping the least used language is one line in git.
-- **NFS.** The inbox depends on the NAS like the media library; a NAS
-  outage already pages (`HomelabNASUnreachable`, `HomelabNASDown`).
-- **Forged mail.** See [Mail](#mail); the residual risk is in
-  `docs/threat-model.md`.
 
 ## Known limits
 
