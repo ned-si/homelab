@@ -381,6 +381,22 @@
       allowedVersions: '<0.13.0',
     },
     {
+      // The custom-components init container installs these with uv, and the
+      // Home Assistant image sets UV_EXTRA_INDEX_URL to HA's musllinux wheel
+      // index. uv takes a package from the first index that lists it, so a
+      // release PyPI has but that index has not built yet fails the install
+      // and Home Assistant does not start (joserfc 1.8.0, #988, 2026-11-03).
+      // The index usually catches up within hours; 3 days leaves a margin.
+      // The rendered copy in deploy/ carries the same annotations.
+      description: 'Home Assistant pip pins wait 3 days for its wheel index',
+      matchDatasources: ['pypi'],
+      matchFileNames: [
+        'apps/home/home-assistant.yaml',
+        'deploy/apps/home/deployment-home-assistant.yaml',
+      ],
+      minimumReleaseAge: '3 days',
+    },
+    {
       // A CNPG major runs pg_upgrade: new system ID, timeline back to 1. The
       // Barman Cloud plugin does not separate archives, so the upgraded
       // cluster's WAL would overwrite the old timeline-1 files in
