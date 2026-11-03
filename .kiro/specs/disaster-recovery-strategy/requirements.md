@@ -309,12 +309,13 @@ without changing anything at home or in the backups.
    (`scripts/dr-rehearsal.sh` preflight;
    repo-policy: `components/site-dr-drill/secrets/` sealed to the
    rehearsal key)
-8. WHEN a drill ends, pass or fail, `eu-central-1` SHALL hold no instance,
-   load balancer, Elastic IP or EBS volume tagged `dr-site=homelab-dr`, and
-   no EBS volume tagged `ebs.csi.aws.com/cluster=true`; the EBS CSI driver
-   SHALL tag every volume it creates with `dr-site=homelab-dr`
-   (`extraVolumeTags`). (the drill's exit trap, `scripts/dr-sweep.sh`; the
-   daily leftover check)
+8. WHEN a drill ends, pass or fail, `eu-central-1` SHALL hold no
+   resource tagged `dr-mode=drill`; the EBS CSI driver SHALL tag every
+   volume it creates with `dr-site=homelab-dr` and the site's `dr-mode`
+   (`extraVolumeTags`: `site` in `components/site-dr`, `drill` in
+   `components/site-dr-drill`). (the drill's exit trap,
+   `scripts/dr-sweep.sh --delete`; the daily leftover check; repo-policy
+   over both renders)
 9. A DRILL's Cloudflare token SHALL be created for that drill, limited to
    the drill nodes' public addresses, expire within 12 h, be deleted when
    the drill ends, and never be written to git. (`scripts/dr-rehearsal.sh`;
@@ -353,29 +354,36 @@ design work on the day of the loss and costs nothing until then.
    publishes, a Network Load Balancer with one Elastic IP in front of the
    Gateway node, the security groups, the instance profile the EBS CSI
    driver needs, and nothing else, every resource tagged
-   `dr-site=homelab-dr`. Block volumes SHALL come from the EBS CSI driver
-   when a claim asks. (`tofu validate` in CI; review)
+   `dr-site=homelab-dr` and `dr-mode=<workspace>`. A drill SHALL apply in
+   the state workspace `drill` and a real loss in `site`; the module SHALL
+   refuse any other workspace. Block volumes SHALL come from the EBS CSI
+   driver when a claim asks. (`tofu validate` in CI; review)
 2. THE `tofu` workflow SHALL NOT plan or apply the module; CI SHALL run
    `tofu fmt -check` and `tofu validate` on it.
    (`.github/workflows/tofu.yaml`, `.github/workflows/ci.yaml`)
 3. A real loss SHALL be declared by the file `ci/dr-site-lost.txt` (the
    UTC date and the tracking issue), added by step 0 of `site-lost.md` and
-   removed by the return home. IF resources tagged `dr-site=homelab-dr`
-   (or EBS volumes tagged `ebs.csi.aws.com/cluster=true`) are older than
-   24 h and the file is absent, OR the file is older than 24 h and no such
-   resource exists, THEN the daily `tofu` run SHALL fail and notify ntfy
-   once. A drill SHALL refuse to start while the file exists.
+   removed by the return home. THE daily `tofu` run SHALL fail and notify
+   ntfy once IF a resource tagged `dr-mode=drill` is older than 24 h
+   (a drill lasts at most 12 h), OR a resource tagged `dr-mode=site`, or
+   an EBS volume tagged `ebs.csi.aws.com/cluster=true` without `dr-mode`,
+   is older than 24 h and the file is absent, OR the file is older than
+   24 h and no resource tagged `dr-mode=site` exists. A drill SHALL refuse
+   to start while the file exists.
    (`.github/workflows/tofu.yaml`, `scripts/dr-sweep.sh --check`; their
    tests; repo-policy `dr-site-lost`)
 4. THE DR site SHALL deploy from the same sources as home: only the site
    overlay differs, and the home render SHALL not change because of it.
    (`task render:check`; repo-policy over the DR render)
 5. THE Talos and Kubernetes APIs of the DR nodes SHALL accept connections
-   only from `var.operator_cidr` until the nodes join the tailnet; in a
-   drill, the Gateway and Syncthing ports SHALL also accept connections
-   from `var.operator_cidr` only, at the NLB's security group, and the
-   nodes SHALL accept them only from the NLB. (the module's security
-   groups; review)
+   only from `var.operator_cidr`, and only while it is set. In a real loss,
+   THE restore order SHALL close them once `talosctl` and `kubectl` reach
+   the DR site over the tailnet: a re-apply with `operator_cidr` empty,
+   which removes the two rules. A drill joins no tailnet, so its rules stay
+   until `tofu destroy`. In a drill, the Gateway and Syncthing ports SHALL
+   also accept connections from `var.operator_cidr` only, at the NLB's
+   security group; the nodes SHALL accept them only from the NLB. (the
+   module's security groups; `docs/runbooks/site-lost.md` step 8; review)
 6. THE runbook `docs/runbooks/site-lost.md` SHALL give the restore order:
    the declaration, the module, Talos and the upgrade to the DR schematic,
    Argo CD, the infrastructure layer, `keycloak-db` and Keycloak, tier 1, tier 2,
@@ -387,6 +395,24 @@ design work on the day of the loss and costs nothing until then.
    machine without the Mac; the quarterly break-glass check SHALL run
    `tofu plan` on the module from those sources.
    (`docs/runbooks/site-lost.md`; `scripts/dr-offsite-check.sh`)
+8. THE drill's cleanup SHALL NOT be able to delete the real-loss site,
+   whether the declaration has merged or not: the drill's exit trap SHALL
+   run `tofu destroy` in the `drill` workspace only;
+   `scripts/dr-sweep.sh --delete` SHALL delete only detached EBS volumes
+   tagged `dr-mode=drill`. THE only path to the site's volumes SHALL be
+   `scripts/dr-sweep.sh --delete --return-home`, which SHALL refuse unless
+   `ci/dr-site-lost.txt` exists on `origin/main` and the `site`
+   workspace's state is empty; `site-lost.md` uses it once, in the return
+   home, after the final `tofu destroy`. (`scripts/dr-sweep.sh` and its
+   bash test: `--delete` leaves `dr-mode=site` volumes, volumes without
+   `dr-mode` and attached volumes; `--return-home` refuses without the
+   declaration or with a non-empty `site` state; `scripts/dr-rehearsal.sh`
+   and its test: the trap never selects `site`)
+9. ON the DR site, only the EBS CSI driver's pods SHALL reach the
+   instance metadata address `169.254.169.254`, where the instance
+   profile's credentials are served; every other pod SHALL be denied by
+   Cilium. (`components/site-dr`; repo-policy over the DR render; the
+   drill checks it from a pod at step 4)
 
 ## Decided questions
 
@@ -438,8 +464,9 @@ site in the cloud built by `bootstrap/dr-cloud/`, rehearsed as a timed drill
 with its cost tracked. Settled in the design, on the recommended default:
 the house-lost RTO keeps 24 h for tiers 0 and 1 and 72 h for tier 2; #723 is
 tasks 6 and 9 here; the DR site reuses the StorageClass names `iscsi` and
-`iscsi-retain`; the DR shape leaves out theater, SigNoz and the Home
-Assistant stack, and `backup-verify`'s Postgres restore (attach limit);
+`iscsi-retain`; the DR shape leaves out theater, SigNoz with Vector and
+the SigNoz alert rules, the Home Assistant stack, and `backup-verify`'s
+Postgres restore (attach limit);
 a loss longer than two weeks moves to the Full shape; `immich-data` is
 500Gi on the DR site; the nodes boot Sidero Labs' AMI and are upgraded to
 the DR schematic, with no image built or kept; the Gateway sits behind a

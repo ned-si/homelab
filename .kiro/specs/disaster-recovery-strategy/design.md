@@ -92,7 +92,7 @@ The input to the cost estimate, read on 2026-11-03.
 | CPU used | 7.6 cores: cp-1 1.68, cp-2 2.72, cp-3 1.85, w-1 1.36 | `kubectl top nodes` |
 | Memory used | 28.2 GiB: 5.9, 7.1, 7.9 and 7.3 GiB | `kubectl top nodes` |
 | Used by pods | 4.2 cores, 24.1 GiB over 118 pods | `kubectl top pods -A` |
-| Requests | 9.3 CPU, 27.3 GiB; of which theater 2.2 CPU and 6.0 GiB, immich 2.2 and 5.5, kube-system 1.2 and 2.8, signoz 0.6 and 2.3, home 0.16 and 0.8 | `kube_pod_container_resource_requests`; `home` from the pod specs |
+| Requests | 9.3 CPU, 27.3 GiB; of which theater 2.2 CPU and 6.0 GiB, immich 2.2 and 5.5, kube-system 1.2 and 2.8, signoz 0.6 and 2.3, home 0.16 and 0.8, logging (Vector, 4 pods of 20m and 128Mi) 0.08 and 0.5 | `kube_pod_container_resource_requests`; `home` and `logging` from the pod specs |
 | Block volumes, provisioned | 2,557 GiB in 35 iSCSI claims, `immich-data` 2,048 GiB of it; the two Seafile claims (110 GiB, an archive until 2026-11-16) left out | `kubectl get pvc -A` |
 | Claims per namespace | theater 15, signoz 3, home 3, immich 3, paperless 3, books 2, mealie 2, monitoring 2, keycloak 1, syncthing 1 | `kubectl get pvc -A` |
 | Block volumes, used | 421 GiB: immich 349, signoz 31, monitoring 20, theater 17, the rest under 2 each | `kubelet_volume_stats_used_bytes` |
@@ -112,7 +112,7 @@ in 17.6 days, and a few evenings of films would multiply that.
 | Shape | Nodes | Total | Fits |
 | --- | --- | --- | --- |
 | Full: the current cluster, always on | 3 control planes of 2 vCPU and 8 GiB that also run workloads (`allowSchedulingOnControlPlanes: true`, as at home), 1 worker of 8 vCPU and 32 GiB. Hetzner: 4 and 8, 16 and 32 | 14 vCPU, 56 GiB (Hetzner 28 vCPU, 56 GB) | requests 9.3 CPU and 27.3 GiB; 7.6 RK1 cores used, half of them Cortex-A55 |
-| DR: one node, for a drill or a short loss | 1 node of 8 vCPU and 32 GiB (Hetzner 16 and 32) | 8 vCPU, 32 GiB | requests without theater, SigNoz and the Home Assistant stack, the parts the DR shape leaves out: 6.3 CPU, 18.3 GiB |
+| DR: one node, for a drill or a short loss | 1 node of 8 vCPU and 32 GiB (Hetzner 16 and 32) | 8 vCPU, 32 GiB | requests without theater, SigNoz, Vector and the Home Assistant stack, the parts the DR shape leaves out: 6.2 CPU, 17.8 GiB |
 
 Storage:
 
@@ -139,8 +139,9 @@ Volume attach limits, which the CSI drivers report to the scheduler:
 
 The 15 are the 14 claims of the DR shape and the ebook library claim. The
 DR shape leaves out the one workload that adds claims at run time:
-`backup-verify`'s weekly Postgres restore (`scripts/verify-postgres.sh`
-creates one `iscsi` volume per restored cluster), which would take up to 8
+`backup-verify`'s weekly Postgres restore
+(`platform/backup-verify/scripts/verify-postgres.sh` creates one `iscsi`
+volume per restored cluster), which would take up to 8
 of the 11 free slots during its run and leave too little margin for a
 volume being replaced. Its restic checks stay; they restore into an
 `emptyDir`.
@@ -458,15 +459,22 @@ It works, with three amendments:
    modules it names (`bootstrap/aws-backup`, `bootstrap/github-oidc`,
    `bootstrap/tofu-state`). `bootstrap/dr-cloud/` stays out of that list; CI
    runs `tofu fmt -check` and `tofu validate` on it. A daily check fails,
-   and so notifies ntfy, when DR resources older than 24 h exist in
-   `eu-central-1` and no real loss is declared, so a forgotten drill does
+   and so notifies ntfy, when a drill's resources are older than 24 h, or
+   a site's exist in `eu-central-1` with no real loss declared, so a forgotten drill does
    not run up $397 a month (the DR shape). The check and the declaration
    are in [Leftover check and the real-loss
    declaration](#leftover-check-and-the-real-loss-declaration).
 
-The module's state lives in the existing state bucket. If the AWS account is
-gone too, the state is empty anyway in normal times: `tofu init` with a
-local backend starts from nothing.
+The module's state lives in the existing state bucket, in two workspaces:
+`drill` for a drill and `site` for a real loss. Two states keep the two
+apart: a drill's cleanup destroys the `drill` state and cannot reach a
+site applied during it ([Cleanup that cannot reach the
+site](#cleanup-that-cannot-reach-the-site)). The module refuses the
+`default` workspace (a `check` on `terraform.workspace`) and derives the
+drill switches from the workspace name, so there is no `drill` variable
+to get wrong. If the AWS account is gone too, both states are empty
+anyway in normal times: `tofu init` with a local backend starts from
+nothing.
 
 ### What the module creates
 
@@ -475,12 +483,12 @@ All in `eu-central-1`, one zone (`var.zone`, default `eu-central-1a`).
 | Resource | What |
 | --- | --- |
 | Network | a VPC, one public subnet, an internet gateway and its route; no NAT gateway |
-| Nodes | `m7g.large` control planes and an `m7g.2xlarge` worker (Full shape) or one `m7g.2xlarge` (DR shape, `var.shape`); the Talos arm64 AMI that Sidero Labs publishes for the region and the pinned Talos version (default schematic), moved to the DR schematic after boot ([Talos](#talos)); a 32 GiB gp3 root volume; IMDSv2 required, with a hop limit of 2 so the EBS CSI pods reach the instance metadata |
-| Gateway | an internet-facing Network Load Balancer in the subnet, with one Elastic IP in its subnet mapping; TCP listeners on 80 and 443 and a `TCP_UDP` listener on 22000 (Syncthing), each to a target group with the Gateway node as its instance target and a TCP health check; its own security group |
+| Nodes | `m7g.large` control planes and an `m7g.2xlarge` worker (Full shape) or one `m7g.2xlarge` (DR shape, `var.shape`); the Talos arm64 AMI that Sidero Labs publishes for the region and the pinned Talos version (default schematic), moved to the DR schematic after boot ([Talos](#talos)); a 32 GiB gp3 root volume; IMDSv2 required, with a hop limit of 2 so the EBS CSI pods reach the instance metadata, and every other pod fenced off by Cilium ([Instance metadata](#instance-metadata)) |
+| Gateway | an internet-facing Network Load Balancer `homelab-dr-<workspace>` in the subnet, with one Elastic IP in its subnet mapping; TCP listeners on 80 and 443 and a `TCP_UDP` listener on 22000 (Syncthing), each to a target group with the Gateway node as its instance target and a TCP health check; its own security group |
 | Addresses | the NLB's Elastic IP, the address external-dns publishes in a real loss; an auto-assigned public IPv4 on each node for egress (S3, image pulls, Let's Encrypt), also the addresses the drill's Cloudflare token is limited to |
 | CSI permission | an instance profile with the AWS-managed `AmazonEBSCSIDriverPolicy`; nothing else |
-| Security groups | nodes: 50000 (Talos) and 6443 (Kubernetes) from `var.operator_cidr` only, all traffic between the nodes, and 80, 443 and 22000 from the NLB's security group only. NLB: 80, 443 and 22000 from anywhere in a real loss, from `var.operator_cidr` only in a drill (`var.drill`) |
-| Tags | provider `default_tags`: `dr-site=homelab-dr` and `dr-drill=<date>` on every resource |
+| Security groups | nodes: 50000 (Talos) and 6443 (Kubernetes) from `var.operator_cidr` only, and no rule at all when it is empty (allowed in `site` only; `drill` refuses an empty value) (step 8 of the [Restore order](#restore-order) empties it once the tailnet is up); all traffic between the nodes; 80, 443 and 22000 from the NLB's security group only. NLB: 80, 443 and 22000 from anywhere in the `site` workspace, from `var.operator_cidr` only in `drill` |
+| Tags | provider `default_tags`: `dr-site=homelab-dr` and `dr-mode=<workspace>` (`drill` or `site`) on every resource |
 | Outputs | node private and public addresses, the NLB's Elastic IP |
 
 The NLB, rather than the AWS Load Balancer Controller: the module creates
@@ -492,15 +500,49 @@ provider integration that Talos does not run here. The cost is that the
 Gateway node is fixed: when it is replaced, `tofu apply` re-registers the
 new one.
 
+### Instance metadata
+
+The EBS CSI driver gets its AWS credentials from the instance profile
+through the instance metadata service (IMDSv2). Its controller and node
+pods run in pod networks, one hop further than the node, so the module
+sets the hop limit to 2. That also lets every other pod on the node fetch
+the same credentials: `AmazonEBSCSIDriverPolicy` can detach and delete the
+volumes the DR site runs on, in the account that holds the backups.
+
+The fence is a Cilium deny, in `components/site-dr`, in both modes: two
+`CiliumClusterwideNetworkPolicy` objects with `egressDeny` to
+`169.254.169.254/32` and `enableDefaultDeny` off for ingress and egress,
+so they add the deny and change nothing else. One selects every pod
+outside `kube-system`; the other selects the `kube-system` pods without
+`app.kubernetes.io/name: aws-ebs-csi-driver`, the label the chart puts on
+the driver's pods. Cilium enforces deny rules over any allow rule. Pods on
+the host network are the node itself and keep access: Cilium, its Envoy
+and the node exporter, the same set as at home; the Kyverno baseline
+(`disallow-host-namespaces`) keeps every other pod off the host network.
+Repo-policy over the DR render checks both objects; the drill checks from
+a pod in `default` that a `PUT` to `169.254.169.254/latest/api/token`
+times out, and that the driver's controller is Running with its
+credentials.
+
+Rejected: a hop limit of 1 with the driver's pods on the host network.
+The chart runs them in pod networks by default, the Kyverno baseline
+denies host networking, so it needs a second PolicyException, and it
+gives the driver's pods the node's network for no other gain. A static
+access key in a Secret was rejected too: a long-lived AWS key sealed in a
+public repository.
+
 ### StorageClasses and the EBS CSI driver
 
 The DR infrastructure layer installs the `aws-ebs-csi-driver` Helm chart in
 place of democratic-csi, with `controller.region: eu-central-1` and
-`controller.extraVolumeTags: {dr-site: homelab-dr}`. The driver also tags
-every volume it creates with `ebs.csi.aws.com/cluster=true`. Both tags make
+`controller.extraVolumeTags: {dr-site: homelab-dr, dr-mode: site}`;
+`components/site-dr-drill` sets `dr-mode: drill`. The driver also tags
+every volume it creates with `ebs.csi.aws.com/cluster=true`. The tags make
 the volumes that no tofu state holds visible to the sweep, the leftover
-check and the cost report ([Leftover check and the real-loss
-declaration](#leftover-check-and-the-real-loss-declaration)).
+check and the cost report, and `dr-mode` tells a drill's volumes from the
+site's ([Cleanup that cannot reach the
+site](#cleanup-that-cannot-reach-the-site)). Repo-policy checks the value
+in both renders.
 
 | Name | Home | DR site |
 | --- | --- | --- |
@@ -510,7 +552,7 @@ declaration](#leftover-check-and-the-real-loss-declaration)).
 
 The names stay so that no app manifest changes; the overlay says what backs
 them. A volume kept by `iscsi-retain` after its claim is gone still carries
-both tags, which is why the sweep looks for tags and not for the module's
+its tags, which is why the sweep looks for tags and not for the module's
 state.
 
 ### Talos
@@ -565,10 +607,11 @@ state.
 | Storage | democratic-csi iSCSI on the NAS; classes `iscsi` and `iscsi-retain` | the EBS CSI driver; two gp3 classes with the same names, Delete and Retain ([StorageClasses and the EBS CSI driver](#storageclasses-and-the-ebs-csi-driver)) | overlay: democratic-csi, `iscsi-volumes`, `nfs-storage` and `truenas-exporter` out; `aws-ebs-csi-driver` and the two classes in |
 | Pinned volumes | static PVs in `infrastructure/iscsi-volumes/`; `volumeName` in the claims of Mealie, Paperless, Syncthing and the theater apps | dynamic | overlay removes `volumeName` from those claims |
 | `immich-data` size | 2Ti on the NAS (`apps/immich/resources/library-pvc.yaml`), 349 GiB used | 500Gi, grown online when `KubePersistentVolumeFillingUp` fires; cloud volumes grow but never shrink | overlay patch; the restore Job refuses to start when the restic snapshot is larger than 90% of the claim |
-| Apps left out of the DR shape | everything runs | theater (nothing to restore without the media library), SigNoz (logs only, starts empty), Home Assistant, its database, Mosquitto and Zigbee2MQTT (useless without the house) | overlay: their Applications out of the DR render; a long loss adds them back in a pull request, theater with the media library |
+| Apps left out of the DR shape | everything runs | theater (nothing to restore without the media library); SigNoz (logs only, starts empty) and with it Vector, which ships only to `signoz-otel-collector.signoz` and would buffer, then discard; Home Assistant, its database, Mosquitto and Zigbee2MQTT (useless without the house); `lan-inventory`, which scans the home LAN | overlay: their Applications out of the DR render; a long loss adds them back in a pull request, theater with the media library |
 | Media share | NFS `192.168.1.228:/mnt/homelab/k8s/nfs/media`, inline in the theater and books apps | theater left out (nothing to restore); the books apps get their library from restic into a claim | overlay; if the house is gone for months, the media library goes on one `ReadWriteOnce` volume and the theater pods follow it to that node |
 | The NAS's own backups | `backup-local` PVs: the second Immich repository, `backup-verify`'s copy | none | overlay: the NAS targets out |
-| NAS alerts | `HomelabNASDown`, `NASPool*` | would page for a NAS that is gone | overlay: those rules out |
+| Alerts for what the DR site does not run | `HomelabNASDown`, `NASPool*`; the PrometheusRule `homelab-signoz` (`platform/kube-prometheus-stack/routes/signoz-trial.yaml`: `LogPipelineDiscarding`, `SigNozCollectorAbsent`); `platform/kube-prometheus-stack/routes/lan-alerts.yaml` (`LANDeviceUnreachable`, `LANNewDeviceSeen`, `LANInventoryFailing`, `LANInventoryAbsent`) | each is `action: human` and would page, once and then every 24 h, for a NAS, a collector or a LAN that is not there: `SigNozCollectorAbsent` and `LogPipelineDiscarding` after 1 h, `LANDeviceUnreachable` after 10 min | overlay: those rules out; repo-policy over the DR render fails on any of them |
+| Instance metadata | none (no cloud) | only the EBS CSI driver's pods reach `169.254.169.254` ([Instance metadata](#instance-metadata)) | overlay: two `CiliumClusterwideNetworkPolicy` objects with `egressDeny` |
 | DNS | external-dns `--default-targets` set to the WAN IP, upsert-only | the NLB's Elastic IP from the module's outputs, still A records (real loss); external-dns not deployed (drill) | overlay value |
 | Resolution of `*.lilalala.com` inside the cluster | public DNS: the WAN address, back in through the Gateway | real loss: public DNS, which points at the DR Gateway. Drill: public DNS still points home, so the nodes' host DNS answers every `lilalala.com` name with the DR Gateway node's private address | none in GitOps: the drill-only Talos patch `talos/dr/drill/static-hosts.yaml` ([Talos](#talos)); Talos's CoreDNS is kept in both modes |
 | OIDC | every client uses the issuer `https://auth.lilalala.com/realms/homelab` (Argo CD, Grafana, Headlamp, Immich, Mealie, Paperless) | the DR Keycloak, through the resolution above; never the production Keycloak | drill component: the egress rules that allow Keycloak through `world` (`infrastructure/network-policies/20-immich.yaml` describes the split-horizon case) get the Gateway node as well |
@@ -580,14 +623,16 @@ state.
 What has to be parameterised, in short: node and endpoint addresses (the
 DR talhelper config, from the module's outputs), how the Gateway and the
 two pinned services are exposed (the NLB in front of the host-network
-Gateway), the CSI driver behind the two StorageClass names, the size of `immich-data`, the external-dns target, the set of
-components and apps (the NAS-bound ones and the ones the DR shape leaves
-out), each CNPG cluster's bootstrap and `serverName`, and the rehearsal
+Gateway), the CSI driver behind the two StorageClass names and its
+`dr-mode` volume tag, the size of `immich-data`, the external-dns target,
+the set of components, apps and alert rules (the NAS-bound and LAN-bound
+ones and the ones the DR shape leaves out), the metadata fence, each CNPG
+cluster's bootstrap and `serverName`, and the rehearsal
 switches (the network-policy exception, no tailnet, no notifications, the
 Secrets sealed to the rehearsal key). Name resolution in a drill is a Talos
 patch, outside the GitOps tree. Everything else stays as it is: the apps' manifests and
 charts, the Kyverno policies (plus the `syncthing-dr` exception), the
-Keycloak realm, the alert rules (minus the NAS ones).
+Keycloak realm, the alert rules (minus the NAS, SigNoz and LAN ones).
 
 Layout: `clusters/dr/` (root, layers and Applications, the same AppProjects)
 pointing at a DR render built by `scripts/render-deploy.sh` from the same
@@ -615,11 +660,14 @@ source that does not need it:
 git clone https://github.com/ned-si/homelab && cd homelab
 aws login --profile homelab --region eu-central-1
 scripts/tofu.sh bootstrap/dr-cloud init
+scripts/tofu.sh bootstrap/dr-cloud workspace select -or-create site
 scripts/tofu.sh bootstrap/dr-cloud apply -var shape=<dr|full> \
-  -var operator_cidr=<your-public-ip>/32 -var drill=<true|false>
+  -var operator_cidr=<your-public-ip>/32
 ```
 
-`apply` prints the node addresses and the NLB's Elastic IP. If the AWS account is lost
+A real loss uses the workspace `site`; `scripts/dr-rehearsal.sh` selects
+`drill` itself and is the only thing that does. `apply` prints the node
+addresses and the NLB's Elastic IP. If the AWS account is lost
 as well, there is no state bucket: copying
 `bootstrap/dr-cloud/backend_override.tf.example` to `backend_override.tf`
 switches to a local backend, and `tofu` runs directly with
@@ -635,16 +683,20 @@ The order of `docs/runbooks/site-lost.md`; the drill timestamps every step.
 | Step | What | Done when | Timer |
 | --- | --- | --- | --- |
 | 0 | Declare the site lost (requirement 1.4): a pull request that adds `ci/dr-site-lost.txt` ([Leftover check and the real-loss declaration](#leftover-check-and-the-real-loss-declaration)); a drill skips this step and starts its timer instead | the declaration merged; T0 is when its pull request opens | T0 |
-| 1 | `tofu apply` in `bootstrap/dr-cloud/` ([Applying the module](#applying-the-module)) | nodes running, NLB targets registered, outputs printed | provision |
+| 1 | `tofu apply` in `bootstrap/dr-cloud/`, workspace `site` (real loss) or `drill` ([Applying the module](#applying-the-module)) | nodes running, NLB targets registered, outputs printed | provision |
 | 2 | `talhelper genconfig` with `talos/dr/`, `talosctl apply-config` (a drill adds `--config-patch @talos/dr/drill/static-hosts.yaml`), `talosctl bootstrap`, `talosctl kubeconfig` | every node `Ready`; in a drill, `auth.lilalala.com` resolves to the DR Gateway from a pod | Talos |
 | 2a | `talhelper gencommand upgrade` with `talos/dr/`, one node at a time, from the Sidero AMI to the DR schematic | every node on the DR schematic and `Ready` | Talos |
 | 3 | `tofu apply` in `bootstrap/` with the DR tfvars: Argo CD, the age key (a drill: the rehearsal key), the root Application; a drill also creates its Cloudflare token and the Secret `cloudflare-drill-token` | Argo CD syncing | Argo CD |
-| 4 | Infrastructure layer: Cilium, cert-manager, the EBS CSI driver and the two classes, the Gateway | the layer Healthy; the NLB's targets healthy | tier 0 |
+| 4 | Infrastructure layer: Cilium with the metadata fence, cert-manager, the EBS CSI driver and the two classes, the Gateway | the layer Healthy; the NLB's targets healthy; in a drill, a pod in `default` cannot reach `169.254.169.254` | tier 0 |
 | 5 | CNPG operator; `keycloak-db` recovered from Barman; Keycloak | `auth` DR probe green | tier 1 starts |
 | 6 | `immich-db` from Barman; the Immich library from restic `immich/library` into `immich-data` (about 300 GiB, the long step); Paperless and Syncthing from restic | `media`, `archive` and `syncthing` DR probes green | tier 1 |
 | 7 | Mealie and the remaining databases; the books apps | `cook` DR probe green | tier 2 |
-| 8 | Real loss: backups on with new `serverName`s and restic hosts; external-dns points the public names at the NLB's Elastic IP | `BackupNotFresh` clear | |
-| 9 | Drill: write the row, delete the Cloudflare token, then `tofu destroy` and `scripts/dr-sweep.sh --delete` | the module's state empty; `scripts/dr-sweep.sh --check` finds nothing | cost |
+| 8 | Real loss: backups on with new `serverName`s and restic hosts; external-dns points the public names at the NLB's Elastic IP; once `talosctl` reaches `talos-dr-<n>` and `kubectl` reaches the API over the tailnet (the Tailscale operator's proxy), `tofu apply` in `site` with `-var operator_cidr=` (empty), which removes the 50000 and 6443 rules | `BackupNotFresh` clear; the node security group has no rule from outside the VPC except the NLB's | |
+| 9 | Drill: write the row, delete the Cloudflare token, then `tofu destroy` in the `drill` workspace and `scripts/dr-sweep.sh --delete` | the `drill` state empty; `scripts/dr-sweep.sh --check` finds nothing tagged `dr-mode=drill` | cost |
+
+The return home, the last steps of `site-lost.md` once home serves again:
+`tofu destroy` in `site`, `scripts/dr-sweep.sh --delete --return-home`,
+then the pull request that removes `ci/dr-site-lost.txt`.
 
 A DR probe is the public blackbox probe of that name
 (`platform/blackbox-exporter/probes/probes.yaml`), run from the operator's
@@ -665,16 +717,14 @@ measures it.
 - `scripts/dr-rehearsal.sh`: preflight (requirement 8: the verifier key
   only, the drill component in the render, the static-host patch listing
   every HTTPRoute host name of the render, `m7g` offered in the zone, no
-  `ci/dr-site-lost.txt`), `tofu apply`, the restore order above with a
-  timestamp per step, then an exit trap, whatever happened: delete the
-  drill's Cloudflare token, `tofu destroy` (network, nodes, the NLB, the
-  addresses, the instance profile), then `scripts/dr-sweep.sh --delete`.
-  The sweep deletes every EBS volume in `eu-central-1` tagged
-  `dr-site=homelab-dr` or `ebs.csi.aws.com/cluster=true` (nothing at home
-  uses the EBS CSI driver), and fails when an instance, a load balancer or
-  an Elastic IP with the `dr-site` tag is left. That covers the volumes the
-  CSI driver created, which no tofu state holds and which the
-  `iscsi-retain` class keeps after their claims are gone.
+  `ci/dr-site-lost.txt`), `tofu apply` in the `drill` workspace, the
+  restore order above with a timestamp per step, then an exit trap,
+  whatever happened: delete the drill's Cloudflare token, `tofu destroy`
+  in the `drill` workspace (network, nodes, the NLB, the addresses, the
+  instance profile), then `scripts/dr-sweep.sh --delete`. The trap selects
+  the workspace by name and never reads the current one, so it cannot
+  destroy `site` ([Cleanup that cannot reach the
+  site](#cleanup-that-cannot-reach-the-site)).
 - The rehearsal key. A drill never gets the real age key. It uses a
   separate age key, kept in the password manager next to the real one:
   `components/site-dr-drill/secrets/` holds a copy of each Secret the DR
@@ -770,15 +820,46 @@ changing home.
   It runs `scripts/dr-sweep.sh --check`: every instance, volume, load
   balancer and Elastic IP in `eu-central-1` tagged `dr-site=homelab-dr`,
   and every volume tagged `ebs.csi.aws.com/cluster=true`, with its
-  creation time.
-- It fails, and so notifies ntfy, in two cases: DR resources older than
-  24 h and no `ci/dr-site-lost.txt`, a forgotten drill; or
-  `ci/dr-site-lost.txt` older than 24 h and no DR resource, a declaration
-  left behind or added by mistake. A real loss with its DR site running
-  passes.
+  `dr-mode` tag and creation time.
+- It fails, and so notifies ntfy, in three cases: a resource tagged
+  `dr-mode=drill` older than 24 h, a forgotten or failed drill, whether a
+  loss is declared or not; a resource tagged `dr-mode=site`, or a CSI
+  volume without `dr-mode`, older than 24 h and no `ci/dr-site-lost.txt`;
+  or `ci/dr-site-lost.txt` older than 24 h and nothing tagged
+  `dr-mode=site`, a declaration left behind or added by mistake. A real
+  loss with its DR site running passes.
 - A drill cannot set the switch: `scripts/dr-rehearsal.sh` never writes
   the file and refuses to start while it exists, and a drill's resources
-  without the file fail the check after 24 h as they should.
+  fail the check after 24 h as they should.
+
+### Cleanup that cannot reach the site
+
+The sweep has to work by tag: the CSI driver creates volumes outside any
+tofu state, and `iscsi-retain` keeps them after their claims go. A real
+loss's volumes carry the same `dr-site` and CSI tags as a drill's and hold
+the only live copy of everything written since the declaration. So the
+drill's cleanup is scoped by what it is, not by a check of the
+declaration:
+
+| Path | What it may delete | Guard |
+| --- | --- | --- |
+| The drill's exit trap: `tofu destroy` | the `drill` workspace's state only | the trap runs `workspace select drill` itself; the `site` state is a different state, so a site applied during a drill, or before the declaration merged, is out of its reach |
+| `scripts/dr-sweep.sh --delete` (the trap, or a manual cleanup) | EBS volumes tagged `dr-mode=drill` in state `available` (detached) | volumes tagged `dr-mode=site`, CSI volumes without `dr-mode`, and attached volumes are listed and left; it fails while a `dr-mode=drill` instance, load balancer or Elastic IP is left |
+| `scripts/dr-sweep.sh --delete --return-home` | every detached volume tagged `dr-site=homelab-dr` or `ebs.csi.aws.com/cluster=true` | refuses unless `ci/dr-site-lost.txt` exists on `origin/main` (fetched, so an unreadable remote refuses too) and the `site` workspace's state is empty; `site-lost.md` runs it once, in the return home, after the final `tofu destroy` |
+
+The `dr-mode` value comes from the overlay that runs the cluster
+(`site` in `components/site-dr`, `drill` in `components/site-dr-drill`),
+checked in both renders by repo-policy, and from the workspace for the
+module's own resources. A real loss during a drill then needs no special
+case: the drill's trap removes the drill, the site runs in its own state
+with its own volumes, and a manual `--delete` during the loss removes
+only drill leftovers.
+
+A check of `ci/dr-site-lost.txt` before deleting was considered as the
+guard. It protects only once the declaration has merged, while a site can
+be applied minutes before, and it would keep a drill's volumes for the
+whole length of a loss. It stays where it adds something: as the
+precondition of `--return-home`.
 
 ## Off-site inventory
 
@@ -923,8 +1004,8 @@ tier, the MTTR, the last drill's cost and the next due date.
 | `scripts/dr-offsite-check.sh`, `docs/runbooks/operator-unavailable.md` | the break-glass check, the household runbook | 4 |
 | `docs/runbooks/aws-account-lost.md` (lockout, reopening, rebuild); the second root MFA device and the root mailbox's recovery codes in the break-glass folder | the AWS scenario | 5 |
 | `.github/workflows/dr-rebuild.yaml` | monthly rebuild in CI, on the QEMU harness of `scripts/ci/talos-upgrade-rehearsal.sh` | 6 |
-| `components/site-dr` (with the `immich-data` size and the `syncthing-dr` PolicyException), `infrastructure/cilium/values-dr.yaml` (host-network Gateway on the labelled node, `keepCapNetBindService`), `components/site-dr-drill` (the network-policy exception, the Secrets sealed to the rehearsal key, no notifications), `clusters/dr/`, the DR render, repo-policy over it (requirement 8 switches, claims against the attach limit) | the site overlay | 7 |
-| `bootstrap/dr-cloud/` for AWS `eu-central-1` (VPC, Graviton nodes, the NLB, the EBS CSI instance profile, `backend_override.tf.example`), `scripts/dr-sweep.sh`, `talos/dr/talconfig.yaml`, `ci/dr-site-lost.txt` and repo-policy `dr-site-lost`, the leftover check in `.github/workflows/tofu.yaml` with the plan role's read permissions in `bootstrap/github-oidc`, `tofu validate` in `ci`, `docs/runbooks/site-lost.md`, the smoke run and the `dr-site` cost allocation tag | the DR module | 8 |
+| `components/site-dr` (with the `immich-data` size, the `syncthing-dr` PolicyException, the `dr-mode: site` volume tag, the metadata fence, Vector, `lan-inventory` and the NAS, SigNoz and LAN rules out), `infrastructure/cilium/values-dr.yaml` (host-network Gateway on the labelled node, `keepCapNetBindService`), `components/site-dr-drill` (the network-policy exception, the Secrets sealed to the rehearsal key, no notifications, `dr-mode: drill`), `clusters/dr/`, the DR render, repo-policy over it (requirement 8 switches, the `dr-mode` value per render, the fence, no rule for an absent component, claims against the attach limit) | the site overlay | 7 |
+| `bootstrap/dr-cloud/` for AWS `eu-central-1` (the `drill` and `site` workspaces, VPC, Graviton nodes, the NLB, the EBS CSI instance profile, `backend_override.tf.example`), `scripts/dr-sweep.sh` (`--check`, `--delete`, `--delete --return-home`) and its test, `talos/dr/talconfig.yaml`, `ci/dr-site-lost.txt` and repo-policy `dr-site-lost`, the leftover check in `.github/workflows/tofu.yaml` with the plan role's read permissions in `bootstrap/github-oidc`, `tofu validate` in `ci`, `docs/runbooks/site-lost.md`, the smoke run and the `dr-site` cost allocation tag | the DR module | 8 |
 | `scripts/dr-rehearsal.sh`, `talos/dr/drill/static-hosts.yaml` (written by the script) | the timed drill, preflight for requirement 8, drill name resolution, the per-drill Cloudflare token, the DR probes, token deletion, destroy and sweep on exit | 9 |
 | `.kiro/specs/backups-dr/` | the area spec updated: scenarios, the off-site inventory, the calendar, the DR site | 9 |
 
@@ -939,7 +1020,10 @@ tier, the MTTR, the last drill's cost and the next due date.
 | Recovery provider: AWS `eu-central-1`, the account that holds the backups | Google Cloud C4A; Hetzner CAX; a second copy of the backups outside AWS | the operator's decision of 2026-11-03: one provider; in-region reads, one sign-in, published Talos AMIs ([Recovery provider](#recovery-provider)); the one-account risk accepted ([Accepted risk](#accepted-risk-one-account)) |
 | The Gateway behind a Network Load Balancer created by the module | the AWS Load Balancer Controller; an Elastic IP on the Gateway node | no AWS credentials in the cluster beyond the CSI driver's, the host-network Envoy stays; an NLB keeps the public address stable when the Gateway node is replaced, for $19.71 a month plus NLCUs |
 | The Sidero Labs AMI, then a Talos upgrade to the DR schematic | an AMI built from the Image Factory and kept, or imported on the day | nothing to build or store; the upgrade is one reboot per node, timed as step 2a |
-| EBS CSI volumes tagged `dr-site=homelab-dr` through `extraVolumeTags`, swept by tag | volumes found through the module's state | the CSI driver creates volumes outside any tofu state, and `iscsi-retain` keeps them after their claims go |
+| EBS CSI volumes tagged `dr-site=homelab-dr` and `dr-mode` through `extraVolumeTags`, swept by tag | volumes found through the module's state | the CSI driver creates volumes outside any tofu state, and `iscsi-retain` keeps them after their claims go |
+| The drill and the real loss in separate state workspaces, the drill's cleanup limited to `drill` and `dr-mode=drill`; `--return-home` the only path to the site's volumes | one state and a check of `ci/dr-site-lost.txt` before every delete | the scope holds before the declaration merges and leaves no drill volumes behind during a loss ([Cleanup that cannot reach the site](#cleanup-that-cannot-reach-the-site)) |
+| IMDS hop limit 2, with a Cilium `egressDeny` to `169.254.169.254` for every pod but the EBS CSI driver's | hop limit 1 with the driver on the host network; a static access key in a Secret | the driver runs in pod networks by default and the Kyverno baseline denies host networking; a static key would be a long-lived AWS credential in a public repository ([Instance metadata](#instance-metadata)) |
+| Vector, `lan-inventory` and their alert rules out of the DR render with SigNoz, like the NAS rules | keeping them | each would page every 24 h in a real loss for a collector or a LAN that is not there |
 | A Cloudflare token created for each drill, IP-filtered and expiring, deleted on exit | a standing drill token sealed in git; a separate challenge zone with CNAME delegation | Cloudflare scopes DNS Edit to a zone, so a standing token could rewrite any record; a challenge zone would move home's challenges too ([The drill's Cloudflare token](#the-drills-cloudflare-token)) |
 | The real-loss declaration as `ci/dr-site-lost.txt` | a repository variable | reviewed in a pull request, dated, in the history; the leftover check fails both on resources without it and on it without resources |
 | Emergency access to the whole vault after a 2-day wait | an organization collection with only the break-glass items | a collection has no wait period and no refusal; the contact is trusted with the age key anyway |
@@ -965,8 +1049,10 @@ tier, the MTTR, the last drill's cost and the next due date.
   trap runs `tofu destroy` either way.
 - `tofu destroy` fails or the Mac dies during a drill: the daily leftover
   check fails the `tofu` run after 24 h and notifies ntfy; the runbook's
-  last steps are a manual `tofu destroy` and `scripts/dr-sweep.sh
-  --delete`. The Cloudflare token expires on its own 12 h after creation.
+  last steps are a manual `tofu destroy` in the `drill` workspace and
+  `scripts/dr-sweep.sh --delete`, both unable to reach a `site`
+  ([Cleanup that cannot reach the site](#cleanup-that-cannot-reach-the-site)).
+  The Cloudflare token expires on its own 12 h after creation.
 - AWS has no capacity for the requested type (`InsufficientInstanceCapacity`):
   the module takes the zone and the instance types as variables; the
   runbook lists the fallbacks (another zone of `eu-central-1`, then
@@ -977,8 +1063,11 @@ tier, the MTTR, the last drill's cost and the next due date.
   rule.
 - A drill exceeds an RTO: the target is not raised in that pull request
   (requirement 2.3); two in a row trigger the decision review (requirement 3.4).
-- A real loss during a drill: the drill stops; the DR nodes become the DR
-  site only through the real-loss overlay, never the drill one.
+- A real loss during a drill: the drill stops and its trap destroys the
+  `drill` workspace and sweeps the `dr-mode=drill` volumes; the real-loss
+  site is applied in `site` with the real-loss overlay, never by turning
+  the drill nodes into it. Either order is safe: the trap cannot reach
+  `site`.
 - The Immich library outgrows the DR claim: the restore Job stops before
   writing when the snapshot is larger than 90% of `immich-data`; the fix is
   a pull request that raises the size in `components/site-dr`.
@@ -1004,16 +1093,28 @@ tier, the MTTR, the last drill's cost and the next due date.
   patch, and the drill checking from a pod, at step 2 and before Argo CD,
   that `auth.lilalala.com` resolves to the DR Gateway.
 - Requirement 10.7: the break-glass check's `tofu plan` (task 4).
-- Requirements 10.1, 10.2, 10.3: `tofu validate` in CI; the leftover check's
-  test, with both failure cases (resources without the declaration, the
-  declaration without resources); repo-policy `dr-site-lost`; the task 8
-  smoke run.
+- Requirements 10.1, 10.2, 10.3: `tofu validate` in CI, with the
+  workspace check; the leftover check's test, with its three failure
+  cases (a `drill` resource older than 24 h, a `site` resource without the
+  declaration, the declaration without a `site` resource); repo-policy
+  `dr-site-lost`; the task 8 smoke run.
+- Requirement 10.8: the bash tests of `scripts/dr-sweep.sh` (`--delete`
+  leaves `dr-mode=site` volumes, volumes without `dr-mode` and attached
+  volumes; `--return-home` refuses without the declaration on
+  `origin/main` and with a non-empty `site` state) and of
+  `scripts/dr-rehearsal.sh` (the trap selects `drill` by name and never
+  `site`).
+- Requirement 10.9: repo-policy over the DR render (both fence objects
+  present); the drill's check from a pod at step 4.
+- Requirement 10.5: the restore order's step 8 in `site-lost.md`; a
+  `tofu plan` of the module with `operator_cidr` empty shows no 50000 or
+  6443 rule.
 - Requirement 8.9: repo-policy (no Cloudflare token in the drill
   component); the drill's pull request shows the token's expiry and its
   deletion in the log.
 - Requirement 5.3: the quarterly break-glass check's prompts; the June
   tabletop.
-- Requirements 2.4, 7.3, 7.4, 10.5, 10.6: the first drill's pull request
+- Requirements 2.4, 7.3, 7.4, 10.6: the first drill's pull request
   (task 9).
 
 Decisions on the former open questions: [requirements.md](requirements.md#decided-questions).
