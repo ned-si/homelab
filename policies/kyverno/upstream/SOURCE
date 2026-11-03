@@ -31,7 +31,7 @@
 #   disallow-privileged  -> pod-security-vpol/baseline/disallow-privileged-containers
 #   require-resources    -> best-practices-vpol/require-pod-requests-limits
 repo: https://github.com/kyverno/policies
-commit: 4820a84fe48c79786486635cc117f5136dea5394
+commit: 16957b00faccdec146dc85a6c62a6b27799ba912
 cddb8e735bbb0fac7eb8085c54fbce282ab8aa44446550d082f7734ddee360e9  pod-security-vpol/baseline/disallow-capabilities/disallow-capabilities.yaml
 5c4d132818f5159ffb55a5b0e98e9501c37151826dd8120bde57df29735100e6  pod-security-vpol/baseline/disallow-host-namespaces/disallow-host-namespaces.yaml
 ba6e6bc99588095ac1442930daf71122f1407dc7796db78943ba568684589562  pod-security-vpol/baseline/disallow-host-path/disallow-host-path.yaml
@@ -44,8 +44,8 @@ de0810c3ac91f1bbda3ff29345a1a9dd906222a47809ed32e93f7123c0baec21  pod-security-v
 5a0746856436a283099b9f0a0d40aade8b861632e5a77114c70fc87759a822bb  pod-security-vpol/baseline/restrict-sysctls/restrict-sysctls.yaml
 30d3ffefc63a00badbf7e5805f0c14709ac8c146b11260415b92e768a5fd4830  pod-security-vpol/restricted/disallow-capabilities-strict/disallow-capabilities-strict.yaml
 8298294ae338afca75bd016a327d9b64343344d3f10421134ca6e2351c0589ea  pod-security-vpol/restricted/disallow-privilege-escalation/disallow-privilege-escalation.yaml
-2d0e2713c2a8d37ee0978a75e5c296a5b53be150e6bdb94dea190eaa1e0de745  pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
-48f85e8f09fd41afe159f960cb9d16a193acfa07b8bd9c15a30b69eb9805e727  pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
+829e597ad5a0609070dbb14847b575009e3bf8fa3b4eb7d381dc041a56093fda  pod-security-vpol/restricted/require-run-as-non-root-user/require-run-as-non-root-user.yaml
+5276cb3c4f3d782604334d40cb40e659ee5d9ffefb190b9d52ab880e74bbb3b8  pod-security-vpol/restricted/require-run-as-nonroot/require-run-as-nonroot.yaml
 fd22b77d67e01e17e4f0083f605736adce25f4a4486e90879a3350a9e918b0ac  pod-security-vpol/restricted/restrict-seccomp-strict/restrict-seccomp-strict.yaml
 3d00ca7fe7224a0ce8f24582ece94912722322704eec97509195417f4f7119b0  pod-security-vpol/restricted/restrict-volume-types/restrict-volume-types.yaml
 ff3381547d52102aae74e8426bc0aa2c9eb11ce473bc2af1380a6b3dcff9caeb  best-practices-vpol/check-deprecated-apis/check-deprecated-apis.yaml
