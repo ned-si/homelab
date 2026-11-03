@@ -16,3 +16,71 @@ resources:
   - https://github.com/cloudnative-pg/plugin-barman-cloud/releases/download/v0.15.1/manifest.yaml
   # PodMonitor for the CNPG instances and the backup alert rules.
   - monitoring.yaml
+  # The namespaced half of the plugin's RBAC, bound per namespace (#951).
+  - rbac.yaml
+
+patches:
+  # Narrow the upstream ClusterRole (#951): no secrets, and only the reads on
+  # roles and rolebindings, which its cluster-wide cache needs. rbac.yaml grants
+  # the rest per namespace. The `test` ops fail the render when a bundle bump
+  # moves or changes these rules, so the split is re-checked on every bump.
+  - target:
+      kind: ClusterRole
+      name: plugin-barman-cloud
+    patch: |-
+      - op: test
+        path: /rules/0/resources
+        value: [secrets]
+      - op: test
+        path: /rules/0/verbs
+        value: [create, delete, get, list, watch]
+      - op: test
+        path: /rules/6/resources
+        value: [rolebindings, roles]
+      - op: test
+        path: /rules/6/verbs
+        value: [create, get, list, patch, update, watch]
+      - op: replace
+        path: /rules/6/verbs
+        value: [get, list, watch]
+      - op: remove
+        path: /rules/0
+
+# `namespace: immich` above overrides every namespace, so the Roles and
+# RoleBindings of rbac.yaml get theirs back here. Transformers run after it.
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: PatchTransformer
+    metadata:
+      name: plugin-barman-cloud-keycloak
+    target: { name: plugin-barman-cloud-keycloak }
+    patch: '[{"op": "replace", "path": "/metadata/namespace", "value": "keycloak"}]'
+  - |-
+    apiVersion: builtin
+    kind: PatchTransformer
+    metadata:
+      name: plugin-barman-cloud-mealie
+    target: { name: plugin-barman-cloud-mealie }
+    patch: '[{"op": "replace", "path": "/metadata/namespace", "value": "mealie"}]'
+  - |-
+    apiVersion: builtin
+    kind: PatchTransformer
+    metadata:
+      name: plugin-barman-cloud-home
+    target: { name: plugin-barman-cloud-home }
+    patch: '[{"op": "replace", "path": "/metadata/namespace", "value": "home"}]'
+  - |-
+    apiVersion: builtin
+    kind: PatchTransformer
+    metadata:
+      name: plugin-barman-cloud-theater
+    target: { name: plugin-barman-cloud-theater }
+    patch: '[{"op": "replace", "path": "/metadata/namespace", "value": "theater"}]'
+  - |-
+    apiVersion: builtin
+    kind: PatchTransformer
+    metadata:
+      name: plugin-barman-cloud-backup-verify
+    target: { name: plugin-barman-cloud-backup-verify }
+    patch: '[{"op": "replace", "path": "/metadata/namespace", "value": "backup-verify"}]'

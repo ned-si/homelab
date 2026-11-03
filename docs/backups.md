@@ -98,6 +98,14 @@ Expected: `True`; a `firstRecoverabilityPoint` and `lastSuccessfulBackupTime` fo
 `mealie-postgresql`; a `mealie-postgresql-daily-<timestamp>` Backup in phase
 `completed` from the last night.
 
+The plugin reads Secrets and writes RBAC only in the namespaces listed in
+`platform/barman-cloud-plugin/rbac.yaml` (`immich`, `keycloak`, `mealie`,
+`home`, `theater`, `backup-verify`), one Role and RoleBinding each. A new
+namespace with an ObjectStore needs its pair there, and a namespace transformer
+in the same kustomization. Without them, the plugin cannot create the Cluster's
+Role `<cluster>-barman-cloud` (the CNPG operator logs `forbidden`), the
+instance cannot read its S3 credentials and WAL archiving never starts.
+
 Before every sync of `mealie`, `theater`, `home`, `keycloak` and `immich`,
 including selfHeal syncs, an Argo CD PreSync hook
 (`components/presync-backup`) decides whether a backup is needed:
@@ -1146,6 +1154,14 @@ kubectl -n backup-verify logs job/<job> -c report
   independent copy.
 - **The plugin runs in `immich`.** It must share the operator's namespace, and the
   operator is still there. Moving both to `cnpg-system` is a separate change.
+- **The plugin's Secret and RBAC-write rights are per namespace.** Upstream binds
+  one ClusterRole cluster-wide with Secrets and Role/RoleBinding writes. The
+  plugin never reads a Secret: it needs `get`/`list`/`watch` on Secrets only
+  so it may grant them to each Cluster's Role (RBAC escalation prevention), so
+  those verbs and the Role writes are granted in the six namespaces only. Reads
+  on Roles and RoleBindings stay cluster-wide because the plugin's
+  controller-runtime cache watches every namespace and has no option to narrow it
+  (#951).
 - **A separate IAM user scoped to `cnpg/`.** A database pod never holds a key that
   can reach the restic repositories, and the restic jobs never hold one that can
   reach the WAL. barman checks the bucket with HeadBucket, which IAM authorises as

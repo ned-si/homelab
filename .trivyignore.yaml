@@ -51,53 +51,29 @@
 # ---------------------------------------------------------------------------
 misconfigurations:
   # =========================================================================
-  # CRITICAL -- vendored upstream RBAC
+  # CRITICAL -- RBAC that grants RBAC or reads Secrets
   # =========================================================================
-  # Both are ClusterRole/plugin-barman-cloud, from the plugin's own release
-  # bundle (the manifest.yaml pinned in platform/barman-cloud-plugin, v0.15.1
-  # at the last review). This is the plugin author's RBAC, and what editing it
-  # breaks is Postgres backups -- including Immich's database.
+  # The Barman Cloud plugin's per-namespace Roles (platform/barman-cloud-plugin/
+  # rbac.yaml, #951). For each CNPG Cluster the plugin creates and patches a
+  # Role and RoleBinding `<cluster>-barman-cloud` in the Cluster's namespace
+  # (upstream internal/cnpgi/operator/rbac/ensure.go at v0.15.1), so it needs
+  # create/patch/update on roles and rolebindings there. Upstream grants that
+  # cluster-wide; here it is one Role in each of the six namespaces with an
+  # ObjectStore. The upstream ClusterRole keeps only get/list/watch on them
+  # (its cache watches every namespace) and no Secrets, so it has no finding.
   #
-  # The verbs, as rendered:
-  #     secrets            create, delete, get, list, watch        (no update, no *)
-  #     roles/rolebindings create, get, list, patch, update, watch (no delete, no *)
-  #
-  # Why: for each CNPG Cluster the plugin creates a Role `<cluster>-barman-cloud`
-  # in the Cluster's namespace granting get/list/watch on its ObjectStores and
-  # their credential Secrets (upstream internal/cnpgi/operator/specs/role.go),
-  # and keeps it in step with the ObjectStore list. RBAC escalation prevention
-  # means the plugin must hold get/list/watch on secrets itself. Which code
-  # path uses create/delete on secrets is not verified (#951).
-  #
-  # Residual risk, accepted not dismissed: compromise of that pod reads and
-  # creates Secrets cluster-wide and creates RBAC. Bounded by the pin, and by
-  # Renovate grouping it with the cloudnative-pg chart so the bump is one
-  # reviewable PR. Narrowing the binding to the six namespaces that use the
-  # plugin is issue #951.
-  #
-  # KSV-0050 is reported by Trivy 0.70.0 (the CI pin) but no longer by 0.76.
-  # Re-check both on a Trivy bump and drop the entry once it stops matching.
-  - id: AVD-KSV-0041
-    paths:
-      - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"
-    statement: >-
-      Vendored upstream ClusterRole (plugin-barman-cloud release bundle).
-      create/delete/get/list/watch on secrets, no update/patch, no wildcard.
-      get/list/watch it must hold to grant each CNPG Cluster's namespaced Role
-      read on its ObjectStore credential Secrets (RBAC escalation prevention);
-      create/delete ship in the upstream bundle, their use is checked in #951.
-      Editing it means patching the upstream bundle and risks Postgres
-      backups. Re-read on every plugin bump.
-    expired_at: 2027-05-01
+  # Reported by Trivy 0.70.0 (the CI pin), not by 0.76. Re-check on a Trivy
+  # bump and drop the entry once it stops matching.
   - id: AVD-KSV-0050
     paths:
-      - "deploy/platform/barman-cloud-plugin/clusterrole-plugin-barman-cloud.yaml"
+      - "platform/barman-cloud-plugin/rbac.yaml"
+      - "deploy/platform/barman-cloud-plugin/role-plugin-barman-cloud-*.yaml"
     statement: >-
-      Same vendored upstream ClusterRole. create/get/list/patch/update/watch on
-      roles and rolebindings, no delete, no bind/escalate, no wildcard: it
-      creates and updates one Role and RoleBinding per CNPG Cluster so the
-      instance can read its own ObjectStore. Narrowing the binding: #951.
-      Re-read on every plugin bump.
+      Namespaced Roles, one per namespace with an ObjectStore. create/patch/
+      update on roles and rolebindings, no delete, bind, escalate or wildcard:
+      the plugin creates and updates one Role and RoleBinding per CNPG Cluster
+      so the instance can read its own ObjectStore and credentials. Re-read on
+      every plugin bump.
     expired_at: 2027-05-01
 
   # =========================================================================
