@@ -44,9 +44,10 @@
 #      repository variable RENOVATE_TRAIN_PAUSED to "<pr> <utc time>",
 #      re-sets it every 10 min, deletes it before it releases the lock, and
 #      starts the renovate-next workflow after each change.
-#      scripts/ci/renovate-next.sh then ticks nothing and turns GitHub
-#      auto-merge off on the open Renovate pull requests, and turns it back
-#      on once the variable is gone. A pause older than 90 min is ignored.
+#      scripts/ci/renovate-next.sh then ticks nothing; it cannot turn GitHub
+#      auto-merge off (#960), so a Renovate pull request rebased just before
+#      the pause can still merge, and step 3 starts over. A pause older than
+#      90 min is ignored.
 #
 # Exit codes: 0 merged / would merge, 2 refused, 1 operational error (lock or
 # ci wait timed out, main kept moving), 64 usage.

@@ -30,12 +30,14 @@
 # Paused: scripts/pr-merge.sh sets the repository variable
 # RENOVATE_TRAIN_PAUSED ("<pr> <utc time>") while it holds its merge lock, so
 # Renovate merges do not move main under the pull request it is merging.
-# Then nothing is ticked and GitHub auto-merge is turned off on every open
-# Renovate pull request; the first run after the variable is deleted turns it
-# back on, as below. A pause older than PAUSE_STALE_MIN (90) minutes is
-# ignored: its pr-merge run died.
+# Then nothing is ticked and nothing else is changed, and the run succeeds.
+# GitHub auto-merge stays as it is: the workflow token cannot turn it off
+# (`disablePullRequestAutoMerge` is refused to the integration, #960), so a
+# pull request already rebased before the pause can still merge, and
+# pr-merge.sh rebases again (its retries). A pause older than PAUSE_STALE_MIN
+# (90) minutes is ignored: its pr-merge run died.
 #
-# Prints one line per auto-merge turned on or off, then one line, what it did
+# Prints one line per auto-merge turned on, then one line, what it did
 # and why. Environment: REPO (owner/name), GH (default gh), DRY_RUN (1:
 # decide, change nothing), RENOVATE_TRAIN_PAUSED (the variable's value),
 # PAUSE_STALE_MIN, NOW (`<weekday 1-7> <hour>`, default the time in
@@ -66,19 +68,8 @@ if [ -n "$PAUSED" ]; then
   if [ -n "$since" ] && [ $((NOW_EPOCH - since)) -gt $((PAUSE_STALE_MIN * 60)) ]; then
     echo "pause by PR #$pause_pr since $pause_at is older than $PAUSE_STALE_MIN min; ignored"
   else
-    failed=0
-    for n in $(jq -r '.[] | select(.autoMergeRequest != null) | .number' <<<"$prs"); do
-      if [ "$DRY_RUN" = 1 ]; then
-        echo "#$n: would turn auto-merge off (dry run)"
-      elif $GH pr merge "$n" --repo "$REPO" --disable-auto >/dev/null; then
-        echo "#$n: auto-merge turned off"
-      else
-        echo "#$n: cannot turn auto-merge off"
-        failed=1
-      fi
-    done
     echo "paused by pr-merge ($PAUSED); nothing rebased"
-    exit "$failed"
+    exit 0
   fi
 fi
 # Waiting for minimumReleaseAge: one comment, then left alone until it passes.

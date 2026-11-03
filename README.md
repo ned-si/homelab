@@ -244,11 +244,13 @@ From an idea to the cluster, every step leaves a record
    While it holds the lock it pauses the Renovate train
    ([`renovate-next`](.github/workflows/renovate-next.yaml)) with the
    repository variable `RENOVATE_TRAIN_PAUSED` (`<pr> <utc time>`): the
-   train then rebases nothing and turns GitHub auto-merge off on the open
-   Renovate pull requests, so no update moves `main` under the merge. The
-   variable is deleted when the lock is released, on failure too, and the
-   next train run turns auto-merge back on. The train ignores a pause older
-   than 90 minutes (its `pr-merge.sh` died).
+   train then rebases nothing, so no new update moves `main` under the merge.
+   GitHub auto-merge stays on: the workflow token cannot turn it off, so a
+   Renovate pull request rebased just before the pause can still merge, and
+   `pr-merge.sh` rebases again (its retries). The variable is deleted when
+   the lock is released, on failure too, and the next train run ticks the
+   next pull request. The train ignores a pause older than 90 minutes (its
+   `pr-merge.sh` died).
 4. That is the deployment. Every Application tracks `main`, so Argo CD
    applies the merge within its sync interval (3 minutes), Argo CD's own
    release included. Rollback is a revert pull request, opened automatically
