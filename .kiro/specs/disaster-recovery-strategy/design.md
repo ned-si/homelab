@@ -603,6 +603,11 @@ state.
   every pod resolves those names to the DR Gateway from the first boot,
   before Argo CD runs. `talos/dr/talconfig.yaml` itself carries no static
   hosts: a real loss keeps Talos's CoreDNS and public DNS unchanged.
+- Upgrades on the DR site are by hand: tuppr is not deployed there
+  ([What changes in the GitOps tree](#what-changes-in-the-gitops-tree)).
+  A Renovate bump of `talos/dr/talconfig.yaml` during a loss waits for a
+  weekday daytime window, then `talhelper gencommand upgrade` and
+  `talosctl upgrade-k8s` with `talos/dr/`, as in step 2a.
 - No Talos VIP: it needs a shared L2 segment, which cloud networks do not
   give. The Kubernetes endpoint is the first control plane's address (Full
   shape) or the single node (DR shape). In-cluster clients do not depend on
@@ -622,11 +627,14 @@ state.
 | Pinned volumes | static PVs in `infrastructure/iscsi-volumes/`; `volumeName` in the claims of Mealie, Paperless, Syncthing and the theater apps | dynamic | overlay removes `volumeName` from those claims |
 | `immich-data` size | 2Ti on the NAS (`apps/immich/resources/library-pvc.yaml`), 349 GiB used | 500Gi, grown online when `KubePersistentVolumeFillingUp` fires; cloud volumes grow but never shrink | overlay patch; the restore Job refuses to start when the restic snapshot is larger than 90% of the claim |
 | Apps left out of the DR shape | everything runs | theater (nothing to restore without the media library); SigNoz (logs only, starts empty) and with it Vector, which ships only to `signoz-otel-collector.signoz` and would buffer, then discard; Home Assistant, its database, Mosquitto and Zigbee2MQTT (useless without the house); `lan-inventory`, which scans the home LAN | overlay: their Applications out of the DR render; a long loss adds them back in a pull request, theater with the media library |
+| Talos and Kubernetes upgrades | tuppr (`clusters/homelab/platform/tuppr.yaml`): the chart, its alert rules (`TalosUpgradeStuck`, `TalosUpgradeFailed`, `TupprOperatorAbsent` and the Kubernetes ones, which notify by name) and the `TalosUpgrade` and `KubernetesUpgrade` in `platform/tuppr/upgrades/`, which a Renovate merge changes | tuppr not deployed, in both shapes. It upgrades one node at a time and never from the node it runs on: on the one-node DR shape a Talos bump merged during the loss would either reboot the only node unattended, at any hour, or never start and fire `TalosUpgradeStuck`. Upgrades during a loss are by hand, from `talos/dr/`: `talhelper gencommand upgrade` and `talosctl upgrade-k8s`, Monday to Friday in the daytime; Renovate keeps bumping `talos/dr/talconfig.yaml` with home, and the bump waits for that window | overlay: the `tuppr` Application out of the DR render, and with it the chart's PrometheusRule; `talos/dr/` carries no `KubeTalosAPIAccessConfig` patch |
+| Talos drift check | `talos-drift` (`clusters/homelab/platform/talos-drift.yaml`): a daily CronJob, `system-upgrade/talos-drift` in `ci/active-cronjobs.txt`, compares each node's config with the render of `talos/talconfig.yaml`, and the PrometheusRule `talos-drift` (`TalosConfigDrift`, `TalosDriftCheckStale`) | not deployed: the check reaches the home node addresses in `talos/talconfig.yaml` (`192.168.1.247`, `.238`, `.239`, `.240`), stops under `set -e` and never pushes, so `TalosDriftCheckStale` (`absent_over_time` over 3 days, `for: 1h`, `action: human`) would page an hour after the new Prometheus starts and every 24 h after. Pointed at `talos/dr/` it would still need its own render and secrets for a site that lives weeks; the DR config is applied by hand from `talos/dr/` only | overlay: the `talos-drift` Application out of the DR render, and `system-upgrade/talos-drift` not in `ci/dr-active-cronjobs.txt` |
+| Restore-test "missing" alert | `BackupVerifyMissing` (`platform/backup-verify/alerts.yaml`, uninhibited): `absent_over_time` of the `restic` (9 days), `postgres` (9 days) and `restic-data` (30 days) results | the DR shape runs no Postgres restore, so the `postgres` term would never clear. On a new Pushgateway and Prometheus the `restic` and `restic-data` terms are true from the start and would page until the weekend run and the monthly pack read; step 8a of the [Restore order](#restore-order) runs `backup-verify-files` once with `DATA_CHECK=always`, which pushes both | overlay: `BackupVerifyMissing` patched to the `restic` and `restic-data` terms |
 | Media share | NFS `192.168.1.228:/mnt/homelab/k8s/nfs/media`, inline in the theater and books apps | theater left out (nothing to restore); the books apps get their library from restic into a claim | overlay; if the house is gone for months, the media library goes on one `ReadWriteOnce` volume and the theater pods follow it to that node |
 | The NAS's own backups | `backup-local` PVs: the second Immich repository, `backup-verify`'s copy | none | overlay: the NAS targets out |
 | Backup-freshness targets | `platform/kube-prometheus-stack/routes/backup-slo-targets.yaml`: one `slo:backup_target:info` per entry of `ci/active-cronjobs.txt` whose name contains `-backup`, 19 targets. `slo:backup_fresh` is 0 for a target whose CronJob is missing, so `BackupNotFresh` pages for it | its own list of the CronJobs the DR render runs unsuspended, `ci/dr-active-cronjobs.txt`, and its own `components/site-dr/backup-slo-targets.yaml` in place of the home file, with the 7 backup CronJobs of that list (`immich-library-backup`, `mealie-backup`, `paperless-backup`, `syncthing-backup`, `books-config-backup-audiobookshelf`, `books-config-backup-calibre-web`, `grafana-backup`). Without it, the 12 left out (`theater-postgres-backup`, the eight `theater-config-backup-*`, `home-assistant-backup`, `signoz-backup`, `immich-library-backup-local`) page from the first DR backup on, and step 8 of the [Restore order](#restore-order) never ends | overlay: the file replaced; repo-policy `cronjob-active` and `backup-slo-targets` run over the DR render with `ci/dr-active-cronjobs.txt`, as they run over `deploy/` with the home list |
-| Probes of LAN addresses and left-out apps | `platform/blackbox-exporter/probes/probes.yaml`: the `internal-tcp` Probe (`192.168.1.11:6443`, `192.168.1.254:443`, `192.168.1.228:3260`, `192.168.1.228:2049`) and the `dns-router` Probe (`192.168.1.1:53`); the `public-https` targets `cinema`, `home` and `signoz`, and the `public-https-gated` Probe (`theater`) | none of these exists in the VPC or in the DR render. `HomelabNASUnreachable` would fire after 2 minutes and, as a member of `OUTAGE_ALERTS` in `scripts/ci/auto-rollback-guard.sh`, keep auto-rollback from reverting anything for the whole loss; the `cinema` and `theater` probes would burn their SLO budgets and fire `SLOErrorBudgetBurnFast` | overlay: the `internal-tcp`, `dns-router` and `public-https-gated` Probes out; the `public-https` targets of `cinema`, `home` and `signoz` out. `internal-http` and `dns-cluster` stay: they probe in-cluster names |
-| Alerts for what the DR site does not run | in `platform/kube-prometheus-stack/routes/`: `outage-alerts.yaml` (`HomelabNASUnreachable`, `HomelabNASDown`); `nas-alerts.yaml`, the PrometheusRule `homelab-nas` whole (`NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASSmartTestFailed`, `NASDiskHot`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue`, `NASExporterFailing`, `NASExporterAbsent`); `signoz-trial.yaml`, the PrometheusRule `homelab-signoz` (`LogPipelineDiscarding`, `SigNozCollectorAbsent`); `lan-alerts.yaml` (`LANDeviceUnreachable`, `LANNewDeviceSeen`, `LANInventoryFailing`, `LANInventoryAbsent`); in `slo.yaml`, the `SLOTargetProbeAbsent` rules of `cinema` and `theater` | the `action: human` ones would page, once and then every 24 h, for a NAS, a collector, a LAN or a probe that is not there: `NASExporterAbsent` 15 min after `truenas-exporter` is out, `SigNozCollectorAbsent` and `LogPipelineDiscarding` after 1 h, `LANDeviceUnreachable` after 10 min, `SLOTargetProbeAbsent` after 15 min; `HomelabNASUnreachable` (`action: auto`) would hold the outage guard | overlay: the two NAS rules of `homelab-outage` patched out (`HomelabNodeNotReady`, `HomelabNodeDown` and `GatewayDown` stay), `homelab-nas`, `homelab-signoz` and `lan-alerts.yaml` out, the two `SLOTargetProbeAbsent` rules patched out. Repo-policy over the DR render fails on any rule named here, and on any Probe target in `192.168.1.0/24` |
+| Probes of LAN addresses and left-out apps | `platform/blackbox-exporter/probes/probes.yaml`: the `internal-tcp` Probe (`192.168.1.11:6443`, `192.168.1.254:443`, `192.168.1.228:3260`, `192.168.1.228:2049`) and the `dns-router` Probe (`192.168.1.1:53`); the `public-https` targets `cinema`, `home` and `signoz`, and the `public-https-gated` Probe (`theater`); `platform/blackbox-exporter/probes/lan.yaml`: the `lan-icmp` Probe (job `blackbox-lan`: the router, the NAS, the four nodes and the BMC lease) | none of these exists in the VPC or in the DR render. `HomelabNASUnreachable` would fire after 2 minutes and, as a member of `OUTAGE_ALERTS` in `scripts/ci/auto-rollback-guard.sh`, keep auto-rollback from reverting anything for the whole loss; the `cinema` and `theater` probes would burn their SLO budgets and fire `SLOErrorBudgetBurnFast` | overlay: the `internal-tcp`, `dns-router`, `public-https-gated` and `lan-icmp` Probes out; the `public-https` targets of `cinema`, `home` and `signoz` out. `internal-http` and `dns-cluster` stay: they probe in-cluster names |
+| Alerts for what the DR site does not run | in `platform/kube-prometheus-stack/routes/`: `outage-alerts.yaml` (`HomelabNASUnreachable`, `HomelabNASDown`); `nas-alerts.yaml`, the PrometheusRule `homelab-nas` whole (`NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASSmartTestFailed`, `NASDiskHot`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue`, `NASExporterFailing`, `NASExporterAbsent`); `signoz-trial.yaml`, the PrometheusRule `homelab-signoz` (`LogPipelineDiscarding`, `SigNozCollectorAbsent`); `lan-alerts.yaml` (`LANDeviceUnreachable`, `LANNewDeviceSeen`, `LANInventoryFailing`, `LANInventoryAbsent`); in `slo.yaml`, the `SLOTargetProbeAbsent` rules of `cinema` and `theater` | the `action: human` ones would page, once and then every 24 h, for a NAS, a collector, a LAN or a probe that is not there: `NASExporterAbsent` 15 min after `truenas-exporter` is out, `SigNozCollectorAbsent` and `LogPipelineDiscarding` after 1 h, `LANDeviceUnreachable` after 10 min, `SLOTargetProbeAbsent` after 15 min; `HomelabNASUnreachable` (`action: auto`) would hold the outage guard | overlay: the two NAS rules of `homelab-outage` patched out (`HomelabNodeNotReady`, `HomelabNodeDown` and `GatewayDown` stay), `homelab-nas`, `homelab-signoz` and `lan-alerts.yaml` out, the two `SLOTargetProbeAbsent` rules patched out. Repo-policy over the DR render fails on any rule named in this table (the tuppr, `talos-drift` and `BackupVerifyMissing` rows included), and on any Probe target in `192.168.1.0/24`. A list of names cannot keep up with new rules, so the drill also reads what fires ([Alert gate](#alert-gate)) |
 | Instance metadata | none (no cloud) | only the EBS CSI driver's pods reach `169.254.169.254` ([Instance metadata](#instance-metadata)) | overlay: two `CiliumClusterwideNetworkPolicy` objects with `egressDeny` |
 | DNS | external-dns `--default-targets` set to the WAN IP, upsert-only | the NLB's Elastic IP from the module's outputs, still A records (real loss); external-dns not deployed (drill) | overlay value |
 | Resolution of `*.lilalala.com` inside the cluster | public DNS: the WAN address, back in through the Gateway | real loss: public DNS, which points at the DR Gateway. Drill: public DNS still points home, so the nodes' host DNS answers every `lilalala.com` name with the DR Gateway node's private address | none in GitOps: the drill-only Talos patch `talos/dr/drill/static-hosts.yaml` ([Talos](#talos)); Talos's CoreDNS is kept in both modes |
@@ -642,15 +650,16 @@ two pinned services are exposed (the NLB in front of the host-network
 Gateway), the CSI driver behind the two StorageClass names and its
 `dr-mode` volume tag, the size of `immich-data`, the external-dns target,
 the set of components, apps, probes and alert rules (the NAS-bound and
-LAN-bound ones and the ones the DR shape leaves out), the backup-freshness
+LAN-bound ones, tuppr and the Talos drift check, and the ones the DR shape
+leaves out), the `postgres` term of `BackupVerifyMissing`, the backup-freshness
 targets and their CronJob list, the metadata fence, each CNPG
 cluster's bootstrap and `serverName`, and the rehearsal
 switches (the network-policy exception, no tailnet, no notifications, the
 Secrets sealed to the rehearsal key). Name resolution in a drill is a Talos
 patch, outside the GitOps tree. Everything else stays as it is: the apps' manifests and
 charts, the Kyverno policies (plus the `syncthing-dr` exception), the
-Keycloak realm, the alert rules (minus the NAS, SigNoz, LAN and left-out
-probe ones, named in the table).
+Keycloak realm, the alert rules (minus the NAS, SigNoz, LAN, tuppr,
+drift-check and left-out probe ones, named in the table).
 
 Layout: `clusters/dr/` (root, layers and Applications, the same AppProjects)
 pointing at a DR render built by `scripts/render-deploy.sh` from the same
@@ -715,6 +724,7 @@ The order of `docs/runbooks/site-lost.md`; the drill timestamps every step.
 | 6 | `immich-db` from Barman; the Immich library from restic `immich/library` into `immich-data` (about 300 GiB, the long step); Paperless and Syncthing from restic | `media`, `archive` and `syncthing` DR probes green | tier 1 |
 | 7 | Mealie and the remaining databases; the books apps | `cook` DR probe green | tier 2 |
 | 8 | Real loss: backups on with new `serverName`s and restic hosts; external-dns points the public names at the NLB's Elastic IP; once `talosctl` reaches `talos-dr-<n>` and `kubectl` reaches the API over the tailnet (the Tailscale operator's proxy), `tofu apply` in `site` with `-var operator_cidr=` (empty), which removes the 50000 and 6443 rules | `BackupNotFresh` clear for the 7 targets of `ci/dr-active-cronjobs.txt`; the node security group has no rule from outside the VPC except the NLB's | |
+| 8a | Both: one run of `backup-verify-files` with `DATA_CHECK=always` (the command in `docs/runbooks/alerts/BackupVerifyDataStale.md`), then, at least 15 minutes after step 7, the [Alert gate](#alert-gate) | the run passed, so the `restic` and `restic-data` terms of `BackupVerifyMissing` have their results; `ALERTS{action="human"}` on the DR Prometheus is empty, or the drill's row is `partial` with the alert names | alerts |
 | 9 | Drill: write the row, delete the Cloudflare token, then `tofu destroy` in the `drill` workspace and `scripts/dr-sweep.sh --delete` | the `drill` state empty; `scripts/dr-sweep.sh --check` finds nothing tagged `dr-mode=drill` | cost |
 
 The return home, the last steps of `site-lost.md` once home serves again:
@@ -734,6 +744,27 @@ hook in the DR overlay, with the image and repository settings of
 `backup-verify`. The Immich restore is the step to watch: about 300 GiB
 from S3 to EBS inside `eu-central-1`, never measured; the first drill
 measures it.
+
+### Alert gate
+
+The DR site starts with a new Prometheus and a new Pushgateway, so every
+rule built on `absent_over_time` over a pushed metric is true from its
+first evaluation. The overlay table names the rules known to page on the
+DR site, but each new rule in `platform/` can add another, and a drill
+sends no notification that would show it. So step 8a reads what the DR
+site would page for:
+
+- `scripts/dr-rehearsal.sh` queries the DR Prometheus through
+  `kubectl port-forward` for `ALERTS{action="human"}`, firing and
+  pending. Pending counts, so a rule held by a long `for` is caught
+  without waiting it out; the query runs at least 15 minutes after step 7,
+  so every rule has been evaluated against the restored site.
+- An empty result passes. Otherwise the drill's row is `partial`, its
+  pull request lists each alert with its rule file, and each rule gets an
+  issue (`area/backups`): out of the DR render, patched, or a real fault
+  of the DR site.
+- A real loss runs the same query at step 8a, and fixes or patches out
+  each alert in a pull request before the site counts as recovered.
 
 ### The drill
 
@@ -1034,9 +1065,9 @@ tier, the MTTR, the last drill's cost and the next due date.
 | `scripts/dr-offsite-check.sh`, `docs/runbooks/operator-unavailable.md` | the break-glass check, the household runbook | 4 |
 | `docs/runbooks/aws-account-lost.md` (lockout, reopening, rebuild); the second root MFA device and the root mailbox's recovery codes in the break-glass folder | the AWS scenario | 5 |
 | `.github/workflows/dr-rebuild.yaml` | monthly rebuild in CI, on the QEMU harness of `scripts/ci/talos-upgrade-rehearsal.sh` | 6 |
-| `components/site-dr` (with the `immich-data` size, the `syncthing-dr` PolicyException, the `dr-mode: site` volume tag, the metadata fence, Vector, `lan-inventory` and the NAS, SigNoz and LAN rules out, the LAN and left-out probes out, its own `backup-slo-targets.yaml`), `ci/dr-active-cronjobs.txt`, `infrastructure/cilium/values-dr.yaml` (host-network Gateway on the labelled node, `keepCapNetBindService`), `components/site-dr-drill` (the network-policy exception, the Secrets sealed to the rehearsal key, no notifications, `dr-mode: drill`), `clusters/dr/`, the DR render, repo-policy over it (requirement 8 switches, the `dr-mode` value per render, the fence, no rule or probe for an absent component or a LAN address, `cronjob-active` and `backup-slo-targets` with the DR list, claims against the attach limit) | the site overlay | 7 |
+| `components/site-dr` (with the `immich-data` size, the `syncthing-dr` PolicyException, the `dr-mode: site` volume tag, the metadata fence, Vector, `lan-inventory`, tuppr, `talos-drift` and the NAS, SigNoz and LAN rules out, the `postgres` term of `BackupVerifyMissing` out, the LAN probes (`lan-icmp` included) and left-out probes out, its own `backup-slo-targets.yaml`), `ci/dr-active-cronjobs.txt`, `infrastructure/cilium/values-dr.yaml` (host-network Gateway on the labelled node, `keepCapNetBindService`), `components/site-dr-drill` (the network-policy exception, the Secrets sealed to the rehearsal key, no notifications, `dr-mode: drill`), `clusters/dr/`, the DR render, repo-policy over it (requirement 8 switches, the `dr-mode` value per render, the fence, no rule or probe for an absent component or a LAN address, `cronjob-active` and `backup-slo-targets` with the DR list, claims against the attach limit) | the site overlay | 7 |
 | `bootstrap/dr-cloud/` for AWS `eu-central-1` (the `drill` and `site` workspaces with the `terraform_data.workspace_guard` precondition, `local.prefix` in every name and repo-policy `dr-cloud-names`, VPC, Graviton nodes, the NLB, the EBS CSI instance profile, `backend_override.tf.example`), `scripts/dr-sweep.sh` (`--check`, `--delete`, `--delete --return-home`) and its test, `talos/dr/talconfig.yaml`, `ci/dr-site-lost.txt` and repo-policy `dr-site-lost`, the leftover check in `.github/workflows/tofu.yaml` with the plan role's read permissions in `bootstrap/github-oidc`, `tofu validate` in `ci`, `docs/runbooks/site-lost.md`, the smoke run and the `dr-site` cost allocation tag | the DR module | 8 |
-| `scripts/dr-rehearsal.sh`, `talos/dr/drill/static-hosts.yaml` (written by the script) | the timed drill, preflight for requirement 8, drill name resolution, the per-drill Cloudflare token, the DR probes, token deletion, destroy and sweep on exit | 9 |
+| `scripts/dr-rehearsal.sh`, `talos/dr/drill/static-hosts.yaml` (written by the script) | the timed drill, preflight for requirement 8, drill name resolution, the per-drill Cloudflare token, the DR probes, the `backup-verify-files` run and the alert gate, token deletion, destroy and sweep on exit | 9 |
 | `.kiro/specs/backups-dr/` | the area spec updated: scenarios, the off-site inventory, the calendar, the DR site | 9 |
 
 ## Decisions
@@ -1058,6 +1089,9 @@ tier, the MTTR, the last drill's cost and the next due date.
 | The DR render with its own active-CronJob list and backup-freshness targets, and without the LAN probes, the NAS rules and the probes of left-out apps | the home targets and probes kept | `BackupNotFresh` would page for 12 CronJobs the DR site never runs, and `HomelabNASUnreachable` would hold the auto-rollback outage guard for the whole loss |
 | IMDS hop limit 2, with a Cilium `egressDeny` to `169.254.169.254` for every pod but the EBS CSI driver's | hop limit 1 with the driver on the host network; a static access key in a Secret | the driver runs in pod networks by default and the Kyverno baseline denies host networking; a static key would be a long-lived AWS credential in a public repository ([Instance metadata](#instance-metadata)) |
 | Vector, `lan-inventory` and their alert rules out of the DR render with SigNoz, like the NAS rules | keeping them | each would page every 24 h in a real loss for a collector or a LAN that is not there |
+| tuppr out of the DR render; Talos and Kubernetes upgrades during a loss by hand from `talos/dr/`, weekdays in the daytime | tuppr kept, or kept with both upgrades paused | on one node tuppr either reboots the only node unattended or stalls and pages `TalosUpgradeStuck`; a paused tuppr still runs its operator and its alert rules for nothing |
+| `talos-drift` out of the DR render | pointing the check at `talos/dr/` | it reads the home node list and would page `TalosDriftCheckStale` for the whole loss; a check of the DR config needs its own render and secrets for a site that lives weeks |
+| An alert gate in every drill: `ALERTS{action="human"}`, firing and pending, on the DR Prometheus after the restore order | only a list of rules to drop, kept by repo-policy | the list grew in three review passes and drifts with every new rule; the query catches the whole class, and a drill sends no notification that would show it |
 | A Cloudflare token created for each drill, IP-filtered and expiring, deleted on exit | a standing drill token sealed in git; a separate challenge zone with CNAME delegation | Cloudflare scopes DNS Edit to a zone, so a standing token could rewrite any record; a challenge zone would move home's challenges too ([The drill's Cloudflare token](#the-drills-cloudflare-token)) |
 | The real-loss declaration as `ci/dr-site-lost.txt` | a repository variable | reviewed in a pull request, dated, in the history; the leftover check fails both on resources without it and on it without resources |
 | Emergency access to the whole vault after a 2-day wait | an organization collection with only the break-glass items | a collection has no wait period and no refusal; the contact is trusted with the age key anyway |
@@ -1137,8 +1171,12 @@ tier, the MTTR, the last drill's cost and the next due date.
   other than `drill` or `site`); repo-policy `dr-site-lost`; the task 8
   smoke run with `drill` and `site` applied side by side.
 - Requirement 10.10: repo-policy over the DR render (no rule named in
-  the overlay table, no Probe target in `192.168.1.0/24`,
-  `cronjob-active` and `backup-slo-targets` with `ci/dr-active-cronjobs.txt`).
+  the overlay table, no `tuppr` or `talos-drift` Application, no
+  `postgres` term in `BackupVerifyMissing`, no Probe target in
+  `192.168.1.0/24`, `cronjob-active` and `backup-slo-targets` with
+  `ci/dr-active-cronjobs.txt`).
+- Requirement 10.11: the drill's alert gate at step 8a, its result in the
+  drill's row and pull request (task 9).
 - Requirement 10.8: the bash tests of `scripts/dr-sweep.sh` (`--delete`
   leaves `dr-mode=site` volumes, volumes without `dr-mode` and attached
   volumes; `--return-home` refuses without the declaration on

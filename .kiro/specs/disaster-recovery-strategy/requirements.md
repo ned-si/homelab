@@ -394,8 +394,9 @@ design work on the day of the loss and costs nothing until then.
 6. THE runbook `docs/runbooks/site-lost.md` SHALL give the restore order:
    the declaration, the module, Talos and the upgrade to the DR schematic,
    Argo CD, the infrastructure layer, `keycloak-db` and Keycloak, tier 1, tier 2,
-   then backups with new `serverName`s (real loss) or `tofu destroy`
-   (drill). (review; the first drill)
+   backups with new `serverName`s (real loss), the restore-test run and
+   the alert gate (requirement 10.11), then `tofu destroy` (drill).
+   (review; the first drill)
 7. THE runbook SHALL name the command that applies the module and, for
    each input (the AWS sign-in for the state backend and the DR site, the
    state passphrase, the age key), where it comes from on a fresh
@@ -428,11 +429,21 @@ design work on the day of the loss and costs nothing until then.
     list, `ci/dr-active-cronjobs.txt`; the NAS rules of `homelab-outage`,
     the PrometheusRules `homelab-nas` and `homelab-signoz`,
     `lan-alerts.yaml`, the `SLOTargetProbeAbsent` rules of left-out apps,
-    and every Probe target in `192.168.1.0/24` SHALL be out, so no page
-    fires for what is not there and the auto-rollback outage guard is not
-    held by an absent NAS. (repo-policy over the DR render, with
-    `cronjob-active` and `backup-slo-targets` reading
+    the `tuppr` and `talos-drift` Applications with their rules (Talos
+    and Kubernetes upgrades on the DR site are by hand, from
+    `talos/dr/`), the `postgres` term of `BackupVerifyMissing`, and every
+    Probe target in `192.168.1.0/24` (`lan-icmp` included) SHALL be out,
+    so no page fires for what is not there and the auto-rollback outage
+    guard is not held by an absent NAS. (repo-policy over the DR render,
+    with `cronjob-active` and `backup-slo-targets` reading
     `ci/dr-active-cronjobs.txt`)
+11. AFTER the restore order, in a drill and in a real loss, THE DR
+    Prometheus SHALL hold no `action: human` alert, firing or pending,
+    once `backup-verify-files` has run with `DATA_CHECK=always`; IF one
+    does, THEN the drill's row SHALL be `partial` and its pull request
+    SHALL list each alert and open an issue per rule.
+    (`scripts/dr-rehearsal.sh` step 8a; `docs/runbooks/site-lost.md`
+    step 8a)
 
 ## Decided questions
 
@@ -486,7 +497,8 @@ the house-lost RTO keeps 24 h for tiers 0 and 1 and 72 h for tier 2; #723 is
 tasks 6 and 9 here; the DR site reuses the StorageClass names `iscsi` and
 `iscsi-retain`; the DR shape leaves out theater, SigNoz with Vector and
 the SigNoz alert rules, the Home Assistant stack, and `backup-verify`'s
-Postgres restore (attach limit);
+Postgres restore (attach limit); the DR site, in both shapes, runs
+neither tuppr nor the Talos drift check, and is upgraded by hand;
 a loss longer than two weeks moves to the Full shape; `immich-data` is
 500Gi on the DR site; the nodes boot Sidero Labs' AMI and are upgraded to
 the DR schematic, with no image built or kept; the Gateway sits behind a

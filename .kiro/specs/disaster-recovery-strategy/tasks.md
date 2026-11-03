@@ -80,9 +80,13 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       `backup-verify`'s Postgres restore out, with the rules
       `homelab-signoz` (`routes/signoz-trial.yaml`),
       `routes/lan-alerts.yaml` and the `SLOTargetProbeAbsent` rules of
-      `cinema` and `theater`; the `internal-tcp`, `dns-router` and
-      `public-https-gated` Probes out and the `cinema`, `home` and
-      `signoz` targets of `public-https`; `ci/dr-active-cronjobs.txt` and
+      `cinema` and `theater`; the `tuppr` and `talos-drift` Applications
+      out (with the chart's rules and the PrometheusRule `talos-drift`),
+      `system-upgrade/talos-drift` not in `ci/dr-active-cronjobs.txt`;
+      `BackupVerifyMissing` patched to its `restic` and `restic-data`
+      terms; the `internal-tcp`, `dns-router`, `public-https-gated` and
+      `lan-icmp` (`platform/blackbox-exporter/probes/lan.yaml`) Probes out
+      and the `cinema`, `home` and `signoz` targets of `public-https`; `ci/dr-active-cronjobs.txt` and
       `components/site-dr/backup-slo-targets.yaml` with its 7 backup
       CronJobs in place of the home targets; `volumeName` removed; the ebook library claim; CNPG
       `bootstrap.recovery` and new `serverName`s; the external-dns target
@@ -95,7 +99,9 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       `.sops.yaml` rule for those copies; `clusters/dr/`; the DR render;
       repo-policy over it (the switches, the rehearsal-key recipients, no
       Cloudflare token in the drill component, the `dr-mode` value per
-      render, both fence objects, none of the left-out rules, no Probe
+      render, both fence objects, none of the left-out rules, no `tuppr`
+      or `talos-drift` Application, no `postgres` term in
+      `BackupVerifyMissing`, no Probe
       target in `192.168.1.0/24`, `cronjob-active` and `backup-slo-targets`
       with `ci/dr-active-cronjobs.txt`, the claims against the 28
       attachments of `m7g.2xlarge` minus the interface, the root volume and
@@ -136,7 +142,9 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       the apply command with `TF_WORKSPACE=site` and the source of each
       input on a fresh machine, the restore order with the upgrade to the
       DR schematic and step 8's re-apply with `operator_cidr` empty once
-      the tailnet is up, the capacity fallbacks, the move to the Full
+      the tailnet is up, step 8a (`backup-verify-files` with
+      `DATA_CHECK=always`, then the alert gate), Talos and Kubernetes
+      upgrades by hand from `talos/dr/`, the capacity fallbacks, the move to the Full
       shape for a loss longer than two weeks, and the return home
       (`tofu destroy` in `site`, `dr-sweep.sh --delete --return-home`,
       then the pull request removing the file); a `tofu plan` in `default`
@@ -145,7 +153,7 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       destroy both, sweep; about $0.90) that seeds the `dr-site` tag key, then the key activated as a
       cost allocation tag in the operator's one-time set-up. Monday to
       Friday, daytime. [1.4, 1.5, 7.4, 8.1, 8.8, 10.1, 10.2, 10.3, 10.5,
-      10.6, 10.7, 10.8]
+      10.6, 10.7, 10.8, 10.11]
 - [ ] 9. First DR drill (#723, part 2): `scripts/dr-rehearsal.sh` (preflight
       for requirement 8, the rehearsal key only; writes
       `talos/dr/drill/static-hosts.yaml`, one `StaticHostConfig` with the
@@ -156,7 +164,11 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       per-drill Cloudflare token created with the nodes' addresses and a
       12 h expiry, written to the Secret `cloudflare-drill-token`; at step
       4, a pod in `default` fails to reach `169.254.169.254` while the EBS
-      CSI controller is Running; on exit, the token deleted, `tofu destroy`
+      CSI controller is Running; at step 8a, `backup-verify-files` with
+      `DATA_CHECK=always`, then the alert gate: `ALERTS{action="human"}`,
+      firing and pending, on the DR Prometheus at least 15 minutes after
+      step 7, the row `partial` with the alert names and an issue per rule
+      when it is not empty; on exit, the token deleted, `tofu destroy`
       in the `drill` workspace and `scripts/dr-sweep.sh --delete`; every
       `tofu` call with `TF_WORKSPACE=drill`; a bash test, run with
       `TF_WORKSPACE=site` exported and a stub `tofu`, that every call, the
@@ -169,7 +181,7 @@ PR of the last task to merge sets the spec `done` and closes #918; the
       the `backups-dr` area spec updated (scenarios,
       the off-site inventory, the calendar, the DR site). Closes #723.
       Monday to Friday, daytime.
-      [2.4, 7.3, 7.4, 8.1, 8.5, 8.6, 8.8, 8.9, 10.8, 10.9]
+      [2.4, 7.3, 7.4, 8.1, 8.5, 8.6, 8.8, 8.9, 10.8, 10.9, 10.11]
 - [ ] 10. First node-replacement rehearsal: `homelab-w-1` reflashed with
       [node-replacement.md](../../../docs/runbooks/node-replacement.md),
       timed to `Ready` and to every tier 1 probe green; the line recorded; the
