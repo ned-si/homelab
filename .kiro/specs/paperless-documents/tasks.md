@@ -54,10 +54,11 @@ taxonomy answer and task 9 for the mailbox answer.
       their groups by `apply.py`, the superuser flag and direct model
       permissions of every account listed in the PR (counts and flags, no
       usernames) and cleared on every account other than `nedsi-admin`,
-      the editor's included, once `nedsi-admin` is proven to reach the admin with
+      `automation` and `canary`, the editor's included, once `nedsi-admin` is proven to reach the admin with
       `PAPERLESS_REDIRECT_LOGIN_TO_SSO` set (else the `manage.py shell`
       recovery is recorded in `docs/paperless.md`), the `owner`, `share-api` and `private` workflows
-      (`private` last). Check: a matrix with a throwaway reader and a
+      (`private` last). Check: `automation` keeps its superuser flag and
+      the next PostSync run of `apply.py` passes; a matrix with a throwaway reader and a
       throwaway unlisted account: the reader sees a consumed document and a
       correspondent the editor created (after a configuration run), cannot
       upload (`403`) or change anything; a document tagged `private` at
@@ -114,17 +115,19 @@ taxonomy answer and task 9 for the mailbox answer.
       internet; if it does, open a security issue. [1.1, 1.2, 1.3, 10.1]
 - [ ] 9. Mail: the mailbox (open question 2), SOPS `paperless-mail`, the
       mail account and one mail rule per household sender address
-      through `apply.py`, the `source-mail` workflow,
+      through `apply.py` (`owner: null`, the rules tagging `source:mail`
+      and `inbox` with `assign_owner_from_rule` off),
       egress TCP 993 in the CiliumNetworkPolicy `paperless` (audit mode,
-      for when enforcement is switched on). Check: a
+      for when enforcement is switched on). Check: the editor sees the
+      mail rules; a
       forwarded attachment from a household address is findable within 15
-      minutes, owned by the editor, tagged `inbox`, and the mail is in
+      minutes, owned by the editor, tagged `source:mail` and `inbox`, and the mail is in
       `Processed`; a mail from another address is left unread. The PR lists
       the DMARC policy of each household sender domain. [3.1, 3.2, 3.3,
       3.4, 3.5, 3.6, 10.2]
 - [ ] 10. Scanner (planned, optional, after task 9): if a scanner is in
-      use, scan to mail through the mailbox, the mail rule `scanner` and
-      the `source-scan` workflow. If there is none when task 14 starts,
+      use, scan to mail through the mailbox and the mail rule `scanner`
+      (tags `source:scan` and `inbox`). If there is none when task 14 starts,
       task 14 ticks this task as not needed. Check: a 10-page scan is findable
       within 15 minutes, owned by the editor, tagged `source:scan`.
       [4.1, 4.2, 10.2]

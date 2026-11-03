@@ -103,8 +103,12 @@ SOPS Secret `paperless-mail` (host, port 993, user, app password, the
 household sender addresses). A Paperless mail rule has a single
 `filter_from` value, so `apply.py` creates one rule per household sender
 address, all with the same settings: attachments only (PDF and images),
-action "move to folder `Processed`", tags `source:mail` and `inbox`. Mail
-from anyone else matches no rule and stays unread. `PAPERLESS_EMAIL_TASK_CRON` keeps its default,
+action "move to folder `Processed`", tags `source:mail` and `inbox`, and
+"assign owner from rule" (`assign_owner_from_rule`) off, so the `owner`
+workflow alone decides who owns a mail document. The mail account and the
+rules are created with `owner: null`, so the editor's view right on mail
+rules shows them. The tags come from the rules, so no workflow tags mail.
+Mail from anyone else matches no rule and stays unread. `PAPERLESS_EMAIL_TASK_CRON` keeps its default,
 every 10 minutes.
 
 The sender filter compares the `From` header, which a sender can forge.
@@ -143,8 +147,9 @@ allow-list is complete when that happens.
 None is assumed: the phone app is the scanner. Task 10 is a planned,
 optional task: if a scanner is in use, it sends through the mailbox (scan
 to mail), with a mail rule `scanner` filtered on the scanner's sender
-address and a workflow on that rule that tags `source:scan`. The owner
-comes from the `owner` workflow, as for all mail. If there is no scanner
+address. It has the settings of the other mail rules except its tags,
+`source:scan` and `inbox` (not `source:mail`). The owner comes from the
+`owner` workflow, as for all mail. If there is no scanner
 when task 14 starts, task 14 ticks task 10 as not needed. Scan to an SMB folder is left out: it needs an SMB share and a
 NAS user for one device.
 
@@ -300,9 +305,7 @@ nothing after it gives the view back.
 | 10 | owner | Consumption started, consume folder and mail fetch | owner = the editor; view for group `readers` |
 | 15 | share-api | Consumption started, API upload | view for group `readers` (the owner stays the uploader) |
 | 20 | source-folder | Consumption started, consume folder | tag `source:folder` |
-| 30 | source-mail | Consumption started, mail rule | tags `source:mail`, `inbox` |
 | 40 | source-phone | Consumption started, API upload | tag `source:phone` |
-| 50 | source-scan | Consumption started, the mail rule `scanner` (only with a scanner) | tag `source:scan` |
 | 60 | tax-relevant | Document added, type Tax, Statement, Payslip or Insurance | tag `tax-relevant` |
 | 90 | private | Document added and Document updated, has tag `private` | remove view and change for group `readers` |
 
@@ -348,6 +351,8 @@ object is hidden from users without a grant on it. `apply.py` therefore:
 - creates and updates document types, tags, custom fields and saved views
   with `owner: null`, so every account with the model's view permission
   sees them (both groups do; unlisted accounts have no model permissions);
+- creates and updates the mail account and the mail rules with
+  `owner: null` too, the rules with `assign_owner_from_rule` off;
 - puts the listed accounts into `editors` and `readers`, and removes
   accounts that are no longer listed from both;
 - reports every account other than `nedsi-admin`, `automation` and
@@ -416,8 +421,11 @@ through `nedsi-admin`.
 The 5 existing accounts predate the groups. Task 4 puts the editor's and
 the reader's accounts into their groups from the list in `paperless-config`,
 lists the superuser flag and direct model permissions of every account,
-and clears both on every account other than `nedsi-admin` (the editor's
-included).
+and clears both on every account other than `nedsi-admin`, `automation`
+and `canary` (the editor's included), the same exemptions as `apply.py`'s
+report. `automation` keeps its superuser flag, which the PostSync Job and
+the nightly passes need, and `canary` (task 11) keeps its direct
+permissions.
 Before the flag goes, task 4 proves the break-glass path: `nedsi-admin`
 reaches the admin with `PAPERLESS_REDIRECT_LOGIN_TO_SSO` set. If the
 redirect hides the local login, the recovery is `python3 manage.py shell`
