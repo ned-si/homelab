@@ -81,9 +81,11 @@ phone to Paperless, so paper gets filed the moment it arrives.
 1. THE editor SHALL be able to upload from the phone with a Paperless
    client app, from inside the app (camera scan) and from the share sheet of
    other apps. (test: one upload of each kind)
-2. EACH phone SHALL authenticate with its user's own API token, so a lost
-   phone is cut off by revoking one token without touching Keycloak.
-   (test: a revoked token gets `401`)
+2. THE app SHALL authenticate with its user's own API token, without
+   touching Keycloak. Paperless keeps one token per user, so revoking the
+   editor's token after a lost phone cuts off all the editor's devices and
+   the import script until each gets the new token. (test: a revoked token
+   gets `401`)
 3. WHEN a document arrives from the phone, THE document SHALL be owned by
    the editor.
 4. A reader's token SHALL only read: an upload with it is refused. (test:
@@ -118,8 +120,9 @@ to one address, so bills that come by mail are filed too.
 
 1. Paperless SHALL fetch a dedicated mailbox over IMAP (TLS) every 10
    minutes and consume the PDF and image attachments of each mail.
-2. Paperless SHALL consume only mail whose sender is a household address in
-   its mail rule; everything else stays in the mailbox, unread.
+2. Paperless SHALL consume only mail whose sender is a household address,
+   with one mail rule per address (a rule filters on one sender);
+   everything else stays in the mailbox, unread.
 3. WHEN a mail is consumed, THE document SHALL be owned by the editor and
    tagged `source:mail` and `inbox`, and THE mail SHALL be moved to a
    `Processed` folder.
@@ -148,7 +151,7 @@ in Paperless.
    the mailbox (scan to mail), and the document SHALL be owned by the
    editor and tagged `source:scan`.
 2. IF the household has no scanner, THEN the phone (Requirement 1) is the
-   scanner, and this requirement moves to a `deferred` issue.
+   scanner and no scanner path is built (task 10 is optional).
 
 ### Requirement 5: OCR, dates and taxonomy fit the household
 
@@ -158,8 +161,9 @@ search and filters work without manual typing.
 
 #### Acceptance criteria
 
-1. Paperless SHALL OCR with `PAPERLESS_OCR_LANGUAGE=fra+eng+deu`, and
-   SHALL use the time zone `Europe/Zurich` and day-month-year dates.
+1. Paperless SHALL OCR with the languages of open question 3 (default
+   `PAPERLESS_OCR_LANGUAGE=fra+deu+eng`), and SHALL use the time zone
+   `Europe/Zurich` and day-month-year dates.
 2. THE document types, tags, custom fields, workflows and saved views SHALL
    be defined in git and applied by a Job, idempotently; a run on an
    unchanged configuration changes nothing. Git owns them: the editor and
@@ -172,12 +176,14 @@ search and filters work without manual typing.
 4. WHEN a document is consumed, THE matching rules SHALL assign its document
    type and tags. Rules start explicit (`Any` with multi-word keywords in
    double quotes, `Regex`); NO keyword SHALL belong to two document types,
-   and NO sample text of the test corpus (synthetic French, German and
-   English texts, at least one per type) SHALL match more than one document
-   type. A document type or tag moves to Paperless' automatic classifier
-   (`Auto`) only by a change in git, once at least 20 documents carry it.
-   (test: the apply script's unit tests fail on an unquoted phrase, a shared
-   keyword or a corpus text that matches zero or two types)
+   and EVERY sample text of the test corpus (synthetic French, German and
+   English texts, at least one per type, plus a Swiss QR-bill in each
+   language) SHALL match exactly its expected document type, or none for a
+   QR-bill without an invoice number. A document type or tag moves to
+   Paperless' automatic classifier (`Auto`) only by a change in git, once
+   at least 20 documents carry it. (test: the apply script's unit tests
+   fail on an unquoted phrase, a shared keyword or a corpus text whose
+   match differs from its expected type)
 5. EVERY document SHALL get a `Retain until` date from its document type, or
    none for documents kept forever; a saved view SHALL list the documents
    whose date has passed. Deleting them stays a manual act.
@@ -235,8 +241,8 @@ just files in a bucket.
    `migrate`, `document_importer` and a document count (no web server, no
    Celery worker or beat, no IMAP egress, so it never polls the real
    mailbox), and push the result to the Pushgateway; the imported document
-   count SHALL equal the count in the export's `manifest.json` and the live
-   count at export time.
+   count SHALL equal the count in the export's `manifest.json` and the
+   count in the database copy the export was taken from.
 4. IF the restore test fails or has not succeeded for 35 days, THEN an
    alert SHALL page with a runbook.
 5. THE weekly sample SHALL cover `paperless-media`, `paperless-data` and
@@ -284,7 +290,9 @@ the reader read them, with the same login as every other app.
    account created by a Keycloak login that is not on the list SHALL get no
    group and see no document.
 4. EVERY document SHALL be owned by the editor and viewable by the group
-   `readers`, unless it carries the tag `private`; WHEN the tag `private`
+   `readers`, unless it carries the tag `private`. The one exception is the
+   ingest canary's page (Requirement 10.3), owned by the user `canary` for
+   the minutes it exists. WHEN the tag `private`
    is set, at consumption or any time later, THE `readers` view SHALL be
    removed. (test: a matrix with a throwaway reader, as in PR #468, deleted
    afterwards)
@@ -326,6 +334,17 @@ the requirement or task it names.
    mail)? Which sender addresses count as household, and what DMARC policy
    does each sender domain publish (`p=none` domains stay a residual risk)?
    Should a mail without attachments be filed too (as an `.eml` document)?
+3. **OCR languages** (Requirement 5.1, task 2): the proposed answer is
+   `fra+deu+eng`, French first. All three are in the image; each extra
+   language slows OCR and can lower accuracy, and a garbled document is the
+   signal to revisit. Add Italian (`ita`, also in the image), yes or no?
+   Without an answer, task 2 ships the proposed answer.
+4. **Sharing default** (Requirement 9.4, task 4): the proposed answer is
+   that the reader sees every document unless the editor tags it
+   `private`, because household documents concern both adults and
+   per-type privacy would also hide the reader's own medical letters. The
+   alternative is the reverse: private by default, shared by a tag. Without
+   an answer, task 4 ships the proposed answer.
 
 ## Decided defaults
 
@@ -335,10 +354,8 @@ with the reason. Each one is a line in git, so changing it later is one PR.
 | Topic | Decision | Reason |
 | --- | --- | --- |
 | Who files documents | One editor (the operator), one reader (the other adult of the household) | The operator manages the documents; the reader only reads them |
-| Sharing default | Everything readable by `readers`; the tag `private` hides a document | Household documents concern both; per-type privacy would also hide the reader's own medical letters |
 | Who edits the taxonomy | Git owns types, tags, custom fields, workflows and saved views; the editor edits documents and correspondents | Changes are reviewed and backed up in git; an agent turns a request into a PR |
-| OCR languages | `fra+eng+deu`, no Italian | The three household languages; each extra language slows OCR and can lower accuracy. A garbled document is the signal to revisit |
-| Scanner | None assumed: the phone app is the scanner; task 10 becomes a `deferred` issue. A scanner that turns up uses scan to mail | Scan to mail needs no SMB share or new NAS user |
+| Scanner | None assumed: the phone app is the scanner. Task 10 is a planned, optional task: it runs if a scanner is in use, through scan to mail; otherwise task 14 ticks it as not needed | Scan to mail needs no SMB share or new NAS user |
 | Phone app | The first app in the [design table](design.md#phone) that logs in with a token against 3.4.1 on the editor's phone | A working token login is the only hard requirement |
 | Other sources | Whatever the operator drops into the local import directory, one subdirectory per source; the Seafile export first | The operator knows where his files are; the script does the rest |
 | N minutes | 5 minutes for files, 15 for mail | Single-page OCR on the RK1 takes well under a minute; mail polling adds up to 10 |

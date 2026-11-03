@@ -23,7 +23,7 @@ editor's phone app ──editor's API token────────────�
 editor's devices ──Syncthing folder──▶ NFS inbox ──polling────────────┤
 scanner (if any) ──scan to mail──▶ mailbox ◀──IMAPS every 10 min──────┤
                                                                       ▼
-                                  Paperless (consume, OCR fra+eng+deu, matching,
+                                  Paperless (consume, OCR fra+deu+eng, matching,
                                   workflows: owner = editor, view = readers, private)
                                                          │
              02:30 paperless-backup, one Job, in order:
@@ -45,7 +45,9 @@ and API uploads use the editor's token. The reader files nothing.
 
 A Paperless client app with an API token. Users log in through Keycloak
 and have no local password, so the token (web UI, My Profile, API token) is
-the only credential the app holds; revoking it cuts off one phone. The
+the only credential the app holds. Paperless keeps one token per user, so
+revoking it after a lost phone cuts off every device of that user and, for
+the editor, the import script, until each gets the new token. The
 editor is not a superuser, so a stolen phone token cannot reach users,
 groups or settings. The reader may use the same app with a token of the
 reader's own account, which can only read. The first app in this table that
@@ -94,10 +96,11 @@ code for the same result.
 A dedicated mailbox (open question 2), never anyone's own. Paperless stores
 its mail account in its database; the configuration Job creates it from the
 SOPS Secret `paperless-mail` (host, port 993, user, app password, the
-household sender addresses). One mail rule: filter "from" the household
-addresses, attachments only (PDF and images), action "move to folder
-`Processed`", tags `source:mail` and `inbox`. Mail from anyone else matches
-no rule and stays unread. `PAPERLESS_EMAIL_TASK_CRON` keeps its default,
+household sender addresses). A Paperless mail rule has a single
+`filter_from` value, so `apply.py` creates one rule per household sender
+address, all with the same settings: attachments only (PDF and images),
+action "move to folder `Processed`", tags `source:mail` and `inbox`. Mail
+from anyone else matches no rule and stays unread. `PAPERLESS_EMAIL_TASK_CRON` keeps its default,
 every 10 minutes.
 
 The sender filter compares the `From` header, which a sender can forge.
@@ -124,11 +127,12 @@ world (the provider's address is not stable enough for a CIDR).
 
 ### Scanner
 
-None is assumed: the phone app is the scanner, and task 10 becomes a
-`deferred` issue. A scanner that turns up uses scan to mail through the
-mailbox, through a second mail rule `scanner` filtered on the scanner's
-sender address and a workflow on that rule that tags `source:scan`. The owner comes from the `owner` workflow, as for all
-mail. Scan to an SMB folder is left out: it needs an SMB share and a
+None is assumed: the phone app is the scanner. Task 10 is a planned,
+optional task: if a scanner is in use, it sends through the mailbox (scan
+to mail), with a mail rule `scanner` filtered on the scanner's sender
+address and a workflow on that rule that tags `source:scan`. The owner
+comes from the `owner` workflow, as for all mail. If there is no scanner
+when task 14 starts, task 14 ticks task 10 as not needed. Scan to an SMB folder is left out: it needs an SMB share and a
 NAS user for one device.
 
 ## Settings
@@ -137,7 +141,7 @@ Environment changes in `apps/paperless/deployment.yaml`:
 
 | Variable | Value | Why | Task |
 | --- | --- | --- | --- |
-| `PAPERLESS_OCR_LANGUAGE` | `fra+eng+deu` | the household's languages; all three are in the image, so `PAPERLESS_OCR_LANGUAGES` stays unset | 2 |
+| `PAPERLESS_OCR_LANGUAGE` | `fra+deu+eng` (open question 3) | the household's languages, French first; all three are in the image, so `PAPERLESS_OCR_LANGUAGES` stays unset | 2 |
 | `PAPERLESS_TIME_ZONE` | `Europe/Zurich` | creation dates near midnight land on the right day | 2 |
 | `PAPERLESS_DATE_ORDER` | `DMY` | explicit (today's default) | 2 |
 | `PAPERLESS_FILENAME_FORMAT` | `{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent }} {{ title }}` | readable files in the media volume and the export | 2 |
@@ -162,6 +166,9 @@ are in English; the matching keywords cover French, German and English.
   spaces and matches whole words, so a phrase is written in double quotes:
   `"ticket de caisse"`, never `ticket de caisse` (which would match every
   French document through `de`).
+- A phrase with an apostrophe is a `Regex` with `['’]`, because PDFs and
+  OCR output use both the straight (U+0027) and the typographic (U+2019)
+  apostrophe. Tax and Insurance therefore use `Regex`.
 - A document type gets only specific keywords. Generic words (`facture`,
   `Rechnung`, `invoice`, `statement`, `policy`, `attestation`, `contrat`,
   `certificat`) are left out: they appear in letters of every type. A bank
@@ -175,9 +182,12 @@ are in English; the matching keywords cover French, German and English.
   - a corpus of synthetic sample texts in `tests/paperless/corpus/`, at
     least one per type in French, German and English, written to include
     the generic words above (a statement that mentions `facture`, a payslip
-    whose footer says `invoice`). The test runs Paperless' `Any` rule (whole
-    words, case-insensitive, quoted phrases) over each text and fails when a
-    text matches zero types or more than one. The texts are invented: no
+    whose footer says `invoice`), plus a Swiss QR-bill in each language
+    (receipt part headed `Récépissé`, `Empfangsschein`, `Receipt`) and some
+    texts with `’`. Each text names its expected type, or none. The test
+    runs Paperless' `Any` rule (whole words, case-insensitive, quoted
+    phrases) and the `Regex` rules over each text and fails when the
+    matched types differ from the expected one. The texts are invented: no
     real document content.
 
 ### Document types and retention
@@ -185,11 +195,11 @@ are in English; the matching keywords cover French, German and English.
 | Type | Matching (`Any`, case-insensitive) | Retain |
 | --- | --- | --- |
 | Invoice | `"numéro de facture" Rechnungsnummer "invoice number" "invoice no"` | 5 years |
-| Receipt | `quittance "ticket de caisse" Quittung Kassenbon receipt` | 2 years |
+| Receipt | `quittance "ticket de caisse" Quittung Kassenbon "till receipt" "sales receipt"` (no bare `receipt`: an English QR-bill's receipt part is headed "Receipt") | 2 years |
 | Statement | `"relevé de compte" "extrait de compte" Kontoauszug "bank statement"` | 10 years |
-| Tax | `"déclaration d'impôt" "décision de taxation" Steuererklärung Veranlagungsverfügung "tax return"` | 10 years |
+| Tax | `Regex`: `\b(déclaration d['’]impôts?\|décision de taxation\|steuererklärung\|veranlagungsverfügung\|tax return)\b` | 10 years |
 | Payslip | `"fiche de salaire" "décompte de salaire" "certificat de salaire" Lohnabrechnung Lohnausweis payslip` | forever |
-| Insurance | `"police d'assurance" "attestation d'assurance" Versicherungspolice Versicherungsnachweis "insurance policy"` | forever |
+| Insurance | `Regex`: `\b(police d['’]assurance\|attestation d['’]assurance\|versicherungspolice\|versicherungsnachweis\|insurance policy)\b` | forever |
 | Contract | `"contrat de bail" "contrat de travail" Mietvertrag Arbeitsvertrag "rental agreement" "employment contract"` | forever |
 | Medical | `"ordonnance médicale" "rapport médical" Arztbericht Arztzeugnis "medical report"` | 10 years |
 | Official | `"acte de naissance" "acte de mariage" "certificat de domicile" Geburtsurkunde Wohnsitzbestätigung "birth certificate"` | forever |
@@ -250,7 +260,10 @@ text (name, IBAN, UID number) in the UI.
 Inbox (`inbox`), To pay (`to-pay`, by `Due date`), Tax year (`tax-relevant`,
 by `Tax year`), Retention expired (`Retain until` before today), Recently
 added. Created without an owner, so both groups see them, and shown on the
-dashboard.
+dashboard. Through 2.x, saved views were listed per owner and dashboard
+visibility was a per-user UI setting; task 3 checks this on 3.4.1, and if
+it still holds, `apply.py` creates one copy of each view per listed
+account, owned by that account.
 
 ## Matching and workflows
 
@@ -343,7 +356,8 @@ private documents, and only a superuser sees every document regardless of
 object permissions, so `automation` is a superuser: its token can read and
 change every document, and it works on the public `/api/`.
 `docs/secrets.md` records that reach, and `ci/secret-rotation.tsv` its
-rotation. Unit tests in `tests/` against a fake API, like the Keycloak realm
+rotation. The alternative without a token is weighed in
+[Known limits](#known-limits). Unit tests in `tests/` against a fake API, like the Keycloak realm
 tests.
 
 Rejected: configuring everything in the UI. It works, but the backup is the
@@ -374,7 +388,12 @@ through `nedsi-admin`.
 
 The 5 existing accounts predate the groups. Task 4 puts the editor's and
 the reader's accounts into their groups from the list in `paperless-config`
-and removes the superuser flag from the editor's account if it is set. The
+and removes the superuser flag from the editor's account if it is set.
+Before the flag goes, task 4 proves the break-glass path: `nedsi-admin`
+reaches the admin with `PAPERLESS_REDIRECT_LOGIN_TO_SSO` set. If the
+redirect hides the local login, the recovery is `python3 manage.py shell`
+in the Paperless container (`kubectl exec` over the tailnet) to set the
+flag back, and `docs/paperless.md` records it. The
 other accounts keep no group and see nothing; deleting them is left to the
 operator, since it cannot be undone.
 
@@ -453,7 +472,7 @@ one PR records the counts of every batch in `docs/paperless.md`.
 
 | Job | When | What |
 | --- | --- | --- |
-| `paperless-backup` (changed) | 02:30 | Init container 1, paperless image, `paperless-data` read-write on the pod's node: Python's SQLite backup API (`sqlite3.connect(...).backup(...)`, SQLite 3.46.1 in the image) into an emptyDir at `/db/db.sqlite3`, then `PRAGMA integrity_check` on the copy. Init container 2, paperless image: `document_exporter /export --use-filename-format --delete --no-progress-bar --passphrase "$PASSPHRASE"` into PVC `paperless-export` (`iscsi-retain`), then `export-meta.json` with the live document count. Main container, restic with read-only mounts: `/db` (tag `paperless-db`), `/media` (`paperless-media`), `/data` minus `db.sqlite3*`, index and thumbnails (`paperless-data`), and `/export` (`paperless-export`) |
+| `paperless-backup` (changed) | 02:30 | Init container 1, paperless image, `paperless-data` read-write on the pod's node: Python's SQLite backup API (`sqlite3.connect(...).backup(...)`, SQLite 3.46.1 in the image) into an emptyDir at `/db/db.sqlite3`, then `PRAGMA integrity_check` on the copy. Init container 2, paperless image, reading the copy, never the live database: `PAPERLESS_DATA_DIR=/db` (the writable emptyDir, so the copy's `-shm` file and Paperless' log directory can be written), `PAPERLESS_CONSUMPTION_DIR=/db/consume` (empty), `paperless-media` read-only at `/media`; `document_exporter --skip-checks /export --use-filename-format --delete --no-progress-bar --passphrase "$PASSPHRASE"` into PVC `paperless-export` (`iscsi-retain`, 100Gi), then `export-meta.json` with the document count from the same `/db` copy. Main container, restic with read-only mounts: `/db` (tag `paperless-db`), `/media` (`paperless-media`), `/data` minus `db.sqlite3*`, index and thumbnails (`paperless-data`), and `/export` (`paperless-export`) |
 | `restore-paperless` (new, `backup-verify`) | monthly | restore the latest `paperless-export` into a scratch volume and run, in one pod with no web server and no Celery worker or beat: `migrate` on an empty SQLite, `document_importer --passphrase`, a document count through `manage.py shell`; pass when imported = `manifest.json` = `export-meta.json` and one restored PDF opens; push the result like the other restore tests |
 
 Why one Job. Init containers run in order and each must succeed before the
@@ -469,7 +488,25 @@ database needs write access to the `-shm` file, so the backup API on a
 read-only mount either fails or reads without the WAL's recent pages. The
 first init container mounts `paperless-data` read-write, which the RWO
 volume allows on the same node, and SQLite's own locking then gives a
-consistent copy while Paperless keeps writing. Rejected: running the copy
+consistent copy while Paperless keeps writing.
+
+Why the exporter reads the copy. The copy keeps WAL mode, so its reader
+also needs a writable directory, which the emptyDir gives. The copy, the
+export and the `export-meta.json` count then come from one point in time,
+so a mail fetch or a phone upload at 02:30 cannot make the restore test's
+counts differ. Paperless' startup path check also wants a writable media
+root, and `/media` stays read-only: the exporter runs with Django's
+`--skip-checks`. Task 5 verifies on 3.4.1 that `document_exporter` accepts
+`--skip-checks` and starts with these mounts; if not, the fallback is
+`paperless-media` read-write in init container 2 (same node, RWO). One
+edge remains: a document purged from the trash between the copy and the
+export leaves a row without a file. Only the canary purges at once, and
+its schedule avoids 02:00 to 04:00.
+
+Size. The export holds the same kinds of files as `paperless-media`
+(originals, archived PDFs, thumbnails), so `paperless-export` gets the same
+size, 100Gi on `iscsi-retain`, and grows with it; the PVC filling alerts
+cover both. Rejected: running the copy
 inside the live pod with `kubectl exec`, as `scripts/dump-databases.sh` does
 from the Mac; it would give a CronJob `pods/exec` rights in the namespace.
 
@@ -511,13 +548,10 @@ paperless-export|s3:paperless/media|paperless-export|/export/manifest.json
 `paperless-backup` does not change, so `ci/active-cronjobs.txt` and
 `backup-slo-targets.yaml` keep their entries.
 
-`apps/paperless/backup.yaml` is also being changed by #953 (read-only root
-filesystem); task 5 starts after it merges.
-
 ## Findable within N minutes
 
-The canary `paperless-canary` (every 6 hours, paperless image, user
-`canary`): draws a one-page image with a random token, converts it to PDF
+The canary `paperless-canary` (every 6 hours at 01:00, 07:00, 13:00 and
+19:00, clear of the 02:30 backup; paperless image, user `canary`): draws a one-page image with a random token, converts it to PDF
 (PIL and `img2pdf`, both in the image) so OCR has to read it, uploads it,
 polls `/api/documents/?query=<token>` until found, records the seconds,
 deletes the document and empties it from the trash, and pushes
@@ -548,8 +582,9 @@ The CiliumNetworkPolicies get the canary's egress to the Pushgateway
 - **The read-write backup mount.** The first init container can write to
   the live database volume. It runs only the backup API (which writes
   nothing to the source beyond SQLite's lock state) and `integrity_check`
-  on the copy; the export container and restic keep read-only mounts of
-  `paperless-data` and `paperless-media`.
+  on the copy. The export container reads the copy in the writable
+  emptyDir and mounts only `paperless-media`, read-only; restic mounts
+  everything read-only.
 - **Backup window.** The export now runs inside the backup Job, so a long
   export delays the snapshot. The backup SLO's freshness window (24 h)
   absorbs it; a Job that runs past its `activeDeadlineSeconds` fails and
@@ -560,3 +595,18 @@ The CiliumNetworkPolicies get the canary's egress to the Pushgateway
   outage already pages (`HomelabNASUnreachable`, `HomelabNASDown`).
 - **Forged mail.** See [Mail](#mail); the residual risk is in
   `docs/threat-model.md`.
+
+## Known limits
+
+- **The `automation` token works on the public `/api/`.** A leaked token
+  reads and changes every document from the internet. The alternative
+  without a token is a Django script in a Job pod that mounts
+  `paperless-data` read-write on the Paperless node, like init container 1.
+  It is not taken for now: the script would write to the live SQLite
+  database as a second process and depend on Paperless' internal models,
+  which change between majors, while the REST API is versioned and
+  `apply.py` is unit-tested against a fake of it. The PostSync Job also
+  needs no node affinity with the token. The token lives only in SOPS, is
+  rotated through `ci/secret-rotation.tsv`, and its reach is recorded in
+  `docs/secrets.md` and `docs/threat-model.md`. Moving the nightly passes
+  in-cluster is a new issue if the trade-off changes.
