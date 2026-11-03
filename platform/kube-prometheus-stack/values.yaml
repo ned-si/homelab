@@ -200,6 +200,13 @@ grafana:
   defaultDashboardsTimezone: browser
   assertNoLeakedSecrets: false
   envFromSecret: grafana-oidc
+  # The built-in admin (break-glass, docs/runbooks/grafana-break-glass.md)
+  # from the SOPS Secret `grafana-admin`. Without it the chart renders a new
+  # random admin Secret on every Argo CD render (no `lookup`), and its
+  # checksum annotation restarted Grafana on every sync. Keys: the chart
+  # defaults, admin-user and admin-password.
+  admin:
+    existingSecret: grafana-admin
   grafana.ini:
     server:
       domain: grafana.lilalala.com
@@ -223,7 +230,11 @@ grafana:
       auth_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/auth
       token_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/token
       api_url: https://auth.lilalala.com/realms/homelab/protocol/openid-connect/userinfo
-      role_attribute_path: contains(roles[*], 'admin') && 'Admin' || contains(roles[*], 'editor') && 'Editor' || 'Viewer'
+      # Keycloak group `admins` -> org role Admin. The `groups` claim comes
+      # from the realm's `groups` client scope (a default scope of
+      # `grafana-oauth`), in the ID token and userinfo. Keycloak sends no
+      # top-level `roles` claim.
+      role_attribute_path: contains(groups[*], 'admins') && 'Admin' || 'Viewer'
   # No Ingress: grafana.lilalala.com is served by the shared Gateway
   # (routes/grafana.yaml). ingress-nginx is removed (ADR 0011).
   ingress:
