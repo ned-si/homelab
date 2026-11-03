@@ -2,25 +2,12 @@
 
 One PR per task, in order unless a task says otherwise; each is safe on its
 own. Tasks that restart Paperless or write to the cluster or the NAS run on
-a weekday, during the day (Zurich). The open question and the decided
-defaults are in [requirements.md](requirements.md#open-questions); task 3
-waits for the taxonomy answer.
+a weekday, during the day (Zurich). No question is open; the decisions are
+in [requirements.md](requirements.md#decided-defaults).
 
 ## Open
 
-- [ ] 1. **Seafile archive, before the zvols may go on 2026-11-17 (target
-      Friday 2026-11-13, buffer Monday 2026-11-16).** In a scratch
-      namespace and volume: `restic ls -l 8838dac0` and the `RepoFileCount`
-      and `RepoSize` rows of the MariaDB dump in `34f34ea0`; if libraries
-      hold files, restore `8838dac0` and export them with `seaf-fsck.sh
-      --export`. Record file count, total size and count per extension in
-      the PR, copy any export to
-      `~/homelab-backups/paperless-import/seafile/` on the operator's Mac,
-      delete the scratch objects. Update "Seafile removed" in
-      `docs/decisions.md` with the outcome. If it cannot finish by Monday
-      2026-11-16, the PR extends the zvol retention date instead.
-      Independent of the other tasks. [3.1, 3.4]
-- [ ] 2. Settings: `PAPERLESS_OCR_LANGUAGE=fra+eng+spa+deu`,
+- [ ] 1. Settings: `PAPERLESS_OCR_LANGUAGE=fra+eng+spa+deu`,
       `PAPERLESS_TIME_ZONE=Europe/Zurich`, `PAPERLESS_DATE_ORDER=DMY`,
       `PAPERLESS_FILENAME_FORMAT`. Check: a French, an English, a Spanish
       and a German test page, uploaded through the web app (one from a
@@ -31,10 +18,10 @@ waits for the taxonomy answer.
       for the 10-page file, with the four languages and with `fra` alone,
       are in the PR, and the Deployment gets a memory request from them;
       the one existing document is renamed on disk. [1.1, 2.1, 2.6]
-- [ ] 3. Configuration as code: `apps/paperless/config/paperless.json`
-      (document types, tags, custom fields, saved views and workflows, from
-      the answer to the open question), `apply.py` with pytest against a
-      fake API: the unquoted phrase and shared keyword checks, the
+- [ ] 2. Configuration as code: `apps/paperless/config/paperless.json`
+      (document types, tags, custom fields, saved views and workflows, the
+      approved [taxonomy](design.md#taxonomy)), `apply.py` with pytest
+      against a fake API: the unquoted phrase and shared keyword checks, the
       synthetic FR/DE/EN corpus in `tests/paperless/corpus/` (each text
       matches exactly its expected type, a QR-bill per language none; texts
       with `’`), the `owner: null` and `set_permissions` fields of every
@@ -49,7 +36,7 @@ waits for the taxonomy answer.
       saved view with `owner: null` is listed and can go on the dashboard
       for both groups on 3.4.1, or `apply.py` creates one copy per listed
       account. [2.2, 2.3, 2.4, 2.5, 6.5]
-- [ ] 4. Access: the groups `editors` and `readers` and their permissions,
+- [ ] 3. Access: the groups `editors` and `readers` and their permissions,
       the member list in SOPS `paperless-config` (one encrypted
       `config.json` value), the editor's and the reader's accounts put into
       their groups by `apply.py`, the superuser flag and direct model
@@ -74,7 +61,7 @@ waits for the taxonomy answer.
       security issue. `docs/paperless.md` "Access", which says the
       `private` tag is the only way to hide a document. [1.2, 1.3, 6.1,
       6.2, 6.3, 6.4, 6.5]
-- [ ] 5. Consistent backup with the export: in
+- [ ] 4. Consistent backup with the export: in
       `paperless-backup`, init container 1 with `paperless-data` read-write
       and the SQLite backup API (tag `paperless-db`, `db.sqlite3*` excluded
       from `paperless-data`), init container 2 running `document_exporter
@@ -91,7 +78,7 @@ waits for the taxonomy answer.
       snapshots all four tags; a run with a wrong passphrase variable fails
       before restic starts. Takes the Paperless part of #746; the issue
       keeps Jellyfin and Grafana. [4.1, 4.2, 4.5, 5.1, 5.3]
-- [ ] 6. Restore test: `restore-paperless` in `backup-verify` (`migrate`,
+- [ ] 5. Restore test: `restore-paperless` in `backup-verify` (`migrate`,
       `document_importer --passphrase` and a count in one pod with no web
       server, worker or beat; counts equal over the exported documents,
       one PDF opens), the passphrase copy in `backup-verify`, its alert,
@@ -99,7 +86,7 @@ waits for the taxonomy answer.
       trashed documents; one manual run with a non-empty trash passes, one
       with a corrupted manifest fails and the alert test fires. [4.3, 4.4,
       5.2]
-- [ ] 7. Ingest canary: `paperless-canary`, the user `canary` with its own
+- [ ] 6. Ingest canary: `paperless-canary`, the user `canary` with its own
       add, view and delete document permissions, its API token in SOPS
       `paperless-canary`, the digits-only number in a large font, the
       egress rule to the Pushgateway in the CiliumNetworkPolicy
@@ -107,21 +94,20 @@ waits for the taxonomy answer.
       `ci/active-cronjobs.txt`, `PaperlessIngestFailing` and
       `PaperlessIngestSlow` with promtool tests and runbooks. Check: a week
       of canary results on the Data protection dashboard. [7.2, 7.3]
-- [ ] 8. Import script: `scripts/paperless-import.py` with pytest (upload
+- [ ] 7. Import script: `scripts/paperless-import.py` with pytest (upload
       as the editor with the tag, the stop when `import:<source>` is
       missing, task follow-up, the local report, counts only on stdout),
       and the `import:<source>` tags of the sources present in
-      `paperless.json` (generic names). [3.2, 3.4]
-- [ ] 9. Import batches: every source subdirectory under
-      `~/homelab-backups/paperless-import/`, the Seafile export first, run
-      during the day with an API token of the editor's account created for
-      the batches and deleted after the last one; a source added after
-      task 8 gets its `import:<source>` tag in a one-line PR before its
-      batch; one PR records the counts of every batch (in = created +
+      `paperless.json` (generic names). [3.1, 3.3]
+- [ ] 8. Import batches: every source subdirectory under
+      `~/homelab-backups/paperless-import/`, run during the day with an
+      API token of the editor's account created for the batches and
+      deleted after the last one; a source added after task 7 gets its
+      `import:<source>` tag in a one-line PR before its batch; one PR records the counts of every batch (in = created +
       duplicates + failed) and the failure reasons in `docs/paperless.md`,
       opened when the batches are imported; the file-level reports stay
-      local. [3.2, 3.3, 3.4]
-- [ ] 10. Close: `docs/paperless.md` complete (the web upload, taxonomy,
+      local. [3.1, 3.2, 3.3]
+- [ ] 9. Close: `docs/paperless.md` complete (the web upload, taxonomy,
       access, export, restore), the README Services row, the
       `docs/threat-model.md` documents row (the `automation` token's reach,
       open egress from `paperless` while it is in audit mode), the

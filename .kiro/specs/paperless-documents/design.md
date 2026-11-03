@@ -60,10 +60,10 @@ Environment changes in `apps/paperless/deployment.yaml`:
 
 | Variable | Value | Why | Task |
 | --- | --- | --- | --- |
-| `PAPERLESS_OCR_LANGUAGE` | `fra+eng+spa+deu` (decided 2026-11-03) | the household's languages, most frequent first: Tesseract treats the first as primary; all four are in the image, so `PAPERLESS_OCR_LANGUAGES` stays unset | 2 |
-| `PAPERLESS_TIME_ZONE` | `Europe/Zurich` | creation dates near midnight land on the right day | 2 |
-| `PAPERLESS_DATE_ORDER` | `DMY` | explicit (today's default) | 2 |
-| `PAPERLESS_FILENAME_FORMAT` | `{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent }} {{ title }}` | readable files in the media volume and the export | 2 |
+| `PAPERLESS_OCR_LANGUAGE` | `fra+eng+spa+deu` (decided 2026-11-03) | the household's languages, most frequent first: Tesseract treats the first as primary; all four are in the image, so `PAPERLESS_OCR_LANGUAGES` stays unset | 1 |
+| `PAPERLESS_TIME_ZONE` | `Europe/Zurich` | creation dates near midnight land on the right day | 1 |
+| `PAPERLESS_DATE_ORDER` | `DMY` | explicit (today's default) | 1 |
+| `PAPERLESS_FILENAME_FORMAT` | `{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent }} {{ title }}` | readable files in the media volume and the export | 1 |
 
 `PAPERLESS_SOCIAL_ACCOUNT_DEFAULT_GROUPS` stays unset: a new Keycloak login
 gets no group, and the configuration Job puts listed accounts into their
@@ -73,10 +73,10 @@ Setting the file name format renames existing files on disk. With one
 document today that is free, and restic stores renamed files without new
 data, which is why it comes before the import.
 
-## Taxonomy proposal
+## Taxonomy
 
-**This is a proposal for the operator to adjust** (open question 1). Names
-are in English; the matching keywords cover French, German and English.
+Decided: the operator approved this taxonomy as proposed on 2026-11-03.
+Names are in English; the matching keywords cover French, German and English.
 Spanish documents are rare, so the editor types them by hand; Spanish
 keywords and corpus texts are added in git if they become common.
 
@@ -157,7 +157,7 @@ matches a Swiss QR-bill with a `Regex`
 `tax-relevant` is added by a workflow to the types Tax, Statement, Payslip
 and Insurance. `private` never matches: the editor sets it. The
 `import:<source>` tags are in `paperless.json` like every other tag, one per
-import source (`import:seafile` first), and `apply.py` creates them without
+import source, and `apply.py` creates them without
 an owner; the import script only attaches them (see [Import](#import)).
 
 ### Custom fields
@@ -167,7 +167,7 @@ an owner; the import script only attaches them (see [Import](#import)).
 
 ### Storage paths: none
 
-The proposal uses no storage paths. The global `PAPERLESS_FILENAME_FORMAT`
+The taxonomy uses no storage paths. The global `PAPERLESS_FILENAME_FORMAT`
 already gives one tree per year and document type, which is the layout the
 export and a reader without Paperless need. A storage path would override
 that per document, and matching would have to choose it right every time.
@@ -187,7 +187,7 @@ Inbox (`inbox`), To pay (`to-pay`, by `Due date`), Tax year (`tax-relevant`,
 by `Tax year`), Retention expired (`Retain until` before today), Recently
 added. Created without an owner, so both groups see them, and shown on the
 dashboard. Through 2.x, saved views were listed per owner and dashboard
-visibility was a per-user UI setting; task 3 checks this on 3.4.1, and if
+visibility was a per-user UI setting; task 2 checks this on 3.4.1, and if
 it still holds, `apply.py` creates one copy of each view per listed
 account, owned by that account.
 
@@ -196,6 +196,10 @@ account, owned by that account.
 Explicit matching first (`Any` keywords, `Regex` for the QR-bill), because
 the automatic classifier needs training data the archive does not have. A
 type or tag moves to `Auto` in git once 20 documents carry it.
+
+Sharing default, decided by the operator on 2026-11-03: a document is
+visible to the reader by default, and the `private` tag hides it. The
+workflows below implement that.
 
 Workflows run in the order of their `order` field; `private` is last, so
 nothing after it gives the view back.
@@ -312,15 +316,15 @@ editor's day-to-day account is not a superuser, so a stolen editor session
 reaches documents and correspondents only; administration goes through
 `nedsi-admin`.
 
-The 5 existing accounts predate the groups. Task 4 puts the editor's and
+The 5 existing accounts predate the groups. Task 3 puts the editor's and
 the reader's accounts into their groups from the list in `paperless-config`,
 lists the superuser flag and direct model permissions of every account,
 and clears both on every account other than `nedsi-admin`, `automation`
 and `canary` (the editor's included), the same exemptions as `apply.py`'s
 report. `automation` keeps its superuser flag, which the PostSync Job and
-the nightly passes need, and `canary` (task 7) keeps its direct
+the nightly passes need, and `canary` (task 6) keeps its direct
 permissions.
-Before the flag goes, task 4 proves the break-glass path: `nedsi-admin`
+Before the flag goes, task 3 proves the break-glass path: `nedsi-admin`
 reaches the admin with `PAPERLESS_REDIRECT_LOGIN_TO_SSO` set. If the
 redirect hides the local login, the recovery is `python3 manage.py shell`
 in the Paperless container (`kubectl exec` over the tailnet) to set the
@@ -341,51 +345,17 @@ needed: Keycloak decides who logs in, and the member list in SOPS decides
 the Paperless role.
 
 The API is public at `archive.lilalala.com/api/`, because the web app runs
-on it. Task 4 checks whether it also accepts the local admin password over
+on it. Task 3 checks whether it also accepts the local admin password over
 basic auth from the internet; if so, that is a new security issue, not
 part of this spec.
 
 ## Import
 
-### Seafile archive (deadline: before 2026-11-17)
-
-`docs/backups.md` lists `seafile/shared` at 0.7 MiB, so the archive is
-probably close to empty. Task 1 starts with the cheap step and stops early
-if there is nothing to export.
-
-1. A scratch namespace with the verifier credentials and a scratch iSCSI
-   volume, as in [How to restore](../../../docs/backups.md#how-to-restore)
-   (a live write: the task's brief allows it).
-2. Inventory: `restic ls -l 8838dac0` (block count and bytes per library
-   directory) and `restic restore 34f34ea0` (the MariaDB dump), then read
-   the `RepoFileCount` and `RepoSize` rows from the dump text. No MariaDB
-   needed. The counts go into the pull request.
-3. If no library holds files: record that, delete the scratch objects, done.
-4. Otherwise `restic restore 8838dac0` (data and `seafile/conf/`) and one
-   pod: `mariadb:10.11` loading the dump, and the Seafile 11 server image
-   with the restored `conf/` running `seaf-fsck.sh --export /export`, which
-   writes every library as plain files. File count, total size and count per
-   extension go into the pull request; the list of names only to the
-   operator.
-5. Copy the export to the operator's Mac under
-   `~/homelab-backups/paperless-import/seafile/` (outside git), then delete
-   the scratch namespace and volume.
-
-This also proves the restic copy restores, which is what is left once the
-zvols go. If the Seafile tools cannot run on the restored data, the
-fallback is a read-only pod on the two zvols themselves, which is why the
-task targets Friday 2026-11-13 and keeps Monday 2026-11-16 as a buffer. If
-neither works by then, the pull request extends the zvol retention date in
-`docs/decisions.md` instead. Otherwise it updates "Seafile removed" there
-with the outcome.
-
-### Other sources and the import script
-
 The local import directory is `~/homelab-backups/paperless-import/`, one
-subdirectory per source (`seafile/` from task 1, then whatever the operator
-adds: a Mac folder, a cloud drive download, an external disk). The
-subdirectory name, which goes into git and so must be generic (`seafile`,
-`mac`, `drive`), becomes the `import:<source>` tag. Task 8 adds the tags of the
+subdirectory per source (whatever the operator adds: a Mac folder, a cloud
+drive download, an external disk). The subdirectory name, which goes into
+git and so must be generic (`mac`, `drive`), becomes the `import:<source>`
+tag. Task 7 adds the tags of the
 sources present then to `paperless.json`; a source added later gets its
 tag in a one-line PR before its batch. `apply.py` creates them without an
 owner, so the reader sees them and the editor needs no right to create
@@ -395,7 +365,7 @@ tags.
 looks up `import:<source>` by name and stops before the first upload if it
 is missing, uploads each file through `/api/documents/post_document/` with
 the tag, as the editor (an API token of the editor's account, read from the
-environment, created in the web UI for the batches of task 9 and deleted
+environment, created in the web UI for the batches of task 8 and deleted
 after the last one), follows each consumption task to its result, and
 writes a local report
 (path, document id, created, duplicate, failed with reason). Folder names
@@ -436,7 +406,7 @@ export and the `export-meta.json` count then come from one point in time,
 so an upload at 02:30 cannot make the restore test's
 counts differ. Paperless' startup path check also wants a writable media
 root, and `/media` stays read-only: the exporter runs with Django's
-`--skip-checks`. Task 5 verifies on 3.4.1 that `document_exporter` accepts
+`--skip-checks`. Task 4 verifies on 3.4.1 that `document_exporter` accepts
 `--skip-checks` and starts with these mounts; if not, the fallback is
 `paperless-media` read-write in init container 2 (same node, RWO). One
 edge remains: a row in the copy whose file is gone from `/media` by the
@@ -452,7 +422,7 @@ The counts. `export-meta.json`, `manifest.json` and the restore test's
 import count all count the documents the exporter exports. Paperless' trash
 is a soft delete, and the default document manager hides trashed
 documents, so the count in `export-meta.json` uses that manager, the same
-set the exporter walks. Task 6 checks on 3.4.1 that the exporter skips the
+set the exporter walks. Task 5 checks on 3.4.1 that the exporter skips the
 trash, and runs its check with a non-empty trash.
 
 Size. The export holds the same kinds of files as `paperless-media`
@@ -472,7 +442,7 @@ login replaces.
 
 The restore test runs no web server, worker or beat: it needs only
 `migrate`, the importer and a count. If `document_importer` needs a
-broker, task 6 adds a throwaway Valkey in the same pod, still with no
+broker, task 5 adds a throwaway Valkey in the same pod, still with no
 worker.
 
 The export is where "never locked in" comes from: `restic restore --tag
@@ -485,7 +455,7 @@ because the NAS exports are open to the whole LAN today (#721) and the
 export is every document in plain files. The flags are checked against
 `document_exporter --help` of 3.4.1 in the task.
 
-`restic-targets.txt` after task 5:
+`restic-targets.txt` after task 4:
 
 ```
 paperless-media|s3:paperless/media|paperless-media|
@@ -521,7 +491,7 @@ it is a generated page with a random number, so that is accepted.
 
 The canary covers the API, the queue, OCR and the index: the path a web
 upload takes once it leaves the browser. The 10-page number of
-Requirement 7.1 is checked by hand in task 2.
+Requirement 7.1 is checked by hand in task 1.
 
 The CiliumNetworkPolicy `paperless` gets the canary's egress to the
 Pushgateway (`backup-verify`, TCP 9091), so the allow-list is complete when
@@ -549,7 +519,7 @@ is no ingress rule to add. The CronJob is listed in
 - **OCR load.** Four languages make Tesseract slower per page than one,
   and the RK1 (8 arm64 cores) runs everything else too. Tesseract loads
   all four models for every page, and the Deployment sets no memory
-  request or limit. Task 2 measures the OCR time and the container's peak
+  request or limit. Task 1 measures the OCR time and the container's peak
   memory for one page and for a 10-page file with `fra+eng+spa+deu`
   against `fra` alone, and sets a memory request from the result; the canary watches the
   5-minute limit; a bulk import runs in daytime batches. If pages run too

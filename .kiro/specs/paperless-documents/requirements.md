@@ -21,15 +21,6 @@ through Keycloak for one editor and one reader, backups whose restore is
 tested end to end, and a plain-file export so the documents are never
 locked in.
 
-> **Deadline: the Seafile archive.** The two Seafile zvols may be deleted
-> from **Tuesday 2026-11-17** on ("after 2026-11-16",
-> [decisions.md](../../../docs/decisions.md#seafile-removed)). Task 1
-> inventories and, if it holds files, exports the archive before then. Its
-> target is **Friday 2026-11-13**, which leaves Monday 2026-11-16 as a
-> buffer weekday. If task 1 cannot finish by Monday 2026-11-16, a pull
-> request extends the zvol retention date first. The restic repository
-> `seafile/shared` is kept after that date (no prune).
-
 Non-goals:
 - Moving Paperless from SQLite to Postgres
   ([runbooks/paperless-postgres.md](../../../docs/runbooks/paperless-postgres.md)
@@ -139,27 +130,20 @@ Paperless, so there is one place to look.
 
 #### Acceptance criteria
 
-1. BEFORE the Seafile zvols may be deleted (from 2026-11-17), THE Seafile
-   archive SHALL be inventoried from the restic repository `seafile/shared`
-   (snapshots `34f34ea0` and `8838dac0`) and, if it holds files, restored
-   and exported to plain files outside git, with its file count and total
-   size recorded; or, if that cannot be done by Monday 2026-11-16, THE
-   retention date of the Seafile zvols in `docs/decisions.md` SHALL be
-   extended in a pull request first.
-2. THE files the operator places in the local import directory (the Seafile
-   export and any other local folder, one subdirectory per source) SHALL be
+1. THE files the operator places in the local import directory (any local
+   folder, one subdirectory per source) SHALL be
    imported by a script through the API, owned by the editor, tagged
    `import:<source>`. The tag is defined in git and created by the
    configuration Job without an owner, like every tag; the import script
    only attaches it and stops before the first upload if the source's tag
    does not exist. Folder names do not become tags; each file's path stays
    in the local report.
-3. AFTER each import batch, THE number of files in SHALL equal the documents
+2. AFTER each import batch, THE number of files in SHALL equal the documents
    created plus the duplicates Paperless refused plus the failures, and
    every failure SHALL be listed for the operator. One pull request records
    the counts and failure reasons of every batch; file names stay in the
    local report.
-4. No document content, file name or correspondent name SHALL appear in git,
+3. No document content, file name or correspondent name SHALL appear in git,
    a pull request, an issue or a log shipped off the cluster.
 
 ### Requirement 4: Backups restore documents and their metadata
@@ -265,30 +249,22 @@ in a search right away, so I trust it arrived.
 3. IF the canary has not succeeded for 13 hours, or it took longer than the
    limit in 7.1 twice in a row, THEN an alert SHALL page with a runbook.
 
-## Open questions
-
-The operator answers this in the review of this spec; the answer goes into
-the requirement and task it names.
-
-1. **Taxonomy** (Requirement 2, [design](design.md#taxonomy-proposal),
-   task 3): the operator approves or adjusts the proposed document types,
-   retention periods, tags and custom fields.
-
 ## Decided defaults
 
-Questions the operator has no particular basis to answer are decided here,
-with the reason. Each one is a line in git, so changing it later is one PR.
+No question is open. The operator decided the rows marked with his name;
+the others are defaults with their reason. Each one is a line in git, so
+changing it later is one PR.
 
 | Topic | Decision | Reason |
 | --- | --- | --- |
+| Taxonomy (operator, 2026-11-03) | Approved as proposed: the document types, retention periods, tags, custom fields and saved views in [design](design.md#taxonomy) | Task 2 puts it into `paperless.json` unchanged; a later change is a PR |
 | Way in (operator, 2026-11-03) | The web app only, at `https://archive.lilalala.com`, from a phone or a computer; plus the one-off import of existing files | The web app works on the phone, so nothing else is needed day to day |
 | Source tags | None. Imported documents carry `import:<source>`; every other document came through the web app | With one way in, and imports already tagged `import:<source>`, a source tag says nothing |
 | Who files documents | One editor (the operator), one reader (the other adult of the household) | The operator manages the documents; the reader only reads them |
-| Sharing default | The reader sees every document unless the editor tags it `private`. The web app's upload sends only the file, so a new upload is visible to the reader from consumption until the editor tags it `private` | Household documents concern both adults, and per-type privacy would also hide the reader's own letters; the reverse (private by default, shared by a tag) is one workflow change in git |
+| Sharing default (operator, 2026-11-03) | Visible to the reader by default: the reader sees every document unless the editor tags it `private`. The web app's upload sends only the file, so a new upload is visible to the reader from consumption until the editor tags it `private` | Household documents concern both adults, and per-type privacy would also hide the reader's own letters; the reverse (private by default, shared by a tag) is one workflow change in git |
 | Who edits the taxonomy | Git owns types, tags, custom fields, workflows and saved views; the editor edits documents and correspondents | Changes are reviewed and backed up in git; an agent turns a request into a PR |
-| OCR languages (operator, 2026-11-03) | `fra+eng+spa+deu`, in that order | Mostly French and English, sometimes Spanish and German. Tesseract treats the first language as the primary one and falls back to the others in the order given, so the order follows how often each language appears. Four languages make each page slower to OCR on the RK1 than one and load four models; task 2 measures time and peak memory against `fra` alone, the canary watches the time |
-| Other sources | Whatever the operator drops into the local import directory, one subdirectory per source; the Seafile export first | The operator knows where his files are; the script does the rest |
+| OCR languages (operator, 2026-11-03) | `fra+eng+spa+deu`, in that order | Mostly French and English, sometimes Spanish and German. Tesseract treats the first language as the primary one and falls back to the others in the order given, so the order follows how often each language appears. Four languages make each page slower to OCR on the RK1 than one and load four models; task 1 measures time and peak memory against `fra` alone, the canary watches the time |
+| Other sources | Whatever the operator drops into the local import directory, one subdirectory per source | The operator knows where his files are; the script does the rest |
 | N minutes | 5 minutes for a file of up to 10 pages | Single-page OCR on the RK1 takes well under a minute; the canary measures every 6 hours |
 | Paper originals | No archive serial numbers for now | ASN stickers only pay off when paper is kept in numbered boxes; they can be added later without re-filing |
 | Export passphrase | SOPS only, no second copy | It only protects the social account tokens of the Keycloak logins, which a new login replaces |
-| Seafile fallback | Extend the zvol retention in a PR if task 1 cannot finish by 2026-11-16 | Cheap and reversible; deleting the zvols first is not |
