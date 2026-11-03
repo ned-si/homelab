@@ -10,7 +10,9 @@
 # reverts in a row) and the outage guard (scripts/ci/auto-rollback-guard.sh:
 # not 3+ apps failing within 10 minutes, no node NotReady, NAS reachable).
 # `act` runs only for a revert: an auto-merged revert pull request with label
-# `auto-rollback` (scripts/ci/auto-rollback-act.sh). Every other decision is a
+# `auto-rollback` (scripts/ci/auto-rollback-act.sh), then rebuilt on main
+# whenever main moves until it merges (scripts/ci/auto-rollback-keep.sh:
+# main requires an up-to-date ci). Every other decision is a
 # skip, written to the run summary; no issue is opened, because the failure is
 # an Alertmanager alert (PrometheusRule homelab-argocd, in Grafana).
 #
@@ -109,7 +111,8 @@ jobs:
     needs: decide
     if: ${{ needs.decide.outputs.dry_run == 'false' && needs.decide.outputs.action == 'revert' }}
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    # Keep waits up to 60 checks, one a minute, for the pull request to merge.
+    timeout-minutes: 75
     permissions:
       # The revert commit (signed by GitHub) and its branch.
       contents: write
@@ -117,9 +120,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
+          # Keep rebuilds the revert from the reverted commit and its parent.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Revert
+        id: revert
         env:
           ACTION: ${{ needs.decide.outputs.action }}
           REASON: ${{ needs.decide.outputs.reason }}
@@ -135,3 +141,18 @@ jobs:
           BOT_TOKEN: ${{ github.token }}
           PR_TOKEN: ${{ secrets.AUTO_ROLLBACK_TOKEN }}
         run: scripts/ci/auto-rollback-act.sh
+
+      # main requires an up-to-date ci: rebuild the revert on main whenever
+      # main moves, until it merges (#991).
+      - name: Keep
+        if: ${{ steps.revert.outputs.pr != '' }}
+        env:
+          PR: ${{ steps.revert.outputs.pr }}
+          HEAD_SHA: ${{ steps.revert.outputs.commit }}
+          SHA: ${{ needs.decide.outputs.sha }}
+          REPO: ${{ github.repository }}
+          BOT_TOKEN: ${{ github.token }}
+          PR_TOKEN: ${{ secrets.AUTO_ROLLBACK_TOKEN }}
+        run: |
+          set -euo pipefail
+          scripts/ci/auto-rollback-keep.sh | tee -a "$GITHUB_STEP_SUMMARY"

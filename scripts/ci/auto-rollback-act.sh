@@ -12,6 +12,8 @@
 #      token of the repository owner: GitHub Actions may not open pull requests
 #      with GITHUB_TOKEN in this repository, and a pull request opened by
 #      GITHUB_TOKEN would not start CI, so auto-merge would wait forever.
+#   4. `pr` and `commit` in $GITHUB_OUTPUT, for auto-rollback-keep.sh, which
+#      rebuilds the revert on main whenever main moves before it merges.
 # The pull request is the record of the rollback. No issue is opened: the
 # failure is an alert (Alertmanager -> ntfy) that resolves on its own.
 #
@@ -78,3 +80,7 @@ jq -n '{labels: ["auto-rollback"]}' \
   echo "::warning::auto-rollback-act: could not label #$pr"
 owner pr merge "$pr" --repo "$REPO" --auto --squash
 echo "auto-rollback-act: pull request #$pr, auto-merge on"
+# For auto-rollback-keep.sh, which keeps the pull request on top of main.
+if [ -n "${GITHUB_OUTPUT:-}" ]; then
+  { echo "pr=$pr"; echo "commit=$commit"; } >> "$GITHUB_OUTPUT"
+fi
