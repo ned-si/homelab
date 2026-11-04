@@ -13,11 +13,14 @@ Audit, then enforce, per namespace and direction:
 
 1. **Audit.** The allow-lists are synced default-allow. Hubble counts every
    connection no rule covers (`match="all"`), recorded as
-   `netpol:would_drop:*` (`platform/kube-prometheus-stack/routes/netpol.yaml`).
+   `netpol:would_drop:*` (`platform/kube-prometheus-stack/routes/netpol.yaml`),
+   and each such flow leaves a `match="all"` series behind, seen by the
+   presence query even when it happened once.
 2. **Decide.** Every residual would-be drop becomes an allow rule or an
    intended drop (Requirement 3), in its own pull request.
-3. **Gate.** 7 days of verdicts with zero would-be drops, or only intended
-   ones (`netpol:ready_to_enforce`, Requirement 2).
+3. **Gate.** 7 days of verdicts with zero would-be drops by increment and by
+   presence, or only intended ones (`netpol:ready_to_enforce`,
+   Requirement 2).
 4. **Enforce.** The flip: one switch value `false` to `true`, watched for 30
    minutes, soaked for 24 hours (Requirements 4, 7).
 
@@ -25,17 +28,24 @@ Audit, then enforce, per namespace and direction:
 
 Would-be drops over 7 days (`avg_over_time(netpol:would_drop:rate5m[7d]) *
 604800`); 10,079 one-minute samples of `netpol:verdicts:rate5m` in every
-namespace and direction, so verdicts cover the whole window. Ready is the
-recorded `netpol:ready_to_enforce`, read with `last_over_time(...[20m])`
-(see "The readiness gap").
+namespace and direction, so verdicts cover the whole window. Series is the
+presence query at 03:29 UTC: the number of distinct
+`match="all"` series in 7 days, and in brackets how many of them have no
+increase, so the drops column and the recorded readiness cannot see them.
+"Gate" combines both terms.
 
-| Namespace | Ingress drops | Ingress ready | Egress drops | Egress ready | Known residuals |
-| --- | --- | --- | --- | --- | --- |
-| `paperless` | 0 | 1 | 0 | 1 | none |
-| `mealie` | 2.1 | 0 | 2.1 | 0 | not identified yet (task 4) |
-| `syncthing` | 0 | 1 | 15,442 | 0 | peers' private addresses, NAT-PMP to the host, Syncthing to the API server (331 in 7 days on 2026-10-26) |
-| `immich` | 0 | 1 | 7.6 | 0 | not identified yet (task 8) |
-| `theater` | 3.9 | 0 | 1,576 | 0 | Plex and Jellyfin to the internet off 443, qBittorrent to `remote-node` |
+| Namespace | Ingress drops | Ingress series | Ingress gate | Egress drops | Egress series | Egress gate | Known residuals |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `paperless` | 0 | 0 | open | 0 | 1 (1) | closed | egress: `paperless` to `world`, seen once (task 19) |
+| `mealie` | 2.1 | 2 (1) | closed | 2.1 | 2 (1) | closed | not identified yet (task 5) |
+| `syncthing` | 0 | 1 (1) | closed | 15,442 | 5 (1) | closed | ingress: the `postsync-smoke` hook Job to Syncthing, seen once; egress: peers' private addresses, NAT-PMP to the host, Syncthing to the API server (331 in 7 days on 2026-10-26) (task 10) |
+| `immich` | 0 | 0 | open | 7.6 | 4 (3) | closed | not identified yet (task 13) |
+| `theater` | 3.9 | 3 (2) | closed | 1,576 | 18 (8) | closed | Plex and Jellyfin to the internet off 443, qBittorrent to `remote-node` (task 16) |
+
+The recorded `netpol:ready_to_enforce` said 1 for `paperless` egress and
+`syncthing` ingress. Both were wrong: the `syncthing` case is the PostSync
+smoke hook, which an ingress flip would have dropped, failing the hook and
+the Application's sync.
 
 Namespaces with workloads and no allow-list: `books` (audiobookshelf,
 calibre-web; LazyLibrarian runs in `theater` and is covered by
@@ -63,6 +73,33 @@ Fix (task 1): `interval: 2m` for `netpol.ready`. One missed evaluation still
 leaves the series inside the lookback. A promtool case at `eval_time: 8d10m`
 fails with 15 minutes and passes with 2.
 
+A second gap is in the source counter. `hubble_policy_verdicts_total`
+(labels from `infrastructure/cilium/values.yaml`, the `policy` metric) gets
+a new series at the first connection of each label set, so Prometheus' first
+sample of it is already 1. `rate()` and `increase()` count only changes
+between samples, so that first connection is never counted, and each Cilium
+agent restart (a Cilium upgrade, a tuppr node reboot) resets every counter,
+so the first connection after it is lost again. Created-timestamp zero
+ingestion is not enabled in `platform/kube-prometheus-stack`. A flow seen
+once in 7 days reads 0 in `netpol:would_drop:*`, `netpol:ready_to_enforce`
+and `scripts/netpol-observe.sh --days`. Those are the weekly, monthly and
+hook Job flows D1 names as the dangerous ones.
+
+Fix (task 1): a presence term. `netpol:would_drop:series{namespace,
+direction}` in the 1-minute group counts the `match="all"` series that exist
+now; `netpol:would_drop:seen7d` is its `max_over_time` over 7 days in the
+`netpol.ready` group; `netpol:ready_to_enforce` is 1 only when `seen7d` is 0
+as well. Counting the current series every minute and taking the maximum of
+that count is cheap, where a `max_over_time` over 7 days of every raw
+Hubble series every 2 minutes is not on these nodes; as a gate (zero or not)
+the two agree, because Hubble keeps a counter series until its agent
+restarts (no metric expiry is configured). The exact expressions are settled in task 1 with a promtool case
+where a series appears once at value 1. `netpol-observe.sh --days` lists the
+present series from `max_over_time` next to their increase. A residual that
+a new rule covers keeps its old series until the agents restart and 7 days
+pass, so `seen7d` stays above 0; that flip uses the second branch of
+Requirement 2.1 (each series listed with its decision).
+
 ## Decisions
 
 The operator delegated these on 2026-11-03. Each is final for this spec;
@@ -78,6 +115,16 @@ changing one is an edit here in its own pull request.
   run. Rejected: a percentage threshold (a rare flow is exactly the one that
   breaks at 03:00), and 14 days (no job runs less often than weekly except
   the monthly ones, which the rule above covers).
+  Zero is counted two ways: no increment of `match="all"` (the rate) and no
+  `match="all"` series present at all (the presence query), because the
+  counter hides the first connection of every series and those rare flows
+  are exactly the ones that show up only once (see "The readiness gap"). For
+  each CronJob and hook Job the flip shows its peers at a `match` other than
+  `all`; a Job that ran but whose connection was never counted proves
+  nothing. Rejected: enabling created-timestamp zero ingestion in Prometheus
+  (a feature flag that changes every counter in the cluster, to fix one
+  gate), and trusting the rate alone (on 2026-11-04 it called `syncthing`
+  ingress ready while its PostSync hook was uncovered).
 - **D2. The readiness rules run every 2 minutes.** Below the 5-minute
   lookback with one missed evaluation to spare; the group costs about 0.04 s
   per run. Rejected: a longer lookback delta (changes every query in
@@ -90,7 +137,7 @@ changing one is an edit here in its own pull request.
   CloudNativePG and the internet, so it is far more likely to be incomplete.
 - **D4. Order: `paperless`, `mealie`, `books`, `syncthing`, `immich`,
   `theater`, `home`, `backup-verify`, `keycloak`, `monitoring`.**
-  `paperless` first: nobody uses it yet and both directions are ready.
+  `paperless` first: nobody uses it yet and its ingress gate is open.
   `mealie` next: the smallest used app. `books` is audited from its new
   allow-list and goes when ready. `syncthing` before `immich` because the
   CloudNativePG operator runs in `immich`, so an `immich` egress mistake
@@ -115,9 +162,28 @@ changing one is an edit here in its own pull request.
   remaining allow-lists are all default-allow, so Cilium synthesises the
   wildcard rule again, with no pod or agent restart. It sticks because the
   `network-policies` Application has `selfHeal: false`, but only until the
-  next revision of `main` syncs it (any merge). So the runner also holds the
-  Renovate train (`gh workflow disable renovate-next.yaml`) and merges the
-  revert before anything else, then re-enables the train. Rejected:
+  next revision of `main` syncs it (any merge). So the runner holds every
+  merge until the revert lands:
+  1. `gh workflow disable renovate-next.yaml`, so the train neither rebases
+     nor turns auto-merge back on;
+  2. turn GitHub auto-merge off on every open pull request that has it
+     (`gh pr list --state open --json number,autoMergeRequest`, then
+     `gh pr merge <n> --disable-auto` for each with a non-null
+     `autoMergeRequest`), noting the numbers: `.github/renovate.json5` sets
+     `platformAutomerge: true` and the train turns auto-merge on for every
+     candidate, so a pull request already up to date with `main` and with
+     `ci` running merges on its own when `ci` passes, and disabling the
+     workflow does not stop that;
+  3. tell every other active runner to stop merging, or stop it;
+  4. merge the revert with `bash scripts/pr-merge.sh <n>`; if any other
+     merge lands first, wait for `network-policies` to sync it, check
+     `kubectl -n <ns> get ciliumnetworkpolicy enforce-default-deny`, and
+     delete the switch again;
+  5. after the revert merges, `gh workflow enable renovate-next.yaml` (the
+     train turns auto-merge back on for the Renovate pull requests) and turn
+     it back on by hand for the non-Renovate pull requests noted in step 2.
+
+  Rejected:
   `cilium-dbg` per-endpoint policy changes (not in git, lost on restart,
   needs exec in `kube-system`), `policyEnforcementMode` or
   `policyAuditMode` (cluster-wide, restarts every agent), and editing the
@@ -172,6 +238,18 @@ changing one is an edit here in its own pull request.
   <namespace> 2h "<PR>"`, expired when the checks pass. `Watchdog` is never
   silenced, so the heartbeat still proves alerting works, which matters most
   for the `monitoring` flips.
+- **D16. A flip is proven enforced by checks that change at the flip.**
+  The live `spec.enableDefaultDeny.<direction>` of the switch reads `true`;
+  the switch's `Valid` condition is `True` and the `Revision:` of
+  `cilium-dbg policy get` rose on each node, so Cilium took the new policy;
+  and the `match="all"` verdicts of the namespace and direction stop while
+  its other verdicts continue, so the wildcard-allow rule is gone. A policy
+  drop is named by its Hubble drop reason, `POLICY_DENIED` (default-deny) or
+  `POLICY_DENY` (an explicit deny rule). Rejected: `cilium-dbg endpoint list`
+  (its POLICY columns already read `Enabled` while every switch is `false`,
+  per the header of `90-enforcement.yaml`, so it reads the same before and
+  after), and the Argo CD sync status alone (it says the object was applied,
+  not that Cilium enforces it).
 
 ## Lockout invariants
 
@@ -182,7 +260,7 @@ changing one is an edit here in its own pull request.
 | L3 | Nothing outside the scope is touched | no policy in `kube-system`, `argo`, `tailscale`, `kyverno`, `cert-manager`, `external-dns`, `gateway`, `democratic-csi`; no change to `infrastructure/cilium/`, `talos/` or `bootstrap/tailscale/` | review of each diff |
 | L4 | Probes, webhooks and DNS pass | every switch keeps ingress from `host` and `remote-node` and egress to `kube-dns` 53 UDP and TCP | review; the switch blocks of `90-enforcement.yaml` |
 | L5 | CloudNativePG keeps reconciling | `cnpg-operator` egress to every `cnpg.io/cluster` on 8000 and 5432 and to `kube-apiserver` 6443; each instance policy allows the operator in and reaches `kube-apiserver` and S3 | D12 |
-| L6 | Argo CD can sync | `argo` is never policed (D9); the hook Jobs of a namespace are in its 7-day window (Requirement 2.2) | the flip pull request lists them |
+| L6 | Argo CD can sync | `argo` is never policed (D9); the hook Jobs of a namespace ran in its 7-day window and their peers matched a rule (Requirement 2.2) | the flip pull request lists each Job with its peers and match type |
 | L7 | The break-glass needs nothing else | admin kubeconfig over the LAN only: no Keycloak, Gateway, Argo CD, Tailscale or GitHub | the runbook test (task 2) uses only that |
 | L8 | Alerting survives a `monitoring` flip | Alertmanager to ntfy.sh and the healthchecks.io heartbeat are in the `monitoring` allow-list; the heartbeat pages from outside if they are cut | `Watchdog` firing and the healthchecks.io check green after the flip |
 
@@ -193,10 +271,10 @@ Written out with commands and expected output in
 
 | Layer | Symptom | Break-glass | Lasts until |
 | --- | --- | --- | --- |
-| The switch | an app in the flipped namespace loses a flow | `kubectl -n <ns> delete ciliumnetworkpolicy enforce-default-deny` | the next revision of `main` syncs `network-policies`; hold the train, merge the revert |
+| The switch | an app in the flipped namespace loses a flow | `kubectl -n <ns> delete ciliumnetworkpolicy enforce-default-deny` | the next revision of `main` syncs `network-policies`; hold merges, merge the revert |
 | The allow-lists of a namespace | a wrong allow-list rule (an `ingressDeny` or `egressDeny` added by mistake drops traffic even without default-deny) | `kubectl -n <ns> delete ciliumnetworkpolicy --all` | same |
 | Git | any of the above, permanently | `git revert <sha>` on a branch from `origin/main`, pull request, `bash scripts/pr-merge.sh <n>` | permanent |
-| The train | another merge would re-create the deleted policy | `gh workflow disable renovate-next.yaml`, then `gh workflow enable renovate-next.yaml` after the revert merges | the revert |
+| Merges to `main` | another merge would re-create the deleted policy | the hold of D6: `gh workflow disable renovate-next.yaml`; `gh pr merge <n> --disable-auto` on every open pull request with auto-merge; other runners told or stopped; after any merge that lands first, check the switch and delete it again; after the revert, `gh workflow enable renovate-next.yaml` and auto-merge back on where it was | the revert |
 | Cilium | not changed by this spec; a Cilium fault is handled by [cilium-upgrades](../cilium-upgrades/) and `kubectl -n kube-system rollout undo ds/cilium` | | |
 | Talos and the API server | not reachable by a pod policy; a fault there is `talos-ops` (re-apply the previous config from the etcd snapshot's era) | | |
 
@@ -208,32 +286,39 @@ to the first successful connection measured, the namespace deleted.
 
 ## The flip, step by step
 
-1. Gate: quote `netpol:ready_to_enforce` (or the direct query before task 1)
-   and the residual list; list the namespace's CronJobs and hook Jobs and
-   their last run in the window.
+1. Gate: quote `netpol:ready_to_enforce` (or, before task 1, the direct
+   query and the presence query of Requirement 1.3) and the residual list,
+   each presence series with its decision; list the namespace's CronJobs and
+   hook Jobs, their last run in the window, and their peers with the match
+   type (Requirement 2.2). Record each node's policy `Revision:`
+   (`cilium-dbg policy get`) as the baseline for step 5.
 2. Lockout check (L1, L2) and the soak of the previous flip (D11).
 3. Silence the namespace (D15) for a used app.
 4. Merge with `bash scripts/pr-merge.sh <n>`.
-5. Wait for `network-policies` to sync the new revision; `cilium-dbg
-   endpoint list` in an agent on each node shows the direction enforced for
-   the namespace's endpoints.
+5. Wait for `network-policies` to sync the new revision, then prove the
+   switch in force (D16, Requirement 7.2): the live
+   `spec.enableDefaultDeny.<direction>` is `true`, `Valid` is `True` and the
+   `Revision:` rose on each node, and the `match="all"` verdicts of the
+   namespace and direction stop within 10 minutes while
+   `netpol:verdicts:rate5m` continues.
 6. Checks of Requirement 7.2 for 30 minutes, exercising the app (log in,
    open a page, for egress also the OIDC login and one outbound fetch).
 7. D12 where the namespace has a Cluster.
 8. Lockout check again; expire the silence; comment the results on the pull
    request; tick the task.
-9. On any legitimate drop: break-glass, hold the train, revert, re-enable the
-   train, write what was missing into the allow-list pull request that
-   follows.
+9. On any legitimate drop (`POLICY_DENIED` or `POLICY_DENY`): break-glass,
+   the merge hold of D6, revert, release the hold, write what was missing
+   into the allow-list pull request that follows.
 
 ## Components
 
 | Component | Change | Task |
 | --- | --- | --- |
-| `platform/kube-prometheus-stack/routes/netpol.yaml` | `netpol.ready` every 2 minutes; the namespace list grows with each new allow-list | 1, 3, 20, 23, 26, 29 |
-| `tests/prometheus/netpol_test.yaml` | the off-grid case; new namespaces | 1, 3, 20, 23, 26, 29 |
+| `platform/kube-prometheus-stack/routes/netpol.yaml` | `netpol.ready` every 2 minutes; the presence term (`netpol:would_drop:series`, `netpol:would_drop:seen7d`) in `netpol:ready_to_enforce`; the namespace list grows with each new allow-list | 1, 3, 20, 23, 26, 29 |
+| `tests/prometheus/netpol_test.yaml` | the off-grid case; the once-only series case; new namespaces | 1, 3, 20, 23, 26, 29 |
+| `scripts/netpol-observe.sh` and its test | `--days` lists every series present in the window, with or without an increase | 1 |
 | `docs/runbooks/netpol-enforcement.md` | new: break-glass per layer, the flip procedure, the scratch test | 2 |
-| `infrastructure/network-policies/<nn>-<ns>.yaml` | new allow-lists `40-books`, `70-home`, `80-backup-verify`, `85-keycloak`, `88-monitoring`; residual decisions as rules or intended-drop comments | 3, 5, 11, 13, 16, 20, 23, 26, 29 |
+| `infrastructure/network-policies/<nn>-<ns>.yaml` | new allow-lists `40-books`, `70-home`, `80-backup-verify`, `85-keycloak`, `88-monitoring`; residual decisions as rules or intended-drop comments | 3, 5, 10, 13, 16, 19, 20, 23, 26, 29 |
 | `infrastructure/network-policies/90-enforcement.yaml` | one value per flip; new switch blocks; the header's rollout section brought to this spec | 3, 20, 23, 26, 29 and every flip |
 | `infrastructure/network-policies/kustomization.yaml` | the new files; the "Not covered" comment | 3, 20, 23, 26, 29 |
 | `docs/networking.md` | "Network policy": what is enforced; the readiness interval | 1, 2 and every flip |
@@ -250,5 +335,11 @@ to the first successful connection measured, the namespace deleted.
 - **A chart upgrade moves a port.** Allow-lists inside a namespace use no
   `toPorts` where the chart owns the ports; Prometheus scrapes would go quiet,
   which `TargetDown` reports.
-- **The deleted switch comes back.** Any merge re-creates it (D6); the train
-  hold covers Renovate, and the runner merges nothing else until the revert.
+- **The deleted switch comes back.** Any merge re-creates it (D6). Disabling
+  the train alone does not stop a pull request that already has GitHub
+  auto-merge and is up to date with `main`, so the hold also turns auto-merge
+  off everywhere and stops the other runners; a merge that slips through is
+  caught by checking the switch after each sync and deleting it again.
+- **A flow seen once.** The counter hides the first connection of each
+  series and every agent restart resets it; the presence term (task 1) and
+  the per-Job peer evidence (Requirement 2.2) cover it.

@@ -58,6 +58,12 @@ Non-goals:
 - **Would-be drop**: a connection no allow-list rule covers (Hubble policy
   verdict `match="all"`); dropped once its namespace and direction are
   enforced.
+- **Presence query**: the would-be drops counted by series, not by
+  increment: every `hubble_policy_verdicts_total{match="all"}` series of the
+  namespace and direction present at any time in the window. Hubble creates a
+  series at its first connection, so Prometheus' first sample is already 1
+  and `rate()` and `increase()` never count it; a flow seen once, or once
+  after each Cilium agent restart, is visible only to this query.
 - **Intended drop**: a would-be drop the namespace's policy file names as
   meant to be dropped, with its peer, port when known, and reason.
 - **Break-glass**: the steps that undo a flip in minutes with the admin
@@ -82,10 +88,23 @@ hand-written query.
 2. THE Network dashboard panels that read them SHALL show a value at every
    point of their range. (`tests/test_dashboards.py` stays green; the panel
    checked once after the merge)
-3. UNTIL 1.1 is merged, THE gate SHALL use the direct query
+3. UNTIL 1.1 and 1.4 are merged, THE gate SHALL use the direct query
    `avg_over_time(netpol:would_drop:rate5m[7d]) * 604800` per namespace and
    direction, with `count_over_time(netpol:verdicts:rate5m[7d])` showing 7
-   days of verdicts. (stated in each flip pull request)
+   days of verdicts, AND the presence query, for ingress
+   `max by (source_namespace, source, destination) (max_over_time(hubble_policy_verdicts_total{match="all", direction="ingress", destination_namespace="<ns>"}[7d]))`
+   and for egress the same with `direction="egress"`,
+   `source_namespace="<ns>"` and `destination_namespace` in the `by`.
+   (stated in each flip pull request)
+4. THE recording rules SHALL carry a series-presence term
+   (`netpol:would_drop:seen7d{namespace, direction}`, above 0 when any
+   `match="all"` series of the namespace and direction existed in the last 7
+   days), and `netpol:ready_to_enforce` SHALL be 1 only when it is 0.
+   `scripts/netpol-observe.sh --days` SHALL list every series present in the
+   window, including those with no increase. (promtool case: a series that
+   appears once at value 1 and never changes gives `increase7d` 0,
+   `seen7d` above 0, `ready_to_enforce` 0; the script's test with the same
+   series)
 
 ### Requirement 2: A gate per namespace and direction
 
@@ -95,17 +114,26 @@ become an outage.
 
 #### Acceptance criteria
 
-1. A flip SHALL be opened only WHEN, for its namespace and direction,
-   `netpol:ready_to_enforce` is 1, OR every remaining would-be drop of the last
-   7 days is an intended drop (Requirement 3). (the flip pull request quotes
-   the query, its value and the time)
+1. A flip SHALL be opened only WHEN, for its namespace and direction, both
+   the increment term and the presence term are clean:
+   `netpol:ready_to_enforce` is 1 (with 1.4, which includes presence), OR
+   every series the presence query returns for the last 7 days is either an
+   intended drop (Requirement 3) or covered by a rule merged since, shown by
+   a verdict for the same peers with `match` other than `all` after that
+   merge. (the flip pull request quotes both queries, their values and the
+   time, and lists each returned series with its decision)
 2. THE 7-day window SHALL include at least one run of every CronJob and Argo
    CD hook Job (`presync-backup`, `postsync-smoke`) of the namespace, or,
    for a monthly CronJob, show that the same policy selects it and that it
    reaches the same peers and ports as a Job that ran (decision D1), and
    SHALL start no earlier than the last merged change that added a workload,
    a CronJob or an outbound dependency in that namespace (decision D13).
-   (the flip pull request lists the Jobs and their last run)
+   FOR EACH such Job, THE flip pull request SHALL show its peers in the
+   flipped direction with verdicts at `match` other than `all`, from
+   `hubble_policy_verdicts_total` for the Job's workload name over the window
+   or from `scripts/netpol-observe.sh <namespace> --since` while the Job runs.
+   That the Job ran is not enough. (the flip pull request lists each Job, its
+   last run, and its peers with their match type)
 3. WHEN the metric has no port for a would-be drop, THE flip pull request
    SHALL name the port from `scripts/netpol-observe.sh <namespace>` (live
    relay events) or say it was not seen live.
@@ -198,15 +226,22 @@ documented, tested procedure, so a mistake is an incident and not an outage.
    copy-paste commands and the expected output, the break-glass per layer:
    the switch (delete `enforce-default-deny` in the namespace), all policies
    of a namespace (`kubectl -n <ns> delete ciliumnetworkpolicy --all`), the
-   git revert through `scripts/pr-merge.sh`, and holding the Renovate train
-   while the revert is pending. (repo-policy runbook link check)
+   git revert through `scripts/pr-merge.sh`, and the merge hold while the
+   revert is pending (decision D6): disable the `renovate-next` workflow,
+   turn GitHub auto-merge off on every open pull request that has it
+   (`gh pr list --json number,autoMergeRequest`, then
+   `gh pr merge <n> --disable-auto`), tell or stop every other active runner,
+   and after any merge that still lands before the revert, check that the
+   switch is gone and delete it again. (repo-policy runbook link check)
 2. THE break-glass SHALL be tested live once before the first flip, on a
    scratch namespace that is not in git, and the result (drop seen, delete,
    flow restored, time taken) recorded in the runbook's pull request.
 3. EVERY flip pull request SHALL carry a `## Rollback` section with the exact
    `git revert` and the break-glass command for its namespace.
 4. WHEN a flip drops a legitimate flow, THE runner SHALL apply the break-glass
-   at once and merge the revert before any other change to `main`.
+   and the merge hold at once and merge the revert before any other change to
+   `main`; WHEN another merge lands first, THE runner SHALL repeat the delete
+   after it syncs.
 
 ### Requirement 7: Each flip watched
 
@@ -219,13 +254,26 @@ users, so a broken path is caught in minutes rather than by the household.
    maintenance silence for that namespace only
    (`scripts/maintenance-silence.sh <namespace> 2h "<PR>"`) and expire it when
    the checks pass.
-2. AFTER the sync, THE runner SHALL check and record: the switch in force
-   (`cilium-dbg endpoint list` shows the direction `Enabled` with default-deny
-   for the namespace's endpoints), the public route answers (`curl -m 10` on
-   its hostname, the expected status), the Application `Healthy`, no new
-   `action: human` alert, and no `DENIED_BY_POLICY` drop of a legitimate flow
-   in `hubble observe --namespace <ns> --verdict DROPPED` over 30 minutes
-   while the app is exercised.
+2. AFTER the sync, THE runner SHALL prove the switch in force with checks
+   whose result changes at the flip (decision D16), and record them:
+   - the live value:
+     `kubectl -n <ns> get ciliumnetworkpolicy enforce-default-deny -o jsonpath='{.spec.enableDefaultDeny.<direction>}'`
+     returns `true`;
+   - Cilium accepted it: the same object's
+     `{.status.conditions[?(@.type=="Valid")].status}` is `True`, and the
+     `Revision:` that `cilium-dbg policy get` prints on each node is higher
+     than before the merge;
+   - the wildcard is gone: within 10 minutes the `match="all"` verdicts of
+     the namespace and direction stop (`sum(rate(hubble_policy_verdicts_total{match="all", ...}[5m]))`
+     is 0) while `netpol:verdicts:rate5m` stays above 0.
+
+   THE runner SHALL then check and record: the public route answers
+   (`curl -m 10` on its hostname, the expected status), the Application
+   `Healthy`, no new `action: human` alert, and no policy drop of a
+   legitimate flow (any `DROPPED` verdict with drop reason `POLICY_DENIED`,
+   or `POLICY_DENY` for an explicit deny rule) in
+   `hubble observe --namespace <ns> --verdict DROPPED` over 30 minutes while
+   the app is exercised.
 3. Used-application flips SHALL run Monday to Friday, 09:00 to 16:59
    Europe/Zurich, unless the brief of the run explicitly lifts that window
    (decision D7). `paperless` flips may run at any time while nobody uses
