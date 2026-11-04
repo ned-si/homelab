@@ -7,14 +7,17 @@ are [#1020](https://github.com/ned-si/homelab/issues/1020) and the Kyverno
 restricted set in Deny is [#1021](https://github.com/ned-si/homelab/issues/1021),
 both blocked by #726.
 
+## Done
+
+- [x] 1. `fix(kyverno): reports read pods/ephemeralcontainers`: the
+      read-only grant in `infrastructure/kyverno/values.yaml` to
+      `kyverno-reports-controller`, the ServiceAccount the
+      `RBACPermissionsGranted` condition checks; after the sync, the 17
+      policies that match `pods/ephemeralcontainers` read `ready: true`.
+      [1] (#1032)
+
 ## Open
 
-- [ ] 1. `fix(kyverno): reports read pods/ephemeralcontainers`: the
-      read-only grant in `infrastructure/kyverno/values.yaml` to the
-      controller whose ServiceAccount the `RBACPermissionsGranted`
-      condition checks; after the
-      sync, the 17 policies that match `pods/ephemeralcontainers` read
-      `ready: true`. [1]
 - [ ] 2. `feat(scripts): psa-readiness.sh per namespace`: G1 to G3 of
       design.md, read-only, its bash test with a stubbed `kubectl` (a
       clean namespace, one failing Pod, one failing CronJob template, a
