@@ -150,7 +150,7 @@ spec:
       containers:
         - name: prowlarr
           # renovate: datasource=docker depName=ghcr.io/hotio/prowlarr
-          image: ghcr.io/hotio/prowlarr:release-2.7.0.5723@sha256:30156ef011a78c8992690c00c1e4f711c67868334cc2d8bb517f62a4ab977c04
+          image: ghcr.io/hotio/prowlarr:release-2.7.0.5723@sha256:01ef0ec08c4eacbc3c1ea901b27a20682dea88420ff67c6cbb68b3b11459a47a
           imagePullPolicy: Always
           env:
             - name: TZ
