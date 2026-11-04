@@ -218,8 +218,9 @@ namespace (`immich`, `mealie`, `paperless`, `syncthing`, `theater`), synced by
 the Application `network-policies` (infrastructure layer, wave 30, prune on,
 self-heal off). Nothing is enforced: every policy ships with
 `enableDefaultDeny: {ingress: false, egress: false}`; enforcement is opt-in per
-namespace and direction in `90-enforcement.yaml`, which also documents the
-procedure and the one-step revert.
+namespace and direction in `90-enforcement.yaml`. The break-glass (delete the
+switch, then hold every merge and revert) and the flip procedure are in
+[runbooks/netpol-enforcement.md](runbooks/netpol-enforcement.md).
 
 With only such policies selecting a pod, Cilium enables policy for it and adds
 a wildcard-allow rule last, so `cilium-dbg endpoint list` shows `Enabled` and
