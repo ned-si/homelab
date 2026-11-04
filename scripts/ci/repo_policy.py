@@ -218,6 +218,9 @@ ROUTE_HEADERS = {"strict-transport-security", "x-content-type-options"}
 # The SELinux label of every iSCSI volume (docs/decisions.md, SELinux labels on CSI volumes).
 ISCSI_PROVISIONER = "org.democratic-csi.iscsi"
 ISCSI_SELINUX_OPTION = "context=system_u:object_r:ephemeral_t:s0"
+# Pod Security levels, loosest first, and the file that sets them per namespace.
+PSS_LEVELS = ("privileged", "baseline", "restricted")
+NAMESPACES_FILE = "infrastructure/namespaces/namespaces.yaml"
 # Homelab alert rules (docs/sre.md, Paging) and their promtool unit tests.
 RULE_DIRS = ("platform/", "apps/")
 PROMTOOL_TESTS = "tests/prometheus"
@@ -472,6 +475,29 @@ class Policy:
                 if ISCSI_SELINUX_OPTION not in (d.get("mountOptions") or []):
                     self.fail(rule, f"{e['app']}: StorageClass {self.name_of(d)} lacks the mount option "
                                     f"{ISCSI_SELINUX_OPTION}")
+
+    def rule_pod_security_labels(self) -> None:
+        # Every namespace states its Pod Security level in git, so a rebuild
+        # elsewhere enforces the same (spec pod-security-restricted, req. 4).
+        rule = "pod-security-labels"
+        path = self.root / NAMESPACES_FILE
+        if not path.is_file():
+            return
+        self.on(rule)
+        for d in yaml_file_docs(path):
+            if d.get("kind") != "Namespace":
+                continue
+            labels = (d.get("metadata") or {}).get("labels") or {}
+            got = {m: labels.get(f"pod-security.kubernetes.io/{m}") for m in ("enforce", "warn", "audit")}
+            bad = [f"{m}={v}" for m, v in got.items() if v not in PSS_LEVELS]
+            if bad:
+                self.fail(rule, f"{NAMESPACES_FILE}: Namespace {self.name_of(d)} needs a level for "
+                                f"{', '.join(bad)}")
+                continue
+            for m in ("warn", "audit"):
+                if PSS_LEVELS.index(got[m]) < PSS_LEVELS.index(got["enforce"]):
+                    self.fail(rule, f"{NAMESPACES_FILE}: Namespace {self.name_of(d)}: {m} {got[m]} is looser "
+                                    f"than enforce {got['enforce']}")
 
     def rule_cronjobs(self) -> None:
         non_backup = self.read_list("ci/non-backup-cronjobs.txt")
@@ -1043,7 +1069,8 @@ class Policy:
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
-                     self.rule_iscsi_selinux_label, self.rule_cronjobs, self.rule_restic_locks,
+                     self.rule_iscsi_selinux_label, self.rule_pod_security_labels, self.rule_cronjobs,
+                     self.rule_restic_locks,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
                      self.rule_monitor_selected, self.rule_appproject_kinds, self.rule_spec_lifecycle,

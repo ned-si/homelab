@@ -346,6 +346,28 @@ def test_https_route_needs_security_headers(tmp_path):
     assert policy(tmp_path / "c", renders=[("gw", "2+3", "infrastructure", "gateway", [redirect])]).returncode == 0
 
 
+def namespace_doc(name, **levels):
+    labels = "".join(f"    pod-security.kubernetes.io/{m}: {v}\n" for m, v in levels.items())
+    return f"---\napiVersion: v1\nkind: Namespace\nmetadata:\n  name: {name}\n  labels:\n{labels}"
+
+
+def test_pod_security_labels(tmp_path):
+    ns = "infrastructure/namespaces/namespaces.yaml"
+    good = (namespace_doc("a", enforce="restricted", warn="restricted", audit="restricted")
+            + namespace_doc("b", enforce="privileged", warn="baseline", audit="restricted"))
+    r = policy(tmp_path / "good", files={ns: good})
+    assert r.returncode == 0 and "pod-security-labels" in r.stdout, r.stdout
+    bad = (namespace_doc("c", warn="baseline", audit="baseline")
+           + namespace_doc("d", enforce="restricted", warn="baseline", audit="restricted")
+           + namespace_doc("e", enforce="baseline", warn="baseline", audit="strict"))
+    r = policy(tmp_path / "bad", files={ns: bad})
+    assert [f for f in fails(r) if "pod-security-labels" in f] == [
+        f"FAIL pod-security-labels: {ns}: Namespace c needs a level for enforce=None",
+        f"FAIL pod-security-labels: {ns}: Namespace d: warn baseline is looser than enforce restricted",
+        f"FAIL pod-security-labels: {ns}: Namespace e needs a level for audit=strict",
+    ]
+
+
 def test_iscsi_storage_class_needs_selinux_label(tmp_path):
     sc = {"apiVersion": "storage.k8s.io/v1", "kind": "StorageClass", "metadata": {"name": "iscsi"},
           "provisioner": "org.democratic-csi.iscsi", "mountOptions": ["nouuid"]}

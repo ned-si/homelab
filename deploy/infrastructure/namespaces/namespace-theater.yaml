@@ -15,5 +15,6 @@ metadata:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
     pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/warn: baseline
   name: theater
