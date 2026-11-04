@@ -63,4 +63,5 @@ No new `FailedCreate` event names PodSecurity; the alert clears once the
 
 ## Links
 
+- [pod-security.md](../pod-security.md): the break-glass with expected output, the merge hold, the revert
 - [`infrastructure/namespaces/namespaces.yaml`](../../../infrastructure/namespaces/namespaces.yaml): the levels per namespace
