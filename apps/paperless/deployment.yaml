@@ -87,6 +87,9 @@ spec:
             # Log in once per device; see docs/architecture.md "Sessions".
             - name: PAPERLESS_SESSION_COOKIE_AGE
               value: "31536000"
+            # No mail import (web upload only): drop the 10-minute Mail Fetch task.
+            - name: PAPERLESS_EMAIL_TASK_CRON
+              value: "disable"
           # Measured 2026-11-04 with fra+eng+spa+deu: idle 590Mi, peak
           # working set 715Mi for one page, 1165Mi for ten (PR of task 1).
           resources:
