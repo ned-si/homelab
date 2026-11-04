@@ -65,6 +65,7 @@ Change specs, active:
 | Spec | Created | Issue | Open |
 | --- | --- | --- | --- |
 | [alert-triage](alert-triage/) | 2026-10-27 | #762 | task 5: the cluster objects and the route |
+| [paperless-documents](paperless-documents/) | 2026-11-03 | #732 | task 1: the settings (OCR `fra+eng+spa+deu`, time zone, file names), then tasks 2-9 |
 
 Change specs, done:
 
