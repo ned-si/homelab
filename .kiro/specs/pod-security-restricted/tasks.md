@@ -50,11 +50,11 @@ both blocked by #726.
       `docs/architecture.md` and the `PodSecurityEnforceDenied` runbook;
       the live test of Requirement 5.2 with its times and outputs in the
       pull request. [5] (#1087)
+- [x] 8. Flip `home`, with G4 for `home-assistant-postgresql` and the
+      checks of Requirement 7 (`home.lilalala.com`). [6, 7, 8] (#1096)
 
 ## Open
 
-- [ ] 8. Flip `home`, with G4 for `home-assistant-postgresql` and the
-      checks of Requirement 7 (`home.lilalala.com`). [6, 7, 8]
 - [ ] 9. Flip `system-upgrade`, with G4 for the tuppr Jobs (the pinned
       source, and after the sync a server dry-run of an equivalent Pod) and
       the G3 result of the `talos-drift` CronJob named. [6, 7, 8]
