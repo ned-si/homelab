@@ -205,7 +205,8 @@ Prowlarr syncs its indexers to Sonarr and Radarr (full sync). The set is
 
 | Indexer | Privacy | State |
 |---|---|---|
-| BT.etree, EBookBay, LimeTorrents, The Pirate Bay, Torrent9 | public | enabled, profile `Standard`, tag `books` |
+| BT.etree, LimeTorrents, The Pirate Bay, Torrent9 | public | enabled, profile `Standard`, tag `books` |
+| EBookBay | public | disabled (see below) |
 | C411 | private | enabled, profile `Manual only` |
 | IPTorrents | private | disabled (see below) |
 
@@ -231,6 +232,19 @@ freeleech releases, because other automatic grabs break its ratio rules.
   freeleech included, stays off until it restores access. Then enable it with
   `freeLeechOnly` on and the profile `Standard`, and remove it from
   `MUST_BE_DISABLED` in `scripts/check-indexers.sh`.
+- EBookBay is disabled: `ebb.la` serves the certificate of its sister site
+  (CN `audiobookbay.lu`), so every request fails the name check. The
+  definition pins that certificate's SHA-1 for Jackett, but Prowlarr does not
+  read the pin, and certificate validation stays on. It keeps the profile
+  `Standard` and the tag `books`. Enable it again once this shows an `ebb.la`
+  name, and remove it from `MUST_BE_DISABLED`:
+
+  ```sh
+  echo | openssl s_client -connect ebb.la:443 -servername ebb.la 2>/dev/null \
+    | openssl x509 -noout -ext subjectAltName
+  ```
+
+  Expected today: `DNS:audiobookbay.lu, DNS:www.audiobookbay.lu`.
 
 Prowlarr keeps this in its database, not in git. Check it after adding an
 indexer (read-only):
