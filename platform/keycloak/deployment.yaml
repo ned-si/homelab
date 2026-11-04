@@ -36,12 +36,11 @@ spec:
           args:
             - start
           env:
-            - name: JAVA_OPTS_APPEND
-              value: "-Djgroups.dns.query=keycloak"
+            # Cluster discovery through the database (JGroups JDBC_PING, table
+            # jgroups_ping in keycloak-db): the default stack, so no
+            # KC_CACHE_STACK. Members talk on 7800 and 57800 (pod IPs).
             - name: KC_CACHE
               value: ispn
-            - name: KC_CACHE_STACK
-              value: kubernetes
             - name: KC_DB
               value: postgres
             - name: KC_DB_URL
