@@ -78,6 +78,8 @@ spec:
           value: "true"
         - name: PAPERLESS_SESSION_COOKIE_AGE
           value: "31536000"
+        - name: PAPERLESS_EMAIL_TASK_CRON
+          value: disable
         image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
         imagePullPolicy: Always
         name: paperless
