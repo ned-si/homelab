@@ -129,6 +129,17 @@ reportsController:
       extraResources:
         - apiGroups: [""]
           resources: [pods/ephemeralcontainers]
+        # check-deprecated-apis matches these; the chart grants none of them
+        # (#1039). podsecuritypolicies no longer exists on 1.37, but the
+        # check asks for it all the same.
+        - apiGroups: [policy]
+          resources: [podsecuritypolicies]
+        - apiGroups: [node.k8s.io]
+          resources: [runtimeclasses]
+        - apiGroups: [flowcontrol.apiserver.k8s.io]
+          resources: [flowschemas, prioritylevelconfigurations]
+        - apiGroups: [storage.k8s.io]
+          resources: [csistoragecapacities]
   # Scraped for KyvernoReportsStale: only the reconcile counter (the
   # background scan) and kyverno_info; the execution-duration histograms are
   # about 4000 series nobody reads.
