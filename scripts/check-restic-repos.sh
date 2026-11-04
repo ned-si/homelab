@@ -1,22 +1,9 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # Every restic repository in the manifests must appear in `local.restic_repos`
-# in bootstrap/aws-backup/main.tf, and vice versa.
-#
-# WHY THIS NEEDS A CHECK
-#
-# `local.restic_repos` drives the S3 lifecycle rules that move pack files to
-# Glacier Instant Retrieval. A repository missing from that list is NOT an error
-# anywhere: the backup runs, the restore works, the verification passes. The only
-# symptom is that its data sits in S3 Standard at roughly six times the price,
-# indefinitely, and nothing ever says so.
-#
-# This is exactly the class of mistake that a comment saying "remember to update
-# this" does not prevent -- and it already happened once: five of seven
-# repositories were missing while every file involved claimed the list mattered.
-#
-# It also catches the reverse (a lifecycle rule for a repository that no longer
-# exists), which is harmless but means the list has stopped describing reality.
+# in bootstrap/aws-backup/main.tf, and vice versa. That list drives the
+# lifecycle rules to Glacier IR; a missing repository fails nowhere and just
+# stays in S3 Standard at about six times the price.
 #
 # Usage:  scripts/check-restic-repos.sh
 # ---------------------------------------------------------------------------

@@ -1,40 +1,23 @@
 #!/bin/bash
 # kyverno.sh -- policy-as-code over deploy/ with the Kyverno CLI.
 #
-#   1. scripts/vendor-upstream.sh --check  the vendored Kyverno and Tetragon
-#                                          files are unchanged
+#   1. scripts/vendor-upstream.sh --check  the vendored files are unchanged
 #   2. kyverno test policies/kyverno/tests the policies' own unit tests
 #   3. kyverno apply                       policies/kyverno/*.yaml and the
-#                                          vendored policies/kyverno/upstream
-#                                          over every file in deploy/
+#                                          vendored upstream over deploy/
 #
-# What blocks is decided here by policy name (BLOCKING), not by the files'
-# validationActions: the vendored files stay as upstream wrote them, and the
-# cluster runs every policy in Audit. A violation of a BLOCKING policy fails
-# the check; every other finding is reported, with per-policy counts and the
-# violating objects in the log and the step summary.
-#
-# Pod Security: in a namespace that NAMESPACES_FILE labels
-# `pod-security.kubernetes.io/enforce: restricted`, a finding of the
-# restricted set (policies/kyverno/upstream/pod-security-vpol/restricted)
-# blocks too, since PSA would reject the Pod. PSA has no webhook exclusions:
-# the Helm-rendered objects of a namespace both in EXCLUDED_NAMESPACES and
-# enforced are kept, and for them only the Pod Security Standards policies
-# (baseline and restricted) block.
+# BLOCKING names the policies that fail the check; the vendored files stay as
+# upstream wrote them. Every other finding is reported with counts. In a
+# namespace NAMESPACES_FILE labels `enforce: restricted`, the restricted set
+# blocks too, since PSA would reject the Pod (and PSA has no webhook
+# exclusions, so excluded namespaces count there).
 #
 # Test knobs (tests/bash/test_kyverno_restricted.sh): KYVERNO_DEPLOY (default
 # deploy), NAMESPACES_FILE, KYVERNO_APPLY_ONLY=1 skips steps 1 and 2.
 #
-# An evaluation error fails the check, except the CLI gaps in CLI_GAPS: the
-# CLI evaluates the manifests as written, without the API server's defaulting,
-# so a policy that reads a defaulted field errors here and not in the cluster.
-#
-# A run that checks zero resources fails: an empty deploy/ or a policy
-# selector that matches nothing would otherwise pass silently.
-#
-# The decision is made here from the report, not from kyverno's exit code:
-# for ValidatingPolicy, `kyverno apply` exits 1 on Audit findings even with
-# --audit-warn.
+# An evaluation error fails, except CLI_GAPS (fields only API server
+# defaulting sets). Zero resources checked fails. The decision comes from the
+# report: `kyverno apply` exits 1 on Audit findings even with --audit-warn.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

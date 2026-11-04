@@ -1,50 +1,15 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Print every hostname this cluster publishes over HTTPS, derived from the
-# rendered manifests.
+# Print every hostname this cluster publishes over HTTPS, from deploy/, so no
+# hand-kept list falls behind.
 #
-# WHY THIS EXISTS
+# Published: `spec.hostnames` of an HTTPRoute, the only names the Gateway
+# terminates TLS for. Not: wildcards, `homelab.lilalala.com` (a label-key
+# prefix), `sync.lilalala.com` (raw TCP/UDP on a LoadBalancer).
 #
-# There used to be three hardcoded hostname lists -- scripts/tls-check.sh (15),
-# .github/workflows/dast.yaml (7), and the manifests themselves -- and they
-# already disagreed. A list that has to be edited by hand every time an app
-# lands is a list that silently stops covering the newest thing, which is
-# exactly the thing most likely to be misrouted.
-#
-# So: one derivation, from deploy/, which is what Argo actually applies.
-#
-# WHAT COUNTS AS PUBLISHED
-#
-#   yes  `spec.hostnames` of an HTTPRoute. That is the only thing the Gateway
-#        terminates TLS for, so it is the only thing a TLS or header check can
-#        meaningfully probe.
-#
-#   no   wildcards. `*.lilalala.com` appears twice: as the Gateway listener's
-#        SNI and as the hostname of the `https-redirect` HTTPRoute on the :80
-#        listener. Neither is a name you can connect to.
-#
-#   no   `homelab.lilalala.com`. Despite the shape, this is not a hostname: it
-#        is the label-key domain prefix this repo uses for its own labels
-#        (`homelab.lilalala.com/lb-pool`, `/managed-by`, `/share`,
-#        `/ephemeral`). Nothing serves it. A naive grep for
-#        `[a-z-]+\.lilalala\.com` picks it up and it is the reason the
-#        "manifests declare 17 hostnames" count is wrong.
-#
-#   no   `sync.lilalala.com`. It is a real DNS record -- an external-dns
-#        annotation on the `syncthing-sync` LoadBalancer Service -- but that
-#        Service carries raw TCP/UDP 22000 and UDP 21027 for the Syncthing
-#        block-exchange protocol. There is no TLS listener and no HTTP, so a
-#        TLS/header probe against it fails for reasons that are not a defect.
-#        The Syncthing WEB UI is published separately, as
-#        `syncthing.lilalala.com`, and that one is an HTTPRoute.
-#
-# Parsing is done with awk against the RENDERED output rather than with a YAML
-# library, so this stays dependency-free and runs on a stock CI runner and on
-# macOS. That is safe only because deploy/ is normalised kustomize output:
-# `kind:` is always at column 0 and `spec.hostnames` always at exactly two
-# spaces. It would not be safe against hand-written manifests, where the same
-# key can appear at any indentation -- which is also why this reads deploy/ and
-# not apps/.
+# awk over deploy/, not a YAML library: kustomize output always has `kind:`
+# at column 0 and `spec.hostnames` at two spaces. Not safe on hand-written
+# manifests.
 #
 # USAGE
 #   scripts/published-hostnames.sh            one hostname per line, sorted
@@ -66,13 +31,8 @@ if [ ! -d deploy ]; then
   exit 1
 fi
 
-# `-print0`/`-0` rather than a bare glob: deploy/ is nested three levels deep in
-# places, and `find` is the same on macOS and Linux here.
-#
-# SC2016: the single quotes delimit an AWK program, not a shell string. `$2` and
-# `$0` below are awk field references; letting the shell expand them would
-# substitute this script's own positional parameters -- usually empty -- and the
-# program would silently match nothing.
+# SC2016: the single quotes delimit an awk program; `$2` and `$0` are awk
+# fields.
 # shellcheck disable=SC2016
 hosts=$(find deploy -name '*.yaml' -print0 \
         | xargs -0 awk '

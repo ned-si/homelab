@@ -1,36 +1,9 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Refuse to let a placeholder reach the cluster.
-#
-# THE PROBLEM THIS SOLVES
-#
-# `homelab-backups-REPLACE-ME` appears in six manifests and
-# `REPLACE_WITH_YOUR_AGE_PUBLIC_KEY` in .sops.yaml. Every check in this repo
-# passes on all of it: it is well-formed YAML, it validates against the API
-# schema, it renders deterministically, and it contains no secrets. The
-# verification layer had nothing to say about the fact that the S3 destination is
-# a string nobody has filled in, so the first real backup would have written to a
-# bucket that does not exist -- or, worse, to one that someone else registered.
-#
-# A placeholder is not a syntax error. It needs its own check.
-#
-# TEMPLATE vs MANIFEST
-#
-# The distinction that makes this usable: a placeholder in a TEMPLATE is the
-# template doing its job, and a placeholder in something that will be APPLIED is
-# a bug. So `*.example` and friends are out of scope by construction (see
-# is_template), and everything Argo syncs is in scope.
-#
-# THE ALLOWLIST
-#
-# scripts/placeholder-allowlist.tsv defers one specific placeholder, with a
-# reason, without turning the check off. Every entry must name the command that
-# removes it. An entry with no reason is rejected; an entry that matches nothing
-# is reported as stale.
-#
-# Rejected alternative: making this a warning. A warning is what the repo already
-# had -- the placeholders were visible in every render and nobody was told they
-# mattered.
+# Refuse to let a placeholder (`REPLACE-ME`, `PUT_..._HERE`) reach the cluster:
+# it is valid YAML, so no other check sees it. Templates (`*.example`, see
+# is_template) are out of scope; everything Argo syncs is in.
+# scripts/placeholder-allowlist.tsv defers one placeholder with a reason.
 #
 # USAGE
 #   scripts/placeholder-check.sh

@@ -1,38 +1,12 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Assert that every file a KSOPS generator references exists and is encrypted.
-#
-# THE GAP THIS CLOSES
-#
-# The three KSOPS generators list nine `*.sops.yaml` files. None of them exist --
-# only the `.example` templates do. Those three Applications sit at
-# `sync-wave: -25`, the earliest wave in each layer, so on day one EVERY LAYER
-# STALLS AT ITS FIRST WAVE and nothing downstream of them ever syncs.
-#
-# No existing check catches this, and none of them can:
-#   - render-deploy.sh, render-check.sh and dryrun-server.sh all hard-skip
-#     `*/secrets`, because rendering those directories means decrypting them.
-#   - kubeconform validates deploy/, which by construction excludes them.
-#   - leak-check.sh checks that files which EXIST are encrypted. A file that does
-#     not exist cannot leak, so it passes.
-#
-# So the one property nobody was checking is the one that stops the cluster.
-#
-# NO KEY REQUIRED. This only looks at whether the path exists and whether the
-# file carries a SOPS envelope (`sops:` block or `ENC[AES256_GCM`). It never
-# decrypts, so it runs in CI, where the age key is absent and must stay absent.
-#
-# WARNING BY DEFAULT
-#
-# The owner has not created the secrets yet. Making this fatal today would block
-# every commit on work that belongs to Phase 1, so:
+# Assert that every file a KSOPS generator references exists and is encrypted
+# (`sops:` block or `ENC[AES256_GCM`). A missing file stalls its
+# `secrets-<layer>` Application at wave -25, and every render check skips
+# */secrets. Never decrypts, so it runs in CI without the age key.
 #
 #   SECRETS_CHECK_STRICT=0   (default) report, exit 0
 #   SECRETS_CHECK_STRICT=1             report, exit 1
-#
-# Flip it in .github/workflows/ci.yaml when Phase 1 starts. docs/secrets.md
-# already lists "Degraded on a secrets-* Application on first run" as expected;
-# this script is what turns that from folklore into a check.
 #
 # USAGE
 #   scripts/secrets-check.sh

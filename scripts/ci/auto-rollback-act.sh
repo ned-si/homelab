@@ -2,21 +2,15 @@
 # auto-rollback-act.sh -- carry out a decision of auto-rollback-decide.sh.
 #
 # ACTION=revert:
-#   1. a commit on top of SHA whose tree is REVERT_TREE (the tree of SHA's
-#      parent), created through the Git Data API with BOT_TOKEN (GITHUB_TOKEN)
-#      and no author, so GitHub signs it and the `commits` check passes;
-#   2. branch auto-revert/<sha12> pointing at it. If the branch already exists
-#      another run handled this commit: no second pull request;
-#   3. a pull request titled PR_TITLE with label `auto-rollback`, opened with
-#      PR_TOKEN, and auto-merge (squash) on it. PR_TOKEN is a fine-grained
-#      token of the repository owner: GitHub Actions may not open pull requests
-#      with GITHUB_TOKEN in this repository, and a pull request opened by
-#      GITHUB_TOKEN would not start CI, so auto-merge would wait forever.
-#   4. `pr` and `commit` in $GITHUB_OUTPUT, for auto-rollback-keep.sh, which
-#      rebuilds the revert on main whenever main moves before it merges.
-# The pull request is the record of the rollback. No issue is opened: the
-# failure is an alert (Alertmanager -> ntfy) that resolves on its own.
-#
+#   1. a commit on top of SHA whose tree is REVERT_TREE (SHA's parent's),
+#      created through the Git Data API with BOT_TOKEN and no author, so
+#      GitHub signs it;
+#   2. branch auto-revert/<sha12>; if it exists, another run handled it;
+#   3. a pull request titled PR_TITLE, label `auto-rollback`, opened with
+#      PR_TOKEN (a pull request opened by GITHUB_TOKEN would not start CI),
+#      with auto-merge (squash);
+#   4. `pr` and `commit` in $GITHUB_OUTPUT, for auto-rollback-keep.sh.
+# The pull request is the record; the failure itself is an alert.
 # Any other ACTION is a no-op that prints the reason.
 #
 # Environment: ACTION, APP, TRIGGER, SHA, SUBJECT, PR_TITLE, REVERT_TREE,

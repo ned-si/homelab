@@ -2,59 +2,17 @@
 # ---------------------------------------------------------------------------
 # Resolve the local age identity and export SOPS_AGE_KEY_FILE.
 #
-# NO SHEBANG, AND NOT EXECUTABLE, ON PURPOSE. This file is sourced, never run.
-# The `check-shebang-scripts-are-executable` pre-commit hook would demand mode
-# 755 for a `#!` line, and a chmod +x on a library that does nothing when
-# executed is a lie about how it is used. The `shell=bash` directive on the first
-# line supplies the dialect that a shebang would otherwise have told shellcheck.
-#
-# (That directive must be the FIRST line. A line further down beginning with
-# `# shellcheck` is parsed as a directive too, and a prose sentence there fails
-# with SC1072/SC1073 -- which is how this paragraph got reworded.)
-#
-# Source this (do not execute it) from any script that runs `sops --decrypt`,
-# `sops edit` or `kustomize build` over a KSOPS generator:
+# Sourced, never run: no shebang and not executable; the `shell=bash`
+# directive must stay the first line.
 #
 #     . "$(dirname "${BASH_SOURCE[0]}")/lib/sops-age.sh"
 #     sops_age_env || exit 1
 #
-# WHY THIS EXISTS -- THE macOS DEFAULT PATH IS NOT ~/.config
-#
-# sops looks for an age identity in a fixed list of places and, when none of the
-# environment variables are set, falls back to ONE directory that it derives from
-# the platform. On Linux that is `$XDG_CONFIG_HOME/sops/age/keys.txt`, i.e.
-# `~/.config/sops/age/keys.txt`. On macOS, Go's os.UserConfigDir() returns
-# `~/Library/Application Support`, so sops 3.13 looks for
-#
-#     ~/Library/Application Support/sops/age/keys.txt
-#
-# Every piece of homelab/Kubernetes documentation in the wild -- including the
-# KSOPS README and this repository's own docs/secrets.md -- says `~/.config`,
-# because that is where it lives on the cluster side. So the natural thing to do
-# on a Mac produces a key that sops cannot see.
-#
-# The failure mode is genuinely nasty because it is ASYMMETRIC:
-#
-#   - ENCRYPTION still works. `sops --encrypt` needs only the RECIPIENT, and that
-#     comes from the `age:` field in .sops.yaml, not from the identity file. So
-#     sealing twelve secrets appears to succeed completely.
-#   - DECRYPTION fails, with "failed to load age identities" listing the paths it
-#     tried -- which is only obvious once you read the list closely enough to
-#     notice `Library/Application Support` where you expected `.config`.
-#
-# That is exactly how this repository's first sealing run went: ten files sealed,
-# ten files unreadable, and no error until the verification pass. Hence the rule
-# that the seal script proves a round-trip instead of trusting exit code 0.
-#
-# WHAT THIS DOES
-#
-# Finds the identity in whichever of the two locations actually has it, exports
-# SOPS_AGE_KEY_FILE explicitly so behaviour no longer depends on the platform
-# default, and (best effort) symlinks the platform default at the real file so
-# that bare interactive `sops -d some.sops.yaml` also works without the export.
-#
-# An already-set SOPS_AGE_KEY_FILE or SOPS_AGE_KEY always wins -- CI passes the
-# key through the environment and must not be overridden.
+# On macOS sops looks in ~/Library/Application Support/sops/age/keys.txt, not
+# ~/.config/sops/age/keys.txt. Encryption still works there (it needs only
+# the recipient), so only decryption fails. This finds the identity in either
+# place, exports SOPS_AGE_KEY_FILE and symlinks the platform default to it. An
+# already-set SOPS_AGE_KEY_FILE or SOPS_AGE_KEY wins (CI).
 # ---------------------------------------------------------------------------
 
 # Print the resolved key file path, or nothing.

@@ -1,56 +1,22 @@
 #!/bin/bash
 #
-# The Trivy gate. Severity-tiered, and for HIGH it gates on the DELTA against a
-# baseline rather than on the absolute count.
+# The Trivy gate. CRITICAL fails on presence. HIGH fails on the delta against
+# the merge-base with the target branch (not its tip, which would blame this
+# PR for someone else's merge), so inherited findings stay visible without
+# blocking and an added one fails even when its rule is waived elsewhere.
 #
-# ---------------------------------------------------------------------------
-# THE PROBLEM THIS SOLVES
+# Findings are keyed on (id, target-file) without the line, so a shifted line
+# is not new; counts per key are compared too. A second occurrence in the same
+# file can still slip through.
 #
-# An absolute-count gate has exactly two settings, and both are wrong:
-#
-#   fail on any finding    Inherited debt blocks every unrelated PR. Nobody can
-#                          merge a typo fix until 39 pre-existing findings are
-#                          resolved, so the gate gets waived wholesale and stops
-#                          meaning anything.
-#   waive by rule ID       What the old flat .trivyignore did. Bazarr added two
-#                          findings of an already-waived class and CI could not
-#                          say so, because the class was suppressed globally.
-#
-# Gating on the delta gives the property actually wanted: pre-existing findings
-# are visible but non-blocking, and a change that ADDS one fails -- even when its
-# rule is waived elsewhere in the tree.
-#
-# CRITICAL is not treated this way. It fails on presence, baseline or not.
-# Inheriting a CRITICAL is not a reason to keep it.
-#
-# ---------------------------------------------------------------------------
-# HOW THE BASELINE IS CHOSEN
-#
-# The merge-base with the target branch, NOT the target branch tip. Using the tip
-# would attribute someone else's newly-merged finding to this PR, which is how a
-# delta gate acquires a reputation for false positives and gets switched off.
-#
-# Findings are keyed on (id, target-file), deliberately NOT including the line
-# number: adding a comment shifts every line below it and would otherwise present
-# as a wholesale set of new findings.
-#
-# The consequence, stated because it is a real limitation: a SECOND occurrence of
-# the same rule in the same file is not seen as new. Catching that needs a stable
-# resource identity that Trivy's config output does not reliably provide. The
-# count per key is compared too, which catches most of it.
-#
-# ---------------------------------------------------------------------------
 # USAGE
 #   scripts/trivy-gate.sh                     gate against merge-base with main
 #   TRIVY_BASE_REF=origin/foo ...             gate against another branch
 #   TRIVY_GATE_SUMMARY=/tmp/s.md ...          also write a markdown summary
 #   TRIVY_GATE_BASELINE_SKIP=1 ...            no baseline; gate on presence only
 #
-# `--skip-check-update` is passed to Trivy on purpose. Without it Trivy tries to
-# pull its checks bundle from a registry and, on a slow link, spends six minutes
-# getting zero bytes and then dies rather than falling back to the embedded
-# checks. That is why these findings went untriaged for so long. CI has a fast
-# link and a cache, so it downloads; this flag makes a local run possible at all.
+# `--skip-check-update`: otherwise Trivy pulls its checks bundle, which stalls
+# on a slow link instead of falling back to the embedded checks.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
