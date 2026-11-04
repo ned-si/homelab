@@ -408,7 +408,16 @@ counts differ. Paperless' startup path check also wants a writable media
 root, and `/media` stays read-only: the exporter runs with Django's
 `--skip-checks`. Task 4 verifies on 3.4.1 that `document_exporter` accepts
 `--skip-checks` and starts with these mounts; if not, the fallback is
-`paperless-media` read-write in init container 2 (same node, RWO). One
+`paperless-media` read-write in init container 2 (same node, RWO).
+Measured on 3.4.2 in task 4: `--skip-checks` is accepted, but the exporter
+holds `media.lock` in the media root for the whole export and fails with
+`EROFS` on a read-only mount, so init container 2 mounts `paperless-media`
+read-write and the export waits for the app's own file moves. Paperless
+also refuses to load its settings without `PAPERLESS_SECRET_KEY`, so init
+container 2 reads it from `paperless-secrets`. A new volume's root belongs
+to root and Kyverno denies a root container in the Job, so the Deployment
+mounts `paperless-export` at `/usr/src/paperless/export`, which the image's
+root init chowns to uid 1000. One
 edge remains: a row in the copy whose file is gone from `/media` by the
 time the exporter reaches it. That happens when a document is purged from
 the trash, or renamed on disk by `PAPERLESS_FILENAME_FORMAT` after an edit

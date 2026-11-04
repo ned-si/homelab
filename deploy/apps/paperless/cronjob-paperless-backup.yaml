@@ -19,7 +19,7 @@ spec:
   jobTemplate:
     spec:
       activeDeadlineSeconds: 21600
-      backoffLimit: 2
+      backoffLimit: 1
       template:
         spec:
           affinity:
@@ -36,34 +36,28 @@ spec:
               # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
               restic unlock
 
-              # Consistent SQLite snapshot. `sqlite3 .backup` uses SQLite's
-              # backup API, which cooperates with the running writer -- unlike
-              # copying db.sqlite3 directly, which can produce a torn file
-              # that only fails when you try to restore it.
-              #
-              # If sqlite3 is unavailable in this image the copy is skipped
-              # rather than silently producing a corrupt one.
-              if command -v sqlite3 >/dev/null 2>&1; then
-                sqlite3 /data/db.sqlite3 ".backup '/tmp/db-consistent.sqlite3'"
-                restic backup --retry-lock 30m /tmp/db-consistent.sqlite3 \
-                  --tag paperless-db --host paperless
-                rm -f /tmp/db-consistent.sqlite3
-              else
-                echo "WARNING: sqlite3 not present; database captured as part"
-                echo "         of the file backup below and MAY BE INCONSISTENT."
-                echo "         See docs/backups.md#paperless."
-              fi
+              # The consistent database copy from db-copy.
+              restic backup --retry-lock 30m /db/db.sqlite3 \
+                --tag paperless-db --host paperless
 
               # The documents. These are the irreplaceable part.
               restic backup --retry-lock 30m /media \
                 --tag paperless-media --host paperless --verbose
 
-              # The database + index, excluding regenerable derivatives.
+              # The rest of the data directory: not the live database
+              # (paperless-db has the consistent copy), not the
+              # regenerable index and thumbnails.
               restic backup --retry-lock 30m /data \
                 --tag paperless-data --host paperless \
+                --exclude '/data/db.sqlite3*' \
                 --exclude '**/index/**' \
                 --exclude '**/thumbnails/**' \
                 --verbose
+
+              # The export: plain files and manifest.json. restic
+              # deduplicates it against /media.
+              restic backup --retry-lock 30m /export \
+                --tag paperless-export --host paperless
 
               restic unlock
               restic check --retry-lock 30m --with-cache
@@ -96,18 +90,141 @@ spec:
                 - ALL
               readOnlyRootFilesystem: true
             volumeMounts:
+            - mountPath: /db
+              name: db
+              readOnly: true
             - mountPath: /media
               name: media
               readOnly: true
             - mountPath: /data
               name: data
               readOnly: true
+            - mountPath: /export
+              name: export
+              readOnly: true
             - mountPath: /cache
               name: cache
             - mountPath: /tmp
               name: tmp
-          restartPolicy: OnFailure
+          initContainers:
+          - args:
+            - |
+              import sqlite3, sys
+              # mode=rw: a missing database is an error, not a new empty file.
+              src = sqlite3.connect("file:/data/db.sqlite3?mode=rw", uri=True)
+              dst = sqlite3.connect("/db/db.sqlite3")
+              src.backup(dst)
+              src.close()
+              result = dst.execute("PRAGMA integrity_check").fetchone()[0]
+              dst.close()
+              print("db-copy: integrity_check", result)
+              sys.exit(0 if result == "ok" else 1)
+            command:
+            - python3
+            - -c
+            image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
+            imagePullPolicy: IfNotPresent
+            name: db-copy
+            resources:
+              limits:
+                memory: 256Mi
+              requests:
+                cpu: 50m
+                memory: 64Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /data
+              name: data
+            - mountPath: /db
+              name: db
+          - args:
+            - |
+              : "${PASSPHRASE:?the export passphrase is empty}"
+              mkdir -p /db/log /db/consume
+              cd /usr/src/paperless/src
+              # --skip-checks: the startup checks are for the web app
+              # (paths, OCR languages), not for an export.
+              python3 manage.py document_exporter --skip-checks /export \
+                --use-filename-format --delete --no-progress-bar \
+                --passphrase "$PASSPHRASE"
+              test -s /export/manifest.json
+              # The default manager hides the trash, as the exporter does.
+              python3 manage.py shell -v 0 -c '
+              import datetime, json
+              from documents.models import Document
+              n = Document.objects.count()
+              now = datetime.datetime.now(datetime.timezone.utc)
+              with open("/export/export-meta.json", "w") as f:
+                  json.dump({"documents": n, "taken": now.isoformat(timespec="seconds")}, f)
+              print("export: documents", n)
+              '
+              # A standalone file for the paperless-db snapshot: no -wal.
+              python3 -c '
+              import sqlite3
+              c = sqlite3.connect("/db/db.sqlite3")
+              print("db journal_mode", c.execute("PRAGMA journal_mode=DELETE").fetchone()[0])
+              c.close()
+              '
+            command:
+            - /bin/sh
+            - -eu
+            - -c
+            env:
+            - name: PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  key: passphrase
+                  name: paperless-export
+            - name: PAPERLESS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  key: PAPERLESS_SECRET_KEY
+                  name: paperless-secrets
+            - name: PAPERLESS_DATA_DIR
+              value: /db
+            - name: PAPERLESS_MEDIA_ROOT
+              value: /media
+            - name: PAPERLESS_CONSUMPTION_DIR
+              value: /db/consume
+            - name: PAPERLESS_TIME_ZONE
+              value: Europe/Zurich
+            - name: PAPERLESS_FILENAME_FORMAT
+              value: '{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent
+                }} {{ title }}'
+            - name: HOME
+              value: /tmp
+            image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
+            imagePullPolicy: IfNotPresent
+            name: export
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /db
+              name: db
+            - mountPath: /media
+              name: media
+            - mountPath: /export
+              name: export
+            - mountPath: /tmp
+              name: tmp
+          restartPolicy: Never
           securityContext:
+            runAsGroup: 1000
             runAsNonRoot: true
             runAsUser: 1000
             seccompProfile:
@@ -116,11 +233,15 @@ spec:
           - name: media
             persistentVolumeClaim:
               claimName: paperless-media
-              readOnly: true
           - name: data
             persistentVolumeClaim:
               claimName: paperless-data
-              readOnly: true
+          - name: export
+            persistentVolumeClaim:
+              claimName: paperless-export
+          - emptyDir:
+              sizeLimit: 2Gi
+            name: db
           - emptyDir:
               sizeLimit: 2Gi
             name: cache
