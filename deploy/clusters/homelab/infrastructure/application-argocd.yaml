@@ -35,7 +35,7 @@ spec:
       valueFiles:
       - $values/bootstrap/argocd-values.yaml
     repoURL: https://argoproj.github.io/argo-helm
-    targetRevision: 10.11.7
+    targetRevision: 10.12.0
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
