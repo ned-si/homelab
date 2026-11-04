@@ -175,14 +175,18 @@ data:
 
     def lint_members(members: dict, config: dict) -> list[str]:
         """Errors in the member list. Messages name groups, never an entry."""
-        groups = {o["name"] for o in config.get("groups", [])}
+        groups = [o["name"] for o in config.get("groups", [])]
         errors, seen = [], {}
         if not isinstance(members, dict):
             return ["member list: not a JSON object"]
-        for group, entries in members.items():
-            if group not in groups:
-                errors.append(f"member list: {group} is not a group in paperless.json")
+        unknown = len(set(members) - set(groups))
+        if unknown:
+            errors.append(f"member list: {unknown} key(s) not a group of paperless.json "
+                          f"({', '.join(groups)})")
+        for group in groups:
+            if group not in members:
                 continue
+            entries = members[group]
             if not isinstance(entries, list) or not all(isinstance(e, str) and e.strip() for e in entries):
                 errors.append(f"member list: {group} must be a list of usernames or emails")
                 continue
@@ -432,9 +436,13 @@ data:
         managed = set(group_ids.values())
         users = client.list("/api/users/")
         wanted: dict[int, set] = {u["id"]: set() for u in users}
-        found = {g: 0 for g in members}
-        for group, entries in members.items():
-            for entry in entries:
+        # Counters keyed by the configured group names: nothing read from the
+        # member list reaches the log.
+        listed = {g: 0 for g in group_ids}
+        found = {g: 0 for g in group_ids}
+        for group in group_ids:
+            for entry in members.get(group, []):
+                listed[group] += 1
                 key = entry.strip().lower()
                 hits = [u for u in users if u["username"] not in EXEMPT_ACCOUNTS
                         and key in (u["username"].lower(), (u.get("email") or "").lower())]
@@ -450,8 +458,8 @@ data:
             if want != have:
                 client.request("PATCH", f"/api/users/{user['id']}/", {"groups": sorted(want)})
                 changes += 1
-        for group in sorted(members):
-            missing = len(members[group]) - found[group]
+        for group in sorted(group_ids):
+            missing = listed[group] - found[group]
             log(f"group {group}: {found[group]} listed account(s) found"
                 + (f", {missing} not found (no Paperless login yet)" if missing else ""))
         flagged = sum(1 for u in users if u["username"] not in EXEMPT_ACCOUNTS
@@ -695,5 +703,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: paperless-apply-8m6bgdfhf4
+  name: paperless-apply-bbtgh275dd
   namespace: paperless

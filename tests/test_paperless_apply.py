@@ -452,7 +452,7 @@ def test_superusers_and_direct_permissions_are_counted_except_the_exempt_account
 
 
 @pytest.mark.parametrize("members,error", [
-    ({"admins": ["x"]}, "admins is not a group"),
+    ({"admins": ["x"]}, "1 key\\(s\\) not a group of paperless.json \\(editors, readers\\)"),
     ({"editors": ["x"], "readers": ["X"]}, "in both editors and readers"),
     ({"editors": ["automation"]}, "exempt account"),
     ({"readers": "x"}, "must be a list"),
