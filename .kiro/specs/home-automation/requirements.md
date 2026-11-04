@@ -14,12 +14,14 @@ does not use it yet: Zigbee2MQTT is at 0 replicas (#728), no camera is
 recorded locally (#729) and there is no dashboard for daily use.
 
 This spec makes Home Assistant the one place where the household sees and
-controls the house: lights with automations, heating, solar production and
-the heat pump, plants, cameras, the existing alarm system's sensors, a main
-Home dashboard with one dashboard per area, on the phones and on a shared
-wall tablet. The house keeps working when the cluster or Home Assistant is
-down: Home Assistant adds automations and one view on top of devices that
-run on their own.
+controls the house: lights with automations, indoor and outdoor; heating;
+the indoor climate of every room; solar production, the heat pump and
+solar-surplus charging of the car; plants; cameras and a video doorbell;
+the existing alarm system's sensors; the TV, the robot vacuum and the
+mailbox; a main Home dashboard with one dashboard per area, on the phones
+and on a shared wall tablet. The house keeps working when the cluster or
+Home Assistant is down: Home Assistant adds automations and one view on
+top of devices that run on their own.
 
 Work is phased: what the current hardware allows first, purchases flagged
 with a rough cost and made only once the operator approves them
@@ -27,9 +29,9 @@ with a rough cost and made only once the operator approves them
 
 Non-goals:
 - Device inventory in git. Brands, models, counts and locations of
-  devices, and anything about the alarm and camera gear beyond its
-  category, stay in the operator's local inventory file; the repo describes
-  categories, integrations and rules (the repo is public).
+  devices, the network gear, and anything about the alarm and camera gear
+  beyond its category, stay in the operator's local inventory file; the
+  repo describes categories, integrations and rules (the repo is public).
 - Replacing the alarm system or its monitoring. Home Assistant reads it; it
   never arms, disarms or becomes the alarm.
 - Motorised blinds and air conditioning. The household has neither; they
@@ -37,9 +39,14 @@ Non-goals:
   (Requirement 12).
 - Cloud recording of camera footage, or any camera vendor cloud.
 - A voice assistant. Suggested in the design, a new issue if wanted.
-- Network segmentation itself. It needs a router that supports VLANs; that
-  purchase and its rollout are their own networking spec. This spec states
-  what the camera and IoT networks must allow (Requirement 6.5).
+- Per-appliance power metering and indoor (per-room) presence detection:
+  not wanted. Presence here means "at home or not", from the phones.
+- New smoke or water leak sensors: low priority. The existing smoke alarms
+  get a feasibility row; nothing is bought for them.
+- Network segmentation. With Wi-Fi cameras it needs a VLAN-capable router
+  and access points that map an SSID to a VLAN; that is a deferred
+  networking issue. This spec isolates the cameras without it
+  (Requirement 6.5).
 
 ## Glossary
 
@@ -47,8 +54,8 @@ Non-goals:
   depends on (the lights' bridge, the heating controller, the inverter, the
   alarm panel). It keeps working without Home Assistant.
 - **Inventory file**: the operator's local, git-ignored list of devices,
-  models, counts and locations, with the label photos' findings. Never
-  committed, quoted or paraphrased into the repo.
+  models, counts and locations, with the label photos' findings and the
+  network gear. Never committed, quoted or paraphrased into the repo.
 - **Feasibility table**: the public table in `docs/home-automation.md`, one
   row per device category: the integration, local or cloud, what it can
   read and control, and the fallback. No models or counts.
@@ -67,6 +74,8 @@ Non-goals:
   time of day, and by hand from the dashboards. Automations read it.
 - **NVR**: Frigate, the network video recorder that records the cameras
   and detects people and vehicles (#729).
+- **Charge controller**: evcc, which sets the car's charging current from
+  the solar surplus.
 
 ## Requirements
 
@@ -78,15 +87,15 @@ anything.
 
 #### Acceptance criteria
 
-1. FOR every device category in scope (lights, heating, solar, heat pump,
-   EV charging, plants, cameras, alarm, smoke alarms, appliances, robot
-   vacuum, wall tablet), THE inventory file SHALL record the
-   operator's label photos' findings, the matching integration, local or
-   cloud, and what it can read and control.
+1. FOR every device category in scope (lights, outdoor lights and motion
+   sensors, heating, room climate sensors, solar, grid meter, heat pump, EV
+   charger and car, plants, cameras, doorbell, alarm, smoke alarms, TV and
+   streamer, robot vacuum, mailbox sensor, appliances, wall tablet), THE
+   inventory file SHALL record the operator's label photos' findings, the
+   matching integration, local or cloud, and what it can read and control.
 2. THE feasibility table in `docs/home-automation.md` SHALL have one row per
    category with the integration, local or cloud, the fallback and the
-   phase, and SHALL name no model, count or location. (review: the table
-   against the non-goal on inventory)
+   phase, and SHALL name no model, count or location.
 3. A device category whose integration is cloud only SHALL say so in the
    table, with what happens when the cloud is down or rate-limits.
 4. A purchase SHALL be listed in [design](design.md#purchases) with a rough
@@ -139,15 +148,15 @@ Assistant.
 ### Requirement 4: Energy in one view
 
 **User story:** As the operator, I want solar production, grid import and
-export, house consumption and the heat pump in one energy view, so I see
-where the power goes and can use the solar surplus.
+export, house consumption, the heat pump and the car's charging in one
+energy view, so I see where the power goes and can use the solar surplus.
 
 #### Acceptance criteria
 
 1. Home Assistant's Energy dashboard SHALL show solar production, grid
-   import and export, house consumption and EV charging power where the
-   charger reports it, from the inverter, meter and charger integrations,
-   read locally where the device allows it.
+   import and export, house consumption and EV charging power, from the
+   inverter, meter, charger and charge controller integrations, read
+   locally where the device allows it.
 2. THE heat pump's power or energy and its operating mode SHALL be shown
    when its integration provides them.
 3. A cloud integration with a request quota SHALL poll at an interval that
@@ -167,16 +176,17 @@ its own.
 1. EVERY monitored plant SHALL be one device in Home Assistant with its
    moisture, light and battery readings and its thresholds; one overview
    SHALL list them, the ones out of range first.
-2. WHEN a plant's moisture stays below its threshold for 6 hours between
-   08:00 and 20:00 (Zurich), THE household member assigned to watering
-   SHALL get one household notification per plant per day.
+2. WHEN a plant's moisture has stayed below its threshold for 6 hours, THE
+   household member assigned to watering SHALL get one household
+   notification per plant per day, sent between 08:00 and 20:00 (Zurich).
 3. THE smart plug of the watering device SHALL switch off on its own after
    a maximum run time set on the plug or the device, and SHALL start off
    after a power cut, so a stopped Home Assistant can never leave water
    running.
 4. A sensor that has not reported for 24 hours, or whose battery is below
-   15%, SHALL appear in a weekly household notification of devices to look
-   at, not one notification per device.
+   15%, and a robot vacuum consumable that is due, SHALL appear in a weekly
+   household notification of devices to look at, not one notification per
+   device.
 
 ### Requirement 6: Cameras recorded locally
 
@@ -199,11 +209,16 @@ cloud.
    the NVR UI with `kubectl -n frigate port-forward svc/frigate 5000`
    through the tailnet API proxy. (a deliberate exception to "UIs public
    behind SSO", reason in [design](design.md#decided-defaults))
-5. ONCE the network has a camera segment (networking spec), THE cameras
-   SHALL have no internet access and SHALL be reachable only from the
-   cluster nodes on their RTSP and ONVIF ports.
-6. EACH camera SHALL also record to its own storage card when it has one,
-   so an NVR outage loses events in Home Assistant but not footage.
+5. THE cameras and the doorbell SHALL have no internet access: a fixed
+   address in `192.168.1.21`-`.49` with no gateway and no DNS server set on
+   the device, cloud, P2P and UPnP off, and no port forward. (check: from
+   the camera's own network test, or its log, an internet address fails)
+6. EACH camera SHALL also record to its own storage card, so an NVR or
+   Wi-Fi outage loses events in Home Assistant but not footage.
+7. EACH camera position SHALL pass a 24-hour stream test on Wi-Fi before
+   the next camera is bought: fewer than 5 reconnects of the record stream
+   and the detection stream at its configured frame rate, from Frigate's
+   camera statistics. ([design](design.md#wi-fi-for-cameras-and-devices))
 
 ### Requirement 7: The alarm system stays the alarm
 
@@ -234,12 +249,15 @@ the house is, and a tap to the details.
 
 1. THE main Home dashboard SHALL be the default for every user and SHALL
    show: alarm state, who is home, open doors and windows, lights on,
-   heating mode and indoor temperature, power now (solar, grid, house),
-   plants needing water, the last camera event and the weather; each tile
-   SHALL link to its area's dashboard.
-2. THERE SHALL be one dashboard each for lights, climate and energy,
-   plants, and security (cameras, alarm, doors), plus a wall tablet
-   dashboard and an admin-only system dashboard.
+   heating mode, indoor temperature and the room with the highest CO2,
+   power now (solar, grid, house, car), the car's charge mode, plants
+   needing water, mail waiting, the robot vacuum's state, the last camera
+   or doorbell event and the weather; each tile SHALL link to its area's
+   dashboard.
+2. THERE SHALL be one dashboard each for lights, climate and energy
+   (rooms, heating, solar, car), plants, security (cameras, doorbell,
+   alarm, doors) and media, plus a wall tablet dashboard and an admin-only
+   system dashboard.
 3. THE dashboards SHALL be readable on a phone in portrait and on the wall
    tablet in landscape without horizontal scrolling.
 4. THE dashboards SHALL live in Home Assistant's storage, kept by its
@@ -261,9 +279,9 @@ anyone at home can use.
    Assistant user with a generated password kept in the operator's password
    manager, show the wall tablet dashboard in kiosk mode, and stay logged in
    through its refresh token.
-3. THE wall tablet SHALL keep its screen on only while someone is in front
-   of it or during the day, and its charging SHALL be cycled through a smart
-   plug to keep the battery between 20% and 80%.
+3. THE wall tablet SHALL keep its screen on only between 07:00 and 22:00
+   (Zurich), or while motion is seen in front of it, and its charging SHALL
+   be cycled through a smart plug to keep the battery between 20% and 80%.
 4. THE wall tablet SHALL run a browser engine the current Home Assistant
    frontend supports; IF the existing tablet cannot, THEN it is replaced
    (purchase in phase 2).
@@ -283,10 +301,11 @@ phones and platform problems on my pager, never mixed.
 2. Alertmanager SHALL NOT route a house event (a plant, a door, a camera);
    platform problems of Home Assistant itself (down, backups, probes) stay
    operator pages as today.
-3. Camera and sensor notifications SHALL be rate-limited (Requirements 5.2,
-   5.4, 6.3) so no phone gets near the companion app's 500 pushes per day.
-4. Only the alarm and safety sensors (smoke, water leak) SHALL use critical
-   notifications.
+3. Camera, doorbell and sensor notifications SHALL be rate-limited
+   (Requirements 5.2, 5.4, 6.3, 14.3, 15.2, 19.2) so no phone gets near the
+   companion app's 500 pushes per day.
+4. Only the alarm and safety sensors (smoke, water leak, if any are added)
+   SHALL use critical notifications.
 
 ### Requirement 11: The house works when the cluster is down
 
@@ -296,15 +315,20 @@ to work whatever happens to the homelab.
 #### Acceptance criteria
 
 1. WITH Home Assistant scaled to 0 for 10 minutes, THE lights SHALL switch
-   from their switches, THE heating SHALL follow its schedule, THE alarm
-   SHALL arm and disarm from its own keypad or app, and THE cameras SHALL
-   record to their cards. (test: the [fallback test](design.md#fallback-test),
-   once per phase, on a weekday; the result in the PR)
+   from their switches, THE outdoor lights SHALL follow their motion
+   sensors, THE heating SHALL follow its schedule, THE alarm SHALL arm and
+   disarm from its own keypad or app, THE doorbell SHALL ring its chime, and
+   THE cameras SHALL record to their cards. (test: the
+   [fallback test](design.md#fallback-test), once per phase, on a weekday;
+   the result in the PR)
 2. No automation that keeps people safe or warm SHALL exist only in Home
    Assistant; such an automation runs on the device controller and Home
    Assistant only mirrors it.
 3. AFTER Home Assistant comes back, ITS entities SHALL match the devices'
    state within 5 minutes without a manual step.
+4. WITH the charge controller stopped, THE car SHALL still charge when
+   plugged in, at the current it was last given or the one set in the
+   car's app.
 
 ### Requirement 12: Devices added later fit without a redesign
 
@@ -320,8 +344,10 @@ works locally with this setup.
 2. A new device with a Wi-Fi or Ethernet connection SHALL have an official,
    local Home Assistant integration or run ESPHome; cloud-only devices are
    not bought.
-3. A new camera SHALL support RTSP and ONVIF, H.264 or H.265, and a second
-   low-resolution stream for detection, and PoE where a cable can reach.
+3. A new camera SHALL use Wi-Fi (5 GHz capable) with mains power, support
+   RTSP and ONVIF, H.264 or H.265, a second low-resolution stream for
+   detection and a storage card, and work with its vendor cloud off.
+   Battery cameras are not bought: they do not stream continuously.
 
 ### Requirement 13: Backups and privacy
 
@@ -331,18 +357,141 @@ restorable and no footage or inventory where it does not belong.
 #### Acceptance criteria
 
 1. THE Home Assistant config volume (integrations, dashboards, users,
-   automations), the recorder and `zigbee2mqtt-data` SHALL be in the nightly
-   restic snapshot and the CNPG backups, under the 24 h freshness rule.
+   automations), the recorder, `zigbee2mqtt-data` and `evcc-data` SHALL be
+   in the nightly restic snapshot and the CNPG backups, under the 24 h
+   freshness rule.
 2. THE NVR's configuration SHALL be a SOPS-encrypted Secret
-   (`apps/frigate/secrets/frigate-config.sops.yaml`, key `config.yml`),
-   mounted read-only, with generic camera names (`cam1`...`camN`); RTSP
-   credentials come from `FRIGATE_RTSP_*` environment variables of the
-   same Secret. Only non-camera settings (detector, retention, MQTT) may be
-   plain in `apps/frigate/`, and editing the config from Frigate's UI is
-   off. THE event database and the recordings SHALL NOT be backed up; the
-   config is the Secret.
+   (`apps/secrets/frigate-config.sops.yaml`, key `config.yml`), mounted
+   read-only, with generic camera names (`cam1`...`camN`); RTSP and MQTT
+   credentials come from `FRIGATE_*` environment variables of the same
+   Secret. Only non-camera settings (detector, retention) may be plain in
+   `apps/frigate/`. The read-only mount is what turns editing the config
+   from Frigate's UI off. THE event database (PVC `frigate-data`) and the
+   recordings SHALL NOT be backed up; the config is the Secret.
 3. No camera image, recording, device model, count or location SHALL appear
    in git, a pull request, an issue or a log shipped off the cluster.
 4. A restore of the Home Assistant config volume from restic SHALL bring
    back the dashboards and integrations. (test: once, into a throwaway pod,
    before the spec closes)
+
+### Requirement 14: Climate in every room
+
+**User story:** As a household member, I want the temperature, humidity
+and CO2 of every room, and a nudge to air a room before the air gets bad.
+
+#### Acceptance criteria
+
+1. EVERY room the operator lists SHALL have a sensor for temperature and
+   humidity, and every living room, bedroom and office one for CO2 with an
+   NDIR cell; estimated CO2 (eCO2, from VOC) does not count.
+2. THE climate dashboard SHALL show each room's three readings and its
+   24-hour history; the main Home dashboard shows the room with the highest
+   CO2.
+3. WHEN a room's CO2 stays above 1200 ppm for 15 minutes between 07:00 and
+   22:00 (Zurich), THE house group SHALL get one household notification to
+   air it, at most one per room per 2 hours; WHEN a room's humidity stays
+   above 65% for 24 hours, one mould-risk notification per room per day.
+4. THE readings SHALL be kept like the energy readings (Requirement 4.4).
+
+### Requirement 15: A video doorbell
+
+**User story:** As a household member, I want to know who is at the door,
+on my phone and on the wall tablet.
+
+#### Acceptance criteria
+
+1. THE doorbell SHALL be a camera under Requirements 6 and 12.3, on mains
+   power (its bell wiring or a plug-in supply), and SHALL report a press
+   through a local integration or ONVIF event; a doorbell that reports
+   presses only through its cloud is not bought.
+2. WHEN the doorbell is pressed, THE house group SHALL get one household
+   notification with a snapshot within 5 seconds, at most one per
+   30 seconds, THE wall tablet SHALL show its live view for 60 seconds, and
+   playback on the TV SHALL pause.
+3. THE doorbell SHALL ring its own chime without Home Assistant.
+
+### Requirement 16: Outdoor lights that follow motion
+
+**User story:** As a household member, I want the outdoor lights to come
+on when someone walks up at night, reliably, and to replace the current
+motion lights.
+
+#### Acceptance criteria
+
+1. EACH outdoor light SHALL be on the lights' bridge or behind a Zigbee
+   relay, and SHALL keep working from its wall switch.
+2. EACH outdoor motion sensor SHALL be paired with the lights' bridge or
+   bound directly to its lights over Zigbee, so motion turns them on
+   between sunset and sunrise without Home Assistant, and off after
+   3 minutes without motion.
+3. Home Assistant SHALL add camera person detections as a second trigger at
+   night, and SHALL include the outdoor lights in the vacation mode's
+   presence simulation.
+
+### Requirement 17: TV and streamer
+
+**User story:** As a household member, I want the TV in the same app, and
+the lights to follow what we watch.
+
+#### Acceptance criteria
+
+1. Home Assistant SHALL read and control the TV and the streamer locally,
+   added by IP: power, volume, source, playback state and play or pause.
+2. WHEN playback starts on the TV after sunset, THE TV's room SHALL switch
+   to a film scene; WHEN it stops for 5 minutes, the previous scene comes
+   back.
+3. THE remotes and the TV's own apps SHALL keep working without Home
+   Assistant.
+
+### Requirement 18: Robot vacuum
+
+**User story:** As a household member, I want the vacuum to run when
+nobody is home and to tell us when it needs care.
+
+#### Acceptance criteria
+
+1. Home Assistant SHALL show the vacuum's state, battery and consumables
+   through its integration.
+2. WHEN the house mode becomes `away` on a day the vacuum has not run, THE
+   vacuum SHALL start a full clean; it SHALL NOT start in night mode or
+   while someone is home, and SHALL return to its dock when someone
+   arrives.
+3. A due consumable or a full bin SHALL go into the weekly digest
+   (Requirement 5.4), not its own notification.
+
+### Requirement 19: Mailbox sensor
+
+**User story:** As a household member, I want to know when mail has
+arrived.
+
+#### Acceptance criteria
+
+1. A sensor on the mailbox SHALL report each delivery; mail stays
+   "waiting" on the main Home dashboard until the mailbox is emptied or a
+   household member clears it from the dashboard.
+2. THE house group SHALL get one household notification per day for the
+   first delivery.
+3. THE sensor SHALL run on a battery for at least a year, over Zigbee where
+   the signal reaches, otherwise over Wi-Fi with ESPHome in deep sleep.
+
+### Requirement 20: The car charges on solar surplus
+
+**User story:** As the operator, I want the car to charge from the solar
+surplus by default, and to charge fast when I ask.
+
+#### Acceptance criteria
+
+1. THE charge controller SHALL run as app `evcc` in namespace `evcc`, read
+   solar production, grid power and the charger, and set the charging
+   current; when the charger cannot be controlled, through the car.
+2. THE modes SHALL be off, solar only, minimum plus solar, and fast;
+   solar only is the default. A household member sets the mode from Home
+   Assistant or from the charge controller's UI.
+3. Grid power SHALL come from the inverter's meter or the grid meter's
+   customer interface, updated at least every 10 seconds; IF neither can,
+   THEN a three-phase grid meter is bought (phase 2).
+4. THE charge controller's configuration SHALL be a SOPS-encrypted Secret
+   (`apps/secrets/evcc-config.sops.yaml`); its state is on the PVC
+   `evcc-data`, backed up (Requirement 13.1).
+5. Charge sessions and charging power SHALL reach Home Assistant through
+   MQTT, and the car's charge state SHALL be on the energy dashboard.
