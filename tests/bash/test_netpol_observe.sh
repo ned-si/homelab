@@ -56,11 +56,14 @@ esac
 cat > "$tmp/prom.json" <<'EOF'
 {"status":"success","data":{"resultType":"vector","result":[
 {"metric":{"direction":"egress","match":"all","source":"mealie","source_namespace":"mealie","destination":"world","destination_namespace":""},"value":[1760000000,"3.2"]},
-{"metric":{"direction":"ingress","match":"l3-l4","source":"ingress","source_namespace":"","destination":"mealie","destination_namespace":"mealie"},"value":[1760000000,"120.0"]}
+{"metric":{"direction":"ingress","match":"l3-l4","source":"ingress","source_namespace":"","destination":"mealie","destination_namespace":"mealie"},"value":[1760000000,"120.0"]},
+{"metric":{"direction":"ingress","match":"all","source":"postsync-smoke","source_namespace":"mealie","destination":"mealie","destination_namespace":"mealie"},"value":[1760000000,"0"]}
 ]}}
 EOF
 out=$(bash "$SCRIPT" mealie --days 7 --prom http://prom.test:9090)
 expect_contains "query covers 7 days" "[7d]" "$(cat "$tmp/curl.args")"
+expect_contains "query lists present series with max_over_time" "max_over_time(hubble_policy_verdicts_total" "$(cat "$tmp/curl.args")"
+expect_contains "a once-only series is listed with count 0" "$(printf 'ingress\tmealie/postsync-smoke\tall\t0')" "$out"
 expect_contains "query targets the Prometheus URL" "http://prom.test:9090/api/v1/query" "$(cat "$tmp/curl.args")"
 expect_eq "history sorted by count" "$(printf 'ingress\tingress\tl3-l4\t120')" "$(printf '%s\n' "$out" | sed -n 2p)"
 expect_contains "history egress peer is the destination" "$(printf 'egress\tworld\tall\t3')" "$out"

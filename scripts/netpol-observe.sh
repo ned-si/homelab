@@ -13,7 +13,8 @@
 #   scripts/netpol-observe.sh <namespace> --days 7 [--prom http://localhost:9090]
 #       History: increase of hubble_policy_verdicts_total over N days, grouped
 #       by direction, peer workload and match type (no ports: the metric has
-#       none).
+#       none). Every series present in the window is listed, count 0
+#       included: a flow seen once has a series but no increase.
 #
 # Output: tab-separated, sorted by count, one row per (direction, peer, port,
 # protocol, match): count first_seen last_seen (live), or count (history).
@@ -53,7 +54,13 @@ if [ -n "$days" ]; then
   # Ingress verdicts are reported by the destination's agent, egress by the
   # source's: the policed namespace is the destination for ingress and the
   # source for egress.
-  q="sum by (direction, match, source, source_namespace, destination, destination_namespace) (increase(hubble_policy_verdicts_total{direction=\"ingress\", destination_namespace=\"$ns\"}[${days}d]) or increase(hubble_policy_verdicts_total{direction=\"egress\", source_namespace=\"$ns\"}[${days}d]))"
+  # Hubble creates a series at its first connection with value 1, so
+  # increase() misses that connection; max_over_time() lists every series
+  # present in the window, with count 0 where it never increased.
+  by="direction, match, source, source_namespace, destination, destination_namespace"
+  sel_in="hubble_policy_verdicts_total{direction=\"ingress\", destination_namespace=\"$ns\"}[${days}d]"
+  sel_eg="hubble_policy_verdicts_total{direction=\"egress\", source_namespace=\"$ns\"}[${days}d]"
+  q="sum by ($by) (increase($sel_in) or increase($sel_eg)) or sum by ($by) (max_over_time($sel_in) or max_over_time($sel_eg)) * 0"
   printf 'direction\tpeer\tmatch\tcount\n'
   "$CURL" -fsS -m 30 --get "$prom/api/v1/query" --data-urlencode "query=$q" |
     jq -r '

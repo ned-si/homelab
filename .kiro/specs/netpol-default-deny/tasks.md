@@ -8,9 +8,9 @@ of Requirement 7.2. Tasks run in this order where their gates allow; a closed
 gate moves on to the next application namespace (decision D4). Requirement
 numbers in brackets.
 
-## Open
+## Done
 
-- [ ] 1. `fix(monitoring): netpol readiness every 2m, with presence`:
+- [x] 1. `fix(monitoring): netpol readiness every 2m, with presence`:
       `interval: 2m` for `netpol.ready` in
       `platform/kube-prometheus-stack/routes/netpol.yaml`; the presence term
       (`netpol:would_drop:series` every minute, `netpol:would_drop:seen7d`
@@ -23,7 +23,10 @@ numbers in brackets.
       test; the series table in `docs/networking.md`. Check after the sync:
       an instant query of `netpol:ready_to_enforce` returns 10 series at any
       time, and 0 for `syncthing` ingress and `paperless` egress (their
-      once-only series of 2026-11-04). [1.1, 1.2, 1.4]
+      once-only series of 2026-11-04). [1.1, 1.2, 1.4] (#1015)
+
+## Open
+
 - [ ] 2. `docs(runbooks): network policy break-glass and flip`:
       `docs/runbooks/netpol-enforcement.md` (break-glass per layer, the
       merge hold of D6 with its auto-merge and other-runner steps, the flip
