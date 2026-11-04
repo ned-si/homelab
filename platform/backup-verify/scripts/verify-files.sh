@@ -44,16 +44,6 @@ repo_args() {
   export RESTIC_REPOSITORY
 }
 
-# Epoch of the newest snapshot time in a `restic snapshots --json` file.
-snapshot_epoch() {
-  jq -r '[.[].time] | max
-    | capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[0-9]{2})$")
-    | ((.d + "Z") | fromdateiso8601)
-      - (if .z == "Z" then 0
-         else ((.z[1:3] | tonumber) * 3600 + (.z[4:6] | tonumber) * 60)
-              * (if .z[0:1] == "-" then -1 else 1 end) end)' "$1"
-}
-
 # verify_sample <target> <repository spec> <tag> <required paths, ;-separated>
 verify_sample() {
   target=$1 tag=$3 required=$4

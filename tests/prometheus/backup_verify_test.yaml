@@ -100,6 +100,88 @@ tests:
         alertname: BackupVerifyMissing
         exp_alerts: []
 
+  # The Paperless restore test fails from minute 5 (a corrupted manifest).
+  - interval: 1m
+    input_series:
+      - series: 'backup_verify_success{check="paperless-restore", target="paperless-export"}'
+        values: '1x4 0x10'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: BackupVerifyFailed
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: BackupVerifyFailed
+        exp_alerts:
+          - exp_labels:
+              check: paperless-restore
+              target: paperless-export
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyFailed.md
+              summary: "Backup restore test failed: paperless-restore/paperless-export"
+              description: >-
+                The last paperless-restore restore test of paperless-export
+                failed, so that backup may not restore. The FAIL lines are in the
+                log of the last Job: kubectl -n backup-verify get jobs, then
+                kubectl -n backup-verify logs job/<job> --all-containers.
+                Runbook: docs/backups.md#when-a-restore-test-fails
+
+  # The last Paperless restore pass stays at t=0: not stale for the weekly
+  # rule, stale after 35 days.
+  - interval: 1h
+    input_series:
+      - series: 'backup_verify_last_success_timestamp_seconds{check="paperless-restore", target="paperless-export"}'
+        values: '0x900'
+    alert_rule_test:
+      - eval_time: 8d2h
+        alertname: BackupVerifyStale
+        exp_alerts: []
+      - eval_time: 35d
+        alertname: PaperlessRestoreStale
+        exp_alerts: []
+      - eval_time: 35d2h
+        alertname: PaperlessRestoreStale
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessRestoreStale.md
+              summary: "No passing Paperless restore test in 35 days"
+              description: >-
+                The monthly import of the Paperless export into a throwaway
+                Paperless has not passed in 35 days, or never: the CronJob
+                did not run or every run failed
+                (kubectl -n backup-verify get cronjobs,jobs).
+                Runbook: docs/backups.md#when-a-restore-test-fails
+
+  # No Paperless restore result on record at all.
+  - interval: 1h
+    input_series:
+      - series: 'backup_verify_last_success_timestamp_seconds{check="restic", target="plex"}'
+        values: '0x5'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: PaperlessRestoreStale
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: PaperlessRestoreStale
+        exp_alerts:
+          - exp_labels:
+              check: paperless-restore
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessRestoreStale.md
+              summary: "No passing Paperless restore test in 35 days"
+              description: >-
+                The monthly import of the Paperless export into a throwaway
+                Paperless has not passed in 35 days, or never: the CronJob
+                did not run or every run failed
+                (kubectl -n backup-verify get cronjobs,jobs).
+                Runbook: docs/backups.md#when-a-restore-test-fails
+
   # The lock test passes, then finds the lock broken from minute 5.
   - interval: 1m
     input_series:

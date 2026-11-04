@@ -466,6 +466,11 @@ is a soft delete, and the default document manager hides trashed
 documents, so the count in `export-meta.json` uses that manager, the same
 set the exporter walks. Task 5 checks on 3.4.1 that the exporter skips the
 trash, and runs its check with a non-empty trash.
+Measured in task 5 (3.4.2): the exporter does not skip the trash. With one
+document in the trash, `manifest.json` held 3 documents, `export-meta.json`
+2, and the import restored the trashed one as trashed (2 visible). The
+restore test therefore counts the manifest's documents without
+`deleted_at`, so all three counts leave the trash out.
 
 Size. The export holds the same kinds of files as `paperless-media`
 (originals, archived PDFs, thumbnails), so `paperless-export` gets the same
@@ -486,6 +491,14 @@ The restore test runs no web server, worker or beat: it needs only
 `migrate`, the importer and a count. If `document_importer` needs a
 broker, task 5 adds a throwaway Valkey in the same pod, still with no
 worker.
+Measured in task 5 (3.4.2): Paperless' Django cache is Redis, so even
+`migrate` fails without one; the CronJob `backup-verify-paperless` runs a
+Valkey native sidecar on `127.0.0.1`, without persistence. The importer
+rebuilds the search index and needs `index/` to exist in the data
+directory. The scratch volume is an ephemeral `iscsi` claim of 200Gi (twice
+`paperless-export`: the restored export plus the imported copy; the zvols
+are sparse), deleted with the pod, so the CronJob keeps one Job of each
+outcome.
 
 The export is where "never locked in" comes from: `restic restore --tag
 paperless-export` gives plain files and a JSON manifest without Paperless.
