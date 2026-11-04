@@ -258,6 +258,78 @@
       groupName: 'tailscale',
       matchPackageNames: ['tailscale-operator', 'tailscale/k8s-operator', 'tailscale/tailscale'],
     },
+    // ONE PULL REQUEST PER UPSTREAM RELEASE. A chart whose values pin its
+    // own images, or a project that ships several images, gets one group.
+    // Exact package names only. Data stores (ClickHouse server, ZooKeeper,
+    // Valkey, Postgres) stay out of every group, so their majors keep the
+    // `no-automerge` rule below on a pull request of their own. These rules
+    // sit above `image digests`, so digest refreshes still land there.
+    {
+      // SigNoz v0.149.0 came as two pull requests (#1027, #1028), and so
+      // did v0.148.0 (#828/#829, #833/#834). The chart (platform/signoz.yaml)
+      // and the SigNoz images (platform/signoz/values.yaml) are one release.
+      description: 'SigNoz chart and images move together',
+      groupName: 'signoz',
+      matchPackageNames: ['signoz', 'docker.io/signoz/signoz', 'docker.io/signoz/signoz-otel-collector'],
+    },
+    {
+      // The Altinity operator and its metrics exporter share a version
+      // (platform/signoz/values.yaml); separate digest PRs #912 and #913.
+      description: 'ClickHouse operator and metrics exporter move together',
+      groupName: 'clickhouse-operator',
+      matchPackageNames: ['docker.io/altinity/clickhouse-operator', 'docker.io/altinity/metrics-exporter'],
+    },
+    {
+      // Vector v0.61.0 came as the chart (#870) and the image (#872).
+      description: 'Vector chart and image move together',
+      groupName: 'vector',
+      matchPackageNames: ['vector', 'docker.io/timberio/vector'],
+    },
+    {
+      // The chart and the four controller images
+      // (infrastructure/kyverno/values.yaml) are one Kyverno release.
+      description: 'Kyverno chart and images move together',
+      groupName: 'kyverno',
+      matchPackageNames: [
+        'kyverno',
+        'ghcr.io/kyverno/kyverno',
+        'ghcr.io/kyverno/kyvernopre',
+        'ghcr.io/kyverno/cleanup-controller',
+        'ghcr.io/kyverno/reports-controller',
+      ],
+    },
+    {
+      // The chart and the driver image pinned twice in
+      // infrastructure/democratic-csi/values-iscsi.yaml.
+      description: 'democratic-csi chart and image move together',
+      groupName: 'democratic-csi',
+      matchPackageNames: ['democratic-csi', 'docker.io/democraticcsi/democratic-csi'],
+    },
+    {
+      // The operator chart and the Barman Cloud plugin it runs
+      // (platform/barman-cloud-plugin). The Postgres image is a data store
+      // and stays out.
+      description: 'CloudNativePG operator and Barman Cloud plugin move together',
+      groupName: 'cloudnative-pg',
+      matchPackageNames: ['cloudnative-pg', 'cloudnative-pg/plugin-barman-cloud'],
+    },
+    {
+      description: 'Headlamp chart and image move together',
+      groupName: 'headlamp',
+      matchPackageNames: ['headlamp', 'ghcr.io/headlamp-k8s/headlamp'],
+    },
+    {
+      description: 'metrics-server chart and image move together',
+      groupName: 'metrics-server',
+      matchPackageNames: ['metrics-server', 'registry.k8s.io/metrics-server/metrics-server'],
+    },
+    {
+      // The OCI chart and the server image (apps/immich/values.yaml). The
+      // database image is never updated (rule below) and Valkey stays out.
+      description: 'Immich chart and server image move together',
+      groupName: 'immich',
+      matchPackageNames: ['ghcr.io/immich-app/immich-charts/immich', 'ghcr.io/immich-app/immich-server'],
+    },
     {
       // Dev tooling only, nothing deployed. renovatebot/pre-commit-hooks
       // releases several times a day (7 merges from 2026-11-01 to 11-02) and
