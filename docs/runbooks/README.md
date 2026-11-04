@@ -9,6 +9,7 @@ expected output, rollback. Pages for paging alerts are in
 | [add-a-person.md](add-a-person.md) | Give someone access to the household's services, or take it away |
 | [keycloak-otp.md](keycloak-otp.md) | Enroll or reset a Keycloak authenticator; break-glass into Keycloak |
 | [grafana-break-glass.md](grafana-break-glass.md) | Log in to Grafana without Keycloak |
+| [syncthing-hub.md](syncthing-hub.md) | Keep the cluster Syncthing as the only peer of every device |
 | [cold-start.md](cold-start.md) | Bring everything back after a power loss or a move |
 | [node-power-cycle.md](node-power-cycle.md) | Hard-reset a node from the Turing Pi 2 BMC |
 | [node-replacement.md](node-replacement.md) | Reflash a node and join it back |
