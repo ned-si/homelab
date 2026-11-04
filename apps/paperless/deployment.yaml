@@ -110,6 +110,11 @@ spec:
               name: paperless-media
             - mountPath: "/data/consume"
               name: paperless-consume
+            # Written by the nightly export in backup.yaml. Mounted here so
+            # the image's root init chowns it to uid 1000 (init-folders
+            # chowns /usr/src/paperless/export); the backup Job runs as 1000.
+            - mountPath: "/usr/src/paperless/export"
+              name: paperless-export
       volumes:
         - name: paperless-data
           persistentVolumeClaim:
@@ -120,3 +125,6 @@ spec:
         - name: paperless-consume
           persistentVolumeClaim:
             claimName: paperless-consume
+        - name: paperless-export
+          persistentVolumeClaim:
+            claimName: paperless-export

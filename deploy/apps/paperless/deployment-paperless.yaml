@@ -101,6 +101,8 @@ spec:
           name: paperless-media
         - mountPath: /data/consume
           name: paperless-consume
+        - mountPath: /usr/src/paperless/export
+          name: paperless-export
       volumes:
       - name: paperless-data
         persistentVolumeClaim:
@@ -111,3 +113,6 @@ spec:
       - name: paperless-consume
         persistentVolumeClaim:
           claimName: paperless-consume
+      - name: paperless-export
+        persistentVolumeClaim:
+          claimName: paperless-export

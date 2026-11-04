@@ -4,21 +4,37 @@
 # CloudNativePG cluster to archive. Everything lives on PVCs, which means restic
 # for all of it.
 #
-# WHAT IS BACKED UP AND WHY
+# WHAT IS BACKED UP AND WHY (tags in the paperless/media repository)
+#   paperless-db      a consistent copy of the SQLite database: tags,
+#                     correspondents, document types, permissions, i.e. all
+#                     the work of organising the archive.
 #   paperless-media   the original scanned documents. IRREPLACEABLE. If the
 #                     paper original is gone, this is the only copy.
-#   paperless-data    the SQLite database, search index and thumbnails. The
-#                     index and thumbnails are derived, but the database holds
-#                     tags, correspondents and document types -- i.e. all the
-#                     work you did organising the archive.
+#   paperless-data    the rest of the data directory (celerybeat schedule,
+#                     log); the live db.sqlite3* files, the search index and
+#                     thumbnails are excluded.
+#   paperless-export  `document_exporter` output: every document in plain
+#                     files plus manifest.json, readable without Paperless.
 #
 #   paperless-consume is NOT backed up: it is a drop-box that Paperless empties.
 #                     Anything sitting in it is transient by definition.
 #
-# CONSISTENCY CAVEAT, stated honestly: backing up a live SQLite file can capture
-# a torn write, and restic has no way to know. The mitigation is the `.backup`
-# command below, which produces a consistent copy through SQLite's own API rather
-# than copying bytes from under a running process.
+# ONE JOB, IN ORDER (spec paperless-documents, design "Backups, export and
+# restore"). Init containers run one after the other and each must succeed,
+# so restic only snapshots a finished export:
+#   db-copy       SQLite's backup API from the live database into the
+#                 emptyDir /db, then `PRAGMA integrity_check`. paperless-data
+#                 is mounted read-write: a reader of a WAL database writes
+#                 the -shm file.
+#   export        `document_exporter` on the /db copy (PAPERLESS_DATA_DIR=/db),
+#                 holding the app's media.lock (paperless-media read-write),
+#                 into the PVC paperless-export, then export-meta.json with
+#                 the document count from the same copy. The copy, the export
+#                 and the count are one point in time.
+#   restic        read-only mounts, four snapshots, then `restic check`.
+# A failure fails the pod; `backoffLimit: 1` reruns once from a fresh copy
+# (restartPolicy Never: a new pod, a new emptyDir), and a second failure
+# pages through KubeJobFailed.
 #
 # RETENTION is monthly, in `paperless-prune` below: Glacier IR bills every pack
 # for at least 90 days, so the nightly job only adds snapshots.
@@ -37,11 +53,11 @@ spec:
   failedJobsHistoryLimit: 5
   jobTemplate:
     spec:
-      backoffLimit: 2
+      backoffLimit: 1
       activeDeadlineSeconds: 21600
       template:
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
           # Shares the RWO volumes with the paperless pod, so it must be
           # co-scheduled.
           affinity:
@@ -51,13 +67,132 @@ spec:
                     matchLabels:
                       app.kubernetes.io/name: paperless
                   topologyKey: kubernetes.io/hostname
-          # No fsGroup: every volume the job writes is an emptyDir, and an
-          # fsGroup would let the kubelet change ownership on the app's volumes.
+          # No fsGroup: it would let the kubelet change ownership on the app's
+          # volumes. The export volume's owner (uid 1000) comes from the
+          # paperless image's init, which chowns /usr/src/paperless/export
+          # (deployment.yaml); Kyverno denies a root container here.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
+            runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          initContainers:
+            - name: db-copy
+              # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
+              image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "-c"]
+              args:
+                - |
+                  import sqlite3, sys
+                  # mode=rw: a missing database is an error, not a new empty file.
+                  src = sqlite3.connect("file:/data/db.sqlite3?mode=rw", uri=True)
+                  dst = sqlite3.connect("/db/db.sqlite3")
+                  src.backup(dst)
+                  src.close()
+                  result = dst.execute("PRAGMA integrity_check").fetchone()[0]
+                  dst.close()
+                  print("db-copy: integrity_check", result)
+                  sys.exit(0 if result == "ok" else 1)
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                - name: db
+                  mountPath: /db
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+            - name: export
+              # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
+              image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
+              imagePullPolicy: IfNotPresent
+              command: ["/bin/sh", "-eu", "-c"]
+              args:
+                - |
+                  : "${PASSPHRASE:?the export passphrase is empty}"
+                  mkdir -p /db/log /db/consume
+                  cd /usr/src/paperless/src
+                  # --skip-checks: the startup checks are for the web app
+                  # (paths, OCR languages), not for an export.
+                  python3 manage.py document_exporter --skip-checks /export \
+                    --use-filename-format --delete --no-progress-bar \
+                    --passphrase "$PASSPHRASE"
+                  test -s /export/manifest.json
+                  # The default manager hides the trash, as the exporter does.
+                  python3 manage.py shell -v 0 -c '
+                  import datetime, json
+                  from documents.models import Document
+                  n = Document.objects.count()
+                  now = datetime.datetime.now(datetime.timezone.utc)
+                  with open("/export/export-meta.json", "w") as f:
+                      json.dump({"documents": n, "taken": now.isoformat(timespec="seconds")}, f)
+                  print("export: documents", n)
+                  '
+                  # A standalone file for the paperless-db snapshot: no -wal.
+                  python3 -c '
+                  import sqlite3
+                  c = sqlite3.connect("/db/db.sqlite3")
+                  print("db journal_mode", c.execute("PRAGMA journal_mode=DELETE").fetchone()[0])
+                  c.close()
+                  '
+              env:
+                - name: PASSPHRASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: paperless-export
+                      key: passphrase
+                # Paperless refuses to load its settings without it.
+                - name: PAPERLESS_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: paperless-secrets
+                      key: PAPERLESS_SECRET_KEY
+                - name: PAPERLESS_DATA_DIR
+                  value: /db
+                - name: PAPERLESS_MEDIA_ROOT
+                  value: /media
+                - name: PAPERLESS_CONSUMPTION_DIR
+                  value: /db/consume
+                - name: PAPERLESS_TIME_ZONE
+                  value: "Europe/Zurich"
+                # Same as deployment.yaml: the export's file names.
+                - name: PAPERLESS_FILENAME_FORMAT
+                  value: "{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent }} {{ title }}"
+                - name: HOME
+                  value: /tmp
+              volumeMounts:
+                - name: db
+                  mountPath: /db
+                # Read-write: the exporter holds media.lock (the lock the app
+                # takes while it adds or renames files) for the whole export,
+                # and a read-only mount refuses to open it (EROFS, measured
+                # on 3.4.2). It writes nothing else there.
+                - name: media
+                  mountPath: /media
+                - name: export
+                  mountPath: /export
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -70,34 +205,28 @@ spec:
                   # Stale locks only: a live lock is refreshed and stays (docs/backups.md#locks).
                   restic unlock
 
-                  # Consistent SQLite snapshot. `sqlite3 .backup` uses SQLite's
-                  # backup API, which cooperates with the running writer -- unlike
-                  # copying db.sqlite3 directly, which can produce a torn file
-                  # that only fails when you try to restore it.
-                  #
-                  # If sqlite3 is unavailable in this image the copy is skipped
-                  # rather than silently producing a corrupt one.
-                  if command -v sqlite3 >/dev/null 2>&1; then
-                    sqlite3 /data/db.sqlite3 ".backup '/tmp/db-consistent.sqlite3'"
-                    restic backup --retry-lock 30m /tmp/db-consistent.sqlite3 \
-                      --tag paperless-db --host paperless
-                    rm -f /tmp/db-consistent.sqlite3
-                  else
-                    echo "WARNING: sqlite3 not present; database captured as part"
-                    echo "         of the file backup below and MAY BE INCONSISTENT."
-                    echo "         See docs/backups.md#paperless."
-                  fi
+                  # The consistent database copy from db-copy.
+                  restic backup --retry-lock 30m /db/db.sqlite3 \
+                    --tag paperless-db --host paperless
 
                   # The documents. These are the irreplaceable part.
                   restic backup --retry-lock 30m /media \
                     --tag paperless-media --host paperless --verbose
 
-                  # The database + index, excluding regenerable derivatives.
+                  # The rest of the data directory: not the live database
+                  # (paperless-db has the consistent copy), not the
+                  # regenerable index and thumbnails.
                   restic backup --retry-lock 30m /data \
                     --tag paperless-data --host paperless \
+                    --exclude '/data/db.sqlite3*' \
                     --exclude '**/index/**' \
                     --exclude '**/thumbnails/**' \
                     --verbose
+
+                  # The export: plain files and manifest.json. restic
+                  # deduplicates it against /media.
+                  restic backup --retry-lock 30m /export \
+                    --tag paperless-export --host paperless
 
                   restic unlock
                   restic check --retry-lock 30m --with-cache
@@ -110,11 +239,17 @@ spec:
                 - secretRef:
                     name: s3-backup
               volumeMounts:
+                - name: db
+                  mountPath: /db
+                  readOnly: true
                 - name: media
                   mountPath: /media
                   readOnly: true
                 - name: data
                   mountPath: /data
+                  readOnly: true
+                - name: export
+                  mountPath: /export
                   readOnly: true
                 - name: cache
                   mountPath: /cache
@@ -127,21 +262,29 @@ spec:
                 limits:
                   memory: 1Gi
               # restic writes only to RESTIC_CACHE_DIR (/cache) and the
-              # temp dir (/tmp, also sqlite3's target), both emptyDirs.
+              # temp dir (/tmp), both emptyDirs.
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
                 capabilities:
                   drop: ["ALL"]
           volumes:
+            # Read-write for export only (media.lock); restic mounts it
+            # read-only.
             - name: media
               persistentVolumeClaim:
                 claimName: paperless-media
-                readOnly: true
+            # Read-write for db-copy only; restic mounts it read-only.
             - name: data
               persistentVolumeClaim:
                 claimName: paperless-data
-                readOnly: true
+            - name: export
+              persistentVolumeClaim:
+                claimName: paperless-export
+            # The database copy: the size of db.sqlite3 (MiB today).
+            - name: db
+              emptyDir:
+                sizeLimit: 2Gi
             # emptyDir: the repository is tens of MiB, so a cold cache costs
             # seconds. sizeLimit guards the node's eMMC.
             - name: cache

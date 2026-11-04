@@ -39,6 +39,26 @@ in [requirements.md](requirements.md#decided-defaults).
       account. [2.2, 2.3, 2.4, 2.5, 6.5]
       (#1014; checked on 3.4.2: one unowned copy of each saved view is
       listed and can go on the dashboard for both permission sets)
+- [x] 4. Consistent backup with the export: in
+      `paperless-backup`, init container 1 with `paperless-data` read-write
+      and the SQLite backup API (tag `paperless-db`, `db.sqlite3*` excluded
+      from `paperless-data`), init container 2 running `document_exporter
+      --skip-checks --passphrase` (SOPS `paperless-export`) on the `/db`
+      copy (`PAPERLESS_DATA_DIR=/db`, `paperless-media` read-only, the
+      `export-meta.json` count from the same copy) into the new PVC
+      `paperless-export` (100Gi, `iscsi-retain`), then restic with
+      `/export` added; `backoffLimit: 1` on the Job;
+      `restic-targets.txt` (`paperless-data` required file
+      `celerybeat-schedule.db`, new `paperless-db` and `paperless-export`
+      lines), `docs/backups.md` rows. Check: `document_exporter` on 3.4.1
+      accepts `--skip-checks` and starts with these mounts (else
+      `paperless-media` read-write in init container 2); a manual run
+      snapshots all four tags; a run with a wrong passphrase variable fails
+      before restic starts. Takes the Paperless part of #746; the issue
+      keeps Jellyfin and Grafana. [4.1, 4.2, 4.5, 5.1, 5.3]
+      (#1016; on 3.4.2 the exporter needs `paperless-media` read-write
+      for `media.lock`, and the Deployment mounts `paperless-export` so
+      the image's init chowns it: design.md)
 
 ## Open
 - [ ] 3. Access: the groups `editors` and `readers` and their permissions,
@@ -66,23 +86,6 @@ in [requirements.md](requirements.md#decided-defaults).
       security issue. `docs/paperless.md` "Access", which says the
       `private` tag is the only way to hide a document. [1.2, 1.3, 6.1,
       6.2, 6.3, 6.4, 6.5]
-- [ ] 4. Consistent backup with the export: in
-      `paperless-backup`, init container 1 with `paperless-data` read-write
-      and the SQLite backup API (tag `paperless-db`, `db.sqlite3*` excluded
-      from `paperless-data`), init container 2 running `document_exporter
-      --skip-checks --passphrase` (SOPS `paperless-export`) on the `/db`
-      copy (`PAPERLESS_DATA_DIR=/db`, `paperless-media` read-only, the
-      `export-meta.json` count from the same copy) into the new PVC
-      `paperless-export` (100Gi, `iscsi-retain`), then restic with
-      `/export` added; `backoffLimit: 1` on the Job;
-      `restic-targets.txt` (`paperless-data` required file
-      `celerybeat-schedule.db`, new `paperless-db` and `paperless-export`
-      lines), `docs/backups.md` rows. Check: `document_exporter` on 3.4.1
-      accepts `--skip-checks` and starts with these mounts (else
-      `paperless-media` read-write in init container 2); a manual run
-      snapshots all four tags; a run with a wrong passphrase variable fails
-      before restic starts. Takes the Paperless part of #746; the issue
-      keeps Jellyfin and Grafana. [4.1, 4.2, 4.5, 5.1, 5.3]
 - [ ] 5. Restore test: `restore-paperless` in `backup-verify` (`migrate`,
       `document_importer --passphrase` and a count in one pod with no web
       server, worker or beat; counts equal over the exported documents,

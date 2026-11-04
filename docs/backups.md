@@ -27,7 +27,7 @@ One restic repository per prefix. The restic URL is
 |---|---|---|---|---|
 | `immich/library` | `immich` | `/data` → `immich-library` | PVC `immich-data` (read-only), minus `thumbs/`, `encoded-video/`, `.tmp` | 256 GiB, 50,822 files |
 | `mealie/data` | `mealie` | `/data` → `mealie-files`; `/dumps` → `mealie-postgres` | PVC `mealie-pvc`; `pg_dump` of `mealie-postgresql` | 1.5 MiB |
-| `paperless/media` | `paperless` | `/media` → `paperless-media`; `/data` → `paperless-data` | PVCs `paperless-media`, `paperless-data` (includes `db.sqlite3`) | 2.4 MiB |
+| `paperless/media` | `paperless` | `/db/db.sqlite3` → `paperless-db`; `/media` → `paperless-media`; `/data` → `paperless-data`; `/export` → `paperless-export` | a copy of `db.sqlite3` through SQLite's backup API; PVC `paperless-media`; PVC `paperless-data`, minus `db.sqlite3*`, `index/`, `thumbnails/`; PVC `paperless-export`, the `document_exporter` output of the same copy | 2.4 MiB |
 | `syncthing/data` | `syncthing` | `/data` → `syncthing-identity` | PVC `syncthing-pvc` | 8.2 MiB |
 | `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`, `lazylibrarian`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
 | `books/configs` | `books` | `/data` → `audiobookshelf`; `/library` → `calibre-library`; `/config` → `calibre-web` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs`; NFS `books/ebooks`; PVC `calibre-web-config`, minus `log` | not yet measured |
@@ -69,7 +69,7 @@ upgrades, not against losing the NAS.
 | `mealie/mealie-postgresql` | Barman Cloud plugin: WAL + `mealie-postgresql-daily`; `pg_dump` in `mealie-backup` | `cnpg/mealie-postgresql-t1/`; `mealie/data` | point-in-time, 30 days; dump consistent, one transaction |
 | `theater/{sonarr,radarr,lidarr,prowlarr}-postgresql` | Barman Cloud plugin: WAL + `<cluster>-daily`; `pg_dump` in `theater-postgres-backup` | `cnpg/<cluster>-t1/`; `theater/configs` | point-in-time, 30 days; dump consistent, one transaction |
 | `home/home-assistant-postgresql` | Barman Cloud plugin: WAL + `home-assistant-postgresql-daily`; `pg_dump` in `home-assistant-backup` | `cnpg/home-assistant-postgresql/`; `home/configs` | point-in-time, 30 days; dump consistent, one transaction |
-| Paperless SQLite | file copy of `db.sqlite3` inside `/data` | `paperless/media` | may be torn: the restic image has no `sqlite3`, so `.backup` is skipped and the job logs a warning |
+| Paperless SQLite | SQLite backup API in the `db-copy` init container of `paperless-backup`, then `PRAGMA integrity_check`; `document_exporter` on that copy into PVC `paperless-export` (passphrase: Secret `paperless-export`), with `export-meta.json` holding the document count | `paperless/media`, tags `paperless-db` and `paperless-export` | consistent: the copy, the export and the count are one point in time; a failed copy or export fails the Job before restic starts |
 | SigNoz SQLite | file copy of `signoz.db` (and `-wal`/`-shm`) in `signoz-backup` | `signoz/metadata` | may be torn, tagged `signoz-db-besteffort` |
 | Grafana SQLite | file copy of `grafana.db` (and `-wal`/`-shm`) in `grafana-backup` | `grafana/data` | may be torn, tagged `grafana-db-besteffort`; dashboards and datasources are in git |
 
@@ -145,7 +145,7 @@ restored and size-checked every week ([Verification](#verification)).
 | Immich originals, NAS copy | NAS | 24 h | weekly sample | — |
 | Postgres databases (all eight CNPG clusters) | S3 (Barman Cloud) | about 5 min (`archive_timeout`) | weekly, every cluster into a new cluster, row counts equal to the source | 2 to 5 min per cluster into a new cluster (table in [Restore a Postgres cluster from S3](#restore-a-postgres-cluster-from-s3)) |
 | Mealie files + database dump | S3 | 24 h | weekly sample; full by hand 2026-10-06 | restore 24 s; dump restored into a throwaway Postgres, row counts equal to live |
-| Paperless documents + SQLite | S3 | 24 h | weekly sample | — |
+| Paperless documents, SQLite copy and export | S3 | 24 h | weekly sample (`celerybeat-schedule.db`, `db.sqlite3`, `manifest.json`) | — |
 | Syncthing identity + config | S3 | 24 h | weekly sample (`cert.pem`, `key.pem`, `config.xml`) | — |
 | *arr, Plex, Jellyfin config and *arr databases | S3 | 24 h | weekly sample (Bazarr from its first snapshot on) | — |
 | Audiobookshelf config and database backups | S3 | 24 h | weekly sample | — |
@@ -733,8 +733,6 @@ Jellyfin's `config/`).
 - **`jellyfin-db-besteffort`.** `jellyfin.db` and `library.db` with their `-wal` and
   `-shm` files, copied live and possibly torn. At risk: user accounts, watch state,
   playback positions. `jellyfin-config` is a separate, consistent snapshot.
-- **Paperless `db.sqlite3`**, copied live inside the `paperless-data` snapshot. At
-  risk: document metadata; the originals in `paperless-media` are write-once.
 - **Syncthing.** The job keeps only `cert.pem`, `key.pem` and `config.xml` by
   excluding the index database at the volume root, but this volume keeps its files
   under `config/`, so the excludes match nothing. The snapshot holds the whole

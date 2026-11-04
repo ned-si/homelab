@@ -56,3 +56,21 @@ spec:
     requests:
       storage: 10Gi
   storageClassName: iscsi
+---
+# The nightly `document_exporter` output (backup.yaml): every document in
+# plain files plus manifest.json. Same size as paperless-media, which holds
+# the same kinds of files.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperless-export
+  namespace: paperless
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: iscsi-retain
