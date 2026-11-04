@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/syncthing
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/syncthing and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+  name: syncthing-gui
+  namespace: syncthing
+spec:
+  enableDefaultDeny:
+    egress: false
+    ingress: true
+  endpointSelector:
+    matchLabels:
+      app: syncthing
+  ingress:
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - syncthing-sso
+        - postsync-smoke
+    toPorts:
+    - ports:
+      - port: "8384"
+        protocol: TCP
+  - fromEntities:
+    - all
+    toPorts:
+    - ports:
+      - port: "22000"
+        protocol: TCP
+      - port: "22000"
+        protocol: UDP
+      - port: "21027"
+        protocol: UDP

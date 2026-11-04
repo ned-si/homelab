@@ -49,6 +49,64 @@ spec:
         volumeMounts:
         - mountPath: /var/syncthing
           name: syncthing
+      initContainers:
+      - args:
+        - |
+          cfg=/var/syncthing/config/config.xml
+          tmp="$cfg.sso-only"
+          if [ ! -f "$cfg" ]; then
+            echo "no $cfg yet: nothing to change"
+            exit 0
+          fi
+          if ! { cp -p "$cfg" "$tmp" && awk '
+            /^[[:space:]]*<gui[[:space:]>]/ { gui = 1 }
+            gui && /<(user|password|insecureAdminAccess)>/ { next }
+            gui && /^[[:space:]]*<\/gui>/ {
+              match($0, /^[[:space:]]*/)
+              print substr($0, 1, RLENGTH) "    <insecureAdminAccess>true</insecureAdminAccess>"
+              gui = 0
+            }
+            { print }
+          ' "$cfg" > "$tmp"; }; then
+            rm -f "$tmp"
+            echo "WARN: could not rewrite $cfg: GUI login left as is"
+            exit 0
+          fi
+          if cmp -s "$cfg" "$tmp"; then
+            rm -f "$tmp"
+            echo "GUI login already off"
+          elif mv -f "$tmp" "$cfg"; then
+            echo "GUI user and password removed, insecureAdminAccess set"
+          else
+            rm -f "$tmp"
+            echo "WARN: could not replace $cfg: GUI login left as is"
+          fi
+        command:
+        - /bin/sh
+        - -uc
+        image: syncthing/syncthing:2.1.7@sha256:2b71da7c0d0a91a6ae5285ad079226fecc0a365d08b27720e1f7037b018f7546
+        imagePullPolicy: IfNotPresent
+        name: gui-sso-only
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - mountPath: /var/syncthing
+          name: syncthing
       terminationGracePeriodSeconds: 60
       volumes:
       - name: syncthing

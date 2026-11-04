@@ -1,11 +1,50 @@
 # Enforced from the start (default-deny ingress), unlike the allow-lists in
 # infrastructure/network-policies: only the shared Gateway (Cilium's Envoy,
-# identity `ingress`) may reach syncthing-sso. Egress stays open (Keycloak,
-# the Syncthing GUI).
-#
-# The Syncthing pod itself stays on the namespace switch in
-# infrastructure/network-policies/90-enforcement.yaml (60-syncthing.yaml):
-# a default-deny on it would also cover the sync ports.
+# identity `ingress`) may reach syncthing-sso, and only syncthing-sso and the
+# smoke Job may reach the Syncthing GUI, which has no login of its own
+# (statefulset.yaml). Egress stays open (Keycloak, the Syncthing GUI, peers).
+# The namespace switch (infrastructure/network-policies/90-enforcement.yaml)
+# adds node traffic (`host`, `remote-node`) on every port.
+---
+# Sync wave -1: enforced before the StatefulSet drops the GUI login.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: syncthing-gui
+  namespace: syncthing
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  endpointSelector:
+    matchLabels:
+      app: syncthing
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    # The GUI :8384, from the proxy and from the postsync-smoke Job
+    # (/rest/noauth/health, kustomization.yaml).
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [syncthing-sso, postsync-smoke]
+      toPorts:
+        - ports:
+            - port: "8384"
+              protocol: TCP
+    # Sync and local discovery, from anywhere as before
+    # (`syncthing-protocol`, services.yaml).
+    - fromEntities:
+        - all
+      toPorts:
+        - ports:
+            - port: "22000"
+              protocol: TCP
+            - port: "22000"
+              protocol: UDP
+            - port: "21027"
+              protocol: UDP
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

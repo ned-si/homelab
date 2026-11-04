@@ -239,7 +239,7 @@ password login is 12 hours old.
 | Paperless | `PAPERLESS_SESSION_COOKIE_AGE` | 365 d |
 | Jellyfin, Plex clients | app tokens without expiry; Jellyfin Quick Connect is on; Plex sessions belong to the Plex account | none to set |
 | Theater admin UIs (oauth2-proxy `theater-sso`) | `--cookie-expire`, `--cookie-refresh` | 365 d, refreshed hourly |
-| Syncthing GUI (oauth2-proxy `syncthing-sso`) | `--cookie-expire`, `--cookie-refresh`; Syncthing's own GUI login stays behind it | 12 h, refreshed hourly |
+| Syncthing GUI (oauth2-proxy `syncthing-sso`) | `--cookie-expire`, `--cookie-refresh`; Syncthing's own GUI login is removed, and only the proxy reaches the GUI port | 12 h, refreshed hourly |
 | Grafana | `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`; no refresh token | 12 h / 24 h |
 | Argo CD | `oidc.config`: no refresh, no `offline_access` | Keycloak token lifetime |
 
