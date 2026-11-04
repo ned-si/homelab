@@ -7,18 +7,29 @@ Who needs a one-time code (TOTP: 6 digits, 30 s, SHA1, any authenticator app):
 | Realm `homelab`, every app and the account console | members of group `admins` (realm role `mfa-required`) | `platform/keycloak/realm/platform.conf`: `mfa_role`, `mfa_groups` |
 | Realm `homelab` | everyone else: only if they set up OTP themselves | same file: the `-otp` subflows |
 | Realm `master`, the Keycloak admin console | every user (`admin`) | flow `browser-otp`, `platform.conf` `automation_client` |
-| Password grants (`direct grant` flows), the `keycloak-realm-settings` Job | unchanged: no new OTP step; the Job uses client credentials | |
+| Password grants (`kcadm.sh --user`, any client's token endpoint) | nobody: off on every client of both realms; the `keycloak-realm-settings` Job uses client credentials | `platform.conf` `direct_grant_clients` (`homelab`, empty), `automation_client` (`master`) |
+
+Both realms have brute-force detection (`sessions.conf`; `master` takes the
+fields in `platform.conf` `master_fields`): after 10 wrong logins the account
+waits before the next try, at most 15 minutes, and is never locked for good
+([Brute-force lockout](#brute-force-lockout)). Login and admin
+events are kept 7 days (`platform.conf` `events_expiration`): the admin
+console, the realm, Events.
 
 The Job `keycloak-realm-settings` applies all of it after every sync of the
 `keycloak` Application. Check it:
 
 ```sh
-kubectl -n keycloak logs job/keycloak-realm-settings | grep -E 'login as|mfa|otp|OTP|browserFlow|FAIL'
+kubectl -n keycloak logs job/keycloak-realm-settings |
+  grep -E 'login as|mfa|otp|OTP|browserFlow|bruteForce|eventsEnabled|admin-cli|FAIL'
 ```
 
-Expected: `ok   login as client realm-settings`, `ok   realm role mfa-required
+Expected: `ok   login as client realm-settings`, `ok   bruteForceProtected=true`,
+`ok   master bruteForceProtected=true`, `ok   master eventsEnabled=true`,
+`ok   homelab eventsEnabled=true`, `ok   realm role mfa-required
 groups=admins`, `ok   flow browser-loa: 13 executions`, `ok   master
-browserFlow=browser-otp`, and no `FAIL` line.
+browserFlow=browser-otp`, `ok   master client admin-cli.directAccessGrantsEnabled=false`,
+`ok   client admin-cli.directAccessGrantsEnabled=false`, and no `FAIL` line.
 
 ## Enroll
 
@@ -32,9 +43,9 @@ Authenticator, 1Password, Bitwarden).
 3. Every later password login asks for the code. The SSO cookie still logs
    you in without one until it expires (platform tools: 12 h).
 
-Once `admin` has OTP, `kcadm.sh config credentials --user admin` (a password
-grant to `admin-cli`) fails with `invalid_grant`: use the client
-`realm-settings` as in [Break-glass](#break-glass).
+`kcadm.sh config credentials --user admin` (a password grant to `admin-cli`)
+fails with `unauthorized_client` (`Client not allowed for direct access
+grants`): use the client `realm-settings` as in [Break-glass](#break-glass).
 
 Expected: the login completes. Realm `homelab`: Account console
 (`https://auth.lilalala.com/realms/homelab/account/`), Account security,
@@ -154,14 +165,50 @@ pod stopped, so Argo CD must not restore the Deployment meanwhile:
    key `password`.
 4. `kubectl -n keycloak delete job keycloak-recovery`, then
    `kubectl -n keycloak scale deploy/keycloak --replicas=1`, and revert step 1.
-5. Run step 2 above with `--client temp-admin` and the secret from Secret
-   `keycloak-admin` key `password`, for `master admin`. With the admin's OTP
-   gone, the Job's password fallback works: sync the `keycloak` Application
-   (`argocd --core app sync keycloak` if SSO is down); the Job sets the
-   `realm-settings` secret from git again and logs `ok   master client
-   realm-settings login=ok`.
-6. Delete the client `temp-admin` (master realm, Clients) and enroll the
-   admin again.
+5. Set the `realm-settings` secret from git with `temp-admin`. The Job cannot
+   do it with the admin password: no master client allows the password grant.
+
+   ```sh
+   { kubectl -n keycloak get secret keycloak-admin -o jsonpath='{.data.password}' | base64 -d; echo
+     kubectl -n keycloak get secret keycloak-automation \
+       -o jsonpath='{.data.REALM_SETTINGS_CLIENT_SECRET}' | base64 -d; echo; } |
+     kubectl -n keycloak exec -i deploy/keycloak -- bash -c '
+       K=/opt/keycloak/bin/kcadm.sh; C="--config /tmp/bg.cfg"
+       read -r t; read -r s
+       $K config credentials $C --server http://localhost:8080 --realm master \
+         --client temp-admin --secret "$t" >/dev/null
+       id=$($K get clients -r master $C -q clientId=realm-settings --fields id --format csv --noquotes)
+       $K update "clients/$id" -r master $C -s "secret=$s" && echo "realm-settings secret set"
+       rm -f /tmp/bg.cfg'
+   ```
+
+   Expected: `realm-settings secret set`. Then step 1 of Break-glass logs in,
+   and a sync of the `keycloak` Application (`argocd --core app sync
+   keycloak` if SSO is down) logs `ok   login as client realm-settings`.
+6. If the admin's authenticator is lost too, run step 2 of Break-glass for
+   `master admin`. Delete the client `temp-admin` (master realm, Clients).
 
 Rollback: none needed. Deleting an OTP credential only makes the next login
 enroll again; the Job puts the managed flows and roles back on its next run.
+
+## Brute-force lockout
+
+After 10 wrong logins a user has to wait before the next try, at most 15
+minutes; the wait ends on its own. To end it now, for `<user>` in `<realm>`,
+with the client `realm-settings`:
+
+```sh
+kubectl -n keycloak get secret keycloak-automation \
+  -o jsonpath='{.data.REALM_SETTINGS_CLIENT_SECRET}' | base64 -d |
+  kubectl -n keycloak exec -i deploy/keycloak -- bash -c '
+    K=/opt/keycloak/bin/kcadm.sh; C="--config /tmp/bg.cfg"
+    read -r s
+    $K config credentials $C --server http://localhost:8080 --realm master \
+      --client realm-settings --secret "$s" >/dev/null
+    uid=$($K get users -r "$0" $C -q username="$1" -q exact=true --fields id --format csv --noquotes)
+    $K delete "attack-detection/brute-force/users/$uid" -r "$0" $C && echo "cleared $1"
+    rm -f /tmp/bg.cfg' <realm> <user>
+```
+
+Expected: `cleared <user>`. The client `realm-settings` is never locked:
+brute-force detection counts user logins, not client credentials.

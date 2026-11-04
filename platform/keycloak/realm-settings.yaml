@@ -10,10 +10,11 @@
 # groups (`proxy_clients`), the redirect URIs and web origins of the app
 # clients, per-client access (the `access` role, the groups mapped to it,
 # the client's `access-<client>` flows), OTP for `mfa_groups` (realm role,
-# policy, required action) and, in the `master` realm, the Job's own client
-# and the OTP browser flow `browser-otp`. Users, group members, credentials,
-# other client settings and other groups stay managed in the Keycloak admin
-# console.
+# policy, required action), login and admin events in both realms and, in
+# the `master` realm, brute-force detection, the Job's own client, the OTP
+# browser flow `browser-otp` and no password grants. Users, group members,
+# credentials, other client settings and other groups stay managed in the
+# Keycloak admin console.
 #
 # The image is the server's image (deployment.yaml); keep the two equal.
 ---
@@ -86,8 +87,10 @@ spec:
                   optional: true
             # The Job's own master client, platform.conf `automation_client`
             # (platform/secrets/keycloak-automation.sops.yaml). Without it the
-            # Job logs in with the admin password and leaves the master
-            # browser flow as it is.
+            # Job logs in with the admin password, which works only while
+            # master admin-cli allows the password grant (a new database),
+            # and leaves the master browser flow and password grants as they
+            # are.
             - name: REALM_SETTINGS_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:

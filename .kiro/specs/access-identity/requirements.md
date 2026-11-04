@@ -164,8 +164,12 @@ and automation keeps working.
 3. WHEN a user logs in to the `master` realm (Keycloak admin console) in the
    browser, THE realm SHALL require password and TOTP. (flow `browser-otp`)
 4. THE `keycloak-realm-settings` Job SHALL log in with the master client
-   `realm-settings` (client credentials), and SHALL bind `browser-otp` only
-   after that login works; password grants SHALL keep their flows.
-   (`platform.conf` `automation_client`, `apply.sh`)
+   `realm-settings` (client credentials), and SHALL bind `browser-otp` and
+   turn off the password grant of every master client only after that login
+   works. (`platform.conf` `automation_client`, `apply.sh`)
 5. A lost authenticator SHALL be recoverable without the admin console.
    ([keycloak-otp.md](../../../docs/runbooks/keycloak-otp.md#break-glass))
+6. THE `master` realm SHALL run the brute-force detection of `homelab`, and
+   both realms SHALL keep login and admin events for 7 days.
+   (`platform.conf` `master_fields`, `events_expiration`; read back by
+   `keycloak-realm-settings`)

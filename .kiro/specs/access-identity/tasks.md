@@ -53,3 +53,6 @@ Wave 3 syncs the Cilium policies unenforced, with Hubble to see drops:
       chart-managed `argocd-secret` (an upgrade dropped the hand-added key
       and the login); smoke item 11 checks the SSO redirects and that
       Keycloak accepts the secret. [5.6] (#562)
+- [x] 28. Master realm hardening: brute-force detection, no password grant
+      on any master client, login and admin events in both realms. [7.4, 7.6]
+      (#1040)

@@ -407,8 +407,14 @@ Automation does not log in as a person. The Job uses the master client
 its fallback on a new database, before that client exists, and the Job binds
 `browser-otp` only after a client login works. No other client uses a
 password grant or a service account today: Argo CD, Grafana, the apps and the
-oauth2-proxies use the authorization code flow. Password grants (`direct
-grant` flows) are unchanged.
+oauth2-proxies use the authorization code flow. So no client of either realm
+allows the password grant: the Job turns it off on every master client
+(`admin-cli` included) once its client login works, and on every `homelab`
+client outside `direct_grant_clients`. A new database starts with Keycloak's
+defaults, so the password fallback still works on its first run; after
+that, recovery without the client secret goes through `bootstrap-admin
+service`. Both realms also run brute-force detection (temporary lockout
+only) and keep login and admin events for 7 days.
 
 Break-glass ([keycloak-otp.md](runbooks/keycloak-otp.md#break-glass)): the
 `realm-settings` secret through `kubectl exec` and `kcadm.sh`, which deletes a
@@ -422,8 +428,12 @@ OTP-protected in the browser and usable by a script with only a password.
 
 Rejected: leaving the master realm password-only (the most powerful login
 stays the weakest), OTP for every `homelab` user (the household does not use
-authenticator apps), and removing OTP from the master `direct grant` flow so
-the Job could keep the password (a password grant would bypass the OTP).
+authenticator apps), removing OTP from the master `direct grant` flow so
+the Job could keep the password (a password grant would bypass the OTP), and
+an unconditional OTP step in the master `direct grant` flow instead of
+turning the grant off (`kcadm.sh` cannot send a code, so the password
+fallback dies either way, and a password-and-code grant stays open on the
+public token endpoint).
 
 ## Restic stale locks
 
