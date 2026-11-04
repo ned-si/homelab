@@ -1,14 +1,6 @@
-# Hubble UI at https://hubble.lilalala.com, behind Keycloak (group admins),
-# like Argo CD and Grafana (docs/networking.md, "Hubble"). The relay and the
-# UI come with the `cilium` release in kube-system; this Application only adds
-# the access path to them.
-#
-#     shared Gateway --> hubble-sso (oauth2-proxy, Keycloak, group admins)
-#       --> hubble-ui (kube-system) --> hubble-relay
-#
-# Rendered from platform/hubble-access (deploy/platform/hubble-access): the
-# proxy, the HTTPRoute and the CiliumNetworkPolicies in `hubble` and
-# `kube-system`.
+# The access path to the Hubble UI at https://hubble.lilalala.com, behind
+# Keycloak (docs/networking.md, "Hubble"): hubble-sso, the HTTPRoute and the
+# CiliumNetworkPolicies. Relay and UI come with the `cilium` release.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

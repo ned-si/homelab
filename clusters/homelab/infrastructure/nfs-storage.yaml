@@ -1,21 +1,6 @@
-# Static NFS volumes for bulk media.
-#
-# Why this exists as its own Application: in the old repo, eight different
-# Deployments each carried an inline
-#
-#     nfs:
-#       server: 192.168.1.228
-#       path: /mnt/homelab/k8s/nfs/...
-#
-# block. That meant the storage server's address was copy-pasted across the
-# tree, no app could be moved without editing its Deployment, and there was no
-# single place to change after a house move or a NAS replacement.
-#
-# Now there is one PersistentVolume per share here, and applications reference a
-# PVC by name. Changing the NFS server is a one-file change.
-#
-# PersistentVolume is cluster-scoped, which is why this lives in the
-# infrastructure layer rather than with the apps that consume it.
+# Static NFS volumes for bulk media: one PV per share, referenced by claim, so
+# a NAS change is a one-file change. PersistentVolumes are cluster-scoped,
+# hence the infrastructure layer.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

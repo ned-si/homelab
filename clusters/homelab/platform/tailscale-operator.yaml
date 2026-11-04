@@ -1,12 +1,7 @@
-# Tailscale Kubernetes operator: the cluster on the tailnet `ned-si.github`
-# (docs/remote-access.md). It runs the Kubernetes API server proxy in-process
-# (tailnet host `tailscale-operator`) and creates one proxy pod per Tailscale
-# Ingress; nothing is published on the LAN or the internet.
-#
-# Multi-source: the chart, its values from this repo, and the rendered
-# ProxyClass and RBAC (deploy/platform/tailscale-operator/resources). The OAuth client
-# credential is the Secret `operator-oauth`
-# (platform/secrets/tailscale-operator.sops.yaml).
+# Tailscale operator: the cluster on the tailnet (docs/remote-access.md), with
+# the API server proxy in-process and one proxy pod per Tailscale Ingress;
+# nothing is published on the LAN or the internet. OAuth client: the Secret
+# `operator-oauth`.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

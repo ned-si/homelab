@@ -1,8 +1,6 @@
-# ClusterIssuers for Let's Encrypt (staging + production), DNS-01 via Cloudflare.
-#
-# The Cloudflare token they reference is created by the `secrets-infrastructure`
-# Application at wave -25, so this path contains no secret material and renders
-# with plain kustomize.
+# ClusterIssuers for Let's Encrypt, DNS-01 via Cloudflare. The token comes
+# from `secrets-infrastructure` (wave -25), so this renders with plain
+# kustomize.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

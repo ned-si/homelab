@@ -1,9 +1,5 @@
-# trivy-operator: CVE reports for every running image (VulnerabilityReports)
-# and their metrics for the Security dashboard (docs/observability.md).
-#
-# Multi-source: the chart, its values from this repo, and the admission
-# policy that keeps ExposedSecretReports out of `view`
-# (deploy/platform/trivy-operator/resources).
+# trivy-operator: CVE reports and metrics for the Security dashboard, plus the
+# policy that keeps ExposedSecretReports out of `view`.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

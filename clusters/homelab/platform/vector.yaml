@@ -1,10 +1,5 @@
-# Vector: the log agent, one pod per node (docs/observability.md, "Logs").
-# Reads every pod's container logs from /var/log/pods, parses JSON and logfmt
-# into fields and exports its own metrics to Prometheus. The sink is a
-# blackhole until SigNoz takes the OTLP stream.
-#
-# Multi-source: the chart, its values from this repo, and the rendered
-# PodMonitor (deploy/platform/vector/resources).
+# Vector, the log agent (docs/observability.md, "Logs"). Multi-source: the
+# chart, its values and the PodMonitor.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

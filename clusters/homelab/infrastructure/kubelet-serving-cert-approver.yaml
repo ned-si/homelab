@@ -1,9 +1,6 @@
-# kubelet-serving-cert-approver: approves the kubelets' serving-certificate
-# requests (talos/patches/kubelet-serving-certs.yaml), so metrics-server
-# verifies the kubelets (infrastructure/kubelet-serving-cert-approver).
-#
-# Before metrics-server (14), after cert-manager-issuers (5). On a fresh
-# cluster it must be synced before the Talos patch reaches a node.
+# Approves the kubelets' serving-certificate requests, so metrics-server
+# verifies them. On a fresh cluster, sync it before the Talos patch reaches a
+# node.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

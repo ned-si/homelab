@@ -1,21 +1,12 @@
-# Helm values for the `argocd` release (namespace `argo`), chart argo-cd
-# 10.10.3 (Argo CD 3.5). The bootstrap installs the release with the helm CLI
-# and this file (docs/bootstrap.md); the Application
-# clusters/homelab/infrastructure/argocd.yaml then adopts it, so a change
-# merged here rolls Argo CD. No --set, no --reuse-values anywhere: this file is
-# the whole configuration. Break-glass `helm upgrade`: see that Application.
+# Values for the `argocd` release (namespace `argo`). The bootstrap installs it
+# with the helm CLI and this file (docs/bootstrap.md); the Application
+# clusters/homelab/infrastructure/argocd.yaml adopts it, so a merge here rolls
+# Argo CD. This file is the whole configuration: no --set, no --reuse-values.
 #
-# Every key of the live argocd-cm, argocd-rbac-cm and argocd-cmd-params-cm
-# is reproduced below, including the argocd-cm keys that were set outside
-# Helm (url, oidc.config and the timeouts). Without them a chart upgrade
-# would drop the Keycloak login.
-#
-# No secret value lives here. oidc.config refers to the key `clientSecret`
-# of the Secret argocd-oidc-keycloak (platform/secrets/argocd-oidc.sops.yaml,
-# labelled app.kubernetes.io/part-of: argocd), which Argo CD resolves at
-# runtime. Not a key of argocd-secret: the chart owns that Secret, and an
-# upgrade left it without the hand-added key. configs.secret.createSecret
-# stays true: with false, Helm would delete argocd-secret on upgrade.
+# oidc.config reads `clientSecret` from the Secret argocd-oidc-keycloak, not
+# from argocd-secret, which the chart owns and rewrites on upgrade.
+# configs.secret.createSecret stays true: with false, Helm deletes
+# argocd-secret on upgrade.
 
 global:
   domain: argo.lilalala.com
@@ -47,11 +38,9 @@ configs:
     # only, no UI login, bound to role:readonly below. Its token lives outside
     # the repository (docs/secrets.md).
     accounts.agent: apiKey
-    # Replaces Argo CD 3.6's built-in DeletingPolicy check, which wants
-    # status.conditionStatus.ready. Kyverno 1.19's cleanup controller never
-    # sets it, only lastExecutionTime, so the built-in check kept
-    # kyverno-policies Degraded while delete-shutdown-pods ran every hour.
-    # An explicit ready: false is still Degraded (#1039).
+    # Replaces the built-in DeletingPolicy check, which waits for
+    # status.conditionStatus.ready; Kyverno's cleanup controller sets only
+    # lastExecutionTime (#1039). An explicit ready: false is still Degraded.
     resource.customizations.health.policies.kyverno.io_DeletingPolicy: |
       local hs = {}
       local cs = obj.status ~= nil and obj.status.conditionStatus or nil
@@ -134,25 +123,15 @@ configs:
 dex:
   enabled: false
 
-# Argo CD Notifications reports a failed sync or a Degraded Application to
-# GitHub as a `repository_dispatch` (event type `argo-degraded`), which runs
-# .github/workflows/auto-rollback.yaml. Every Application is subscribed
-# (`subscriptions`), so no Application needs an annotation.
+# Argo CD Notifications sends a failed sync or a Degraded Application to GitHub
+# as a `repository_dispatch` (`argo-degraded`), which runs
+# .github/workflows/auto-rollback.yaml. Every Application is subscribed. The
+# token is `github-token` in the Secret argocd-notifications-github
+# (`secret.create: false`, `secret.name`).
 #
-# The token is the key `github-token` of the Secret
-# argocd-notifications-github, sealed in
-# platform/secrets/argocd-notifications.sops.yaml and synced by the
-# `secrets-platform` Application. The chart therefore creates no Secret of its
-# own (`secret.create: false`) and points the controller at that one
-# (`secret.name`, passed as --secret-name). Until a real token is sealed the
-# key holds a PENDING sentinel: GitHub answers 401 and nothing is dispatched.
-#
-# The payload carries the revision of the Application's last sync operation
-# (`syncResult`, else the requested `operation.sync`), single- or
-# multi-source, so the workflow sees the commit that deployed the failing
-# change rather than the newest commit on main. Chart versions in a
-# multi-source revision list are ignored by the workflow. `oncePer` on the
-# same fields sends one dispatch per Application and revision.
+# The payload carries the revision of the last sync operation, so the workflow
+# sees the commit that deployed the failing change; `oncePer` sends one
+# dispatch per Application and revision.
 notifications:
   enabled: true
   secret:
@@ -232,11 +211,9 @@ notifications:
             {{- with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}
             {{- end }}"}}
 
-# KSOPS on the repo-server: an init container copies the ksops binary into an
-# emptyDir that is mounted on PATH; Argo CD's bundled kustomize (v5.4.3) runs
-# it as a KRM exec function. The age identity comes from the Secret
-# `sops-age` (key `keys.txt`), which is created at bootstrap from the
-# operator's key and never stored in git (docs/bootstrap.md).
+# KSOPS on the repo-server: an init container copies the ksops binary onto
+# PATH, and the bundled kustomize runs it as a KRM exec function. The age
+# identity is the Secret `sops-age`, created at bootstrap, never in git.
 repoServer:
   env:
     - name: SOPS_AGE_KEY_FILE

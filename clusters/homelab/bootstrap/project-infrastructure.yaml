@@ -1,25 +1,8 @@
 # Infrastructure: CNI, CRDs, certificates, DNS, storage drivers.
 #
-# This is the layer that legitimately needs cluster-scoped resources -- CRDs,
-# ClusterRoles, StorageClasses, the cert-manager webhooks. It is still an
-# ENUMERATED list rather than `group: "*" kind: "*"`.
-#
-# Why enumerate the most privileged layer at all, given it already holds the
-# CNI and every CRD: `clusterResourceWhitelist` is the only mechanism that
-# reports "this chart started creating a kind of object it never used to". With
-# a wildcard, a chart upgrade that begins shipping a ValidatingAdmissionPolicy,
-# an APIService or a PriorityClass installs it silently and the diff is 40k
-# lines of rendered CRD. With the list below, that upgrade fails to sync and
-# says which kind it wanted. A failed sync in this layer is cheap; a webhook
-# nobody noticed is not.
-#
-# HOW TO WIDEN IT, because you will need to one day: add the group/kind, and
-# put the reason on the same line. If a sync fails with
-# "<Kind> is not permitted in project infrastructure", that is this list doing
-# its job -- read what asked for it before adding it.
-#
-# Every entry below is traceable to something this layer actually installs;
-# nothing is here speculatively.
+# Cluster-scoped kinds are enumerated even here, so a chart that starts
+# shipping a new kind fails to sync and names it instead of installing it
+# silently. To widen it, add the group/kind with its reason on the same line.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
@@ -75,13 +58,9 @@ spec:
       kind: ValidatingPolicy # kyverno-policies/, Audit only
     - group: policies.kyverno.io
       kind: DeletingPolicy # kyverno-policies/delete-shutdown-pods.yaml
-    # Webhooks. cert-manager's chart ships its own: its webhook Deployment
-    # validates every Certificate/Issuer, and cainjector writes the CA bundle
-    # into both configurations at runtime (which is why
-    # bootstrap/argocd-values.yaml also ignores that field when diffing).
-    # Kyverno registers its webhooks at runtime, outside Argo CD.
-    # If a future chart wants a webhook, it should have to be added here on
-    # purpose.
+    # Webhooks: cert-manager's own (cainjector writes their CA bundle, hence
+    # the diff ignore in bootstrap/argocd-values.yaml). Kyverno registers its
+    # webhooks at runtime, outside Argo CD.
     - group: admissionregistration.k8s.io
       kind: MutatingWebhookConfiguration
     - group: admissionregistration.k8s.io
@@ -94,11 +73,8 @@ spec:
       kind: ValidatingAdmissionPolicy
     - group: admissionregistration.k8s.io
       kind: ValidatingAdmissionPolicyBinding
-  # Namespaced resources stay wildcarded: this layer installs DaemonSets,
-  # Deployments, Secrets, Services and CRs across kube-system, cert-manager,
-  # external-dns, democratic-csi and gateway. Enumerating those buys nothing --
-  # a namespaced object cannot grant reach outside its namespace, which is the
-  # property the list above exists to protect.
+  # Namespaced resources stay wildcarded: a namespaced object cannot reach
+  # outside its namespace.
   namespaceResourceWhitelist:
     - group: "*"
       kind: "*"

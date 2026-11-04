@@ -1,13 +1,6 @@
-# theater: Plex, Jellyfin, the *arr stack and qBittorrent.
-#
-# All in one namespace and one Application because they are genuinely one system:
-# Prowlarr feeds the *arrs, the *arrs push to qBittorrent, qBittorrent writes to
-# the same NFS share the players read from. Splitting them into six Applications
-# would make the hardlink/permissions contract between them invisible.
-#
-# NOTE: if the *arr apps cannot reach qBittorrent, that is almost certainly the
-# qBittorrent 4.6.1+ credential change, not a networking fault.
-# See docs/runbooks/arr-qbittorrent.md before debugging Cilium.
+# theater: Plex, Jellyfin, the *arr stack and qBittorrent, one system sharing
+# one NFS share and its hardlink contract. If the *arr apps cannot reach
+# qBittorrent, read docs/runbooks/arr-qbittorrent.md before debugging Cilium.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

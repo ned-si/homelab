@@ -1,15 +1,7 @@
-# Argo CD manages its own Helm release.
-#
-# The bootstrap installs the release `argocd` once with the helm CLI
-# (docs/bootstrap.md), then this Application adopts it with the same release
-# name, namespace and values file, so every object keeps its name. From then
-# on an Argo CD upgrade or a change to bootstrap/argocd-values.yaml is a pull
-# request like any other. CI (repo-policy `bootstrap-chart-versions`) keeps the
-# chart version equal to ci/helm-releases.yaml, which the bootstrap reads.
-#
-# Automated sync with self-heal, but NO prune: a pruned CRD would delete every
-# Application, and a pruned Deployment or ConfigMap would stop the controller
-# that could put it back.
+# Argo CD manages its own Helm release, adopted from the bootstrap install
+# (docs/bootstrap.md). CI (repo-policy `bootstrap-chart-versions`) keeps the
+# chart version equal to ci/helm-releases.yaml. No prune: a pruned CRD would
+# delete every Application.
 #
 # BREAK-GLASS. If a sync breaks Argo CD itself, it cannot repair itself:
 #   git show <last-good-sha>:bootstrap/argocd-values.yaml > /tmp/hv.yaml

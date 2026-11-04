@@ -1,31 +1,14 @@
-# Root of the layered tree. It owns only Argo CD objects: the three
-# AppProjects and the three layer Applications; each layer owns only leaf
-# Applications, one per app; each leaf owns its app's resources.
+# Root of the layered tree: three AppProjects and three layer Applications;
+# each layer owns leaf Applications, each leaf its app (docs/architecture.md).
+# Applied once by hand as bootstrap/root-app.yaml (CI: repo_policy.py
+# root-profiles).
 #
-#   root  ->  clusters/homelab/bootstrap  (AppProjects + the three layer apps)
-#               ->  clusters/homelab/infrastructure  ->  infrastructure/*
-#               ->  clusters/homelab/platform        ->  platform/*
-#               ->  clusters/homelab/apps            ->  apps/*
-#
-# The only Application applied by hand, once, at bootstrap:
-# `kubectl apply -f bootstrap/root-app.yaml`, the same object as this file
-# (CI: repo_policy.py root-profiles). Argo CD creates everything below it.
-#
-# TRUNK-BASED. Every Application tracks `main`: what is merged is what runs,
-# and a rollback is a revert PR. That is why prune stays off on the root and
-# the layers (an Application object removed by mistake must not vanish with
-# its app) while app leaves prune, with
-# `argocd.argoproj.io/sync-options: Delete=false,Prune=false` on every PVC,
-# CNPG Cluster, StatefulSet and Namespace as the data guard. Leaves that ship
-# CRDs (cert-manager, CloudNativePG, kube-prometheus-stack, Gateway API) do not
-# prune either: pruning a CRD deletes every object of its kind.
-#
-# No Application carries the resources-finalizer (CI: repo_policy.py), so
-# deleting an Application never cascades.
-#
-# `revisionHistoryLimit: 10` and `retry` (5 x 5s doubling, capped at 3m) are
-# set on every Application: enough history to diagnose a bad sync, and enough
-# retry to ride out a CRD that is not established yet or a slow iSCSI attach.
+# Every Application tracks `main`; a rollback is a revert. Root and layers do
+# not prune (a removed Application must not take its app with it); app leaves
+# prune, with `Delete=false,Prune=false` on every PVC, CNPG Cluster,
+# StatefulSet and Namespace. Leaves that ship CRDs do not prune. No
+# resources-finalizer anywhere. Every Application sets
+# `revisionHistoryLimit: 10` and `retry` (5 x 5s doubling, max 3m).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

@@ -1,14 +1,7 @@
 # tuppr: Talos and Kubernetes upgrades from the Kubernetes API
-# (https://github.com/home-operations/tuppr, docs/talos-cheatsheet.md).
-#
-# Multi-source: the chart (OCI, ghcr.io), its values from this repo, and the
-# TalosUpgrade and KubernetesUpgrade resources that hold the target versions
-# (deploy/platform/tuppr/upgrades). A merge that changes a version starts the
-# rollout; the CI rehearsal of the same change ran first
-# (scripts/ci/talos-upgrade-rehearsal.sh).
-#
-# The upgrade resources sync one wave after the controller, so its admission
-# webhook is up when they are applied.
+# (docs/talos-cheatsheet.md). A merge that changes a version in
+# platform/tuppr/upgrades starts the rollout, after the CI rehearsal. The
+# upgrade resources sync one wave after the controller and its webhook.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

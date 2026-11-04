@@ -1,13 +1,6 @@
-# Static iSCSI PersistentVolumes: the data volumes that existed before the
-# Talos cluster, re-bound to their claims by name (infrastructure/iscsi-volumes/).
-#
-# Wave 25, after democratic-csi (20) and before the platform and apps layers,
-# so every PV exists before the claim that names it. A claim created first
-# would still bind to the right PV (`volumeName`), but would stay Pending
-# until it appears.
-#
-# Never prune, never delete: the PVs are Retain, so deleting one keeps the
-# zvol, but the claim would then need a hand-made PV to come back.
+# Static iSCSI PVs re-bound to their claims by name. Wave 25, after
+# democratic-csi and before the claims. Never prune: deleting a Retain PV
+# keeps the zvol, but the claim then needs a hand-made PV.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

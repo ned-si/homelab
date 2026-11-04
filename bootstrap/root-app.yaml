@@ -1,12 +1,9 @@
-# Root Application of the layered tree. Applied once by hand at bootstrap;
-# Argo CD creates every other Application from it:
+# Root Application, applied once by hand at bootstrap:
 #
 #   kubectl apply -f bootstrap/root-app.yaml
 #
 # The same object as clusters/homelab/root.yaml (CI: repo_policy.py
-# root-profiles fails if they differ); that file describes the tree and its
-# prune policy. It tracks `main`: whatever is merged to main is what runs, and
-# a rollback is a revert pull request.
+# root-profiles). It tracks `main`; a rollback is a revert.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:

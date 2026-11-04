@@ -1,16 +1,7 @@
-# Barman Cloud plugin for CloudNativePG (plugin v0.15.1, operator 1.30.1).
-#
-# Every CNPG Cluster archives its WAL and takes its base backups through this
-# plugin, into s3://ned-si-homelab-backups/cnpg/<cluster>/ (docs/backups.md).
-# CloudNativePG deprecated its in-tree Barman Cloud support in 1.26; the plugin
-# is the supported path.
-#
-# The plugin must run in the SAME NAMESPACE as the CNPG operator, which is
-# `immich`. It uses cert-manager to issue its own mTLS certificates, which is
-# why it syncs after cert-manager (infrastructure) and after the operator.
-#
-# It injects a sidecar into each PostgreSQL instance, so enabling it on a
-# Cluster restarts that Cluster once.
+# Barman Cloud plugin for CloudNativePG: WAL and base backups of every Cluster
+# to s3://ned-si-homelab-backups/cnpg/<cluster>/ (docs/backups.md). It must
+# run in the operator's namespace, `immich`, and uses cert-manager for its
+# mTLS. Enabling it on a Cluster restarts that Cluster once (sidecar).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

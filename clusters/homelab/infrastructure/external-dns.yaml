@@ -1,16 +1,8 @@
-# external-dns: publishes the public hostnames to
-# Cloudflare. Source: the shared Gateway's HTTPRoutes only. Every record
-# points at the single WAN address set by `--default-targets` in
-# infrastructure/external-dns/values.yaml.
-#
-# Its Cloudflare token comes from the `secrets-infrastructure` Application
-# (wave -25).
-#
-# The chart ships its CRDs (dnsendpoints, and dnsrecords since 1.23). For a
-# second or two after a CRD is created it has no `Established` condition,
-# which Argo CD's built-in CRD health check reports as Degraded, and that
-# triggers auto-rollback. A chart version that adds a CRD is merged with
-# auto-rollback paused; updates of existing CRDs are not affected.
+# external-dns: publishes the shared Gateway's HTTPRoute hostnames to
+# Cloudflare, all to the WAN address in `--default-targets`. Token from
+# `secrets-infrastructure`. A new chart CRD reports Degraded for a second
+# before Established, which triggers auto-rollback: merge such a version with
+# auto-rollback paused.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -42,12 +34,9 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      # Client-side apply, as the running child Application does. Its
-      # objects carry last-applied-configuration from client-side apply;
-      # switching this leaf to server-side apply on adoption would keep
-      # fields the new render drops (e.g. a volume source) and fail
-      # validation. Move to ServerSideApply=true in its own change, after
-      # adoption.
+      # Client-side apply: the objects carry last-applied-configuration, and
+      # server-side apply would keep fields the render drops. Switch in its
+      # own change.
       - CreateNamespace=true
     retry:
       limit: 5

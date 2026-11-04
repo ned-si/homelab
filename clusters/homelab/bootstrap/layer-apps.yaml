@@ -1,16 +1,6 @@
-# Layer 3 - applications. Everything the cluster exists to serve.
-# Waits on platform so that CloudNativePG and Keycloak are ready first.
-#
-# Tracks `main`, like every Application in this repo: a merge is a deployment
-# and a rollback is a revert pull request (clusters/homelab/root.yaml,
-# docs/decisions.md).
-#
-# This Application owns nothing but other Application objects, and Argo CD has
-# no built-in health check for `argoproj.io/Application`, so its own health
+# Layer 3, applications; waits on platform (CloudNativePG, Keycloak). Tracks
+# `main` (docs/decisions.md). It owns only Application objects, so its health
 # says nothing about the apps: read the leaves.
-#
-# `clusters/homelab/apps/immich.yaml` is the exception among the leaves: it has
-# no `automated` block and is synced by hand.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

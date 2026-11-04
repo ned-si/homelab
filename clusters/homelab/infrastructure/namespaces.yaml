@@ -1,17 +1,6 @@
-# Every namespace in the cluster, declared in one place.
-#
-# Two reasons this exists rather than relying on `CreateNamespace=true`:
-#
-#   1. Secrets have to be applied into a namespace that already exists, and the
-#      per-layer `secrets` Applications run before the charts that would
-#      otherwise create those namespaces.
-#
-#   2. `CreateNamespace=true` produces namespaces with no labels, so Pod
-#      Security admission and Prometheus namespace selectors silently do
-#      nothing. The old repo had this problem, and the `syncthing` namespace
-#      was never declared anywhere at all -- it only existed because someone
-#      had once run `kubectl create ns` by hand. That is exactly the kind of
-#      undeclared state this rebuild is meant to remove.
+# Every namespace in the cluster, declared in one place: Secrets need their
+# namespace before the charts run, and `CreateNamespace=true` makes
+# namespaces without the Pod Security and Prometheus labels.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

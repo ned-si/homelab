@@ -1,42 +1,21 @@
 # ---------------------------------------------------------------------------
-# The bucket that holds the OpenTofu state of every root module in bootstrap/.
+# The bucket for the OpenTofu state of every root module in bootstrap/, apart
+# from the backup bucket, whose writer could read the keys in that state.
+# Client-side encryption (TOFU_STATE_PASSPHRASE), SSE-S3, TLS only, 90 days of
+# versions, S3-native locking (`use_lockfile`).
 #
-# Separate from the backup bucket on purpose: the backup writer credential can
-# GetObject anything in the backup bucket, and the state of bootstrap/aws-backup
-# contains that credential's own secret key and the verifier's. State and
-# backups must not share a bucket or a reader.
+# It stores its own state in the bucket it creates, so a fresh bootstrap
+# runs twice:
 #
-# State is protected three ways:
-#   - OpenTofu encrypts state and plans client-side (aes_gcm, key derived from
-#     TOFU_STATE_PASSPHRASE with pbkdf2), so S3 only ever sees ciphertext;
-#   - SSE-S3 encrypts that ciphertext again at rest, and the bucket policy
-#     refuses any request that is not TLS;
-#   - versioning keeps every previous state for 90 days, so a bad apply or a
-#     corrupted write can be rolled back by restoring an older version.
-#
-# Locking is S3-native (`use_lockfile = true`, OpenTofu >= 1.10): a
-# `<key>.tflock` object next to the state. No DynamoDB table.
-#
-# ###########################################################################
-# # CHICKEN AND EGG. This module stores its own state in the bucket it
-# # creates. A fresh bootstrap therefore runs in two steps:
-# #
-# #   1. Apply with LOCAL state (the bucket does not exist yet). The local
-# #      state is already encrypted by the encryption block in providers.tf.
-# #
-# #        printf 'terraform {\n  backend "local" {}\n}\n' \
-# #          > bootstrap/tofu-state/backend_override.tf     # git-ignored
-# #        scripts/tofu.sh bootstrap/tofu-state init
-# #        scripts/tofu.sh bootstrap/tofu-state apply
-# #
-# #   2. Remove the override and move the state into the bucket:
-# #
-# #        rm bootstrap/tofu-state/backend_override.tf
-# #        scripts/tofu.sh bootstrap/tofu-state init -migrate-state -force-copy
-# #        rm -P bootstrap/tofu-state/terraform.tfstate*   # now in S3
-# #
-# # After that it is an ordinary module. See docs/bootstrap.md.
-# ###########################################################################
+#   1. With local (encrypted) state:
+#        printf 'terraform {\n  backend "local" {}\n}\n' \
+#          > bootstrap/tofu-state/backend_override.tf     # git-ignored
+#        scripts/tofu.sh bootstrap/tofu-state init
+#        scripts/tofu.sh bootstrap/tofu-state apply
+#   2. Then into the bucket:
+#        rm bootstrap/tofu-state/backend_override.tf
+#        scripts/tofu.sh bootstrap/tofu-state init -migrate-state -force-copy
+#        rm -P bootstrap/tofu-state/terraform.tfstate*   # now in S3
 # ---------------------------------------------------------------------------
 
 resource "aws_s3_bucket" "state" {

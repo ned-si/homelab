@@ -1,12 +1,5 @@
-# Every container gives up CAP_NET_RAW, so no workload can forge packets or
-# bind a raw socket (CIS 5.2.8). `drop: [ALL]` counts: it is what the repo sets
-# everywhere and it drops NET_RAW with everything else.
-#
-# Upstream best-practices-vpol/require-drop-cap-net-raw matches an explicit
-# CAP_NET_RAW or NET_RAW entry only, so it fails the stricter `drop: [ALL]` and
-# reported every workload here -- upstream says as much ("may not strictly
-# conform to the Pod Security Standards"). drop-all-capabilities (CIS 5.2.10)
-# covers the containers that drop nothing at all.
+# Every container drops CAP_NET_RAW (CIS 5.2.8); `drop: [ALL]` counts.
+# Upstream require-drop-cap-net-raw accepts only an explicit NET_RAW entry.
 ---
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy

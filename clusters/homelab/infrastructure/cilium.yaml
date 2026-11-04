@@ -1,26 +1,11 @@
-# Cilium: CNI, kube-proxy replacement, L2 announcements, Gateway API controller.
+# Cilium: CNI, kube-proxy replacement, L2 announcements, Gateway controller.
+# Adopted from the bootstrap install (docs/bootstrap.md); CI keeps the chart
+# version equal to ci/helm-releases.yaml. A merge rolls the CNI: one minor at
+# a time, with its Gateway API CRDs (Renovate group "cluster networking").
 #
-# The bootstrap installs the release with the helm CLI (no pod schedules
-# without a CNI), then this Application adopts it with the same release name
-# and values file, so every object keeps its name; see docs/bootstrap.md.
-# CI (repo-policy `bootstrap-chart-versions`) keeps the chart version equal to
-# ci/helm-releases.yaml, which the bootstrap install reads. A chart or values
-# change merged to main rolls the CNI: upgrade one change at a time.
-#
-# Automated sync with self-heal, but NO prune: a pruned DaemonSet, ConfigMap
-# or ClusterRole would take the cluster's network down. Remove objects from
-# this chart deliberately, by hand.
-#
-# The bootstrap install's Helm release Secret and `helm` field ownership were
-# removed on 2026-10-24 (cilium-upgrades task 2): a Helm-owned key had
-# survived an upgrade (docs/postmortems/2026-10-23-gateway-cilium-xds.md).
-# Never `helm uninstall cilium`: it deletes the CNI.
-#
-# The third source is the PostSync smoke (infrastructure/cilium-smoke): a
-# request through the shared Gateway after every sync.
-#
-# Upgrade one minor at a time, each its own pull request, together with the
-# Gateway API CRDs it supports (Renovate group "cluster networking").
+# No prune: a pruned DaemonSet or ClusterRole takes the network down. Never
+# `helm uninstall cilium`. The third source is the PostSync smoke
+# (infrastructure/cilium-smoke).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

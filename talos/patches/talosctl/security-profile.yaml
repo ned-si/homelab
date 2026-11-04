@@ -1,15 +1,7 @@
-# Applied by scripts/talos-genconfig.sh with talosctl after talhelper: talhelper
-# 3.1.17 vendors Talos machinery 1.14.0-alpha.2, which does not know this
-# document. Move it into talconfig.yaml `patches:` once talhelper does.
-#
-# Talos 1.14 workload isolation runs containerd, the kubelet and every pod in a
-# separate PID and mount namespace (sandboxd). democratic-csi finds the host
-# iscsid with pgrep and nsenters into it, which isolation breaks: with `true`
-# every iSCSI NodeStageVolume fails with "failed to find iscsid pid for
-# nsenter" (Talos v1.14.2, democratic-csi chart 0.15.1). Keep `false` until
-# democratic-csi can reach iscsid from inside the sandbox. Reboot the node
-# after applying a change.
-# To try `true` again: WORKLOAD_ISOLATION=true task talos:genconfig
+# Applied with talosctl after talhelper (scripts/talos-genconfig.sh).
+# Workload isolation off: democratic-csi nsenters the host iscsid, which the
+# sandbox hides ("failed to find iscsid pid for nsenter"). Reboot after a
+# change. To try again: WORKLOAD_ISOLATION=true task talos:genconfig
 apiVersion: v1alpha1
 kind: SecurityProfileConfig
 workloadIsolation: false
