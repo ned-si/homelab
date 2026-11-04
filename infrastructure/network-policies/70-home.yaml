@@ -1,0 +1,350 @@
+# home: Home Assistant, Mosquitto, Zigbee2MQTT and the
+# `home-assistant-postgresql` CloudNativePG cluster (apps/home/), their
+# backup CronJobs and the Argo CD hook Jobs.
+#
+# From the manifests in apps/home/: no policy selected these pods, so
+# Hubble had no verdicts to read. The 7-day audit of spec
+# netpol-default-deny starts with this file; what it misses shows up as
+# would-be drops (`match="all"`). Home Assistant reaches devices on the LAN
+# by address on their own ports (docs/home-automation.md); those flows are
+# left to the audit rather than guessed here.
+#
+# Not enforced: every policy here is default-allow; the switch is the
+# `home` block in ./90-enforcement.yaml.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: home-assistant
+  namespace: home
+spec:
+  description: >-
+    Home Assistant: HTTP from the Gateway, Prometheus and the smoke Job;
+    egress to its Postgres, Mosquitto and HTTPS.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: home-assistant
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # home.lilalala.com -> home-assistant :8123.
+    # apps/home/home-assistant.yaml -- HTTPRoute `home-assistant`.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8123"
+              protocol: TCP
+    # apps/home/monitoring.yaml -- ServiceMonitor `home-assistant`,
+    # /api/prometheus on the `http` port.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "8123"
+              protocol: TCP
+    # apps/home/kustomization.yaml -- postsync-smoke
+    # http://home-assistant:8123/manifest.json.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "8123"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # The recorder, HA_RECORDER_DB_URL from `home-assistant-postgresql-app`.
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: home-assistant-postgresql
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # MQTT (config/configuration.yaml, Zigbee2MQTT discovery).
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: mosquitto
+      toPorts:
+        - ports:
+            - port: "1883"
+              protocol: TCP
+    # OIDC at https://auth.lilalala.com (the WAN address, so `world`;
+    # auth_oidc in config/configuration.yaml), the `custom-components` init
+    # container's downloads (GitHub, PyPI, the Alpine CDN) and cloud
+    # integrations.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: mosquitto
+  namespace: home
+spec:
+  description: >-
+    Mosquitto: MQTT from Home Assistant and Zigbee2MQTT only.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: mosquitto
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # apps/home/mosquitto.yaml -- Service `mosquitto` :1883, in-cluster only.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [home-assistant, zigbee2mqtt]
+      toPorts:
+        - ports:
+            - port: "1883"
+              protocol: TCP
+---
+# Scaled to 0 until the coordinator is online (apps/home/zigbee2mqtt.yaml).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: zigbee2mqtt
+  namespace: home
+spec:
+  description: >-
+    Zigbee2MQTT: egress to Mosquitto and the ser2net coordinator on the LAN.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: zigbee2mqtt
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # ZIGBEE2MQTT_CONFIG_MQTT_SERVER mqtt://mosquitto.home.svc.cluster.local:1883.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: mosquitto
+      toPorts:
+        - ports:
+            - port: "1883"
+              protocol: TCP
+    # ZIGBEE2MQTT_CONFIG_SERIAL_PORT tcp://192.168.1.20:20108.
+    # SITE-SPECIFIC: the Raspberry Pi's static address.
+    - toCIDR:
+        - 192.168.1.20/32
+      toPorts:
+        - ports:
+            - port: "20108"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: home-postgres
+  namespace: home
+spec:
+  description: >-
+    home-assistant-postgresql instances: reachable by Home Assistant, the
+    backup Job, backup-verify and the operator; egress to the Kubernetes API
+    and S3.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: home-assistant
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # apps/home/backup.yaml -- `home-assistant-backup` pg_dump.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: home-assistant-backup
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # The CloudNativePG operator in `immich` (clusters/homelab/platform/cnpg.yaml):
+    # instance-manager API on 8000, plus 5432.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: immich
+            app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "5432"
+              protocol: TCP
+    # Peer instances. `instances: 1` today (apps/home/database.yaml).
+    - fromEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+    # The weekly backup-verify reads, as in 50-mealie.yaml.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: backup-verify
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # The CloudNativePG exporter, for a Prometheus scrape.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # The instance manager watches the Kubernetes API.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # WAL and base backups to S3 by the Barman Cloud plugin sidecar
+    # (apps/home/cnpg-backup.yaml).
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+---
+# The restic CronJobs (apps/home/backup.yaml): `home-assistant-backup`
+# (pg_dump, then the config volume) and `home-prune`, to S3.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: home
+spec:
+  description: >-
+    The home backup CronJobs: pg_dump of the recorder and restic to S3.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [home-assistant-backup, home-prune]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: home-assistant-postgresql
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # RESTIC_REPOSITORY s3:https://s3.eu-central-1.amazonaws.com/...
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hook-jobs
+  namespace: home
+spec:
+  description: >-
+    The Argo CD hook Jobs: presync-backup reads backup status from the
+    Kubernetes API, postsync-smoke calls Home Assistant once after a sync.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [presync-backup, postsync-smoke]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # components/presync-backup (MODE cronjob, IMAGE_CHECKS of the Cluster).
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: home-assistant
+      toPorts:
+        - ports:
+            - port: "8123"
+              protocol: TCP
