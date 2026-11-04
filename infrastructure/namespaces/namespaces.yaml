@@ -5,7 +5,8 @@
 # level, never looser than `enforce`. Talos would enforce `baseline` where a
 # label is missing (kube-system is exempt); written here, the level holds on
 # any cluster. Moving a namespace to `enforce: restricted` follows
-# .kiro/specs/pod-security-restricted (scripts/psa-readiness.sh first).
+# .kiro/specs/pod-security-restricted (scripts/psa-readiness.sh first); the
+# flip and the break-glass: docs/runbooks/pod-security.md.
 #
 # restricted: gateway, argo, cert-manager, external-dns,
 #   kubelet-serving-cert-approver, metrics-server, trivy-system, kyverno,
