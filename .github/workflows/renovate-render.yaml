@@ -1,20 +1,12 @@
 ---
-# Re-render deploy/ on Renovate pull requests.
+# Re-render deploy/ on Renovate pull requests: the hosted app cannot run
+# scripts/render-deploy.sh, and `render` fails unless deploy/ matches. This
+# job renders the branch and commits deploy/ back with
+# scripts/ci/commit-render.sh (a verified API commit as github-actions[bot]),
+# then approves the pull_request runs that commit holds as `action_required`.
 #
-# A Renovate bump edits a source under apps/, platform/, infrastructure/ or
-# clusters/, and ci.yaml's `render` job fails unless deploy/ matches those
-# sources in the same commit. The hosted Renovate app cannot run
-# scripts/render-deploy.sh, so this job renders the branch and, when deploy/
-# changed, commits it back with scripts/ci/commit-render.sh (a verified API
-# commit as github-actions[bot]). That commit triggers the normal
-# pull_request runs, held as `action_required` because github-actions[bot]
-# counts as a first-time contributor; the script approves them, so ci runs
-# with full pull request context (pr-metadata included) on the new head.
-#
-# - `pull_request`, never `pull_request_target`; only PRs opened by
-#   renovate[bot] from a `renovate/` branch of this repository. Fork PRs never
-#   reach the job, so fork code never runs with a write token, and the only
-#   runs it approves are on the commit it just created.
+# - `pull_request`, never `pull_request_target`; only renovate[bot] PRs from a
+#   `renovate/` branch here, so fork code never runs with a write token.
 # - The render step gets no token; only the commit step does.
 # - renovate.json5 lists github-actions[bot] in gitIgnoredAuthors, so Renovate
 #   keeps rebasing the branch; each rebase runs this again.

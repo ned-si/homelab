@@ -1,12 +1,8 @@
 ---
 # renovate-next: one Renovate pull request rebased at a time
-# (scripts/ci/renovate-next.sh). Renovate rebases on conflicts only
-# (`rebaseWhen: conflicted` in .github/renovate.json5); after each push to
-# main this ticks the rebase checkbox of the next pull request, so CI runs on
-# the one that merges next instead of on every open one. The schedule
-# restarts the train when nothing was pushed, after a failed ci for example.
-# scripts/pr-merge.sh pauses it (repository variable RENOVATE_TRAIN_PAUSED)
-# and starts it by workflow_dispatch when it pauses and resumes it.
+# (scripts/ci/renovate-next.sh), after each push to main and on a schedule
+# that restarts the train after a failed ci. scripts/pr-merge.sh pauses it
+# (RENOVATE_TRAIN_PAUSED) and dispatches it on pause and resume.
 name: renovate-next
 
 on:

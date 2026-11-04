@@ -1,26 +1,14 @@
 ---
 # OpenTofu GitOps for the AWS modules under bootstrap/, with drift detection.
 #
-#   pull request  plan every module with the plan role and post one summary
-#                 comment (addresses and actions; the full plan text is in a
-#                 collapsed block, sensitive values masked by tofu, the account
-#                 ID replaced).
-#   push to main  plan, then apply bootstrap/aws-backup with the apply role.
-#   daily         the same plan: changes on main mean drift. bootstrap/aws-backup
-#                 is corrected by the apply; no notification, the run shows
-#                 on the Homelab / Automation dashboard.
+#   pull request  plan every module, one summary comment (account ID replaced)
+#   push to main  plan, then apply bootstrap/aws-backup
+#   daily         the same: drift in aws-backup is corrected by the apply
 #
-# Guards, which need a person and so post to ntfy (docs/sre.md "Paging"):
-#   - a plan that deletes, replaces or forgets a resource is never applied:
-#     ntfy and a failed run; apply it by hand with scripts/tofu.sh;
-#   - bootstrap/github-oidc (these roles) and bootstrap/tofu-state (the state
-#     bucket) are plan-only: pending changes there are posted to ntfy and fail
-#     the run until applied by hand.
-#
-# AWS access is GitHub OIDC (bootstrap/github-oidc), no stored keys. Secrets:
-# AWS_PLAN_ROLE_ARN, AWS_APPLY_ROLE_ARN (secrets so the account ID is masked),
-# TOFU_STATE_PASSPHRASE, NTFY_TOPIC. No cluster credentials: the Kubernetes
-# side is Argo CD, the Talos side platform/talos-drift (docs/decisions.md
+# Guards post to ntfy and fail the run: a plan that deletes, replaces or
+# forgets is never applied (use scripts/tofu.sh), and pending changes in the
+# plan-only bootstrap/github-oidc and bootstrap/tofu-state wait for a hand
+# apply. AWS access is GitHub OIDC; no cluster credentials (docs/decisions.md
 # "Drift detection without cluster credentials in GitHub").
 name: tofu
 
@@ -205,11 +193,8 @@ jobs:
           { echo "## tofu apply"; cat "$RUNNER_TEMP/tofu/bootstrap-aws-backup.md"; } >> "$GITHUB_STEP_SUMMARY"
           exit "$rc"
 
-      # A scheduled run that applied something corrected drift. Automation
-      # handled it, so no notification (docs/sre.md "Paging"): this step
-      # only runs, and the Homelab / Automation dashboard reads its result
-      # from the GitHub API (platform/github-exporter). Its name is that
-      # contract.
+      # Drift corrected by a scheduled apply: no notification; the Automation
+      # dashboard reads this step by name from the GitHub API.
       - name: Drift corrected
         if: ${{ success() && github.event_name == 'schedule' && steps.apply.outputs.status == 'changes' }}
         run: echo "Drift in bootstrap/aws-backup corrected; the changes are in the tofu apply summary."

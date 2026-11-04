@@ -1,14 +1,8 @@
 ---
-# OpenSSF Scorecard: supply-chain security checks of this repository (branch
-# protection, pinned actions, token permissions, signed commits, ...).
-#
-# Results go to the Security tab (code scanning, category scorecard) and are
-# published to api.scorecard.dev, which serves the README badge.
-#
-# Publishing imposes workflow restrictions (github.com/ossf/scorecard-action,
-# "Workflow Restrictions"): no top-level env or defaults, no workflow-level
-# write permissions, and the job may only use checkout, upload-artifact,
-# upload-sarif and scorecard-action. Keep this file to that shape.
+# OpenSSF Scorecard: results to the Security tab and api.scorecard.dev (the
+# README badge). Publishing restricts the workflow (no top-level env or
+# defaults, no workflow-level write, only checkout, upload-artifact,
+# upload-sarif and scorecard-action): keep this shape.
 name: scorecard
 
 on:

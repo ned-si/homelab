@@ -1,14 +1,7 @@
 ---
-# CodeQL: static analysis (SAST) of the Python scripts and tests, and of the
-# GitHub Actions workflows themselves (script injection, untrusted checkout,
-# excessive permissions).
-#
-# Alerts go to the Security tab (code scanning, categories codeql-python and
-# codeql-actions). Not a required check: findings are triaged there, the CI gate
-# stays the `ci` job.
-#
-# Advanced setup on purpose: the repository's default setup is off, and the two
-# cannot run together.
+# CodeQL: SAST of the Python scripts and tests and of the workflows. Alerts go
+# to the Security tab; not a required check. Advanced setup: the default setup
+# is off, and the two cannot run together.
 name: codeql
 
 on:
