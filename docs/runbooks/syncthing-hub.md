@@ -88,10 +88,19 @@ Date. Removing a remote device or unsharing a folder deletes no files.
 1. Note the hub's device ID: hub GUI, Actions, Show ID.
 2. Remote Devices: the hub is listed and Connected. If it is missing, Add
    Remote Device with that ID, then accept the device prompt on the hub.
-3. Each folder, Edit, Sharing: tick the hub if it is not ticked, Save. Wait
-   until the hub shows the folder Up to Date for this device.
+3. Each folder, Edit, Sharing: tick the hub if it is not ticked, Save. The
+   hub accepts no folder by itself: if it shows a prompt to share this
+   folder with this device, accept it (Add for a folder the hub does not
+   have, Share for one it has), keep the folder ID, and set its path under
+   `/var/syncthing`. Wait until the hub shows the folder Up to Date for this
+   device.
 4. Each folder, Edit, Sharing: untick every device that is not the hub, Save.
-5. Remote Devices, each device that is not the hub: Edit, Remove, Yes.
+   Do this only when the hub shares the folder with every device that needs
+   it (hub GUI, the folder, Shared With), or the devices not on that list
+   stop getting it.
+5. Remote Devices, each device that is not the hub: Edit, Remove, Yes. A
+   former peer not done yet still dials this device and then shows as a
+   new-device prompt: ignore it, do not Add it.
 6. Remote Devices, the hub: Edit, Sharing, untick Introducer and Auto Accept,
    Save.
 7. Settings, Connections: Global Discovery and Enable Relaying on. Save.
