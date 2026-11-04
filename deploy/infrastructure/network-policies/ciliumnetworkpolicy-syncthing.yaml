@@ -14,7 +14,7 @@ metadata:
   name: syncthing
   namespace: syncthing
 spec:
-  description: 'Syncthing: web UI from the Gateway, sync protocol from the LAN and
+  description: 'Syncthing: web UI from its SSO proxy, sync protocol from the LAN and
     the internet, outbound to peers, discovery servers and relays on any port.'
   egress:
   - toEndpoints:
@@ -36,10 +36,19 @@ spec:
     matchLabels:
       app: syncthing
   ingress:
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - syncthing-sso
+        - postsync-smoke
+    toPorts:
+    - ports:
+      - port: "8384"
+        protocol: TCP
   - fromEntities:
-    - ingress
     - host
-    - remote-node
     toPorts:
     - ports:
       - port: "8384"

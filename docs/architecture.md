@@ -221,13 +221,14 @@ password login is 12 hours old.
 | | Access token | 5 min |
 | | Browser flow `browser-loa`: password step behind "Condition - Level of Authentication", level 1 | max age 12 h |
 | | OTP after the password: required for realm role `mfa-required` (group `admins`), optional for everyone else | TOTP, 6 digits, 30 s, SHA1 |
-| | ACR `platform` = level 1 (`acr.loa.map`); default ACR of `argocd`, `grafana-oauth`, `security-admin-console`, `headlamp`, `hubble` | `platform` |
+| | ACR `platform` = level 1 (`acr.loa.map`); default ACR of `argocd`, `grafana-oauth`, `security-admin-console`, `headlamp`, `hubble`, `signoz`, `syncthing` | `platform` |
 | Keycloak realm `master` (Keycloak admin) | sessions: defaults; browser flow `browser-otp`: password and OTP for every user | 30 min idle, 10 h max |
 | Immich | built in: session tokens do not expire, cookies last 400 d; OAuth `autoLaunch` and `autoRegister` on; mobile redirect `app.immich:///oauth-callback` | none to set |
 | Mealie | `TOKEN_TIME` | 8760 h |
 | Paperless | `PAPERLESS_SESSION_COOKIE_AGE` | 365 d |
 | Jellyfin, Plex clients | app tokens without expiry; Jellyfin Quick Connect is on; Plex sessions belong to the Plex account | none to set |
 | Theater admin UIs (oauth2-proxy `theater-sso`) | `--cookie-expire`, `--cookie-refresh` | 365 d, refreshed hourly |
+| Syncthing GUI (oauth2-proxy `syncthing-sso`) | `--cookie-expire`, `--cookie-refresh`; Syncthing's own GUI login stays behind it | 12 h, refreshed hourly |
 | Grafana | `login_maximum_inactive_lifetime_duration` / `login_maximum_lifetime_duration`; no refresh token | 12 h / 24 h |
 | Argo CD | `oidc.config`: no refresh, no `offline_access` | Keycloak token lifetime |
 

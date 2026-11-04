@@ -1,0 +1,36 @@
+# Enforced from the start (default-deny ingress), unlike the allow-lists in
+# infrastructure/network-policies: only the shared Gateway (Cilium's Envoy,
+# identity `ingress`) may reach syncthing-sso. Egress stays open (Keycloak,
+# the Syncthing GUI).
+#
+# The Syncthing pod itself stays on the namespace switch in
+# infrastructure/network-policies/90-enforcement.yaml (60-syncthing.yaml):
+# a default-deny on it would also cover the sync ports.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: syncthing-sso
+  namespace: syncthing
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: syncthing-sso
+  enableDefaultDeny:
+    ingress: true
+    egress: false
+  ingress:
+    # syncthing.lilalala.com (httproute.yaml) -> syncthing-sso :4180. The
+    # Gateway proxy has the identity `ingress`; with `bpf.masquerade: false`
+    # its cross-node traffic can arrive SNATed to a node address
+    # (infrastructure/network-policies/10-theater.yaml).
+    - fromEntities:
+        - ingress
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "4180"
+              protocol: TCP
+    # kubelet probes.
+    - fromEntities:
+        - host

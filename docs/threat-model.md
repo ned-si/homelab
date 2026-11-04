@@ -12,7 +12,7 @@ point, a credential or an admission path is added or removed.
 | Asset | Where | Lost | Leaked | Protection |
 | --- | --- | --- | --- | --- |
 | Photos and videos (Immich originals) | PVC `immich-data` on the NAS | irreplaceable | private family data | restic to S3 and to the NAS, restore rehearsed ([backups.md](backups.md)); Keycloak login |
-| Documents (Paperless, Syncthing) | iSCSI PVCs on the NAS | hard to replace | private, some official papers | nightly restic to S3; Keycloak login (Paperless) |
+| Documents (Paperless, Syncthing) | iSCSI PVCs on the NAS | hard to replace | private, some official papers | nightly restic to S3; Keycloak login (Paperless, the Syncthing GUI) |
 | age private key | the Mac, the password manager, Secret `argo/sops-age` | every sealed secret must be recreated | every secret in git, including history, is readable | three copies only, mode 600 on the Mac ([secrets.md](secrets.md#the-key)) |
 | `talosconfig` | the Mac, the password manager | regenerated from `talos/talsecret.sops.yaml` | full control of every node: reset, upgrade, read machine configs and their keys | mTLS client certificate, role `os:admin`; Talos API reachable from the LAN and, for the tailnet owner and admins, over the tailnet (`tag:talos`, TCP 50000) |
 | Admin kubeconfig | the Mac, the password manager | regenerated with `talosctl kubeconfig` | `cluster-admin` (group `system:masters`); cannot be revoked short of a CA rotation | client certificate; API VIP `192.168.1.11` reachable from the LAN only |
@@ -26,15 +26,16 @@ point, a credential or an admission path is added or removed.
 - Threats: S (credential stuffing on Keycloak), I (an app's own unauthenticated
   endpoints), D (floods), E (a vulnerable app).
 - Control: TLS with the Let's Encrypt wildcard; port 80 only redirects. Immich,
-  Mealie, Paperless, Grafana and Argo CD log in through Keycloak; members of
+  Mealie, Paperless, Grafana and Argo CD log in through Keycloak, and the
+  Syncthing GUI sits behind an oauth2-proxy for group `admins`; members of
   `admins` and the Keycloak admin (realm `master`) need a TOTP code after the
   password ([keycloak-otp.md](runbooks/keycloak-otp.md)). Both Keycloak
   realms run brute-force detection and allow no password grant.
   Plex and Jellyfin keep their own login (their TV apps cannot use SSO), and
   so do the *arr UIs under `theater.lilalala.com/arr/<app>`. PSA `restricted`
   on the `gateway` namespace. DAST (ZAP) runs against the public names.
-- Residual: any realm user reaches every Keycloak app; the *arr UIs and the
-  Syncthing GUI rely on logins configured inside each app, not in git; no
+- Residual: any realm user reaches every Keycloak app; the *arr UIs rely on
+  logins configured inside each app, not in git; no
   security response headers; no rate limit at the Gateway.
 - Planned: oauth2-proxy in front of the *arr UIs (`apps/theater/sso.yaml`,
   written, not deployed); per-app access groups enforced at Keycloak; security

@@ -58,7 +58,7 @@ RETRY_SLEEP=${SMOKE_RETRY_SLEEP:-20}
 ARP_SAMPLES=${SMOKE_ARP_SAMPLES:-6}
 ARP_INTERVAL=${SMOKE_ARP_INTERVAL:-10}
 # Item 11: "<host> <login start path> <client_id> <callback path>", ";" apart.
-SSO_APPS=${SMOKE_SSO_APPS:-"argo /auth/login argocd /auth/callback;grafana /login/generic_oauth grafana-oauth /login/generic_oauth;headlamp /oauth2/start headlamp /oauth2/callback"}
+SSO_APPS=${SMOKE_SSO_APPS:-"argo /auth/login argocd /auth/callback;grafana /login/generic_oauth grafana-oauth /login/generic_oauth;headlamp /oauth2/start headlamp /oauth2/callback;syncthing /oauth2/start syncthing /oauth2/callback"}
 SSO_ISSUER=${SMOKE_SSO_ISSUER:-https://auth.$DOMAIN/realms/homelab}
 PENDING_MAX_S=300
 PLACEHOLDER='<previous run UTC>'
