@@ -39,7 +39,7 @@ result; `paperless_canary_success 0` or no Job in that time.
    | `HTTP 5xx` or a connection error | Paperless is down or restarting | `kubectl -n paperless get pods`; the Deployment's events and logs |
    | `not findable after 900 s` | the upload was accepted but never consumed or indexed | the consumption task in Paperless (Tasks, as `nedsi-admin`), `kubectl -n paperless logs deploy/paperless`, the Valkey pod |
    | `cleanup: ...` | found, but the page was not deleted or not emptied from the trash | delete the `canary <number>` document as `nedsi-admin` and empty it from the trash; then the permission named in the error |
-   | `push: ...` | the Pushgateway did not take the result | `kubectl -n backup-verify get pods`; the egress rule in `infrastructure/network-policies/30-paperless.yaml` |
+   | `push: ...` | the Pushgateway did not take the result | `kubectl -n backup-verify get pods`; the `paperless-canary` entry in the NetworkPolicy of `platform/backup-verify/pushgateway.yaml`, and the egress rule in `infrastructure/network-policies/30-paperless.yaml` |
 
    No Job at all: `kubectl -n paperless describe cronjob paperless-canary`
    (suspended, or the Secret `paperless-canary` is missing).

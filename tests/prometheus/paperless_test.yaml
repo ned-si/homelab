@@ -66,6 +66,8 @@ tests:
     input_series:
       - series: 'paperless_canary_duration_seconds{job="paperless-canary"}'
         values: '400x420'
+      - series: 'paperless_canary_success{job="paperless-canary"}'
+        values: '1x420'
     alert_rule_test:
       - eval_time: 5h
         alertname: PaperlessIngestSlow
@@ -89,6 +91,21 @@ tests:
     input_series:
       - series: 'paperless_canary_duration_seconds{job="paperless-canary"}'
         values: '400x355 60x5 400x360'
+      - series: 'paperless_canary_success{job="paperless-canary"}'
+        values: '1x720'
+    alert_rule_test:
+      - eval_time: 6h10m
+        alertname: PaperlessIngestSlow
+        exp_alerts: []
+
+  # Two runs in a row that time out (not findable after 900 s): Failing's
+  # case, not Slow's.
+  - interval: 1m
+    input_series:
+      - series: 'paperless_canary_duration_seconds{job="paperless-canary"}'
+        values: '900x420'
+      - series: 'paperless_canary_success{job="paperless-canary"}'
+        values: '0x420'
     alert_rule_test:
       - eval_time: 6h10m
         alertname: PaperlessIngestSlow

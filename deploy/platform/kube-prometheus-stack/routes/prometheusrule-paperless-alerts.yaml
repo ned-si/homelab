@@ -41,7 +41,9 @@ spec:
           task queue is slow.
         runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessIngestSlow.md
         summary: Paperless uploads take over 5 minutes to be findable
-      expr: max(paperless_canary_duration_seconds) > 300
+      expr: |
+        max(paperless_canary_duration_seconds) > 300
+        and on() max(paperless_canary_success) == 1
       for: 6h
       labels:
         action: human

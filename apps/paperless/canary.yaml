@@ -6,8 +6,11 @@
 # (platform/kube-prometheus-stack/routes/paperless-alerts.yaml) page on it.
 #
 # `canary` has no group, only its own add, view and delete document
-# permissions, so it sees only its own pages. Its token is in the Secret
-# `paperless-canary` (apps/secrets/paperless-canary.sops.yaml).
+# permissions, so it sees only its own pages. The `share` workflow gives
+# `readers` view on them too while they exist (an API upload, like any
+# other). Its token is in the Secret `paperless-canary`
+# (apps/secrets/paperless-canary.sops.yaml). The Pushgateway's NetworkPolicy
+# (platform/backup-verify/pushgateway.yaml) admits its push.
 ---
 apiVersion: batch/v1
 kind: CronJob

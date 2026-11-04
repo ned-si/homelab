@@ -7,7 +7,8 @@ Shell: [Before you start](README.md#before-you-start).
 
 Two runs in a row of the Paperless ingest canary (`paperless/paperless-canary`,
 every 6 hours) took over 5 minutes from upload to a full-text search hit on
-their one-page PDF. The target is 5 minutes for a file of up to 10 pages, so
+their one-page PDF. Only runs that found their page count; a failed run is
+[PaperlessIngestFailing](PaperlessIngestFailing.md)'s. The target is 5 minutes for a file of up to 10 pages, so
 real uploads are slower than that: OCR, the Celery worker or the task queue
 is struggling.
 
@@ -19,7 +20,8 @@ kubectl -n paperless top pod
 kubectl -n paperless logs job/<last canary job> | grep -E 'PASS|FAIL'
 ```
 
-Expected while it fires: a duration above 300 and `PASS findable after <n> s`
+Expected while it fires: a duration above 300, `paperless_canary_success 1`
+and `PASS findable after <n> s`
 with `<n>` above 300.
 
 ## Fix
