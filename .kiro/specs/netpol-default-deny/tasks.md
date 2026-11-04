@@ -31,6 +31,8 @@ numbers in brackets.
       `90-enforcement.yaml` and `docs/networking.md`; the live test on a
       scratch namespace with the admin kubeconfig only, its result and timing
       in the pull request. Before any flip. [5.6, 6.1, 6.2] (#1025)
+- [x] 4. Flip `paperless` ingress, once the Paperless lane of the current run
+      is done. [2, 4.1, 4.2, 7] (#1038)
 
 ## Open
 
@@ -40,8 +42,6 @@ numbers in brackets.
       comment per rule), the `books` switch block (both `false`), `books` in
       the namespace list of `netpol.yaml` and its test. Starts the 7-day
       audit. [3.1, 4.4]
-- [ ] 4. Flip `paperless` ingress, once the Paperless lane of the current run
-      is done. [2, 4.1, 4.2, 7]
 - [ ] 5. `mealie` residuals: identify the 2 ingress and 2 egress would-be
       drops per week and every presence series (2 per direction on
       2026-11-04, one of each with no increase) (`netpol-observe.sh mealie
