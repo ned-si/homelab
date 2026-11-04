@@ -29,7 +29,9 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
-      contents: read
+      # Turning auto-merge on needs both. Such a merge triggers no push
+      # workflows; the schedule restarts the train.
+      contents: write
       pull-requests: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
