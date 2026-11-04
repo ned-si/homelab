@@ -1,0 +1,38 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hook-jobs
+  namespace: books
+spec:
+  description: The PostSync smoke Job calls both apps once after a sync.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: audiobookshelf
+    toPorts:
+    - ports:
+      - port: "13378"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: calibre-web
+    toPorts:
+    - ports:
+      - port: "8083"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postsync-smoke

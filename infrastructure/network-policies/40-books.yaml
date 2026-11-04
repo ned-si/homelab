@@ -1,0 +1,194 @@
+# books: Audiobookshelf and Calibre-Web Automated (apps/books/), their restic
+# CronJobs and the PostSync smoke Job. LazyLibrarian runs in `theater` and
+# reaches the library through the NFS share only (10-theater.yaml).
+#
+# From the manifests in apps/books/: no live flows to start from, because
+# Hubble reports policy verdicts only for pods a policy selects, and none
+# did. The 7-day audit of spec netpol-default-deny starts with this file;
+# what it misses shows up as would-be drops (`match="all"`).
+#
+# Not enforced: every policy here is default-allow; the switch is the
+# `books` block in ./90-enforcement.yaml.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: audiobookshelf
+  namespace: books
+spec:
+  description: >-
+    Audiobookshelf: HTTP from the Gateway and the smoke Job, egress to Keycloak
+    and the metadata providers over HTTPS.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: audiobookshelf
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # audiobooks.lilalala.com -> audiobookshelf :13378.
+    # apps/books/audiobookshelf.yaml -- HTTPRoute `audiobookshelf`.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "13378"
+              protocol: TCP
+    # apps/books/kustomization.yaml -- postsync-smoke
+    # http://audiobookshelf:13378/healthcheck.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "13378"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # OIDC at https://auth.lilalala.com (the WAN address, so `world`;
+    # platform/keycloak/realm/clients.conf -- `audiobookshelf`), the metadata
+    # providers and podcast feeds. HTTPS only: a feed on plain HTTP shows up
+    # in the audit as a would-be drop to decide.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: calibre-web
+  namespace: books
+spec:
+  description: >-
+    Calibre-Web Automated: HTTP from the Gateway and the smoke Job, egress to
+    Keycloak and the metadata providers over HTTPS.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: calibre-web
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # ebooks.lilalala.com -> calibre-web :8083 (web, OPDS, Kobo sync).
+    # apps/books/calibre-web.yaml -- HTTPRoute `calibre-web`.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8083"
+              protocol: TCP
+    # apps/books/kustomization.yaml -- postsync-smoke
+    # http://calibre-web:8083/login.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "8083"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # OIDC at https://auth.lilalala.com (`world`; clients.conf --
+    # `calibre-web`), the metadata providers and the Kobo store proxy.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+# The restic CronJobs (apps/books/backup.yaml): two nightly backups and the
+# monthly prune, all to S3. They read volumes and talk to nothing in the
+# cluster. Selector as in 10-theater.yaml: job-name Exists.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: backup-jobs
+  namespace: books
+spec:
+  description: >-
+    The books restic CronJobs: DNS and S3 on 443.
+  endpointSelector:
+    matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: [postsync-smoke]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # RESTIC_REPOSITORY s3:https://s3.eu-central-1.amazonaws.com/...
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hook-jobs
+  namespace: books
+spec:
+  description: >-
+    The PostSync smoke Job calls both apps once after a sync.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postsync-smoke
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # apps/books/kustomization.yaml -- the two smoke URLs.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: audiobookshelf
+      toPorts:
+        - ports:
+            - port: "13378"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: calibre-web
+      toPorts:
+        - ports:
+            - port: "8083"
+              protocol: TCP
