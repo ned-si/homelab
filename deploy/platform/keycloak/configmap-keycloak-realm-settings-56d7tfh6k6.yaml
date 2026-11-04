@@ -990,14 +990,16 @@ data:
     # 12 hours.
     loa_max_age=43200
 
-    # OTP for admins. Members of mfa_groups get the realm role mfa_role. The
+    # OTP for every group that grants an admin role in some app (access.conf):
+    # `admins` and the per-app admin groups. Members of mfa_groups get the realm
+    # role mfa_role. The
     # password step of `browser-loa` and of every `access-<client>` flow is then
     # followed by the OTP Form for holders of the role; one without an
     # authenticator app is asked to set one up (required action CONFIGURE_TOTP).
     # Everyone else keeps OTP optional: asked only when they set one up. Password
     # grants skip this step; they are off (direct_grant_clients below).
     mfa_role=mfa-required
-    mfa_groups=admins
+    mfa_groups=admins ArgoCDAdmins TheaterAdmins HomeAssistantAdmins
 
     # OTP policy of both realms, as RealmRepresentation fields: what common
     # authenticator apps expect.
@@ -1104,5 +1106,5 @@ data:
     minimumQuickLoginWaitSeconds=60
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-2c45c8ghdm
+  name: keycloak-realm-settings-56d7tfh6k6
   namespace: keycloak

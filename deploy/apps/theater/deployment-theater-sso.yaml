@@ -26,7 +26,7 @@ spec:
   template:
     metadata:
       annotations:
-        homelab.lilalala.com/config-version: "2"
+        homelab.lilalala.com/config-version: "3"
       labels:
         app.kubernetes.io/component: sso-proxy
         app.kubernetes.io/name: theater-sso

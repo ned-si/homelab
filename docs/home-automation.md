@@ -55,8 +55,12 @@ release (`minimumReleaseAge`, `.github/renovate.json5`).
 - Client `home-assistant` in realm `homelab`: public, PKCE S256, redirect URI
   `https://home.lilalala.com/auth/oidc/callback` (in
   `platform/keycloak/realm/clients.conf`).
-- Keycloak group `HomeAssistantAdmins`: Home Assistant administrator. Other
-  realm users get a normal user on first login.
+- Keycloak group `HomeAssistantAdmins`: Home Assistant administrator, with
+  OTP. Every other user who passes the gate (`admins`, `family`) gets a
+  normal user. `hass-oidc-auth` maps one group to its admin role and sets the
+  role only when it creates the user, at the first login: to make an
+  existing user an administrator, change it in Home Assistant (Settings,
+  People).
 - Break-glass: the local `owner` account at
   `https://home.lilalala.com/?skip_oidc_redirect=true`, password in the
   operator's password manager.

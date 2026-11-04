@@ -8,8 +8,9 @@
 # so the login sits in front of them. The proxy routes by path (alpha config
 # below): each app keeps its URL base /arr/<app>; qBittorrent has none, so its
 # prefix is stripped. Access needs membership of the Keycloak group
-# `TheaterAdmins`; the client `theater-sso` and the group are realm code
-# (platform/keycloak/realm/platform.conf, `proxy_clients`).
+# `admins` or `TheaterAdmins`; the client `theater-sso` and the groups are
+# realm code (platform/keycloak/realm/platform.conf, `proxy_clients`, and
+# access.conf).
 #
 # Each app keeps its own form login behind the proxy: that local admin is the
 # break-glass account, reached with a port-forward when Keycloak is down.
@@ -75,6 +76,7 @@ data:
         clientSecretFile: /secrets/client-secret
         scope: openid email profile groups
         allowedGroups:
+          - admins
           - TheaterAdmins
         code_challenge_method: S256
         oidcConfig:
@@ -111,7 +113,7 @@ spec:
         app.kubernetes.io/name: theater-sso
         app.kubernetes.io/component: sso-proxy
       annotations:
-        homelab.lilalala.com/config-version: "2"
+        homelab.lilalala.com/config-version: "3"
     spec:
       securityContext:
         runAsNonRoot: true

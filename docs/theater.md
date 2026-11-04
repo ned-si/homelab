@@ -18,9 +18,10 @@ The admin UIs are on https://theater.lilalala.com behind a Keycloak login:
 
 One oauth2-proxy, `theater-sso` (`apps/theater/sso.yaml`), takes every
 `/arr/*` path and `/oauth2` from the HTTPRoute `theater` and routes on by
-path. Access needs membership of the Keycloak group `TheaterAdmins`; add
-users to it in the Keycloak admin console (Groups). The client `theater-sso`
-and the group are realm code (`platform/keycloak/realm/platform.conf`,
+path. Access needs membership of the Keycloak group `admins` or
+`TheaterAdmins` (`allowedGroups`); add users to `TheaterAdmins` in the
+Keycloak admin console (Groups) to give them the theater UIs only. Members
+of both groups need OTP. The client `theater-sso` and the groups are realm code (`platform/keycloak/realm/platform.conf`,
 `proxy_clients`, and `clients.conf`); the PostSync Job
 `keycloak-realm-settings` creates them and sets the client secret. The
 session lasts a year, refreshed from the Keycloak session

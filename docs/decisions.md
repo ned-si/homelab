@@ -393,8 +393,9 @@ Rejected: upgrading to Seafile 12 to keep a file share no one opens.
 
 ## OTP for admins, client credentials for automation
 
-Members of the `homelab` group `admins` need a TOTP code at every password
-login (realm role `mfa-required`, conditional subflows in `browser-loa` and
+Members of the `homelab` groups that grant an admin role (`admins`,
+`ArgoCDAdmins`, `TheaterAdmins`, `HomeAssistantAdmins`) need a TOTP code at
+every password login (realm role `mfa-required`, conditional subflows in `browser-loa` and
 every `access-<client>` flow), and so does every user of the `master` realm,
 which is the Keycloak admin console (flow `browser-otp`). The household keeps
 password-only logins, with OTP optional. Policy: TOTP, 6 digits, 30 s, SHA1.
