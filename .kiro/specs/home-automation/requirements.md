@@ -30,8 +30,8 @@ Non-goals:
   devices, and anything about the alarm and camera gear beyond its
   category, stay in the operator's local inventory file; the repo describes
   categories, integrations and rules (the repo is public).
-- Replacing the alarm system or its monitoring. Home Assistant reads it and
-  may arm it; it never becomes the alarm.
+- Replacing the alarm system or its monitoring. Home Assistant reads it; it
+  never arms, disarms or becomes the alarm.
 - Motorised blinds and air conditioning. The household has neither; they
   are deferred issues, and this spec only picks the protocol they must use
   (Requirement 12).
@@ -79,7 +79,8 @@ anything.
 #### Acceptance criteria
 
 1. FOR every device category in scope (lights, heating, solar, heat pump,
-   plants, cameras, alarm, wall tablet), THE inventory file SHALL record the
+   EV charging, plants, cameras, alarm, smoke alarms, appliances, robot
+   vacuum, wall tablet), THE inventory file SHALL record the
    operator's label photos' findings, the matching integration, local or
    cloud, and what it can read and control.
 2. THE feasibility table in `docs/home-automation.md` SHALL have one row per
@@ -107,7 +108,7 @@ not.
    simulates presence.
 3. WHEN Home Assistant is stopped, THE wall switches, the bridge's own
    schedules and the vendor app on the LAN SHALL still switch the lights.
-   (test: the Deployment scaled to 0 for 10 minutes on a weekday)
+   (test: the [fallback test](design.md#fallback-test), on a weekday)
 4. A switch or sensor added later SHALL pair with the lights' bridge or
    bind directly to its target over Zigbee, never only through a Home
    Assistant automation, for any light a person needs to see by.
@@ -126,8 +127,9 @@ Assistant.
 2. THE heating controller's own schedule SHALL stay the source of the
    daily program; Home Assistant SHALL only switch modes or override
    setpoints for a limited time, so a stopped Home Assistant leaves the
-   heating on its schedule. (test: an override with an end time, then Home
-   Assistant scaled to 0: the zone returns to its schedule)
+   heating on its schedule. (test: an override with an end time, then the
+   [fallback test](design.md#fallback-test): the zone returns to its
+   schedule)
 3. WHEN a window contact in a zone reports open for 5 minutes, THE zone
    SHALL drop to its frost setpoint until the window closes. (phase 2,
    once contacts exist)
@@ -143,8 +145,9 @@ where the power goes and can use the solar surplus.
 #### Acceptance criteria
 
 1. Home Assistant's Energy dashboard SHALL show solar production, grid
-   import and export and house consumption, from the inverter and the meter
-   integrations, read locally where the device allows it.
+   import and export, house consumption and EV charging power where the
+   charger reports it, from the inverter, meter and charger integrations,
+   read locally where the device allows it.
 2. THE heat pump's power or energy and its operating mode SHALL be shown
    when its integration provides them.
 3. A cloud integration with a request quota SHALL poll at an interval that
@@ -191,9 +194,11 @@ cloud.
 3. WHEN the NVR detects a person on a camera while the house is in away
    or night mode, THE household members SHALL get one household
    notification with a snapshot, at most one per camera per 5 minutes.
-4. THE NVR's UI and streams SHALL have no public route; the household
-   watches cameras through Home Assistant, the operator reaches the NVR UI
-   over the tailnet.
+4. THE NVR SHALL have no route (no HTTPRoute, no LoadBalancer); the
+   household watches cameras through Home Assistant, and the operator opens
+   the NVR UI with `kubectl -n frigate port-forward svc/frigate 5000`
+   through the tailnet API proxy. (a deliberate exception to "UIs public
+   behind SSO", reason in [design](design.md#decided-defaults))
 5. ONCE the network has a camera segment (networking spec), THE cameras
    SHALL have no internet access and SHALL be reachable only from the
    cluster nodes on their RTSP and ONVIF ports.
@@ -214,9 +219,9 @@ in Home Assistant without making the alarm depend on it.
    sensors), THEN Home Assistant SHALL use it; a cloud-only panel SHALL be
    read through its cloud integration or not at all, as the feasibility
    table says.
-3. Arming from Home Assistant SHALL need the panel's code or an admin
-   user; disarming SHALL need the code; the wall tablet user SHALL never
-   disarm without it.
+3. Home Assistant SHALL NOT arm or disarm the panel. IF the panel's
+   integration exposes arm or disarm actions, THEN no dashboard or
+   automation uses them, and enabling them is a new issue.
 4. WHEN the alarm triggers, THE household members SHALL get a critical
    household notification (sound through silent mode).
 
@@ -272,7 +277,9 @@ phones and platform problems on my pager, never mixed.
 
 1. Household notifications SHALL go only through the companion app's
    `notify` actions, to per-purpose notify groups (security, plants,
-   house), never to the operator's ntfy topic.
+   house, admins), never to the operator's ntfy topic. (check: from the
+   Home Assistant pod, `curl -m 5 https://ntfy.sh` fails once the `home`
+   egress allow-list, #709, is enforced)
 2. Alertmanager SHALL NOT route a house event (a plant, a door, a camera);
    platform problems of Home Assistant itself (down, backups, probes) stay
    operator pages as today.
@@ -291,8 +298,8 @@ to work whatever happens to the homelab.
 1. WITH Home Assistant scaled to 0 for 10 minutes, THE lights SHALL switch
    from their switches, THE heating SHALL follow its schedule, THE alarm
    SHALL arm and disarm from its own keypad or app, and THE cameras SHALL
-   record to their cards. (test: once per phase, on a weekday; the result
-   in the PR)
+   record to their cards. (test: the [fallback test](design.md#fallback-test),
+   once per phase, on a weekday; the result in the PR)
 2. No automation that keeps people safe or warm SHALL exist only in Home
    Assistant; such an automation runs on the device controller and Home
    Assistant only mirrors it.
@@ -326,8 +333,14 @@ restorable and no footage or inventory where it does not belong.
 1. THE Home Assistant config volume (integrations, dashboards, users,
    automations), the recorder and `zigbee2mqtt-data` SHALL be in the nightly
    restic snapshot and the CNPG backups, under the 24 h freshness rule.
-2. THE NVR's configuration SHALL be in git, its event database in a
-   nightly restic snapshot; recordings SHALL be excluded from every backup.
+2. THE NVR's configuration SHALL be a SOPS-encrypted Secret
+   (`apps/frigate/secrets/frigate-config.sops.yaml`, key `config.yml`),
+   mounted read-only, with generic camera names (`cam1`...`camN`); RTSP
+   credentials come from `FRIGATE_RTSP_*` environment variables of the
+   same Secret. Only non-camera settings (detector, retention, MQTT) may be
+   plain in `apps/frigate/`, and editing the config from Frigate's UI is
+   off. THE event database and the recordings SHALL NOT be backed up; the
+   config is the Secret.
 3. No camera image, recording, device model, count or location SHALL appear
    in git, a pull request, an issue or a log shipped off the cluster.
 4. A restore of the Home Assistant config volume from restic SHALL bring
