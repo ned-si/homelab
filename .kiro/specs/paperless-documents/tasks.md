@@ -127,7 +127,7 @@ in [requirements.md](requirements.md#decided-defaults).
       open egress from `paperless` while it is in audit mode), the
       media-home area spec updated with how Paperless works now; then
       header `status: done`, `closed:`, issue #732 closed.
-      (#TASK9PR)
+      (#1094)
 
 ## Moved to the backlog (2026-11-04)
 
