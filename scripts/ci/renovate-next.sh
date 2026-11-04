@@ -31,9 +31,8 @@
 # RENOVATE_TRAIN_PAUSED ("<pr> <utc time>") while it holds its merge lock, so
 # Renovate merges do not move main under the pull request it is merging.
 # Then nothing is ticked and nothing else is changed, and the run succeeds.
-# GitHub auto-merge stays as it is: the workflow token cannot turn it off
-# (`disablePullRequestAutoMerge` is refused to the integration, #960), so a
-# pull request already rebased before the pause can still merge, and
+# GitHub auto-merge stays as it is (#960), so a pull request already
+# rebased before the pause can still merge, and
 # pr-merge.sh rebases again (its retries). A pause older than PAUSE_STALE_MIN
 # (90) minutes is ignored: its pr-merge run died.
 #
