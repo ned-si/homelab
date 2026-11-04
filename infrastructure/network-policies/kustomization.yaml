@@ -1,46 +1,23 @@
-# CiliumNetworkPolicy for the application namespaces.
+# CiliumNetworkPolicy allow-lists for the application namespaces. They block
+# nothing until a switch in 90-enforcement.yaml is set; read it first.
+# Design: docs/networking.md, "Network policy".
 #
-# As shipped these policies block nothing: every rule sets
-# `enableDefaultDeny: {ingress: false, egress: false}`. Enforcement is switched
-# per namespace and direction in 90-enforcement.yaml; read it first.
+# CiliumNetworkPolicy, not NetworkPolicy: it expresses `reserved:ingress`,
+# `toEntities: [kube-apiserver]` and `enableDefaultDeny` (a NetworkPolicy
+# denies as soon as it selects a pod). Namespaced, because the
+# `infrastructure` AppProject does not allow CCNP.
 #
-# CiliumNetworkPolicy rather than NetworkPolicy: it can express the Gateway
-# proxy's `reserved:ingress` identity, `toEntities: [kube-apiserver]` for the
-# CNPG instance manager, and `enableDefaultDeny`, which makes the rollout
-# reversible (a NetworkPolicy denies the moment it selects a pod).
+# `theater` is policed per workload; other namespaces as a whole, since their
+# chart labels change on upgrades. NFS and iSCSI mounts happen in the host
+# network namespace, which pod policy never sees.
 #
-# Namespaced rather than CiliumClusterwideNetworkPolicy: the `infrastructure`
-# AppProject (clusters/homelab/bootstrap/project-infrastructure.yaml) lists
-# its cluster-scoped kinds and CCNP is not one of them. Add it there on purpose
-# if a cluster-wide policy is ever needed.
-#
-# `cilium.io/v2` (only the LB IP pool and L2 announcement types are v2alpha1).
-# Check:
-#
-#     kubectl get crd ciliumnetworkpolicies.cilium.io \
-#       -o jsonpath='{range .spec.versions[*]}{.name} served={.served}{"\n"}{end}'
-#
-# Granularity: `theater` is per workload (qBittorrent must not reach its
-# neighbours). The other namespaces are one application each, wired by an
-# upstream chart whose labels change on upgrades, so the namespace is the
-# boundary there.
-#
-# No NFS or iSCSI rules: those mounts are made by the kubelet and iscsid in the
-# host network namespace, which pod policy never sees. Policing nodes needs the
-# host firewall and a CCNP. Enforcing these policies stops pods, not nodes,
-# from reaching the NAS; restricting the TrueNAS exports to the node IPs is the
-# other half (infrastructure/nfs-storage/nfs-volumes.yaml).
-#
-# Not covered: cert-manager, external-dns, gateway, democratic-csi,
-# monitoring, keycloak, backup-verify, kube-system, argo. They stay
-# allow-all; a mistake there takes out certificates and DNS for the whole site.
+# Not covered, allow-all: cert-manager, external-dns, gateway, democratic-csi,
+# monitoring, keycloak, backup-verify, kube-system, argo.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 # No `namespace:`: these resources span several namespaces and set their own.
 resources:
-  # Allow-lists. Load-bearing only once the matching namespace is switched on in
-  # 90-enforcement.yaml.
   - 10-theater.yaml
   - 15-theater-metrics.yaml
   - 20-immich.yaml

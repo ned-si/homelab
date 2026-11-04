@@ -1,22 +1,11 @@
-# Helm values for the `cilium` release (namespace `kube-system`), rendered by
-# the Argo CD Application clusters/homelab/infrastructure/cilium.yaml. A merge
-# to main that changes this file rolls the CNI on every node.
+# Values for the `cilium` release (kube-system). A merge that changes this file
+# rolls the CNI on every node; the bootstrap installs with the same file
+# (docs/bootstrap.md).
 #
-# The bootstrap of a fresh cluster installs the release with this same file
-# (docs/bootstrap.md), then Argo CD adopts it.
-#
-# Talos settings, from the Talos Cilium guide
-# (https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium):
-#   - The API server is reached through KubePrism, the load balancer Talos
-#     runs on every node at localhost:7445. It works before any pod network
-#     exists and does not depend on the VIP.
-#   - Talos mounts cgroup v2 itself and does not allow loading kernel modules,
-#     so Cilium does not mount cgroups and the agent drops SYS_MODULE (the
-#     lists below are the chart defaults without it).
-#   - Pod CIDRs come from the node objects (`ipam.mode: kubernetes`), i.e.
-#     from the cluster's pod subnet in talos/talconfig.yaml.
-# The cluster runs without kube-proxy (`proxy.disabled` in talconfig.yaml), so
-# kubeProxyReplacement is required, not optional.
+# Talos (https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium):
+# the API server through KubePrism on localhost:7445, no cgroup mount, no
+# SYS_MODULE, pod CIDRs from the nodes. No kube-proxy, so the replacement is
+# required.
 k8sServiceHost: localhost
 k8sServicePort: 7445
 kubeProxyReplacement: true
@@ -49,11 +38,8 @@ externalIPs:
   enabled: true
 gatewayAPI:
   enabled: true
-# How the agents serve Envoy its configuration. Chart 1.20.4 changed the
-# default from `ads` to none and only the Envoy bootstrap followed: the live
-# agent config kept a Helm-owned `ads`, and the Gateway lost its listeners
-# (docs/postmortems/2026-10-23-gateway-cilium-xds.md). Set here, so the agent
-# config and the Envoy bootstrap always render from one value.
+# Set explicitly so the agent config and the Envoy bootstrap render from one
+# value (docs/postmortems/2026-10-23-gateway-cilium-xds.md).
 envoy:
   xdsMode: ads
 # Serves the Gateway on 192.168.1.254 and the pinned LoadBalancer IPs
@@ -62,27 +48,13 @@ envoy:
 l2announcements:
   enabled: true
 
-# Metrics: the agent on :9962, Hubble on :9965 (both host ports on every
-# node), the operator on :9963 and Envoy on :9964 (chart defaults). Scraped by
-# the PodMonitors in platform/kube-prometheus-stack/routes/cilium-monitors.yaml,
-# not by the chart's ServiceMonitors: the bootstrap and the CI Talos
-# rehearsal install this chart before the Prometheus CRDs exist.
+# Metrics: agent :9962, Hubble :9965, operator :9963, Envoy :9964, scraped by
+# the PodMonitors in platform/kube-prometheus-stack/routes/cilium-monitors.yaml
+# (the chart installs before the Prometheus CRDs exist).
 #
-# Hubble metrics, labelled by namespace (or the reserved identity, such as
-# `world` for traffic from outside the cluster) on both ends:
-#   flow    every flow by type and verdict
-#   drop    drops by reason
-#   tcp     TCP flags (SYN without SYN-ACK = failed connections)
-#   icmp    ICMP by type
-#   httpV2  requests, status and latency of L7 traffic through Envoy (the
-#           Gateway)
-#   policy  policy verdicts with their match type (would-be drops); labelled
-#           by workload, with the namespaces as extra labels
-# A change to this list changes cilium-config and takes effect when the
-# agents restart (`rollOutCiliumPods` is off): restart the DaemonSet once,
-# under a kube-system maintenance silence.
-# No `dns`: Hubble sees DNS only through its DNS proxy, which needs an FQDN
-# policy; CoreDNS's own metrics cover DNS.
+# A change to the Hubble metrics list takes effect when the agents restart
+# (`rollOutCiliumPods` is off): restart the DaemonSet under a kube-system
+# silence. No `dns`: it needs an FQDN policy; CoreDNS metrics cover DNS.
 prometheus:
   enabled: true
 hubble:
@@ -97,13 +69,9 @@ hubble:
       # ends: match="all" in a namespace with allow-lists is a would-be drop
       # (platform/kube-prometheus-stack/routes/netpol.yaml).
       - policy:sourceContext=workload-name|reserved-identity;destinationContext=workload-name|reserved-identity;labelsContext=source_namespace,destination_namespace
-  # Relay: one gRPC endpoint for the flows of every node (hubble-relay:80 in
-  # kube-system), read by the UI. Its client certificate for the agents'
-  # Hubble servers is `hubble-relay-client-certs`, signed by `cilium-ca`
-  # (see `tls` below). Neither relay nor UI changes cilium-config: enabling
-  # them does not roll the agents. Images stay digest-pinned (chart default
-  # `useDigest: true`). Relay metrics on :9966 (PodMonitor hubble-relay):
-  # hubble_relay_pool_peer_connection_status, the alert HubbleRelayPeersNotReady.
+  # Relay: one gRPC endpoint for every node's flows, read by the UI. Neither
+  # relay nor UI changes cilium-config, so enabling them does not roll the
+  # agents.
   relay:
     enabled: true
     prometheus:
@@ -114,17 +82,11 @@ hubble:
         memory: 32Mi
       limits:
         memory: 128Mi
-  # mTLS between the relay and the agents' Hubble servers, issued by the
-  # chart's certgen (method cronJob): it reuses the CA in the Secret
-  # `cilium-ca` (or creates it on a new cluster) and writes
-  # `hubble-server-certs` and `hubble-relay-client-certs`, valid 365 days.
-  # It runs on every sync of the `cilium` Application (the Job is an Argo CD
-  # PostSync hook, see `certgen` below) and every four months (the CronJob
-  # `hubble-generate-certs`). Agents and relay reload the files without a
-  # restart. Not the helm method: Argo CD renders without `lookup`, so each
-  # render would sign with a throw-away CA. Not cert-manager: the bootstrap
-  # installs this chart before the cert-manager CRDs exist.
-  # Alert HubbleCertRenewalStale (platform/kube-prometheus-stack/routes/hubble-alerts.yaml).
+  # mTLS between relay and agents, from the chart's certgen (cronJob method)
+  # with the CA in `cilium-ca`, on every sync and every four months. Not the
+  # helm method: Argo CD renders without `lookup`, so each render would sign
+  # with a new CA. Not cert-manager: the bootstrap installs this chart before
+  # its CRDs exist.
   tls:
     auto:
       method: cronJob
@@ -149,12 +111,8 @@ hubble:
         limits:
           memory: 128Mi
 
-# The Hubble certificate generator (hubble.tls.auto.method cronJob). The
-# one-shot Job is an Argo CD PostSync hook: it is not a tracked resource, so a
-# new Job name (its spec checksum) leaves nothing to prune, and it re-issues
-# the certificates after each sync. The bootstrap's helm install ignores the
-# annotations and runs it once. certgen replaces each Secret it writes, labels
-# included, so Argo CD does not track them.
+# certgen's Job is a PostSync hook: untracked, so a new Job name leaves nothing
+# to prune. The Secrets it replaces are not tracked by Argo CD either.
 certgen:
   annotations:
     job:

@@ -1,15 +1,9 @@
-# immich: server, machine-learning, the chart's bundled Valkey, the `immich-db`
-# CloudNativePG cluster, and two restic backup CronJobs.
+# immich: server, machine-learning, Valkey, the `immich-db` cluster and two
+# restic CronJobs.
 #
-# Written with the NAMESPACE as the trust boundary for the application components
-# and a separate, tighter policy for the database. See ./kustomization.yaml for
-# why the granularity differs from theater's, and ./90-enforcement.yaml for how to
-# switch this namespace on and off.
-#
-# Not per pod: the pod labels come from the chart (bjw-s/common) and change
-# between versions. The only chart label relied on is
-# `app.kubernetes.io/name: immich-server`, which
-# apps/immich/resources/backup-files.yaml also uses for podAffinity.
+# The namespace is the boundary for the app (chart labels change between
+# versions; only `app.kubernetes.io/name: immich-server` is relied on), with
+# a tighter policy for the database.
 ---
 # ---------------------------------------------------------------------------
 # Everything in the namespace except the Postgres instances
@@ -46,12 +40,8 @@ spec:
             - port: "2283"
               protocol: TCP
 
-    # server -> machine-learning, server -> Valkey, and anything else the chart
-    # wires between its own components.
-    # apps/immich/values.yaml -- IMMICH_MACHINE_LEARNING_URL
-    # (http://immich-machine-learning:3003) and REDIS_HOSTNAME (immich-valkey).
-    # No `toPorts`: the internal ports belong to the chart; pinning them would
-    # make every chart bump a policy edit.
+    # Between the chart's own components. No `toPorts`: the ports belong to
+    # the chart, and pinning them makes every chart bump a policy edit.
     - fromEndpoints:
         - {}
 
@@ -88,25 +78,11 @@ spec:
             - port: "5432"
               protocol: TCP
 
-    # HTTPS to the internet, needed by four different things in this namespace:
+    # HTTPS out: CLIP model downloads, OIDC discovery (auth.lilalala.com
+    # resolves to the WAN address, so `world`), reverse geocoding and version
+    # checks, and the S3 restic CronJob.
     #
-    #   - machine-learning downloads CLIP models on first start.
-    #     apps/immich/values.yaml -- MACHINE_LEARNING_PRELOAD__CLIP__*, and the
-    #     persistent `cache` volume exists precisely because this is several GB.
-    #   - immich-server fetches the OIDC discovery document.
-    #     apps/secrets/immich-config.sops.yaml.example -- issuerUrl
-    #     https://auth.lilalala.com/realms/homelab. That hostname resolves to the
-    #     site's WAN address, so from a pod it is `world`, not the keycloak
-    #     namespace.
-    #   - immich-server does reverse geocoding and version checks.
-    #   - the S3 restic CronJob talks to s3.eu-central-1.amazonaws.com.
-    #     apps/immich/resources/backup-files.yaml -- RESTIC_REPOSITORY s3:https://...
-    #     (the `immich-library-backup-local` job needs nothing here: its
-    #     repository is a filesystem path on an NFS PV, mounted by the kubelet.)
-    #
-    # If auth.lilalala.com is resolved by split-horizon DNS to the Gateway's LAN
-    # address rather than the WAN address, this rule is not enough and OIDC login
-    # breaks while everything else works. That case needs the following as well:
+    # With split-horizon DNS for auth.lilalala.com, OIDC also needs:
     #
     #     - toEntities: [ingress, host, remote-node]
     #       toPorts:
@@ -208,14 +184,8 @@ spec:
             - port: "6443"
               protocol: TCP
 
-    # Continuous WAL archiving and base backups to S3 through the Barman Cloud
-    # plugin sidecar: apps/immich/resources/backup.yaml, endpointURL
-    # https://s3.eu-central-1.amazonaws.com.
-    #
-    # This one is easy to under-estimate: WAL archiving is not a nightly job. If
-    # it is blocked, Postgres cannot recycle WAL segments, pg_wal grows until the
-    # 5Gi volume fills, and the database stops accepting writes. Losing this rule
-    # takes Immich down within hours, not at the nightly backup.
+    # WAL archiving and base backups to S3 (Barman Cloud sidecar). Blocked
+    # archiving fills the 5Gi pg_wal volume and stops writes within hours.
     - toEntities:
         - world
       toPorts:
@@ -253,17 +223,10 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # The API server calls the validating and mutating webhooks
-    # (cnpg-validating/mutating-webhook-configuration, failurePolicy Fail):
-    # Service cnpg-webhook-service 443 -> 9443. Every create or update of a
-    # Cluster, Backup or ScheduledBackup in any namespace goes through it.
-    # Hubble sees these calls from the nodes' cilium_host addresses, so as
-    # `host` (the API server on the operator's node) or `remote-node` (the
-    # other control planes), not as `kube-apiserver` (that identity holds
-    # the node IPs, which tunnel routing does not use as source). Until this
-    # rule they matched only the switch's host/remote-node rule (L3-Only,
-    # seen live for a server dry run of immich-db on 2026-11-04).
-    # `kube-apiserver` is listed for a routing mode that keeps the node IP.
+    # The API server calls the CNPG webhooks (failurePolicy Fail) for every
+    # Cluster, Backup and ScheduledBackup. Hubble sees these from cilium_host,
+    # so as `host` or `remote-node`; `kube-apiserver` covers a routing mode
+    # that keeps the node IP.
     - fromEntities:
         - kube-apiserver
         - host
@@ -273,10 +236,8 @@ spec:
             - port: "9443"
               protocol: TCP
   egress:
-    # Instance-manager status (8000) and checks (5432) of every Cluster:
-    # theater, immich, mealie, keycloak, home, backup-verify's restores (about
-    # 1,100 connections in 7 days). Any namespace: a new Cluster is covered
-    # on arrival, like the instances' own policies.
+    # Instance-manager status (8000) and checks (5432) of every Cluster, in
+    # any namespace, so a new Cluster is covered.
     - toEndpoints:
         - matchExpressions:
             - key: io.kubernetes.pod.namespace
@@ -296,13 +257,8 @@ spec:
         - ports:
             - port: "6443"
               protocol: TCP
-    # Intended drop: operator -> `world`, port not recorded. One series of
-    # 6 connections on homelab-cp-3, present from before 2026-10-28 until
-    # the Cilium agents restarted on 2026-10-29 08:36Z, and not seen since
-    # on any node. The operator's only `world` peer is S3 on 443, which
-    # immich-app allows, so this was another port; the chart configures
-    # no other outside destination. Re-checked with the presence query
-    # before the egress flip.
+    # Intended drop: one series of operator -> `world` connections on another
+    # port, not seen since the agents restarted. Its only `world` peer is S3.
 ---
 # ---------------------------------------------------------------------------
 # Added for the immich flips (spec netpol-default-deny task 13).
@@ -324,7 +280,7 @@ spec:
   egress:
     # platform/barman-cloud-plugin (Deployment `barman-cloud`,
     # --leader-elect). The operator reaches it on 9090 through immich-app's
-    # intra-namespace rule. 14 connections in 7 days, as of 2026-11-04.
+    # intra-namespace rule.
     - toEntities:
         - kube-apiserver
       toPorts:
@@ -347,9 +303,8 @@ spec:
     ingress: false
     egress: false
   egress:
-    # components/presync-backup, MODE cnpg: 8 connections in its run of
-    # 2026-11-02 17:01Z. postsync-smoke needs no rule here: it calls
-    # immich-server inside the namespace (immich-app).
+    # components/presync-backup, MODE cnpg. postsync-smoke needs no rule: it
+    # calls immich-server inside the namespace (immich-app).
     - toEntities:
         - kube-apiserver
       toPorts:

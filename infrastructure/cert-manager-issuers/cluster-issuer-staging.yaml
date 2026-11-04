@@ -1,10 +1,5 @@
-# Let's Encrypt staging. Issues untrusted certificates but is effectively
-# un-rate-limited.
-#
-# Use this while bringing the Gateway up in the new house: point the Gateway's
-# `cert-manager.io/cluster-issuer` annotation at `letsencrypt-staging`, confirm
-# a Certificate reaches Ready, then switch to `letsencrypt`. Getting this order
-# wrong is the usual way to burn a week's worth of production rate limit.
+# Let's Encrypt staging: untrusted certificates, effectively no rate limit.
+# Prove a new Gateway or solver here first, then switch to `letsencrypt`.
 ---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer

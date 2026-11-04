@@ -1,12 +1,5 @@
-# Prometheus's TSDB (history kept across the cutover): the existing TrueNAS
-# zvol, bound statically on Talos. Generated from the live PV; see
-# kustomization.yaml in this directory.
-#
-# The claim is declared here too. The Prometheus StatefulSet
-# (kube-prometheus-stack, platform layer) would otherwise create it from its
-# volumeClaimTemplate; a claim that already exists under the template's name is
-# adopted as-is. This layer syncs first, so the claim exists, bound to the old
-# volume, before the StatefulSet does.
+# Prometheus's TSDB on its existing zvol. The claim is declared here so it
+# exists, bound, before the StatefulSet adopts it by its template name.
 ---
 apiVersion: v1
 kind: PersistentVolume
@@ -15,10 +8,8 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
-  # 15Gi in the claim until 2026-11-02, while the zvol and its filesystem
-  # had been grown to 25Gi by hand; 40Gi for the 30-day retention
-  # (platform/kube-prometheus-stack/values.yaml). Grown through the claim
-  # below: the CSI resizer expands the zvol, then the filesystem online.
+  # 40Gi for the 30-day retention. Grow through the claim: the CSI resizer
+  # expands the zvol, then the filesystem online.
   capacity:
     storage: 40Gi
   accessModes:

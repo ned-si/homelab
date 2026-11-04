@@ -1,23 +1,16 @@
-# theater: qBittorrent, Prowlarr, Sonarr/Radarr/Lidarr, Plex, Jellyfin, and the
+# theater: qBittorrent, Prowlarr, Sonarr/Radarr/Lidarr, Plex, Jellyfin and the
 # four CloudNativePG clusters behind the *arr apps.
 #
-# Per workload, not per namespace: qBittorrent fetches arbitrary content and is
-# published on a LoadBalancer, so it must not reach the Postgres clusters, the
-# NAS or the Kubernetes API. Design notes: ./kustomization.yaml; switching
-# enforcement on and off: ./90-enforcement.yaml.
+# Per workload: qBittorrent fetches arbitrary content and is published on a
+# LoadBalancer, so it must not reach the databases, the NAS or the API server.
 #
-# Every rule relies on:
-#
-#   1. Kubelet probes need no rule: Cilium's `--allow-localhost=auto` always
-#      allows `reserved:host` -> pod on Kubernetes. The `fromEntities: [host,
-#      remote-node]` rules keep the policy correct if that is set to `policy`.
-#   2. The Gateway API proxy has the identity `reserved:ingress`; every
-#      HTTPRoute-backed port needs `fromEntities: [ingress]`. `host` and
-#      `remote-node` are listed too because with `bpf.masquerade: false`
-#      cross-node traffic can arrive SNATed to a node address. Narrow once
-#      observed: `hubble observe --to-namespace theater --port 8989 -o dict`.
-#   3. No Service ClusterIPs: kube-proxy replacement translates them to
-#      backend pods before policy, so rules select the backend pods by label.
+#   1. Kubelet probes are allowed by `--allow-localhost=auto`; the
+#      `fromEntities: [host, remote-node]` rules keep that true under `policy`.
+#   2. The Gateway proxy is `reserved:ingress`. `host` and `remote-node` are
+#      listed too: with `bpf.masquerade: false` cross-node traffic can arrive
+#      SNATed to a node address.
+#   3. No Service ClusterIPs: kube-proxy replacement translates them before
+#      policy, so rules select the backend pods by label.
 ---
 # ---------------------------------------------------------------------------
 # qBittorrent
@@ -97,12 +90,8 @@ spec:
             - port: "53"
               protocol: TCP
 
-    # Trackers, DHT and peers: any host, any port.
-    #
-    # `toCIDRSet` with RFC1918 excepted, not `toEntities: [world]`: `world`
-    # includes the LAN, which would expose the NAS (NFS 2049, iSCSI 3260, the
-    # TrueNAS UI). No LAN host is a peer. CIDR selectors never match pods or
-    # nodes, so the exceptions are what keep the NAS out of reach.
+    # Trackers, DHT and peers: any host, any port, RFC1918 excepted. `world`
+    # would include the LAN and expose the NAS (NFS, iSCSI, TrueNAS UI).
     - toCIDRSet:
         - cidr: 0.0.0.0/0
           except:
@@ -113,11 +102,7 @@ spec:
             - 127.0.0.0/8
 ---
 # ---------------------------------------------------------------------------
-# Sonarr / Radarr / Lidarr
-#
-# One policy for the three: they differ only in port, env prefix and database
-# (apps/theater/sonarr.yaml is the reference). Prowlarr has no /data mount and
-# a different flow direction, so it has its own.
+# Sonarr / Radarr / Lidarr: one policy, they differ only in port and database.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -193,11 +178,9 @@ spec:
             - port: "7878"
               protocol: TCP
 
-    # Recyclarr (`recyclarr-sync` CronJob) writes quality profiles into both
-    # APIs, the `bazarr-settings` Job the auto tags, `bazarr-nightly` reads
-    # the titles and the `arr-import-lists` Job writes the Plex Watchlist
-    # lists. Selected by their own labels: the broad job-name selector would
-    # also grant the backup jobs these ports. No 8686: none touches Lidarr.
+    # Recyclarr, the bazarr-settings and bazarr-nightly Jobs and
+    # arr-import-lists, by their own labels: the job-name selector would also
+    # grant the backup jobs these ports. None touches Lidarr (8686).
     - fromEndpoints:
         - matchExpressions:
             - key: app.kubernetes.io/name
@@ -222,10 +205,8 @@ spec:
             - port: "53"
               protocol: TCP
 
-    # Each app's CloudNativePG cluster via `<cluster>-rw`. One rule with
-    # `cnpg.io/cluster` In [...]: an *arr reaching a sibling's database is no
-    # real threat; what matters is that qBittorrent, Plex and Jellyfin cannot
-    # reach any of them.
+    # Every *arr database in one rule: what matters is that qBittorrent, Plex
+    # and Jellyfin cannot reach any of them.
     - toEndpoints:
         - matchExpressions:
             - key: cnpg.io/cluster
@@ -254,10 +235,8 @@ spec:
             - port: "9696"
               protocol: TCP
 
-    # Metadata providers (TheTVDB, TMDb, MusicBrainz/Last.fm) and update
-    # checks. `world` rather than `toFQDNs`: FQDN policy would route all DNS
-    # through Cilium's L7 DNS proxy, a new failure mode for name resolution.
-    # Revisit once enforcement has been stable.
+    # Metadata providers and update checks. `world`, not `toFQDNs`: FQDN
+    # policy routes all DNS through Cilium's L7 DNS proxy.
     - toEntities:
         - world
       toPorts:
@@ -365,12 +344,8 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# Bazarr
-#
-# Its own policy: Bazarr is a client of Sonarr and Radarr (no ingress from
-# them or Prowlarr), never talks to qBittorrent or indexers, and reaches
-# subtitle providers rather than metadata providers. Joining `arr-apps` would
-# widen both sides.
+# Bazarr: a client of Sonarr and Radarr that reaches subtitle providers, so
+# joining `arr-apps` would widen both sides.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -452,10 +427,7 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# arr-import-lists
-#
-# The PostSync Job that writes the Plex Watchlist import lists
-# (apps/theater/arr-import-lists.yaml). Nothing connects to it.
+# arr-import-lists (apps/theater/arr-import-lists.yaml). No ingress.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -499,10 +471,7 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# qbittorrent-private-seed
-#
-# A CronJob (apps/theater/qbittorrent-private.yaml): egress to the qBittorrent
-# WebUI API only. No ingress.
+# qbittorrent-private-seed: egress to the qBittorrent WebUI API only.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -540,10 +509,7 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# Recyclarr
-#
-# A CronJob: nothing connects to it, so there is no ingress block. Under
-# enforcement (./90-enforcement.yaml) that is deny-all inbound.
+# Recyclarr: a CronJob, no ingress.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -598,10 +564,7 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# bazarr-settings, bazarr-nightly
-#
-# The PostSync Job that applies Bazarr's settings and the CronJob that starts
-# the nightly searches (same script). Nothing connects to them.
+# bazarr-settings (PostSync Job) and bazarr-nightly (CronJob). No ingress.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -655,11 +618,8 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# The SSO proxies
-#
-# One policy for all proxies, selected by `app.kubernetes.io/component:
-# sso-proxy`, so a new proxy is covered without editing this list. Ingress from
-# the Gateway only; egress to the protected apps and Keycloak.
+# SSO proxies, selected by `app.kubernetes.io/component: sso-proxy` so a new
+# proxy is covered. In from the Gateway; out to the apps and Keycloak.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -733,11 +693,7 @@ spec:
             - port: "5299"
               protocol: TCP
 
-    # Keycloak (discovery, token exchange, JWKS) via `world`: the issuer is
-    # https://auth.lilalala.com, which resolves to the WAN address and comes
-    # back in through the Gateway (same as Immich, 20-immich.yaml). With
-    # split-horizon DNS this would need a rule to the `gateway` namespace,
-    # where TLS terminates.
+    # Keycloak via `world`: auth.lilalala.com resolves to the WAN address.
     - toEntities:
         - world
       toPorts:
@@ -746,11 +702,8 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# Plex and Jellyfin
-#
-# One policy: both serve HTTP through the Gateway, mount the media share
-# read-only, talk to nothing else in the cluster, and only reach the internet
-# for metadata.
+# Plex and Jellyfin: HTTP through the Gateway, media read-only, internet for
+# metadata only.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -794,10 +747,8 @@ spec:
             - port: "53"
               protocol: TCP
 
-    # plex.tv (account, metadata, publishing ADVERTISE_IP) and Jellyfin's
-    # metadata providers. Plex remote access, GDM (UDP 32410, 32412-32414) and
-    # DLNA are not allowed; they have no LoadBalancer Service either. Add the
-    # ingress rule together with such a Service.
+    # plex.tv and metadata providers. Plex remote access, GDM and DLNA are not
+    # allowed and have no LoadBalancer Service; add both together.
     - toEntities:
         - world
       toPorts:
@@ -808,15 +759,9 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# The four CloudNativePG clusters
-#
-# Selected by `cnpg.io/cluster: Exists` (instance pods and the operator's
-# initdb/join Jobs), so a new cluster here is covered on arrival.
-#
-# All four archive WAL to S3 through the Barman Cloud plugin
-# (apps/theater/cnpg-backup.yaml), whose sidecar runs in the instance pod:
-# policy `postgres-backups` below. The operator runs in namespace immich
-# (clusters/homelab/platform/cnpg.yaml).
+# The four CloudNativePG clusters, selected by `cnpg.io/cluster: Exists`
+# (instances and the operator's Jobs). The Barman Cloud sidecar runs in the
+# instance pod: policy `postgres-backups`.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -929,22 +874,11 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# The backup CronJobs
+# The backup CronJobs (apps/theater/backup.yaml).
 #
-# apps/theater/backup.yaml: `theater-postgres-backup` plus one
-# `theater-config-backup-<app>` per /config volume.
-#
-# Selected by `batch.kubernetes.io/job-name: Exists`: the one label every Job
-# pod has (apps/paperless/backup.yaml has none of its own), and a new backup
-# job is covered without editing this file. Cilium keeps this label in its
-# identity (its default filter drops other batch.kubernetes.io labels by
-# name). Check:
-#
-#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
-#     cilium-dbg endpoint list -o json | grep job-name
-#
-# `cnpg.io/cluster: DoesNotExist` leaves CNPG's own Jobs to the `postgres`
-# policy, so a drop comes from exactly one policy.
+# `batch.kubernetes.io/job-name: Exists` is on every Job pod and Cilium keeps
+# it in the identity, so a new backup job is covered. `cnpg.io/cluster:
+# DoesNotExist` leaves CNPG's Jobs to the `postgres` policy.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -1002,10 +936,7 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# Added from 7 days of flows (2026-10-19 to 2026-10-26: hubble_policy_verdicts
-# with match "all", and 45 minutes of policy-verdict events for the ports),
-# spec wave3-network-logs task 7. Separate policies: Cilium unions every
-# policy that selects an endpoint, so each covers one observed need.
+# Observed needs, one policy each (Cilium unions every selecting policy).
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

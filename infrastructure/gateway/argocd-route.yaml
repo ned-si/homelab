@@ -1,11 +1,6 @@
-# argo.lilalala.com -> argocd-server.
-#
-# In Argo CD's own namespace, next to its Service, so no ReferenceGrant is
-# needed. Port 80 = plain HTTP: TLS ends at the Gateway (ADR 0007).
-#
-# Requires `server.insecure: true` (`configs.params` in
-# bootstrap/argocd-values.yaml): with TLS on, argocd-server answers plain HTTP
-# with a redirect to HTTPS and argo.lilalala.com loops through the Gateway.
+# argo.lilalala.com -> argocd-server, in Argo CD's namespace (no
+# ReferenceGrant). Plain HTTP: TLS ends at the Gateway (ADR 0007), which needs
+# `server.insecure: true` in bootstrap/argocd-values.yaml or it loops.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
