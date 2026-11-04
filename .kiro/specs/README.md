@@ -70,6 +70,7 @@ Change specs, active:
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [paperless-documents](paperless-documents/) | 2026-11-03 | #732 | task 1: the settings (OCR `fra+eng+spa+deu`, time zone, file names), then tasks 2-9 |
 | [pentest-programme](pentest-programme/) | 2026-11-03 | #718 | task 1: rules of engagement, scope file and the dedicated test credentials |
+| [pod-security-restricted](pod-security-restricted/) | 2026-11-04 | #724 | task 1: complete Kyverno reports, then the readiness check, the CI rule, the break-glass and the `home` flip |
 
 Change specs, done:
 
