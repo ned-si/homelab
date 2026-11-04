@@ -31,7 +31,7 @@ check, policies, merge, revert) is a script with fixed inputs, run in CI.
 | `.github/renovate.json5` | Automerge, caps with reasons, variant keeps, digest grouping |
 | `.github/workflows/renovate-render.yaml`, `scripts/ci/commit-render.sh` | Re-render on Renovate branches |
 | `components/postsync-smoke` | Deploy-time probe Job per user-facing app |
-| `.github/workflows/auto-rollback.yaml`, `scripts/ci/auto-rollback-{decide,guard,act}.sh` | Revert decision, outage guard, revert PR |
+| `.github/workflows/auto-rollback.yaml`, `scripts/ci/auto-rollback-{decide,guard,act,keep}.sh` | Revert decision, outage guard, revert PR, kept on top of `main` until it merges |
 | `scripts/pr-merge.sh` | Squash merge on green `ci` |
 | `.github/workflows/codeql.yaml`, `scorecard.yaml`, `dast.yaml` | SAST, OpenSSF Scorecard, weekly DAST |
 

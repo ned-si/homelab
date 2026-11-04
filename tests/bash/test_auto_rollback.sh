@@ -1,7 +1,11 @@
 #!/bin/bash
 # test_auto_rollback.sh -- scripts/ci/auto-rollback-decide.sh against a scratch
-# repository, and scripts/ci/auto-rollback-act.sh and scripts/ci/auto-rollback-guard.sh against
-# a stubbed `gh` and `curl`.
+# repository, scripts/ci/auto-rollback-act.sh and scripts/ci/auto-rollback-guard.sh against
+# a stubbed `gh` and `curl`, and scripts/ci/auto-rollback-keep.sh against a
+# fake GitHub backed by a scratch repository.
+#
+# The keep hooks are commands for the hook's own shell: single quotes.
+# shellcheck disable=SC2016
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -317,6 +321,12 @@ out=$(env "${act_env[@]}" ACTION=revert LABEL_FAIL=1 "$ACT" 2>&1) || bad "label 
 check "label failure: auto-merge still on" [ -n "$(call 'pr merge')" ]
 
 reset_log
+: > "$tmp/act.out"
+out=$(env "${act_env[@]}" ACTION=revert GITHUB_OUTPUT="$tmp/act.out" "$ACT" 2>&1) || bad "revert run with outputs failed: $out"
+expect_eq "outputs the pull request for keep" 77 "$(sed -n 's/^pr=//p' "$tmp/act.out")"
+expect_eq "outputs the revert commit for keep" revertcommit "$(sed -n 's/^commit=//p' "$tmp/act.out")"
+
+reset_log
 out=$(env "${act_env[@]}" ACTION=revert REF_EXISTS=1 "$ACT" 2>&1) || bad "existing branch run failed: $out"
 check "existing branch: no second pull request" [ -z "$(call 'repos/o/r/pulls')" ]
 expect_contains "existing branch: said so" "already exists" "$out"
@@ -333,5 +343,161 @@ else
   ok "missing AUTO_ROLLBACK_TOKEN fails"
 fi
 check "missing token: no API call" [ -z "$(ls "$tmp/log")" ]
+
+echo "keep"
+# A fake GitHub: the repository $UP stands for the one on GitHub, the fake gh
+# stores blobs, trees, commits and refs in it, and the pull request's head is
+# its auto-revert/ branch. On the n-th `pr view`, $HOOKS/<n> runs first (it
+# moves main, merges or closes the pull request).
+KEEP="$REPO_ROOT/scripts/ci/auto-rollback-keep.sh"
+mkdir -p "$tmp/kbin"
+cat > "$tmp/kbin/gh" <<'EOF'
+#!/bin/bash
+set -euo pipefail
+n=$(( $(ls "$KLOG" | grep -c args || true) + 1 ))
+printf '%s\n' "$*" > "$KLOG/$n.args"
+printf '%s\n' "$GH_TOKEN" > "$KLOG/$n.token"
+in=""
+case " $* " in *" --input - "*) in=$(cat); printf '%s' "$in" > "$KLOG/$n.stdin" ;; esac
+up() { git -C "$UP" "$@"; }
+case "$*" in
+  "pr view 77 --repo o/r --json state,headRefOid --jq "*)
+    v=$(( $(cat "$KLOG/views" 2>/dev/null || echo 0) + 1 ))
+    echo "$v" > "$KLOG/views"
+    if [ -x "$HOOKS/$v" ]; then "$HOOKS/$v" >/dev/null; fi
+    echo "$(cat "$KLOG/state" 2>/dev/null || echo OPEN) $(up for-each-ref --format='%(objectname)' refs/heads/auto-revert/)" ;;
+  "pr close 77 --repo o/r --comment "*) echo CLOSED > "$KLOG/state" ;;
+  "api repos/o/r/git/blobs --input - --jq .sha")
+    jq -r .content <<<"$in" | base64 --decode | up hash-object -w --stdin ;;
+  "api repos/o/r/git/trees --input - --jq .sha")
+    idx="$KLOG/index.$n"
+    env GIT_INDEX_FILE="$idx" git -C "$UP" read-tree "$(jq -r .base_tree <<<"$in")"
+    jq -r '.tree[] | if .sha == null then "0 0000000000000000000000000000000000000000\t\(.path)" else "\(.mode) \(.sha)\t\(.path)" end' <<<"$in" |
+      env GIT_INDEX_FILE="$idx" git -C "$UP" update-index --index-info
+    env GIT_INDEX_FILE="$idx" git -C "$UP" write-tree ;;
+  "api repos/o/r/git/commits --input - --jq .sha")
+    up commit-tree "$(jq -r .tree <<<"$in")" -p "$(jq -r '.parents[0]' <<<"$in")" -m "$(jq -r .message <<<"$in")" ;;
+  "api repos/o/r/git/commits/"*" --jq .message")
+    up log -1 --format=%B "${2##*/}" ;;
+  "api -X PATCH repos/o/r/git/refs/heads/"*" --input -")
+    up update-ref "refs/heads/${4#repos/o/r/git/refs/heads/}" "$(jq -r .sha <<<"$in")" ;;
+  *) echo "unexpected gh call: $*" >&2; exit 1 ;;
+esac
+EOF
+chmod +x "$tmp/kbin/gh"
+
+# vals <line 2> <line 9>: a ten-line values file.
+vals() {
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    case $i in 2) echo "k2: $1" ;; 9) echo "k9: $2" ;; *) echo "k$i: v$i" ;; esac
+  done
+}
+vals v2 v9 > "$tmp/vals.base"
+vals bad v9 > "$tmp/vals.bad"
+vals bad new9 > "$tmp/vals.later"
+vals other v9 > "$tmp/vals.conflict"
+
+# keep_setup <name>: a fresh GitHub repository $K/up with main at the bad
+# commit (line 2 changed, app/new.yaml added), the revert commit act made on
+# branch auto-revert/<sha12>, and the runner's clone $K/work.
+keep_setup() {
+  K="$tmp/keep-$1"
+  mkdir -p "$K/up/app" "$K/log" "$K/hooks"
+  (
+    cd "$K/up"
+    git init -q -b main
+    git config user.email t@example.invalid
+    git config user.name t
+    git config commit.gpgsign false
+    cp "$tmp/vals.base" app/values.yaml
+    echo one > other.txt
+    git add -A && git commit -qm "chore: base"
+    cp "$tmp/vals.bad" app/values.yaml
+    echo new > app/new.yaml
+    git add -A && git commit -qm "feat(app): break it (#5)"
+  )
+  k_bad=$(git -C "$K/up" rev-parse main)
+  k_act=$(git -C "$K/up" commit-tree "$(git -C "$K/up" rev-parse "$k_bad^^{tree}")" -p "$k_bad" \
+    -m "revert: feat(app): break it (auto)" -m "This reverts commit $k_bad.")
+  git -C "$K/up" update-ref "refs/heads/auto-revert/${k_bad:0:12}" "$k_act"
+  git clone -q "$K/up" "$K/work"
+}
+# hook <n> <commands>: run <commands> in $UP on the n-th check.
+hook() { printf '#!/bin/bash\nset -e\ncd "$UP"\n%s\n' "$2" > "$K/hooks/$1"; chmod +x "$K/hooks/$1"; }
+on_main() { printf 'cp %s app/values.yaml\n%s\ngit add -A\ngit commit -qm "%s"' "$1" "$2" "$3"; }
+keep() {
+  (cd "$K/work" && env PATH="$tmp/kbin:$PATH" UP="$K/up" KLOG="$K/log" HOOKS="$K/hooks" \
+    REPO=o/r PR=77 SHA="$k_bad" HEAD_SHA="$k_act" BOT_TOKEN=bot-token PR_TOKEN=owner-token \
+    POLL=0 MAX_POLLS=6 "$@" "$KEEP" 2>&1)
+}
+kcall() { { grep -l -- "$1" "$K/log"/*.args 2>/dev/null || true; } | sed 's/\.args$//'; }
+head_of() { git -C "$K/up" rev-parse "refs/heads/auto-revert/${k_bad:0:12}"; }
+
+keep_setup moved
+hook 2 "$(on_main "$tmp/vals.later" "echo two > other.txt" "fix(other): unrelated (#6)")"
+hook 4 "$(on_main "$tmp/vals.later" "echo three > other.txt" "fix(other): again (#7)")"
+hook 6 'echo MERGED > "$KLOG/state"'
+if out=$(keep); then ok "main moved twice: keep succeeds"; else bad "main moved twice: keep failed: $out"; fi
+expect_contains "main moved: merged at the end" "#77 merged" "$out"
+expect_eq "main moved: rebuilt once per move" 2 "$(grep -c 'rebuilt as' <<<"$out")"
+h=$(head_of)
+expect_eq "rebuilt revert sits on the newest main" "$(git -C "$K/up" rev-parse main)" "$(git -C "$K/up" rev-parse "$h^")"
+expect_eq "rebuilt revert undoes the bad line, keeps the later one" "$(sed 's/k9: v9/k9: new9/' "$tmp/vals.base")" \
+  "$(git -C "$K/up" show "$h:app/values.yaml")"
+check "rebuilt revert deletes the added file" [ -z "$(git -C "$K/up" ls-tree "$h" app/new.yaml)" ]
+expect_eq "rebuilt revert keeps later changes to other files" three "$(git -C "$K/up" show "$h:other.txt")"
+expect_eq "rebuilt revert keeps the message" "$(git -C "$K/up" log -1 --format=%B "$k_act")" "$(git -C "$K/up" log -1 --format=%B "$h")"
+expect_eq "rebuilt revert equals git revert on main" "$(git -C "$K/up" merge-tree --write-tree --merge-base="$k_bad" main "$k_bad^")" \
+  "$(git -C "$K/up" rev-parse "$h^{tree}")"
+c=$(kcall 'git/commits --input' | head -n 1)
+expect_eq "rebuild: commit uses the bot token" bot-token "$(cat "$c.token")"
+expect_eq "rebuild: commit has no author, so GitHub signs it" false "$(jq -r 'has("author") or has("committer")' "$c.stdin")"
+p=$(kcall 'PATCH' | head -n 1)
+expect_eq "rebuild: branch moved with the owner token, so ci runs" owner-token "$(cat "$p.token")"
+expect_eq "rebuild: branch moved with force" true "$(jq -r .force "$p.stdin")"
+expect_eq "rebuild: blobs use the bot token" bot-token "$(cat "$(kcall 'git/blobs' | head -n 1).token")"
+
+keep_setup still
+hook 3 'echo MERGED > "$KLOG/state"'
+out=$(keep) || bad "main still: keep failed: $out"
+check "main still: nothing rebuilt" [ -z "$(kcall 'git/')" ]
+expect_eq "main still: head untouched" "$k_act" "$(head_of)"
+
+keep_setup conflict
+hook 1 "$(on_main "$tmp/vals.conflict" "rm app/new.yaml" "fix(app): another fix (#6)")"
+if out=$(keep); then bad "conflict: keep succeeded"; else ok "conflict: keep fails"; fi
+expect_contains "conflict: said so" "no longer applies" "$out"
+check "conflict: branch not moved" [ -z "$(kcall 'PATCH')" ]
+expect_eq "conflict: head untouched" "$k_act" "$(head_of)"
+
+keep_setup undone
+hook 1 "$(on_main "$tmp/vals.base" "rm app/new.yaml" "revert: feat(app): break it (#6)")"
+out=$(keep) || bad "already undone: keep failed: $out"
+expect_contains "already undone: said so" "already undoes" "$out"
+c=$(kcall 'pr close')
+check "already undone: pull request closed" [ -n "$c" ]
+expect_eq "already undone: closed with the owner token" owner-token "$(cat "$c.token")"
+expect_contains "already undone: automation comment" "**[automation]**" "$(cat "$c.args")"
+check "already undone: branch not moved" [ -z "$(kcall 'PATCH')" ]
+
+keep_setup closed
+echo CLOSED > "$K/log/state"
+out=$(keep) || bad "closed: keep failed: $out"
+expect_contains "closed: said so" "was closed" "$out"
+check "closed: one check only" [ "$(cat "$K/log/views")" = 1 ]
+
+keep_setup pushed
+hook 1 "$(on_main "$tmp/vals.later" "" "fix(other): unrelated (#6)")
+git update-ref refs/heads/auto-revert/${k_bad:0:12} main"
+out=$(keep) || bad "pushed by someone: keep failed: $out"
+expect_contains "pushed by someone: left as is" "by someone else" "$out"
+check "pushed by someone: branch not moved" [ -z "$(kcall 'PATCH')" ]
+
+keep_setup timeout
+if out=$(keep MAX_POLLS=2); then bad "timeout: keep succeeded"; else ok "timeout: keep fails"; fi
+expect_contains "timeout: said so" "still open after 2 checks" "$out"
+
+if keep SHA=nope >/dev/null; then bad "bad SHA accepted"; else ok "bad SHA refused"; fi
 
 finish

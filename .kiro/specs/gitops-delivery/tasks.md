@@ -54,3 +54,5 @@ Wave 3 puts Kyverno in the cluster in Audit mode: `.kiro/specs/wave3-*`.
       common dir, rebases, waits for `ci` and merges inside it, retrying
       when `main` moves (no merge queue on a user-owned repository). [2.3]
       (`tests/bash/test_pr_merge_lock.sh`)
+- [x] 25. Keep an automatic revert on top of `main` until it merges: rebuilt
+      as a signed commit whenever `main` moves. [4.5] (#1002)

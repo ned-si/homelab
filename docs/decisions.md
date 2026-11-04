@@ -192,6 +192,18 @@ and writes the reason to the run summary. For the apps with a database, the
 pull request says a revert does not undo a schema migration: restore from
 backup.
 
+`main` requires an up-to-date `ci`, so any other merge leaves the revert
+BEHIND and auto-merge waits forever (#989). The same run then checks the pull
+request once a minute for up to an hour (`scripts/ci/auto-rollback-keep.sh`):
+each time `main` moves, it rebuilds the revert on the new `main` (`git
+merge-tree`, then blobs, tree and commit through the Git Data API, so GitHub
+signs it) and moves the branch with `AUTO_ROLLBACK_TOKEN`, so `ci` runs again.
+It stops when the pull request merges or closes, closes it when `main`
+already undoes the commit, and fails the run when the revert no longer
+applies or an hour has passed. Rejected: the "update branch" API (unsigned
+merge commits) and `scripts/pr-merge.sh` (it needs the operator's signing key
+and a lock on the Mac).
+
 The outage guard (`scripts/ci/auto-rollback-guard.sh`) waits 5 minutes, then
 holds the revert back when 3 or more apps failed within 10 minutes (counted
 from this workflow's runs, named `auto-rollback <app>`), a node is NotReady or

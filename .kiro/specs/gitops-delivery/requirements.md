@@ -110,3 +110,8 @@ without me, but never during an outage it did not cause.
 4. IF an app stays Degraded for 30 minutes or OutOfSync 30 minutes after a
    failed sync, THEN THE system SHALL page with `ArgoCDAppStillDegraded` or
    `ArgoCDSyncStuck`. (`tests/prometheus/argocd_test.yaml`)
+5. WHILE an automatic revert pull request is open and `main` moves, THE
+   workflow SHALL rebuild the revert on the new `main` as a commit GitHub
+   signs, for up to an hour; IF the revert no longer applies, THEN the run
+   SHALL fail. (`scripts/ci/auto-rollback-keep.sh`,
+   `tests/bash/test_auto_rollback.sh`)
