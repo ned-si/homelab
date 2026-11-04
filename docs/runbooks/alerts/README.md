@@ -62,6 +62,7 @@ that application's failing conditions and resources.
 - [ArgoCDAppStillDegraded](ArgoCDAppStillDegraded.md): an app Degraded for 30 minutes, not reverted
 - [ArgoCDSyncStuck](ArgoCDSyncStuck.md): a failed sync, still OutOfSync after 30 minutes
 - [PodStuckNotRunningLongTerm](PodStuckNotRunningLongTerm.md): a container unable to start for 6 hours
+- [PodSecurityEnforceDenied](PodSecurityEnforceDenied.md): Pod Security admission rejected more than 5 Pods in 30 minutes
 - [TalosConfigDrift](TalosConfigDrift.md): a node runs a machine config main does not render
 
 ## Backups

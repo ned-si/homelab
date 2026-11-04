@@ -2,9 +2,13 @@
 # the Security dashboard and the Deny-readiness they show are stale
 # (spec wave3-runtime-security, requirement 2.5).
 #
-#   KyvernoReportsStale  no background scan for 3h, or no scrape  warning  human
+#   KyvernoReportsStale       no background scan for 3h, or no scrape   warning   human
+#   PodSecurityEnforceDenied  PSA rejected more than 5 Pods in 30m      critical  human
 #
 # The background scan runs every hour (infrastructure/kyverno/values.yaml).
+# PodSecurityEnforceDenied (spec pod-security-restricted, D15): the API
+# server's counter has no namespace label; a controller retrying a rejected
+# Pod passes 5 within minutes, a single rejected dry run does not.
 #
 # Tests: tests/prometheus/kyverno_test.yaml (promtool test rules).
 ---
@@ -35,3 +39,16 @@ spec:
               The PolicyReports, the Security dashboard counts and the
               Deny-readiness they show are stale. Check the
               kyverno-reports-controller pod.
+        - alert: PodSecurityEnforceDenied
+          expr: |
+            sum(increase(pod_security_evaluations_total{decision="deny",mode="enforce",resource="pod"}[30m])) > 5
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PodSecurityEnforceDenied.md
+            summary: Pod Security admission rejected {{ $value | printf "%.0f" }} Pods in 30 minutes
+            description: >-
+              A controller or an operator keeps creating Pods that a
+              namespace's enforce level rejects. Find the namespace from the
+              FailedCreate events, then run the Pod Security break-glass.
