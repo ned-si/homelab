@@ -87,9 +87,7 @@ in [requirements.md](requirements.md#decided-defaults).
       (#1035; no account other than `nedsi-admin` and `automation` had
       the superuser flag or direct permissions, so nothing was cleared;
       basic auth on `/api/` is #1033)
-
-## Open
-- [ ] 5. Restore test: `restore-paperless` in `backup-verify` (`migrate`,
+- [x] 5. Restore test: `restore-paperless` in `backup-verify` (`migrate`,
       `document_importer --passphrase` and a count in one pod with no web
       server, worker or beat; counts equal over the exported documents,
       one PDF opens), the passphrase copy in `backup-verify`, its alert,
@@ -97,6 +95,12 @@ in [requirements.md](requirements.md#decided-defaults).
       trashed documents; one manual run with a non-empty trash passes, one
       with a corrupted manifest fails and the alert test fires. [4.3, 4.4,
       5.2]
+      (#1054; CronJob `backup-verify-paperless`, alert
+      `PaperlessRestoreStale`. On 3.4.2 the exporter writes trashed
+      documents to the manifest, so the manifest count leaves them out,
+      and `migrate` needs a Valkey sidecar: design.md)
+
+## Open
 - [ ] 6. Ingest canary: `paperless-canary`, the user `canary` with its own
       add, view and delete document permissions, its API token in SOPS
       `paperless-canary`, the digits-only number in a large font, the
