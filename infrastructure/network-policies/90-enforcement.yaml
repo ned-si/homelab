@@ -5,9 +5,11 @@
 #
 # Every policy in this directory sets
 #     enableDefaultDeny: {ingress: false, egress: false}
-# (contribute an allow-list, do not default-deny), so nothing is blocked.
-# Setting one `false` below to `true` turns default-deny on for one namespace
-# in one direction.
+# (contribute an allow-list, do not default-deny); only the switches below
+# block anything. Setting one `false` below to `true` turns default-deny on
+# for one namespace in one direction.
+#
+# Enforced now: paperless ingress.
 #
 # Cilium semantics (pkg/policy/repository.go):
 #
@@ -219,7 +221,7 @@ spec:
     cluster DNS out.
   endpointSelector: {}
   enableDefaultDeny:
-    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
     egress: false      # <-- true enforces EGRESS default-deny for this namespace
   ingress:
     - fromEntities:

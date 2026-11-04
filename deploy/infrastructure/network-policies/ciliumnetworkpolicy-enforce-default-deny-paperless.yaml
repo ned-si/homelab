@@ -29,7 +29,7 @@ spec:
         protocol: TCP
   enableDefaultDeny:
     egress: false
-    ingress: false
+    ingress: true
   endpointSelector: {}
   ingress:
   - fromEntities:
