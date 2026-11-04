@@ -28,6 +28,49 @@ tests:
                 The PolicyReports, the Security dashboard counts and the
                 Deny-readiness they show are stale. Check the
                 kyverno-reports-controller pod.
+  # PSA: a controller retrying a rejected Pod every minute fires within
+  # 10 minutes; one rejected dry run does not; no deny series, no alert.
+  - interval: 1m
+    input_series:
+      - series: 'pod_security_evaluations_total{decision="deny",mode="enforce",resource="pod",policy_level="restricted"}'
+        values: '0x60 1+1x30'
+      - series: 'pod_security_evaluations_total{decision="allow",mode="enforce",resource="pod",policy_level="restricted"}'
+        values: '0+10x90'
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: PodSecurityEnforceDenied
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: PodSecurityEnforceDenied
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PodSecurityEnforceDenied.md
+              summary: Pod Security admission rejected 10 Pods in 30 minutes
+              description: >-
+                A controller or an operator keeps creating Pods that a
+                namespace's enforce level rejects. Find the namespace from the
+                FailedCreate events, then run the Pod Security break-glass.
+  - interval: 1m
+    input_series:
+      - series: 'pod_security_evaluations_total{decision="deny",mode="enforce",resource="pod",policy_level="restricted"}'
+        values: '0x60 1x60'
+      - series: 'pod_security_evaluations_total{decision="deny",mode="warn",resource="pod",policy_level="restricted"}'
+        values: '0+5x120'
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: PodSecurityEnforceDenied
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'pod_security_evaluations_total{decision="allow",mode="enforce",resource="pod",policy_level="baseline"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: PodSecurityEnforceDenied
+        exp_alerts: []
   # Not scraped at all: absent() carries the selector's label.
   - interval: 1m
     input_series:

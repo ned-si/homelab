@@ -16,6 +16,7 @@ ntfy alertname=KubernetesUpgradeFailed severity=critical name=kubernetes
 ntfy alertname=KubernetesUpgradeStuck severity=warning name=kubernetes
 ntfy alertname=TupprOperatorAbsent severity=critical
 ntfy alertname=TalosConfigDrift severity=warning node=homelab-cp-1
+ntfy alertname=PodSecurityEnforceDenied severity=critical
 # Backups and restore tests.
 ntfy alertname=BackupVerifyFailed severity=warning check=postgres target=immich-db
 ntfy alertname=BackupVerifyMissing severity=warning check=mariadb

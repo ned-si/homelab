@@ -33,3 +33,16 @@ spec:
       labels:
         action: human
         severity: warning
+    - alert: PodSecurityEnforceDenied
+      annotations:
+        description: A controller or an operator keeps creating Pods that a namespace's
+          enforce level rejects. Find the namespace from the FailedCreate events,
+          then run the Pod Security break-glass.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PodSecurityEnforceDenied.md
+        summary: Pod Security admission rejected {{ $value | printf "%.0f" }} Pods
+          in 30 minutes
+      expr: |
+        sum(increase(pod_security_evaluations_total{decision="deny",mode="enforce",resource="pod"}[30m])) > 5
+      labels:
+        action: human
+        severity: critical
