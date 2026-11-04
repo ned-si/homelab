@@ -13,7 +13,7 @@ releases:
     repo: https://argoproj.github.io/argo-helm
     chart: argo-cd
     # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
-    version: 10.12.0
+    version: 10.12.1
     release: argocd
     namespace: argo
     values: bootstrap/argocd-values.yaml
