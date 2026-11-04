@@ -20,7 +20,8 @@ This spec moves namespaces to `enforce: restricted`, one namespace per pull
 request, once the live evaluation of their pods and pod templates is clean.
 It also sets what has to hold before the first move: complete Kyverno
 reports, a readiness check per namespace, a CI check that fails a change PSA
-would reject, explicit `enforce` labels, and a tested break-glass.
+would reject, explicit `enforce` labels, a page when PSA rejects Pods,
+operator releases merged in the day, and a tested break-glass.
 
 Audit, then enforce: each namespace is first audited (the `warn` and `audit`
 labels at `restricted`, the Kyverno restricted policies in Audit, the
@@ -144,9 +145,13 @@ never meets a rollout that cannot start.
    `infrastructure/namespaces/namespaces.yaml`, read from that file at run
    time, not from a second list. (a test with a fixture namespace and a
    failing Deployment)
-2. THE check SHALL include the Helm-rendered objects of enforced namespaces
-   that the Kyverno webhooks skip (`argo`), because PSA has no such
-   exclusion. (the CI log names `argo` among the checked namespaces)
+2. THE check SHALL include the Helm-rendered objects of every namespace
+   that the Kyverno webhooks skip (`EXCLUDED_NAMESPACES` in
+   `scripts/ci/kyverno.sh`) AND that `namespaces.yaml` marks
+   `enforce: restricted`, because PSA has no such exclusion. The set is
+   computed at run time from those two lists, not named in the script;
+   today it is `argo` and `kyverno`. (the CI log names both among the
+   checked namespaces)
 3. THE check SHALL pass on `main` at the time of its pull request, with the
    ten namespaces that enforce `restricted` today. (`ci` green)
 
@@ -260,3 +265,29 @@ from starting, syncing or upgrading.
    request)
 2. THE spec SHALL be `done` with its `closed` date when its tasks are
    ticked, and #724 closed with links to #1020 and #1021.
+
+### Requirement 10: Pods built by operators after a release
+
+**User story:** As the operator, I want a tuppr, CloudNativePG or Barman
+Cloud plugin release that builds Pods PSA rejects to page me while I am
+around, so a rejected database or upgrade Pod is fixed in minutes.
+
+#### Acceptance criteria
+
+1. THE alert `PodSecurityEnforceDenied` (`severity: critical`,
+   `action: human`) SHALL fire WHEN
+   `sum(increase(pod_security_evaluations_total{decision="deny",mode="enforce",resource="pod"}[30m]))`
+   is above 5, cluster-wide, and its runbook SHALL lead to the break-glass
+   of Requirement 5. (its rule in
+   `platform/kube-prometheus-stack/routes/kyverno-alerts.yaml`, its test in
+   `tests/prometheus/kyverno_test.yaml`: a controller retrying a rejected
+   Pod fires, one rejected dry run does not; the live query, 0 on
+   2026-11-04, in the pull request)
+2. THE Renovate updates of the tuppr chart
+   (`ghcr.io/home-operations/charts/tuppr`), the `cloudnative-pg` chart and
+   `cloudnative-pg/plugin-barman-cloud` SHALL automerge only Monday to
+   Friday, 09:00 to 16:59 Zurich time, with the label `automerge-weekdays`
+   that `scripts/ci/renovate-next.sh` honours. (the rule in
+   `.github/renovate.json5`, the `renovate-config-validator` pre-commit
+   hook)
+3. BOTH SHALL be merged before the first flip.

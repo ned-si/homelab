@@ -104,16 +104,41 @@ pull request lists them for its namespace with the evidence:
 | `home` | CloudNativePG | `home-assistant-postgresql` instances, `initdb` and `join` Jobs | the running instance passes G1; the Jobs share its security context |
 | `system-upgrade` | tuppr 0.5.12 | upgrade Jobs, hook Jobs | source above; a server dry-run of an equivalent Pod after the flip |
 
+G4 holds for the pinned operator versions. A later release can build
+different Pods; decision D15 covers that.
+
+Notes for the script:
+- After a flip, G1 is a no-op: PSA evaluates existing Pods only when the
+  enforce level changes. G2 and G3 carry the 30-minute check of
+  Requirement 7.2.
+- A StatefulSet with `volumeClaimTemplates` (`syncthing`): the Pod built
+  for G3 gets one `persistentVolumeClaim` volume per claim template, named
+  as the StatefulSet controller names it (`<claim>-<statefulset>-0`). Any
+  dry-run error that does not name PodSecurity prints `NOT READY` with the
+  error, so a template the script cannot build never reads as clean.
+- `system-upgrade` also runs the `talos-drift` CronJob, which mounts
+  `image` volumes. It is in git, so G3 decides it at flip time, and the
+  flip pull request names its result. If it fails, the gate is closed and
+  `system-upgrade` stays `baseline` with that reason.
+
 ### CI (task 3)
 
 `scripts/ci/kyverno.sh` reads `infrastructure/namespaces/namespaces.yaml`
 with `yq` and adds a rule: a finding of the restricted set on an object in a
 namespace labelled `enforce: restricted` blocks, as a finding of a
 `BLOCKING` policy does. The baseline policies and
-`require-run-as-non-root-user` block everywhere already. Objects in `argo`,
-which the script drops today because the webhooks skip it, are kept for
-this rule only. A flip pull request adds its namespace to the label, so its
-own `ci` is G5.
+`require-run-as-non-root-user` block everywhere already.
+
+The script drops the Helm-rendered objects of `EXCLUDED_NAMESPACES`
+because the webhooks skip them, but PSA does not. For this rule it keeps
+the objects of every namespace that is in `EXCLUDED_NAMESPACES` and marked
+`enforce: restricted` in `namespaces.yaml`, computed at run time from the
+two lists. Today that is `argo` (the Argo CD chart) and `kyverno` (the
+Kyverno chart, `clusters/homelab/infrastructure/kyverno.yaml`), and the CI
+log prints the set. A Kyverno or Argo CD chart bump with a container PSA
+would reject then fails its own `ci`.
+
+A flip pull request adds its namespace to the label, so its own `ci` is G5.
 
 ## Break-glass
 
@@ -136,7 +161,8 @@ and a rollout or Job that does not start. Running Pods are not affected.
    git.
 
 Steps 1 and 2 need only the admin kubeconfig over the LAN, and take less
-than a minute. Task 5 tests them live.
+than a minute. Task 7 tests them live. The test rejects at most two Pods,
+below the threshold of `PodSecurityEnforceDenied` (D15).
 
 Kyverno (for #1021): the same `skip-reconcile` on the `kyverno-policies`
 Application, then `kubectl patch validatingpolicy <name> --type merge -p
@@ -199,9 +225,8 @@ reason and the alternatives rejected.
   `system-upgrade` second: tuppr's Jobs pass `restricted` in code, and a
   rejected upgrade Job leaves the nodes running and raises
   `TalosUpgradeStuck`; nothing in Talos or the kubelet depends on it.
-  Residual risk: a tuppr release that changes its Job spec is not seen by CI;
-  the Renovate pull request for tuppr gets the G4 check in its body.
-  Rejected: all clean namespaces in one pull request (one namespace per
+  A later tuppr or CloudNativePG release that changes the Pods it builds
+  is D15. Rejected: all clean namespaces in one pull request (one namespace per
   change); skipping `system-upgrade`. The gain there is small, since whoever
   can create Pods in `system-upgrade` can mount the `os:admin` talosconfig
   anyway, but the gate is open, the cost is one label, and every namespace
@@ -214,7 +239,7 @@ reason and the alternatives rejected.
 - **D7. Break-glass: `skip-reconcile` on the `namespaces` Application, then
   relabel.** It stops Argo CD from restoring the label for that Application
   only, and the layer above does not remove an annotation it does not
-  manage (task 5 checks this). Rejected: scaling the Argo CD application
+  manage (task 7 checks this). Rejected: scaling the Argo CD application
   controller to 0 (stops every app and the auto-rollback's syncs); turning
   off self-heal in the Application (the `infrastructure` layer heals it
   back); the git revert alone (10 to 20 minutes of CI while Pods cannot
@@ -242,8 +267,56 @@ reason and the alternatives rejected.
 - **D14. Auto-rollback is a backstop only.** A Deployment that cannot create
   Pods turns Degraded after `progressDeadlineSeconds` (600 s), and
   auto-rollback reverts the newest merge 5 minutes later. A CronJob whose Pod
-  is rejected does not degrade an Application, so the 30-minute watch and
-  the next-day check are the real detection.
+  is rejected does not degrade an Application, so `PodSecurityEnforceDenied`
+  (D15), the 30-minute watch and the next-day check are the real detection.
+- **D15. Operator releases: a page on any enforce denial, and merges in the
+  day.** tuppr builds its Jobs in code, and CloudNativePG builds the
+  `home-assistant-postgresql` instance Pod and its Jobs in code; the
+  Barman Cloud plugin adds its sidecar to that Pod. CI cannot see these
+  Pods, and G4 holds only for the pinned versions. A release that builds a
+  Pod `restricted` rejects merges on green CI today; CloudNativePG can then
+  recreate the single instance during its upgrade and fail, so Home
+  Assistant loses its database, and tuppr's next upgrade Job fails, so
+  Talos and Kubernetes upgrades stop while the nodes keep running. Two
+  controls, both before the first flip (tasks 5 and 6):
+  1. Detection: the alert `PodSecurityEnforceDenied`, `critical`,
+     `action: human`, on
+     `sum(increase(pod_security_evaluations_total{decision="deny",mode="enforce",resource="pod"}[30m])) > 5`.
+     The API server counts every Pod PSA rejects in enforce mode, whichever
+     controller or operator sent it; on 2026-11-04 the series has no
+     `deny` in `enforce` mode over 7 days, so the alert is silent today. A
+     controller retries a rejected Pod with back-off, which passes 5 within
+     minutes; the flip's own checks (one rejected dry run in Requirement
+     7.1, two rejected Pods in the break-glass test) stay below it. The
+     metric has no namespace label (why D4 does not use it for the gate);
+     the runbook finds the namespace from the `FailedCreate` events
+     (`kubectl get events -A --field-selector reason=FailedCreate`) and
+     the operator's logs, then runs the break-glass. A namespace silence
+     does not cover the alert: a real denial during a flip still pages.
+  2. Timing: a Renovate rule gives the tuppr chart, the `cloudnative-pg`
+     chart and `plugin-barman-cloud` `automergeSchedule: ['* 9-16 * * 1-5']`
+     and the label `automerge-weekdays`, as for Cilium, without the 3-day
+     release age. A release that breaks lands when the operator is around
+     (the hard rule of 2026-11-02).
+  Accepted residual risk: such a release still stops the database or the
+  upgrade until someone runs the break-glass, which takes under a minute
+  after the page; the controllers' retries then create the Pods. Other
+  alerts that see it: `TalosUpgradeStuck` and `TalosUpgradeFailed` (tuppr's
+  chart) for an upgrade Job, and the `home` blackbox probe's SLO alerts if
+  Home Assistant stops answering without its database. The CNPG alerts do
+  not: their series come from the instance Pod and vanish with it, which is
+  why `PodSecurityEnforceDenied` is the main detection.
+  Rejected: a G4 check in the Renovate pull request's body (nothing writes
+  into Renovate pull requests, and these updates automerge); a post-sync
+  CronJob that dry-runs a Pod equivalent to the operator's (the new Pod
+  spec exists only in the new release's code, so a Pod copied from the old
+  one proves nothing, and CloudNativePG recreates its instance during the
+  sync, so the check would come no earlier than the alert); running
+  CloudNativePG and tuppr in the kind pre-production cluster with a
+  `restricted` namespace (a database cluster with storage on every `ci`
+  run, and tuppr's Jobs need Talos, for a class of update that comes a few
+  times a year); `no-automerge` on these updates (a human gate, against the
+  no-human-gates principle).
 
 ## Lockout invariants
 
@@ -259,7 +332,7 @@ reason and the alternatives rejected.
 
 | Risk | Detection | Mitigation |
 | --- | --- | --- |
-| A Pod the gate did not see fails `restricted` after a flip | `FailedCreate` events, a stuck rollout, `KubeJobFailed` | G4 list; break-glass; revert |
-| A later change fails `restricted` | `ci` (D3) | blocks before merge |
-| An operator release changes the Pods it builds | the operator's alerts, `FailedCreate` | G4 check in its Renovate pull request; break-glass |
+| A Pod the gate did not see fails `restricted` after a flip | `PodSecurityEnforceDenied`, `FailedCreate` events, a stuck rollout | G4 list; break-glass; revert |
+| A later change fails `restricted` | `ci` (D3), Helm charts of `argo` and `kyverno` included | blocks before merge |
+| An operator release (tuppr, CloudNativePG, Barman Cloud plugin) changes the Pods it builds | `PodSecurityEnforceDenied`; `TalosUpgradeStuck`; the `home` probe | D15: merges on weekdays in the day; break-glass; accepted residual |
 | A Kubernetes upgrade tightens `restricted` | the `warn` label at the first apply | D11; the upgrade's CI rehearsal |
