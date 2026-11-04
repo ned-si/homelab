@@ -79,7 +79,7 @@ Inside Paperless there are two roles:
 | Any other account | none | nothing | nothing |
 | `nedsi-admin` | none, superuser | everything | everything: break-glass only |
 | `automation` | none, superuser, API token only | everything | everything: the configuration Jobs |
-| `canary` | none, API token only | add, view and delete documents | its own canary pages, for the minutes they exist |
+| `canary` | none, API token only, works on the public `/api/` | add, view and delete documents | its own canary pages, for the minutes they exist |
 
 Neither group has rights on users, groups, workflows, mail or settings. The
 types, tags, custom fields, saved views and workflows are owned by git
@@ -137,7 +137,10 @@ Paperless (Settings, Users & Groups) as `nedsi-admin`; it cannot be undone.
 ### Sharing and hiding documents
 
 - The workflow `share` gives `readers` view on every document uploaded
-  through the web app or the API. The uploader stays the owner.
+  through the web app or the API. The uploader stays the owner. That
+  includes the ingest canary's pages (`canary <number>`): the readers can
+  see one for the minutes it exists, or until it is deleted by hand when a
+  run's cleanup failed.
 - The `private` tag is the only way to hide a document from the readers.
   The workflow `private` (the last one) removes their view and change
   rights when a document is added with the tag or edited while it has it.
@@ -182,10 +185,10 @@ Existing files go in once, from the Mac, with `scripts/paperless-import.py`.
 1. Put each source's files in its own directory:
    `~/homelab-backups/paperless-import/<source>/`. The directory name is
    the source and goes into git as the tag `import:<source>`, so it must be
-   generic (`seafile`, `nas`). Sub-folders are fine; they do not become tags.
-2. The tag must exist: `import:seafile` and `import:nas` do. Another source
-   gets its tag in `apps/paperless/config/paperless.json` in a one-line PR,
-   merged before its batch.
+   generic (`mac`, `drive`). Sub-folders are fine; they do not become tags.
+2. The tag must exist. None does yet: each source gets its tag in
+   `apps/paperless/config/paperless.json` in a one-line PR, merged before
+   its batch.
 3. In the web app, as the editor: Profile, API Auth Token, create one.
 4. Run a batch during the day, a few hundred files at a time:
 
@@ -200,7 +203,9 @@ Existing files go in once, from the Mac, with `scripts/paperless-import.py`.
    failures, 1 with failures, 2 when it stopped before the first upload
    (missing tag, non-generic name, no token).
 5. Run it again until it uploads nothing new: a file whose content is
-   already in Paperless counts as a duplicate and is not uploaded.
+   already in Paperless counts as a duplicate and is not uploaded. A failed
+   upload is not retried within a run, so a server error after Paperless
+   queued the file never adds a second copy.
 6. Delete the editor's token after the last batch.
 
 Every file is uploaded as the editor with its tag, one at a time, and the
@@ -250,8 +255,8 @@ user `canary` (token in Secret `paperless-canary`):
 
 The Homelab / Data protection dashboard shows the last success and the
 upload-to-findable time over 7 days. `PaperlessIngestFailing` pages after 13
-hours without a success; `PaperlessIngestSlow` pages when two runs in a row
-take over 5 minutes. Both runbooks are in `docs/runbooks/alerts/`.
+hours without a success; `PaperlessIngestSlow` pages when two successful
+runs in a row take over 5 minutes. Both runbooks are in `docs/runbooks/alerts/`.
 
 Run it by hand:
 

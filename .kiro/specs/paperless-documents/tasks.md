@@ -109,18 +109,18 @@ in [requirements.md](requirements.md#decided-defaults).
       `PaperlessIngestSlow` with promtool tests and runbooks. Check: a week
       of canary results on the Data protection dashboard. [7.2, 7.3]
       (#1091; the token is generated locally and set as the `canary`
-      user's key, so it is sealed before the user exists. The week of
-      results builds up on the dashboard after the first run, and
-      `PaperlessIngestFailing` pages if it stops)
+      user's key, so it is sealed before the user exists. The first run
+      passed before this spec closed; the week of results is #1100)
 - [x] 7. Import script: `scripts/paperless-import.py` with pytest (upload
       as the editor with the tag, the stop when `import:<source>` is
       missing, task follow-up, the local report, counts only on stdout),
       and the `import:<source>` tags of the sources present in
       `paperless.json` (generic names). [3.1, 3.3]
-      (#1092; the import directory was empty, so the tags are those of
-      the expected sources, `import:seafile` and `import:nas`. On 3.4.2
-      Paperless consumes duplicates, so the script skips a file whose
-      SHA-256 is already in: design.md)
+      (#1092; the import directory was empty, so no source was present
+      and no `import:` tag is added: each batch adds its tag first,
+      #1093. On 3.4.2 Paperless consumes duplicates, so the script skips
+      a file whose SHA-256 is already in and never retries an upload:
+      design.md)
 - [x] 9. Close: `docs/paperless.md` complete (the web upload, taxonomy,
       access, export, restore), the README Services row, the
       `docs/threat-model.md` documents row (the `automation` token's reach,
@@ -134,3 +134,5 @@ in [requirements.md](requirements.md#decided-defaults).
 - 8. Import batches: moved to the backlog, #1093. The batches wait on the
   files, which the owner places under `~/homelab-backups/paperless-import/`;
   the issue carries the steps and Requirements 3.1-3.3.
+- Task 6's check, a week of canary results on the Data protection
+  dashboard: #1100, started by the first passing run.
