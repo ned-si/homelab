@@ -50,7 +50,26 @@ spec:
             "namespace", "$1", "source_namespace", "(.*)")
         )
       record: netpol:would_drop:rate5m
-  - interval: 15m
+    - expr: |
+        count by (namespace, direction) (
+          label_replace(hubble_policy_verdicts_total{
+              match="all",
+              direction="ingress",
+              destination_namespace=~"immich|mealie|paperless|syncthing|theater"
+            },
+            "namespace", "$1", "destination_namespace", "(.*)")
+        )
+        or
+        count by (namespace, direction) (
+          label_replace(hubble_policy_verdicts_total{
+              match="all",
+              direction="egress",
+              source_namespace=~"immich|mealie|paperless|syncthing|theater"
+            },
+            "namespace", "$1", "source_namespace", "(.*)")
+        )
+      record: netpol:would_drop:series
+  - interval: 2m
     name: netpol.ready
     rules:
     - expr: |
@@ -59,8 +78,15 @@ spec:
         max_over_time(netpol:verdicts:rate5m[7d]) * 0
       record: netpol:would_drop:increase7d
     - expr: |
+        max_over_time(netpol:would_drop:series[7d])
+        or
+        max_over_time(netpol:verdicts:rate5m[7d]) * 0
+      record: netpol:would_drop:seen7d
+    - expr: |
         (
           (netpol:would_drop:increase7d < bool 1)
+          * on (namespace, direction)
+          (netpol:would_drop:seen7d == bool 0)
           * on (namespace, direction)
           (max_over_time(netpol:verdicts:rate5m[1h] offset 7d) >= bool 0)
         )

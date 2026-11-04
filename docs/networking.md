@@ -277,8 +277,17 @@ dropped once that namespace and direction are switched to default-deny
 | Series | Meaning |
 | --- | --- |
 | `netpol:would_drop:rate5m{namespace, direction}` | would-be drops per second |
-| `netpol:would_drop:increase7d{namespace, direction}` | would-be drops in 7 days (0 where verdicts but none) |
-| `netpol:ready_to_enforce{namespace, direction}` | 1 = none in 7 days, with 7 days of verdicts |
+| `netpol:would_drop:series{namespace, direction}` | `match="all"` series present now |
+| `netpol:would_drop:increase7d{namespace, direction}` | would-be drops in 7 days, from the rate (0 where verdicts but none) |
+| `netpol:would_drop:seen7d{namespace, direction}` | most `match="all"` series present at once in 7 days (0 where verdicts but none) |
+| `netpol:ready_to_enforce{namespace, direction}` | 1 = `increase7d` below 1 and `seen7d` 0, with verdicts 7 days ago |
+
+The rate misses a connection seen once: Hubble creates the counter series at
+that first connection, so Prometheus' first sample is already 1 and
+`increase()` counts nothing (the same after each Cilium agent restart).
+`seen7d` catches it, because the series exists. The `netpol.ready` group runs
+every 2 minutes, below Prometheus' 5-minute lookback delta, so an instant
+query always returns the readiness series.
 
 The Homelab / Network dashboard, row "Network policy (not enforced): would-be
 drops", shows them and the top source and destination workloads. Ports are
@@ -332,7 +341,9 @@ scripts/netpol-observe.sh mealie --days 7        # history: peers and match type
 
 Expected: a tab-separated table, one row per direction, peer, port and
 protocol (live) with a count; match `all` rows are flows no allow-list rule
-covers, the would-be drops.
+covers, the would-be drops. `--days` lists every series present in the
+window: a row with count 0 is a flow seen once (or once after an agent
+restart), still a would-be drop.
 
 #### Hubble certificates
 

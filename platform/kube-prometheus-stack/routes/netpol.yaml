@@ -21,13 +21,27 @@
 #
 #   netpol:verdicts:rate5m{namespace, direction}        every verdict
 #   netpol:would_drop:rate5m{namespace, direction}      match="all" only
+#   netpol:would_drop:series{namespace, direction}      match="all" series present now
 #   netpol:would_drop:increase7d{namespace, direction}  from the 5m rate, averaged over 7 days;
 #                                                       0 where verdicts but no would-be drop
-#   netpol:ready_to_enforce{namespace, direction}       1 = no would-be drop in 7 days,
-#                                                       with 7 days of verdicts
+#   netpol:would_drop:seen7d{namespace, direction}      most match="all" series present at once
+#                                                       in 7 days; 0 where verdicts but none
+#   netpol:ready_to_enforce{namespace, direction}       1 = no would-be drop counted and no
+#                                                       match="all" series in 7 days, with
+#                                                       7 days of verdicts
 #
-# No alert: would-be drops do not notify. Wave 4 flips a namespace and
-# direction to default-deny only when netpol:ready_to_enforce is 1.
+# Why the presence term: Hubble creates a counter series at the first
+# connection of each label set, so Prometheus' first sample is already 1 and
+# rate() and increase() never count that connection (nor the first one after
+# a Cilium agent restart). A flow seen once in 7 days reads 0 in the rate
+# series and is visible only as a series in netpol:would_drop:series.
+#
+# netpol.ready runs every 2 minutes, below the 5-minute lookback delta, so an
+# instant query always finds its series.
+#
+# No alert: would-be drops do not notify. A namespace and direction is
+# flipped to default-deny only when netpol:ready_to_enforce is 1 (spec
+# netpol-default-deny).
 #
 # Tests: tests/prometheus/netpol_test.yaml (promtool test rules).
 ---
@@ -73,12 +87,36 @@ spec:
                 }[5m]),
                 "namespace", "$1", "source_namespace", "(.*)")
             )
+        - record: netpol:would_drop:series
+          expr: |
+            count by (namespace, direction) (
+              label_replace(hubble_policy_verdicts_total{
+                  match="all",
+                  direction="ingress",
+                  destination_namespace=~"immich|mealie|paperless|syncthing|theater"
+                },
+                "namespace", "$1", "destination_namespace", "(.*)")
+            )
+            or
+            count by (namespace, direction) (
+              label_replace(hubble_policy_verdicts_total{
+                  match="all",
+                  direction="egress",
+                  source_namespace=~"immich|mealie|paperless|syncthing|theater"
+                },
+                "namespace", "$1", "source_namespace", "(.*)")
+            )
     - name: netpol.ready
-      interval: 15m
+      interval: 2m
       rules:
         - record: netpol:would_drop:increase7d
           expr: |
             avg_over_time(netpol:would_drop:rate5m[7d]) * 604800
+            or
+            max_over_time(netpol:verdicts:rate5m[7d]) * 0
+        - record: netpol:would_drop:seen7d
+          expr: |
+            max_over_time(netpol:would_drop:series[7d])
             or
             max_over_time(netpol:verdicts:rate5m[7d]) * 0
         # 1 only with verdicts 7 days ago: a fresh allow-list or a quiet
@@ -87,6 +125,8 @@ spec:
           expr: |
             (
               (netpol:would_drop:increase7d < bool 1)
+              * on (namespace, direction)
+              (netpol:would_drop:seen7d == bool 0)
               * on (namespace, direction)
               (max_over_time(netpol:verdicts:rate5m[1h] offset 7d) >= bool 0)
             )

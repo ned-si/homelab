@@ -58,3 +58,66 @@ tests:
           # Covered, but only 2 days of verdicts.
           - labels: 'netpol:ready_to_enforce{namespace="paperless", direction="ingress"}'
             value: 0
+      - expr: netpol:would_drop:seen7d
+        eval_time: 8d
+        exp_samples:
+          - labels: 'netpol:would_drop:seen7d{namespace="mealie", direction="egress"}'
+            value: 1
+          - labels: 'netpol:would_drop:seen7d{namespace="mealie", direction="ingress"}'
+            value: 0
+          - labels: 'netpol:would_drop:seen7d{namespace="paperless", direction="ingress"}'
+            value: 0
+      # Off the old 15-minute grid: both series are still there.
+      - expr: netpol:ready_to_enforce
+        eval_time: 8d10m
+        exp_samples:
+          - labels: 'netpol:ready_to_enforce{namespace="mealie", direction="egress"}'
+            value: 0
+          - labels: 'netpol:ready_to_enforce{namespace="mealie", direction="ingress"}'
+            value: 1
+          - labels: 'netpol:ready_to_enforce{namespace="paperless", direction="ingress"}'
+            value: 0
+      - expr: round(netpol:would_drop:increase7d)
+        eval_time: 8d10m
+        exp_samples:
+          - labels: '{namespace="mealie", direction="egress"}'
+            value: 10080
+          - labels: '{namespace="mealie", direction="ingress"}'
+            value: 0
+          - labels: '{namespace="paperless", direction="ingress"}'
+            value: 0
+
+  # syncthing: ingress covered for 8 days, plus one connection from a hook Job
+  # that no rule covers. Hubble creates its series at value 1 and it never
+  # changes, so the rate and increase7d read 0; only the presence term sees it.
+  - interval: 1m
+    input_series:
+      - series: >-
+          hubble_policy_verdicts_total{direction="ingress", match="l3-l4", action="forwarded",
+          source="ingress", source_namespace="", destination="syncthing", destination_namespace="syncthing", pod="cilium-a"}
+        values: '0+2x11600'
+      - series: >-
+          hubble_policy_verdicts_total{direction="ingress", match="all", action="forwarded",
+          source="postsync-smoke", source_namespace="syncthing", destination="syncthing", destination_namespace="syncthing", pod="cilium-a"}
+        values: '_x10000 1x1600'
+    promql_expr_test:
+      - expr: netpol:would_drop:series
+        eval_time: 8d
+        exp_samples:
+          - labels: 'netpol:would_drop:series{namespace="syncthing", direction="ingress"}'
+            value: 1
+      - expr: round(netpol:would_drop:increase7d)
+        eval_time: 8d
+        exp_samples:
+          - labels: '{namespace="syncthing", direction="ingress"}'
+            value: 0
+      - expr: netpol:would_drop:seen7d
+        eval_time: 8d
+        exp_samples:
+          - labels: 'netpol:would_drop:seen7d{namespace="syncthing", direction="ingress"}'
+            value: 1
+      - expr: netpol:ready_to_enforce
+        eval_time: 8d
+        exp_samples:
+          - labels: 'netpol:ready_to_enforce{namespace="syncthing", direction="ingress"}'
+            value: 0
