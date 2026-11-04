@@ -82,3 +82,13 @@ MCP servers fit together:
   characters, every commit signed. Branches: `<type>/<topic>`.
 - Kiro specs: `.kiro/specs/<name>/` with `requirements.md` (and its header),
   `design.md`, `tasks.md`. Everything else under `.kiro/` is local and git-ignored.
+
+## Comments
+
+Comments are useful but stay succinct:
+
+- Say why, not what.
+- A few lines per block at most.
+- No history or narration: that belongs in the PR and the git log.
+- Link the doc instead of repeating it.
+- Delete comments that restate the code.
