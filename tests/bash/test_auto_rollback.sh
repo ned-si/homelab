@@ -228,8 +228,8 @@ guard() { env PATH="$tmp/gbin:$PATH" REPO=o/r NOW=1700000600 "$@" "$GUARD" 2>"$t
 msg() { printf '{"event":"message","time":%s,"title":"%s"}\n' "$1" "$2"; }
 
 : > "$GUARD_LOG"
-out=$(guard RUNS=$'auto-rollback immich\nauto-rollback mealie\nauto-rollback immich\nauto-rollback seafile' NTFY_TOPIC=t)
-expect_eq "3 distinct apps: outage" "3 apps failed within 10 minutes: immich mealie seafile" "$out"
+out=$(guard RUNS=$'auto-rollback immich\nauto-rollback mealie\nauto-rollback immich\nauto-rollback syncthing' NTFY_TOPIC=t)
+expect_eq "3 distinct apps: outage" "3 apps failed within 10 minutes: immich mealie syncthing" "$out"
 expect_contains "runs since NOW - 10 minutes" "runs?created=%3E%3D2023-11-14T22:13:20Z" "$(cat "$GUARD_LOG")"
 check "several apps: ntfy not read" [ -z "$(grep '^curl' "$GUARD_LOG")" ]
 

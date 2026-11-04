@@ -44,7 +44,7 @@
 #     Grafana in the middle of the backup and, worse, contending for a
 #     ReadWriteOnce volume that the backup pod now holds. Quiescing anything
 #     Argo manages requires suspending the Application first, which a CronJob
-#     has no business doing. This applies equally to Plex, Jellyfin, Seafile and
+#     has no business doing. This applies equally to Plex, Jellyfin and
 #     Syncthing and is why none of their backup jobs quiesce either.
 #
 #   SNAPSHOT FIRST (VolumeSnapshot -> temporary PVC -> restic).

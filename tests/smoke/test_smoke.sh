@@ -54,7 +54,7 @@ EOF
 {"items":[
  {"metadata":{"namespace":"immich","name":"immich-data"},"status":{"phase":"Bound"}},
  {"metadata":{"namespace":"theater","name":"plex-config"},"status":{"phase":"Bound"}},
- {"metadata":{"namespace":"seafile","name":"mariadb"},"status":{"phase":"Bound"}}]}
+ {"metadata":{"namespace":"mealie","name":"mealie-data"},"status":{"phase":"Bound"}}]}
 EOF
   cat > "$d/cnpg.json" <<'EOF'
 {"items":[

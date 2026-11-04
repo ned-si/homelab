@@ -28,7 +28,6 @@ One restic repository per prefix. The restic URL is
 | `immich/library` | `immich` | `/data` → `immich-library` | PVC `immich-data` (read-only), minus `thumbs/`, `encoded-video/`, `.tmp` | 256 GiB, 50,822 files |
 | `mealie/data` | `mealie` | `/data` → `mealie-files`; `/dumps` → `mealie-postgres` | PVC `mealie-pvc`; `pg_dump` of `mealie-postgresql` | 1.5 MiB |
 | `paperless/media` | `paperless` | `/media` → `paperless-media`; `/data` → `paperless-data` | PVCs `paperless-media`, `paperless-data` (includes `db.sqlite3`) | 2.4 MiB |
-| `seafile/shared` (retained) | `seafile` | `/shared` → `seafile-data`; `/dumps` → `seafile-mariadb` | none since Seafile was removed ([decisions.md](decisions.md#seafile-removed)) | 0.7 MiB |
 | `syncthing/data` | `syncthing` | `/data` → `syncthing-identity` | PVC `syncthing-pvc` | 8.2 MiB |
 | `theater/configs` | `theater` | `/config` → `sonarr`, `radarr`, `lidarr`, `prowlarr`, `plex`, `jellyfin-config`, `lazylibrarian`; `/config/data` → `jellyfin-db-besteffort`; `/dumps` → `theater-postgres` | the six `*-config` PVCs; `pg_dump` of `sonarr`/`radarr`/`lidarr`/`prowlarr-postgresql` | 295 MiB |
 | `books/configs` | `books` | `/data` → `audiobookshelf`; `/library` → `calibre-library`; `/config` → `calibre-web` | PVC `audiobookshelf-config`, minus `metadata/cache`, `metadata/logs`; NFS `books/ebooks`; PVC `calibre-web-config`, minus `log` | not yet measured |
@@ -40,12 +39,11 @@ Every snapshot in `theater/configs` also carries the tag `theater-configs`. The
 dumps are files named `pg-<app>.dump` (theater) and
 `pg-mealie-mealie-postgresql.dump` under `/dumps` in the snapshot.
 
-`seafile/shared` is retained: nothing writes to it or prunes it, and the bucket
-policy keeps its versions like any other prefix. Its last snapshots are
-`34f34ea0` (tag `seafile-mariadb`, the dump of `ccnet_db`, `seafile_db` and
-`seahub_db`, 161 tables) and `8838dac0` (tag `seafile-data`, `/shared` with
-`seafile/conf/`). Restore them with `restic restore <id>`; the dump loads into
-`mariadb:10.11`.
+The former Seafile repository `seafile/shared` was deleted on 2026-11-03 by
+operator decision ([decisions.md](decisions.md#seafile-removed)). The bucket
+policy denies `s3:DeleteObjectVersion`, so deleting it leaves delete markers
+and its versions stay locked until the 30-day noncurrent rule expires them
+([Immutable versions](#immutable-versions)). That is expected.
 
 The jobs run as uid 1000 with the source volumes mounted read-only. Credentials
 come from the Secret `s3-backup` (the writer key and `RESTIC_PASSWORD`), present in
@@ -743,10 +741,6 @@ Jellyfin's `config/`).
   volume: identity, config, the live index database and the synced folder. The
   identity check (`restic ls` must find all three files) passes. Restore only the
   three identity files; Syncthing rebuilds its index by rescanning.
-
-**Seafile (retained repository) needs both halves.** The blobs are hash-named
-files; the MariaDB dump is the index that maps them to files, libraries and
-owners. Restore `34f34ea0` and `8838dac0` together.
 
 ## The bucket
 

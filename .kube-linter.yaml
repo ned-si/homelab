@@ -76,7 +76,7 @@ customChecks: []
 #
 #   no-read-only-root-fs
 #     18 of 22 containers do not set readOnlyRootFilesystem. Keycloak, the *arr
-#     apps, Plex, Seafile, Paperless and Mealie all write to their own
+#     apps, Plex, Paperless and Mealie all write to their own
 #     filesystem at runtime with no way to relocate it, so enforcing this means
 #     forking images. `.trivyignore.yaml` takes exactly this position for the
 #     equivalent Trivy rule (AVD-KSV-0014); the two files used to disagree, and

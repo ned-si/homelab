@@ -47,7 +47,7 @@ set -uo pipefail
 
 API_VIP=${SMOKE_API_VIP:-192.168.1.11}
 DOMAIN=${SMOKE_DOMAIN:-lilalala.com}
-HOSTS=${SMOKE_HOSTS:-"argo auth grafana theater cinema media archive cook drive syncthing"}
+HOSTS=${SMOKE_HOSTS:-"argo auth grafana theater cinema media archive cook syncthing"}
 NODE_COUNT=${SMOKE_NODE_COUNT:-4}
 ETCD_MEMBERS=${SMOKE_ETCD_MEMBERS:-3}
 PVC_MIN=${SMOKE_PVC_MIN:-26}

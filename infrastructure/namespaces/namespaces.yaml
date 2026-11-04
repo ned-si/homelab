@@ -334,18 +334,6 @@ metadata:
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: seafile
-  # Seafile is decommissioned; the namespace stays for its two retained claims
-  # until 2026-11-16 (docs/decisions.md).
-  annotations:
-    argocd.argoproj.io/sync-options: Delete=false,Prune=false
-  labels:
-    pod-security.kubernetes.io/warn: baseline
-    pod-security.kubernetes.io/audit: baseline
----
-apiVersion: v1
-kind: Namespace
-metadata:
   name: syncthing
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false

@@ -43,8 +43,8 @@
 #       - a brand-new backup manifest missing from FILES passed silently
 #
 #     which is precisely the failure it was written to prevent, and the one
-#     that matters: apps/theater/backup.yaml, apps/seafile/backup.yaml,
-#     apps/syncthing/backup.yaml, apps/mealie/backup.yaml and
+#     that matters: apps/theater/backup.yaml, apps/syncthing/backup.yaml,
+#     apps/mealie/backup.yaml and
 #     platform/kube-prometheus-stack/routes/grafana-backup.yaml are all new,
 #     and every one of them would have kept pointing at REPLACE-ME while this
 #     script reported success.

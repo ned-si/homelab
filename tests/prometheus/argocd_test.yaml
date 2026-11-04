@@ -38,10 +38,10 @@ tests:
         alertname: ArgoCDMetricsAbsent
         exp_alerts: []
 
-  # seafile: OutOfSync from minute 5, alert after 30 minutes.
+  # syncthing: OutOfSync from minute 5, alert after 30 minutes.
   - interval: 1m
     input_series:
-      - series: 'argocd_app_info{name="seafile", dest_namespace="seafile", health_status="Healthy", sync_status="OutOfSync"}'
+      - series: 'argocd_app_info{name="syncthing", dest_namespace="syncthing", health_status="Healthy", sync_status="OutOfSync"}'
         values: '_x4 1x40'
     alert_rule_test:
       - eval_time: 30m
@@ -51,18 +51,18 @@ tests:
         alertname: ArgoCDAppOutOfSync
         exp_alerts:
           - exp_labels:
-              name: seafile
-              namespace: seafile
+              name: syncthing
+              namespace: syncthing
               severity: warning
               action: auto
             exp_annotations:
-              summary: seafile is OutOfSync for 30 minutes
+              summary: syncthing is OutOfSync for 30 minutes
               description: >-
-                The live state of seafile differs from git and
+                The live state of syncthing differs from git and
                 self-heal has not closed the gap in 30 minutes: a stuck sync, a
                 field another controller rewrites, or a resource Argo CD cannot
                 apply. Check the diff in
-                https://argo.lilalala.com/applications/argo/seafile.
+                https://argo.lilalala.com/applications/argo/syncthing.
 
   # theater: an existing failure counter goes 2 -> 3 at minute 20.
   # mealie: its first failure ever creates the series at minute 20.
@@ -115,9 +115,9 @@ tests:
   # Scraping starts at minute 5 with old failure counters: nothing fires.
   - interval: 1m
     input_series:
-      - series: 'argocd_app_info{name="seafile", dest_namespace="seafile", health_status="Healthy", sync_status="Synced"}'
+      - series: 'argocd_app_info{name="syncthing", dest_namespace="syncthing", health_status="Healthy", sync_status="Synced"}'
         values: '_x5 1x30'
-      - series: 'argocd_app_sync_total{name="seafile", phase="Failed"}'
+      - series: 'argocd_app_sync_total{name="syncthing", phase="Failed"}'
         values: '_x5 4x30'
     alert_rule_test:
       - eval_time: 7m
