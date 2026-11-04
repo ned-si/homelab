@@ -251,12 +251,26 @@ q() { kubectl --request-timeout=20s get --raw "/api/v1/namespaces/monitoring/ser
    Cluster, the operator's webhook still answers and every collector is up:
 
    ```sh
-   kubectl apply --dry-run=server -f deploy/apps/<app>/resources/cluster-<name>.yaml
+   for f in $(grep -rl '^kind: Cluster$' deploy | xargs grep -l '^  namespace: <ns>$'); do
+     kubectl apply --dry-run=server -f "$f"
+   done
    q 'cnpg_collector_up'
    ```
 
-   Expected: `cluster.postgresql.cnpg.io/<name> configured (server dry run)`
-   (or `unchanged`), and `1` for each of the 8 Clusters.
+   Expected: one `cluster.postgresql.cnpg.io/<name> configured (server dry
+   run)` (or `unchanged`) line per Cluster of the namespace, and `1` for each
+   of the 8 Clusters. Each line except Immich's comes after a `Warning: ...
+   missing the kubectl.kubernetes.io/last-applied-configuration annotation`;
+   a server dry run persists nothing, so the warning is harmless. No line from the loop in a namespace of this table means
+   the file moved: find it with `grep -rl '^kind: Cluster$' deploy`.
+
+   | Namespace | Cluster file |
+   | --- | --- |
+   | `immich` | `deploy/apps/immich/resources/cluster-immich-db.yaml` |
+   | `mealie` | `deploy/apps/mealie/cluster-mealie-postgresql.yaml` |
+   | `home` | `deploy/apps/home/cluster-home-assistant-postgresql.yaml` |
+   | `theater` | `deploy/apps/theater/cluster-{sonarr,radarr,prowlarr,lidarr}-postgresql.yaml` |
+   | `keycloak` | `deploy/platform/keycloak/cluster-keycloak-db.yaml` |
 
 8. **Close.** Run the lockout check of step 2 again, expire the silence
    (`scripts/maintenance-silence.sh --expire <id>`), comment the results of
