@@ -37,12 +37,16 @@ mealie=admins household
 paperless=admins household
 ```
 
-Header lines for the audience groups:
+Header lines for every group of the file (task 1 adds the `household` line,
+task 3 writes the full block):
 
 ```text
-#   household  the household members: the household apps
-#   media      relatives and friends: Immich
-#   admins     the operator: every app
+#   household            the household members: the household apps
+#   media                relatives and friends: Immich
+#   admins               the operator: every app
+#   ArgoCDAdmins         Argo CD administrators (OTP)
+#   TheaterAdmins        the theater admin UIs (OTP)
+#   HomeAssistantAdmins  Home Assistant administrators (OTP)
 ```
 
 ## Migration
@@ -50,14 +54,14 @@ Header lines for the audience groups:
 | Step | Who | What | Access after the step |
 | --- | --- | --- | --- |
 | A | PR (task 1) | Add `household` to the six user-app lines; the Job creates the empty group | Unchanged for everyone |
-| B | Operator, admin console (task 2) | Join the household members to `household`; move every relative from `family` to `media` (the account of #1065 included, if not done yet); check that `family` has no members | Household members: unchanged, through `household`. Relatives: Immich only, through `media`; the household apps deny them at the gate |
-| C | PR (task 3) | Remove `family` from every line and `media` from the two book lines; docs and specs | Friends lose the books at the gate |
-| D | Agent and operator (task 4) | App accounts of people who lost an app; then delete the empty `family` group | Nobody outside the household keeps a household-app session |
+| B | Operator, admin console (task 2) | Join the household members to `household`; move every relative from `family` to `media` (the account of #1065 included, if not done yet); check that `family` has no members | Household members: unchanged, through `household`. Relatives: Immich, Audiobookshelf and Calibre-Web through `media`; Home Assistant, Mealie and Paperless deny them at the gate |
+| C | PR (task 3) | Remove `family` from every line and `media` from the two book lines; docs and specs | Relatives and friends lose Audiobookshelf and Calibre-Web at the gate |
+| D | Operator, from an agent's checklist (task 4) | App accounts of people who lost an app; then delete the empty `family` group | Nobody outside the household keeps a household-app session |
 
-Relatives lose the household apps at the gate in step B, when they leave
-`family`; step C then only removes empty or unused mappings, except for the
-friends' books. Keeping both changes small makes each one easy to check and
-to undo.
+Relatives lose Home Assistant, Mealie and Paperless in step B, when they
+leave `family`. Step C takes the two book apps from everyone in `media` and
+removes the empty `family` mappings. Keeping both changes small makes each
+one easy to check and to undo.
 
 Rollback per step:
 
@@ -65,9 +69,9 @@ Rollback per step:
   is harmless.
 - B: put the people back in `family` in the console.
 - C: revert the PR while `family` still exists; the Job maps it again. Its
-  members are gone after step B, so a revert of C alone restores the
-  friends' books and nothing else; restoring the relatives' access is step B
-  undone.
+  members are gone after step B, so a revert of C alone restores the books
+  to everyone in `media` and nothing else; restoring the relatives' other
+  apps is step B undone.
 - D: a deleted app account is final, except an Immich user (not touched
   here). That is why step D deletes only accounts that own nothing and asks
   the operator about the others.
@@ -79,7 +83,7 @@ console and the realm Job keep working throughout.
 ### Step B checklist (operator, admin console, realm `homelab`)
 
 1. Groups, `household`, Members, Add member: the household members.
-   Expected: two members.
+   Expected: the household members, and nobody else.
 2. Groups, `family`, Members: for each relative, Users, the user, Groups,
    Join group `media`, then Leave group `family`.
    Expected: Groups, `family`, Members is empty.
@@ -88,25 +92,31 @@ console and the realm Job keep working throughout.
 
 ### Step D: app accounts
 
-An agent with each app's admin access, on a weekday during the day (the
-risky-change window), lists per app the accounts of people outside
-`household` and `admins`, with what each owns:
+The operator does step D in each app's admin UI, on a weekday during the day
+(the risky-change window). An agent prepares a checklist in chat: per app,
+the page, what an account owns, and delete or disable. The operator works
+through it and replies with the counts only, and the agent records them on
+#1062. No agent holds app admin credentials for this, and no name is written
+anywhere.
 
-| App | Owns | Listed through |
-| --- | --- | --- |
-| Mealie | recipes created, meal plans, shopping lists | Admin settings, Users; the API `GET /api/admin/users` |
-| Paperless | documents owned (the editor owns every document, so normally none) | the API `GET /api/users/` and the documents' owners |
-| Audiobookshelf | progress, bookmarks | Settings, Users |
-| Calibre-Web | shelves, reading state | Admin, Users |
-| Home Assistant | devices, tokens | Settings, People, Users (advanced mode) |
+| App | Owns | Page | Action |
+| --- | --- | --- | --- |
+| Mealie | recipes created, meal plans, shopping lists | Admin settings, Users | delete when it owns nothing |
+| Audiobookshelf | progress, bookmarks | Settings, Users | delete when it owns nothing |
+| Calibre-Web | shelves, reading state | Admin, Users | delete when it owns nothing |
+| Home Assistant | devices, tokens | Settings, People, Users (advanced mode) | delete when it owns nothing |
+| Paperless | nothing: the editor owns every document | Settings, Users & Groups | none, count only |
 
-The list, with usernames, goes into the local run report only. Accounts that
-own nothing are deleted as in the runbook's "Remove a person", step 2.
-Accounts that own something are listed for the operator in chat: keep them
-disabled where the app offers it (Home Assistant "Can log in" off,
-Audiobookshelf "Enable user" off) or delete them. The counts per app go on
-#1062. The Paperless accounts left by the SSO tests are #1044's job and are
-skipped here.
+Accounts that own nothing are deleted as in the runbook's "Remove a person",
+step 2. For an account that owns something, the operator keeps it disabled
+where the app offers it (Home Assistant "Can log in" off, the Audiobookshelf
+user's enable toggle off; the checklist names the exact label) or deletes it.
+
+Paperless has nothing to delete. Accounts of people outside the member list
+have no Paperless group and see no document (`paperless-apply` takes them
+out of both groups every night), and the gate stops new logins. Task 4 only
+records their count on #1062. The Paperless accounts left by the SSO tests
+are #1044's job and are skipped here.
 
 Then the operator deletes the group `family` (Groups, `family`, Delete).
 Expected: Groups lists no `family`; the next `keycloak-realm-settings` run
@@ -153,7 +163,7 @@ release.
 | Failure | What happens |
 | --- | --- |
 | A household member is not in `household` when step C merges | Step C runs only after the `family: 0` comment of step B; if it happens anyway, the person sees "Access denied" in the household apps: join them to `household`, the next login works |
-| A relative opens a household app after step B | "Access denied". It counts as a failed login: after 10 the account waits 60 s, then longer (`sessions.conf`), and the lock also blocks their Immich login. Tell relatives they keep Immich only; the operator clears a lock in Users, the user, Details |
+| A relative opens Home Assistant, Mealie or Paperless after step B, or a book app after step C | "Access denied". It counts as a failed login: after 10 the account waits 60 s, then longer (`sessions.conf`), and the lock also blocks their Immich login. Tell relatives they keep Immich only; the operator clears a lock in Users, the user, Details |
 | A relative still has an app session after step B | Step D ends it by deleting or disabling the app account |
 | `apply.sh` fails or a mapping differs | The PostSync Job fails, the `keycloak` sync fails and the auto-rollback reverts the merge |
 | Step C reverted after `family` was deleted | `apply.sh` recreates an empty `family`; nobody gets access back until the operator adds members |
@@ -163,24 +173,27 @@ release.
 - Every PR: `tests/bash/test_keycloak_realm.sh` (the `access.conf` format)
   and the repo checks; nothing new to test there.
 - After each merge: `kubectl -n keycloak logs job/keycloak-realm-settings`
-  shows `ok   client <client> access groups <groups>` with the groups of the
-  table in Requirement 2.1 for each line, and no `FAIL`.
+  shows `ok   client <client> access groups=<groups, sorted>` with the
+  groups of the table in Requirement 2.1 for each line, and no `FAIL`.
 - After step C: in the admin console, Clients, `mealie`, Client scopes,
   Evaluate, with a relative's user: the generated access token has no
   `mealie` role `access`; with a household member's user it has one. The pentest test user
   (pentest-programme) moves from `family` to `household` with task 3 and
   covers the household surface on each run.
 - After task 3: `git grep -n -w family` over the files of Requirement 7.1
-  finds no Keycloak group.
+  returns exactly one line, the "Area" tag row of
+  `paperless-documents/design.md` (`family` is a Paperless tag there). Task
+  3 replaces "family phone" with "household phone" in `pentest-programme`.
 
 ## Open questions
 
 Operator preferences only; each has a default that applies if he does not
 answer.
 
-1. Friends in `media` lose Audiobookshelf and Calibre-Web. Default: yes, as
-   the books follow Mealie. If a friend reads there, `media` stays on the two
-   book lines.
+1. Everyone outside the household (`media`: relatives and friends) loses
+   Audiobookshelf and Calibre-Web, like Mealie. Default: yes. If any of them
+   should keep the books, `media` stays on the two book lines, and then
+   every relative and friend keeps them.
 2. Home Assistant administrators: only the operator (`HomeAssistantAdmins`),
    the other adult a normal user. Default: yes. If the other adult should
    edit dashboards and automations too, they join `HomeAssistantAdmins`

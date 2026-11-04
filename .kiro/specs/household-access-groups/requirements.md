@@ -94,7 +94,7 @@ as a relative or a friend, I want to keep the photos.
    The platform clients (`argocd`, `grafana-oauth`, `headlamp`, `hubble`,
    `signoz`) and `theater-sso` (the *arr admin UIs: `admins`
    `TheaterAdmins`) are unchanged. (`keycloak-realm-settings` log: `ok
-   client <client> access groups <groups>` for each line)
+   client <client> access groups=<groups, sorted>` for each line)
 2. WHEN a user in `media` only opens Home Assistant, Audiobookshelf,
    Calibre-Web, Mealie or Paperless, THE gate SHALL show "Access denied";
    Immich SHALL log them in. (access-identity Requirement 2.2)
@@ -140,16 +140,21 @@ it now, not when their year-long app session ends.
 
 #### Acceptance criteria
 
-1. FOR each app a person loses through this spec, THE person's app account
-   SHALL be listed, with what it owns (recipes, documents, shelves, reading
-   progress, devices), in a local report only, never in git, a pull request
-   or an issue.
-2. AN app account that owns nothing SHALL be deleted as in
+1. FOR each app a person loses through this spec, THE operator SHALL check
+   the person's app account, and what it owns (recipes, shelves, reading
+   progress, devices), in that app's admin UI, from a checklist an agent
+   prepares in chat. No agent holds app admin credentials for this. Names
+   SHALL NOT go into git, a pull request or an issue.
+2. IN Mealie, Audiobookshelf, Calibre-Web and Home Assistant, AN app account
+   that owns nothing SHALL be deleted as in
    [add-a-person.md, Remove a person](../../../docs/runbooks/add-a-person.md#remove-a-person),
-   step 2. AN account that owns something SHALL be listed for the operator,
-   who decides to keep it disabled where the app allows it, or to delete it.
-3. Immich accounts SHALL NOT be touched: relatives and friends keep Immich.
-4. THE number of accounts deleted and kept per app SHALL be recorded on
+   step 2. FOR an account that owns something, THE operator SHALL decide to
+   keep it disabled where the app allows it, or to delete it.
+3. Paperless SHALL have nothing to delete: an account outside the member
+   list has no Paperless group and sees no document. Only its count SHALL be
+   recorded.
+4. Immich accounts SHALL NOT be touched: relatives and friends keep Immich.
+5. THE number of accounts deleted and kept per app SHALL be recorded on
    #1062.
 
 ### Requirement 6: Opening an app to more people goes through a group
@@ -183,8 +188,11 @@ who reaches what.
    runbook `add-a-person.md`, `docs/paperless.md`,
    `docs/home-automation.md` and the active specs that name the group
    (`paperless-documents`, `pentest-programme`) SHALL describe `household`
-   and `media` and SHALL NOT name `family` as a Keycloak group. (`git grep
-   -n -w family` over these files finds no group reference)
+   and `media` and SHALL NOT name `family` as a Keycloak group. The
+   `pentest-programme` phrase "family phone" SHALL become "household phone".
+   (`git grep -n -w family` over these files returns one line only: the
+   "Area" tag row of `paperless-documents/design.md`, where `family` is a
+   Paperless tag)
 
 ## Decided
 
@@ -201,9 +209,9 @@ one PR.
 | Immich (operator, 2026-11-04) | The operator is the Immich admin; household members, relatives and friends through their own accounts and shared albums | Immich has no user groups (#1073) |
 | Plex, Jellyfin (operator) | Off SSO | The TV apps; a partial SSO for Plex is research in #1064 |
 | `family` | Folded into `media`, then deleted | After this spec both would reach Immich only; #1065 already moves one account from `family` to `media` |
-| Friends on the books | `media` loses Audiobookshelf and Calibre-Web | The operator put the books with Mealie ("same as cook"); question 1 in [design](design.md#open-questions) |
+| Relatives and friends on the books | `media` (everyone outside the household) loses Audiobookshelf and Calibre-Web | The operator put the books with Mealie ("same as cook"); question 1 in [design](design.md#open-questions) |
 | Who is in `household` | The operator and the other adult | #1062; the operator's `admins` membership already covers every app, `household` lists the household |
 | Group names | Audience groups in lower case (`household`, `media`, a later one named for its members); per-app admin groups keep their names | Matches the groups in place; renaming `TheaterAdmins` and the others would touch three apps for no gain |
 | OTP | Not for `household` or `media` | access-identity Requirement 7.2 |
-| App accounts of people who lose an app | Deleted when they own nothing; listed for the operator when they do | A Keycloak denial does not end an app session (Requirement 5) |
+| App accounts of people who lose an app | The operator checks them in each app's admin UI from an agent's checklist; deleted when they own nothing, his choice when they do | A Keycloak denial does not end an app session; no agent holds app admin credentials (Requirement 5) |
 | Membership changes | The operator, in the admin console | Users stay out of git; the console is the only place they are |
