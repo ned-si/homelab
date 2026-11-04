@@ -189,3 +189,37 @@ tests:
             value: 0
           - labels: 'netpol:ready_to_enforce{namespace="home", direction="ingress"}'
             value: 0
+
+  # backup-verify: a new allow-list, counted like the others. Ingress covered
+  # but with 1 day of verdicts (not ready yet); egress with one uncovered
+  # connection per minute.
+  - interval: 1m
+    input_series:
+      - series: >-
+          hubble_policy_verdicts_total{direction="ingress", match="l3-l4", action="forwarded",
+          source="prometheus", source_namespace="monitoring", destination="pushgateway", destination_namespace="backup-verify", pod="cilium-a"}
+        values: '_x10080 0+4x1520'
+      - series: >-
+          hubble_policy_verdicts_total{direction="egress", match="all", action="forwarded",
+          source="backup-verify-files", source_namespace="backup-verify", destination="world", destination_namespace="", pod="cilium-a"}
+        values: '_x10080 0+1x1520'
+    promql_expr_test:
+      - expr: round(netpol:verdicts:rate5m * 60, 0.01)
+        eval_time: 8d
+        exp_samples:
+          - labels: '{namespace="backup-verify", direction="ingress"}'
+            value: 4
+          - labels: '{namespace="backup-verify", direction="egress"}'
+            value: 1
+      - expr: round(netpol:would_drop:rate5m * 60, 0.01)
+        eval_time: 8d
+        exp_samples:
+          - labels: '{namespace="backup-verify", direction="egress"}'
+            value: 1
+      - expr: netpol:ready_to_enforce
+        eval_time: 8d
+        exp_samples:
+          - labels: 'netpol:ready_to_enforce{namespace="backup-verify", direction="egress"}'
+            value: 0
+          - labels: 'netpol:ready_to_enforce{namespace="backup-verify", direction="ingress"}'
+            value: 0

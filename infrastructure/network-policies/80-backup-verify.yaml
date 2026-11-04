@@ -1,0 +1,188 @@
+# backup-verify: the weekly and monthly restore tests (platform/backup-verify/),
+# the `bv-<source>` CloudNativePG clusters they restore one at a time, and
+# the Pushgateway that holds their results.
+#
+# From the manifests and scripts in platform/backup-verify/, and from the
+# verdicts the source namespaces already record for these Jobs (the
+# `backup-verify` rule of 50-mealie.yaml). The Pushgateway also keeps its
+# Kubernetes NetworkPolicy (pushgateway.yaml), which already denies other
+# ingress; the rule below repeats it so the switch can be flipped later.
+# The 7-day audit of spec netpol-default-deny starts with this file; its
+# window has to include a Saturday and a Sunday (the CronJobs' schedules).
+#
+# No NFS rule: restore-files.yaml mounts the NAS through the kubelet, which
+# pod policy never sees (kustomization.yaml header).
+#
+# Not enforced: every policy here is default-allow; the switch is the
+# `backup-verify` block in ./90-enforcement.yaml.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: verify-jobs
+  namespace: backup-verify
+spec:
+  description: >-
+    The restore-test CronJobs: kubectl to the API server, psql to the source
+    databases, restic and the AWS CLI to S3, results to the Pushgateway.
+  endpointSelector:
+    matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+      - key: cnpg.io/cluster
+        operator: DoesNotExist
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # kubectl: creates and reads the bv-<source> Clusters, execs into them
+    # (scripts/verify-postgres.sh, rbac.yaml).
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # The psql sidecar reads each source primary, read-only
+    # (scripts/postgres-targets.txt: immich, keycloak, mealie, home, theater).
+    - toEndpoints:
+        - matchExpressions:
+            - key: io.kubernetes.pod.namespace
+              operator: In
+              values: [immich, keycloak, mealie, home, theater]
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # restic (scripts/verify-files.sh, verify-paperless.sh) and the lock test
+    # (verify-lock.sh) to s3.eu-central-1.amazonaws.com.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    # scripts/common.sh -- PUSHGATEWAY http://pushgateway.backup-verify.svc:9091.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: pushgateway
+      toPorts:
+        - ports:
+            - port: "9091"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: pushgateway
+  namespace: backup-verify
+spec:
+  description: >-
+    The Pushgateway: pushes from this namespace and talos-drift, scrapes from
+    monitoring.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: pushgateway
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # platform/backup-verify/pushgateway.yaml -- NetworkPolicy `pushgateway`.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: backup-verify
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+        - matchLabels:
+            io.kubernetes.pod.namespace: system-upgrade
+            app.kubernetes.io/name: talos-drift
+      toPorts:
+        - ports:
+            - port: "9091"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: verify-postgres
+  namespace: backup-verify
+spec:
+  description: >-
+    The bv-<source> restore clusters: reachable by the operator and their
+    peers, egress to the API server and to S3 for the restore.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # The CloudNativePG operator in `immich` (clusters/homelab/platform/cnpg.yaml).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: immich
+            app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "5432"
+              protocol: TCP
+    - fromEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # The Barman Cloud plugin reads the base backup and WAL from S3
+    # (object-store.yaml -- ObjectStore `verify-source`).
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
