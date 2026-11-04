@@ -405,8 +405,23 @@ writes a local report
 do not become tags: they would add unreviewed tags owned by the editor,
 which the reader cannot see and `apply.py` reports as unmanaged; the path
 in the local report keeps the old structure. It prints counts only. Re-running
-it is safe: Paperless refuses duplicates by checksum. Batches go in during
-the day, a few hundred files at a time, so OCR does not starve the node.
+it is safe: the script skips content already in Paperless (below). Batches go
+in during the day, a few hundred files at a time, so OCR does not starve the
+node.
+
+Measured on 3.4.2 in task 7: Paperless consumes a duplicate (it only logs
+a warning) unless `PAPERLESS_CONSUMER_DELETE_DUPLICATES` is set, which this
+deployment does not set. The script therefore skips a file itself when a
+document with its SHA-256 (Paperless' checksum) already exists, through the
+API filter `checksum__iexact`, or when the same content came earlier in the
+run and went in; a task that still reports `duplicate_of` counts as a
+duplicate too. It uploads one file at a time and waits for its task, and
+`--limit N` stops after N uploads, so a batch is one run and the next run
+skips what is in. The upload is never retried: a `5xx` or a timeout can
+come after Paperless queued the file, so the file is reported failed and
+the next run's checksum lookup decides. The import directory was still
+empty when task 7 landed, so no `import:` tag exists yet; each source's
+batch adds its tag to `paperless.json` first (#1093).
 
 The script lands in its own task and PR. The batches run afterwards, and
 one PR records the counts of every batch in `docs/paperless.md`.
