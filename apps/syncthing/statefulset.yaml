@@ -25,6 +25,68 @@ spec:
         app: syncthing
     spec:
       terminationGracePeriodSeconds: 60
+      # SSO only (sso.yaml): removes the GUI user and password from config.xml
+      # before every start and sets insecureAdminAccess, which only hides the
+      # GUI's "no password" banner. The API key stays. Safe because :8384
+      # admits only syncthing-sso and the smoke Job (network-policy.yaml).
+      # Fails open: a config it cannot rewrite keeps the login and still syncs.
+      initContainers:
+        - name: gui-sso-only
+          # renovate: datasource=docker depName=syncthing/syncthing
+          image: syncthing/syncthing:2.1.7@sha256:2b71da7c0d0a91a6ae5285ad079226fecc0a365d08b27720e1f7037b018f7546
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-uc"]
+          args:
+            - |
+              cfg=/var/syncthing/config/config.xml
+              tmp="$cfg.sso-only"
+              if [ ! -f "$cfg" ]; then
+                echo "no $cfg yet: nothing to change"
+                exit 0
+              fi
+              if ! { cp -p "$cfg" "$tmp" && awk '
+                /^[[:space:]]*<gui[[:space:]>]/ { gui = 1 }
+                gui && /<(user|password|insecureAdminAccess)>/ { next }
+                gui && /^[[:space:]]*<\/gui>/ {
+                  match($0, /^[[:space:]]*/)
+                  print substr($0, 1, RLENGTH) "    <insecureAdminAccess>true</insecureAdminAccess>"
+                  gui = 0
+                }
+                { print }
+              ' "$cfg" > "$tmp"; }; then
+                rm -f "$tmp"
+                echo "WARN: could not rewrite $cfg: GUI login left as is"
+                exit 0
+              fi
+              if cmp -s "$cfg" "$tmp"; then
+                rm -f "$tmp"
+                echo "GUI login already off"
+              elif mv -f "$tmp" "$cfg"; then
+                echo "GUI user and password removed, insecureAdminAccess set"
+              else
+                rm -f "$tmp"
+                echo "WARN: could not replace $cfg: GUI login left as is"
+              fi
+          securityContext:
+            runAsNonRoot: true
+            # The owner of the volume's files (PUID/PGID below).
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: syncthing
+              mountPath: /var/syncthing
       containers:
         - name: syncthing
           # renovate: datasource=docker depName=syncthing/syncthing
