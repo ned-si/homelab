@@ -122,6 +122,10 @@ router 80/443 -> 192.168.1.254 = Service gateway/cilium-gateway-shared
 | `hubble` | `hubble/hubble` | `hubble-sso` (oauth2-proxy, Keycloak group `admins`) → Hubble UI |
 | `signoz` | `signoz/signoz` | `signoz-sso` (oauth2-proxy, Keycloak group `admins`) → SigNoz |
 
+Household services get everyday-word hostnames (`media`, `theater`, `cook`,
+`archive`); platform and operator tools keep their technical names (`argo`,
+`grafana`, `headlamp`, `hubble`, `signoz`, `auth`).
+
 - Every route sets `parentRefs` with `sectionName: https`. Without it the route
   also answers on plain HTTP and skips the redirect.
 - Every route sets `timeouts.request: 0s`, which removes Envoy's default 15 s
