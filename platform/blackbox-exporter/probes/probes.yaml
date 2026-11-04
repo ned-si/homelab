@@ -1,22 +1,12 @@
 # What blackbox-exporter probes. Every Probe carries `release:
-# kube-prometheus-stack`, the label Prometheus selects Probes on.
+# kube-prometheus-stack`, the label Prometheus selects on.
 #
-# Public probes go out through the public name, exactly as a client does:
-# cluster DNS -> router -> Cloudflare -> WAN address -> NAT loopback -> the
-# Gateway on 192.168.1.254. They therefore also fail when DNS, the WAN address
-# or the router's port forward is wrong, which is what a user would see. They
-# do not see an outage of the house's internet link from outside; the
-# Alertmanager heartbeat covers that.
-#
-# The `app` label (the first DNS label of the target) is what the SLO rules in
-# platform/kube-prometheus-stack/routes/slo.yaml group by.
-#
-# `prober.path` and the relabeling `action` are the CRD defaults, written out
-# so the live objects equal the manifest and the app stays Synced.
-#
-# Not probed from inside: the syncthing (.201:22000) and qBittorrent
-# (.200:50000) LoadBalancers. Their network policies admit `world` only, so a
-# probe from a cluster pod would be dropped and report a false outage.
+# Public probes use the public name, as a client does (DNS, router, WAN
+# address, NAT loopback, Gateway), so they fail when any of those is wrong.
+# The `app` label groups them for routes/slo.yaml. `prober.path` and the
+# relabeling `action` are CRD defaults, written out so the app stays Synced.
+# Not probed: the .200 and .201 LoadBalancers, whose policies admit `world`
+# only.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: Probe

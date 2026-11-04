@@ -1,12 +1,7 @@
-# Keycloak database backup through the Barman Cloud plugin: continuous WAL
-# archiving plus a daily base backup, into
-# s3://ned-si-homelab-backups/cnpg/keycloak-db/, kept 30 days (point-in-time
-# recovery anywhere in that window). Restore: docs/backups.md.
-#
-# Worth as much as it looks: this holds every user, every OIDC client and every
-# role mapping. Losing it means rebuilding the realm by hand AND re-issuing every
-# client secret referenced from `apps/secrets/`, because those live in Keycloak,
-# not here.
+# Keycloak database backup through the Barman Cloud plugin: WAL archiving and
+# a daily base backup to s3://ned-si-homelab-backups/cnpg/keycloak-db/, 30
+# days of point-in-time recovery (docs/backups.md). It holds every user,
+# client and role mapping, and the client secrets the apps use.
 ---
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore

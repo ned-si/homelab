@@ -1,21 +1,11 @@
-# Helm values for the `vector` release (namespace `logging`), the log agent
-# (clusters/homelab/platform/vector.yaml, docs/observability.md "Logs").
+# Vector, the log agent (docs/observability.md "Logs"): one pod per node reads
+# /var/log/pods and Talos's service and kernel logs and ships them to SigNoz
+# over OTLP/HTTP.
 #
-# One DaemonSet pod per node reads /var/log/pods (kubelet's container logs,
-# Talos keeps them on the EPHEMERAL partition), parses each line and, for now,
-# ships it to SigNoz over OTLP/HTTP (signoz-otel-collector, namespace signoz).
-#
-# Runs as uid 0 with every capability dropped and a read-only root: the log
-# files are root-owned 0640, which root reads as their owner. Kubernetes sets
-# no ambient capabilities, so a non-root user with DAC_READ_SEARCH could not.
-# The hostPath volumes and the host network are why the namespace enforces
-# `privileged`.
-#
-# Host network: Talos sends its service and kernel logs to 127.0.0.1 on each
-# node (talos/patches/logging.yaml, talos/patches/talosctl/kmsg-log.yaml), so
-# the listeners must be in the node's network namespace. They bind 127.0.0.1
-# only; the API (probes) too. The metrics port (9598) listens on the node's
-# addresses, like the Cilium agent's.
+# uid 0 with every capability dropped: the log files are root-owned 0640, and
+# Kubernetes sets no ambient capabilities. Host network because Talos sends
+# its logs to 127.0.0.1; the listeners bind 127.0.0.1, metrics (9598) the
+# node addresses.
 role: Agent
 
 podHostNetwork: true
@@ -179,15 +169,10 @@ customConfig:
             namespace: '{{ "{{" }} kubernetes.pod_namespace {{ "}}" }}'
             source: '{{ "{{" }} log_source {{ "}}" }}'
             parse_failed: '{{ "{{" }} parse_failed {{ "}}" }}'
-    # Talos auditd records by record type (AVC, SYSCALL, BPF, ...):
-    # vector_audit_records_total{node, type}, `node` from the PodMonitor.
-    # Counted, never dropped: SELinux denial bursts stay visible in
-    # Prometheus (AuditAVCRateHigh) and the records stay in SigNoz.
-    # A route, not a filter, abort or missing field: each of those counts the
-    # other events in vector_component_discarded_events_total
-    # (LogPipelineDiscarding); a route's unconsumed `_unmatched` output does
-    # not (checked with Vector 0.59.0). This branch only feeds the counter;
-    # the OTLP sink gets every Talos event from talos_parsed.
+    # Talos auditd records counted by type (vector_audit_records_total),
+    # never dropped. A route, not a filter: a filter counts the other events
+    # as discarded (LogPipelineDiscarding); an unconsumed `_unmatched` does
+    # not.
     audit_route:
       type: route
       inputs: [talos_parsed]

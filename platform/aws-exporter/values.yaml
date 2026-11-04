@@ -1,11 +1,6 @@
-# prometheus-yet-another-cloudwatch-exporter (YACE) chart values: the daily
-# S3 storage metrics of every tagged bucket in eu-central-1 (BucketSizeBytes
-# per storage class, NumberOfObjects). Credentials: the read-only
-# homelab-metrics-reader key in the aws-exporter Secret (access_key,
-# secret_key).
-#
-# S3 publishes these once a day, so YACE reads CloudWatch once an hour:
-# about 10 metrics x 24 GetMetricData reads a day, a few cents a month.
+# YACE: the daily S3 storage metrics of every tagged bucket in eu-central-1,
+# with the read-only key in the aws-exporter Secret. S3 publishes once a day,
+# so an hourly read costs a few cents a month.
 fullnameOverride: yace
 
 aws:

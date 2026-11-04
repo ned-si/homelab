@@ -1,32 +1,16 @@
 # Tetragon (observe only): page when a container tries to take the node
-# (spec wave3-runtime-security, requirements 4.6 and 5).
-#
-#   RuntimeEscapeToHost         T1611      user namespace without CAP_SYS_ADMIN, capset  critical  human
-#   RuntimePrivilegeEscalation  T1068      uid or gid set to 0                           critical  human
-#   RuntimeKernelModuleLoad     T1547.006  a kernel module loaded from a file            critical  human
-#   RuntimeUnexpectedBPF        T1014      a BPF program or map                          critical  human
-#   TetragonAgentMissing                   a node without a scraped agent for 30 min     warning   human
-#
-# Source: tetragon_policy_events_total{policy, hook, namespace, workload,
-# binary} of the vendored policies (platform/tetragon/policies). Host
-# processes have no namespace label. Shell, /tmp, fileless and library
-# events stay on the Security dashboard (requirement 5.2).
+# (spec wave3-runtime-security, requirements 4.6 and 5). Source:
+# tetragon_policy_events_total of the vendored policies; host processes have
+# no namespace label. Other events stay on the Security dashboard.
 #
 # ALLOWLISTS: one `unless` line per known-good actor, here and nowhere else
-# (never an edited upstream policy, never a manual silence). A new one comes
-# with its promtool case in tests/prometheus/tetragon_test.yaml. Observed
-# 2026-10-26: Tetragon and cilium-agent load BPF; runc, on the host, sets
-# uid/gid 0, capabilities and cgroup device BPF for every container start;
-# mount and umount, on the host, set uid/gid 0 for every volume the kubelet
-# mounts (missed by the first baseline, which had no pod start: it paged).
-# From chart 1.8 (unprivileged agent, 2026-11-02) the agent's own BPF loads
-# at startup carry no namespace: allowlisted as the host binary
-# /usr/bin/tetragon, which Talos does not ship (it paged).
+# (never an edited upstream policy, never a manual silence), each with its
+# promtool case in tests/prometheus/tetragon_test.yaml. runc and u?mount on
+# the host set uid/gid 0 for every container start and volume mount; Tetragon
+# and cilium-agent load BPF; host /usr/bin/tetragon is the agent's own startup
+# BPF (Talos ships no such binary).
 #
-# The recording rule counts a series that just appeared as well: the first
-# event of a new actor makes a new series, and increase() needs two samples.
-#
-# Tests: tests/prometheus/tetragon_test.yaml (promtool test rules).
+# The recording rule also counts a new series: increase() needs two samples.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -93,11 +77,8 @@ spec:
               {{ with $labels.namespace }}{{ . }}/{{ $labels.workload }}{{ else }}the host{{ end }}
               on {{ $labels.node }}.
 
-        # Pages on an explicit load (finit_module reading a module file, what
-        # insmod or a rootkit does). The kernel's own autoload requests
-        # (security_kernel_module_request: a socket of an unloaded family, the
-        # first one on a fresh node, from almost every Go binary) stay on the
-        # Security dashboard only.
+        # An explicit load (finit_module, as insmod or a rootkit does). The
+        # kernel's own autoload requests stay on the dashboard.
         - alert: RuntimeKernelModuleLoad
           expr: |
             tetragon:policy_events:increase5m{policy="monitor-kernel-modules", hook="kprobe:security_kernel_read_file"}

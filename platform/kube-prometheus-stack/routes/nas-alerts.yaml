@@ -1,25 +1,7 @@
-# NAS health from truenas-exporter (platform/truenas-exporter): the pool, its
-# devices, SMART self-tests, temperatures and capacity.
-#
-#   NASPoolUnhealthy        ZFS reports a pool not healthy for 5m     critical
-#   NASPoolDeviceNotOnline  a pool device not ONLINE for 10m          warning
-#   NASPoolDeviceErrors     read/write/checksum errors on a device    warning
-#   NASSmartTestFailed      the newest SMART self-test failed         warning
-#   NASDiskHot              a disk above 65 C for 30m                 warning
-#   NASPoolNearlyFull       a pool over 80% used                      warning
-#   NASPoolCriticallyFull   a pool over 90% used                      critical
-#   NASPoolFillingUp        full within 30 days at the 7-day trend    warning
-#   NASScrubOverdue         no finished scrub for 40 days             warning
-#   NASExporterFailing      API calls failing for 15m                 warning
-#   NASExporterAbsent       no truenas_up series for 15m              warning
-#
-# The NAS's own alert list (truenas_alerts) is on the Storage dashboard, not
-# paged: it holds conditions the operator has already seen, such as the
-# expired self-signed certificate.
-#
-# Recording rule nas:pool_days_until_full: days until the pool's root dataset
-# has no space left at the 7-day linear trend; absent while usage shrinks.
-#
+# NAS health from platform/truenas-exporter: pool, devices, SMART, temperature,
+# capacity, scrubs. The NAS's own alert list is on the Storage dashboard, not
+# paged. nas:pool_days_until_full: days to full at the 7-day trend, absent
+# while usage shrinks.
 # Tests: tests/prometheus/nas_test.yaml, nas_capacity_test.yaml, nas_disk_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1

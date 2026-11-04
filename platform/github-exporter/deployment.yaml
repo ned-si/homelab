@@ -1,9 +1,6 @@
-# One replica, no state: the exporter keeps the last good collection in memory
-# and re-reads GitHub every 15 minutes. A restart costs one collection.
-#
-# In the cluster it reads the Argo CD Applications (ClusterRole below, list
-# only; they hold no secrets) and the Alertmanager silences (no
-# authentication), for the Homelab / Automation dashboard.
+# One replica, no state: a restart costs one 15-minute collection. In the
+# cluster it lists Argo CD Applications and reads Alertmanager silences for
+# the Homelab / Automation dashboard.
 ---
 apiVersion: v1
 kind: ServiceAccount

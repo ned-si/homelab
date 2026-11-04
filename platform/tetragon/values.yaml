@@ -1,17 +1,8 @@
-# Tetragon chart values: eBPF process and kernel events on every node, observe
-# only (docs/observability.md#runtime-tetragon). The TracingPolicies are the
-# vendored upstream library in policies/; none has an enforcement action.
-#
-# Events: the export-stdout sidecar prints the JSON export file, so Vector
-# collects it like any container log. The export file is on
-# /var/run/cilium/tetragon, which is the /run tmpfs on Talos, never the eMMC:
-# 10 MiB and two rotated copies at most.
-#
-# Metrics: labels namespace, workload and binary (no pod: one series per pod
-# restart). Scraped through the chart's ServiceMonitor.
-#
-# Images are pinned by digest; Renovate moves tag and digest together with the
-# chart and the vendored policies (group `tetragon`).
+# Tetragon, observe only (docs/observability.md#runtime-tetragon), with the
+# vendored upstream policies in policies/. The export file is on the /run
+# tmpfs, never the eMMC, and the export-stdout sidecar hands it to Vector.
+# No pod label on metrics (a series per restart). Images pinned by digest;
+# Renovate group `tetragon` moves chart and policies together.
 
 tetragon:
   image:

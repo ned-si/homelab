@@ -1,8 +1,5 @@
-# Enforced from the start (default-deny ingress), unlike the allow-lists in
-# infrastructure/network-policies: Headlamp trusts the identity headers it
-# receives, so only headlamp-sso may reach it, and only the shared Gateway
-# (Cilium's Envoy, identity `ingress`) may reach headlamp-sso. Egress stays
-# open (API server, Keycloak).
+# Enforced from the start: Headlamp trusts its identity headers, so only
+# headlamp-sso may reach it, and only the Gateway may reach headlamp-sso.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

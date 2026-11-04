@@ -1,16 +1,7 @@
-# Hubble relay and its certificates (docs/networking.md, "Hubble").
-#
-#   HubbleRelayPeersNotReady  the relay is connected to fewer agents than are Ready, 30m   warning
-#   HubbleRelayAbsent         no relay metrics for 30m                                    warning
-#   HubbleCertRenewalStale    certgen's CronJob has not succeeded for 130 days            warning
-#
-# The certificates are valid 365 days and re-issued every four months and on
-# every sync of the `cilium` Application, so a stale renewal leaves months to
-# act. An expired or wrongly signed certificate shows first as
-# HubbleRelayPeersNotReady. A failed certgen Job also fires KubeJobFailed.
-#
-# All need a person (`action: human`, docs/sre.md "Paging").
-#
+# Hubble relay and its certificates (docs/networking.md, "Hubble"), all
+# `action: human`. Certificates last 365 days and are re-issued every four
+# months and on every `cilium` sync, so a stale renewal leaves months; a bad
+# certificate shows first as HubbleRelayPeersNotReady.
 # Tests: tests/prometheus/hubble_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1

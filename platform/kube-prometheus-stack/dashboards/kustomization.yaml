@@ -1,12 +1,7 @@
-# Grafana dashboards as code. Each JSON file becomes a ConfigMap labelled
-# grafana_dashboard: "1"; the Grafana sidecar loads every such ConfigMap from
-# every namespace, no restart needed.
-#
-# Edit the JSON (or export it from Grafana: Share -> Export -> "Export for
-# sharing externally" off), keep `"uid"` stable, and re-render. Panels use the
-# `${datasource}` variable, never a datasource uid.
-#
-# Checked by tests/test_dashboards.py.
+# Grafana dashboards as code: each JSON file becomes a ConfigMap labelled
+# grafana_dashboard: "1", loaded by the Grafana sidecar without a restart.
+# Keep `"uid"` stable and use the `${datasource}` variable, never a datasource
+# uid. Checked by tests/test_dashboards.py.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: monitoring

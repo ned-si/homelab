@@ -1,16 +1,7 @@
-# Kyverno (Audit mode): the PolicyReports must stay fresh, or the counts on
-# the Security dashboard and the Deny-readiness they show are stale
-# (spec wave3-runtime-security, requirement 2.5).
-#
-#   KyvernoReportsStale       no background scan for 3h, or no scrape   warning   human
-#   PodSecurityEnforceDenied  PSA rejected more than 5 Pods in 30m      critical  human
-#
-# The background scan runs every hour (infrastructure/kyverno/values.yaml).
+# Kyverno: stale PolicyReports make the Security dashboard's counts stale.
 # PodSecurityEnforceDenied (spec pod-security-restricted, D15): the API
-# server's counter has no namespace label; a controller retrying a rejected
-# Pod passes 5 within minutes, a single rejected dry run does not.
-#
-# Tests: tests/prometheus/kyverno_test.yaml (promtool test rules).
+# server's counter has no namespace; a retrying controller passes 5 in
+# minutes, a single dry run does not. Tests: tests/prometheus/kyverno_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

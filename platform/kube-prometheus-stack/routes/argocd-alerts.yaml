@@ -1,24 +1,9 @@
-# Argo CD failures as alerts, from the application controller's metrics
-# (ServiceMonitor `argocd-application-controller`, bootstrap/argocd-values.yaml).
-#
-#   ArgoCDAppDegraded       health Degraded for 5m                      critical  auto
-#   ArgoCDSyncFailed        a sync ended Failed or Error in the last 10m  warning   auto
-#   ArgoCDAppOutOfSync      OutOfSync for 30m                           warning   auto
-#   ArgoCDAppStillDegraded  health Degraded for 30m                     critical  human
-#   ArgoCDSyncStuck         OutOfSync for 30m after a failed sync       warning   human
-#   ArgoCDMetricsAbsent     no argocd_app_info for 15m, so none of the
-#                           above can fire                              warning   human
-#
-# `action: auto` is what auto-rollback and self-heal handle: Grafana only.
-# `action: human` pages (docs/sre.md "Paging"). `namespace` is the
-# Application's destination namespace, so an app-level alert of that
-# namespace inhibits them (../values.yaml).
-#
-# They resolve on their own once the app recovers. The record of an automatic
-# rollback is its revert pull request (label `auto-rollback`); the Homelab
-# overview dashboard marks the failure and the recovery sync as annotations.
-#
-# Tests: tests/prometheus/argocd_test.yaml (promtool test rules).
+# Argo CD alerts from the application controller's metrics. `action: auto`
+# (Degraded 5m, sync failed, OutOfSync 30m) is what auto-rollback and
+# self-heal handle: Grafana only. `action: human` pages (docs/sre.md
+# "Paging"): still Degraded after 30m, a stuck sync, absent metrics.
+# `namespace` is the destination namespace, so an app-level alert there
+# inhibits these. Tests: tests/prometheus/argocd_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -48,12 +33,9 @@ spec:
               opens a revert pull request. Check
               https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
 
-        # A counter, so increase(); the second half catches the first failure
-        # of an app, which creates the series at 1 and so has no increase.
-        # That half only counts apps Prometheus already saw 10 minutes ago:
-        # when scraping starts (or resumes after a gap) every old failure
-        # counter looks new, and is not a failure now. The join adds
-        # `namespace` from argocd_app_info.
+        # increase() on a counter; the second half catches an app's first
+        # failure (a new series at 1), counting only apps seen 10 minutes ago
+        # so a scrape restart does not make old failures look new.
         - alert: ArgoCDSyncFailed
           expr: |
             (

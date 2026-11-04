@@ -1,25 +1,9 @@
-# The automation history of the Homelab / Automation dashboard: one series per
-# event, `automation:event:timestamp_seconds{source, kind, app, what, result,
-# url}`, value the time of the event (Unix seconds). The dashboard's timeline
-# table lists the last 7 days, newest first.
-#
-#   source        kind            from
-#   github        pull-request,   merged pull requests, auto-rollback and tofu
-#                 renovate,       runs (github-exporter, public GitHub API)
-#                 auto-rollback,
-#                 tofu-*
-#   argocd        sync            Application history and failed operations
-#                                 (github-exporter, Kubernetes API)
-#   alertmanager  silence         maintenance silences (github-exporter)
-#   kubernetes    backup,         backup and restore-test Jobs
-#                 restore-test    (kube-state-metrics)
-#   cnpg          base-backup     Barman Cloud base backups (plugin metrics)
-#   tuppr         upgrade         Talos and Kubernetes upgrades (tuppr metrics)
-#
-# The alerts of class INFO (`action: auto`) are the dashboard's annotations,
-# read from ALERTS directly.
-#
-# Tests: tests/prometheus/automation_test.yaml (promtool test rules).
+# The Homelab / Automation timeline: one series per event,
+# `automation:event:timestamp_seconds{source, kind, app, what, result, url}`,
+# value the event time. Sources: github-exporter (pull requests, Renovate,
+# auto-rollback, tofu, Argo CD syncs, silences), kube-state-metrics (backup
+# and restore-test Jobs), the CNPG plugin and tuppr. INFO alerts are the
+# annotations. Tests: tests/prometheus/automation_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

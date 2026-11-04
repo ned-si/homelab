@@ -1,23 +1,13 @@
-# prometheus-blackbox-exporter chart values. The prober itself; what it probes
-# is declared as Probe objects in ./probes (Prometheus finds them through the
-# `release: kube-prometheus-stack` label).
+# blackbox-exporter, the prober; the targets are the Probes in ./probes.
 #
-# Modules, one per kind of check:
-#
-#   http_2xx      a public hostname answers 2xx over valid TLS, without
-#                 following redirects (a redirect to a login page would make
-#                 the probe measure Keycloak instead of the app).
-#   http_gated    a hostname whose front is an SSO proxy: 401 or 302 means the
-#                 proxy answered; 5xx or a timeout means it did not.
-#   http_internal plain HTTP inside the cluster (health endpoints).
-#   tcp_connect   something listens on the port.
-#   dns_public    the resolver returns an A record for a public hostname.
-#   dns_cluster   CoreDNS resolves the API Service.
-#   icmp          the LAN device answers a ping (probes/lan.yaml).
-#
-# ICMP without NET_RAW: the pod sysctl net.ipv4.ping_group_range lets the
-# exporter's group open unprivileged ICMP sockets, which blackbox-exporter
-# uses when it is not root.
+#   http_2xx      2xx over valid TLS, no redirects (a login redirect would
+#                 measure Keycloak)
+#   http_gated    an SSO proxy answered: 401 or 302
+#   http_internal plain HTTP inside the cluster
+#   tcp_connect   something listens
+#   dns_public    an A record for a public hostname
+#   dns_cluster   CoreDNS resolves the API Service
+#   icmp          a LAN device answers (net.ipv4.ping_group_range, no NET_RAW)
 fullnameOverride: blackbox-exporter
 
 podSecurityContext:

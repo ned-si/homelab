@@ -1,12 +1,4 @@
-# Talos machine config drift, from the talos-drift push (check.sh).
-#
-#   TalosConfigDrift       a node's running config differs from the render of
-#                          main: a change merged without `task talos:apply`,
-#                          or an apply that did not come from main.
-#   TalosDriftCheckStale   no successful check in 2 days: drift would go
-#                          unnoticed.
-#
-# Both page (`action: human`, docs/sre.md "Paging"): nothing applies Talos
+# Talos machine config drift (check.sh). Both page: nothing applies Talos
 # config automatically, and a check that stopped needs fixing by hand.
 # Tests: tests/prometheus/talos_drift_test.yaml.
 ---

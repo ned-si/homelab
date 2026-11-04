@@ -1,9 +1,6 @@
-# The Kubernetes version of the cluster. tuppr runs `talosctl upgrade-k8s`
-# from a Job: control plane static pods one node at a time, then the kubelet
-# on every node; no reboot. It never runs at the same time as a TalosUpgrade.
-# A Kubernetes minor cannot be downgraded: the CI rehearsal
-# (scripts/ci/talos-upgrade-rehearsal.sh) is the gate, and a broken upgrade is
-# fixed forward.
+# The cluster's Kubernetes version. tuppr runs `talosctl upgrade-k8s`, never
+# together with a TalosUpgrade. A minor cannot be downgraded: the CI rehearsal
+# (scripts/ci/talos-upgrade-rehearsal.sh) is the gate; fix forward.
 ---
 apiVersion: tuppr.home-operations.com/v1alpha1
 kind: KubernetesUpgrade

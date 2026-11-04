@@ -1,11 +1,6 @@
-# Daily enrichment of the trivy-operator findings (enrich.py): CISA KEV and
-# FIRST EPSS for every CVE in a running image, and which namespaces an
-# HTTPRoute exposes. A batch job cannot be scraped, so it pushes to the
-# Pushgateway of backup-verify (platform/backup-verify/pushgateway.yaml, which
-# admits pushes from `monitoring`); Prometheus scrapes that with honorLabels.
-#
-# Reads: Prometheus (in-cluster), the HTTPRoutes (ClusterRole below, list
-# only), and two public HTTPS feeds. Writes nothing in the cluster.
+# Daily enrichment of trivy-operator findings (enrich.py): CISA KEV, FIRST
+# EPSS, and which namespaces an HTTPRoute exposes. Pushes to the backup-verify
+# Pushgateway (a batch job cannot be scraped). Writes nothing in the cluster.
 ---
 apiVersion: v1
 kind: ServiceAccount

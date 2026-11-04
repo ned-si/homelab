@@ -1,18 +1,11 @@
-# Daily Talos machine config drift check (check.sh): each node's running
-# config against the one rendered from main. Results go to the backup-verify
-# Pushgateway (its NetworkPolicy admits this namespace); the alerts are in
-# rules.yaml.
+# Daily Talos machine config drift check (check.sh): each node's running config
+# against the render of main, pushed to the backup-verify Pushgateway.
 #
-# It runs in system-upgrade because that is the one namespace Talos grants API
-# access to (KubeTalosAPIAccessConfig in
-# talos/patches/talosctl/controlplane/talos-api-access.yaml). The role is
-# os:admin: machine configs are a sensitive resource that os:reader and
-# os:operator cannot read. The script only reads; the client certificate is
-# in the Secret talos-drift, which only this Job mounts.
-#
-# talosctl and talhelper come from their own images as image volumes, at the
-# versions of talos/talconfig.yaml (talosVersion) and of ci.yaml
-# (TALHELPER_VERSION), so the render matches `task talos:genconfig`.
+# In system-upgrade, the one namespace Talos grants API access to
+# (talos/patches/talosctl/controlplane/talos-api-access.yaml). os:admin,
+# because only it can read machine configs; the script only reads. talosctl
+# and talhelper are image volumes at the pinned versions, so the render
+# matches `task talos:genconfig`.
 ---
 apiVersion: talos.dev/v1alpha1
 kind: ServiceAccount

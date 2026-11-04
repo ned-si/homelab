@@ -1,32 +1,14 @@
-# Cluster-wide outages: a node NotReady or the NAS unreachable.
+# Cluster-wide outages: a node NotReady, the NAS unreachable, the Gateway down.
 #
-# Two alerts per outage. The short one is read by the outage guard of
-# auto-rollback (scripts/ci/auto-rollback-guard.sh): while it fires, a failing
-# app is blamed on the outage, not on the newest merge, and nothing is
-# reverted. The guard finds it by alert name in the ntfy.sh guard topic, so a
-# rename here needs the same rename in OUTAGE_ALERTS there. It also inhibits
-# the alerts the outage causes (../values.yaml). It pages nobody: a node
-# rebooting for a Talos upgrade, or a switch that drops the NAS for a few
-# minutes, recovers on its own. The long one pages: past that window the node
-# or the NAS needs a person (power, cable, the NAS power button).
+# Two alerts per outage. The short one (`action: auto`) feeds the outage guard
+# of auto-rollback, which matches it by name (OUTAGE_ALERTS in
+# scripts/ci/auto-rollback-guard.sh: rename both), and inhibits the alerts it
+# causes. The long one pages: 15m covers a Talos upgrade reboot, 10m the NAS
+# switch flaps.
 #
-#   HomelabNodeNotReady     a node not Ready for 2m          critical  auto
-#   HomelabNodeDown         a node not Ready for 15m         critical  human
-#   HomelabNASUnreachable   iSCSI or NFS port down for 2m    critical  auto
-#   HomelabNASDown          iSCSI or NFS port down for 10m   critical  human
-#   GatewayDown             half the public probes failing   critical  human
-#                           for 5m
-#
-# GatewayDown is every app at once, so it is never one merge's fault to hide
-# behind: it is not in the outage guard (a failed Cilium patch update must
-# still revert), it pages through quiet hours (receiver ntfy-urgent), and it
-# inhibits the per-app SLO burns (../values.yaml). Postmortem 2026-10-23.
-#
-# 15 minutes covers a Talos upgrade reboot (about 5 on the RK1 eMMC); 10
-# covers the switch flaps seen so far (the longest, 2026-10-15, about 11
-# minutes with the cluster unreachable too, so it is the heartbeat's case).
-#
-# Tests: tests/prometheus/outage_test.yaml (promtool test rules).
+# GatewayDown is every app at once: not in the outage guard, pages through
+# quiet hours (ntfy-urgent) and inhibits the per-app SLO burns.
+# Tests: tests/prometheus/outage_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

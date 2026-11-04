@@ -1,27 +1,7 @@
-# The SigNoz trial gate and the "logs went blind" alerts
-# (docs/observability.md, "SigNoz trial").
-#
-# Trial gate, recorded every 15 minutes over the trial window (14 days); each
-# threshold is a 0/1 series and signoz_trial:pass is 1 only when all hold:
-#
-#   signoz_trial:clickhouse_memory_p95_bytes     p95 of ClickHouse working set   < 6 GiB
-#   signoz_trial:clickhouse_restarts             restarts and OOM kills          == 0
-#   signoz_trial:volume_growth_bytes_per_day     ClickHouse volume growth        < 2 GiB/day
-#   signoz_trial:volume_projection_ratio         used + 15 days of growth,
-#                                                over capacity                   < 0.7
-#   signoz_trial:parse_failed_ratio              unparsed share of log lines     < 0.01
-#   signoz_trial:discarded_events                events Vector discarded         == 0
-#   signoz_trial:sources_present                 pods, Talos services, kernel    == 3
-#
-# The phone check (the UI loads from the phone) is the one manual criterion.
-#
-# Alerts (`action: human`, warning), the only paging from the log pipeline:
-#   LogPipelineDiscarding    Vector discards events for 1h
-#   SigNozCollectorAbsent    no SigNoz collector target for 1h
-#
-# The collector's own metrics (port metrics, 8888) are scraped by the
-# PodMonitor below: SigNozCollectorAbsent reads its `up`.
-#
+# The SigNoz trial gate and the "logs went blind" alerts (docs/observability.md,
+# "SigNoz trial"). Each threshold is a 0/1 series; signoz_trial:pass is 1 when
+# all hold. The phone check is the one manual criterion. The PodMonitor below
+# scrapes the collector for SigNozCollectorAbsent.
 # Tests: tests/prometheus/signoz_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1

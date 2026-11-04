@@ -1,13 +1,7 @@
-# Static LAN devices answer a ping (module icmp), job `blackbox-lan`. The
-# `device` label names each address; the table is docs/networking.md.
-#
-# The BMC takes a DHCP lease (reachable as turingpi.local, which cluster DNS
-# cannot resolve); its current lease is probed. If the lease moves, update the
-# address here.
-#
-# Alerts: platform/kube-prometheus-stack/routes/lan-alerts.yaml. Nodes and the
-# NAS are on the dashboard only: HomelabNodeDown and HomelabNASDown already
-# page for them.
+# Static LAN devices answer a ping (job `blackbox-lan`); the table is in
+# docs/networking.md. The BMC's DHCP lease is probed: update it here if it
+# moves. Nodes and the NAS are dashboard only (HomelabNodeDown and
+# HomelabNASDown page).
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: Probe

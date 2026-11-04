@@ -1,8 +1,6 @@
-# Host network and CAP_NET_RAW: ARP only reaches the LAN from the node's own
-# interface, through an AF_PACKET socket. Root with every other capability
-# dropped, because Kubernetes grants added capabilities to uid 0 only.
-# `monitoring` enforces the privileged Pod Security level (node-exporter);
-# this pod is not privileged.
+# Host network and CAP_NET_RAW: ARP reaches the LAN only from the node's own
+# interface. Root with every other capability dropped, because Kubernetes
+# grants added capabilities to uid 0 only. Not privileged.
 ---
 apiVersion: apps/v1
 kind: Deployment

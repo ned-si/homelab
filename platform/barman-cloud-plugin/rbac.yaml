@@ -1,36 +1,16 @@
 # The plugin's namespaced rights, granted only where a CNPG Cluster uses it.
+# The upstream ClusterRole is patched in kustomization.yaml to lose secrets.
 #
-# The upstream ClusterRole `plugin-barman-cloud` is patched in
-# kustomization.yaml: it keeps get/list/watch on roles and rolebindings
-# cluster-wide and loses secrets. The rest moves here, one Role and RoleBinding
-# per namespace:
+# Per namespace: secrets get/list/watch (the plugin never reads one, but RBAC
+# escalation prevention requires it to hold what its `<cluster>-barman-cloud`
+# Role grants) and create/patch/update on roles and rolebindings. Reads of
+# roles and rolebindings stay cluster-wide: its shared cache watches every
+# namespace.
 #
-#   secrets              get, list, watch   The plugin never reads a Secret. It
-#                                           creates a Role `<cluster>-barman-cloud`
-#                                           that grants the Cluster's pods these
-#                                           verbs on the ObjectStore credential
-#                                           Secrets, and RBAC escalation
-#                                           prevention requires it to hold them
-#                                           in that namespace.
-#   roles, rolebindings  create, patch,     It creates and patches that Role and
-#                        update             its RoleBinding in the Cluster's
-#                                           namespace.
-#
-# get/list/watch on roles and rolebindings stay cluster-wide: the plugin reads
-# them through controller-runtime's shared cache with no namespace restriction
-# (internal/cnpgi/operator/manager.go at v0.15.1), so its informers list and
-# watch every namespace. Without that they never sync and the Pre hook fails for
-# every Cluster.
-#
-# Roles rather than one ClusterRole bound per namespace: a ClusterRole with
-# secrets access is a CRITICAL Trivy finding (KSV-0041) whose waiver would rest
-# on there being no ClusterRoleBinding, which nothing checks.
-#
-# Every namespace with an ObjectStore needs its pair here. Without it, a new
-# Cluster gets no Role, its pods cannot read their credentials and WAL
-# archiving never starts. The namespaces are set by the transformers in
-# kustomization.yaml, because `namespace: immich` overrides the ones written
-# here.
+# Roles, not a ClusterRole bound per namespace: a ClusterRole with secrets is
+# a critical Trivy finding (KSV-0041). Every namespace with an ObjectStore
+# needs its pair here, or WAL archiving never starts; namespaces are set by
+# the transformers in kustomization.yaml.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
