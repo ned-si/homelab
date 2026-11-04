@@ -332,6 +332,39 @@ flag back, and `docs/paperless.md` records it. The
 other accounts keep no group and see nothing; deleting them is left to the
 operator, since it cannot be undone.
 
+Measured in task 3 (3.4.2): the redirect to Keycloak is the login page's
+JavaScript, which `?loggedout=1` turns off, so `nedsi-admin` logs in with
+the local form at `/accounts/login/?loggedout=1` and reaches `/admin/`;
+`docs/paperless.md` records both that and the `manage.py shell` fallback.
+Of the 4 accounts then, only `nedsi-admin` and `automation` had the
+superuser flag and none had direct permissions, so nothing was cleared.
+The editor's account had no permission at all, which is why it saw only an
+empty dashboard and its profile: the web app needs at least
+`view_uisettings`.
+
+Group permissions (`groups` in `paperless.json`, upserted by `apply.py`
+before the workflows that name them):
+
+| Group | Model permissions |
+| --- | --- |
+| `editors` | view, add, change, delete: document, correspondent, note; view: document type, tag, custom field, saved view, global statistics; view and change: file tasks; view, add, change: UI settings |
+| `readers` | view: document, correspondent, note, document type, tag, custom field, saved view; view, add, change: UI settings (each account's own dashboard choices) |
+
+The member list names each account by Paperless username or by email,
+matched case-insensitively, and never matches `nedsi-admin`, `automation`
+or `canary`. The email is there because Paperless picks the username at
+the first Keycloak login, and a listed person may not have logged in yet:
+`apply.py` counts such an entry as not found, and the first run after the
+login (the nightly one, or the next PostSync) adds the account. An entry
+that matches two accounts fails the run. Paperless refuses a consumption
+trigger without a file name, path or mail rule filter, so `share` filters
+on the file name `*`.
+
+Which saved views sit on the dashboard is a per-account UI setting
+(`saved_views.dashboard_views_visible_ids`), which only the account's own
+session can write through `/api/ui_settings/`; `apply.py` leaves it to each
+person, and `docs/paperless.md` says where to set it.
+
 What one editor removes. With every document owned by one account, the
 document's owner can always see every type, tag and correspondent, so
 matching never misses an object because of its owner. There is no second

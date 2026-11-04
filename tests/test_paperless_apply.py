@@ -29,7 +29,8 @@ class FakePaperless:
 
     def __init__(self):
         self.store = {k: {} for k in ("document_types", "tags", "custom_fields", "saved_views",
-                                      "workflows", "correspondents", "documents", "groups")}
+                                      "workflows", "correspondents", "documents", "groups",
+                                      "users")}
         self.calls: list[tuple[str, str, dict | None]] = []
         self.next_id = 100
         self.failures: list[int | str] = []  # queued answers: a status, or "conn"
@@ -120,10 +121,21 @@ def client(fake, sleeps=None):
                         clock=lambda: clock[0])
 
 
-def run(fake, nightly=False, config=CONFIG):
+MEMBERS = {"editors": ["editor"], "readers": ["Reader@Example.invalid"]}
+
+
+def run(fake, nightly=False, config=CONFIG, members=MEMBERS):
     log: list[str] = []
-    changes = apply.run(client(fake), copy.deepcopy(config), nightly, log.append)
+    changes = apply.run(client(fake), copy.deepcopy(config), nightly, log.append,
+                        members=copy.deepcopy(members))
     return changes, log
+
+
+def without_groups():
+    config = copy.deepcopy(CONFIG)
+    config.pop("groups")
+    config["workflows"] = [w for w in config["workflows"] if w["name"] == "tax-relevant"]
+    return config
 
 
 # --- the configuration and the corpus -------------------------------------
@@ -201,7 +213,7 @@ def test_regex_types_accept_both_apostrophes(apostrophe):
 
 def test_first_run_creates_everything_unowned_without_grants(fake):
     changes, _ = run(fake)
-    total = sum(len(CONFIG[k]) for k in ("document_types", "tags", "custom_fields",
+    total = sum(len(CONFIG[k]) for k in ("groups", "document_types", "tags", "custom_fields",
                                           "saved_views", "workflows"))
     assert changes == total
     for method, path, body in fake.writes():
@@ -209,7 +221,7 @@ def test_first_run_creates_everything_unowned_without_grants(fake):
         if kind in ("document_types", "tags", "saved_views"):
             assert body["owner"] is None
             assert body["set_permissions"] == apply.NO_GRANTS
-        else:  # custom fields and workflows have no owner in Paperless
+        else:  # groups, custom fields and workflows have no owner in Paperless
             assert "owner" not in body and "set_permissions" not in body
     assert all(o["owner"] is None for k in ("document_types", "tags", "saved_views")
                for o in fake.store[k].values())
@@ -234,7 +246,7 @@ def test_saved_views_resolve_tags_and_custom_fields(fake):
     rule = views["Retention expired"]["filter_rules"][0]
     assert rule["rule_type"] == 42
     assert json.loads(rule["value"]) == [fields["Retain until"], "lt", "today"]
-    wf = next(iter(fake.store["workflows"].values()))
+    wf = next(w for w in fake.store["workflows"].values() if w["name"] == "tax-relevant")
     types = {t["name"]: t["id"] for t in fake.store["document_types"].values()}
     assert sorted(wf["triggers"][0]["filter_has_any_document_types"]) == sorted(
         types[n] for n in ("Tax", "Statement", "Payslip", "Insurance"))
@@ -263,7 +275,7 @@ def test_unmanaged_objects_are_reported_and_never_deleted(fake):
 
 def test_a_changed_workflow_keeps_its_trigger_and_action_ids(fake):
     run(fake)
-    wf = next(iter(fake.store["workflows"].values()))
+    wf = next(w for w in fake.store["workflows"].values() if w["name"] == "tax-relevant")
     ids = (wf["triggers"][0]["id"], wf["actions"][0]["id"])
     wf["order"] = 99
     run(fake)
@@ -312,16 +324,16 @@ def test_retain_until_follows_type_and_creation_date(fake):
 
 
 def test_permission_passes_are_skipped_without_the_readers_group(fake):
-    run(fake)
+    run(fake, config=without_groups(), members={})
     fake.add("correspondents", name="x")
-    _, log = run(fake, nightly=True)
+    _, log = run(fake, nightly=True, config=without_groups(), members={})
     assert "group readers missing: correspondent and document passes skipped" in log
     assert not [c for c in fake.writes() if "/correspondents/" in c[1]]
 
 
 def test_correspondent_pass_grants_readers_view_and_keeps_other_grants(fake):
     run(fake)
-    readers = fake.add("groups", name="readers")["id"]
+    readers = ids_of(fake, "groups")["readers"]
     editor_owned = fake.add("correspondents", name="Bank", owner=5,
                             permissions={"view": {"users": [9], "groups": [3]},
                                          "change": {"users": [9], "groups": []}})
@@ -341,7 +353,7 @@ def test_correspondent_pass_grants_readers_view_and_keeps_other_grants(fake):
 
 def test_document_pass_gives_readers_view_iff_not_private(fake):
     run(fake)
-    readers = fake.add("groups", name="readers")["id"]
+    readers = ids_of(fake, "groups")["readers"]
     private = ids_of(fake, "tags")["private"]
     public = doc(fake, document_type=None, created="2026-01-01", owner=5)
     hidden = doc(fake, document_type=None, created="2026-01-01", owner=5, tags=[private],
@@ -359,6 +371,120 @@ def test_document_pass_gives_readers_view_iff_not_private(fake):
     assert fake.store["documents"][ok["id"]]["permissions"]["view"]["groups"] == []
     assert all(d["owner"] == 5 for d in fake.store["documents"].values())
     assert run(fake, nightly=True)[0] == 0
+
+
+# --- access: groups, members, workflows -------------------------------------
+
+def user(fake, username, email="", groups=(), superuser=False, perms=()):
+    return fake.add("users", username=username, email=email, groups=list(groups),
+                    is_superuser=superuser, user_permissions=list(perms))
+
+
+def test_groups_get_their_permissions_and_drift_is_corrected(fake):
+    run(fake)
+    groups = {g["name"]: g for g in fake.store["groups"].values()}
+    want = {g["name"]: sorted(g["permissions"]) for g in CONFIG["groups"]}
+    assert {n: g["permissions"] for n, g in groups.items()} == want
+    groups["readers"]["permissions"] = groups["readers"]["permissions"] + ["add_document"]
+    assert run(fake)[0] == 1
+    assert sorted(fake.store["groups"][groups["readers"]["id"]]["permissions"]) == want["readers"]
+    assert run(fake)[0] == 0
+
+
+def test_readers_only_view_and_neither_group_administers():
+    perms = {g["name"]: set(g["permissions"]) for g in CONFIG["groups"]}
+    assert all(p.startswith("view_") or p.endswith("_uisettings") for p in perms["readers"])
+    assert {"view_document", "view_uisettings", "view_savedview"} <= perms["readers"]
+    assert {"add_document", "change_document", "view_uisettings", "view_savedview"} <= perms["editors"]
+    admin = re.compile(r"_(user|group|permission|workflow\w*|applicationconfiguration|mailaccount"
+                       r"|mailrule|storagepath|logentry|token\w*|socialapp)$")
+    for name in ("editors", "readers"):
+        assert not [p for p in perms[name] if admin.search(p)]
+        # Git owns the taxonomy: no change rights on types, tags, fields or views.
+        assert not [p for p in perms[name] if re.match(r"(add|change|delete)_(documenttype|tag|"
+                                                       r"customfield|savedview)$", p)]
+
+
+def test_listed_accounts_join_their_group_and_others_leave(fake):
+    run(fake, members={})
+    g = ids_of(fake, "groups")
+    editor = user(fake, "editor", "editor@example.invalid")
+    reader = user(fake, "reader", "reader@example.invalid")
+    stale = user(fake, "someone", "someone@example.invalid", groups=[g["readers"], 77])
+    admin = user(fake, "nedsi-admin", "editor@example.invalid", superuser=True)
+    _, log = run(fake)
+    users = fake.store["users"]
+    assert users[editor["id"]]["groups"] == [g["editors"]]
+    assert users[reader["id"]]["groups"] == [g["readers"]]  # matched by email, any case
+    assert users[stale["id"]]["groups"] == [77]  # unmanaged groups are kept
+    assert users[admin["id"]]["groups"] == []  # exempt accounts are never matched
+    patches = [b for m, p, b in fake.writes() if "/users/" in p]
+    assert all(set(b) == {"groups"} for b in patches)  # never the superuser flag or permissions
+    text = "\n".join(log)
+    assert not any(s in text for s in ("@example", "someone", "nedsi-admin "))
+    assert "group readers: 1 listed account(s) found" in log
+    assert run(fake)[0] == 0
+
+
+def test_a_listed_account_without_a_login_yet_is_counted(fake):
+    user(fake, "editor")
+    _, log = run(fake)
+    assert "group readers: 0 listed account(s) found, 1 not found (no Paperless login yet)" in log
+
+
+def test_an_entry_matching_two_accounts_fails(fake):
+    user(fake, "editor")
+    user(fake, "reader-1", "reader@example.invalid")
+    user(fake, "reader-2", "READER@example.invalid")
+    with pytest.raises(apply.ConfigError, match="matches 2 accounts"):
+        run(fake)
+    assert not [p for _, p, _ in fake.writes() if "/users/" in p]
+
+
+def test_superusers_and_direct_permissions_are_counted_except_the_exempt_accounts(fake):
+    user(fake, "editor", superuser=True)
+    user(fake, "other", perms=[12])
+    for name in apply.EXEMPT_ACCOUNTS:
+        user(fake, name, superuser=True)
+    _, log = run(fake)
+    assert any(line.endswith("2 account(s) other than nedsi-admin, automation, canary with the "
+                             "superuser flag or direct permissions") for line in log)
+
+
+@pytest.mark.parametrize("members,error", [
+    ({"admins": ["x"]}, "1 key\\(s\\) not a group of paperless.json \\(editors, readers\\)"),
+    ({"editors": ["x"], "readers": ["X"]}, "in both editors and readers"),
+    ({"editors": ["automation"]}, "exempt account"),
+    ({"readers": "x"}, "must be a list"),
+    ({"readers": [""]}, "must be a list"),
+])
+def test_a_bad_member_list_fails_before_any_request(fake, members, error):
+    with pytest.raises(apply.ConfigError, match=error):
+        run(fake, members=members)
+    assert fake.calls == []
+
+
+def test_share_and_private_workflows_use_the_readers_group(fake):
+    run(fake)
+    g, tags = ids_of(fake, "groups"), ids_of(fake, "tags")
+    wfs = {w["name"]: w for w in fake.store["workflows"].values()}
+    share, private = wfs["share"], wfs["private"]
+    assert share["triggers"] == [{"type": 1, "sources": [2, 4], "filter_filename": "*",
+                                  "id": share["triggers"][0]["id"]}]
+    assert share["actions"][0]["assign_view_groups"] == [g["readers"]]
+    assert "assign_owner" not in share["actions"][0]  # the uploader stays the owner
+    assert private["order"] == max(w["order"] for w in wfs.values())
+    assert sorted(t["type"] for t in private["triggers"]) == [2, 3]
+    assert all(t["filter_has_tags"] == [tags["private"]] for t in private["triggers"])
+    assert private["actions"][0]["type"] == 2
+    assert private["actions"][0]["remove_view_groups"] == [g["readers"]]
+    assert private["actions"][0]["remove_change_groups"] == [g["readers"]]
+
+
+def test_lint_rejects_a_workflow_with_an_unknown_group():
+    config = copy.deepcopy(CONFIG)
+    config["workflows"][0]["actions"][0]["assign_view_groups"] = ["nobody"]
+    assert any("unknown group nobody" in e for e in apply.lint(config))
 
 
 # --- waiting and retrying -------------------------------------------------
@@ -412,9 +538,9 @@ def test_the_token_file_is_waited_for(tmp_path):
         clock[0] += seconds
         if clock[0] >= 30:
             path.write_text("t0k\n")
-    assert apply.read_token(str(path), sleep=sleep, clock=lambda: clock[0]) == "t0k"
+    assert apply.read_secret(str(path), sleep=sleep, clock=lambda: clock[0]) == "t0k"
     with pytest.raises(apply.ConfigError):
-        apply.read_token(str(tmp_path / "never"), timeout=60, sleep=sleep, clock=lambda: clock[0])
+        apply.read_secret(str(tmp_path / "never"), timeout=60, sleep=sleep, clock=lambda: clock[0])
 
 
 def test_the_api_version_is_pinned():

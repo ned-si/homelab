@@ -2,8 +2,10 @@
 # docs: .kiro/specs/paperless-documents/design.md "Configuration as code").
 #
 # paperless-apply: Argo CD PostSync hook after every sync of `paperless`. It
-# upserts the document types, tags, custom fields, saved views and workflows
-# through the API. A failed hook fails the sync, and the automatic rollback
+# upserts the groups, document types, tags, custom fields, saved views and
+# workflows through the API, and puts the accounts named in the Secret
+# `paperless-config` (apps/secrets/paperless-config.sops.yaml) into the
+# groups `editors` and `readers`. A failed hook fails the sync, and the automatic rollback
 # reverts the merge: a configuration Paperless refuses (400) does not stay on
 # main. Transient errors don't: apply.py waits up to 10 minutes for /api/
 # and retries 5xx three times.
@@ -15,9 +17,9 @@
 # Both authenticate as the Paperless user `automation` (a superuser, API
 # token only) with the token in the Secret `paperless-automation`
 # (apps/secrets/paperless-automation.sops.yaml; its reach: docs/secrets.md).
-# The Secret is mounted, optional, from a volume: it syncs in the
-# `secrets-apps` Application, and on a first deploy the kubelet adds the file
-# once the Secret exists; apply.py waits for it.
+# Both Secrets are mounted, optional in the PostSync Job, from volumes: they
+# sync in the `secrets-apps` Application, and on a first deploy the kubelet
+# adds the files once the Secrets exist; apply.py waits for them.
 ---
 apiVersion: batch/v1
 kind: Job
@@ -55,6 +57,8 @@ spec:
               value: http://paperless:8000
             - name: PAPERLESS_API_TOKEN_FILE
               value: /secret/PAPERLESS_API_TOKEN
+            - name: PAPERLESS_MEMBERS_FILE
+              value: /members/config.json
           resources:
             requests:
               cpu: 20m
@@ -73,6 +77,9 @@ spec:
             - name: token
               mountPath: /secret
               readOnly: true
+            - name: members
+              mountPath: /members
+              readOnly: true
       volumes:
         - name: app
           configMap:
@@ -80,6 +87,10 @@ spec:
         - name: token
           secret:
             secretName: paperless-automation
+            optional: true
+        - name: members
+          secret:
+            secretName: paperless-config
             optional: true
 ---
 apiVersion: batch/v1
@@ -124,6 +135,8 @@ spec:
                   value: http://paperless:8000
                 - name: PAPERLESS_API_TOKEN_FILE
                   value: /secret/PAPERLESS_API_TOKEN
+                - name: PAPERLESS_MEMBERS_FILE
+                  value: /members/config.json
               resources:
                 requests:
                   cpu: 20m
@@ -142,6 +155,9 @@ spec:
                 - name: token
                   mountPath: /secret
                   readOnly: true
+                - name: members
+                  mountPath: /members
+                  readOnly: true
           volumes:
             - name: app
               configMap:
@@ -149,3 +165,6 @@ spec:
             - name: token
               secret:
                 secretName: paperless-automation
+            - name: members
+              secret:
+                secretName: paperless-config

@@ -1,4 +1,19 @@
 {
+  "groups": [
+    {"name": "editors", "permissions": [
+      "view_document", "add_document", "change_document", "delete_document",
+      "view_correspondent", "add_correspondent", "change_correspondent", "delete_correspondent",
+      "view_note", "add_note", "change_note", "delete_note",
+      "view_documenttype", "view_tag", "view_customfield", "view_savedview",
+      "view_paperlesstask", "change_paperlesstask", "view_global_statistics",
+      "view_uisettings", "add_uisettings", "change_uisettings"
+    ]},
+    {"name": "readers", "permissions": [
+      "view_document", "view_correspondent", "view_note",
+      "view_documenttype", "view_tag", "view_customfield", "view_savedview",
+      "view_uisettings", "add_uisettings", "change_uisettings"
+    ]}
+  ],
   "document_types": [
     {"name": "Invoice", "matching_algorithm": "any", "match": "\"numéro de facture\" Rechnungsnummer \"invoice number\" \"invoice no\"", "retain_years": 5},
     {"name": "Receipt", "matching_algorithm": "any", "match": "quittance \"ticket de caisse\" Quittung Kassenbon \"till receipt\" \"sales receipt\"", "retain_years": 2},
@@ -43,11 +58,28 @@
   ],
   "workflows": [
     {
+      "name": "share",
+      "order": 10,
+      "enabled": true,
+      "triggers": [{"type": 1, "sources": [2, 4], "filter_filename": "*"}],
+      "actions": [{"type": 1, "assign_view_groups": ["readers"]}]
+    },
+    {
       "name": "tax-relevant",
       "order": 20,
       "enabled": true,
       "triggers": [{"type": 2, "sources": [1, 2, 3, 4], "filter_has_any_document_types": ["Tax", "Statement", "Payslip", "Insurance"]}],
       "actions": [{"type": 1, "assign_tags": ["tax-relevant"]}]
+    },
+    {
+      "name": "private",
+      "order": 90,
+      "enabled": true,
+      "triggers": [
+        {"type": 2, "sources": [1, 2, 3, 4], "filter_has_tags": ["private"]},
+        {"type": 3, "filter_has_tags": ["private"]}
+      ],
+      "actions": [{"type": 2, "remove_view_groups": ["readers"], "remove_change_groups": ["readers"]}]
     }
   ]
 }
