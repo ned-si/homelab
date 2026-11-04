@@ -364,6 +364,21 @@
       addLabels: ['automerge-weekdays'],
     },
     {
+      // tuppr and CloudNativePG build Pods in code, which CI cannot check
+      // against Pod Security. A release whose Pods `restricted` rejects
+      // stops upgrades or the home-assistant-postgresql instance: merge it
+      // when the operator is around. No release age. Spec
+      // pod-security-restricted, D15.
+      description: 'Operators that build Pods merge on weekdays',
+      matchPackageNames: [
+        'ghcr.io/home-operations/charts/tuppr',
+        'cloudnative-pg',
+        'cloudnative-pg/plugin-barman-cloud',
+      ],
+      automergeSchedule: ['* 9-16 * * 1-5'],
+      addLabels: ['automerge-weekdays'],
+    },
+    {
       // Every image is pinned by digest, so a tag re-pushed upstream is a
       // `digest` update. One pull request for all of them, automerged like
       // the rest (no schedule, operator rule). Tag updates stay one per image.
