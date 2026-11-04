@@ -449,7 +449,7 @@ them (`equal: [node]`); the SLO burn alerts carry the app's `namespace`
 destination namespace, so that an app outage inhibits the cause alerts of
 that namespace. Do not remove those labels.
 
-`scripts/ci/alertmanager-test.sh` (CI, render job) tests the routing: amtool
+`scripts/ci/alertmanager-test.sh` (CI, alertmanager job) tests the routing: amtool
 checks the receiver of every label set in `tests/alertmanager/routes.txt`, and
 each scenario in `tests/alertmanager/*.json` (the Keycloak outage, a node
 down, the NAS unreachable) is replayed against a real Alertmanager with the
@@ -558,7 +558,7 @@ volume are for compactions.
 
 The rules are unit-tested: `scripts/ci/promtool-check.sh` runs `promtool check
 rules` on every rendered PrometheusRule and `promtool test rules` on
-`tests/prometheus/*_test.yaml` (CI, render job).
+`tests/prometheus/*_test.yaml` (CI, promtool job).
 
 ## Silencing
 

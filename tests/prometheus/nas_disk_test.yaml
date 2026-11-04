@@ -1,6 +1,6 @@
 # promtool unit tests for the disk alerts of
 # platform/kube-prometheus-stack/routes/nas-alerts.yaml (NASSmartTestFailed,
-# NASDiskHot). Run: scripts/ci/promtool-check.sh (CI: render job).
+# NASDiskHot). Run: scripts/ci/promtool-check.sh (CI: promtool job).
 rule_files:
   - homelab-nas.yaml
 

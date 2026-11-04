@@ -97,7 +97,7 @@ def test_every_query_panel_has_an_expression(path):
 
 def test_promql_parses(tmp_path):
     if shutil.which("promtool") is None:
-        pytest.skip("promtool not installed (CI installs it in the render job)")
+        pytest.skip("promtool not installed (CI installs it in the tests job)")
     rules = []
     for path in DASHBOARDS:
         for i, e in enumerate(exprs(load(path))):

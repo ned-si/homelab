@@ -7,7 +7,7 @@ deploy time, against production.
 | Layer | Where | Runs | Blocks |
 |---|---|---|---|
 | 1. Local hooks | the operator's Mac | `pre-commit` on commit, `pre-push` on push | the commit or push |
-| 2. Static CI | GitHub Actions `ci` (`lint`, `render`, `security`, `pr-metadata`) | every pull request and push to `main` | the merge (`ci` is the required check) |
+| 2. Static CI | GitHub Actions `ci` (`lint`, `render`, `tests`, `promtool`, `alertmanager`, `security`, `pr-metadata`) | every pull request and push to `main` | the merge (`ci` is the required check) |
 | 3. Pre-production | GitHub Actions `ci` / `preprod`, an ephemeral kind cluster | every pull request and push to `main` | the merge |
 | 4. Deploy-time smoke tests | Argo CD PostSync hooks in the live cluster | after every sync of a user-facing app | the sync, which triggers the automatic rollback |
 
@@ -37,7 +37,10 @@ Expected: every hook `Passed` (or `Skipped` when no file matches).
 
 ## 2. Static CI
 
-`.github/workflows/ci.yaml`, parallel jobs, no cluster:
+`.github/workflows/ci.yaml`, parallel jobs, no cluster. `ci` needs every job
+and fails unless each one passed (`tests/test_ci_workflow.py` keeps the list
+complete). `render`, `tests`, `promtool` and `alertmanager` install the same
+tools, so no test skips for a missing tool.
 
 - `lint`: `pre-commit run --all-files`, skipping only the hooks that another
   CI step runs with the same script or pinned binary; then yamllint,
@@ -45,10 +48,17 @@ Expected: every hook `Passed` (or `Skipped` when no file matches).
   `tests/test_precommit_parity.py` fails when the hook list and the CI steps
   drift.
 - `render`:
+  - render every Application, kubeconform against pinned schemas
+  - `scripts/ci/kyverno.sh`: the vendor check, the policy unit tests in
+    `policies/kyverno/tests/`, then the policies in `policies/kyverno/` and
+    `policies/kyverno/upstream/` over every file in `deploy/`
+  - `scripts/ci/repo-policy.sh`: pins, repository invariants, `deploy/`
+    matches its sources, kube-linter
+- `tests`:
   - unit tests: `pytest tests` (render, repo policy, workflow entry points,
-    pre-commit parity) and `tests/run-bash-tests.sh` (`tests/bash/`,
-    `tests/smoke/`: auto-rollback decisions, pins, merge script, PostSync hook
-    script, Vector config check)
+    pre-commit parity, the `ci` job list) and `tests/run-bash-tests.sh`
+    (`tests/bash/`, `tests/smoke/`: auto-rollback decisions, pins, merge
+    script, PostSync hook script, Vector config check)
   - `scripts/ci/vector-validate.sh`: the Vector config. The chart is not
     rendered into `deploy/` and passes `customConfig` through Helm `tpl`, so
     the script runs `helm template` at the Application's chart version with
@@ -58,12 +68,11 @@ Expected: every hook `Passed` (or `Skipped` when no file matches).
     or image bump is checked with its own binary; an invalid config (a VRL
     error such as E103) fails, warnings do not. Locally, without Docker:
     `VECTOR_BIN=<vector of the same version> scripts/ci/vector-validate.sh`.
-  - render every Application, kubeconform against pinned schemas
-  - `scripts/ci/kyverno.sh`: the vendor check, the policy unit tests in
-    `policies/kyverno/tests/`, then the policies in `policies/kyverno/` and
-    `policies/kyverno/upstream/` over every file in `deploy/`
-  - `scripts/ci/repo-policy.sh`: pins, repository invariants, `deploy/`
-    matches its sources, kube-linter
+- `promtool`: `scripts/ci/promtool-check.sh`, `promtool check rules` on every
+  rendered PrometheusRule and `promtool test rules` on
+  `tests/prometheus/*_test.yaml`.
+- `alertmanager`: `scripts/ci/alertmanager-test.sh`, the routing and
+  inhibition tests ([observability](observability.md)).
 - `security`: gitleaks on the new commits, the Trivy gate (CRITICAL on
   presence, HIGH on delta against the merge-base).
 - `pr-metadata`: PR title and every commit subject (`scripts/ci/check-title.sh`),
