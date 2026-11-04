@@ -41,6 +41,8 @@ spec:
               value: http://paperless:8000
             - name: PAPERLESS_API_TOKEN_FILE
               value: /secret/PAPERLESS_API_TOKEN
+            - name: PAPERLESS_MEMBERS_FILE
+              value: /members/config.json
             image: python:3.15.2-alpine3.24@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
             name: apply
             resources:
@@ -62,6 +64,9 @@ spec:
             - mountPath: /secret
               name: token
               readOnly: true
+            - mountPath: /members
+              name: members
+              readOnly: true
           restartPolicy: Never
           securityContext:
             runAsGroup: 65534
@@ -71,11 +76,14 @@ spec:
               type: RuntimeDefault
           volumes:
           - configMap:
-              name: paperless-apply-4kbg7875k7
+              name: paperless-apply-8m6bgdfhf4
             name: app
           - name: token
             secret:
               secretName: paperless-automation
+          - name: members
+            secret:
+              secretName: paperless-config
   schedule: 40 4 * * *
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 1
