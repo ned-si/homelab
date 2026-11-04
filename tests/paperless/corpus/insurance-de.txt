@@ -1,0 +1,7 @@
+expected: Insurance
+
+Beispiel Versicherungen AG
+Versicherungspolice Hausrat Nr. 77-123
+Deckung: Feuer, Diebstahl, Wasser
+Jahresprämie CHF 298.00, Rechnung folgt.
+Allgemeine Bedingungen 2026

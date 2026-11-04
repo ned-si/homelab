@@ -1,0 +1,8 @@
+expected: Invoice
+
+Atelier Exemple SA
+Facture
+Numéro de facture : 2026-0042
+Date : 12.10.2026
+Réparation vélo, main d'oeuvre CHF 120.00
+Merci de régler la facture sous 30 jours.

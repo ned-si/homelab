@@ -1,0 +1,8 @@
+expected: Invoice
+
+Example Web Services Ltd
+Invoice
+Invoice number: INV-7781
+Date: 2026-08-14
+Hosting, annual plan CHF 96.00
+Please pay this invoice within 30 days.

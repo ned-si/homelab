@@ -1,0 +1,7 @@
+expected: Medical
+
+Praxis Beispiel
+Arztbericht
+Konsultation vom 02.10.2026
+Diagnose: Distorsion des Sprunggelenks
+Behandlung: Ruhe, Physiotherapie.

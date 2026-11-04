@@ -1,0 +1,8 @@
+expected: Receipt
+
+Beispiel Markt AG
+Kassenbon
+Milch 1.75
+Äpfel 3.40
+Total CHF 5.15
+Bezahlt mit Karte. Danke für Ihren Einkauf.

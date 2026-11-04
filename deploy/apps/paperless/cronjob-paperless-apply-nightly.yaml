@@ -1,0 +1,82 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/paperless
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/paperless and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/name: paperless-apply-nightly
+  name: paperless-apply-nightly
+  namespace: paperless
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paperless-apply-nightly
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - command:
+            - python3
+            - -u
+            - /app/apply.py
+            - --config
+            - /app/paperless.json
+            - --nightly
+            env:
+            - name: PAPERLESS_API_URL
+              value: http://paperless:8000
+            - name: PAPERLESS_API_TOKEN_FILE
+              value: /secret/PAPERLESS_API_TOKEN
+            image: python:3.15.2-alpine3.24@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
+            name: apply
+            resources:
+              limits:
+                memory: 256Mi
+              requests:
+                cpu: 20m
+                memory: 32Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /app
+              name: app
+              readOnly: true
+            - mountPath: /secret
+              name: token
+              readOnly: true
+          restartPolicy: Never
+          securityContext:
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              name: paperless-apply-4kbg7875k7
+            name: app
+          - name: token
+            secret:
+              secretName: paperless-automation
+  schedule: 40 4 * * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  suspend: false

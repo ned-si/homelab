@@ -1,0 +1,8 @@
+expected: Payslip
+
+Beispiel AG
+Lohnabrechnung Oktober 2026
+Grundlohn CHF 6'000.00
+AHV/IV/EO -318.00
+Auszahlung CHF 5'102.40
+Keine Rechnung.

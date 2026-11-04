@@ -1,0 +1,7 @@
+expected: Contract
+
+Mietvertrag für Wohnräume
+Vermieterin: Beispiel Immobilien AG
+Objekt: 3,5 Zimmer, 2. Stock
+Nettomietzins CHF 1'850.00
+Kündigungsfrist drei Monate.

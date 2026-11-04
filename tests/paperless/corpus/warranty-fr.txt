@@ -1,0 +1,7 @@
+expected: Warranty
+
+Exemple Électroménager
+Certificat de garantie
+Appareil : lave-linge, n° de série 0001
+Durée : 2 ans à compter de l'achat
+Conservez ce document avec la facture.

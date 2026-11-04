@@ -1,0 +1,7 @@
+expected: Tax
+
+Administration fiscale cantonale (exemple)
+Déclaration d’impôts 2025
+Contribuable : exemple
+Veuillez joindre l’attestation de votre employeur et la facture des frais de garde.
+Délai : 31 mars 2026

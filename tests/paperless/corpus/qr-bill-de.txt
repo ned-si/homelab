@@ -1,0 +1,16 @@
+expected: none
+tags: to-pay
+
+Rechnung Telefon, September 2026
+Betrag CHF 49.00
+
+Empfangsschein
+Konto / Zahlbar an
+CH00 0000 0000 0000 0000 0
+Beispiel Telekom AG
+Betrag CHF 49.00
+
+Zahlteil
+Konto / Zahlbar an
+Referenz 00 00000 00000 00000 00000 00000
+Zusätzliche Informationen: Rechnung September

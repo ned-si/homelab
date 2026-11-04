@@ -1,0 +1,8 @@
+expected: Payslip
+
+Example Consulting Ltd
+Payslip, October 2026
+Base salary CHF 6'000.00
+Social security -318.00
+Net pay CHF 5'102.40
+Payroll queries: payroll@example.invalid. This is not an invoice.

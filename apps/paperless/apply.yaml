@@ -1,0 +1,151 @@
+# Paperless configuration as code (config/apply.py, config/paperless.json;
+# docs: .kiro/specs/paperless-documents/design.md "Configuration as code").
+#
+# paperless-apply: Argo CD PostSync hook after every sync of `paperless`. It
+# upserts the document types, tags, custom fields, saved views and workflows
+# through the API. A failed hook fails the sync, and the automatic rollback
+# reverts the merge: a configuration Paperless refuses (400) does not stay on
+# main. Transient errors don't: apply.py waits up to 10 minutes for /api/
+# and retries 5xx three times.
+#
+# paperless-apply-nightly: the same, plus `--nightly`: `Retain until` from
+# type and creation date, and the `readers` view on correspondents and on
+# every document without the `private` tag.
+#
+# Both authenticate as the Paperless user `automation` (a superuser, API
+# token only) with the token in the Secret `paperless-automation`
+# (apps/secrets/paperless-automation.sops.yaml; its reach: docs/secrets.md).
+# The Secret is mounted, optional, from a volume: it syncs in the
+# `secrets-apps` Application, and on a first deploy the kubelet adds the file
+# once the Secret exists; apply.py waits for it.
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: paperless-apply
+  labels:
+    app.kubernetes.io/name: paperless-apply
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0
+  # 10 minutes of waiting for the token and /api/, then the writes.
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperless-apply
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: apply
+          # renovate: datasource=docker depName=python
+          image: python:3.15.2-alpine3.24@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
+          command: ["python3", "-u", "/app/apply.py", "--config", "/app/paperless.json"]
+          env:
+            - name: PAPERLESS_API_URL
+              value: http://paperless:8000
+            - name: PAPERLESS_API_TOKEN_FILE
+              value: /secret/PAPERLESS_API_TOKEN
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: app
+              mountPath: /app
+              readOnly: true
+            - name: token
+              mountPath: /secret
+              readOnly: true
+      volumes:
+        - name: app
+          configMap:
+            name: paperless-apply
+        - name: token
+          secret:
+            secretName: paperless-automation
+            optional: true
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paperless-apply-nightly
+  labels:
+    app.kubernetes.io/name: paperless-apply-nightly
+spec:
+  # 04:40 UTC: after the 02:30 backup, so a night's recomputation is in the
+  # next backup; the dates are right by the morning.
+  schedule: "40 4 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paperless-apply-nightly
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: apply
+              # renovate: datasource=docker depName=python
+              image: python:3.15.2-alpine3.24@sha256:20a82dbc2783112ddb91d1534603f802d222a3e63e593cd002eb2ac534e70211
+              command: ["python3", "-u", "/app/apply.py", "--config", "/app/paperless.json", "--nightly"]
+              env:
+                - name: PAPERLESS_API_URL
+                  value: http://paperless:8000
+                - name: PAPERLESS_API_TOKEN_FILE
+                  value: /secret/PAPERLESS_API_TOKEN
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: app
+                  mountPath: /app
+                  readOnly: true
+                - name: token
+                  mountPath: /secret
+                  readOnly: true
+          volumes:
+            - name: app
+              configMap:
+                name: paperless-apply
+            - name: token
+              secret:
+                secretName: paperless-automation

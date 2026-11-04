@@ -1,0 +1,6 @@
+expected: Tax
+
+Kantonale Steuerverwaltung (Beispiel)
+Steuererklärung 2025
+Bitte legen Sie Belege und Rechnungen für Abzüge bei.
+Frist: 31. März 2026

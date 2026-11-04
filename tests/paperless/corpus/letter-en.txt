@@ -1,0 +1,6 @@
+expected: none
+
+Dear customer,
+Our offices will be closed on 24 December.
+Kind regards,
+The Example team

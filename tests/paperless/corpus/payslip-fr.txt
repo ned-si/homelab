@@ -1,0 +1,8 @@
+expected: Payslip
+
+Exemple Services SA
+Fiche de salaire, octobre 2026
+Salaire de base CHF 6'000.00
+AVS/AI/APG -318.00
+Net versé CHF 5'102.40
+Ce document n’est pas une facture.

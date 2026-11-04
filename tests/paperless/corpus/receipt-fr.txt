@@ -1,0 +1,8 @@
+expected: Receipt
+
+Boulangerie Exemple
+Ticket de caisse
+2 croissants 4.20
+Pain complet 5.10
+Total CHF 9.30
+Payé par carte. Merci de votre visite.

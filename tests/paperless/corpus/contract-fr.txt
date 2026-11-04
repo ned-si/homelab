@@ -1,0 +1,7 @@
+expected: Contract
+
+Contrat de bail à loyer pour appartement
+Bailleur : Exemple Immobilier SA
+Objet : 3,5 pièces, 2e étage
+Loyer mensuel net CHF 1'850.00
+Durée : indéterminée, résiliable avec trois mois de préavis.

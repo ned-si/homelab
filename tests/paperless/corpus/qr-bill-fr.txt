@@ -1,0 +1,16 @@
+expected: none
+tags: to-pay
+
+Facture d'électricité, période 07-09/2026
+Montant CHF 84.20
+
+Récépissé
+Compte / Payable à
+CH00 0000 0000 0000 0000 0
+Exemple Énergie SA
+Montant CHF 84.20
+
+Section paiement
+Compte / Payable à
+Référence 00 00000 00000 00000 00000 00000
+Informations supplémentaires : facture électricité

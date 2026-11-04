@@ -1,0 +1,7 @@
+expected: Insurance
+
+Example Insurance Company
+Insurance policy schedule, policy 88-456
+Cover: contents, theft, water damage
+Annual premium CHF 305.00, invoiced separately.
+Terms 2026
