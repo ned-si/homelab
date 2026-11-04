@@ -1,0 +1,318 @@
+# monitoring: kube-prometheus-stack (Prometheus, Alertmanager, Grafana, the
+# operator, kube-state-metrics) and the exporters and CronJobs in the
+# namespace (platform/). node-exporter and lan-inventory run in the host
+# network, which pod policy never selects.
+#
+# One application, so the namespace is the boundary inside it (as for the
+# single-app namespaces, kustomization.yaml): every pod here accepts and
+# reaches every other pod here. Rules per workload cover what crosses it.
+# From the manifests, the live pods' ports and the in-cluster callers in the
+# repo; no policy selected these pods, so Hubble had no verdicts to read
+# besides the Gateway's to Grafana. The 7-day audit of spec
+# netpol-default-deny starts with this file.
+#
+# Alerting must survive a flip (lockout invariant L8): Alertmanager's
+# egress to ntfy.sh and healthchecks.io is in `alertmanager` below.
+#
+# Not enforced: every policy here is default-allow; the switch is the
+# `monitoring` block in ./90-enforcement.yaml. Its flips come last (D4).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: monitoring
+  namespace: monitoring
+spec:
+  description: >-
+    Every pod in monitoring: in from and out to the namespace itself on any
+    port, cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # Prometheus scraping the exporters here, Grafana querying Prometheus
+    # and Alertmanager, github-exporter reading Alertmanager
+    # (platform/github-exporter/deployment.yaml), vuln-enrich reading
+    # Prometheus (platform/vuln-enrich/enrich.py), Alertmanager gossip.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  description: >-
+    Prometheus scrapes every namespace, the nodes and the control plane.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # ServiceMonitors and PodMonitors in every namespace, kubelet and
+    # node-exporter on the nodes (`host`, `remote-node`), etcd and the
+    # control plane, Kubernetes service discovery (`kube-apiserver`). Ports
+    # are the exporters' own, so none is listed.
+    - toEntities:
+        - cluster
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  description: >-
+    Alertmanager: notifications to ntfy.sh and the healthchecks.io heartbeat.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # platform/kube-prometheus-stack/values.yaml -- receivers `heartbeat`,
+    # `ntfy`, `ntfy-urgent`, `ntfy-guard`: HTTPS webhooks, URLs in the
+    # Secret `alertmanager-notify`.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  description: >-
+    Grafana: HTTP from the Gateway; out to the Kubernetes API (sidecars) and
+    HTTPS (Keycloak).
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: grafana
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # grafana.lilalala.com -> grafana :3000 (values.yaml, grafana.ini
+    # server.domain; the chart's HTTPRoute).
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "3000"
+              protocol: TCP
+  egress:
+    # grafana-sc-dashboard and grafana-sc-datasources watch ConfigMaps.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # OIDC token and userinfo at https://auth.lilalala.com (values.yaml,
+    # auth.generic_oauth), the WAN address, so `world`.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: prometheus-operator
+  namespace: monitoring
+spec:
+  description: >-
+    The Prometheus operator: its admission webhook from the API server, and
+    the Kubernetes API.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: kube-prometheus-stack-prometheus-operator
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # The PrometheusRule validating webhook on 10250. The API server is in
+    # the host network: `kube-apiserver`, `host` or `remote-node`.
+    - fromEntities:
+        - kube-apiserver
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "10250"
+              protocol: TCP
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: kube-api-readers
+  namespace: monitoring
+spec:
+  description: >-
+    kube-state-metrics, github-exporter and vuln-enrich read the Kubernetes API.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [kube-state-metrics, github-exporter, vuln-enrich]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # github-exporter: KUBE_API https://kubernetes.default.svc (Argo CD
+    # Applications); vuln-enrich: K8S_URL (Trivy reports).
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: blackbox-exporter
+  namespace: monitoring
+spec:
+  description: >-
+    The blackbox exporter probes services in the cluster, the public names
+    and LAN devices.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-blackbox-exporter
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # platform/blackbox-exporter/probes/: `internal` probes of in-cluster
+    # Services, the public HTTPS names, and lan.yaml's devices on their own
+    # ports. Probes are the point of this exporter, so no port is listed.
+    - toEntities:
+        - cluster
+        - world
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: usage-exporter
+  namespace: monitoring
+spec:
+  description: >-
+    usage-exporter reads the Immich and Jellyfin APIs.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: usage-exporter
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # platform/usage-exporter/deployment.yaml -- IMMICH_URL, JELLYFIN_URL.
+    - toEndpoints:
+        # immich-server, the only pod there on 2283.
+        - matchLabels:
+            io.kubernetes.pod.namespace: immich
+      toPorts:
+        - ports:
+            - port: "2283"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: theater
+            app.kubernetes.io/name: jellyfin
+      toPorts:
+        - ports:
+            - port: "8096"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: https-out
+  namespace: monitoring
+spec:
+  description: >-
+    The cloud exporters and the CronJobs: HTTPS to their APIs and to S3.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+          - github-exporter
+          - aws-cost-exporter
+          - prometheus-yet-another-cloudwatch-exporter
+          - grafana-backup
+          - vuln-enrich
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # github-exporter: api.github.com and ARGO_URL https://argo.lilalala.com;
+    # aws-cost-exporter and yace: the AWS APIs; grafana-backup: restic to S3;
+    # vuln-enrich: KEV_URL and EPSS_URL.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: vuln-enrich
+  namespace: monitoring
+spec:
+  description: >-
+    vuln-enrich pushes its result to the Pushgateway in backup-verify.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: vuln-enrich
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # platform/vuln-enrich/enrich.py -- PUSH_URL
+    # http://pushgateway.backup-verify.svc:9091.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: backup-verify
+            app.kubernetes.io/name: pushgateway
+      toPorts:
+        - ports:
+            - port: "9091"
+              protocol: TCP

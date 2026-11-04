@@ -12,7 +12,7 @@
 # network namespace, which pod policy never sees.
 #
 # Not covered, allow-all: cert-manager, external-dns, gateway, democratic-csi,
-# monitoring, home, kube-system, argo.
+# kube-system, argo.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -28,5 +28,6 @@ resources:
   - 70-home.yaml
   - 80-backup-verify.yaml
   - 85-keycloak.yaml
+  - 88-monitoring.yaml
   # The switch. Last on purpose: it is the file you edit.
   - 90-enforcement.yaml
