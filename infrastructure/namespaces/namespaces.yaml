@@ -10,7 +10,7 @@
 #
 # restricted: gateway, argo, cert-manager, external-dns,
 #   kubelet-serving-cert-approver, metrics-server, trivy-system, kyverno,
-#   headlamp, hubble, home.
+#   headlamp, hubble, home, system-upgrade.
 # Below restricted, and why:
 #   democratic-csi  privileged: the node plugin needs host namespaces,
 #                   hostPath and privileged containers to attach iSCSI disks.
@@ -23,7 +23,6 @@
 #   backup-verify, books, theater
 #                   baseline: NFS volumes, and images that start as root
 #                   (reasons at each namespace below).
-#   system-upgrade  baseline until its flip (spec task 9).
 #   immich, keycloak, mealie, paperless, syncthing
 #                   baseline: an app fails restricted (#726, then #1020).
 #   ingress         baseline: unused, holds no pods (#1022).
@@ -156,7 +155,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: restricted
     pod-security.kubernetes.io/warn: restricted
     pod-security.kubernetes.io/audit: restricted
 ---
