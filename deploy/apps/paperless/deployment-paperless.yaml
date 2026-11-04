@@ -38,6 +38,15 @@ spec:
           value: /data/media
         - name: PAPERLESS_CONSUMPTION_DIR
           value: /data/consume
+        - name: PAPERLESS_OCR_LANGUAGE
+          value: fra+eng+spa+deu
+        - name: PAPERLESS_TIME_ZONE
+          value: Europe/Zurich
+        - name: PAPERLESS_DATE_ORDER
+          value: DMY
+        - name: PAPERLESS_FILENAME_FORMAT
+          value: '{{ created_year }}/{{ document_type }}/{{ created }} {{ correspondent
+            }} {{ title }}'
         - name: PAPERLESS_ADMIN_USER
           value: nedsi-admin
         - name: PAPERLESS_ADMIN_PASSWORD
@@ -82,6 +91,9 @@ spec:
             path: /accounts/login/
             port: http
           periodSeconds: 10
+        resources:
+          requests:
+            memory: 1280Mi
         volumeMounts:
         - mountPath: /data/data
           name: paperless-data
