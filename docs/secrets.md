@@ -28,7 +28,7 @@ Expected: the same `age1...` public key three times, and nothing else.
 | Directory | Files (`*.sops.yaml`) | Application |
 | --- | --- | --- |
 | `infrastructure/secrets/` | `cloudflare-cert-manager`, `cloudflare-external-dns`, `democratic-csi-iscsi` | `secrets-infrastructure` (wave -25) |
-| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `grafana-admin`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `argocd-oidc`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso`, `hubble-sso`, `keycloak-automation`, `signoz-sso`, `paperless-export` | `secrets-platform` (wave -25) |
+| `platform/secrets/` | `keycloak-admin`, `grafana-oidc`, `grafana-admin`, `s3-backup`, `alertmanager-notify`, `argocd-notifications`, `argocd-oidc`, `cnpg-backup-s3`, `usage-exporter`, `aws-exporter`, `keycloak-proxy-clients`, `tailscale-operator`, `headlamp-sso`, `hubble-sso`, `keycloak-automation`, `signoz-sso`, `syncthing-sso`, `paperless-export` | `secrets-platform` (wave -25) |
 | `apps/secrets/` | `immich-config`, `mealie-oidc`, `paperless-secrets`, `paperless-automation`, `paperless-export`, `paperless-config`, `plex-claim`, `recyclarr-api-keys`, `theater-sso` | `secrets-apps` (wave -25) |
 
 Each file is a Kubernetes Secret with its own `metadata.namespace`; only

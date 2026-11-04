@@ -104,6 +104,13 @@ spec:
                   name: keycloak-signoz-client
                   key: SIGNOZ_CLIENT_SECRET
                   optional: true
+            # platform/secrets/syncthing-sso.sops.yaml.
+            - name: SYNCTHING_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-syncthing-client
+                  key: SYNCTHING_CLIENT_SECRET
+                  optional: true
           resources:
             requests:
               cpu: 50m

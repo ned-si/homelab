@@ -91,7 +91,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Paperless-ngx | Document archive | `paperless` | `archive` | Yes |
 | Mealie | Recipes | `mealie` | `cook` | Yes |
 | Home Assistant, Mosquitto, Zigbee2MQTT | Home automation ([docs/home-automation.md](docs/home-automation.md)) | `home` | `home` | Yes (Home Assistant) |
-| Syncthing | Device sync | `syncthing` | `syncthing` (UI); sync on `.201` | No |
+| Syncthing | Device sync | `syncthing` | `syncthing` (UI); sync on `.201` | Yes (UI, group `admins`) |
 | Keycloak | Single sign-on, realm `homelab` | `keycloak` | `auth` | - |
 | Grafana, Prometheus, Alertmanager | Monitoring | `monitoring` | `grafana` | Yes (Grafana) |
 | Argo CD | GitOps controller | `argo` | `argo` | Yes |

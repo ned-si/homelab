@@ -27,7 +27,7 @@ metadata:
   namespace: syncthing
 spec:
   description: >-
-    Syncthing: web UI from the Gateway, sync protocol from the LAN and the
+    Syncthing: web UI from its SSO proxy, sync protocol from the LAN and the
     internet, outbound to peers, discovery servers and relays on any port.
   endpointSelector:
     matchLabels:
@@ -36,13 +36,22 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # syncthing.lilalala.com -> the web UI on :8384.
-    # apps/syncthing/httproute.yaml -- HTTPRoute `syncthing`; only the UI goes
-    # through the Gateway, which is why the sync ports are a separate rule.
+    # syncthing.lilalala.com -> syncthing-sso -> the web UI on :8384.
+    # apps/syncthing/httproute.yaml -- HTTPRoute `syncthing` to the
+    # oauth2-proxy `syncthing-sso` (apps/syncthing/sso.yaml), never to the
+    # UI; the sync ports are a separate rule. The postsync-smoke Job
+    # (components/postsync-smoke) calls /rest/noauth/health once per sync.
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [syncthing-sso, postsync-smoke]
+      toPorts:
+        - ports:
+            - port: "8384"
+              protocol: TCP
     - fromEntities:
-        - ingress
         - host
-        - remote-node
       toPorts:
         - ports:
             - port: "8384"

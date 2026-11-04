@@ -26,8 +26,8 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
-      name: syncthing-dashboard
-      port: 8384
+      name: syncthing-sso
+      port: 4180
       weight: 1
     filters:
     - responseHeaderModifier:
