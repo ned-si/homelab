@@ -33,9 +33,9 @@ Application in `clusters/homelab/`, images by digest in the manifests.
 Four layers ([docs/testing.md](../../docs/testing.md)):
 
 1. Local hooks: `pre-commit` on commit and push.
-2. Static CI (`ci` workflow): `lint`, `render` (unit tests, render,
-   kubeconform, Kyverno, repo policy), `security` (gitleaks, Trivy gate),
-   `talos`, `pr-metadata`.
+2. Static CI (`ci` workflow): `lint`, `render` (render, kubeconform,
+   Kyverno, repo policy), `tests` (unit tests, Vector config), `promtool`,
+   `alertmanager`, `security` (gitleaks, Trivy gate), `talos`, `pr-metadata`.
 3. Pre-production: an ephemeral kind cluster, server-side dry run of
    `deploy/` and a real boot of the stateless workloads.
 4. Deploy time: PostSync smoke hooks; a failure triggers the rollback.

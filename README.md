@@ -183,17 +183,20 @@ is in no Application at all.
 ## CI
 
 Every pull request and every push to `main` runs
-[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml): five parallel jobs,
+[`.github/workflows/ci.yaml`](.github/workflows/ci.yaml): parallel jobs,
 one step per check. Inside a job every check runs even when an earlier one
 fails, and the job fails if any check failed.
 
 - `lint`: `yamllint`, `actionlint`, `shellcheck`, `tofu fmt` and
   `tofu validate`.
-- `render`: unit tests (pytest and bash), a render of every Application and
-  Helm release, `kubeconform` (strict schema validation against the cluster's
-  Kubernetes version and the vendored CRD schemas) and `repo-policy` (pinned actions,
-  repository invariants, secrets, leak and placeholder checks, `deploy/`
-  matches its sources, kube-linter).
+- `render`: a render of every Application and Helm release, `kubeconform`
+  (strict schema validation against the cluster's Kubernetes version and the
+  vendored CRD schemas), the Kyverno policies and `repo-policy` (pinned
+  actions, repository invariants, secrets, leak and placeholder checks,
+  `deploy/` matches its sources, kube-linter).
+- `tests`: unit tests (pytest and bash) and the Vector config.
+- `promtool` and `alertmanager`: Prometheus rule unit tests, Alertmanager
+  routing tests.
 - `security`: `gitleaks` on the new commits, and the Trivy config scan.
   CRITICAL fails; HIGH fails only when it increases against the merge base.
   Waivers in [`.trivyignore.yaml`](.trivyignore.yaml) are scoped and expire.
@@ -204,7 +207,7 @@ fails, and the job fails if any check failed.
 - `pr-metadata` (pull requests only): Conventional Commits, titles under 70
   characters, every commit signed and verified.
 
-A last job, `ci`, needs all five and fails unless each one passed
+A last job, `ci`, needs all of them and fails unless each one passed
 (`pr-metadata` may be skipped on a push). `ci` is the only required check,
 for branch protection and for `scripts/pr-merge.sh`.
 

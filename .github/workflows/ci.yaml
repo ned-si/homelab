@@ -5,13 +5,14 @@
 # Parallel jobs, then one aggregate:
 #   lint         pre-commit hooks, yamllint, actionlint, shellcheck,
 #                tofu fmt + validate
-#   render       unit tests, promtool (rule checks and rule unit tests),
-#                Alertmanager routing and inhibition tests,
-#                the Vector config (`vector validate`),
-#                render, kubeconform, Kyverno policies over deploy/,
+#   render       render, kubeconform, Kyverno policies over deploy/,
 #                repo-policy (pins, invariants,
 #                secrets/leak/placeholder checks, deploy/ matches sources,
 #                kube-linter)
+#   tests        unit tests (pytest, bash), the Vector config
+#                (`vector validate`)
+#   promtool     Prometheus rule checks and rule unit tests
+#   alertmanager Alertmanager routing and inhibition tests
 #   security     gitleaks, Trivy waiver hygiene, Trivy gate
 #   talos        talhelper genconfig with throwaway secrets, talosctl validate
 #                --mode metal, config invariants (scripts/ci/talos-validate.sh),
@@ -208,29 +209,6 @@ jobs:
           scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
           scripts/ci/setup-python-deps.sh
 
-      - name: Unit tests (pytest)
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: python -m pytest -q -p no:cacheprovider tests
-
-      - name: Unit tests (bash)
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: bash tests/run-bash-tests.sh
-
-      - name: Prometheus rules (promtool check + unit tests)
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: scripts/ci/promtool-check.sh
-
-      - name: Alertmanager routing (amtool + replayed outages)
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: scripts/ci/alertmanager-test.sh
-
-      # The Vector chart is not rendered into deploy/ and passes customConfig
-      # through Helm `tpl`: compile the rendered config with the image the
-      # DaemonSet runs, so a chart or image bump is checked with its binary.
-      - name: Vector config (vector validate in the pinned image)
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: scripts/ci/vector-validate.sh
-
       # Rendered once; kubeconform and repo-policy read the same directory.
       - name: Render every Application in scope
         id: render
@@ -271,6 +249,83 @@ jobs:
           else
             scripts/ci/repo-policy.sh
           fi
+
+  # tests, promtool and alertmanager install the same tools as render: some
+  # tests skip when a tool is missing (test_dashboards.py without promtool,
+  # test_kyverno_restricted.sh without kyverno).
+  tests:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools
+        id: setup
+        run: |
+          set -euo pipefail
+          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
+          scripts/ci/setup-python-deps.sh
+
+      - name: Unit tests (pytest)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: python -m pytest -q -p no:cacheprovider tests
+
+      - name: Unit tests (bash)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: bash tests/run-bash-tests.sh
+
+      # The Vector chart is not rendered into deploy/ and passes customConfig
+      # through Helm `tpl`: compile the rendered config with the image the
+      # DaemonSet runs, so a chart or image bump is checked with its binary.
+      - name: Vector config (vector validate in the pinned image)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/vector-validate.sh
+
+  promtool:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools
+        id: setup
+        run: |
+          set -euo pipefail
+          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
+          scripts/ci/setup-python-deps.sh
+
+      - name: Prometheus rules (promtool check + unit tests)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/promtool-check.sh
+
+  alertmanager:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned tools
+        id: setup
+        run: |
+          set -euo pipefail
+          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
+          scripts/ci/setup-python-deps.sh
+
+      - name: Alertmanager routing (amtool + replayed outages)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: scripts/ci/alertmanager-test.sh
 
   security:
     runs-on: ubuntu-26.04
@@ -518,7 +573,7 @@ jobs:
   # when `talos` did not plan a rehearsal.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, security, talos, talos-upgrade, pr-metadata, preprod]
+    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -531,7 +586,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render security talos talos-upgrade pr-metadata preprod; do
+          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"

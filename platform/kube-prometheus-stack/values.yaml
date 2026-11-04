@@ -313,7 +313,7 @@ grafana:
 #   the critical alert of an object     -> its warning (certificates, PVCs,
 #                                          node filesystems, NAS pool, eMMC)
 #
-# Tests: scripts/ci/alertmanager-test.sh (CI: render job) runs amtool on
+# Tests: scripts/ci/alertmanager-test.sh (CI: alertmanager job) runs amtool on
 # tests/alertmanager/routes.txt and replays tests/alertmanager/*.json against
 # a real Alertmanager, counting notifications.
 #

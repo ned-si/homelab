@@ -1,7 +1,7 @@
 # promtool unit tests for platform/barman-cloud-plugin/monitoring.yaml
 # (PrometheusRule cnpg-backups). Every alert in it pages (docs/sre.md
 # "Paging").
-# Run: scripts/ci/promtool-check.sh (CI: render job).
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
 rule_files:
   - cnpg-backups.yaml
 

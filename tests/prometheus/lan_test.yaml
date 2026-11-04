@@ -1,5 +1,5 @@
 # promtool unit tests for platform/kube-prometheus-stack/routes/lan-alerts.yaml.
-# Run: scripts/ci/promtool-check.sh (CI: render job).
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
 rule_files:
   - homelab-lan.yaml
 

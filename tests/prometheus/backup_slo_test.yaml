@@ -1,6 +1,6 @@
 # promtool unit tests for platform/kube-prometheus-stack/routes/backup-slo.yaml.
 # The targets (backup-slo-targets.yaml) are input series here.
-# Run: scripts/ci/promtool-check.sh (CI: render job).
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
 rule_files:
   - homelab-backup-slo.yaml
 

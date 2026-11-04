@@ -1,6 +1,6 @@
 # promtool unit tests for platform/kube-prometheus-stack/routes/signoz-trial.yaml
 # (the trial recording rules and signoz_trial:pass).
-# Run: scripts/ci/promtool-check.sh (CI: render job).
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
 rule_files:
   - homelab-signoz.yaml
 

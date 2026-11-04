@@ -2,7 +2,7 @@
 # Tests for the Pod Security rule of scripts/ci/kyverno.sh: the restricted
 # set blocks in `enforce: restricted` namespaces, the renders of a
 # webhook-excluded namespace are kept only when it enforces restricted.
-# Needs the kyverno CLI and yq (the render job installs both).
+# Needs the kyverno CLI and yq (the tests job installs both).
 # shellcheck source=tests/bash/lib.sh
 . "$(dirname "$0")/lib.sh"
 

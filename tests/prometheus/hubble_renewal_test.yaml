@@ -1,7 +1,7 @@
 # promtool unit tests for platform/kube-prometheus-stack/routes/hubble-alerts.yaml,
 # HubbleCertRenewalStale: hourly evaluation over ~130 days (kept apart from
 # hubble_test.yaml, which needs 1m evaluation).
-# Run: scripts/ci/promtool-check.sh (CI: render job).
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
 rule_files:
   - homelab-hubble.yaml
 

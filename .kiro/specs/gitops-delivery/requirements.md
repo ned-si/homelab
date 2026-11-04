@@ -54,8 +54,9 @@ to deploy", so that merging needs no person.
    commits and linear history, for admins too, with no force push, no
    deletion and 0 required approvals. (`gh api
    repos/ned-si/homelab/branches/main/protection`)
-2. THE `ci` check SHALL aggregate the jobs `lint`, `render`, `security`,
-   `talos`, `talos-upgrade`, `pr-metadata` and `preprod`.
+2. THE `ci` check SHALL aggregate the jobs `lint`, `render`, `tests`,
+   `promtool`, `alertmanager`, `security`, `talos`, `talos-upgrade`,
+   `pr-metadata` and `preprod`.
    (`.github/workflows/ci.yaml`)
 3. WHEN a pull request is merged by hand, THE merge SHALL go through
    `scripts/pr-merge.sh`, which squash-merges only on a green `ci`.
