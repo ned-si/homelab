@@ -1,0 +1,7 @@
+expected: Insurance
+
+Assurances Exemple SA
+Police d’assurance ménage n° 55-0001
+Couverture : mobilier, vol, dégâts d’eau
+Prime annuelle CHF 312.00, facture séparée.
+Conditions générales : édition 2026

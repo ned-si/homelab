@@ -1,0 +1,8 @@
+expected: Statement
+
+Example Bank plc
+Bank statement, September 2026
+Opening balance CHF 900.00
+03.09 Card payment, invoice 7781 -96.00
+28.09 Incoming transfer 2'500.00
+Closing balance CHF 3'304.00

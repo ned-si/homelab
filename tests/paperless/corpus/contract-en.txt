@@ -1,0 +1,7 @@
+expected: Contract
+
+Employment contract
+Employer: Example Consulting Ltd
+Position: analyst, 100 %
+Start date: 1 February 2026
+Notice period: three months.

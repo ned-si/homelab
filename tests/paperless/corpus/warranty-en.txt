@@ -1,0 +1,7 @@
+expected: Warranty
+
+Example Electronics
+Warranty card
+Product: laptop, serial 0003
+Warranty: 2 years from purchase
+Keep this card with your receipt.

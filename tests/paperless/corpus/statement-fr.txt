@@ -1,0 +1,8 @@
+expected: Statement
+
+Banque Exemple
+Relevé de compte du 01.09.2026 au 30.09.2026
+Solde initial CHF 2'140.00
+05.09 Paiement facture électricité -84.20
+25.09 Virement entrant 3'200.00
+Solde final CHF 5'255.80

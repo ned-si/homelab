@@ -1,0 +1,8 @@
+expected: Invoice
+
+Beispiel Handwerk GmbH
+Rechnung
+Rechnungsnummer: R-2026-118
+Datum: 03.09.2026
+Malerarbeiten Wohnzimmer CHF 840.00
+Zahlbar innert 30 Tagen.

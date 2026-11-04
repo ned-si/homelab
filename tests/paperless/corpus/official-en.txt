@@ -1,0 +1,7 @@
+expected: Official
+
+Example Registry Office
+Birth certificate
+Name: Example
+Place of birth: Geneva
+Issued on 15 June 2026

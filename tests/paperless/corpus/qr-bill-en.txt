@@ -1,0 +1,16 @@
+expected: none
+tags: to-pay
+
+Invoice for the club membership 2027
+Amount CHF 60.00
+
+Receipt
+Account / Payable to
+CH00 0000 0000 0000 0000 0
+Example Sports Club
+Amount CHF 60.00
+
+Payment part
+Account / Payable to
+Reference 00 00000 00000 00000 00000 00000
+Additional information: membership invoice

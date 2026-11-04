@@ -1,0 +1,7 @@
+expected: Medical
+
+Example Clinic
+Medical report
+Visit of 2 October 2026
+Diagnosis: sprained ankle
+Treatment: rest and physiotherapy.

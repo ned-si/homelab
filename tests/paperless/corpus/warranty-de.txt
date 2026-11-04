@@ -1,0 +1,7 @@
+expected: Warranty
+
+Beispiel Elektro AG
+Garantieschein
+Gerät: Kühlschrank, Seriennummer 0002
+Garantiedauer: 2 Jahre ab Kaufdatum
+Bitte zusammen mit der Rechnung aufbewahren.

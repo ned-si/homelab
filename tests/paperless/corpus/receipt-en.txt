@@ -1,0 +1,8 @@
+expected: Receipt
+
+Example Hardware Store
+Sales receipt
+Drill bits 12.90
+Screws 4.50
+Total CHF 17.40
+Paid by card. Keep this for returns within 30 days.

@@ -1,0 +1,8 @@
+expected: Statement
+
+Beispielbank
+Kontoauszug 09/2026
+Anfangssaldo CHF 1'020.00
+04.09 Zahlung Rechnung Telefon -49.00
+26.09 Gutschrift 3'100.00
+Schlusssaldo CHF 4'071.00

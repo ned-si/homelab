@@ -1,0 +1,6 @@
+expected: Official
+
+Einwohnerkontrolle Beispielstadt
+Wohnsitzbestätigung
+Die oben genannte Person ist seit 2020 hier angemeldet.
+Ausgestellt am 15.06.2026

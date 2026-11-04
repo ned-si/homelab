@@ -1,0 +1,7 @@
+expected: Medical
+
+Cabinet médical Exemple
+Rapport médical
+Consultation du 02.10.2026
+Diagnostic : entorse de la cheville
+Traitement : repos, physiothérapie.

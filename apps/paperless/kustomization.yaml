@@ -11,6 +11,16 @@ resources:
   - service.yaml
   - httproute.yaml
   - backup.yaml
+  # Configuration as code: PostSync Job and nightly CronJob (apply.yaml).
+  - apply.yaml
+
+# Input of paperless-apply. The name hash makes a change here a new
+# ConfigMap, so the Job always runs with the files it was synced with.
+configMapGenerator:
+  - name: paperless-apply
+    files:
+      - config/apply.py
+      - config/paperless.json
 
 # After every sync: the Service answers on the login page (no health
 # endpoint without authentication).

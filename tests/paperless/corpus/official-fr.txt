@@ -1,0 +1,7 @@
+expected: Official
+
+Office de l'état civil (exemple)
+Acte de naissance
+Nom : Exemple
+Lieu : Lausanne
+Délivré le 15.06.2026

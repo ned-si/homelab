@@ -1,0 +1,53 @@
+{
+  "document_types": [
+    {"name": "Invoice", "matching_algorithm": "any", "match": "\"numéro de facture\" Rechnungsnummer \"invoice number\" \"invoice no\"", "retain_years": 5},
+    {"name": "Receipt", "matching_algorithm": "any", "match": "quittance \"ticket de caisse\" Quittung Kassenbon \"till receipt\" \"sales receipt\"", "retain_years": 2},
+    {"name": "Statement", "matching_algorithm": "any", "match": "\"relevé de compte\" \"extrait de compte\" Kontoauszug \"bank statement\"", "retain_years": 10},
+    {"name": "Tax", "matching_algorithm": "regex", "match": "\\b(déclaration d['’]impôts?|décision de taxation|steuererklärung|veranlagungsverfügung|tax return)\\b", "retain_years": 10},
+    {"name": "Payslip", "matching_algorithm": "any", "match": "\"fiche de salaire\" \"décompte de salaire\" \"certificat de salaire\" Lohnabrechnung Lohnausweis payslip", "retain_years": null},
+    {"name": "Insurance", "matching_algorithm": "regex", "match": "\\b(police d['’]assurance|attestation d['’]assurance|versicherungspolice|versicherungsnachweis|insurance policy)\\b", "retain_years": null},
+    {"name": "Contract", "matching_algorithm": "any", "match": "\"contrat de bail\" \"contrat de travail\" Mietvertrag Arbeitsvertrag \"rental agreement\" \"employment contract\"", "retain_years": null},
+    {"name": "Medical", "matching_algorithm": "any", "match": "\"ordonnance médicale\" \"rapport médical\" Arztbericht Arztzeugnis \"medical report\"", "retain_years": 10},
+    {"name": "Official", "matching_algorithm": "any", "match": "\"acte de naissance\" \"acte de mariage\" \"certificat de domicile\" Geburtsurkunde Wohnsitzbestätigung \"birth certificate\"", "retain_years": null},
+    {"name": "Warranty", "matching_algorithm": "any", "match": "\"certificat de garantie\" Garantieschein \"warranty card\"", "retain_years": null},
+    {"name": "Letter", "matching_algorithm": "none", "match": "", "retain_years": 5}
+  ],
+  "tags": [
+    {"name": "housing", "color": "#1f78b4", "matching_algorithm": "any", "match": "loyer \"charges locatives\" Mietzins Nebenkostenabrechnung \"rent payment\" landlord"},
+    {"name": "car", "color": "#1f78b4", "matching_algorithm": "any", "match": "\"carte grise\" \"permis de conduire\" voiture Fahrzeugausweis Führerausweis \"vehicle registration\" \"driving licence\""},
+    {"name": "health", "color": "#1f78b4", "matching_algorithm": "any", "match": "médecin pharmacie Arzt Apotheke physician pharmacy"},
+    {"name": "finance", "color": "#1f78b4", "matching_algorithm": "any", "match": "\"relevé de compte\" \"extrait de compte\" Kontoauszug \"bank statement\" dividende dividend"},
+    {"name": "insurance", "color": "#1f78b4", "matching_algorithm": "any", "match": "assurance Versicherung insurance Krankenkasse \"caisse maladie\""},
+    {"name": "work", "color": "#1f78b4", "matching_algorithm": "any", "match": "employeur Arbeitgeber employer salaire Lohn salary"},
+    {"name": "utilities", "color": "#1f78b4", "matching_algorithm": "any", "match": "électricité Strom electricity \"eau potable\" Wasserversorgung"},
+    {"name": "telecom", "color": "#1f78b4", "matching_algorithm": "any", "match": "\"téléphonie mobile\" Mobilfunk \"mobile plan\" Glasfaser \"fibre optique\" \"fibre broadband\""},
+    {"name": "travel", "color": "#1f78b4", "matching_algorithm": "any", "match": "Flug flight \"boarding pass\" Bordkarte hôtel hotel"},
+    {"name": "family", "color": "#1f78b4", "matching_algorithm": "any", "match": "\"allocations familiales\" Kinderzulage \"child benefit\" crèche Kita école Schule"},
+    {"name": "inbox", "color": "#e31a1c", "is_inbox_tag": true, "matching_algorithm": "none", "match": ""},
+    {"name": "to-pay", "color": "#ff7f00", "matching_algorithm": "regex", "match": "Zahlteil|Section paiement|Payment part|Sezione pagamento"},
+    {"name": "tax-relevant", "color": "#33a02c", "matching_algorithm": "none", "match": ""},
+    {"name": "private", "color": "#6a3d9a", "matching_algorithm": "none", "match": ""}
+  ],
+  "custom_fields": [
+    {"name": "Retain until", "data_type": "date"},
+    {"name": "Amount", "data_type": "monetary", "extra_data": {"default_currency": "CHF"}},
+    {"name": "Due date", "data_type": "date"},
+    {"name": "Tax year", "data_type": "integer"}
+  ],
+  "saved_views": [
+    {"name": "Inbox", "sort_field": "created", "sort_reverse": true, "filter_rules": [{"rule_type": 6, "tag": "inbox"}]},
+    {"name": "To pay", "sort_field": "custom_field:Due date", "sort_reverse": false, "filter_rules": [{"rule_type": 6, "tag": "to-pay"}]},
+    {"name": "Tax year", "sort_field": "custom_field:Tax year", "sort_reverse": true, "filter_rules": [{"rule_type": 6, "tag": "tax-relevant"}]},
+    {"name": "Retention expired", "sort_field": "custom_field:Retain until", "sort_reverse": false, "filter_rules": [{"rule_type": 42, "custom_field_query": ["Retain until", "lt", "today"]}]},
+    {"name": "Recently added", "sort_field": "added", "sort_reverse": true, "filter_rules": []}
+  ],
+  "workflows": [
+    {
+      "name": "tax-relevant",
+      "order": 20,
+      "enabled": true,
+      "triggers": [{"type": 2, "sources": [1, 2, 3, 4], "filter_has_any_document_types": ["Tax", "Statement", "Payslip", "Insurance"]}],
+      "actions": [{"type": 1, "assign_tags": ["tax-relevant"]}]
+    }
+  ]
+}

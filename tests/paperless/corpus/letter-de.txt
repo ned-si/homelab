@@ -1,0 +1,6 @@
+expected: none
+
+Sehr geehrte Damen und Herren
+Unsere Büros bleiben am 24. Dezember geschlossen.
+Freundliche Grüsse
+Ihr Beispiel-Team

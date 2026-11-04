@@ -19,9 +19,7 @@ in [requirements.md](requirements.md#decided-defaults).
       are in the PR, and the Deployment gets a memory request from them;
       the one existing document is renamed on disk. [1.1, 2.1, 2.6]
       (#1009; the phone-camera upload is #1008)
-
-## Open
-- [ ] 2. Configuration as code: `apps/paperless/config/paperless.json`
+- [x] 2. Configuration as code: `apps/paperless/config/paperless.json`
       (document types, tags, custom fields, saved views and workflows, the
       approved [taxonomy](design.md#taxonomy)), `apply.py` with pytest
       against a fake API: the unquoted phrase and shared keyword checks, the
@@ -39,6 +37,10 @@ in [requirements.md](requirements.md#decided-defaults).
       saved view with `owner: null` is listed and can go on the dashboard
       for both groups on 3.4.1, or `apply.py` creates one copy per listed
       account. [2.2, 2.3, 2.4, 2.5, 6.5]
+      (#1014; checked on 3.4.2: one unowned copy of each saved view is
+      listed and can go on the dashboard for both permission sets)
+
+## Open
 - [ ] 3. Access: the groups `editors` and `readers` and their permissions,
       the member list in SOPS `paperless-config` (one encrypted
       `config.json` value), the editor's and the reader's accounts put into

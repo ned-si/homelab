@@ -1,0 +1,6 @@
+expected: none
+
+Madame, Monsieur,
+Nous vous informons que nos bureaux seront fermés le 24 décembre.
+Veuillez agréer nos meilleures salutations.
+L’équipe Exemple
