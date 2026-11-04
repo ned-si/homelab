@@ -75,6 +75,9 @@ MCP servers fit together:
   `keycloak-db` keep their historical names.
 - Public hostnames: `<prefix>.lilalala.com`, the prefix chosen per app
   (`media` for Immich, `cook` for Mealie).
+- Hostname prefixes: household services get everyday words (`media`,
+  `theater`, `cook`, `archive`, ...); platform and operator tools keep their
+  technical names (`argo`, `grafana`, `headlamp`, `hubble`, `signoz`, `auth`).
 - Commits and pull request titles: Conventional Commits, titles under 70
   characters, every commit signed. Branches: `<type>/<topic>`.
 - Kiro specs: `.kiro/specs/<name>/` with `requirements.md` (and its header),
