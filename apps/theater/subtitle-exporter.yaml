@@ -1,14 +1,7 @@
 # Subtitle coverage for the Homelab / Usage dashboard (docs/theater.md,
-# "Subtitles").
-#
-# Every 15 minutes the exporter reads Bazarr's API with the key in the Secret
-# `bazarr` (API_KEY only) and serves, per kind (episode, movie), language and
-# forced flag:
-#   subtitles_required  titles whose language profile asks for it
-#   subtitles_missing   of those, the ones Bazarr still wants
-# Coverage is 1 - missing / required. Bazarr decides what counts as present
-# (embedded and external text subtitles, not PGS or VobSub). INFO only: the
-# nightly search (bazarr-nightly) is the remediation, nothing pages.
+# "Subtitles"): every 15 minutes, from Bazarr's API, subtitles_required and
+# subtitles_missing per kind, language and forced flag. INFO only; the nightly
+# search is the remediation.
 ---
 apiVersion: v1
 kind: ConfigMap

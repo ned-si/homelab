@@ -1,10 +1,3 @@
-# Ported byte-for-byte in spec from the running cluster (legacy tree at the
-# all-apps pin), ADR 0002. Differences from live, all intended:
-#   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
-#     value (per-key sha256 checked), which restarts the pod once on adoption;
-#   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
-# Hardening (probes, security contexts, resources, image digests) is a later,
-# separate change: docs/roadmap.md.
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -21,15 +14,11 @@ spec:
   # (docs/runbooks/immich-upgrade.md).
   imageName: ghcr.io/tensorchord/cloudnative-vectorchord:16.15-1.1.1@sha256:f5a17fa05faf25e81304ee95e9f920d8ae077ac4a4ef0a1251e09c7197cbb236
   # Created from its Barman Cloud backup, a physical copy, so the extensions
-  # (`vchord`, `vector`, `cube`, `earthdistance`) and the search_path come with
-  # the data. A recovery needs an image with the same extensions; a backup from
-  # before 2026-10-16 still holds pgvecto.rs (`vectors`) and needs the old
-  # image, cloudnative-pgvecto.rs:16.5-v0.3.0.
-  # Archives under a new server name (CNPG refuses a non-empty path; the old one
-  # stays readable). docs/bootstrap.md
-  #
-  # Fallback (empty cluster + pg_restore of a dump) needs the initdb block this
-  # replaced, with its postInitApplicationSQL: `git show pre-talos:<this file>`.
+  # and search_path come with the data; a recovery needs an image with the
+  # same extensions (backups before 2026-10-16 hold pgvecto.rs and need
+  # cloudnative-pgvecto.rs:16.5-v0.3.0). It archives under a new server name
+  # (docs/bootstrap.md). The dump fallback's initdb block:
+  # `git show pre-talos:<this file>`.
   bootstrap:
     recovery:
       source: origin

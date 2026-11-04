@@ -1,64 +1,16 @@
-# Syncthing backup.
+# Syncthing backup: the device identity (cert.pem, key.pem: lose them and
+# every peer must re-accept a new device) and config.xml (folders, peers,
+# versioning). The index is excluded: rebuilt by rescanning, and the only live
+# database in the volume, so the rest is a fully consistent copy of a few KB.
 #
-# ###########################################################################
-# # THE INTERESTING THING ABOUT SYNCHING IS HOW LITTLE NEEDS BACKING UP -- AND
-# # THAT THE SMALL PART IS THE PART THAT IS IRREPLACEABLE.
-# #
-# # /var/syncthing holds two categories with completely different value:
-# #
-# #   IRREPLACEABLE, and tiny (a few kilobytes):
-# #     cert.pem, key.pem        the DEVICE IDENTITY. A Syncthing device ID is
-# #                              the fingerprint of this keypair. Lose it and
-# #                              this node becomes a NEW device that every peer
-# #                              must re-accept by hand, and every folder must
-# #                              be re-shared from the other side.
-# #     config.xml               folder definitions, share permissions, every
-# #                              peer's device ID, ignore patterns, versioning
-# #                              settings.
-# #     https-cert.pem/key.pem   the GUI certificate. Regenerable, but free to
-# #                              keep.
-# #
-# #   REBUILDABLE, and large:
-# #     index-v2/ (1.x) or the SQLite database (2.x)
-# #                              the file index. Syncthing rebuilds it by
-# #                              rescanning the folders. On a large folder set
-# #                              that is hours of I/O -- but it is deterministic
-# #                              and it needs no backup.
-# #
-# # SO THIS JOB BACKS UP THE FIRST CATEGORY AND EXCLUDES THE SECOND, and that is
-# # not a compromise -- it is the better backup. The index is the only live
-# # database in the volume, so excluding it removes the entire consistency
-# # problem: everything included is a file Syncthing writes atomically
-# # (write-to-temp, rename) and never holds open for writing.
-# #
-# # The result is a FULLY CONSISTENT backup of a few kilobytes, rather than a
-# # possibly-torn copy of a multi-gigabyte database that would be discarded on
-# # restore anyway. Compare apps/theater/backup.yaml, where Jellyfin's database
-# # genuinely cannot be excluded because it is the only copy of the watch state.
-# ###########################################################################
-#
-# THE SYNCED DATA ITSELF IS NOT BACKED UP HERE, AND THAT IS DELIBERATE.
-# Syncthing is a replication tool, not a backup tool: every peer holds a full
-# copy, so the data has as many copies as there are devices. What it does not
-# protect against is a deletion propagating to every peer -- which is what
-# Syncthing's own File Versioning is for, configured per folder in the GUI and
-# stored in config.xml, i.e. inside this backup.
-#
-# statefulset.yaml also warns that the pinned 2.1.2 image crosses the 1.x -> 2.x
-# boundary and that Syncthing 2.0 migrated its database format and will NOT
-# downgrade cleanly. THIS JOB IS THE THING THAT MAKES THAT SURVIVABLE: with
-# config.xml and the keypair in S3, a failed 2.x migration is recoverable by
-# reinstalling 1.x, restoring these files and letting the index rebuild. Run it
-# by hand before syncing that image bump:
+# The synced data is not backed up: every peer holds a copy, and deletions are
+# covered by File Versioning, configured in config.xml. Before a Syncthing
+# major, run it by hand:
 #
 #     kubectl -n syncthing create job --from=cronjob/syncthing-backup pre-2x
 #
 # `syncthing/data` stays in `local.restic_repos` in bootstrap/aws-backup/main.tf
-# (scripts/check-restic-repos.sh). The Glacier IR saving is pennies at this
-# size, but the list is what a future reader trusts.
-#
-# RETENTION is monthly, in `syncthing-prune` below: Glacier IR bills every pack
-# for at least 90 days, so the nightly job only adds snapshots.
+# (scripts/check-restic-repos.sh). Retention is monthly (`syncthing-prune`).
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -87,20 +39,9 @@ spec:
             app.kubernetes.io/name: syncthing-backup
         spec:
           restartPolicy: OnFailure
-          # ###############################################################
-          # # THIS AFFINITY MATCHES `app: syncthing`, NOT
-          # # `app.kubernetes.io/name: syncthing`.
-          # #
-          # # Both labels are on the pod template, but `app: syncthing` is the
-          # # one that is IMMUTABLE on the live StatefulSet's selector -- see
-          # # the block at the top of statefulset.yaml. Matching the
-          # # kubernetes.io spelling would work today and break the day the
-          # # StatefulSet is recreated with a proper volumeClaimTemplate and
-          # # the labels are tidied. Matching the immutable one cannot.
-          # ###############################################################
-          #
-          # The volume is ReadWriteOnce, so this pod must land on the node
-          # already running syncthing or it will not attach.
+          # `app: syncthing`, the label on the immutable StatefulSet selector,
+          # not the kubernetes.io one, which may be tidied. The volume is
+          # ReadWriteOnce, so this pod must land on syncthing's node.
           affinity:
             podAffinity:
               requiredDuringSchedulingIgnoredDuringExecution:
@@ -210,24 +151,10 @@ spec:
                 capabilities:
                   drop: ["ALL"]
           volumes:
-            # ###############################################################
-            # # `syncthing-pvc` IS AN OUT-OF-BAND OBJECT AND IS NOT DECLARED
-            # # ANYWHERE IN THIS REPOSITORY. THAT IS ON PURPOSE.
-            # #
-            # # It exists only in the live cluster. Declaring it here would
-            # # make Argo CD adopt a volume holding live data under an
-            # # Application with `prune: true` and `selfHeal: true`
-            # # (clusters/homelab/apps/syncthing.yaml), and this repo does not
-            # # know its storageClassName, size or accessModes -- so the
-            # # declared spec would probably differ from the live object on an
-            # # IMMUTABLE field and fail every sync, or worse, be right today
-            # # and pruned tomorrow when someone renames a file.
-            # #
-            # # The safe sequence for fixing it properly is in the report and
-            # # in docs/migration-plan.md, in git history ('Immutable fields left deliberately
-            # # alone'). MOUNTING it, as here, adopts nothing: a CronJob that
-            # # references a PVC by name creates no ownership relationship.
-            # ###############################################################
+            # `syncthing-pvc` exists only in the live cluster, on purpose:
+            # declaring it would make Argo CD adopt live data with unknown
+            # immutable fields under prune and selfHeal. Mounting it adopts
+            # nothing.
             - name: data
               persistentVolumeClaim:
                 claimName: syncthing-pvc
@@ -239,11 +166,9 @@ spec:
               emptyDir:
                 sizeLimit: 512Mi
 ---
-# Retention, once a month. `--keep-within 3m` keeps every snapshot for three
-# months, so no pack becomes unused before Glacier IR's 90-day minimum; after
-# that one snapshot per month is kept for two years -- free at this size, and a
-# mistaken folder-configuration change is the kind of thing noticed months
-# later. Talks to S3 only, so it needs no app volume and no affinity.
+# Retention, monthly: `--keep-within 3m` keeps packs past Glacier IR's
+# 90-day minimum, then one snapshot a month for two years. S3 only, so no
+# volume and no affinity.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

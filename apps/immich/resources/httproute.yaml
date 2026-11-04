@@ -1,14 +1,6 @@
-# media.lilalala.com -> Immich.
-#
-# Replaces an Ingress that carried `nginx.ingress.kubernetes.io/proxy-body-size: "0"`
-# to allow large uploads. There is no equivalent annotation here and none is
-# needed: Cilium's Gateway implementation streams request bodies rather than
-# buffering them to a limit, so multi-GB video uploads work without tuning.
-#
-# If uploads DO start failing at a size boundary, the limit is coming from
-# somewhere else -- check Immich's own upload settings and Cloudflare (the free
-# plan caps request bodies at 100MB, which is why `--cloudflare-proxied=false`
-# is set in external-dns).
+# media.lilalala.com -> Immich. The Gateway streams request bodies, so large
+# uploads need no tuning; a size limit would come from Immich or Cloudflare
+# (records are not proxied).
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

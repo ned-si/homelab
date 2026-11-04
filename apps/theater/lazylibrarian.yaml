@@ -1,25 +1,12 @@
-# LazyLibrarian: finds ebooks and audiobooks and sends them to qBittorrent.
-# https://theater.lilalala.com/arr/lazylibrarian, its own form login like the
-# *arr apps (no OIDC support). Setup and policy: docs/books.md.
+# LazyLibrarian: finds ebooks and audiobooks for qBittorrent (Readarr is
+# retired upstream). https://theater.lilalala.com/arr/lazylibrarian, own form
+# login (docs/books.md). In `theater` with the share root mounted, so
+# downloads hardlink into /data/books: category `ebooks` -> books/ingest
+# (Calibre-Web imports it), `audiobooks` -> books/audiobooks. Indexers: public
+# ones tagged `books` from Prowlarr.
 #
-# Readarr is retired upstream (archived, its metadata service is gone), so
-# this is the acquisition app for books.
-#
-# In `theater`, not `books`: it sits with qBittorrent, Prowlarr and the *arr
-# apps, and mounts the share root like they do, so finished downloads under
-# /data/torrents can be hardlinked into /data/books.
-#
-#   ebooks      qBittorrent category `ebooks` -> /data/books/ingest, which
-#               Calibre-Web Automated imports into the library
-#   audiobooks  qBittorrent category `audiobooks` -> /data/books/audiobooks,
-#               the Audiobookshelf library
-#
-# Indexers come from Prowlarr: only public indexers tagged `books` are synced
-# (docs/theater.md, "Indexers").
-#
-# The settings below are written into config.ini by an init container on
-# every start, so the UI cannot drift them; everything else is the UI's.
-# Bump `config-version` when managed.conf changes, to restart the pod.
+# An init container writes the settings below into config.ini on every start;
+# bump `config-version` when managed.conf changes.
 ---
 apiVersion: v1
 kind: ConfigMap

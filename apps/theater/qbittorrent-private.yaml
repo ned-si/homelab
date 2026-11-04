@@ -1,14 +1,7 @@
-# Private-tracker seeding in qBittorrent (docs/theater.md, "Indexers").
-#
-# qBittorrent queues torrents beyond 10 active (Session\MaxActiveTorrents); a
-# queued seed stops uploading, which a private tracker counts as a hit and run.
-# qBittorrent has no per-category queue limit, so this CronJob, every 10 min:
-#   - keeps the category `private` (save path /data/torrents/private) for
-#     torrents added by hand from a private tracker;
-#   - force-starts every torrent in `private` and every torrent qBittorrent
-#     flags as private (also the *arr freeleech grabs). A forced torrent
-#     ignores the queue and keeps seeding until it is removed.
-# Idempotent; it never stops, removes or recategorises a torrent.
+# Private-tracker seeding (docs/theater.md, "Indexers"). qBittorrent queues
+# torrents beyond 10 active, and a queued seed counts as a hit and run. Every
+# 10 minutes this CronJob force-starts every torrent in category `private` and
+# every torrent flagged private. It never stops, removes or recategorises.
 ---
 apiVersion: v1
 kind: ConfigMap

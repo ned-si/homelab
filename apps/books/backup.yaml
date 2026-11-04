@@ -1,16 +1,7 @@
 # Books backups, nightly, to the restic repository `books/configs`, plus the
-# monthly prune. Audiobookshelf first: its config and metadata volume.
-#
-# CONSISTENCY
-#   /config holds the live SQLite database, so its copy may be torn. The
-#   restorable copy is /metadata/backups: Audiobookshelf writes a consistent
-#   zip of its database there every night at 01:30 (Settings, Backups) and
-#   keeps the last two. Restore from that zip (docs/books.md).
-#   /metadata/cache and /metadata/logs are skipped: rebuilt on demand.
-#
-# The library itself (books/audiobooks, books/podcasts on NFS) is not in this
-# backup, like the media library.
-#
+# monthly prune. Audiobookshelf's /config holds a live SQLite database, so its
+# copy may be torn; restore from the consistent nightly zip in
+# /metadata/backups (docs/books.md). The libraries on NFS are not backed up.
 # `books/configs` must stay in `local.restic_repos` in
 # bootstrap/aws-backup/main.tf (scripts/check-restic-repos.sh).
 ---
@@ -106,14 +97,10 @@ spec:
               emptyDir:
                 sizeLimit: 1Gi
 ---
-# Calibre-Web Automated: the ebook library itself (books/ebooks on NFS,
-# metadata.db included) and the config volume (app.db: users, settings,
-# shelves; processed_books: the originals CWA converted). Same repository.
-#
-# CONSISTENCY: metadata.db and app.db are live SQLite files, so a copy taken
-# during a write may be torn. The book files are write-once. A torn
-# metadata.db is rebuilt from the book folders (Calibre: Library maintenance,
-# restore database), which is why the files matter more than the database.
+# Calibre-Web Automated: the ebook library (books/ebooks on NFS) and the config
+# volume, same repository. metadata.db and app.db are live SQLite files and may
+# be torn; metadata.db can be rebuilt from the book folders, which is why the
+# files matter more.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

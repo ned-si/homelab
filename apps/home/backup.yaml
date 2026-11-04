@@ -1,16 +1,7 @@
-# Home Assistant backup, nightly, to the restic repository `home/configs`:
-# a pg_dump of the recorder and the config volume. Plus the monthly prune.
-#
-# CONSISTENCY
-#   pg-home-assistant  CONSISTENT. pg_dump runs in one transaction. The
-#                      cluster also archives WAL with daily base backups
-#                      (cnpg-backup.yaml); this dump is a second copy.
-#   /config            .storage holds JSON files Home Assistant rewrites
-#                      atomically (write to a temp file, then rename), so a
-#                      copy is never torn. Logs, the deps cache and the
-#                      text-to-speech cache are skipped: rebuilt on demand.
-#
-# `home/configs` must stay in `local.restic_repos` in
+# Home Assistant backup, nightly, to the restic repository `home/configs`: a
+# pg_dump of the recorder (a second copy next to cnpg-backup.yaml) and the
+# config volume, whose .storage files are rewritten atomically. Caches are
+# skipped. `home/configs` must stay in `local.restic_repos` in
 # bootstrap/aws-backup/main.tf (scripts/check-restic-repos.sh).
 ---
 apiVersion: batch/v1

@@ -1,10 +1,6 @@
-# Prometheus scrapes Home Assistant's prometheus integration
-# (config/configuration.yaml) at /api/prometheus. The endpoint needs a
-# long-lived access token of the HA owner, client name `prometheus`, in the
-# SOPS Secret `home-assistant-prometheus` (apps/secrets/). The Grafana
-# dashboard "Home" (platform/kube-prometheus-stack/dashboards/home.json)
-# reads these metrics. A new token: HA profile, Security, Long-lived access
-# tokens; then `task secrets:edit -- apps/secrets/home-assistant-prometheus.sops.yaml`.
+# Prometheus scrapes Home Assistant at /api/prometheus with the HA owner's
+# long-lived token `prometheus` from the SOPS Secret
+# `home-assistant-prometheus`, for the Grafana dashboard "Home".
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

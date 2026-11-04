@@ -1,25 +1,16 @@
 # Paperless configuration as code (config/apply.py, config/paperless.json;
-# docs: .kiro/specs/paperless-documents/design.md "Configuration as code").
+# .kiro/specs/paperless-documents/design.md "Configuration as code").
 #
-# paperless-apply: Argo CD PostSync hook after every sync of `paperless`. It
-# upserts the groups, document types, tags, custom fields, saved views and
-# workflows through the API, and puts the accounts named in the Secret
-# `paperless-config` (apps/secrets/paperless-config.sops.yaml) into the
-# groups `editors` and `readers`. A failed hook fails the sync, and the automatic rollback
-# reverts the merge: a configuration Paperless refuses (400) does not stay on
-# main. Transient errors don't: apply.py waits up to 10 minutes for /api/
-# and retries 5xx three times.
+# paperless-apply, a PostSync hook, upserts groups, types, tags, fields, views
+# and workflows and puts the accounts in `paperless-config` into `editors` and
+# `readers`. A refused configuration fails the sync, so auto-rollback reverts
+# it; apply.py waits up to 10 minutes for /api/ and retries 5xx.
+# paperless-apply-nightly adds `--nightly`: `Retain until` and the `readers`
+# view permissions.
 #
-# paperless-apply-nightly: the same, plus `--nightly`: `Retain until` from
-# type and creation date, and the `readers` view on correspondents and on
-# every document without the `private` tag.
-#
-# Both authenticate as the Paperless user `automation` (a superuser, API
-# token only) with the token in the Secret `paperless-automation`
-# (apps/secrets/paperless-automation.sops.yaml; its reach: docs/secrets.md).
-# Both Secrets are mounted, optional in the PostSync Job, from volumes: they
-# sync in the `secrets-apps` Application, and on a first deploy the kubelet
-# adds the files once the Secrets exist; apply.py waits for them.
+# Both use the `automation` user's token (`paperless-automation`,
+# docs/secrets.md). The Secrets are optional volumes: on a first deploy they
+# appear once `secrets-apps` syncs, and apply.py waits for them.
 ---
 apiVersion: batch/v1
 kind: Job

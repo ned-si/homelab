@@ -1,8 +1,5 @@
-# Off-site backup of home-assistant-postgresql through the Barman Cloud
-# plugin: continuous WAL archiving plus a daily base backup, into
-# s3://ned-si-homelab-backups/cnpg/home-assistant-postgresql/, kept 30 days
-# (point-in-time recovery anywhere in that window). The restic dump in
-# backup.yaml is a second, independent copy. Restore: docs/backups.md.
+# home-assistant-postgresql to S3 through the Barman Cloud plugin: WAL and a
+# daily base backup, 30 days of point-in-time recovery (docs/backups.md).
 ---
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore

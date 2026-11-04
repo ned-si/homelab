@@ -1,43 +1,17 @@
-# Paperless backup.
+# Paperless backup. Paperless runs on SQLite, so restic covers everything
+# (spec paperless-documents, design "Backups, export and restore").
 #
-# Paperless is on SQLite (see deployment.yaml for why), so there is no
-# CloudNativePG cluster to archive. Everything lives on PVCs, which means restic
-# for all of it.
+# Tags in the paperless/media repository: paperless-db (a consistent SQLite
+# copy), paperless-media (the originals, irreplaceable), paperless-data (the
+# rest, minus live database, index and thumbnails) and paperless-export
+# (`document_exporter` output, readable without Paperless). The consume
+# drop-box is not backed up.
 #
-# WHAT IS BACKED UP AND WHY (tags in the paperless/media repository)
-#   paperless-db      a consistent copy of the SQLite database: tags,
-#                     correspondents, document types, permissions, i.e. all
-#                     the work of organising the archive.
-#   paperless-media   the original scanned documents. IRREPLACEABLE. If the
-#                     paper original is gone, this is the only copy.
-#   paperless-data    the rest of the data directory (celerybeat schedule,
-#                     log); the live db.sqlite3* files, the search index and
-#                     thumbnails are excluded.
-#   paperless-export  `document_exporter` output: every document in plain
-#                     files plus manifest.json, readable without Paperless.
-#
-#   paperless-consume is NOT backed up: it is a drop-box that Paperless empties.
-#                     Anything sitting in it is transient by definition.
-#
-# ONE JOB, IN ORDER (spec paperless-documents, design "Backups, export and
-# restore"). Init containers run one after the other and each must succeed,
-# so restic only snapshots a finished export:
-#   db-copy       SQLite's backup API from the live database into the
-#                 emptyDir /db, then `PRAGMA integrity_check`. paperless-data
-#                 is mounted read-write: a reader of a WAL database writes
-#                 the -shm file.
-#   export        `document_exporter` on the /db copy (PAPERLESS_DATA_DIR=/db),
-#                 holding the app's media.lock (paperless-media read-write),
-#                 into the PVC paperless-export, then export-meta.json with
-#                 the document count from the same copy. The copy, the export
-#                 and the count are one point in time.
-#   restic        read-only mounts, four snapshots, then `restic check`.
-# A failure fails the pod; `backoffLimit: 1` reruns once from a fresh copy
-# (restartPolicy Never: a new pod, a new emptyDir), and a second failure
-# pages through KubeJobFailed.
-#
-# RETENTION is monthly, in `paperless-prune` below: Glacier IR bills every pack
-# for at least 90 days, so the nightly job only adds snapshots.
+# One Job, in order, so restic only snapshots a finished export: db-copy
+# (backup API, then integrity_check), export from that copy holding
+# media.lock, then restic. `backoffLimit: 1` reruns from a fresh copy; a
+# second failure pages through KubeJobFailed. Retention is monthly
+# (`paperless-prune`).
 ---
 apiVersion: batch/v1
 kind: CronJob
