@@ -15,16 +15,16 @@ both blocked by #726.
       `RBACPermissionsGranted` condition checks; after the sync, the 17
       policies that match `pods/ephemeralcontainers` read `ready: true`.
       [1] (#1032)
-
-## Open
-
-- [ ] 2. `feat(scripts): psa-readiness.sh per namespace`: G1 to G3 of
+- [x] 2. `feat(scripts): psa-readiness.sh per namespace`: G1 to G3 of
       design.md, read-only, its bash test with a stubbed `kubectl` (a
       clean namespace, one failing Pod, one failing CronJob template, a
       ReplicaSet at 0 ignored, a StatefulSet with a claim template, a
       non-PodSecurity dry-run error read as `NOT READY`, a write verb
       refused); one live run per namespace of the evidence table quoted in
-      the pull request. [2.1, 2.2]
+      the pull request. [2.1, 2.2] (#1058)
+
+## Open
+
 - [ ] 3. `feat(ci): restricted set blocks in enforced namespaces`:
       `scripts/ci/kyverno.sh` reads the `enforce: restricted` namespaces
       from `namespaces.yaml`, keeps for this rule the Helm-rendered objects
