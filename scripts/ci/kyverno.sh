@@ -14,6 +14,17 @@
 # the check; every other finding is reported, with per-policy counts and the
 # violating objects in the log and the step summary.
 #
+# Pod Security: in a namespace that NAMESPACES_FILE labels
+# `pod-security.kubernetes.io/enforce: restricted`, a finding of the
+# restricted set (policies/kyverno/upstream/pod-security-vpol/restricted)
+# blocks too, since PSA would reject the Pod. PSA has no webhook exclusions:
+# the Helm-rendered objects of a namespace both in EXCLUDED_NAMESPACES and
+# enforced are kept, and for them only the Pod Security Standards policies
+# (baseline and restricted) block.
+#
+# Test knobs (tests/bash/test_kyverno_restricted.sh): KYVERNO_DEPLOY (default
+# deploy), NAMESPACES_FILE, KYVERNO_APPLY_ONLY=1 skips steps 1 and 2.
+#
 # An evaluation error fails the check, except the CLI gaps in CLI_GAPS: the
 # CLI evaluates the manifests as written, without the API server's defaulting,
 # so a policy that reads a defaulted field errors here and not in the cluster.
@@ -41,13 +52,35 @@ EXCLUDED_NAMESPACES="kube-system argo cilium kyverno tailscale"
 # One `policy|error message` per line: errors that come from the missing API
 # defaulting (a Service without spec.type is a ClusterIP once stored).
 CLI_GAPS="restrict-nodeport|error: no such key: type"
+DEPLOY=${KYVERNO_DEPLOY:-deploy}
+NAMESPACES_FILE=${NAMESPACES_FILE:-infrastructure/namespaces/namespaces.yaml}
+PSS=policies/kyverno/upstream/pod-security-vpol
 
-echo "== scripts/vendor-upstream.sh --check (Kyverno and Tetragon)"
-scripts/vendor-upstream.sh policies/kyverno/upstream --check || rc=1
-scripts/vendor-upstream.sh platform/tetragon/policies --check || rc=1
+# The Pod Security sets, by policy directory name.
+dirnames() { for d in "$@"; do [ -d "$d" ] && basename "$d"; done | tr '\n' ' '; }
+RESTRICTED_SET=" $(dirnames "$PSS"/restricted/*/) "
+PSS_SET=" $(dirnames "$PSS"/baseline/*/ "$PSS"/restricted/*/) "
+[ "$RESTRICTED_SET" != "  " ] || { echo "kyverno: no policies under $PSS/restricted" >&2; exit 1; }
+[ -f "$NAMESPACES_FILE" ] || { echo "kyverno: $NAMESPACES_FILE not found" >&2; exit 1; }
+RESTRICTED_NAMESPACES=" $(yq -N 'select(.kind == "Namespace" and .metadata.labels["pod-security.kubernetes.io/enforce"] == "restricted") | .metadata.name' "$NAMESPACES_FILE" | tr '\n' ' ') "
+[ "$RESTRICTED_NAMESPACES" != "  " ] || { echo "kyverno: no enforce: restricted namespace in $NAMESPACES_FILE" >&2; exit 1; }
+# Excluded from the webhooks but enforced by PSA: their renders are kept.
+KEPT_NAMESPACES=" "
+for n in $EXCLUDED_NAMESPACES; do
+  [[ "$RESTRICTED_NAMESPACES" == *" $n "* ]] && KEPT_NAMESPACES+="$n "
+done
+echo "restricted namespaces ($NAMESPACES_FILE):$RESTRICTED_NAMESPACES"
+echo "restricted set:$RESTRICTED_SET"
+echo "webhook-excluded, enforced restricted, renders kept:$KEPT_NAMESPACES"
 
-echo "== kyverno test policies/kyverno/tests"
-kyverno test policies/kyverno/tests --remove-color || rc=1
+if [ "${KYVERNO_APPLY_ONLY:-0}" != 1 ]; then
+  echo "== scripts/vendor-upstream.sh --check (Kyverno and Tetragon)"
+  scripts/vendor-upstream.sh policies/kyverno/upstream --check || rc=1
+  scripts/vendor-upstream.sh platform/tetragon/policies --check || rc=1
+
+  echo "== kyverno test policies/kyverno/tests"
+  kyverno test policies/kyverno/tests --remove-color || rc=1
+fi
 
 # policies/kyverno/kustomization.yaml is how infrastructure/kyverno-policies
 # syncs these files into the cluster; it is not a policy.
@@ -80,8 +113,9 @@ while IFS= read -r f; do
     f="$out/deploy-$d.yaml"
   fi
   resources+=(--resource "$f")
-done < <(find deploy -name '*.yaml' -type f | sort)
-[ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in deploy/; refusing to pass" >&2; exit 1; }
+done < <(find "$DEPLOY" -name '*.yaml' -type f | sort)
+[ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in $DEPLOY/; refusing to pass" >&2; exit 1; }
+: > "$out/kept.txt"
 # KYVERNO_EXTRA (CI: the render_apps.py output): the Helm-rendered apps, which
 # deploy/ does not hold. Their objects in the excluded namespaces are dropped,
 # as admission never sees them, and null fields too, as the API server drops
@@ -91,13 +125,17 @@ done < <(find deploy -name '*.yaml' -type f | sort)
 # renders unquoted, which the CLI, reading them as JSON, rejects.
 if [ -n "${KYVERNO_EXTRA:-}" ]; then
   [ -d "$KYVERNO_EXTRA" ] || { echo "kyverno: KYVERNO_EXTRA $KYVERNO_EXTRA is not a directory" >&2; exit 1; }
+  dropped=""
+  for n in $EXCLUDED_NAMESPACES; do
+    [[ "$KEPT_NAMESPACES" == *" $n "* ]] || dropped+="$n "
+  done
   # shellcheck disable=SC2086 # one printf argument per namespace
-  excl=$(printf '"%s",' $EXCLUDED_NAMESPACES); excl="[${excl%,}]"
+  excl=$(printf '"%s",' $dropped); excl="[${excl%,}]"
   # The render holds every Application, the hydrated ones too: pass only
   # objects deploy/ does not have (the CLI refuses a duplicate), keyed by
   # kind/namespace/name, and each object once.
   key='([.kind, (.metadata.namespace // ""), .metadata.name] | join("/"))'
-  find deploy -name '*.yaml' -type f -exec yq -N "$key" {} + | jq -R '{(.): true}' | jq -s 'add // {}' > "$out/keys.json"
+  find "$DEPLOY" -name '*.yaml' -type f -exec yq -N "$key" {} + | jq -R '{(.): true}' | jq -s 'add // {}' > "$out/keys.json"
   n=0 kept=0
   while IFS= read -r f; do
     n=$((n + 1))
@@ -109,17 +147,21 @@ if [ -n "${KYVERNO_EXTRA:-}" ]; then
     if [ -s "$out/extra-$n.yaml" ] && [ "$(yq -N "$key" "$out/extra-$n.yaml" | grep -c .)" -gt 0 ]; then
       resources+=(--resource "$out/extra-$n.yaml")
       kept=$((kept + 1))
+      # The kept objects of the webhook-excluded namespaces, as namespace/kind/name.
+      # shellcheck disable=SC2016 # $ns is a yq variable
+      KEPT=$KEPT_NAMESPACES yq -N 'select((.metadata.namespace // "") as $ns | strenv(KEPT) | split(" ") | any_c(. == $ns and . != "")) | .metadata.namespace + "/" + .kind + "/" + .metadata.name' \
+        "$out/extra-$n.yaml" >> "$out/kept.txt"
       yq -N "$key" "$out/extra-$n.yaml" | jq -R '{(.): true}' | jq -s --slurpfile old "$out/keys.json" '$old[0] + (add // {})' > "$out/keys.new" && mv "$out/keys.new" "$out/keys.json"
     fi
   done < <(find "$KYVERNO_EXTRA" -name manifests.yaml -type f | sort)
-  echo "kyverno: plus $kept of $n rendered files from $KYVERNO_EXTRA (objects already in deploy/ and the excluded namespaces dropped)"
+  echo "kyverno: plus $kept of $n rendered files from $KYVERNO_EXTRA (objects already in deploy/ and the excluded namespaces${dropped:+ $dropped}dropped; $(grep -c . "$out/kept.txt") objects of${KEPT_NAMESPACES}kept)"
 fi
 # The CLI has no API server to look Namespaces up in: hand it every namespace
 # deploy/ and the kept renders use, so policies that read namespaceObject can
 # evaluate.
 {
   printf 'apiVersion: cli.kyverno.io/v1alpha1\nkind: Value\nmetadata:\n  name: values\nnamespaces:\n'
-  { echo default; find deploy -name '*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ;
+  { echo default; find "$DEPLOY" -name '*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ;
     [ -z "${KYVERNO_EXTRA:-}" ] || find "$out" -name 'extra-*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ; } \
     | grep -v '^$' | sort -u | while IFS= read -r ns; do
       printf -- '- apiVersion: v1\n  kind: Namespace\n  metadata:\n    name: %s\n' "$ns"
@@ -157,16 +199,23 @@ while IFS= read -r line; do
   [ -n "$line" ] || continue
   pol=$(cut -d' ' -f1 <<<"$line")
   res=$(cut -d' ' -f2 <<<"$line")
+  obj=$(cut -d' ' -f3 <<<"$line")
   msg=$(cut -d' ' -f4- <<<"$line")
+  if grep -qxF "$obj" "$out/kept.txt"; then
+    # A render of a webhook-excluded namespace: PSA alone admits it.
+    [[ "$PSS_SET" == *" $pol "* ]] || continue
+  fi
   if [ "$res" = "error" ]; then
     grep -qxF "$pol|$msg" <<<"$CLI_GAPS" || blocking+="$line"$'\n'
   elif [[ " $BLOCKING " == *" $pol "* ]]; then
+    blocking+="$line"$'\n'
+  elif [[ "$RESTRICTED_SET" == *" $pol "* && "$RESTRICTED_NAMESPACES" == *" ${obj%%/*} "* ]]; then
     blocking+="$line"$'\n'
   fi
 done <<<"$findings"
 
 if [ -n "$findings" ]; then
-  echo "== findings (only BLOCKING policies and evaluation errors fail the check)"
+  echo "== findings (BLOCKING policies, the restricted set in enforce: restricted namespaces and evaluation errors fail the check)"
   echo "$findings"
 fi
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
