@@ -5,9 +5,9 @@ own. Tasks that restart Paperless or write to the cluster or the NAS run on
 a weekday, during the day (Zurich). No question is open; the decisions are
 in [requirements.md](requirements.md#decided-defaults).
 
-## Open
+## Done
 
-- [ ] 1. Settings: `PAPERLESS_OCR_LANGUAGE=fra+eng+spa+deu`,
+- [x] 1. Settings: `PAPERLESS_OCR_LANGUAGE=fra+eng+spa+deu`,
       `PAPERLESS_TIME_ZONE=Europe/Zurich`, `PAPERLESS_DATE_ORDER=DMY`,
       `PAPERLESS_FILENAME_FORMAT`. Check: a French, an English, a Spanish
       and a German test page, uploaded through the web app (one from a
@@ -18,6 +18,9 @@ in [requirements.md](requirements.md#decided-defaults).
       for the 10-page file, with the four languages and with `fra` alone,
       are in the PR, and the Deployment gets a memory request from them;
       the one existing document is renamed on disk. [1.1, 2.1, 2.6]
+      (#1009; the phone-camera upload is #1008)
+
+## Open
 - [ ] 2. Configuration as code: `apps/paperless/config/paperless.json`
       (document types, tags, custom fields, saved views and workflows, the
       approved [taxonomy](design.md#taxonomy)), `apply.py` with pytest
