@@ -33,6 +33,11 @@ numbers in brackets.
       in the pull request. Before any flip. [5.6, 6.1, 6.2] (#1025)
 - [x] 4. Flip `paperless` ingress, once the Paperless lane of the current run
       is done. [2, 4.1, 4.2, 7] (#1038)
+- [x] 13. `immich` rules before its flips: an explicit `kube-apiserver` ingress
+      rule to the CloudNativePG operator's webhook port in `20-immich.yaml`
+      (covered today only by the switch's `host` and `remote-node` rule), and the 7.6
+      egress would-be drops per week and the 4 egress presence series (3
+      with no increase on 2026-11-04) identified. [3, 5.4] (#1059)
 
 ## Open
 
@@ -61,11 +66,6 @@ numbers in brackets.
 - [ ] 11. Flip `syncthing` ingress, with the `postsync-smoke` peers at a
       `match` other than `all` after task 10. [2, 4, 7]
 - [ ] 12. Flip `syncthing` egress. [2, 4, 7]
-- [ ] 13. `immich` rules before its flips: an explicit `kube-apiserver` ingress
-      rule to the CloudNativePG operator's webhook port in `20-immich.yaml`
-      (covered today only by the switch's `host` and `remote-node` rule), and the 7.6
-      egress would-be drops per week and the 4 egress presence series (3
-      with no increase on 2026-11-04) identified. [3, 5.4]
 - [ ] 14. Flip `immich` ingress, with the D12 dry run of
       `immich-db`. [2, 4, 5.4, 7]
 - [ ] 15. Flip `immich` egress, with the D12 dry run of every Cluster

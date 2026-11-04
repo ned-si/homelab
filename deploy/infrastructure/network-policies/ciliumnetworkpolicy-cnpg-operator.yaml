@@ -14,8 +14,9 @@ metadata:
   name: cnpg-operator
   namespace: immich
 spec:
-  description: 'The CloudNativePG operator, cluster-wide from this namespace: the
-    instance managers of every namespace, and the Kubernetes API.'
+  description: 'The CloudNativePG operator, cluster-wide from this namespace: its
+    admission webhook in, the instance managers of every namespace and the Kubernetes
+    API out.'
   egress:
   - toEndpoints:
     - matchExpressions:
@@ -41,3 +42,12 @@ spec:
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: cloudnative-pg
+  ingress:
+  - fromEntities:
+    - kube-apiserver
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "9443"
+        protocol: TCP
