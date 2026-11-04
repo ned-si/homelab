@@ -1,5 +1,8 @@
 # The enforcement switch: the one file to edit.
 #
+# Break-glass, merge hold, revert and the flip procedure, with expected
+# output: docs/runbooks/netpol-enforcement.md.
+#
 # Every policy in this directory sets
 #     enableDefaultDeny: {ingress: false, egress: false}
 # (contribute an allow-list, do not default-deny), so nothing is blocked.
@@ -98,7 +101,7 @@
 #   kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
 #     cilium-dbg policy trace --src-k8s-pod theater:sonarr --dst-k8s-pod theater:qbittorrent --dport 8080
 #
-#   Reading a drop: `Policy denied` with `DENIED_BY_POLICY` means a rule is
+#   Reading a drop: `Policy denied` with `POLICY_DENIED` means a rule is
 #   missing from this directory. A drop reported as `Stale or unroutable IP` or
 #   `Unsupported L3 protocol` is not a policy problem and adding rules will not
 #   fix it.
@@ -122,7 +125,8 @@
 #
 #   Then make it permanent in git by setting the relevant `true` back to `false`
 #   in this file. The next sync of this path re-creates the object, so an
-#   uncommitted `kubectl delete` is temporary by design.
+#   uncommitted `kubectl delete` is temporary by design: hold every merge until
+#   the revert lands (docs/runbooks/netpol-enforcement.md, "Hold every merge").
 #
 # ---------------------------------------------------------------------------
 # WHAT IS MOST LIKELY TO BREAK FIRST

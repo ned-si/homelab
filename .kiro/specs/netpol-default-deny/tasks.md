@@ -24,16 +24,16 @@ numbers in brackets.
       an instant query of `netpol:ready_to_enforce` returns 10 series at any
       time, and 0 for `syncthing` ingress and `paperless` egress (their
       once-only series of 2026-11-04). [1.1, 1.2, 1.4] (#1015)
-
-## Open
-
-- [ ] 2. `docs(runbooks): network policy break-glass and flip`:
+- [x] 2. `docs(runbooks): network policy break-glass and flip`:
       `docs/runbooks/netpol-enforcement.md` (break-glass per layer, the
       merge hold of D6 with its auto-merge and other-runner steps, the flip
       procedure with the enforcement proof of D16, expected outputs), linked from
       `90-enforcement.yaml` and `docs/networking.md`; the live test on a
       scratch namespace with the admin kubeconfig only, its result and timing
-      in the pull request. Before any flip. [5.6, 6.1, 6.2]
+      in the pull request. Before any flip. [5.6, 6.1, 6.2] (#1025)
+
+## Open
+
 - [ ] 3. `feat(network): books allow-list, not enforced`:
       `infrastructure/network-policies/40-books.yaml` from
       `scripts/netpol-observe.sh books` and the manifests in `apps/` (one
