@@ -14,6 +14,7 @@ names do not become tags. Each file, one at a time:
     is set, so the check is here), or when the same content came earlier in the run;
   - otherwise uploaded with the tag through /api/documents/post_document/ and
     its consumption task followed to the result: created, duplicate, failed.
+    A failed upload is not retried; the next run's checksum lookup decides.
 
 The local report (CSV: path, status, document id, reason class, reason) goes
 to <import dir>/.reports/<source>-<UTC>.csv, or --report. Stdout has counts
@@ -77,20 +78,20 @@ class Api:
         self.sleep = sleep
 
     def call(self, method: str, path: str, data: bytes | None = None,
-             content_type: str | None = None) -> object:
+             content_type: str | None = None, retries: int = RETRIES) -> object:
         headers = {"Authorization": f"Token {self.token}",
                    "Accept": f"application/json; version={API_VERSION}"}
         if content_type:
             headers["Content-Type"] = content_type
         where = f"{method} {path.split('?')[0]}"
-        for attempt in range(RETRIES + 1):
+        for attempt in range(retries + 1):
             try:
                 status, raw = self.transport(method, self.base + path, headers, data)
             except (urllib.error.URLError, OSError) as exc:
                 status, raw = 0, str(exc).encode()
             if status and status < 500:
                 break
-            if attempt < RETRIES:
+            if attempt < retries:
                 self.sleep(2 ** attempt * 5)
         if not status:
             raise ApiError(f"{where}: connection error")
@@ -111,8 +112,11 @@ class Api:
             path.read_bytes(),
             f"\r\n--{boundary}--\r\n".encode(),
         ])
+        # No retry: a 5xx or a timeout can come after Paperless queued the
+        # file, and a second POST would add a second document. The next run's
+        # checksum lookup decides.
         return str(self.call("POST", "/api/documents/post_document/", body,
-                             f"multipart/form-data; boundary={boundary}"))
+                             f"multipart/form-data; boundary={boundary}", retries=0))
 
 
 def sha256(path: Path) -> str:
@@ -175,13 +179,14 @@ def import_source(api: Api, directory: Path, report: Path, limit: int | None = N
             if digest in seen:
                 row = ("duplicate", "", "", f"same content as {seen[digest]}")
             else:
-                seen[digest] = rel
                 existing = api.get("/api/documents/", checksum__iexact=digest, fields="id")["results"]
                 if existing:
                     row = ("duplicate", str(existing[0]["id"]), "", "already in Paperless")
                 else:
                     uploads += 1
                     row = follow(api, api.upload(path, tag_id), clock, sleep)
+                if row[0] != "failed":
+                    seen[digest] = rel
         except ApiError as exc:
             kind = f"HTTP {exc.status}" if exc.status else "connection error"
             row = ("failed", "", f"upload {kind}", str(exc))

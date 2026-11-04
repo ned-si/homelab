@@ -659,9 +659,7 @@ data:
         {"name": "inbox", "color": "#e31a1c", "is_inbox_tag": true, "matching_algorithm": "none", "match": ""},
         {"name": "to-pay", "color": "#ff7f00", "matching_algorithm": "regex", "match": "Zahlteil|Section paiement|Payment part|Sezione pagamento"},
         {"name": "tax-relevant", "color": "#33a02c", "matching_algorithm": "none", "match": ""},
-        {"name": "private", "color": "#6a3d9a", "matching_algorithm": "none", "match": ""},
-        {"name": "import:seafile", "color": "#b15928", "matching_algorithm": "none", "match": ""},
-        {"name": "import:nas", "color": "#b15928", "matching_algorithm": "none", "match": ""}
+        {"name": "private", "color": "#6a3d9a", "matching_algorithm": "none", "match": ""}
       ],
       "custom_fields": [
         {"name": "Retain until", "data_type": "date"},
@@ -705,5 +703,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: paperless-apply-mhk76dkm2f
+  name: paperless-apply-bbtgh275dd
   namespace: paperless

@@ -140,6 +140,37 @@ def test_limit_counts_uploads_only(tmp_path):
     assert len(fake.uploads) == 1
 
 
+def test_upload_is_not_retried_after_5xx(tmp_path):
+    fake = FakePaperless(upload_status=502)
+    calls = []
+
+    def transport(method, url, headers, data):
+        calls.append((method, urllib.parse.urlsplit(url).path))
+        return fake(method, url, headers, data)
+
+    code, lines, rows = run(transport, source(tmp_path, {"a.pdf": b"a"}), tmp_path)
+    assert code == 1
+    assert calls.count(("POST", "/api/documents/post_document/")) == 1
+    assert rows[0]["reason_class"] == "upload HTTP 502"
+
+
+def test_same_content_after_a_failed_upload_is_uploaded(tmp_path):
+    directory = source(tmp_path, {"1.pdf": b"same", "2.pdf": b"same"})
+    fake = FakePaperless(upload_status=502)
+    statuses = iter([502, 200])
+    real = fake.__call__
+
+    def transport(method, url, headers, data):
+        if urllib.parse.urlsplit(url).path == "/api/documents/post_document/":
+            fake.upload_status = next(statuses)
+        return real(method, url, headers, data)
+
+    code, lines, rows = run(transport, directory, tmp_path)
+    assert code == 1
+    assert [(r["path"], r["status"]) for r in rows] == [("1.pdf", "failed"), ("2.pdf", "created")]
+    assert lines[0] == "import:mac: in 2, created 1, duplicates 0, failed 1"
+
+
 def test_retries_5xx_then_fails(tmp_path):
     calls = []
 
