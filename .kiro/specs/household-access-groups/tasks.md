@@ -11,13 +11,15 @@ numbers in brackets.
 - [ ] 1. `feat(keycloak): household group on the household apps`: add
       `household` to the lines `home-assistant`, `immich`,
       `audiobookshelf`, `calibre-web`, `mealie` and `paperless` of
-      `access.conf`, nothing removed; its header line. After the sync the
-      Job log shows `creating group household` and the six `ok   client
-      <client> access groups=<groups, sorted>` lines with `household`.
-      [1.2, 2.3, 4.1]
+      `access.conf`, nothing removed; its header line; if the pentest test
+      user is defined in git, its group from `family` to `household`
+      (design.md, Migration). After the sync the Job log shows `creating
+      group household` and the six `ok   client <client> access
+      groups=<groups, sorted>` lines with `household`. Settle item 5 of
+      design.md, To settle at implementation. [1.2, 2.3, 4.1, 4.2]
 - [ ] 2. Operator, admin console: step B of design.md (household members
-      into `household`, relatives from `family` to `media`, `family`
-      empty); counts on #1062. [1.1, 4.2]
+      into `household` and out of `family`, every other member of `family`
+      to `media`, `family` empty); counts on #1062. [1.1, 4.2]
 - [ ] 3. `feat(keycloak): household apps for the household only`: after
       the task 2 comment, remove `family` from every line and `media` from
       `audiobookshelf` and `calibre-web`; the full group block in the header
@@ -29,12 +31,14 @@ numbers in brackets.
       `paperless-documents` and `pentest-programme` specs, and "family
       phone" to "household phone" in `pentest-programme`; the Job log and
       the `git grep` of design.md, Testing, in the pull request; tick task
-      2. [1.1, 1.2, 2, 3, 6, 7]
+      2. Settle items 3 and 4 of design.md, To settle at implementation.
+      [1.1, 1.2, 2, 3, 6, 7]
 - [ ] 4. App accounts and the empty group: step D of design.md on a weekday
-      during the day. The agent prepares the checklist in chat, the operator
-      works through it in each app's admin UI and replies with counts, the
-      agent posts the counts per app on #1062; then the operator deletes
-      `family`. [1.1, 5]
+      during the day. The agent settles items 1 and 2 of design.md, To
+      settle at implementation, and prepares the checklist in chat; the
+      operator works through it in each app's admin UI and replies with
+      counts (deleted, disabled, kept active), the agent posts the counts
+      per app on #1062; then the operator deletes `family`. [1.1, 5]
 - [ ] 5. Close: a Done line in the access-identity area spec (its
       Requirement 2 names no group, so it is unchanged); tick task 4;
       `status: done`, `closed:`; #1062 closed.

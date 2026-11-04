@@ -126,9 +126,11 @@ half-done migration leaves everyone with what they had.
    removed from them; that change alone SHALL take no access away from
    anyone.
 2. `family` SHALL be removed from `access.conf` only after every household
-   member is in `household`, every relative in `media`, and the group
-   `family` has no members (operator check in the admin console, recorded on
-   #1062 as member counts, never names).
+   member is in `household`, every other member of `family` is in `media`,
+   and the group `family` has no members (operator check in the admin
+   console, recorded on #1062 as member counts, never names). No member of
+   `family` SHALL be held there by git: the pentest test user moves to
+   `household` before that check (design.md, Migration).
 3. UNTIL the group `family` is deleted, reverting the removal SHALL restore
    the previous access with no other step: the `keycloak-realm-settings` Job
    maps the reverted lines again.
@@ -148,14 +150,17 @@ it now, not when their year-long app session ends.
 2. IN Mealie, Audiobookshelf, Calibre-Web and Home Assistant, AN app account
    that owns nothing SHALL be deleted as in
    [add-a-person.md, Remove a person](../../../docs/runbooks/add-a-person.md#remove-a-person),
-   step 2. FOR an account that owns something, THE operator SHALL decide to
-   keep it disabled where the app allows it, or to delete it.
+   step 2. FOR an account that owns something, THE operator SHALL disable
+   it where the app allows it, or delete it after keeping what the
+   household needs, or, where the app has no disable, keep it active; each
+   kept account is counted as kept on #1062. A kept active account gets no
+   new login (the gate denies it); its open session lasts until it expires.
 3. Paperless SHALL have nothing to delete: an account outside the member
    list has no Paperless group and sees no document. Only its count SHALL be
    recorded.
 4. Immich accounts SHALL NOT be touched: relatives and friends keep Immich.
-5. THE number of accounts deleted and kept per app SHALL be recorded on
-   #1062.
+5. THE number of accounts deleted, disabled and kept active per app SHALL
+   be recorded on #1062.
 
 ### Requirement 6: Opening an app to more people goes through a group
 
@@ -213,5 +218,6 @@ one PR.
 | Who is in `household` | The operator and the other adult | #1062; the operator's `admins` membership already covers every app, `household` lists the household |
 | Group names | Audience groups in lower case (`household`, `media`, a later one named for its members); per-app admin groups keep their names | Matches the groups in place; renaming `TheaterAdmins` and the others would touch three apps for no gain |
 | OTP | Not for `household` or `media` | access-identity Requirement 7.2 |
-| App accounts of people who lose an app | The operator checks them in each app's admin UI from an agent's checklist; deleted when they own nothing, his choice when they do | A Keycloak denial does not end an app session; no agent holds app admin credentials (Requirement 5) |
+| App accounts of people who lose an app | The operator checks them in each app's admin UI from an agent's checklist; deleted when they own nothing; when they own something: disabled where the app can, otherwise deleted once what the household needs is kept (default), or kept active (his choice) | A Keycloak denial does not end an app session; no agent holds app admin credentials (Requirement 5) |
+| Pentest test user | In `household` before step B, never `family` | A test user held in `family` by git would keep `family` from emptying (design, Migration) |
 | Membership changes | The operator, in the admin console | Users stay out of git; the console is the only place they are |

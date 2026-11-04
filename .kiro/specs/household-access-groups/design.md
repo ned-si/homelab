@@ -54,7 +54,7 @@ task 3 writes the full block):
 | Step | Who | What | Access after the step |
 | --- | --- | --- | --- |
 | A | PR (task 1) | Add `household` to the six user-app lines; the Job creates the empty group | Unchanged for everyone |
-| B | Operator, admin console (task 2) | Join the household members to `household`; move every relative from `family` to `media` (the account of #1065 included, if not done yet); check that `family` has no members | Household members: unchanged, through `household`. Relatives: Immich, Audiobookshelf and Calibre-Web through `media`; Home Assistant, Mealie and Paperless deny them at the gate |
+| B | Operator, admin console (task 2) | Join the household members to `household` and take them out of `family`; move every other member of `family` to `media` (the account of #1065 included, if not done yet); check that `family` has no members | Household members: unchanged, through `household`. Relatives: Immich, Audiobookshelf and Calibre-Web through `media`; Home Assistant, Mealie and Paperless deny them at the gate |
 | C | PR (task 3) | Remove `family` from every line and `media` from the two book lines; docs and specs | Relatives and friends lose Audiobookshelf and Calibre-Web at the gate |
 | D | Operator, from an agent's checklist (task 4) | App accounts of people who lost an app; then delete the empty `family` group | Nobody outside the household keeps a household-app session |
 
@@ -62,6 +62,16 @@ Relatives lose Home Assistant, Mealie and Paperless in step B, when they
 leave `family`. Step C takes the two book apps from everyone in `media` and
 removes the empty `family` mappings. Keeping both changes small makes each
 one easy to check and to undo.
+
+The pentest test user (pentest-programme) moves to `household` before step
+B, so nothing in git holds a member in `family`:
+
+- pentest-programme task 1 has merged and the user is defined in git: task
+  1 of this spec changes its group there from `family` to `household` in the
+  same pull request.
+- It is a console user: step B moves it like a household member.
+- pentest-programme task 1 has not merged: it uses `household` from the
+  start, which exists once task 1 of this spec has merged.
 
 Rollback per step:
 
@@ -84,8 +94,9 @@ console and the realm Job keep working throughout.
 
 1. Groups, `household`, Members, Add member: the household members.
    Expected: the household members, and nobody else.
-2. Groups, `family`, Members: for each relative, Users, the user, Groups,
-   Join group `media`, then Leave group `family`.
+2. Groups, `family`, Members: for each member, Users, the user, Groups.
+   A household member (already in `household` from item 1): Leave group
+   `family`. Anyone else: Join group `media`, then Leave group `family`.
    Expected: Groups, `family`, Members is empty.
 3. Comment on #1062 with the counts only: `household: <n>`, `media: <n>`,
    `family: 0`.
@@ -99,18 +110,26 @@ through it and replies with the counts only, and the agent records them on
 #1062. No agent holds app admin credentials for this, and no name is written
 anywhere.
 
-| App | Owns | Page | Action |
-| --- | --- | --- | --- |
-| Mealie | recipes created, meal plans, shopping lists | Admin settings, Users | delete when it owns nothing |
-| Audiobookshelf | progress, bookmarks | Settings, Users | delete when it owns nothing |
-| Calibre-Web | shelves, reading state | Admin, Users | delete when it owns nothing |
-| Home Assistant | devices, tokens | Settings, People, Users (advanced mode) | delete when it owns nothing |
-| Paperless | nothing: the editor owns every document | Settings, Users & Groups | none, count only |
+| App | Owns | Page | Disable | Action |
+| --- | --- | --- | --- | --- |
+| Mealie | recipes created, meal plans, shopping lists | Admin settings, Users | none | delete when it owns nothing |
+| Audiobookshelf | progress, bookmarks | Settings, Users | the user's enable toggle | delete when it owns nothing |
+| Calibre-Web | shelves, reading state | Admin, Users | none | delete when it owns nothing |
+| Home Assistant | devices, tokens | Settings, People, Users (advanced mode) | "Can log in" off | delete when it owns nothing |
+| Paperless | nothing: the editor owns every document | Settings, Users & Groups | not needed | none, count only |
+
+The agent confirms the "Disable" labels against the running versions when it
+writes the checklist.
 
 Accounts that own nothing are deleted as in the runbook's "Remove a person",
-step 2. For an account that owns something, the operator keeps it disabled
-where the app offers it (Home Assistant "Can log in" off, the Audiobookshelf
-user's enable toggle off; the checklist names the exact label) or deletes it.
+step 2. An account that owns something:
+
+- In an app with a disable switch: disabled.
+- In an app without one: deleted after the operator keeps what the
+  household needs (for Mealie the checklist says whether the running version
+  keeps a deleted user's recipes, and how to keep them if not), or kept as is
+  and recorded as "kept, active". The gate stops new logins; the open
+  session lasts until it expires. Default: delete.
 
 Paperless has nothing to delete. Accounts of people outside the member list
 have no Paperless group and see no document (`paperless-apply` takes them
@@ -164,7 +183,7 @@ release.
 | --- | --- |
 | A household member is not in `household` when step C merges | Step C runs only after the `family: 0` comment of step B; if it happens anyway, the person sees "Access denied" in the household apps: join them to `household`, the next login works |
 | A relative opens Home Assistant, Mealie or Paperless after step B, or a book app after step C | "Access denied". It counts as a failed login: after 10 the account waits 60 s, then longer (`sessions.conf`), and the lock also blocks their Immich login. Tell relatives they keep Immich only; the operator clears a lock in Users, the user, Details |
-| A relative still has an app session after step B | Step D ends it by deleting or disabling the app account |
+| A relative still has an app session after step B | Step D ends it by deleting or disabling the app account; an account kept active keeps its session until it expires |
 | `apply.sh` fails or a mapping differs | The PostSync Job fails, the `keycloak` sync fails and the auto-rollback reverts the merge |
 | Step C reverted after `family` was deleted | `apply.sh` recreates an empty `family`; nobody gets access back until the operator adds members |
 
@@ -178,12 +197,30 @@ release.
 - After step C: in the admin console, Clients, `mealie`, Client scopes,
   Evaluate, with a relative's user: the generated access token has no
   `mealie` role `access`; with a household member's user it has one. The pentest test user
-  (pentest-programme) moves from `family` to `household` with task 3 and
+  (pentest-programme) moves to `household` before step B (Migration) and
   covers the household surface on each run.
 - After task 3: `git grep -n -w family` over the files of Requirement 7.1
   returns exactly one line, the "Area" tag row of
   `paperless-documents/design.md` (`family` is a Paperless tag there). Task
   3 replaces "family phone" with "household phone" in `pentest-programme`.
+
+## To settle at implementation
+
+Facts the reviews could not check without the running apps; the task named
+settles each one before it starts.
+
+1. Task 4: the per-user disable labels in Audiobookshelf and Home Assistant,
+   and that Mealie and Calibre-Web have none, against the running versions.
+2. Task 4: whether the running Mealie keeps the recipes of a deleted user,
+   and how the operator keeps them if not (the checklist says which).
+3. Task 3: Clients, `mealie`, Client scopes, Evaluate shows the client role
+   `access` only when the `roles` scope is a default scope of `mealie`; if
+   it is not, the check reads the token of a real login instead.
+4. Task 3: a Mealie admin can move an existing user to another Mealie
+   household after their first login (the runbook text of Requirement 6.2
+   depends on it).
+5. Task 1: whether pentest-programme task 1 has merged with its test user
+   defined in git, which decides the Migration case for that user.
 
 ## Open questions
 
@@ -198,3 +235,8 @@ answer.
    the other adult a normal user. Default: yes. If the other adult should
    edit dashboards and automations too, they join `HomeAssistantAdmins`
    (with OTP) before their first Home Assistant login.
+3. A relative's Mealie or Calibre-Web account that owns something (Mealie
+   recipes, Calibre-Web shelves): deleted once the household has what it
+   needs, so the year-long session ends. Default: yes. Otherwise it is kept
+   active and counted as kept; the gate stops new logins and the session
+   runs out on its own.
