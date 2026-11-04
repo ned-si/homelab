@@ -100,8 +100,7 @@ in [requirements.md](requirements.md#decided-defaults).
       documents to the manifest, so the manifest count leaves them out,
       and `migrate` needs a Valkey sidecar: design.md)
 
-## Open
-- [ ] 6. Ingest canary: `paperless-canary`, the user `canary` with its own
+- [x] 6. Ingest canary: `paperless-canary`, the user `canary` with its own
       add, view and delete document permissions, its API token in SOPS
       `paperless-canary`, the digits-only number in a large font, the
       egress rule to the Pushgateway in the CiliumNetworkPolicy
@@ -109,22 +108,29 @@ in [requirements.md](requirements.md#decided-defaults).
       `ci/active-cronjobs.txt`, `PaperlessIngestFailing` and
       `PaperlessIngestSlow` with promtool tests and runbooks. Check: a week
       of canary results on the Data protection dashboard. [7.2, 7.3]
-- [ ] 7. Import script: `scripts/paperless-import.py` with pytest (upload
+      (#1091; the token is generated locally and set as the `canary`
+      user's key, so it is sealed before the user exists. The week of
+      results builds up on the dashboard after the first run, and
+      `PaperlessIngestFailing` pages if it stops)
+- [x] 7. Import script: `scripts/paperless-import.py` with pytest (upload
       as the editor with the tag, the stop when `import:<source>` is
       missing, task follow-up, the local report, counts only on stdout),
       and the `import:<source>` tags of the sources present in
       `paperless.json` (generic names). [3.1, 3.3]
-- [ ] 8. Import batches: every source subdirectory under
-      `~/homelab-backups/paperless-import/`, run during the day with an
-      API token of the editor's account created for the batches and
-      deleted after the last one; a source added after task 7 gets its
-      `import:<source>` tag in a one-line PR before its batch; one PR records the counts of every batch (in = created +
-      duplicates + failed) and the failure reasons in `docs/paperless.md`,
-      opened when the batches are imported; the file-level reports stay
-      local. [3.1, 3.2, 3.3]
-- [ ] 9. Close: `docs/paperless.md` complete (the web upload, taxonomy,
+      (#1092; the import directory was empty, so the tags are those of
+      the expected sources, `import:seafile` and `import:nas`. On 3.4.2
+      Paperless consumes duplicates, so the script skips a file whose
+      SHA-256 is already in: design.md)
+- [x] 9. Close: `docs/paperless.md` complete (the web upload, taxonomy,
       access, export, restore), the README Services row, the
       `docs/threat-model.md` documents row (the `automation` token's reach,
       open egress from `paperless` while it is in audit mode), the
       media-home area spec updated with how Paperless works now; then
       header `status: done`, `closed:`, issue #732 closed.
+      (#TASK9PR)
+
+## Moved to the backlog (2026-11-04)
+
+- 8. Import batches: moved to the backlog, #1093. The batches wait on the
+  files, which the owner places under `~/homelab-backups/paperless-import/`;
+  the issue carries the steps and Requirements 3.1-3.3.

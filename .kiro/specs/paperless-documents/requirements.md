@@ -1,8 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-03
-issue: 732
+closed: 2026-11-04
 ---
 # Requirements: paperless-documents
 

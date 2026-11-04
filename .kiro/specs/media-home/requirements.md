@@ -11,10 +11,12 @@ The household's films, series, music, books and home automation. Namespace
 `theater` holds the media stack (Plex, Jellyfin, the *arr apps, Prowlarr,
 qBittorrent, Bazarr, Recyclarr, LazyLibrarian); `books` holds Audiobookshelf
 and Calibre-Web Automated; `home` holds Home Assistant, Mosquitto and
-Zigbee2MQTT. This spec records what they do today. Detail:
+Zigbee2MQTT; `paperless` holds Paperless-ngx, the household's documents.
+This spec records what they do today. Detail:
 [docs/theater.md](../../../docs/theater.md),
 [docs/books.md](../../../docs/books.md),
-[docs/home-automation.md](../../../docs/home-automation.md).
+[docs/home-automation.md](../../../docs/home-automation.md),
+[docs/paperless.md](../../../docs/paperless.md).
 
 Non-goals:
 - Backing up the media library or the audiobook files (re-acquirable).
@@ -141,3 +143,33 @@ film and episode, and Spanish ones when Spanish is the original language.
 8. THE Homelab / Usage dashboard SHALL show subtitle coverage per language
    for movies and episodes. Class INFO (`action: auto`): the nightly search is
    the remediation; nothing pages.
+
+### Requirement 7: Documents in one place, never locked in
+
+**User story:** As the editor, I want every household document in Paperless,
+filed and findable, readable by the household and restorable without it.
+Built by the change spec [paperless-documents](../paperless-documents/).
+
+#### Acceptance criteria
+
+1. Documents SHALL arrive through the web app at `archive.lilalala.com`
+   (Keycloak login) or the one-off import (`scripts/paperless-import.py`);
+   the mail import SHALL be off (`PAPERLESS_EMAIL_TASK_CRON=disable`).
+2. Paperless SHALL OCR with `fra+eng+spa+deu` in `Europe/Zurich`, and the
+   document types, tags, custom fields, saved views and workflows SHALL come
+   from `apps/paperless/config/paperless.json`, applied idempotently by
+   `paperless-apply`. (`tests/test_paperless_apply.py`, with the corpus in
+   `tests/paperless/corpus/`)
+3. One editor (group `editors`) SHALL own every document; the group
+   `readers` SHALL view every document without the tag `private` and change
+   nothing; an account not on the SOPS member list SHALL see nothing.
+   (`apply.py`, nightly `paperless-apply-nightly`)
+4. EVERY night, `paperless-backup` SHALL snapshot a consistent SQLite copy,
+   the media, the data directory and a `document_exporter` export of the
+   same copy; EVERY month, `backup-verify-paperless` SHALL import the export
+   into a throwaway Paperless with equal counts, and `PaperlessRestoreStale`
+   SHALL page after 35 days without a pass. (`tests/prometheus/backup_verify_test.yaml`)
+5. EVERY 6 hours, `paperless-canary` SHALL find a freshly uploaded page by
+   full-text search; `PaperlessIngestFailing` (13 hours without success) and
+   `PaperlessIngestSlow` (over 5 minutes twice in a row) SHALL page.
+   (`tests/prometheus/paperless_test.yaml`, `tests/test_paperless_canary.py`)

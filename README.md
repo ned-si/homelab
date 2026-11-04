@@ -88,7 +88,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Sonarr, Radarr, Lidarr, Prowlarr | Media management | `theater` | `theater` under `/arr/<app>` | No |
 | qBittorrent | Downloads | `theater` | none (LAN only; seeding port on `.200`) | No |
 | Jellyfin | Media server | `theater` | `cinema` | No |
-| Paperless-ngx | Document archive | `paperless` | `archive` | Yes |
+| Paperless-ngx | Household documents: web upload, OCR, nightly plain-file export ([docs/paperless.md](docs/paperless.md)) | `paperless` | `archive` | Yes (one editor, readers view only) |
 | Mealie | Recipes | `mealie` | `cook` | Yes |
 | Home Assistant, Mosquitto, Zigbee2MQTT | Home automation ([docs/home-automation.md](docs/home-automation.md)) | `home` | `home` | Yes (Home Assistant) |
 | Syncthing | Device sync | `syncthing` | `syncthing` (UI); sync on `.201` | Yes (UI, group `admins`) |

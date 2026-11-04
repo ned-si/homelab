@@ -34,11 +34,16 @@ inline; app state is on iSCSI volumes; the *arr apps use CNPG databases.
 | `apps/theater/{plex,jellyfin}.yaml` | Players, off SSO |
 | `apps/theater/lazylibrarian.yaml`, `apps/books/` | Book acquisition and the two book apps |
 | `apps/home/` | Home Assistant, its config and HTTP store, Mosquitto, Zigbee2MQTT, database, backups, ServiceMonitor |
+| `apps/paperless/` | Paperless-ngx on SQLite, Valkey, the taxonomy as code (`config/`, PostSync `paperless-apply`, nightly `paperless-apply-nightly`), `paperless-backup` with the export, `paperless-canary` |
+| `scripts/paperless-import.py` | One-off import of existing files from the Mac, as the editor |
+| `platform/backup-verify/restore-paperless.yaml` | Monthly restore of the export into a throwaway Paperless |
 | `scripts/check-indexers.sh` | Read-only indexer policy check against Prowlarr |
 | `platform/kube-prometheus-stack/routes/arr-alerts.yaml` | `ArrIndexersFailing` |
+| `platform/kube-prometheus-stack/routes/paperless-alerts.yaml` | `PaperlessIngestFailing`, `PaperlessIngestSlow` |
 
 Runbooks: [arr-qbittorrent](../../../docs/runbooks/arr-qbittorrent.md),
-[subtitles](../../../docs/runbooks/subtitles.md).
+[subtitles](../../../docs/runbooks/subtitles.md). Paperless:
+[paperless.md](../../../docs/paperless.md).
 
 ## Decisions
 
@@ -51,6 +56,7 @@ Runbooks: [arr-qbittorrent](../../../docs/runbooks/arr-qbittorrent.md),
 | One `books` namespace; the library as an inline NFS volume narrowed by `subPath` | [books.md](../../../docs/books.md#why-it-is-like-this) |
 | Zigbee coordinator on a Pi over TCP, recorder on CNPG, no `hostNetwork`, hass-oidc-auth | [home-automation.md](../../../docs/home-automation.md#why-it-is-like-this) |
 | The media library is not backed up | [backups.md](../../../docs/backups.md#why-it-is-like-this) |
+| Paperless: the web app as the only way in, git owns the taxonomy, one editor owns every document, a nightly plain-file export, SQLite kept | [paperless.md](../../../docs/paperless.md#why-it-is-like-this), spec [paperless-documents](../paperless-documents/design.md) |
 
 ## Subtitles (Requirement 6)
 
@@ -105,3 +111,6 @@ PostSync Job `bazarr-settings` (`MODE=sync`) and the CronJob `bazarr-nightly`
 | A PostSync settings Job fails | the `theater` sync fails; auto-rollback applies ([gitops-delivery](../gitops-delivery/design.md)) |
 | `bazarr-nightly` fails | `KubeJobFailed` (INFO); the next night retries; coverage stays flat on the Usage dashboard |
 | A provider rate-limits or goes down | Bazarr throttles it and searches the others |
+| `paperless-apply` refuses a configuration (`400`) | the `paperless` sync fails; auto-rollback reverts the merge |
+| The Paperless backup or export fails | the Job fails before restic starts; `KubeJobFailed` pages |
+| Uploads stop being findable | `PaperlessIngestFailing` or `PaperlessIngestSlow` pages |
