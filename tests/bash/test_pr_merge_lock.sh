@@ -1,6 +1,7 @@
 #!/bin/bash
 # scripts/pr-merge.sh merge lock: acquire/release, stale-lock breaks, a bounded
-# wait, two concurrent runs serialising, and the rebase inside the lock.
+# wait, two concurrent runs serialising, the FIFO ticket queue (order, stale
+# tickets, the wait counted from the ticket), and the rebase inside the lock.
 # Fake gh, a local git origin.
 set -euo pipefail
 # shellcheck source=tests/bash/lib.sh
@@ -9,7 +10,7 @@ set -euo pipefail
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 install_fake_gh "$tmp/libbin"
-export PR_MERGE_REPO=ned-si/homelab PR_MERGE_POLL=1
+export PR_MERGE_REPO=ned-si/homelab PR_MERGE_POLL=1 PR_MERGE_LOCK_WAIT=60
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
 export ORIGIN="$tmp/origin.git" LIBGH="$tmp/libbin/gh"
 export FAKE_GH_DIR="$tmp/gh" FAKE_AUTHOR=ned-si FAKE_MERGE_SLEEP=0
@@ -28,9 +29,9 @@ case "$1 $2" in
     printf '{"number":7,"title":"ci: add pinned CI gates for both repository layouts","state":"OPEN","isDraft":false,"baseRefName":"main","headRefName":"feature","headRefOid":"%s","mergeable":"MERGEABLE","isCrossRepository":false,"author":{"login":"%s"}}\n' "$h" "$FAKE_AUTHOR"
     exit 0 ;;
   "pr merge")
-    echo "begin" >> "$d/merges.log"
+    echo "begin${FAKE_RUN:+ $FAKE_RUN}" >> "$d/merges.log"
     sleep "$FAKE_MERGE_SLEEP"
-    echo "end" >> "$d/merges.log"
+    echo "end${FAKE_RUN:+ $FAKE_RUN}" >> "$d/merges.log"
     [ "${FAKE_MERGE_RC:-0}" = 0 ] || exit "$FAKE_MERGE_RC"
     echo "merged"; exit 0 ;;
   "variable set"|"variable delete"|"workflow run")
@@ -38,6 +39,8 @@ case "$1 $2" in
     exit "${FAKE_VAR_RC:-0}" ;;
 esac
 case "$*" in
+  "api --paginate repos/ned-si/homelab/pulls/7/commits")
+    sleep "${FAKE_GUARD_SLEEP:-0}" ;;
   "api repos/ned-si/homelab/commits/"*"/check-runs"*)
     echo '{"check_runs":[{"name":"ci","status":"completed","conclusion":"success","started_at":"2026-10-16T00:00:00Z"}]}'
     exit 0 ;;
@@ -170,6 +173,81 @@ expect_eq "concurrent -> both exit 0" "0 0" "$(cat "$tmp/rc.1") $(cat "$tmp/rc.2
 expect_eq "concurrent -> merges never overlap" "begin end begin end " "$(merges)"
 expect_contains "concurrent -> the second waited" "waiting for the merge lock, held by PR #7 (feature" "$(cat "$tmp/out.1" "$tmp/out.2")"
 if [ -e "$LOCK" ]; then bad "concurrent -> lock released"; else ok "concurrent -> lock released"; fi
+
+# --- FIFO queue: runs take the lock in the order they took their tickets
+QUEUE="$tmp/work/.git/pr-merge.queue"
+queued() { [ -d "$QUEUE" ] || return 0; find "$QUEUE" -maxdepth 1 -type f -name '[0-9]*' -exec basename {} \; | grep -E '^[0-9]{10}$' | sort | tr '\n' ' ' || true; }
+nqueued() { queued | wc -w | tr -d ' '; }
+wait_queued() { # n: wait up to 30 s for n tickets
+  local i=0
+  while [ "$(nqueued)" -lt "$1" ] && [ "$i" -lt 150 ]; do sleep 0.2; i=$((i + 1)); done
+}
+fake_ticket() { # number pid pr branch
+  mkdir -p "$QUEUE"
+  printf 'pid=%s\npr=%s\nbranch=%s\nticket=2026-11-04T00:00:00Z\n' "$2" "$3" "$4" > "$QUEUE/$1"
+}
+
+fake_owner "$$"
+rm -f "$FAKE_GH_DIR/merges.log"
+qpids=""
+# The first run polls slowest: without the queue a later run would win.
+for i in 1 2 3; do
+  poll=1
+  [ "$i" != 1 ] || poll=3
+  (cd "$tmp/work" && FAKE_RUN=$i PR_MERGE_POLL=$poll bash "$REPO_ROOT/scripts/pr-merge.sh" 7 > "$tmp/q.$i" 2>&1; echo $? > "$tmp/qrc.$i") &
+  qpids="$qpids $!"
+  wait_queued "$i"
+done
+expect_eq "fifo -> three tickets queued" 3 "$(nqueued)"
+rm -rf "$LOCK"
+# shellcheck disable=SC2086
+wait $qpids
+expect_eq "fifo -> all exit 0" "0 0 0" "$(cat "$tmp/qrc.1") $(cat "$tmp/qrc.2") $(cat "$tmp/qrc.3")"
+expect_eq "fifo -> merged in arrival order" "begin 1 end 1 begin 2 end 2 begin 3 end 3 " "$(merges)"
+expect_contains "fifo -> the third run saw its place" "2 ahead (next PR #7)" "$(cat "$tmp/q.3")"
+expect_eq "fifo -> no ticket left" "" "$(queued)"
+if [ -e "$LOCK" ]; then bad "fifo -> lock released"; else ok "fifo -> lock released"; fi
+
+# --- stale tickets ahead: a dead pid, a ticket not refreshed for 30 min
+dead=$(bash -c 'echo $$')
+fake_ticket 0000000001 "$dead" 98 gone
+fake_ticket 0000000002 "$$" 97 asleep
+touch -t 202001010000 "$QUEUE/0000000002"
+rm -f "$FAKE_GH_DIR/merges.log"
+run_merge 7
+expect_eq "stale tickets -> merged" 0 "$rc"
+expect_contains "dead pid -> ticket removed" "removing the stale ticket 0000000001 of PR #98 (gone): pid $dead is gone" "$out"
+expect_contains "old ticket -> ticket removed" "removing the stale ticket 0000000002 of PR #97 (asleep): not refreshed for over 30 min" "$out"
+expect_eq "stale tickets -> merged once" "begin end " "$(merges)"
+expect_eq "stale tickets -> no ticket left" "" "$(queued)"
+
+# --- a live ticket ahead and a free lock: wait for it, give up from our ticket
+fake_ticket 0000000001 "$$" 96 first
+rm -f "$FAKE_GH_DIR/merges.log"
+rc=0
+out=$(cd "$tmp/work" && PR_MERGE_LOCK_WAIT=2 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
+expect_eq "ticket ahead -> gives up, exit 1" 1 "$rc"
+expect_contains "ticket ahead -> took a ticket" "took ticket 00000000" "$out"
+expect_contains "ticket ahead -> waits with the lock free" "waiting for the merge lock, not held; ticket " "$out"
+expect_contains "ticket ahead -> names the next PR" "1 ahead (next PR #96)" "$out"
+expect_contains "ticket ahead -> gave up" "gave up after 0 min waiting for the merge lock, not held" "$out"
+expect_eq "ticket ahead -> nothing merged" "" "$(merges)"
+expect_eq "ticket ahead -> only the live ticket is left" "0000000001 " "$(queued)"
+if [ -e "$LOCK" ]; then bad "ticket ahead -> lock not taken"; else ok "ticket ahead -> lock not taken"; fi
+
+# --- the wait counts from the ticket, not from the start of the run: the
+# guards take 5 s before the ticket, the wait is 6 s, the ticket ahead goes
+# away 7 s after the start.
+rm -f "$FAKE_GH_DIR/merges.log"
+(sleep 7; rm -f "$QUEUE/0000000001") &
+gone=$!
+rc=0
+out=$(cd "$tmp/work" && FAKE_GUARD_SLEEP=5 PR_MERGE_LOCK_WAIT=6 bash "$REPO_ROOT/scripts/pr-merge.sh" 7 2>&1) || rc=$?
+wait "$gone"
+expect_eq "wait from the ticket -> merged" 0 "$rc"
+expect_contains "wait from the ticket -> waited its turn" "1 ahead (next PR #96)" "$out"
+expect_eq "wait from the ticket -> merged once" "begin end " "$(merges)"
+expect_eq "wait from the ticket -> no ticket left" "" "$(queued)"
 
 # --- behind main: rebase, push with lease, wait for ci, merge
 git -C "$tmp/work" checkout -q main
