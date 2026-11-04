@@ -23,8 +23,9 @@ global:
 configs:
   cm:
     url: https://argo.lilalala.com
-    # No local admin: login is Keycloak SSO (group ArgoCDAdmins). Break-glass
-    # is the Keycloak master-realm admin, or kubectl with `argocd --core`.
+    # No local admin: login is Keycloak SSO (groups admins and ArgoCDAdmins).
+    # Break-glass is the Keycloak master-realm admin, or kubectl with
+    # `argocd --core`.
     admin.enabled: false
     exec.enabled: false
     application.instanceLabelKey: argocd.argoproj.io/instance
@@ -86,6 +87,7 @@ configs:
   rbac:
     policy.default: ""
     policy.csv: |
+      g, admins, role:admin
       g, ArgoCDAdmins, role:admin
       g, agent, role:readonly
     scopes: "[groups]"

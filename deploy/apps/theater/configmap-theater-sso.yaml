@@ -59,6 +59,7 @@ data:
         clientSecretFile: /secrets/client-secret
         scope: openid email profile groups
         allowedGroups:
+          - admins
           - TheaterAdmins
         code_challenge_method: S256
         oidcConfig:

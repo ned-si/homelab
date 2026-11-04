@@ -4,7 +4,7 @@ Who needs a one-time code (TOTP: 6 digits, 30 s, SHA1, any authenticator app):
 
 | Login | Who | Where it is set |
 | --- | --- | --- |
-| Realm `homelab`, every app and the account console | members of group `admins` (realm role `mfa-required`) | `platform/keycloak/realm/platform.conf`: `mfa_role`, `mfa_groups` |
+| Realm `homelab`, every app and the account console | members of groups `admins`, `ArgoCDAdmins`, `TheaterAdmins` and `HomeAssistantAdmins` (realm role `mfa-required`) | `platform/keycloak/realm/platform.conf`: `mfa_role`, `mfa_groups` |
 | Realm `homelab` | everyone else: only if they set up OTP themselves | same file: the `-otp` subflows |
 | Realm `master`, the Keycloak admin console | every user (`admin`) | flow `browser-otp`, `platform.conf` `automation_client` |
 | Password grants (`kcadm.sh --user`, any client's token endpoint) | nobody: off on every client of both realms; the `keycloak-realm-settings` Job uses client credentials | `platform.conf` `direct_grant_clients` (`homelab`, empty), `automation_client` (`master`) |
@@ -27,7 +27,7 @@ kubectl -n keycloak logs job/keycloak-realm-settings |
 Expected: `ok   login as client realm-settings`, `ok   bruteForceProtected=true`,
 `ok   master bruteForceProtected=true`, `ok   master eventsEnabled=true`,
 `ok   homelab eventsEnabled=true`, `ok   realm role mfa-required
-groups=admins`, `ok   flow browser-loa: 13 executions`, `ok   master
+groups=admins ArgoCDAdmins HomeAssistantAdmins TheaterAdmins`, `ok   flow browser-loa: 13 executions`, `ok   master
 browserFlow=browser-otp`, `ok   master client admin-cli.directAccessGrantsEnabled=false`,
 `ok   client admin-cli.directAccessGrantsEnabled=false`, and no `FAIL` line.
 

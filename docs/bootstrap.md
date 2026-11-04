@@ -247,7 +247,7 @@ recorded before the old cluster stopped.
 
 The local `admin` account is disabled (`admin.enabled: false` in
 `bootstrap/argocd-values.yaml`). The only login is Keycloak SSO: members of
-the group `ArgoCDAdmins` get `role:admin`, everyone else gets nothing
+the groups `admins` and `ArgoCDAdmins` get `role:admin`, everyone else gets nothing
 (`policy.default: ""`). Until Keycloak runs, use `kubectl` or
 `argocd --core`. Break-glass if SSO breaks: fix the realm as the Keycloak
 master-realm admin (password and OTP; without the phone, the master client

@@ -154,7 +154,8 @@ and automation keeps working.
 
 #### Acceptance criteria
 
-1. WHEN a member of `admins` (realm role `mfa-required`) logs in with a
+1. WHEN a member of `admins`, `ArgoCDAdmins`, `TheaterAdmins` or
+   `HomeAssistantAdmins` (realm role `mfa-required`) logs in with a
    password in the browser, THE realm SHALL require a TOTP code (6 digits,
    30 s, SHA1), and SHALL ask a member without one to enroll
    (`CONFIGURE_TOTP`). (`platform.conf` `mfa_role`, `mfa_groups`,

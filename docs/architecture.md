@@ -269,10 +269,19 @@ a user who keeps opening an app they are not in can lock their account.
 
 | Group | Apps |
 | --- | --- |
-| `admins` | every app |
+| `admins` | every app; admin in Argo CD (`role:admin`), Grafana (org Admin) and the theater admin UIs; a normal user in Home Assistant |
 | `family` | Immich, Audiobookshelf, Calibre-Web, Mealie, Paperless, Home Assistant |
 | `media` | Immich, Audiobookshelf, Calibre-Web |
-| `ArgoCDAdmins`, `HomeAssistantAdmins`, `TheaterAdmins` | Argo CD, Home Assistant, the theater admin UIs |
+| `ArgoCDAdmins` | Argo CD, `role:admin` |
+| `TheaterAdmins` | the theater admin UIs |
+| `HomeAssistantAdmins` | Home Assistant, administrator |
+
+Members of `admins` and of the three per-app admin groups need OTP
+(`platform.conf` `mfa_groups`). Home Assistant admin needs
+`HomeAssistantAdmins` even for `admins`: `hass-oidc-auth` maps one group to
+its admin role (`roles.admin` in `apps/home/config/configuration.yaml`), and
+sets the role only when it creates the Home Assistant user, at the first
+login.
 
 A new user gets no app until they are in a group: Users, the user, Groups,
 Join group. To give a group another app, add it to the client's line in
