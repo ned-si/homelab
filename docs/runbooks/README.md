@@ -14,6 +14,7 @@ expected output, rollback. Pages for paging alerts are in
 | [node-replacement.md](node-replacement.md) | Reflash a node and join it back |
 | [wan-ip-change.md](wan-ip-change.md) | The ISP changed the public address |
 | [netpol-enforcement.md](netpol-enforcement.md) | Switch default-deny on for a namespace, or break-glass out of it |
+| [pod-security.md](pod-security.md) | Move a namespace to Pod Security `restricted`, or break-glass out of it |
 | [pv-selinux-label.md](pv-selinux-label.md) | Label an existing iSCSI volume for SELinux |
 | [immich-upgrade.md](immich-upgrade.md) | Immich server and database upgrades |
 | [arr-qbittorrent.md](arr-qbittorrent.md) | The *arr apps cannot reach qBittorrent |

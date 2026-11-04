@@ -146,6 +146,17 @@ kubectl --request-timeout=10s get policyreports -A | head
 
 Expected: 27 policies, every webhook `Ignore`, reports in the app namespaces.
 
+## Admission policy (Pod Security)
+
+Pod Security admission enforces one level per namespace, from the `enforce`
+label in `infrastructure/namespaces/namespaces.yaml` (its header lists the
+levels and why each namespace below `restricted` is there). It runs inside
+the API server: no webhook, the same in a cold start and with Kyverno down.
+`scripts/ci/kyverno.sh` blocks a change PSA would reject in a `restricted`
+namespace. A namespace moves to `restricted` after `scripts/psa-readiness.sh`
+prints `READY`; the flip, the break-glass and its test are in
+[runbooks/pod-security.md](runbooks/pod-security.md).
+
 ## deploy/: rendered manifests
 
 Argo CD does not run kustomize for most of the tree. `scripts/render-deploy.sh`
