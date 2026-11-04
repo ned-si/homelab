@@ -73,6 +73,7 @@ that application's failing conditions and resources.
 - [BackupVerifyStale](BackupVerifyStale.md): no passing weekly restore test in 8 days
 - [BackupVerifyDataStale](BackupVerifyDataStale.md): no monthly pack read in 36 days
 - [BackupVerifyMissing](BackupVerifyMissing.md): no restore test result on record
+- [PaperlessRestoreStale](PaperlessRestoreStale.md): no passing Paperless restore test in 35 days
 - [CNPGBackupFailed](CNPGBackupFailed.md): the newest Postgres base backup failed
 - [CNPGBaseBackupTooOld](CNPGBaseBackupTooOld.md): no Postgres base backup in 26 hours
 - [CNPGBackupMetricsMissing](CNPGBackupMetricsMissing.md): a Postgres instance without the backup sidecar

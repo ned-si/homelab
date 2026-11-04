@@ -1,0 +1,182 @@
+# Monthly Paperless restore test (scripts/verify-paperless.sh): the newest
+# paperless-export snapshot is imported into a throwaway Paperless in this pod
+# and its document counts are compared. The scratch volume is an ephemeral
+# iscsi claim, twice the size of paperless-export (the restored export plus
+# the imported copy), deleted with the pod.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-paperless
+spec:
+  # The 3rd of the month, 19:00 UTC: after the monthly prunes of the 1st,
+  # outside the nightly backup window and before the weekend restore tests
+  # (docs/backups.md#schedule).
+  schedule: "0 19 3 * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 3600
+  # One of each: a kept pod keeps its scratch claim.
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: restore
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+              command: ["/bin/sh", "/scripts/verify-paperless.sh", "restore"]
+              envFrom:
+                # The read-only verifier key and RESTIC_PASSWORD.
+                - secretRef:
+                    name: s3-backup
+              env:
+                - name: WORK
+                  value: /work
+                - name: RESTIC_CACHE_DIR
+                  value: /work/.cache
+                - name: TMPDIR
+                  value: /work/.cache
+                - name: HOME
+                  value: /work
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 1Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+            # A throwaway Valkey on localhost, a native sidecar stopped with
+            # the pod: Paperless' Django cache is Redis, so even `migrate`
+            # fails without one (measured on 3.4.2). Nothing persists.
+            - name: valkey
+              # renovate: datasource=docker depName=valkey/valkey
+              image: valkey/valkey:9.2-alpine@sha256:cdcb7b1c7b6f1c9cb9442c71ac6275e78184657448407b2c1fdde7ee8024f4fb
+              restartPolicy: Always
+              command: ["valkey-server", "--bind", "127.0.0.1", "--port", "6379",
+                        "--save", "", "--appendonly", "no", "--dir", "/data"]
+              startupProbe:
+                exec:
+                  command: ["valkey-cli", "-h", "127.0.0.1", "ping"]
+                periodSeconds: 2
+                failureThreshold: 30
+              volumeMounts:
+                - name: valkey
+                  mountPath: /data
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+            # The throwaway Paperless: manage.py commands only, so no web
+            # server, Celery worker or beat.
+            - name: import
+              # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
+              image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
+              command: ["/bin/sh", "/scripts/verify-paperless.sh", "import"]
+              env:
+                - name: PASSPHRASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: paperless-export
+                      key: passphrase
+                - name: WORK
+                  value: /work
+                - name: PAPERLESS_DATA_DIR
+                  value: /work/paperless/data
+                - name: PAPERLESS_MEDIA_ROOT
+                  value: /work/paperless/media
+                - name: PAPERLESS_CONSUMPTION_DIR
+                  value: /work/paperless/consume
+                - name: PAPERLESS_REDIS
+                  value: redis://127.0.0.1:6379
+                - name: HOME
+                  value: /tmp
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          containers:
+            - name: report
+              # renovate: datasource=docker depName=restic/restic
+              image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+              command: ["/bin/sh", "/scripts/verify-paperless.sh", "report"]
+              env:
+                - name: WORK
+                  value: /work
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+                - name: work
+                  mountPath: /work
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+          volumes:
+            - name: scripts
+              configMap:
+                name: backup-verify-scripts
+            - name: work
+              ephemeral:
+                volumeClaimTemplate:
+                  spec:
+                    accessModes: ["ReadWriteOnce"]
+                    storageClassName: iscsi
+                    resources:
+                      requests:
+                        storage: 200Gi
+            - name: tmp
+              emptyDir:
+                sizeLimit: 1Gi
+            - name: valkey
+              emptyDir:
+                sizeLimit: 64Mi

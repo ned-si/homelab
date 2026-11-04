@@ -1,0 +1,202 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/backup-verify
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/backup-verify and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-verify-paperless
+  namespace: backup-verify
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      backoffLimit: 0
+      template:
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - command:
+            - /bin/sh
+            - /scripts/verify-paperless.sh
+            - report
+            env:
+            - name: WORK
+              value: /work
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            name: report
+            resources:
+              limits:
+                memory: 128Mi
+              requests:
+                cpu: 10m
+                memory: 32Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          initContainers:
+          - command:
+            - /bin/sh
+            - /scripts/verify-paperless.sh
+            - restore
+            env:
+            - name: WORK
+              value: /work
+            - name: RESTIC_CACHE_DIR
+              value: /work/.cache
+            - name: TMPDIR
+              value: /work/.cache
+            - name: HOME
+              value: /work
+            envFrom:
+            - secretRef:
+                name: s3-backup
+            image: restic/restic:0.19.1@sha256:136600b6ff6843d61d355f7f71f460a166429f35de6fd11b568fece3c9a4d510
+            name: restore
+            resources:
+              limits:
+                memory: 1Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+          - command:
+            - valkey-server
+            - --bind
+            - 127.0.0.1
+            - --port
+            - "6379"
+            - --save
+            - ""
+            - --appendonly
+            - "no"
+            - --dir
+            - /data
+            image: valkey/valkey:9.2-alpine@sha256:cdcb7b1c7b6f1c9cb9442c71ac6275e78184657448407b2c1fdde7ee8024f4fb
+            name: valkey
+            resources:
+              limits:
+                memory: 256Mi
+              requests:
+                cpu: 10m
+                memory: 32Mi
+            restartPolicy: Always
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            startupProbe:
+              exec:
+                command:
+                - valkey-cli
+                - -h
+                - 127.0.0.1
+                - ping
+              failureThreshold: 30
+              periodSeconds: 2
+            volumeMounts:
+            - mountPath: /data
+              name: valkey
+          - command:
+            - /bin/sh
+            - /scripts/verify-paperless.sh
+            - import
+            env:
+            - name: PASSPHRASE
+              valueFrom:
+                secretKeyRef:
+                  key: passphrase
+                  name: paperless-export
+            - name: WORK
+              value: /work
+            - name: PAPERLESS_DATA_DIR
+              value: /work/paperless/data
+            - name: PAPERLESS_MEDIA_ROOT
+              value: /work/paperless/media
+            - name: PAPERLESS_CONSUMPTION_DIR
+              value: /work/paperless/consume
+            - name: PAPERLESS_REDIS
+              value: redis://127.0.0.1:6379
+            - name: HOME
+              value: /tmp
+            image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
+            name: import
+            resources:
+              limits:
+                memory: 2Gi
+              requests:
+                cpu: 100m
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /scripts
+              name: scripts
+            - mountPath: /work
+              name: work
+            - mountPath: /tmp
+              name: tmp
+          restartPolicy: Never
+          securityContext:
+            fsGroup: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              name: backup-verify-scripts-cm6654ttk6
+            name: scripts
+          - ephemeral:
+              volumeClaimTemplate:
+                spec:
+                  accessModes:
+                  - ReadWriteOnce
+                  resources:
+                    requests:
+                      storage: 200Gi
+                  storageClassName: iscsi
+            name: work
+          - emptyDir:
+              sizeLimit: 1Gi
+            name: tmp
+          - emptyDir:
+              sizeLimit: 64Mi
+            name: valkey
+  schedule: 0 19 3 * *
+  startingDeadlineSeconds: 3600
+  successfulJobsHistoryLimit: 1
+  suspend: false

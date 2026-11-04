@@ -75,7 +75,7 @@ spec:
               type: RuntimeDefault
           volumes:
           - configMap:
-              name: backup-verify-scripts-6k55fg7d29
+              name: backup-verify-scripts-cm6654ttk6
             name: scripts
           - emptyDir:
               sizeLimit: 4Gi

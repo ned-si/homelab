@@ -248,10 +248,11 @@ a CronJob, run with `kubectl create job --from=cronjob/<name>`. On 2026-10-17
 the lock of such a pod, dead since the morning before (#919). The reasons are in
 [decisions.md](decisions.md#restic-stale-locks).
 
-The restore tests run on weekend evenings, outside this window and one at a
+The restore tests run in the evening, outside this window and one at a
 time: `backup-verify-lock` Saturday 20:00, `backup-verify-files` Saturday
 22:00, `backup-verify-postgres` Sunday
-21:00 ([Verification](#verification)).
+21:00, `backup-verify-paperless` the 3rd of the month 19:00, done by 20:00
+([Verification](#verification)).
 
 A failed backup Job fires the stock `KubeJobFailed` rule from kube-prometheus-stack.
 For Postgres, PrometheusRule `cnpg-backups` (group `cnpg.backups`, in
@@ -982,6 +983,7 @@ and the production databases through read-only transactions.
 | `backup-verify-lock`, Saturday 20:00 | an old version in the bucket cannot be deleted ([Immutable versions](#immutable-versions)) | the delete of the older version of `_lock-test/weekly` is refused by the bucket policy, and the policy still denies `s3:DeleteObjectVersion` to every principal |
 | `backup-verify-files`, Saturday 22:00 | per tag in `scripts/restic-targets.txt`: the newest snapshot restores, with `restic restore --verify`, into an emptyDir | the snapshot is at most 72 h old, every required file (identity, keys, configs, dumps) is in it and non-empty, and the required files plus five sampled files of up to 64 MiB (a different sample every ISO week) restore with the size the snapshot records |
 | the same job, first Saturday of the month | `restic check --read-data-subset=<n>/<slices>` on every repository in `scripts/restic-data-targets.txt` | no errors; the slice rotates monthly, so every pack is read once every 12 months (S3 `immich/library`: 1/120 a month, about 2.3 GiB) |
+| `backup-verify-paperless`, the 3rd of the month 19:00 | the newest `paperless-export` snapshot restores and imports into a throwaway Paperless in the Job's pod (`migrate` on an empty SQLite database, `document_importer --passphrase`; no web server, Celery worker or beat), on an ephemeral `iscsi` claim deleted with the pod | the snapshot is at most 72 h old; the documents imported, the documents in `manifest.json` and the count in `export-meta.json` (the database copy the export came from) are equal and at least one, none counting the trash; one imported PDF, picked at random, opens |
 | `backup-verify-postgres`, Sunday 21:00 | each CNPG cluster in `scripts/postgres-targets.txt`, one at a time, recovers from its Barman Cloud archive into a new Cluster `bv-<cluster>` | the restored database has the same tables and, in every table, the same row count as the source at the recovery target (its LSN); `immich-db` also holds at least 49,032 images and 2,377 videos |
 
 The Postgres test reads the source's image, preload libraries, volume size and
@@ -998,8 +1000,8 @@ an hour. The restic test uses only emptyDirs (4 Gi at most).
 Grafana dashboard Homelab / Data protection (`/d/homelab-data-protection`)
 shows the last result of every check next to the backup freshness. Each check
 pushes its result to the Pushgateway in `backup-verify`, which Prometheus
-scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`)
-and `target` (the tag, repository or cluster).
+scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
+`paperless-restore`) and `target` (the tag, repository or cluster).
 
 | Metric | Meaning |
 | --- | --- |
@@ -1010,14 +1012,16 @@ and `target` (the tag, repository or cluster).
 | `backup_verify_rows`, `backup_verify_tables` | rows and tables restored and compared (Postgres) |
 | `backup_verify_files`, `backup_verify_bytes` | files and bytes restored (restic) |
 | `backup_verify_restore_seconds` | time to a Ready restored cluster (Postgres) |
+| `backup_verify_documents` | documents imported into the throwaway Paperless |
 | `backup_verify_lock_ok` | lock test (`check="lock"`): 1 the version delete was refused by the bucket policy, 0 it succeeded or the deny is gone; not pushed by an inconclusive run |
 | `backup_verify_lock_last_success_timestamp_seconds`, `backup_verify_lock_last_run_timestamp_seconds` | end of the last passing and of the last lock test |
 
 Alerts (PrometheusRule `backup-verify`, group `backup.verify`, all `warning`
 and all notify on ntfy, [sre.md](sre.md#paging)):
 `BackupVerifyFailed` (a check's last run failed), `BackupVerifyStale` (no
-pass in 8 days), `BackupVerifyDataStale` (no monthly pack read in 36 days) and
-`BackupVerifyMissing` (no passing result of a check at all). A Job that crashes
+pass in 8 days), `BackupVerifyDataStale` (no monthly pack read in 36 days),
+`PaperlessRestoreStale` (no passing Paperless restore test in 35 days, or none
+on record) and `BackupVerifyMissing` (no passing result of a check at all). A Job that crashes
 before pushing also fires the stock `KubeJobFailed`. Group `backup.lock`:
 `BackupLockBroken` (`critical`, notifies) and `BackupLockCheckStale`
 (`warning`, no passing lock test in 8 days or none on record).
@@ -1039,7 +1043,10 @@ kubectl -n backup-verify create job --from=cronjob/backup-verify-postgres verify
 1. Read the `FAIL` lines of the Job (above). They name the target and the
    reason: no or stale snapshot, a missing or empty required file, a size
    mismatch, a restore that did not become Ready, a table or row count that
-   differs, Immich below its floor.
+   differs, Immich below its floor, a Paperless export that does not import,
+   whose document counts differ or whose PDF does not open
+   ([PaperlessRestoreStale](runbooks/alerts/PaperlessRestoreStale.md) has the
+   table).
 2. A stale snapshot or a missing file is a backup problem: check that app's
    backup CronJob and its last Job log ([Schedule](#schedule)).
 3. A failed restore or a count mismatch is a restore problem: restore the same

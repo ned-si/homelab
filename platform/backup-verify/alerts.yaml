@@ -29,10 +29,11 @@ spec:
               Runbook: docs/backups.md#when-a-restore-test-fails
 
         - alert: BackupVerifyStale
-          # Weekly checks: no pass in 8 days, the schedule plus a day.
+          # Weekly checks: no pass in 8 days, the schedule plus a day. The
+          # monthly checks have their own rules.
           expr: |
             time() - max by (check, target) (
-              max_over_time(backup_verify_last_success_timestamp_seconds{check!="restic-data"}[9d])
+              max_over_time(backup_verify_last_success_timestamp_seconds{check!~"restic-data|paperless-restore"}[9d])
             ) > 8 * 86400
           for: 1h
           labels:
@@ -63,6 +64,27 @@ spec:
             description: >-
               The monthly restic check --read-data-subset of {{ $labels.target }}
               last passed {{ $value | humanizeDuration }} ago.
+              Runbook: docs/backups.md#when-a-restore-test-fails
+
+        - alert: PaperlessRestoreStale
+          # Monthly on the 3rd (restore-paperless.yaml): no pass in 35 days,
+          # or none on record. Prometheus keeps 30 days; the Pushgateway keeps
+          # serving the last success, so the 30-day window still holds it.
+          expr: |
+            time() - max(max_over_time(backup_verify_last_success_timestamp_seconds{check="paperless-restore"}[30d])) > 35 * 86400
+            or absent_over_time(backup_verify_last_success_timestamp_seconds{check="paperless-restore"}[30d])
+          for: 1h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessRestoreStale.md
+            summary: "No passing Paperless restore test in 35 days"
+            description: >-
+              The monthly import of the Paperless export into a throwaway
+              Paperless has not passed in 35 days, or never: the CronJob
+              did not run or every run failed
+              (kubectl -n backup-verify get cronjobs,jobs).
               Runbook: docs/backups.md#when-a-restore-test-fails
 
         - alert: BackupVerifyMissing

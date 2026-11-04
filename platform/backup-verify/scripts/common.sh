@@ -15,6 +15,16 @@ PUSHGATEWAY="${PUSHGATEWAY:-http://pushgateway.backup-verify.svc:9091}"
 
 log() { echo "$(date -u +%H:%M:%S) $*"; }
 
+# Epoch of the newest snapshot time in a `restic snapshots --json` file (jq).
+snapshot_epoch() {
+  jq -r '[.[].time] | max
+    | capture("^(?<d>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(\\.[0-9]+)?(?<z>Z|[+-][0-9]{2}:[0-9]{2})$")
+    | ((.d + "Z") | fromdateiso8601)
+      - (if .z == "Z" then 0
+         else ((.z[1:3] | tonumber) * 3600 + (.z[4:6] | tonumber) * 60)
+              * (if .z[0:1] == "-" then -1 else 1 end) end)' "$1"
+}
+
 # push <check> <target> <ok: 1|0> <start epoch> [metric lines...]
 push_result() {
   _check=$1 _target=$2 _ok=$3 _start=$4

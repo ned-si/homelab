@@ -32,6 +32,7 @@ theater/qbittorrent-private-seed
 theater/bazarr-nightly
 backup-verify/backup-verify-files
 backup-verify/backup-verify-postgres
+backup-verify/backup-verify-paperless
 backup-verify/backup-verify-lock
 monitoring/vuln-enrich
 monitoring/grafana-backup

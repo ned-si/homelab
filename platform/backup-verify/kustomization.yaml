@@ -20,6 +20,7 @@ resources:
   - pushgateway.yaml
   - restore-files.yaml
   - restore-postgres.yaml
+  - restore-paperless.yaml
   - lock-test.yaml
   - alerts.yaml
 
@@ -29,6 +30,7 @@ configMapGenerator:
       - scripts/common.sh
       - scripts/verify-files.sh
       - scripts/verify-postgres.sh
+      - scripts/verify-paperless.sh
       - scripts/verify-lock.sh
       - scripts/restic-targets.txt
       - scripts/restic-data-targets.txt
