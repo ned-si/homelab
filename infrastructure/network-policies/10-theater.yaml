@@ -388,7 +388,8 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # theater.lilalala.com/arr/bazarr (HTTPRoute `theater` -> :6767).
+    # Direct from the Gateway. Unused while SSO is in front; kept so reverting
+    # SSO (a two-line HTTPRoute change) needs no policy change.
     - fromEntities:
         - ingress
         - host
