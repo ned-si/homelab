@@ -408,6 +408,18 @@ in the local report keeps the old structure. It prints counts only. Re-running
 it is safe: Paperless refuses duplicates by checksum. Batches go in during
 the day, a few hundred files at a time, so OCR does not starve the node.
 
+Measured on 3.4.2 in task 7: Paperless consumes a duplicate (it only logs
+a warning) unless `PAPERLESS_CONSUMER_DELETE_DUPLICATES` is set, which this
+deployment does not set. The script therefore skips a file itself when a
+document with its SHA-256 (Paperless' checksum) already exists, through the
+API filter `checksum__iexact`, or when the same content came earlier in the
+run; a task that still reports `duplicate_of` counts as a duplicate too. It
+uploads one file at a time and waits for its task, and `--limit N` stops
+after N uploads, so a batch is one run and the next run skips what is in.
+The import directory was still empty when task 7 landed, so it adds the
+tags of the two expected sources, `import:seafile` (the former Seafile
+library) and `import:nas` (documents on the NAS).
+
 The script lands in its own task and PR. The batches run afterwards, and
 one PR records the counts of every batch in `docs/paperless.md`.
 
