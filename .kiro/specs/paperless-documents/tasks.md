@@ -59,9 +59,7 @@ in [requirements.md](requirements.md#decided-defaults).
       (#1016; on 3.4.2 the exporter needs `paperless-media` read-write
       for `media.lock`, and the Deployment mounts `paperless-export` so
       the image's init chowns it: design.md)
-
-## Open
-- [ ] 3. Access: the groups `editors` and `readers` and their permissions,
+- [x] 3. Access: the groups `editors` and `readers` and their permissions,
       the member list in SOPS `paperless-config` (one encrypted
       `config.json` value), the editor's and the reader's accounts put into
       their groups by `apply.py`, the superuser flag and direct model
@@ -86,6 +84,11 @@ in [requirements.md](requirements.md#decided-defaults).
       security issue. `docs/paperless.md` "Access", which says the
       `private` tag is the only way to hide a document. [1.2, 1.3, 6.1,
       6.2, 6.3, 6.4, 6.5]
+      (#1035; no account other than `nedsi-admin` and `automation` had
+      the superuser flag or direct permissions, so nothing was cleared;
+      basic auth on `/api/` is #1033)
+
+## Open
 - [ ] 5. Restore test: `restore-paperless` in `backup-verify` (`migrate`,
       `document_importer --passphrase` and a count in one pod with no web
       server, worker or beat; counts equal over the exported documents,
