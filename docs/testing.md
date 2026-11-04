@@ -91,6 +91,15 @@ blocks too, except the CLI gaps listed in the script (fields the API server
 defaults, such as a Service's `spec.type`). A policy joins `BLOCKING` once
 `deploy/` passes it.
 
+Pod Security: in a namespace that `infrastructure/namespaces/namespaces.yaml`
+labels `pod-security.kubernetes.io/enforce: restricted`, a finding of the
+restricted set (`policies/kyverno/upstream/pod-security-vpol/restricted/`)
+blocks as well, because the API server would reject the Pod. The Kyverno
+webhooks skip `EXCLUDED_NAMESPACES`, PSA does not: the Helm renders of a
+namespace in both lists (today `argo` and `kyverno`) are kept, and for them
+only the Pod Security Standards policies block. The log names both sets.
+Test: `tests/bash/test_kyverno_restricted.sh`.
+
 ## 3. Pre-production (kind)
 
 The `preprod` job creates a kind cluster on the cluster's Kubernetes minor
