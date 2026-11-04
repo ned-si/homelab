@@ -46,6 +46,42 @@ configs:
     # only, no UI login, bound to role:readonly below. Its token lives outside
     # the repository (docs/secrets.md).
     accounts.agent: apiKey
+    # Replaces Argo CD 3.6's built-in DeletingPolicy check, which wants
+    # status.conditionStatus.ready. Kyverno 1.19's cleanup controller never
+    # sets it, only lastExecutionTime, so the built-in check kept
+    # kyverno-policies Degraded while delete-shutdown-pods ran every hour.
+    # An explicit ready: false is still Degraded (#1039).
+    resource.customizations.health.policies.kyverno.io_DeletingPolicy: |
+      local hs = {}
+      local cs = obj.status ~= nil and obj.status.conditionStatus or nil
+      if cs ~= nil and cs.ready == false then
+        hs.status = "Degraded"
+        hs.message = (cs.message ~= nil and cs.message ~= "") and cs.message or "Policy is not ready"
+        if cs.conditions ~= nil then
+          for _, c in ipairs(cs.conditions) do
+            if c.status == "False" then
+              hs.message = c.type .. ": " .. c.message
+              break
+            end
+          end
+        end
+        return hs
+      end
+      if cs ~= nil and cs.ready == true then
+        hs.status = "Healthy"
+        hs.message = "Policy is ready"
+        return hs
+      end
+      if obj.status ~= nil and obj.status.lastExecutionTime ~= nil then
+        hs.status = "Healthy"
+        hs.message = "Last run " .. obj.status.lastExecutionTime
+        return hs
+      end
+      -- Healthy, not Progressing: a new policy first runs up to an hour
+      -- later, and a sync must not wait for that.
+      hs.status = "Healthy"
+      hs.message = "Waiting for the first scheduled run"
+      return hs
 
   rbac:
     policy.default: ""
