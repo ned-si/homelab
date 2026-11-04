@@ -87,6 +87,16 @@ for e in 's/^mfa_role=.*/mfa_role=mfa required/' 's/^automation_client=.*/automa
   expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf" "$o"
 done
 
+# master_fields: sessions.conf fields, brute-force detection among them;
+# events_expiration: seconds.
+for e in 's/^master_fields=.*/master_fields=bruteForceProtected/' \
+  's/^master_fields=.*/master_fields=bruteForceProtected permanentLockout noSuchField/' \
+  's/^events_expiration=.*/events_expiration=7d/'; do
+  sed "$e" "$REALM_DIR/platform.conf" > "$tmp/p6.conf"
+  o=$(run "$tmp/p6.conf" "$REALM_DIR/clients.conf")
+  expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf" "$o"
+done
+
 # access.conf: <clientId>=<groups>, each client once, not also removed.
 access() { printf '%s\n' "$@" > "$tmp/access.conf"; echo "$tmp/access.conf"; }
 for l in 'immich=' 'immich' 'immich=family,media' 'imm ich=family' 'immich=fam*'; do

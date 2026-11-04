@@ -28,18 +28,17 @@ point, a credential or an admission path is added or removed.
 - Control: TLS with the Let's Encrypt wildcard; port 80 only redirects. Immich,
   Mealie, Paperless, Grafana and Argo CD log in through Keycloak; members of
   `admins` and the Keycloak admin (realm `master`) need a TOTP code after the
-  password ([keycloak-otp.md](runbooks/keycloak-otp.md)).
+  password ([keycloak-otp.md](runbooks/keycloak-otp.md)). Both Keycloak
+  realms run brute-force detection and allow no password grant.
   Plex and Jellyfin keep their own login (their TV apps cannot use SSO), and
   so do the *arr UIs under `theater.lilalala.com/arr/<app>`. PSA `restricted`
   on the `gateway` namespace. DAST (ZAP) runs against the public names.
 - Residual: any realm user reaches every Keycloak app; the *arr UIs and the
   Syncthing GUI rely on logins configured inside each app, not in git; no
-  security response headers; no brute-force settings in git; no rate limit at
-  the Gateway.
+  security response headers; no rate limit at the Gateway.
 - Planned: oauth2-proxy in front of the *arr UIs (`apps/theater/sso.yaml`,
   written, not deployed); per-app access groups enforced at Keycloak; security
-  headers on every HTTPRoute with DAST green; Keycloak brute-force protection
-  in git; default-deny network policies.
+  headers on every HTTPRoute with DAST green; default-deny network policies.
 
 ### Internet to Syncthing (22000 TCP and UDP on `192.168.1.201`)
 

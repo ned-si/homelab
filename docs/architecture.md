@@ -241,10 +241,13 @@ role `mfa-required` (`platform.conf` `mfa_role`, mapped to `mfa_groups`)
 always gets the OTP Form; one without an authenticator is asked to set one up
 (required action `CONFIGURE_TOTP`). Other users get the OTP Form only when
 they set up OTP themselves. The Keycloak admin console (realm `master`) asks
-every user for both. Password grants are unchanged, and the
-`keycloak-realm-settings` Job logs in as the master client `realm-settings`
-(client credentials), so the admin's OTP does not stop it. Enrolment, a lost
-phone and break-glass: [keycloak-otp.md](runbooks/keycloak-otp.md).
+every user for both. No client of either realm allows the password grant,
+which would skip the OTP, and the `keycloak-realm-settings` Job logs in as
+the master client `realm-settings` (client credentials), so the admin's OTP
+does not stop it. Both realms run brute-force detection with a temporary
+lockout only (`sessions.conf`; `platform.conf` `master_fields` for `master`)
+and keep login and admin events for 7 days (`events_expiration`). Enrolment,
+a lost phone and break-glass: [keycloak-otp.md](runbooks/keycloak-otp.md).
 
 The realm values live in `platform/keycloak/realm/sessions.conf`,
 `platform.conf`, `clients.conf` and `access.conf`. After every sync of the

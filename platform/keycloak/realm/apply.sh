@@ -1,8 +1,9 @@
 #!/bin/bash
 # Apply sessions.conf, platform.conf, clients.conf and access.conf to the
-# `homelab` realm (and the OTP rules of platform.conf to the `master` realm),
-# then read them back and fail unless every managed value is the expected
-# one. CHECK_ONLY=1 runs the static checks of the files and exits.
+# `homelab` realm (and to the `master` realm: the OTP rules, brute-force
+# detection, events and no password grants of platform.conf), then read them
+# back and fail unless every managed value is the expected one. CHECK_ONLY=1
+# runs the static checks of the files and exits.
 #
 # Runs in the Keycloak image (kcadm.sh, bash, grep, sed; no awk, jq or curl).
 # `kcadm.sh update -s` fetches an object, changes only the given fields and
@@ -146,6 +147,27 @@ for p in $(conf otp_policy); do
     bad=1
   fi
 done
+# master_fields: names of sessions.conf fields, brute-force detection among them.
+session_lines() { sed -e 's/#.*//' -e 's/[[:space:]]//g' "$CONF" | grep -v '^$' || true; }
+for f in $(conf master_fields); do
+  if ! [[ "$f" =~ ^[A-Za-z]+$ ]] || ! session_lines | grep "^$f=" >/dev/null; then
+    echo "FAIL platform.conf: master_fields entry is not a sessions.conf field: $f" >&2
+    bad=1
+  fi
+done
+for f in bruteForceProtected permanentLockout; do
+  case " $(conf master_fields) " in
+    *" $f "*) ;;
+    *)
+      echo "FAIL platform.conf: master_fields must list $f" >&2
+      bad=1
+      ;;
+  esac
+done
+if ! [[ "$(conf events_expiration)" =~ ^[1-9][0-9]*$ ]]; then
+  echo "FAIL platform.conf: events_expiration is not a number of seconds: $(conf events_expiration)" >&2
+  bad=1
+fi
 [ "$bad" = 0 ] || exit 1
 if [ -n "${CHECK_ONLY:-}" ]; then
   echo "ok   static checks"
@@ -184,25 +206,59 @@ done
 echo "ok   login as $login_as"
 
 # --- sessions.conf: realm fields ---------------------------------------------
-args=()
-fields=()
-while IFS= read -r line; do
-  line=${line%%#*}
-  line=$(printf '%s' "$line" | tr -d '[:space:]')
-  [ -z "$line" ] && continue
-  args+=(-s "$line")
-  fields+=("$line")
-done < "$CONF"
-
-if [ "${#fields[@]}" -gt 0 ]; then
+realm_val() { # realm JSON, top-level field -> value
+  printf '%s\n' "$1" | grep -E "^  \"$2\" : " | sed -E 's/^[^:]+: //; s/,$//; s/^"//; s/"$//' || true
+}
+set_fields() { # <field>=<value> lines [check label] -> written to $REALM, read back
+  local args=() fields=() f live
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    args+=(-s "$f")
+    fields+=("$f")
+  done <<< "$1"
+  [ "${#fields[@]}" -gt 0 ] || return 0
   kc update "realms/$REALM" "${args[@]}"
   live=$(kc get "realms/$REALM")
   for f in "${fields[@]}"; do
-    key=${f%%=*}
-    got=$(printf '%s\n' "$live" | grep -E "^  \"$key\" : " | sed -E 's/^[^:]+: //; s/,$//; s/^"//; s/"$//' || true)
-    check "$key" "${f#*=}" "$got"
+    check "${2:+$2 }${f%%=*}" "${f#*=}" "$(realm_val "$live" "${f%%=*}")"
   done
-fi
+}
+set_fields "$(session_lines)"
+
+# --- platform.conf: login and admin events, in both realms ----------------------
+events_settings() {
+  local exp live kv
+  exp=$(conf events_expiration)
+  kc update events/config -r "$REALM" -s eventsEnabled=true -s "eventsExpiration=$exp" \
+    -s adminEventsEnabled=true -s adminEventsDetailsEnabled=false
+  live=$(kc get events/config -r "$REALM")
+  for kv in eventsEnabled=true "eventsExpiration=$exp" adminEventsEnabled=true adminEventsDetailsEnabled=false; do
+    check "$REALM ${kv%%=*}" "${kv#*=}" "$(realm_val "$live" "${kv%%=*}")"
+  done
+  # The admin events expiration is a realm attribute.
+  kc update "realms/$REALM" -s "attributes.adminEventsExpiration=$exp"
+  live=$(kc get "realms/$REALM")
+  check "$REALM adminEventsExpiration" "$exp" \
+    "$(printf '%s\n' "$live" | sed -n 's/^ *"adminEventsExpiration" : "\{0,1\}\([0-9]*\)"\{0,1\},\{0,1\}$/\1/p')"
+}
+
+# --- platform.conf: no password grant except an allow-list ----------------------
+no_direct_grants() { # allowed client IDs [check label] -> every other client of $REALM
+  local allowed=" $1 " id cid grants
+  while IFS=, read -r id cid grants; do
+    [ -n "$id" ] || continue
+    [[ "$allowed" == *" $cid "* ]] && continue
+    if [ "$grants" = true ]; then
+      echo "${2:+$2 }client $cid: directAccessGrantsEnabled=false"
+      kc update "clients/$id" -r "$REALM" -s directAccessGrantsEnabled=false
+    fi
+  done < <(kc get clients -r "$REALM" --format csv --noquotes --fields id,clientId,directAccessGrantsEnabled)
+  while IFS=, read -r cid grants; do
+    [ -n "$cid" ] || continue
+    [[ "$allowed" == *" $cid "* ]] && continue
+    check "${2:+$2 }client $cid.directAccessGrantsEnabled" false "$grants"
+  done < <(kc get clients -r "$REALM" --format csv --noquotes --fields clientId,directAccessGrantsEnabled)
+}
 
 # --- platform.conf: browser flow with a level-of-authentication max age --------
 max_age=$(conf loa_max_age)
@@ -393,10 +449,19 @@ check_flow() { # flow rows expected-shape
 }
 
 # --- platform.conf: the Keycloak admin (master realm) --------------------------
-# The automation client first: the Job logs in with it, so OTP on the admin
-# user cannot lock the Job out. Only when that login works does the master
-# browser flow require OTP.
+# Brute-force detection (master_fields of sessions.conf) and events. Then the
+# automation client: the Job logs in with it, so OTP on the admin user cannot
+# lock the Job out. Only when that login works does the master browser flow
+# require OTP, and does every master client lose the password grant, which
+# the Job's admin-password fallback uses.
 REALM=master
+master_lines=""
+for f in $(conf master_fields); do
+  master_lines="$master_lines$(session_lines | grep "^$f=" | tail -n 1 || true)
+"
+done
+set_fields "$master_lines" master
+events_settings
 if [ -z "$(client_id "$AUTO")" ]; then
   echo "creating master client $AUTO"
   kc create clients -r "$REALM" -s clientId="$AUTO" -s protocol=openid-connect \
@@ -462,11 +527,19 @@ if [ "$auto_ok" = 1 ]; then
   kc update "realms/$REALM" -s browserFlow="$MASTER_FLOW"
   got=$(kc get "realms/$REALM" --fields browserFlow | sed -n 's/^ *"browserFlow" : "\(.*\)",\{0,1\}$/\1/p')
   check "master browserFlow" "$MASTER_FLOW" "$got"
+  # A run that logged in with the admin password (a new database) goes on as
+  # the client before the password grant goes away.
+  if [ "$login_as" != "client $AUTO" ] && login "$CFG"; then
+    echo "ok   login as $login_as"
+  fi
+  no_direct_grants "" master
 else
-  echo "FAIL master browser flow left as is: the Job cannot log in as $AUTO, and OTP on the admin would lock it out" >&2
+  echo "FAIL master browser flow and password grants left as is: the Job cannot log in as $AUTO, and OTP on the admin would lock it out" >&2
   rc=1
 fi
 REALM=$HOMELAB
+
+events_settings
 
 # --- platform.conf: OTP for the members of mfa_groups ----------------------------
 otp_settings
@@ -517,20 +590,7 @@ login_cfgs "$FLOW" "$loa_rows" "$FLOW"
 kc update "realms/$REALM" -s browserFlow="$FLOW" -s "attributes.\"acr.loa.map\"=\"{\\\"$ACR\\\":1}\""
 
 # --- platform.conf: no password grant except direct_grant_clients --------------
-allowed=" $(conf direct_grant_clients) "
-while IFS=, read -r id cid grants; do
-  [ -n "$id" ] || continue
-  [[ "$allowed" == *" $cid "* ]] && continue
-  if [ "$grants" = true ]; then
-    echo "client $cid: directAccessGrantsEnabled=false"
-    kc update "clients/$id" -r "$REALM" -s directAccessGrantsEnabled=false
-  fi
-done < <(kc get clients -r "$REALM" --format csv --noquotes --fields id,clientId,directAccessGrantsEnabled)
-while IFS=, read -r cid grants; do
-  [ -n "$cid" ] || continue
-  [[ "$allowed" == *" $cid "* ]] && continue
-  check "client $cid.directAccessGrantsEnabled" false "$grants"
-done < <(kc get clients -r "$REALM" --format csv --noquotes --fields clientId,directAccessGrantsEnabled)
+no_direct_grants "$(conf direct_grant_clients)"
 
 # --- platform.conf: clients that must not exist --------------------------------
 for c in $(conf removed_clients); do
