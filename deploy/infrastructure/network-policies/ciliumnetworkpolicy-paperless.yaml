@@ -15,7 +15,7 @@ metadata:
   namespace: paperless
 spec:
   description: Everything in the paperless namespace. Free movement inside it; outside
-    it only the Gateway, DNS and HTTPS to the internet.
+    it only the Gateway, DNS, the Pushgateway and HTTPS to the internet.
   egress:
   - toEndpoints:
     - matchLabels:
@@ -29,6 +29,14 @@ spec:
         protocol: TCP
   - toEndpoints:
     - {}
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: pushgateway
+        io.kubernetes.pod.namespace: backup-verify
+    toPorts:
+    - ports:
+      - port: "9091"
+        protocol: TCP
   - toEntities:
     - world
     toPorts:

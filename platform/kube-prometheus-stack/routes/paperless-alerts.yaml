@@ -1,0 +1,51 @@
+# The Paperless ingest canary (apps/paperless/canary.yaml), every 6 hours,
+# pushed to the Pushgateway as job paperless-canary.
+# Tests: tests/prometheus/paperless_test.yaml.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: paperless-alerts
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: paperless.ingest
+      rules:
+        - alert: PaperlessIngestFailing
+          # No success in 13 hours: two missed runs in a row, or none on record.
+          expr: |
+            time() - max(max_over_time(paperless_canary_last_success_timestamp_seconds[1d])) > 13 * 3600
+            or absent_over_time(paperless_canary_last_success_timestamp_seconds[1d])
+          for: 10m
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessIngestFailing.md
+            summary: "Paperless ingest canary has not succeeded in 13 hours"
+            description: >-
+              No canary page uploaded to Paperless has been findable by a
+              full-text search in 13 hours, or there is no success on record:
+              uploads may not reach OCR and the index. The reason is in the
+              last Job: kubectl -n paperless logs job/<job>.
+
+        - alert: PaperlessIngestSlow
+          # Above 5 minutes twice in a row. The gauge holds a run's duration
+          # until the next push 6 hours later, so 6 hours above the limit
+          # means the next run was slow too; a fast run resets it. A failed
+          # run also pushes its duration, so only successes count here; a
+          # failure is PaperlessIngestFailing's.
+          expr: |
+            max(paperless_canary_duration_seconds) > 300
+            and on() max(paperless_canary_success) == 1
+          for: 6h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessIngestSlow.md
+            summary: "Paperless uploads take over 5 minutes to be findable"
+            description: >-
+              Two canary runs in a row took over 5 minutes from upload to a
+              full-text search hit (last {{ $value | humanizeDuration }}).
+              OCR or the task queue is slow.

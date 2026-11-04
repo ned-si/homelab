@@ -1,0 +1,94 @@
+# Ingest canary (canary/canary.py; spec paperless-documents, design.md
+# "Findable within N minutes"): every 6 hours a generated one-page PDF is
+# uploaded through the API as the Paperless user `canary`, found by a
+# full-text search, deleted and emptied from the trash. The result goes to the
+# Pushgateway in backup-verify; PaperlessIngestFailing and PaperlessIngestSlow
+# (platform/kube-prometheus-stack/routes/paperless-alerts.yaml) page on it.
+#
+# `canary` has no group, only its own add, view and delete document
+# permissions, so it sees only its own pages. The `share` workflow gives
+# `readers` view on them too while they exist (an API upload, like any
+# other). Its token is in the Secret `paperless-canary`
+# (apps/secrets/paperless-canary.sops.yaml). The Pushgateway's NetworkPolicy
+# (platform/backup-verify/pushgateway.yaml) admits its push.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: paperless-canary
+  labels:
+    app.kubernetes.io/name: paperless-canary
+spec:
+  # 01:00, 07:00, 13:00, 19:00 UTC: clear of the 02:30 backup, whose export
+  # would miss a page purged mid-run.
+  schedule: "0 1,7,13,19 * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      # One try: the next run is the retry, and the alerts read the pushes.
+      backoffLimit: 0
+      # The 15-minute search timeout plus the upload and the cleanup.
+      activeDeadlineSeconds: 1500
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: paperless-canary
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: canary
+              # The paperless image for Pillow and img2pdf.
+              # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
+              image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "-u", "/app/canary.py"]
+              env:
+                - name: PAPERLESS_API_URL
+                  value: http://paperless:8000
+                - name: PAPERLESS_API_TOKEN_FILE
+                  value: /secret/PAPERLESS_API_TOKEN
+                - name: PUSHGATEWAY
+                  value: http://pushgateway.backup-verify.svc:9091
+                - name: HOME
+                  value: /tmp
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: app
+                  mountPath: /app
+                  readOnly: true
+                - name: token
+                  mountPath: /secret
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: app
+              configMap:
+                name: paperless-canary
+            - name: token
+              secret:
+                secretName: paperless-canary
+            - name: tmp
+              emptyDir:
+                sizeLimit: 64Mi

@@ -26,6 +26,12 @@ spec:
       podSelector:
         matchLabels:
           app.kubernetes.io/name: talos-drift
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: paperless
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/name: paperless-canary
     ports:
     - port: http
       protocol: TCP

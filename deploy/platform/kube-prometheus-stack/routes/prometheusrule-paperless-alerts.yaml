@@ -1,0 +1,50 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: paperless-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: paperless.ingest
+    rules:
+    - alert: PaperlessIngestFailing
+      annotations:
+        description: 'No canary page uploaded to Paperless has been findable by a
+          full-text search in 13 hours, or there is no success on record: uploads
+          may not reach OCR and the index. The reason is in the last Job: kubectl
+          -n paperless logs job/<job>.'
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessIngestFailing.md
+        summary: Paperless ingest canary has not succeeded in 13 hours
+      expr: |
+        time() - max(max_over_time(paperless_canary_last_success_timestamp_seconds[1d])) > 13 * 3600
+        or absent_over_time(paperless_canary_last_success_timestamp_seconds[1d])
+      for: 10m
+      labels:
+        action: human
+        severity: warning
+    - alert: PaperlessIngestSlow
+      annotations:
+        description: Two canary runs in a row took over 5 minutes from upload to a
+          full-text search hit (last {{ $value | humanizeDuration }}). OCR or the
+          task queue is slow.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessIngestSlow.md
+        summary: Paperless uploads take over 5 minutes to be findable
+      expr: |
+        max(paperless_canary_duration_seconds) > 300
+        and on() max(paperless_canary_success) == 1
+      for: 6h
+      labels:
+        action: human
+        severity: warning

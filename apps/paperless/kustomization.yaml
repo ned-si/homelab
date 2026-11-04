@@ -13,6 +13,8 @@ resources:
   - backup.yaml
   # Configuration as code: PostSync Job and nightly CronJob (apply.yaml).
   - apply.yaml
+  # Ingest canary every 6 hours (canary.yaml).
+  - canary.yaml
 
 # Input of paperless-apply. The name hash makes a change here a new
 # ConfigMap, so the Job always runs with the files it was synced with.
@@ -21,6 +23,9 @@ configMapGenerator:
     files:
       - config/apply.py
       - config/paperless.json
+  - name: paperless-canary
+    files:
+      - canary/canary.py
 
 # After every sync: the Service answers on the login page (no health
 # endpoint without authentication).

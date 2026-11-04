@@ -137,6 +137,13 @@ spec:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: talos-drift
+        # paperless-canary (apps/paperless/canary.yaml) pushes its result.
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: paperless
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: paperless-canary
       ports:
         - port: http
           protocol: TCP
