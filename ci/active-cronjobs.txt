@@ -10,6 +10,7 @@ mealie/mealie-prune
 paperless/paperless-backup
 paperless/paperless-prune
 paperless/paperless-apply-nightly
+paperless/paperless-canary
 syncthing/syncthing-backup
 syncthing/syncthing-prune
 theater/theater-postgres-backup

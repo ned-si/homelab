@@ -128,6 +128,8 @@ that application's failing conditions and resources.
 - [SLOErrorBudgetBurnFastPersistent](SLOErrorBudgetBurnFastPersistent.md): an app failing for 30 minutes
 - [SLOErrorBudgetBurnSlowPersistent](SLOErrorBudgetBurnSlowPersistent.md): an app burning its budget for a day
 - [SLOLatencyBudgetBurnSlowPersistent](SLOLatencyBudgetBurnSlowPersistent.md): an app up but slow for a day
+- [PaperlessIngestFailing](PaperlessIngestFailing.md): no Paperless upload findable by the canary in 13 hours
+- [PaperlessIngestSlow](PaperlessIngestSlow.md): two canary uploads in a row over 5 minutes to findable
 
 ## Monitoring went blind
 

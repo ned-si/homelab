@@ -26,7 +26,7 @@ metadata:
 spec:
   description: >-
     Everything in the paperless namespace. Free movement inside it; outside it
-    only the Gateway, DNS and HTTPS to the internet.
+    only the Gateway, DNS, the Pushgateway and HTTPS to the internet.
   endpointSelector: {}
   enableDefaultDeny:
     ingress: false
@@ -72,6 +72,16 @@ spec:
     # Intra-namespace, the counterpart of the ingress rule above.
     - toEndpoints:
         - {}
+
+    # paperless-canary -> the Pushgateway :9091 (apps/paperless/canary.yaml).
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: backup-verify
+            app.kubernetes.io/name: pushgateway
+      toPorts:
+        - ports:
+            - port: "9091"
+              protocol: TCP
 
     # HTTPS to the internet, for two distinct consumers:
     #
