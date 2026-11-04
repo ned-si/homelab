@@ -245,13 +245,33 @@ metadata:
   namespace: immich
 spec:
   description: >-
-    The CloudNativePG operator, cluster-wide from this namespace: the instance managers of every namespace, and the Kubernetes API.
+    The CloudNativePG operator, cluster-wide from this namespace: its admission webhook in, the instance managers of every namespace and the Kubernetes API out.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: cloudnative-pg
   enableDefaultDeny:
     ingress: false
     egress: false
+  ingress:
+    # The API server calls the validating and mutating webhooks
+    # (cnpg-validating/mutating-webhook-configuration, failurePolicy Fail):
+    # Service cnpg-webhook-service 443 -> 9443. Every create or update of a
+    # Cluster, Backup or ScheduledBackup in any namespace goes through it.
+    # Hubble sees these calls from the nodes' cilium_host addresses, so as
+    # `host` (the API server on the operator's node) or `remote-node` (the
+    # other control planes), not as `kube-apiserver` (that identity holds
+    # the node IPs, which tunnel routing does not use as source). Until this
+    # rule they matched only the switch's host/remote-node rule (L3-Only,
+    # seen live for a server dry run of immich-db on 2026-11-04).
+    # `kube-apiserver` is listed for a routing mode that keeps the node IP.
+    - fromEntities:
+        - kube-apiserver
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "9443"
+              protocol: TCP
   egress:
     # Instance-manager status (8000) and checks (5432) of every Cluster:
     # theater, immich, mealie, keycloak, home, backup-verify's restores (about
@@ -270,6 +290,66 @@ spec:
             - port: "5432"
               protocol: TCP
     # Reconciling Clusters, Backups and their Secrets (59 in 7 days).
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # Intended drop: operator -> `world`, port not recorded. One series of
+    # 6 connections on homelab-cp-3, present from before 2026-10-28 until
+    # the Cilium agents restarted on 2026-10-29 08:36Z, and not seen since
+    # on any node. The operator's only `world` peer is S3 on 443, which
+    # immich-app allows, so this was another port; the chart configures
+    # no other outside destination. Re-checked with the presence query
+    # before the egress flip.
+---
+# ---------------------------------------------------------------------------
+# Added for the immich flips (spec netpol-default-deny task 13).
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: barman-cloud-plugin
+  namespace: immich
+spec:
+  description: >-
+    The Barman Cloud plugin reads its ObjectStores, Secrets and leader lease from the Kubernetes API.
+  endpointSelector:
+    matchLabels:
+      app: barman-cloud
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # platform/barman-cloud-plugin (Deployment `barman-cloud`,
+    # --leader-elect). The operator reaches it on 9090 through immich-app's
+    # intra-namespace rule. 14 connections in 7 days, as of 2026-11-04.
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hook-jobs
+  namespace: immich
+spec:
+  description: >-
+    presync-backup reads backup status from the Kubernetes API.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: presync-backup
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # components/presync-backup, MODE cnpg: 8 connections in its run of
+    # 2026-11-02 17:01Z. postsync-smoke needs no rule here: it calls
+    # immich-server inside the namespace (immich-app).
     - toEntities:
         - kube-apiserver
       toPorts:
