@@ -16,6 +16,15 @@ export STUB_LOG=$tmp/calls.log
 cat > "$bin/helm" <<'EOF'
 #!/bin/bash
 echo "helm $*" >> "$STUB_LOG"
+if [ "$1" = pull ]; then
+  dest=${!#}
+  src=$(mktemp -d)
+  mkdir "$src/vector"
+  printf 'name: vector\nversion: 0.61.0\n' > "$src/vector/Chart.yaml"
+  tar -czf "$dest/vector-0.61.0.tgz" -C "$src" vector
+  rm -rf "$src"
+  exit 0
+fi
 cat "$STUB_RENDER"
 EOF
 cat > "$bin/docker" <<'EOF'
@@ -104,8 +113,10 @@ mkrepo "$repo" 0.61.0-distroless-libc "$SHA"
 render ok
 out=$(run_validate "$repo")
 expect_eq "valid config passes" "0" "${out%%|*}"
-expect_contains "helm renders the Application's chart version and values" \
-  "helm template vector vector --repo https://helm.vector.dev --version 0.61.0 --namespace logging -f platform/vector/values.yaml" "$(cat "$STUB_LOG")"
+expect_contains "helm pulls the Application's chart version" \
+  "helm pull vector --repo https://helm.vector.dev --version 0.61.0 --destination " "$(cat "$STUB_LOG")"
+expect_contains "helm renders the pulled chart with the values" \
+  "/vector-0.61.0.tgz --namespace logging -f platform/vector/values.yaml" "$(cat "$STUB_LOG")"
 expect_contains "docker runs the pinned image, offline" \
   "docker run --rm --network none -e VECTOR_SELF_NODE_NAME=ci -v " "$(cat "$STUB_LOG")"
 expect_contains "docker validates the mounted config" \

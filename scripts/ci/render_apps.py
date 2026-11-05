@@ -36,6 +36,11 @@ read as plain documents (recursing when `directory.recurse`), `kubectl
 kustomize` when it holds a kustomization, `helm template` when it holds a
 Chart.yaml.
 
+Remote charts are fetched by chart_fetch.py (`helm pull` with retries) into
+$CHART_CACHE, or a temporary directory when it is unset, and templated from
+the archive. --prune-chart-cache removes the cache entries this render did
+not use, so a cache saved after it holds only the pinned charts.
+
 Output (CI scratch, not deploy/): <out>/<app>/manifests.yaml, all of an
 Application's objects in one file (legacy apps under <out>/legacy/<app>/,
 helm-CLI releases under <out>/helm-releases/<name>/), <out>/index.json and
@@ -58,6 +63,8 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import chart_fetch
 
 THIS_REPO = {"https://github.com/ned-si/homelab", "git@github.com:ned-si/homelab"}
 NEW_LAYERS = ("infrastructure", "platform", "apps")
@@ -150,6 +157,18 @@ class Renderer:
         for key, sub in (("HELM_CACHE_HOME", "cache"), ("HELM_CONFIG_HOME", "config"), ("HELM_DATA_HOME", "data")):
             self.env.setdefault(key, str(self.helm_home / sub))
         self.tmp = Path(tempfile.mkdtemp(prefix="render-apps-values-"))
+        cache = os.environ.get("CHART_CACHE")
+        self.chart_cache = Path(cache) if cache else self.helm_home / "charts"
+        self.charts_used: set[Path] = set()
+
+    def chart(self, repo: str, chart: str, version: str) -> list[str]:
+        """`helm template` chart arguments: the archive, from the cache or fetched."""
+        try:
+            archive = chart_fetch.fetch(repo, chart, version, self.chart_cache, env=self.env)
+        except chart_fetch.FetchError as exc:
+            raise RenderError(str(exc)) from exc
+        self.charts_used.add(archive.parent.resolve())
+        return [str(archive)]
 
     def cleanup(self) -> None:
         shutil.rmtree(self.helm_home, ignore_errors=True)
@@ -235,10 +254,7 @@ class Renderer:
         version = str(src.get("targetRevision", ""))
         if not version:
             raise RenderError(f"chart {chart} has no targetRevision")
-        if repo.startswith("oci://") or "://" not in repo:
-            chart_args = [f"oci://{repo.removeprefix('oci://').rstrip('/')}/{chart}", "--version", version]
-        else:
-            chart_args = [chart, "--repo", repo, "--version", version]
+        chart_args = self.chart(repo, chart, version)
         extra = self.helm_values_args(app_name, helm, refs, None)
         return self.helm_template(release, chart_args, namespace, extra, not helm.get("skipCrds"))
 
@@ -316,7 +332,7 @@ class Renderer:
         values = self.local_path(entry["values"])
         if not values.is_file():
             raise RenderError(f"values file not found: {entry['values']}")
-        chart_args = [entry["chart"], "--repo", entry["repo"], "--version", str(entry["version"])]
+        chart_args = self.chart(entry["repo"], entry["chart"], str(entry["version"]))
         return self.helm_template(entry.get("release") or name, chart_args, entry["namespace"], ["-f", str(values)], True)
 
 
@@ -354,6 +370,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", default=str(default_out))
     ap.add_argument("--scopes", default="1,2,3,4", help="comma list of scope items to render")
     ap.add_argument("--kube-version", default=os.environ.get("K8S_VERSION", "1.37.1"))
+    ap.add_argument("--prune-chart-cache", action="store_true",
+                    help="after an error-free render of every scope, drop unused $CHART_CACHE entries")
     args = ap.parse_args(argv)
 
     root = Path(args.repo_root).resolve()
@@ -487,6 +505,9 @@ def main(argv: list[str] | None = None) -> int:
     n_skip = sum(1 for e in index if e["notes"]) + len(skipped)
     print(f"render: {len(index) - errors} applications rendered, {total} objects, "
           f"{n_skip} skipped, {errors} errors")
+    if args.prune_chart_cache and not errors and scopes >= {"1", "2", "3", "4"} and os.environ.get("CHART_CACHE"):
+        n = chart_fetch.prune(r.chart_cache, r.charts_used)
+        print(f"chart cache: {len(r.charts_used)} charts kept, {n} entries pruned")
     r.cleanup()
     return 1 if errors else 0
 
