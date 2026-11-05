@@ -106,12 +106,31 @@ jobs:
         with:
           persist-credentials: false
 
+      # Tool archives: keyed on the versions this job installs; install-tool.sh
+      # checks each cached file against its sha256 like a download.
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-lint-${{ env.ACTIONLINT_VERSION }}-${{ env.SHELLCHECK_VERSION }}-${{ env.TOFU_VERSION }}
+          restore-keys: tools-lint-
+
       - name: Install pinned tools
         id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
         run: |
           set -euo pipefail
           scripts/ci/install-tool.sh actionlint shellcheck tofu
           scripts/ci/setup-python-deps.sh
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       # Hook environments (pre-commit-hooks, the renovate npm package) are
       # keyed on the config that pins them.
@@ -171,12 +190,31 @@ jobs:
         with:
           persist-credentials: false
 
+      # Shared with tests (same tools); render saves it.
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: "tools-render-${{ env.HELM_VERSION }}-${{ env.KUBECTL_VERSION }}-${{ env.KUBECONFORM_VERSION }}-\
+            ${{ env.KUBE_LINTER_VERSION }}-${{ env.PROMTOOL_VERSION }}-${{ env.ALERTMANAGER_VERSION }}-${{ env.KYVERNO_VERSION }}"
+          restore-keys: tools-render-
+
       - name: Install pinned tools
         id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
         run: |
           set -euo pipefail
           scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
           scripts/ci/setup-python-deps.sh
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       # Chart archives (scripts/ci/chart_fetch.py): the newest cache with the
       # same prefix is restored; each archive is checked against the sha256
@@ -265,9 +303,10 @@ jobs:
             scripts/ci/repo-policy.sh
           fi
 
-  # tests, promtool and alertmanager install the same tools as render: some
-  # tests skip when a tool is missing (test_dashboards.py without promtool,
-  # test_kyverno_restricted.sh without kyverno).
+  # tests installs the same tools as render: some tests skip when a tool is
+  # missing (test_dashboards.py without promtool, test_kyverno_restricted.sh
+  # without kyverno). promtool and alertmanager install only the binaries
+  # their script runs; the script fails when one is missing.
   tests:
     runs-on: ubuntu-26.04
     timeout-minutes: 15
@@ -278,8 +317,19 @@ jobs:
         with:
           persist-credentials: false
 
+      # render's tool cache (restore only; render saves it).
+      - name: Restore tool archives
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: "tools-render-${{ env.HELM_VERSION }}-${{ env.KUBECTL_VERSION }}-${{ env.KUBECONFORM_VERSION }}-\
+            ${{ env.KUBE_LINTER_VERSION }}-${{ env.PROMTOOL_VERSION }}-${{ env.ALERTMANAGER_VERSION }}-${{ env.KYVERNO_VERSION }}"
+          restore-keys: tools-render-
+
       - name: Install pinned tools
         id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
         run: |
           set -euo pipefail
           scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
@@ -321,12 +371,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-promtool-${{ env.PROMTOOL_VERSION }}
+          restore-keys: tools-promtool-
+
       - name: Install pinned tools
         id: setup
-        run: |
-          set -euo pipefail
-          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
-          scripts/ci/setup-python-deps.sh
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
+        run: scripts/ci/install-tool.sh promtool
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       - name: Prometheus rules (promtool check + unit tests)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
@@ -342,12 +406,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-alertmanager-${{ env.ALERTMANAGER_VERSION }}
+          restore-keys: tools-alertmanager-
+
       - name: Install pinned tools
         id: setup
-        run: |
-          set -euo pipefail
-          scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
-          scripts/ci/setup-python-deps.sh
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
+        run: scripts/ci/install-tool.sh alertmanager
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       - name: Alertmanager routing (amtool + replayed outages)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
@@ -366,9 +444,26 @@ jobs:
           # merge-base in a worktree.
           fetch-depth: 0
 
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-security-${{ env.GITLEAKS_VERSION }}-${{ env.TRIVY_VERSION }}
+          restore-keys: tools-security-
+
       - name: Install pinned tools
         id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
         run: scripts/ci/install-tool.sh gitleaks trivy
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       - name: gitleaks on the new commits only
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
@@ -430,8 +525,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-talos-${{ env.TALHELPER_VERSION }}-${{ env.TALOSCTL_VERSION }}
+          restore-keys: tools-talos-
+
       - name: Install pinned tools
+        id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
         run: scripts/ci/install-tool.sh talhelper talosctl
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       - name: talhelper genconfig + talosctl validate --mode metal
         run: scripts/ci/talos-validate.sh
@@ -467,7 +580,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-talos-upgrade-${{ env.TALOSCTL_VERSION }}-${{ env.KUBECTL_VERSION }}-${{ env.HELM_VERSION }}
+          restore-keys: tools-talos-upgrade-
+
       - name: Install pinned tools and QEMU
+        id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
         run: |
           set -euo pipefail
           scripts/ci/install-tool.sh talosctl kubectl helm
@@ -475,6 +599,13 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends qemu-system-x86 qemu-utils ovmf > /dev/null
           sudo mkdir -p /var/run/netns
           test -c /dev/kvm
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       - name: Create the cluster at the current versions, install Cilium
         run: scripts/ci/talos-upgrade-rehearsal.sh create
@@ -537,8 +668,26 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-preprod-${{ env.KIND_VERSION }}-${{ env.KUBECTL_VERSION }}
+          restore-keys: tools-preprod-
+
       - name: Install pinned tools
+        id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
         run: scripts/ci/install-tool.sh kind kubectl
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
 
       # CRD sources are keyed on their pinned list, images on the image list.
       - name: Cache keys

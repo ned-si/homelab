@@ -6,12 +6,21 @@
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
 # Tools: kubeconform actionlint shellcheck gitleaks trivy kyverno kube-linter helm
 #        kubectl kind tofu promtool alertmanager talhelper talosctl
+#
+# TOOL_CACHE=<dir> (restored in CI by actions/cache): downloads are kept there
+# as <sha256>. A cached file goes through the same sha256 check as a download;
+# on a mismatch it is deleted and downloaded again. Files of tools not named
+# in this call are removed, so a saved cache holds this call's pins only.
+# curl retries timeouts and HTTP 408/429/5xx with exponential backoff.
 set -euo pipefail
 
 bin="${RUNNER_TEMP:?RUNNER_TEMP not set}/bin"
 mkdir -p "$bin"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+cache=${TOOL_CACHE:-}
+if [ -n "$cache" ]; then mkdir -p "$cache"; fi
+used=" "
 
 need() { # NAME -> value of env var NAME, or fail
   local v=${!1:-}
@@ -20,8 +29,20 @@ need() { # NAME -> value of env var NAME, or fail
 }
 
 fetch() { # url sha256 -> $work/dl
-  curl -fsSL --retry 3 --retry-delay 5 -m 300 -o "$work/dl" "$1"
+  used="$used$2 "
+  if [ -n "$cache" ] && [ -f "$cache/$2" ]; then
+    cp "$cache/$2" "$work/dl"
+    if echo "$2  $work/dl" | sha256sum -c --quiet - 2>/dev/null; then
+      echo "cached $1"
+      return
+    fi
+    echo "install-tool: cached copy of $1 fails its sha256; downloading it again" >&2
+    rm -f "$cache/$2"
+  fi
+  curl -fsSL --retry 6 --retry-connrefused --retry-max-time 240 -m 300 -o "$work/dl" "$1"
   echo "$2  $work/dl" | sha256sum -c --quiet - || { echo "install-tool: sha256 mismatch for $1" >&2; exit 1; }
+  echo "downloaded $1"
+  if [ -n "$cache" ]; then cp "$work/dl" "$cache/$2"; fi
 }
 
 for tool in "$@"; do
@@ -78,5 +99,12 @@ for tool in "$@"; do
   rm -f "$work/dl"
   echo "installed $tool"
 done
+
+if [ -n "$cache" ]; then
+  for f in "$cache"/*; do
+    [ -f "$f" ] || continue
+    case "$used" in *" ${f##*/} "*) ;; *) rm -f "$f" ;; esac
+  done
+fi
 
 if [ -n "${GITHUB_PATH:-}" ]; then echo "$bin" >> "$GITHUB_PATH"; fi
