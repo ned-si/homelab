@@ -93,14 +93,7 @@ theater/Deployment/radarr/radarr                      non-root             root 
 theater/Deployment/radarr/radarr                      privilege-escalation #726 task 10
 theater/Deployment/radarr/radarr                      seccomp              #726 task 10
 theater/Deployment/radarr/wait-for-db                 seccomp              #726 task 10
-theater/Deployment/sonarr/*                           token                #726 task 9
-theater/Deployment/sonarr/exportarr                   seccomp              #726 task 9
-theater/Deployment/sonarr/exportarr-key               seccomp              #726 task 9
-theater/Deployment/sonarr/sonarr                      capabilities         #726 task 9
 theater/Deployment/sonarr/sonarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/sonarr/sonarr                      privilege-escalation #726 task 9
-theater/Deployment/sonarr/sonarr                      seccomp              #726 task 9
-theater/Deployment/sonarr/wait-for-db                 seccomp              #726 task 9
 theater/Deployment/theater-sso/*                      token                #726 task 18
 theater/Job/arr-import-lists/*                        token                #726 task 18
 theater/Job/bazarr-settings/*                         token                #726 task 18
