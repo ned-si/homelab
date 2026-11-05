@@ -10,7 +10,7 @@ with its own diff, test and rollback
 ## Themes
 
 In priority order, top first. The operator set this order on 2026-11-03
-and put home automation fourth on 2026-11-04.
+and later put home automation fourth.
 
 1. **Fix what is broken now.** The open bugs (#836, #943, #735) and the
    weekday issues: the snapshotter sidecar without snapshot CRDs (#944),
@@ -36,7 +36,8 @@ and put home automation fourth on 2026-11-04.
      bootstrap and break-glass store.
    - One identity: the Kubernetes API (#711), Headlamp (#712) and Jellyfin
      (#730) on Keycloak.
-4. **Home automation in daily use** (#1072). Home Assistant runs the
+4. **Home automation in daily use** (#1072, spec
+   [home-automation](../.kiro/specs/home-automation/)). Home Assistant runs the
    lights, heating, room climate, energy and solar-surplus charging,
    plants, outdoor cameras, the doorbell, the garage door and the alarm
    sensors, with a main Home dashboard for the phones and a wall tablet.
