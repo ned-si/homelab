@@ -244,12 +244,14 @@ def test_chart_cache_is_reused_and_pruned(tmp_path, fake_helm, monkeypatch):
     (cache / "0123456789abcdef").mkdir(parents=True)  # an entry no Application pins
     r = run_render(root, out, "--prune-chart-cache")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert "chart cache: 1 charts kept, 1 entries pruned" in r.stdout
+    assert "charts: 1 used, 1 pulled" in r.stdout
+    assert "chart cache: 1 kept, 1 entries pruned" in r.stdout
     assert [p.name for p in cache.iterdir()] != ["0123456789abcdef"] and len(list(cache.iterdir())) == 1
     fake_helm.write_text("")
     r = run_render(root, out)
     assert r.returncode == 0, r.stdout + r.stderr
     assert [ln.split()[0] for ln in fake_helm.read_text().splitlines()] == ["template"]
+    assert "charts: 1 used, 0 pulled" in r.stdout
 
 
 def test_missing_value_file_is_an_error(tmp_path, fake_helm):

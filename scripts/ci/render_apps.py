@@ -501,13 +501,14 @@ def main(argv: list[str] | None = None) -> int:
         for e in index:
             if not e["error"]:
                 fh.write(str(out / e["app"] / "manifests.yaml") + "\n")
+    print(f"charts: {len(r.charts_used)} used, {chart_fetch.PULLS} pulled")
     total = sum(e["objects"] for e in index)
     n_skip = sum(1 for e in index if e["notes"]) + len(skipped)
     print(f"render: {len(index) - errors} applications rendered, {total} objects, "
           f"{n_skip} skipped, {errors} errors")
     if args.prune_chart_cache and not errors and scopes >= {"1", "2", "3", "4"} and os.environ.get("CHART_CACHE"):
         n = chart_fetch.prune(r.chart_cache, r.charts_used)
-        print(f"chart cache: {len(r.charts_used)} charts kept, {n} entries pruned")
+        print(f"chart cache: {len(r.charts_used)} kept, {n} entries pruned")
     r.cleanup()
     return 1 if errors else 0
 

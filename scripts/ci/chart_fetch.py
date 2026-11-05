@@ -44,6 +44,9 @@ TRANSIENT = re.compile(
 )
 
 
+PULLS = 0  # successful `helm pull` calls in this process
+
+
 class FetchError(Exception):
     pass
 
@@ -103,6 +106,7 @@ def pull_args(repo: str, chart: str, version: str) -> list[str]:
 
 
 def pull(repo: str, chart: str, version: str, dest: Path, env: dict | None) -> Path:
+    global PULLS
     cmd = ["helm", "pull", *pull_args(repo, chart, version), "--destination", str(dest)]
     waits = delays()
     for attempt in range(len(waits) + 1):
@@ -111,6 +115,7 @@ def pull(repo: str, chart: str, version: str, dest: Path, env: dict | None) -> P
         except FileNotFoundError as exc:
             raise FetchError("helm not found") from exc
         if p.returncode == 0:
+            PULLS += 1
             break
         err = first_line(p.stderr)
         if attempt == len(waits) or not TRANSIENT.search(p.stderr or ""):
