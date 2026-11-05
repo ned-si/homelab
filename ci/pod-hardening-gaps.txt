@@ -35,12 +35,6 @@ keycloak/Deployment/keycloak/keycloak                 privilege-escalation #726 
 keycloak/Deployment/keycloak/keycloak                 seccomp              #726 task 8
 mealie/CronJob/mealie-backup/*                        token                #726 task 18
 mealie/CronJob/mealie-prune/*                         token                #726 task 18
-mealie/Deployment/mealie/*                            token                #726 task 4
-mealie/Deployment/mealie/mealie                       capabilities         #726 task 4
-mealie/Deployment/mealie/mealie                       non-root             #726 task 4
-mealie/Deployment/mealie/mealie                       privilege-escalation #726 task 4
-mealie/Deployment/mealie/mealie                       probes               #726 task 4
-mealie/Deployment/mealie/mealie                       seccomp              #726 task 4
 monitoring/CronJob/grafana-backup/*                   token                #726 task 19
 paperless/CronJob/paperless-backup/*                  token                #726 task 18
 paperless/CronJob/paperless-prune/*                   token                #726 task 18
