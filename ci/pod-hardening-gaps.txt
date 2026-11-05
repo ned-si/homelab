@@ -113,12 +113,7 @@ theater/Deployment/prowlarr/prowlarr                  non-root             root 
 theater/Deployment/prowlarr/prowlarr                  privilege-escalation #726 task 12
 theater/Deployment/prowlarr/prowlarr                  seccomp              #726 task 12
 theater/Deployment/prowlarr/wait-for-db               seccomp              #726 task 12
-theater/Deployment/qbittorrent/*                      token                #726 task 2
-theater/Deployment/qbittorrent/qbittorrent            capabilities         #726 task 2
 theater/Deployment/qbittorrent/qbittorrent            non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/qbittorrent/qbittorrent            privilege-escalation #726 task 2
-theater/Deployment/qbittorrent/qbittorrent            probes               #726 task 2
-theater/Deployment/qbittorrent/qbittorrent            seccomp              #726 task 2
 theater/Deployment/radarr/*                           token                #726 task 10
 theater/Deployment/radarr/exportarr                   seccomp              #726 task 10
 theater/Deployment/radarr/exportarr-key               seccomp              #726 task 10

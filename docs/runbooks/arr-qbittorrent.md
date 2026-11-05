@@ -1,15 +1,15 @@
 # The *arr apps cannot reach qBittorrent
 
 Symptom: Sonarr, Radarr, Lidarr or Prowlarr report "download client
-unavailable", while the `theater/qbittorrent` pod is `Running 1/1` with no
-restarts.
+unavailable", and the `theater/qbittorrent` pod is `0/1` (NotReady) with its
+restart count rising, until `KubePodCrashLooping` fires.
 
 Cause, every time so far: a stale `/config/config/ipc-socket` (and sometimes
 `lockfile`) left by an unclean shutdown. qBittorrent uses the socket for
 single-instance detection, so every start exits after about two seconds; s6
-restarts it inside the container forever. The Deployment has no readiness or
-liveness probe, so Kubernetes keeps reporting the pod healthy and routing to a
-process that is not listening.
+restarts it inside the container. The readiness probe on `:8080` marks the pod
+NotReady, the liveness probe restarts the container, and the socket on the
+volume survives the restart, so the restarts repeat.
 
 ## Diagnose
 
@@ -79,11 +79,13 @@ Expected: `EXTERNAL-IP 192.168.1.200`. If it is, check the router's forward.
 
 ## Prevention
 
-Not in place yet: qBittorrent runs `ghcr.io/hotio/qbittorrent:latest` with
-`imagePullPolicy: Always` and no probes, at parity with what ran before the
-layered tree. A readiness probe on `:8080` would turn this from a silent outage
-into a visible `NotReady` pod, and a pinned tag would stop a restart from
-being an unreviewed upgrade. Both are on the [roadmap](../roadmap.md).
+The image is pinned by digest (`ghcr.io/hotio/qbittorrent`, Renovate), so a
+restart is never an unreviewed upgrade. Readiness and liveness probes on
+`:8080` turn this fault from a silent outage into a NotReady pod and then
+`KubePodCrashLooping`; they do not clear it, because the socket is on the
+volume. The container keeps `KILL`, `SETGID` and `SETUID` so that s6 can stop
+qBittorrent cleanly on a pod delete instead of the runtime killing it after
+the grace period, which is what leaves the socket behind.
 
 The same failure applies to any single-instance app with a lock file on a
 persistent volume: after a power loss, check the listener, not the pod status.
