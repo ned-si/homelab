@@ -28,6 +28,7 @@ spec:
       labels:
         app.kubernetes.io/name: paperless
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: PAPERLESS_REDIS
@@ -82,6 +83,12 @@ spec:
           value: disable
         image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
         imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 5
+          periodSeconds: 30
+          tcpSocket:
+            port: http
+          timeoutSeconds: 5
         name: paperless
         ports:
         - containerPort: 8000
@@ -96,6 +103,16 @@ spec:
         resources:
           requests:
             memory: 1280Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        startupProbe:
+          failureThreshold: 30
+          periodSeconds: 10
+          tcpSocket:
+            port: http
         volumeMounts:
         - mountPath: /data/data
           name: paperless-data
@@ -105,6 +122,12 @@ spec:
           name: paperless-consume
         - mountPath: /usr/src/paperless/export
           name: paperless-export
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
       - name: paperless-data
         persistentVolumeClaim:

@@ -19,11 +19,25 @@ spec:
       labels:
         app.kubernetes.io/name: paperless
     spec:
+      automountServiceAccountToken: false
+      # Rootless as upstream documents it (docs/setup.md, "Rootless"): the
+      # image's paperless user, which owns every file on the four volumes.
+      # Not with PAPERLESS_OCR_LANGUAGES (installs packages at start).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: paperless
           # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
           image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: PAPERLESS_REDIS
               value: "redis://valkey.paperless.svc.cluster.local:6379"
@@ -99,6 +113,19 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 3
+          # The login page reads the database, so liveness and startup only
+          # check the port. Migrations run before the server binds it.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
           volumeMounts:
             - mountPath: "/data/data"
               name: paperless-data
@@ -106,9 +133,8 @@ spec:
               name: paperless-media
             - mountPath: "/data/consume"
               name: paperless-consume
-            # Written by the nightly export in backup.yaml. Mounted here so
-            # the image's root init chowns it to uid 1000 (init-folders
-            # chowns /usr/src/paperless/export); the backup Job runs as 1000.
+            # Written by the nightly export in backup.yaml, which runs as
+            # 1000 like this container; its files are already 1000:1000.
             - mountPath: "/usr/src/paperless/export"
               name: paperless-export
       volumes:
