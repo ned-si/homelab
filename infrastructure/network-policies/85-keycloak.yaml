@@ -1,0 +1,241 @@
+# keycloak: Keycloak (platform/keycloak/), its `keycloak-db` CloudNativePG
+# cluster and the Argo CD hook Jobs (presync-backup, postsync-smoke,
+# keycloak-realm-settings).
+#
+# From the manifests in platform/keycloak/ and the in-cluster callers found
+# in the repo (the blackbox probe in platform/blackbox-exporter/probes/).
+# Every OIDC client uses https://auth.lilalala.com, so its requests arrive
+# from the Gateway (`ingress`), not from the client's namespace. No policy
+# selected these pods, so Hubble had no verdicts to read; the 7-day audit of
+# spec netpol-default-deny starts with this file.
+#
+# Not enforced: every policy here is default-allow; the switch is the
+# `keycloak` block in ./90-enforcement.yaml. Keycloak's flips come after
+# every application namespace (decision D4).
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  description: >-
+    Keycloak: HTTP from the Gateway and the realm Job, the management port
+    from monitoring and the smoke Job, JGroups between members; egress to its
+    Postgres and HTTPS.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # auth.lilalala.com -> keycloak :8080.
+    # platform/keycloak/httproute.yaml -- HTTPRoute `keycloak`.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # platform/keycloak/realm/apply.sh -- kcadm to
+    # http://keycloak.keycloak.svc.cluster.local:8080 (PostSync Job
+    # `keycloak-realm-settings`, realm-settings.yaml).
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: keycloak-realm-settings
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # The management port 9000: the ServiceMonitor (monitoring.yaml, /metrics),
+    # the blackbox `internal` probe of /health/ready, and the smoke Job
+    # (kustomization.yaml, http://keycloak:9000/health/ready).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
+    # JGroups between members (deployment.yaml: JDBC_PING, 7800 and 57800).
+    # `replicas: 1` today.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: keycloak
+      toPorts:
+        - ports:
+            - port: "7800"
+              protocol: TCP
+            - port: "57800"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    # KC_DB_URL from `keycloak-db-app`.
+    - toEndpoints:
+        - matchLabels:
+            cnpg.io/cluster: keycloak-db
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: keycloak
+      toPorts:
+        - ports:
+            - port: "7800"
+              protocol: TCP
+            - port: "57800"
+              protocol: TCP
+    # Outbound HTTPS (identity provider metadata, update checks). Anything
+    # else, such as mail, shows up in the audit as a would-be drop.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: keycloak-postgres
+  namespace: keycloak
+spec:
+  description: >-
+    keycloak-db instances: reachable by Keycloak, backup-verify, monitoring
+    and the operator; egress to the Kubernetes API and S3.
+  endpointSelector:
+    matchExpressions:
+      - key: cnpg.io/cluster
+        operator: Exists
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: keycloak
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # The CloudNativePG operator in `immich` (clusters/homelab/platform/cnpg.yaml).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: immich
+            app.kubernetes.io/name: cloudnative-pg
+      toPorts:
+        - ports:
+            - port: "8000"
+              protocol: TCP
+            - port: "5432"
+              protocol: TCP
+    - fromEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+    # The weekly backup-verify reads (platform/backup-verify/scripts/postgres-targets.txt).
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: backup-verify
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    # The CloudNativePG exporter.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+      toPorts:
+        - ports:
+            - port: "9187"
+              protocol: TCP
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    # WAL and base backups (backup.yaml, ObjectStore `cnpg-backup`).
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEndpoints:
+        - matchExpressions:
+            - key: cnpg.io/cluster
+              operator: Exists
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+            - port: "8000"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: hook-jobs
+  namespace: keycloak
+spec:
+  description: >-
+    The Argo CD hook Jobs: presync-backup reads backup status from the
+    Kubernetes API, postsync-smoke and keycloak-realm-settings call Keycloak.
+  endpointSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [presync-backup, postsync-smoke, keycloak-realm-settings]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "6443"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: keycloak
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+            - port: "9000"
+              protocol: TCP

@@ -198,6 +198,35 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: enforce-default-deny
+  namespace: keycloak
+spec:
+  description: >-
+    Enforcement switch for the keycloak namespace, plus kubelet probes in and
+    cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
   namespace: syncthing
 spec:
   description: >-
