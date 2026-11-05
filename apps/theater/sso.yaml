@@ -1,25 +1,10 @@
-# Keycloak SSO in front of the theater admin UIs: one oauth2-proxy,
-# `theater-sso`, on https://theater.lilalala.com/arr/<app> (docs/theater.md,
-# "Login").
-#
-#     Gateway --/arr/<app>, /oauth2--> theater-sso:4180 --> <app>:<port>
-#
-# The *arr apps, LazyLibrarian, Bazarr and qBittorrent have no OIDC support,
-# so the login sits in front of them. The proxy routes by path (alpha config
-# below): each app keeps its URL base /arr/<app>; qBittorrent has none, so its
-# prefix is stripped. Access needs membership of the Keycloak group
-# `admins` or `TheaterAdmins`; the client `theater-sso` and the groups are
-# realm code (platform/keycloak/realm/platform.conf, `proxy_clients`, and
-# access.conf).
-#
-# Each app keeps its own form login behind the proxy: that local admin is the
-# break-glass account, reached with a port-forward when Keycloak is down.
-# Plex (the `/` catch-all) and Jellyfin stay off SSO: their TV apps cannot
-# complete an OIDC login. In-cluster API calls (Prowlarr, Bazarr, Recyclarr,
-# the *arr apps to qBittorrent) go pod to pod and never pass the proxy.
-#
-# oauth2-proxy reads the alpha config at start only: bump `config-version`
-# when it changes, to restart the pod.
+# Keycloak SSO in front of the theater admin UIs: oauth2-proxy `theater-sso`
+# on https://theater.lilalala.com/arr/<app> (docs/theater.md, "Login"), for
+# apps without OIDC. It routes by path; qBittorrent's prefix is stripped.
+# Groups `admins` or `TheaterAdmins` (platform/keycloak/realm/). Each app's
+# own form login is the break-glass, through a port-forward. In-cluster API
+# calls never pass the proxy. Bump `config-version` when the alpha config
+# changes (read at start only).
 ---
 apiVersion: v1
 kind: ConfigMap

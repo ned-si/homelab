@@ -1,30 +1,15 @@
-# Home Assistant: https://home.lilalala.com (docs/home-automation.md).
+# Home Assistant: https://home.lilalala.com (docs/home-automation.md). The
+# `config` init container copies configuration.yaml from the ConfigMap on
+# every start; the recorder is the CNPG cluster in database.yaml.
 #
-# Volumes:
-#   home-assistant-config (iSCSI)  /config: UI state in .storage, custom
-#                                  components, automations/scripts/scenes
-#                                  made in the UI
-#   ConfigMap home-assistant-config  configuration.yaml, copied over
-#                                  /config/configuration.yaml by the `config`
-#                                  init container on every start (config/)
-# The recorder (history) is the CNPG cluster in database.yaml.
+# Login: Keycloak through the hass-oidc-auth custom component. The
+# `custom-components` init container installs the pinned components and the
+# missing dependencies (and libatomic for mini-racer) into /config, so Home
+# Assistant never installs packages at runtime.
 #
-# Login: Keycloak through the hass-oidc-auth custom component (auth_oidc in
-# config/configuration.yaml). The `custom-components` init container installs
-# the pinned releases of the custom components (auth_oidc, and dreame_vacuum
-# for the MOVA robot) into /config/custom_components, and the dependencies
-# missing from the image (joserfc, mini-racer) into /config/deps, on
-# PYTHONPATH, so Home Assistant never installs packages at runtime.
-# mini-racer (V8, for dreame_vacuum's map) also needs libatomic, not in the
-# image: copied from Alpine's package into /config/deps/lib, on
-# LD_LIBRARY_PATH.
-#
-# Pod network, no hostNetwork: devices get static IPs and are added by
-# address, so mDNS/SSDP discovery is not needed (docs/home-automation.md).
-#
-# Non-root, without the image's s6 init: `python3 -m homeassistant` as uid
-# 1000. Nothing here needs root: no USB, no Bluetooth adapter (BLE goes
-# through an ESPHome proxy), no ICMP.
+# Pod network: devices are added by static IP, no discovery needed. Non-root
+# without the s6 init: nothing needs root (no USB, Bluetooth through an
+# ESPHome proxy).
 ---
 apiVersion: apps/v1
 kind: Deployment

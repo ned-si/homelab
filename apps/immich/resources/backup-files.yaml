@@ -1,35 +1,11 @@
-# The photo library itself, to S3 with restic.
+# The photo library to S3 with restic. Not VolSync: the library is write-once,
+# so a snapshot buys little, and a half-uploaded file is picked up next run.
 #
-# WHY RESTIC CRONJOBS AND NOT VOLSYNC
-#   VolSync is the more polished GitOps answer and does snapshot-then-backup, so
-#   it gets a crash-consistent point-in-time copy. It is also another operator to
-#   install, version and understand.
+# `immich-data` is ReadWriteOnce: the podAffinity puts this pod on the
+# immich-server node. No fsGroup: the kubelet could change ownership of the
+# library, and these jobs must never change it.
 #
-#   For THIS data the snapshot buys little: Immich's library is
-#   write-once-then-immutable content-addressed files. Backing it up live risks
-#   catching a half-uploaded file, and restic simply picks that file up correctly
-#   on the next run. The database is a separate concern; see docs/backups.md.
-#
-#   So: restic here, and VolSync noted as the upgrade path if this ever holds
-#   something that is mutated in place.
-#
-# WHY IT MOUNTS THE SAME RWO PVC AS IMMICH
-#   `immich-data` is ReadWriteOnce, so this CronJob's pod MUST land on the same
-#   node as the immich-server pod or it will fail to attach. That is what the
-#   podAffinity below guarantees. Without it the job fails intermittently and
-#   confusingly, depending on scheduling.
-#
-# WHY THERE IS NO fsGroup
-#   With an fsGroup set, the kubelet may change group ownership and mode bits on a
-#   mounted volume. `immich-data` is the photo library: these jobs only ever read
-#   it, and nothing they run may change it, not even its permissions. The library
-#   files are world-readable, uid 1000 reads them as they are, and the caches are
-#   emptyDirs, which are writable without an fsGroup.
-#
-# RETENTION
-#   Not here. The S3 repository's packs move to Glacier Instant Retrieval after a
-#   day, and Glacier IR bills a 90-day minimum, so the nightly job only adds a
-#   snapshot. `immich-library-prune` below forgets and prunes once a month.
+# Retention is monthly (`immich-library-prune`): Glacier IR bills 90 days.
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -154,34 +130,11 @@ spec:
                 sizeLimit: 2Gi
 ---
 # ###########################################################################
-# THE SAME LIBRARY, BACKED UP AGAIN -- LOCALLY, TO NFS.
-#
-# Two independent restic repositories, not one repository copied. That is
-# deliberate: `restic copy` would make the remote a derivative of the local, so a
-# corruption or a bad `forget` in one could propagate. Independent repositories
-# fail independently, which is the entire point of having two.
-#
-# The cost is reading the source twice. On a LAN that is minutes, and it buys a
-# copy whose verification is FREE -- which is why the expensive check
-# (`restic check --read-data`, full, weekly) runs against this repository while the
-# S3 one gets structure, freshness and a sample restore. See docs/backups.md.
-#
-# WHAT THIS DEFENDS AGAINST
-#   A bad Immich upgrade, a bad migration, an app rewriting its own data, a
-#   mistaken delete. Recovery is over the LAN at NAS speed, not over a domestic
-#   uplink from Glacier.
-#
-# WHAT IT DOES NOT DEFEND AGAINST
-#   Losing the pool. It lives on the same TrueNAS as the data it protects. That is
-#   what the S3 repository above is for.
-#
-# Note this is a nightly SECOND copy, and is separate from the instant
-# copy-on-write ZFS snapshots of the zvol taken on the TrueNAS before a risky
-# change. The snapshot is for "undo the last hour"; this is for "the volume
-# itself is wrong".
-#
-# This repository is not on S3, so the Glacier IR minimum does not apply and it
-# keeps its own nightly forget + prune.
+# THE SAME LIBRARY AGAIN, LOCALLY, TO NFS: an independent repository, not a
+# `restic copy`, so corruption or a bad `forget` cannot propagate. Its reads
+# are free, so the weekly `restic check --read-data` runs here
+# (docs/backups.md). It covers bad upgrades and mistaken deletes, not losing
+# the pool. Its own nightly forget + prune (no Glacier minimum).
 # ###########################################################################
 apiVersion: batch/v1
 kind: CronJob
@@ -317,15 +270,9 @@ spec:
               emptyDir:
                 sizeLimit: 2Gi
 ---
-# Retention for the S3 repository, once a month.
-#
-# Glacier IR bills every pack for at least 90 days, so deleting one sooner costs
-# the remaining days anyway. `--keep-within 3m` keeps every snapshot for three
-# months, so no pack becomes unused before it is 90 days old; after that one
-# snapshot per month is kept for a year. Monthly is often enough for a library
-# that only grows.
-#
-# No library mount, so no affinity: the job only talks to S3.
+# S3 retention, monthly. `--keep-within 3m` keeps every pack past Glacier
+# IR's 90-day minimum; then one snapshot a month for a year. Talks to S3 only,
+# so no affinity.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

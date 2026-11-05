@@ -1,18 +1,8 @@
-# Mosquitto: the MQTT broker for Zigbee2MQTT (zigbee2mqtt.yaml) and, later,
-# MQTT devices such as ESPHome nodes. In-cluster only (Service
-# mosquitto.home:1883); docs/home-automation.md.
-#
-# Auth: no anonymous clients. One user per client, passwords in the SOPS
-# Secret `mosquitto-users` (apps/secrets/mosquitto-users.sops.yaml), one key
-# per user. The `passwd` init container hashes them into the password file
-# (mosquitto_passwd -U), so only hashes reach the broker. The ACL limits each
-# user to its topics (config/mosquitto/acl); the same init container copies it
-# next to the password file, mode 600, because Mosquitto 2.1 refuses one that
-# others can read.
-#
-# No persistence: Zigbee2MQTT republishes state and discovery when Home
-# Assistant comes online (its birth message), so retained messages are
-# rebuilt after a restart. Nothing to back up: config in git, users in SOPS.
+# Mosquitto, the in-cluster MQTT broker (mosquitto.home:1883,
+# docs/home-automation.md). No anonymous clients: one user per client from the
+# SOPS Secret `mosquitto-users`, hashed by the `passwd` init container; the
+# ACL is copied mode 600 because Mosquitto 2.1 refuses a readable one. No
+# persistence: Zigbee2MQTT republishes state when Home Assistant comes online.
 ---
 apiVersion: apps/v1
 kind: Deployment

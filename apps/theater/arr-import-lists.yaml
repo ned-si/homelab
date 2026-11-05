@@ -1,12 +1,7 @@
 # Plex Watchlist import lists in Sonarr and Radarr, as code (docs/theater.md,
-# "Plex watchlist").
-#
-# A PostSync Job creates or updates one list per app through its API on every
-# sync of `theater`: a series or movie added to the Plex watchlist is added,
-# monitored and searched for with the quality profile HD-Original. The list
-# reads the watchlist with the Plex account token in the Secret `plex-token`
-# (apps/secrets/plex-token.sops.yaml). Changes made in the UI to these lists
-# are overwritten on the next sync.
+# "Plex watchlist"): a PostSync Job upserts one list per app with quality
+# profile HD-Original, reading the watchlist with the `plex-token` Secret. UI
+# changes to these lists are overwritten.
 ---
 apiVersion: v1
 kind: ConfigMap

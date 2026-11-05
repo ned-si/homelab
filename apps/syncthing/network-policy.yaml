@@ -1,10 +1,5 @@
-# Enforced from the start (default-deny ingress), unlike the allow-lists in
-# infrastructure/network-policies: only the shared Gateway (Cilium's Envoy,
-# identity `ingress`) may reach syncthing-sso, and only syncthing-sso and the
-# smoke Job may reach the Syncthing GUI, which has no login of its own
-# (statefulset.yaml). Egress stays open (Keycloak, the Syncthing GUI, peers).
-# The namespace switch (infrastructure/network-policies/90-enforcement.yaml)
-# adds node traffic (`host`, `remote-node`) on every port.
+# Enforced from the start: only the Gateway reaches syncthing-sso, and only
+# syncthing-sso and the smoke Job reach the GUI, which has no login of its own.
 ---
 # Sync wave -1: enforced before the StatefulSet drops the GUI login.
 apiVersion: cilium.io/v2

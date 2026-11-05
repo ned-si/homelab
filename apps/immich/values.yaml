@@ -1,14 +1,7 @@
-# Immich chart 0.13.x values (oci://ghcr.io/immich-app/immich-charts/immich,
-# bjw-s common library 5). Top-level `controllers` applies to every component;
-# `server` and `machine-learning` add their own.
-#
-# Renovate updates `image.tag` (server and machine learning share it). The
-# database image is not here: apps/immich/resources/database.yaml.
-#
-# The runtime config file is not rendered by the chart: `immich.configuration`
-# is unset and the file is mounted from the SOPS Secret `immich-config`
-# (apps/secrets/immich-config.sops.yaml) at /config, so the OIDC client secret
-# never lands in a ConfigMap.
+# Immich chart values (bjw-s common). Renovate updates `image.tag`, shared by
+# server and machine learning; the database image is in
+# resources/database.yaml. The config file comes from the SOPS Secret
+# `immich-config`, so the OIDC client secret never lands in a ConfigMap.
 controllers:
   main:
     containers:

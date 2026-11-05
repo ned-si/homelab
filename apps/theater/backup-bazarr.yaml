@@ -1,15 +1,7 @@
-# bazarr's config backup: /config, including its SQLite database in
-# /config/db, copied while Bazarr runs (best effort, like jellyfin's). The
-# settings and language profiles are code (bazarr.yaml), so a torn database
-# loses at most the download history.
-#
-# Same shape as the sonarr job in backup.yaml; different PVC, label, tag and
-# slot. The 04:50 slot sits before jellyfin's 05:00, in the same shared
-# repository, ten minutes apart for the restic lock.
-#
-# The subtitle FILES are not in it: they are written next to the media on the
-# NAS share, which this repository does not back up (re-acquirable media is
-# deliberately out of scope; see backup.yaml).
+# Bazarr's /config, SQLite included, copied live (best effort); settings and
+# profiles are code (bazarr.yaml), so a torn copy loses only history. 04:50,
+# ten minutes before jellyfin in the same repository. Subtitle files live
+# with the media and are not backed up.
 ---
 apiVersion: batch/v1
 kind: CronJob

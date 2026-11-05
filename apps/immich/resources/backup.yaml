@@ -1,17 +1,7 @@
-# Immich Postgres backup through the Barman Cloud plugin: continuous WAL
-# archiving plus a daily base backup, into
-# s3://ned-si-homelab-backups/cnpg/immich-db/, kept 30 days (point-in-time
-# recovery anywhere in that window). The barman tools run in the plugin's
-# sidecar, so the VectorChord image needs nothing extra. Restore: docs/backups.md.
-#
-# Two independent things must be backed up. Losing either loses the library:
-#
-#   1. POSTGRES  -- albums, people, embeddings, shared links, users. Handled here.
-#   2. THE FILES -- the photos themselves, on the `immich-data` PVC. Handled by
-#                   the restic CronJobs in ./backup-files.yaml.
-#
-# A Postgres backup alone gives a catalogue of files that no longer exist. A file
-# backup alone gives photos with no albums, no people and no search.
+# Immich Postgres through the Barman Cloud plugin: WAL and a daily base
+# backup to s3://ned-si-homelab-backups/cnpg/immich-db/, 30 days of
+# point-in-time recovery (docs/backups.md). The files are backed up by
+# ./backup-files.yaml; the library needs both.
 ---
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore

@@ -1,20 +1,8 @@
-# Mealie backup: the Postgres database and the recipe images. A nightly
-# logical dump and a file backup. The dump is a second, independent copy of the
-# database: the Cluster also archives WAL and takes daily base backups through
-# the Barman Cloud plugin (cnpg-backup.yaml).
-#
-# CONSISTENCY
-#   pg-mealie   CONSISTENT. pg_dump runs in a single transaction.
-#   mealie-data CONSISTENT. Uploaded images are write-once files; nothing
-#               rewrites them in place. Worst case is catching an upload in
-#               flight, which restic picks up correctly next run -- the same
-#               property that made restic the right answer for Immich's library.
-#
-# `mealie/data` must stay in `local.restic_repos` in bootstrap/aws-backup/main.tf
-# (scripts/check-restic-repos.sh), or its packs never move to Glacier IR.
-#
-# RETENTION is monthly, in `mealie-prune` below: Glacier IR bills every pack for
-# at least 90 days, so the nightly job only adds snapshots.
+# Mealie backup: a nightly pg_dump (a second copy next to cnpg-backup.yaml)
+# and the write-once recipe images. `mealie/data` must stay in
+# `local.restic_repos` in bootstrap/aws-backup/main.tf
+# (scripts/check-restic-repos.sh). Retention is monthly (`mealie-prune`):
+# Glacier IR bills 90 days.
 ---
 apiVersion: batch/v1
 kind: CronJob

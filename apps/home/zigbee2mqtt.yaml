@@ -1,25 +1,13 @@
-# Zigbee2MQTT: Zigbee devices to MQTT (Mosquitto) and Home Assistant
-# discovery. docs/home-automation.md, "Zigbee".
+# Zigbee2MQTT: Zigbee devices to MQTT and Home Assistant discovery
+# (docs/home-automation.md, "Zigbee").
 #
-# SCALED TO 0 until the coordinator is online. The coordinator is a USB
-# Zigbee adapter on a Raspberry Pi outside the cluster, shared over TCP by
-# ser2net (serial.port tcp://192.168.1.20:20108), so no node needs USB
-# passthrough and Zigbee2MQTT can run on any node. To enable: set the adapter
-# type (ZIGBEE2MQTT_CONFIG_SERIAL_ADAPTER below), replicas: 1, and add the
-# backup of zigbee2mqtt-data (network key, coordinator backup, device list).
+# SCALED TO 0 until the coordinator is online: a USB adapter on a Raspberry Pi
+# shared over TCP by ser2net, so no node needs USB. To enable: set the adapter
+# type below, replicas: 1, and back up zigbee2mqtt-data.
 #
-# Volumes:
-#   zigbee2mqtt-data (iSCSI)  /app/data: configuration.yaml (Zigbee2MQTT
-#                             writes devices, groups and the generated
-#                             network key into it), database.db,
-#                             coordinator_backup.json
-#   ConfigMap zigbee2mqtt-config  the seed configuration.yaml, copied in by
-#                             the `config` init container only when missing
-# Settings git owns are ZIGBEE2MQTT_CONFIG_* environment variables, which
-# override the file on every start.
-#
-# The frontend (port 8080) has no route: kubectl -n home port-forward
-# svc/zigbee2mqtt 8080, until it sits behind Keycloak.
+# The seed configuration.yaml is copied in only when missing (Zigbee2MQTT
+# writes into it); settings git owns are ZIGBEE2MQTT_CONFIG_* variables. The
+# frontend has no route yet: port-forward svc/zigbee2mqtt 8080.
 ---
 apiVersion: apps/v1
 kind: Deployment

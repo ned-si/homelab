@@ -1,51 +1,18 @@
-# Backups for the `theater` namespace: the six /config volumes (restic) and
-# logical dumps of the four *arr Postgres clusters. The dumps are a second,
-# independent copy: the clusters also archive WAL and take daily base backups
-# through the Barman Cloud plugin (cnpg-backup.yaml).
+# Backups for `theater`: the /config volumes (restic) and pg_dumps of the four
+# *arr clusters, a second copy next to cnpg-backup.yaml.
 #
-# One restic repository, `theater/configs`. Every snapshot is tagged
-# `theater-configs` (one entry in platform/backup-verify/restore-files.yaml)
-# plus its app tag. bootstrap/aws-backup/main.tf needs the repository in
-# `local.restic_repos`, or its packs get no lifecycle rule and stay in S3
-# Standard; scripts/check-restic-repos.sh keeps the two lists equal.
+# One repository, `theater/configs`; snapshots tagged `theater-configs` plus
+# the app. It must stay in `local.restic_repos` in bootstrap/aws-backup/main.tf
+# (scripts/check-restic-repos.sh). One job per volume, each with a
+# podAffinity to its app (ReadWriteOnce), ten minutes apart; every command
+# waits up to 30 minutes for a lock (docs/backups.md#locks). Prune is monthly
+# (theater-configs-prune): Glacier IR bills 90 days.
 #
-# One job per volume: each /config is ReadWriteOnce on its app's node, so
-# each job carries a podAffinity to that app. Jobs start ten minutes apart.
-# `backup` takes a shared repository lock, `check` and `forget` an exclusive
-# one; every command waits up to 30 minutes for a live lock (--retry-lock,
-# docs/backups.md#locks).
-# `forget --prune` runs monthly in theater-configs-prune: it holds the lock
-# much longer, and packs move to Glacier IR (90-day minimum billing), so
-# pruning nightly saves nothing.
-#
-# bazarr's config job is in backup-bazarr.yaml (SQLite in /config, best
-# effort).
-#
-# Consistency per tag:
-#
-#   theater-postgres        consistent: pg_dump is one transaction.
-#   sonarr/radarr/lidarr/prowlarr
-#                           consistent: the data is in Postgres; /config holds
-#                           config.xml (written by rename), the app's Backups/
-#                           zips and data-protection keys. logs.db and
-#                           MediaCover/ are excluded.
-#   plex                    consistent: live SQLite excluded, Plex's own
-#                           database backups included (see the plex job).
-#   jellyfin-config         consistent (XML).
-#   jellyfin-db-besteffort  not consistent, tagged so (see the jellyfin job).
-#
-# Apps are not scaled down for the backup: selfHeal reverts `replicas: 0`
-# within seconds. A sqlite3 online backup (`.backup`) before restic is the
-# fix for the one inconsistent tag (#746).
-#
-# Not backed up:
-#
-#   theater-data (NFS media)  PV reclaimPolicy Retain, mounted readOnly by
-#                             Plex and Jellyfin, ZFS snapshots on the NAS, and
-#                             re-acquirable. See docs/backups.md.
-#   qbittorrent-config        reconstructible; a restored copy could bring back
-#                             a stale ipc socket (docs/runbooks/arr-qbittorrent.md).
-#   plex-transcode, jellyfin-cache  scratch.
+# Consistent: the dumps, the *arr configs (data in Postgres; logs.db and
+# MediaCover/ excluded), plex (live SQLite excluded) and jellyfin-config.
+# jellyfin-db-besteffort may be torn (#746). Apps are not scaled down:
+# selfHeal reverts it. Not backed up: the NFS media (Retain, ZFS snapshots,
+# re-acquirable), qbittorrent-config (reconstructible) and the caches.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -729,22 +696,12 @@ spec:
                 sizeLimit: 1Gi
 ---
 # =========================================================================
-# Plex.
-#
-# The live SQLite databases (library.db, blobs.db) are excluded: a file copy
-# of an open database can be torn, and the restic image has no sqlite3.
-# Instead the job includes Plex's own database backups, written by the
-# scheduled task "Backup database every three days" as
-# com.plexapp.plugins.library.db-YYYY-MM-DD in the same directory.
-#
-# This backup depends on that task (Settings > Manage > Scheduled Tasks,
-# on by default). Without a dated file, restic still succeeds with only
-# Preferences.xml. Check:
+# Plex. The live SQLite databases are excluded; Plex's own dated database
+# backups ("Backup database every three days", on by default) are included.
+# Without that task only Preferences.xml is saved (server identity and token).
+# Check:
 #     kubectl -n theater exec deploy/plex -- \
 #       ls -la '/config/Library/Application Support/Plex Media Server/Plug-in Support/Databases/'
-#
-# Preferences.xml holds the server identity and account token; losing it
-# means re-claiming the server and re-pairing every client.
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -849,16 +806,9 @@ spec:
                 sizeLimit: 1Gi
 ---
 # =========================================================================
-# Jellyfin, the last job of the night. Two snapshots:
-#
-#   jellyfin-config          XML configuration and plugin settings; consistent.
-#   jellyfin-db-besteffort   jellyfin.db and library.db, live SQLite; may be
-#                            torn.
-#
-# Jellyfin core has no consistent export, the restic image has no sqlite3,
-# and selfHeal prevents scaling down. At risk if torn: accounts, watch state,
-# playback positions; not media or server settings. A sqlite3 online backup
-# (`.backup`) before restic would fix it (#746).
+# Jellyfin, last of the night: jellyfin-config (XML, consistent) and
+# jellyfin-db-besteffort (live SQLite: accounts, watch state, positions).
+# No consistent export and no sqlite3 in the image (#746).
 apiVersion: batch/v1
 kind: CronJob
 metadata:

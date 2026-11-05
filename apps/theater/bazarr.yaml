@@ -1,28 +1,19 @@
-# Bazarr: downloads subtitles for what Sonarr and Radarr manage, as external
-# .srt files next to the media. https://theater.lilalala.com/arr/bazarr, its
-# own form login (user `admin`). Setup and policy: docs/theater.md, "Subtitles".
+# Bazarr: external .srt subtitles for what Sonarr and Radarr manage.
+# https://theater.lilalala.com/arr/bazarr, own form login (docs/theater.md,
+# "Subtitles").
 #
-# Configuration is code, in two places:
-#   - `seed.sh` (init container) writes a minimal config.yaml on first start
-#     only: the URL base, the API key and the login, so the UI is never up
-#     without authentication;
-#   - `settings.py` applies everything else: as the `bazarr-settings` PostSync
-#     Job on every sync (auto tags in Sonarr and Radarr, Bazarr settings, the
-#     profile of every title) and as the `bazarr-nightly` CronJob (the profile
-#     of every title, then the wanted searches). Changes made in the UI to
-#     these keys are overwritten; anything else stays the UI's.
+# Config as code: `seed.sh` writes a minimal config.yaml on first start (URL
+# base, API key, login, so the UI never runs without auth); `settings.py`
+# applies the rest as the `bazarr-settings` PostSync Job and the
+# `bazarr-nightly` CronJob, overwriting UI changes to those keys.
 #
 # Language profiles (English and French always):
 #   1 en-fr       en, fr; the default
 #   2 kids-fr-es  en, fr, fr forced, es; tag `kids-fr-es`
 #   3 kids-fr     en, fr, fr forced; tag `kids-fr` (quality profile HD-Kids-FR)
 #   4 en-fr-es    en, fr, es; tag `orig-es` (original language Spanish)
-# Bazarr gives a title the first profile, by ID, whose tag it carries, hence
-# kids-fr-es before the two tags it combines.
-#
-# SQLite in /config/db, not CloudNativePG: everything in it but the download
-# history is rebuilt from this file and from Sonarr/Radarr, so a best-effort
-# file backup (backup-bazarr.yaml) is enough.
+# Bazarr picks the first profile by ID whose tag a title carries, hence
+# kids-fr-es first. SQLite, not CNPG: all but the history is rebuilt.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -438,10 +429,8 @@ spec:
           configMap:
             name: bazarr-config
 ---
-# Nightly at 22:30 UTC: the profile of every title, then Bazarr's wanted
-# searches for series and movies (its own interval search is off). The job
-# only starts them; Bazarr runs them in the background at the pace its
-# provider throttling allows. Run now:
+# Nightly at 22:30 UTC: profiles, then the wanted searches, which Bazarr runs
+# at its provider throttling pace. Run now:
 #   kubectl -n theater create job --from=cronjob/bazarr-nightly bazarr-nightly-manual
 apiVersion: batch/v1
 kind: CronJob

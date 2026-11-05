@@ -1,33 +1,22 @@
-# Recyclarr: syncs TRaSH Guides quality definitions, quality profiles and custom
-# formats into Sonarr and Radarr, every night at 06:00.
-#
-# Each app has exactly two quality profiles, both TRaSH guide profiles used as
-# published (trash_id), only renamed:
+# Recyclarr: syncs TRaSH Guides quality definitions, profiles and custom
+# formats into Sonarr and Radarr, nightly at 06:00. Two TRaSH profiles each,
+# renamed:
 #
 #   | Profile    | Sonarr (TRaSH)                            | Radarr (TRaSH)                     |
 #   |------------|-------------------------------------------|------------------------------------|
 #   | HD-Original| WEB-1080p                                 | HD Bluray + WEB                    |
 #   | HD-Kids-FR | [French MULTi.VF] HD Bluray + WEB (1080p) | [French MULTi.VF] HD Bluray + WEB  |
 #
-# HD-Original: 1080p, no remux, original language, x265/AV1 penalised.
-# HD-Kids-FR: 1080p, no remux, French audio required, MULTi (original + French)
-# preferred. For animation and children's titles. The TRaSH defaults are synced
-# (default custom-format groups, default scores) with one deliberate deviation,
-# the `custom_formats` blocks below: TRaSH custom formats, our scores, so both
-# profiles prefer x264 over x265 and 5.1 or more channels over stereo
-# (docs/theater.md, "Deviations from TRaSH").
-#
-# This rewrites profiles, scores and custom formats inside Sonarr's and Radarr's
-# databases. Preview a change before it lands (docs/theater.md):
+# One deviation, the `custom_formats` blocks: x264 over x265, 5.1+ over stereo
+# (docs/theater.md, "Deviations from TRaSH"). Preview a change:
 #
 #   kubectl -n theater create job recyclarr-preview --from=cronjob/recyclarr-sync \
 #     --dry-run=client -o yaml \
 #     | yq '.spec.template.spec.containers[0].args = ["sync", "--preview"]' \
 #     | kubectl apply -f -
 #
-# Profiles are matched by name: the state directory is an emptyDir, so every
-# run adopts the existing profile with the configured `name`. Renaming a profile
-# here therefore creates a new one; rename it in the app first.
+# Profiles match by name (no state kept), so renaming one here creates a new
+# one; rename it in the app first.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -168,11 +157,8 @@ spec:
             app.kubernetes.io/name: recyclarr-sync
         spec:
           restartPolicy: OnFailure
-          # No podAffinity: this job mounts no application volume. It reaches
-          # Sonarr and Radarr over their Services, so it can run anywhere -- the
-          # same reasoning as the `theater-postgres-backup` job in ./backup.yaml,
-          # and the reason it needs a network policy rule while the /config
-          # backup jobs do not.
+          # No podAffinity: no application volume, Sonarr and Radarr over
+          # their Services.
           securityContext:
             runAsNonRoot: true
             runAsUser: 1000
@@ -220,14 +206,9 @@ spec:
                   memory: 512Mi
               securityContext:
                 allowPrivilegeEscalation: false
-                # Unlike the *arr apps -- which cannot do this, hence the
-                # AVD-KSV-0014 entry in .trivyignore -- Recyclarr is a plain .NET
-                # binary that writes only under RECYCLARR_CONFIG_DIR and TMPDIR.
-                # Both are emptyDirs below.
-                #
-                # If it ever crashloops with a read-only filesystem error, the fix
-                # is to find what it is writing and give it a volume, not to drop
-                # this flag.
+                # Recyclarr writes only under RECYCLARR_CONFIG_DIR and TMPDIR,
+                # both emptyDirs. On a read-only filesystem error, give it a
+                # volume; do not drop this flag.
                 readOnlyRootFilesystem: true
                 capabilities:
                   drop: ["ALL"]

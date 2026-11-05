@@ -1,12 +1,6 @@
-# The photo library. The Immich chart explicitly cannot create this, so it is
-# declared here and referenced via `immich.persistence.library.existingClaim`.
-#
-# 2Ti on the iSCSI class, matching the old setup. The class allows volume
-# expansion, so this can grow without a migration.
-#
-# ReadWriteOnce is sufficient: only the server component writes to the library.
-# Note that this means the server Pod cannot be rescheduled while the old one
-# still holds the volume, which is why it uses the Recreate strategy.
+# The photo library, 2Ti, referenced by
+# `immich.persistence.library.existingClaim`. ReadWriteOnce: only the server
+# writes, so it uses the Recreate strategy.
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim

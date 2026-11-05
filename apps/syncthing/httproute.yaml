@@ -1,10 +1,5 @@
-# syncthing.lilalala.com on the shared Gateway, to the oauth2-proxy
-# syncthing-sso (Keycloak, group admins, sso.yaml), never to the Syncthing GUI
-# directly.
-#
-# Only the UI goes through the Gateway. The sync protocol is raw TCP/UDP on
-# 22000 and cannot be expressed as an HTTPRoute -- that is what the
-# `syncthing-protocol` LoadBalancer Service is for.
+# syncthing.lilalala.com to the oauth2-proxy syncthing-sso, never to the GUI.
+# The sync protocol is raw TCP/UDP on the `syncthing-protocol` LoadBalancer.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

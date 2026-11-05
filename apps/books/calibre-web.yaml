@@ -1,16 +1,7 @@
-# Calibre-Web Automated: the ebook library, read in the browser, OPDS and
-# Kobo sync. https://ebooks.lilalala.com, login through Keycloak (docs/books.md).
-#
-# Volumes:
-#   calibre-web-config (iSCSI)  /config: app.db (users, settings), the
-#                               originals of processed books, logs
-#   NFS share (inline)          /calibre-library = books/ebooks (the Calibre
-#                               library, metadata.db included) and
-#                               /cwa-book-ingest = books/ingest (drop folder:
-#                               CWA imports and then deletes what lands here)
-#
-# The image is s6-overlay based: it starts as root, then drops to PUID/PGID.
-# So it runs at Pod Security `baseline`, not `restricted`.
+# Calibre-Web Automated: the ebook library in the browser, OPDS and Kobo sync.
+# https://ebooks.lilalala.com, login through Keycloak (docs/books.md).
+# /calibre-library is books/ebooks; /cwa-book-ingest is a drop folder CWA
+# empties. The s6-overlay image starts as root, so Pod Security `baseline`.
 ---
 apiVersion: apps/v1
 kind: Deployment
