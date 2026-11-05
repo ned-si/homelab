@@ -23,8 +23,16 @@ files=()
 while IFS= read -r f; do files+=("$f"); done < <(find "$render" -name manifests.yaml -type f | sort)
 [ "${#files[@]}" -gt 0 ] || { echo "kubeconform.sh: no manifests under $render" >&2; exit 1; }
 
+# KUBECONFORM_CACHE: a directory kubeconform keeps downloaded core schemas in
+# (restored in CI, keyed on SCHEMA_SHA and K8S_VERSION, which fix every URL).
+cache=()
+if [ -n "${KUBECONFORM_CACHE:-}" ]; then
+  mkdir -p "$KUBECONFORM_CACHE"
+  cache=(-cache "$KUBECONFORM_CACHE")
+fi
+
 set +e
-out=$(kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" \
+out=$(kubeconform -strict -summary -kubernetes-version "$K8S_VERSION" ${cache[@]+"${cache[@]}"} \
   -schema-location "$core" -schema-location "$crds" "${files[@]}" 2>&1)
 rc=$?
 set -e

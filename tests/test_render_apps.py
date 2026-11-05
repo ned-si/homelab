@@ -134,9 +134,11 @@ def test_legacy_directory_and_inline_values(tmp_path, fake_helm):
     # The legacy root directory renders the plain manifest and the child Application.
     kinds = sorted(d["kind"] for d in read_render(out, "legacy/all-apps"))
     assert kinds == ["Application", "ConfigMap"]
-    # The child helm app: release name, namespace, version, inline values, CRDs.
-    call = fake_helm.read_text().strip()
-    assert call.startswith("template inline-release inline-chart --repo https://charts.example.org --version v1.2.3")
+    # The child helm app: pulled at its version, then templated from the archive
+    # with its release name, namespace, inline values and CRDs.
+    pull, call = fake_helm.read_text().strip().splitlines()
+    assert pull.startswith("pull inline-chart --repo https://charts.example.org --version v1.2.3 --destination ")
+    assert call.startswith("template inline-release ") and call.split()[2].endswith("/inline-chart-1.2.3.tgz")
     assert "--namespace inline-ns" in call and "--include-crds" in call and "--kube-version 1.37.1" in call
     cm = read_render(out, "legacy/inline")[0]
     assert cm["metadata"]["name"] == "inline-release"
@@ -157,7 +159,7 @@ def test_new_layout_root_traversal_multisource_ksops_and_exclusions(tmp_path, fa
     assert index["layer-apps"]["children"] == ["multi"]
     # multi is reached through the root (2) and its file (3): rendered once.
     assert index["multi"]["scope"] == "2+3"
-    assert fake_helm.read_text().count("multi-chart") == 1
+    assert [ln.split()[0] for ln in fake_helm.read_text().splitlines() if "multi-chart" in ln] == ["pull", "template"]
     assert index["multi"]["layer"] == "apps"
     # $values resolved against the checkout, plus the deploy/ manifests.yaml directory.
     multi = read_render(out, "multi")
@@ -218,9 +220,10 @@ def test_helm_releases_entry(tmp_path, fake_helm):
     write(root, "infrastructure/cilium/values.yaml", "kubeProxyReplacement: true\n")
     r = run_render(root, out)
     assert r.returncode == 0, r.stdout
-    call = fake_helm.read_text().strip()
-    assert call.startswith("template cilium cilium --repo https://helm.cilium.io --version 1.17.18 --namespace kube-system")
-    assert "--include-crds" in call
+    pull, call = fake_helm.read_text().strip().splitlines()
+    assert pull.startswith("pull cilium --repo https://helm.cilium.io --version 1.17.18 --destination ")
+    assert call.startswith("template cilium ") and call.split()[2].endswith("/cilium-1.17.18.tgz")
+    assert "--namespace kube-system" in call and "--include-crds" in call
     assert call.endswith(f"-f {root / 'infrastructure/cilium/values.yaml'}")
     assert "kubeProxyReplacement: true" in read_render(out, "helm-releases/cilium")[0]["data"]["values"]
 
@@ -231,7 +234,24 @@ def test_render_error_exits_1(tmp_path, fake_helm, monkeypatch):
     monkeypatch.setenv("FAKE_HELM_FAIL", "1")
     r = run_render(root, out)
     assert r.returncode == 1
-    assert "ERROR legacy/inline: helm template failed: Error: chart not found" in r.stdout
+    assert "ERROR legacy/inline: helm pull failed: Error: chart not found" in r.stdout
+
+
+def test_chart_cache_is_reused_and_pruned(tmp_path, fake_helm, monkeypatch):
+    root, out, cache = tmp_path / "repo", tmp_path / "out", tmp_path / "charts"
+    legacy_tree(root)
+    monkeypatch.setenv("CHART_CACHE", str(cache))
+    (cache / "0123456789abcdef").mkdir(parents=True)  # an entry no Application pins
+    r = run_render(root, out, "--prune-chart-cache")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "charts: 1 used, 1 pulled" in r.stdout
+    assert "chart cache: 1 kept, 1 entries pruned" in r.stdout
+    assert [p.name for p in cache.iterdir()] != ["0123456789abcdef"] and len(list(cache.iterdir())) == 1
+    fake_helm.write_text("")
+    r = run_render(root, out)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert [ln.split()[0] for ln in fake_helm.read_text().splitlines()] == ["template"]
+    assert "charts: 1 used, 0 pulled" in r.stdout
 
 
 def test_missing_value_file_is_an_error(tmp_path, fake_helm):

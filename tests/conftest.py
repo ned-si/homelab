@@ -19,10 +19,31 @@ sys.path.insert(0, str(SCRIPTS))
 FAKE_HELM = textwrap.dedent(
     """\
     #!/bin/bash
-    # Fake helm: logs its argv (one call per line) and renders one ConfigMap per call,
-    # named after the release, carrying the concatenated -f value files.
+    # Fake helm: logs its argv (one call per line). `pull` writes a chart archive
+    # (Chart.yaml only) to --destination; FAKE_HELM_TRANSIENT=n fails the first n
+    # pulls with a 504. `template` renders one ConfigMap per call, named after the
+    # release, carrying the concatenated -f value files.
     printf '%s\\n' "$*" >> "$FAKE_HELM_LOG"
     if [ -n "${FAKE_HELM_FAIL:-}" ]; then echo "Error: chart not found" >&2; exit 1; fi
+    if [ "$1" = pull ]; then
+      n=$(cat "$FAKE_HELM_LOG.n" 2>/dev/null || echo 0)
+      if [ "$n" -lt "${FAKE_HELM_TRANSIENT:-0}" ]; then
+        echo $((n + 1)) > "$FAKE_HELM_LOG.n"
+        echo "Error: failed to fetch https://charts.example.org/x.tgz : 504 Gateway Timeout" >&2
+        exit 1
+      fi
+      chart=${2##*/} version="" dest="" prev=""
+      for a in "$@"; do
+        case "$prev" in --version) version=$a ;; --destination) dest=$a ;; esac
+        prev=$a
+      done
+      src=$(mktemp -d)
+      mkdir "$src/$chart"
+      printf 'apiVersion: v2\\nname: %s\\nversion: %s\\n' "$chart" "${version#v}" > "$src/$chart/Chart.yaml"
+      tar -czf "$dest/$chart-${version#v}.tgz" -C "$src" "$chart"
+      rm -rf "$src"
+      exit 0
+    fi
     release=$2
     vals=""
     prev=""
@@ -54,6 +75,7 @@ def fake_helm(tmp_path, monkeypatch):
     log.write_text("")
     monkeypatch.setenv("PATH", f"{bindir}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("FAKE_HELM_LOG", str(log))
+    monkeypatch.delenv("CHART_CACHE", raising=False)
     return log
 
 

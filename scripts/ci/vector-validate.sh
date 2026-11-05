@@ -5,8 +5,8 @@
 # The Vector chart is an upstream Helm chart (not rendered into deploy/) and
 # passes customConfig through Helm `tpl`, so the config is checked here:
 #   1. `helm template` the chart of clusters/homelab/platform/vector.yaml at
-#      its targetRevision, with the Application's release name, namespace and
-#      valueFiles;
+#      its targetRevision (fetched by chart_fetch.py into $CHART_CACHE), with
+#      the Application's release name, namespace and valueFiles;
 #   2. take `vector.yaml` from the rendered ConfigMap;
 #   3. `vector validate --no-environment` with the image the DaemonSet runs:
 #      image.repository:image.tag@image.sha from the values, digest-pinned and
@@ -16,9 +16,10 @@
 #
 # VECTOR_BIN=<path> runs a local vector binary instead of the image (no Docker
 # daemon); its version must equal the image tag's.
-# Requires helm, yq v4, and docker unless VECTOR_BIN is set.
+# Requires helm, python3, yq v4, and docker unless VECTOR_BIN is set.
 set -euo pipefail
 
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=${1:-.}
 cd "$root"
 app=clusters/homelab/platform/vector.yaml
@@ -66,7 +67,10 @@ trap 'rm -rf "$work"' EXIT
 chmod 0755 "$work"
 
 echo "vector-validate: chart vector $chart_version, image $image_tag"
-helm template "$release" vector --repo "$chart_repo" --version "$chart_version" \
+# The archive from $CHART_CACHE (restored in CI) or fetched with retries.
+archive=$(CHART_CACHE=${CHART_CACHE:-$work/charts} python3 "$here/chart_fetch.py" "$chart_repo" vector "$chart_version") \
+  || die "chart fetch failed"
+helm template "$release" "$archive" \
   --namespace "$namespace" "${values_args[@]}" > "$work/render.yaml" \
   || die "helm template failed"
 
@@ -84,9 +88,9 @@ if [ -n "${VECTOR_BIN:-}" ]; then
 else
   ref="$image_repo:$image_tag@$image_sha"
   pulled=0
-  for _ in 1 2 3; do
+  for wait in 5 15 45 0; do
     if docker pull -q "$ref" > /dev/null; then pulled=1; break; fi
-    sleep 5
+    sleep "$wait"
   done
   [ "$pulled" = 1 ] || die "docker pull $ref failed"
   docker run --rm --network none -e VECTOR_SELF_NODE_NAME=ci -v "$work:/cfg:ro" \

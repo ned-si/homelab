@@ -91,6 +91,22 @@ tools, so no test skips for a missing tool.
 - `pr-metadata`: PR title and every commit subject (`scripts/ci/check-title.sh`),
   every commit verified.
 
+Downloads and caches:
+
+A cache key always contains the pins it holds, so a version bump misses.
+Each key has one job that saves it, and only when the key was not an exact
+hit; the other jobs restore. A restored file goes through the same check as
+a downloaded one.
+
+| What | Key | Saved by | Check on restore |
+|---|---|---|---|
+| Helm chart archives (`scripts/ci/chart_fetch.py`) | the Application files and `ci/helm-releases.yaml`; restores the newest older key and fetches what is missing | `render`, pruned to the pinned charts | sha256 recorded at fetch time, `Chart.yaml` name and version against the pin |
+| kubeconform core schemas | `KUBE_SCHEMA_SHA`, `K8S_VERSION` and the rendered kinds | `render` | none, as before: the URL pins the commit |
+
+`chart_fetch.py` retries `helm pull` after 5, 15 and 45 s on a transient
+error (HTTP 5xx or 429, timeout, reset, DNS); kubeconform retries schema
+downloads twice itself.
+
 Kyverno policies:
 
 The policies are the upstream `kyverno/policies` Pod Security Standards

@@ -178,18 +178,62 @@ jobs:
           scripts/ci/install-tool.sh helm kubectl kubeconform kube-linter promtool alertmanager kyverno
           scripts/ci/setup-python-deps.sh
 
+      # Chart archives (scripts/ci/chart_fetch.py): the newest cache with the
+      # same prefix is restored; each archive is checked against the sha256
+      # recorded when it was fetched and its Chart.yaml against the pin, and
+      # anything missing or wrong is fetched with retries. render saves the
+      # pruned cache when the key changed; tests only restores it.
+      - name: Restore Helm chart archives
+        id: charts
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/charts
+          key: charts-v1-${{ hashFiles('clusters/homelab/**', 'ci/helm-releases.yaml') }}
+          restore-keys: charts-v1-
+
       # Rendered once; kubeconform and repo-policy read the same directory.
       - name: Render every Application in scope
         id: render
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          CHART_CACHE: ${{ runner.temp }}/charts
         run: |
           set -euo pipefail
-          python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render" | tee "$RUNNER_TEMP/render.log"
+          python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render" --prune-chart-cache | tee "$RUNNER_TEMP/render.log"
           { echo "### render"; echo '```'; cat "$RUNNER_TEMP/render.log"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "kinds=$(jq -r '.[].kinds | keys[]' "$RUNNER_TEMP/render/index.json" | sort -u | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Save Helm chart archives
+        if: ${{ !cancelled() && steps.render.outcome == 'success' && steps.charts.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/charts
+          key: ${{ steps.charts.outputs.cache-primary-key }}
+
+      # Core schemas come from one pinned commit and Kubernetes version, which
+      # fix every URL; the key adds the rendered kinds so a new kind is saved.
+      - name: Restore kubeconform schemas
+        id: schemas
+        if: ${{ !cancelled() && steps.render.outcome == 'success' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/kubeconform-cache
+          key: kubeconform-${{ env.KUBE_SCHEMA_SHA }}-${{ env.K8S_VERSION }}-${{ steps.render.outputs.kinds }}
+          restore-keys: kubeconform-${{ env.KUBE_SCHEMA_SHA }}-${{ env.K8S_VERSION }}-
 
       - name: kubeconform (strict, pinned core schemas, vendored CRD schemas)
+        id: kubeconform
         if: ${{ !cancelled() && steps.render.outcome == 'success' }}
+        env:
+          KUBECONFORM_CACHE: ${{ runner.temp }}/kubeconform-cache
         run: scripts/ci/kubeconform.sh "$RUNNER_TEMP/render"
+
+      - name: Save kubeconform schemas
+        if: ${{ !cancelled() && steps.kubeconform.outcome == 'success' && steps.schemas.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/kubeconform-cache
+          key: ${{ steps.schemas.outputs.cache-primary-key }}
 
       # Policy unit tests, then the policies over deploy/. Deny policies
       # block; Audit policies report in the step summary.
@@ -207,6 +251,8 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
           RENDERED: ${{ steps.render.outcome }}
+          # A render of its own reuses the archives the render step fetched.
+          CHART_CACHE: ${{ runner.temp }}/charts
           # image-variant: compare image tag variants with the PR base.
           IMAGE_POLICY_BASE: ${{ github.event.pull_request.base.sha }}
           # Reverts skip image-variant (see repo_policy.py).
@@ -247,11 +293,22 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: bash tests/run-bash-tests.sh
 
+      # The render job's chart cache (restore only; render saves it).
+      - name: Restore Helm chart archives
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/charts
+          key: charts-v1-${{ hashFiles('clusters/homelab/**', 'ci/helm-releases.yaml') }}
+          restore-keys: charts-v1-
+
       # The Vector chart is not rendered into deploy/ and passes customConfig
       # through Helm `tpl`: compile the rendered config with the image the
       # DaemonSet runs, so a chart or image bump is checked with its binary.
       - name: Vector config (vector validate in the pinned image)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          CHART_CACHE: ${{ runner.temp }}/charts
         run: scripts/ci/vector-validate.sh
 
   promtool:
