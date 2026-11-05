@@ -1,19 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# The ValidatingPolicies the in-cluster Kyverno runs: the same files CI runs
-# over deploy/ (policies/kyverno). Audit only; Deny is wave 4, one policy at a
-# time, once its reports are clean.
-#
-# The vendored files stay byte for byte upstream; the cluster settings are
-# patched here:
-#   - validationActions [Audit]; then [Deny] for the policies below, which
-#     had no live finding outside the excluded namespaces on 2026-10-24
-#     (after the PolicyExceptions) and block in CI over deploy/ and the
-#     rendered Helm apps (scripts/ci/kyverno.sh, BLOCKING). Keep the two
-#     lists equal;
-#   - failurePolicy Ignore and a 3 s webhook timeout: an evaluation error or a
-#     slow Kyverno never blocks a request.
+# The ValidatingPolicies CI runs over deploy/ (policies/kyverno), vendored
+# byte for byte and patched here: Audit, Deny for the policies below (keep the
+# list equal to BLOCKING in scripts/ci/kyverno.sh), failurePolicy Ignore and a
+# 3 s timeout so Kyverno never blocks a request.
 resources:
   - ../../policies/kyverno
   - ../../policies/kyverno/exceptions

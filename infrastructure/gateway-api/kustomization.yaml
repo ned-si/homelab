@@ -1,20 +1,12 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Gateway API CRDs, EXPERIMENTAL channel, at the version Cilium 1.20 supports
+# Gateway API CRDs, experimental channel, at the version Cilium supports
 # (https://docs.cilium.io/en/v1.20/network/servicemesh/gateway-api/gateway-api/).
-#
-# Gateway API and Cilium move together: Cilium's Gateway controller checks the
-# CRDs at startup, and CRDs newer than it understands leave Gateways
-# unprogrammed. Renovate groups them ("cluster networking" rule).
-#
-# Experimental, not standard: it is what Cilium's docs install, and it is a
-# superset of standard. Switching to standard would not "downgrade" the
-# experimental-only CRDs; it would leave them behind, or with pruning, delete
-# them together with every object of their kinds.
-#
-# On a fresh cluster these are applied by hand BEFORE Cilium
-# (docs/bootstrap.md step 3); the `gateway-api` Application adopts them.
+# CRDs newer than Cilium understands leave Gateways unprogrammed, so Renovate
+# groups them. Switching to standard would orphan or prune the
+# experimental-only kinds. Fresh cluster: applied by hand before Cilium
+# (docs/bootstrap.md step 3).
 #
 # renovate: datasource=github-releases depName=kubernetes-sigs/gateway-api
 resources:

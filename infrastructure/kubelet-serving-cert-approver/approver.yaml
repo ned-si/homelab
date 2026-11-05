@@ -1,12 +1,7 @@
 # kubelet-serving-cert-approver
-# (https://github.com/alex1989hu/kubelet-serving-cert-approver), from its
-# deploy/standalone-install.yaml at the image's version, without the
-# Namespace (declared in infrastructure/namespaces/).
-#
-# It approves only kubernetes.io/kubelet-serving CertificateSigningRequests
-# that a node (system:node:<name>, group system:nodes) makes for itself, with
-# the serving key usages; the kube-controller-manager signs them with the
-# cluster CA. Anything else stays pending.
+# (https://github.com/alex1989hu/kubelet-serving-cert-approver), upstream
+# standalone-install.yaml without the Namespace. Approves only kubelet-serving
+# CSRs a node makes for itself; everything else stays pending.
 ---
 apiVersion: v1
 kind: ServiceAccount

@@ -1,47 +1,29 @@
-# democratic-csi chart 0.15.1 values for the `democratic-csi` Application
-# (release name `iscsi`, namespace democratic-csi). The release name, driver
-# name and driver config are what the existing volumes were created with;
-# infrastructure/iscsi-volumes/ depends on all three staying the same.
-#
-# The driver configuration (TrueNAS API key, SSH key, portal) is NOT here. It
-# is the SOPS-sealed Secret iscsi-democratic-csi-driver-config
-# (infrastructure/secrets/democratic-csi-iscsi.sops.yaml), applied by the
-# `secrets-infrastructure` Application and read through
-# `driver.existingConfigSecret`, so the chart renders no Secret of its own.
+# democratic-csi values (release `iscsi`). Release name, driver name and
+# driver config must stay as the existing volumes were created;
+# infrastructure/iscsi-volumes/ depends on them. The driver config is the SOPS
+# Secret iscsi-democratic-csi-driver-config (`driver.existingConfigSecret`).
 csiDriver:
   name: org.democratic-csi.iscsi
 
-# The driver image, pinned to a release tag and its digest, so Renovate
-# offers updates. The chart default is the moving `latest`. v1.9.5 replaced
-# `latest@sha256:944d0e65...` (built two hours after v1.9.5 from master, which
-# differed by two README commits). Changing it restarts the controller and
-# every node pod, one node at a time.
-# Since chart 0.15 an image is `{registry, tag}`, rendered as
-# "<registry>:<tag>", so the digest rides in `tag`. The chart default moved to
-# ghcr.io; this stays on the docker.io image the pods run, so the chart bump
-# does not change the driver.
+# Driver image pinned to tag and digest (the chart default is `latest`). The
+# digest rides in `tag` (rendered "<registry>:<tag>"); docker.io, not the
+# chart's ghcr.io default, is what the pods run. A change restarts the
+# controller and every node pod.
 controller:
   driver:
     image:
       registry: docker.io/democraticcsi/democratic-csi
       # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
       tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
-  # No CSI snapshots: the cluster has no snapshot.storage.k8s.io CRDs and no
-  # snapshot-controller, and backups are restic and Barman (docs/backups.md).
-  # The chart's default sidecar only looped on "could not find the requested
-  # resource" (#944). Re-enable together with the CRDs and the controller.
+  # No CSI snapshots: no snapshot CRDs or controller; backups are restic and
+  # Barman (docs/backups.md). Re-enable with both.
   externalSnapshotter:
     enabled: false
-# Talos: there is no iscsiadm in the node image. The iscsi-tools system
-# extension runs iscsid on the host, and the node plugin runs the host's
-# iscsiadm by entering iscsid's namespaces (`nsenter`), which needs the host
-# PID namespace. iscsi-tools >= v0.2.0 keeps its state in /var/iscsi, not
-# /etc/iscsi (democratic-csi issue #461); the path type is left empty because
-# the directory exists only once iscsid has started. This only works with
-# Talos workload isolation off (`workloadIsolation: false`, talos/patches/talosctl/security-profile.yaml):
-# inside the sandbox the node plugin cannot see iscsid ("failed to find iscsid
-# pid for nsenter", measured on a test node).
-# https://github.com/democratic-csi/democratic-csi#talos
+# Talos has no iscsiadm: the node plugin enters the iscsi-tools extension's
+# iscsid namespaces with `nsenter`, which needs the host PID namespace and
+# Talos workload isolation off (talos/patches/talosctl/security-profile.yaml).
+# State is in /var/iscsi; the path type is empty because it exists only once
+# iscsid runs. https://github.com/democratic-csi/democratic-csi#talos
 node:
   hostPID: true
   driver:
@@ -56,11 +38,8 @@ node:
         value: /usr/local/sbin/iscsiadm
     iscsiDirHostPath: /var/iscsi
     iscsiDirHostPathType: ""
-    # libmount keeps SELinux mount options (`context=`, the StorageClass
-    # label) only when libselinux sees SELinux enabled, which needs an
-    # /etc/selinux/config; the image has none. Found with LIBMOUNT_DEBUG on
-    # 2026-10-17 (resources/selinux-config.yaml, wave 3 design "libmount in
-    # the CSI node plugin").
+    # libmount keeps `context=` only when libselinux sees SELinux enabled
+    # (resources/selinux-config.yaml).
     extraVolumeMounts:
       - name: selinux-config
         mountPath: /etc/selinux/config
@@ -81,21 +60,14 @@ driver:
     driver: freenas-iscsi
 
 storageClasses:
-  # The running class. Default class, reclaimPolicy Delete. Every existing
-  # PersistentVolumeClaim uses it and keeps it: a PVC's storageClassName is
-  # immutable, and a StorageClass's reclaimPolicy is immutable too. The data
-  # PVs bound through it were switched to Retain individually on 2026-10-04
-  # (docs/backups.md); caches stay on Delete.
+  # The default class, reclaimPolicy Delete; data PVs are switched to Retain
+  # one by one (docs/backups.md). storageClassName and reclaimPolicy are
+  # immutable.
   #
-  # mountOptions: the SELinux label Talos gives its own user volumes
-  # (ephemeral_t). Talos cannot label a volume a CSI driver mounts, so
-  # without it every file is `unlabeled_t` and each access logs an AVC
-  # denial (permissive mode today, a failure once enforcing). A
-  # StorageClass's mountOptions are immutable, hence Force/Replace: Argo
-  # deletes and recreates the class, which leaves bound PVs and claims alone
-  # (checked on a scratch class, 2026-10-17). Existing PVs get the option one
-  # by one (scripts/pv-selinux-label.sh, infrastructure/iscsi-volumes/).
-  # CI: repo policy `iscsi-selinux-label`.
+  # mountOptions: the SELinux label Talos gives its own volumes; without it
+  # every file is `unlabeled_t`. mountOptions are immutable too, hence
+  # Force/Replace, which leaves bound PVs and claims alone. Existing PVs:
+  # scripts/pv-selinux-label.sh. CI: repo policy `iscsi-selinux-label`.
   - name: iscsi
     defaultClass: true
     annotations:

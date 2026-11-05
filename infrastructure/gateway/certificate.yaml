@@ -1,18 +1,6 @@
-# One wildcard certificate for the whole site.
-#
-# Declared explicitly rather than relying on cert-manager's Gateway annotation
-# shim, because a wildcard SAN is easier to reason about when it is written down,
-# and because this makes the DNS-01 dependency visible: a wildcard can ONLY be
-# issued via DNS-01, never HTTP-01.
-#
-# The resulting Secret must live in the same namespace as the Gateway that
-# references it -- Gateway API does not allow a cross-namespace certificateRef
-# without a ReferenceGrant, and there is no reason to add one here.
-#
-# WHILE BRINGING THE CLUSTER UP: point `issuerRef.name` at `letsencrypt-staging`
-# first. Production Let's Encrypt allows 50 certificates per registered domain
-# per week and a misconfigured DNS-01 solver will burn through that quickly.
-# Switch to `letsencrypt` once you see `Ready=True` below.
+# One wildcard certificate for the site, declared rather than left to the
+# Gateway shim so the DNS-01 dependency is visible. The Secret lives in the
+# Gateway's namespace. Prove a new setup with `letsencrypt-staging` first.
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -21,13 +9,9 @@ metadata:
   namespace: gateway
 spec:
   secretName: wildcard-lilalala-tls
-  # Wildcard only. Both listeners are `*.lilalala.com`, which does not match
-  # the apex, so nothing here serves `lilalala.com`. Listing the apex too means
-  # a second DNS-01 challenge on the same TXT name, which cert-manager runs
-  # only after the first is cleaned up -- and v1.15 cannot clean up on
-  # Cloudflare (cert-manager#7540, fixed in v1.16.4), so the Order never
-  # completes. Add the apex back once cert-manager is upgraded, if a listener
-  # ever serves it.
+  # Wildcard only: no listener serves the apex, and an apex SAN needs a
+  # second DNS-01 challenge on the same TXT name, which never completes on
+  # Cloudflare before cert-manager v1.16.4 (cert-manager#7540).
   commonName: "*.lilalala.com"
   dnsNames:
     - "*.lilalala.com"

@@ -1,20 +1,7 @@
-# The shared Gateway: one entrypoint, one wildcard certificate, one LAN address.
-#
-# Implemented by Cilium (GatewayClass `cilium`, Gateway API v1.6 CRDs). Cilium
-# creates the LoadBalancer Service `cilium-gateway-shared` in this namespace and
-# copies `spec.infrastructure.annotations` onto it, which is how the address is
-# pinned (the same `lbipam.cilium.io/ips` mechanism as the .200/.201 Services).
-#
-# ADDRESS (ADR 0007). This Gateway holds 192.168.1.254, the address the
-# router forwards 80/443 TCP to. It took it over from ingress-nginx after a
-# parallel run on 192.168.1.202; the handover change swapped the two pins
-# (nginx -> .203, this Gateway -> .254), so the router's forwards stay valid.
-# ingress-nginx has since been removed (ADR 0011): going back to it means
-# reverting that removal first, then the handover.
-#
-# DNS. external-dns publishes every HTTPRoute hostname with the single WAN
-# address from its `--default-targets` (infrastructure/external-dns/values.yaml).
-# No target annotation here: a second copy of the WAN IP would drift.
+# The shared Gateway (Cilium, ADR 0007) on 192.168.1.254, the router's 80/443
+# target, pinned through `spec.infrastructure.annotations` on the Service
+# Cilium creates. external-dns publishes the WAN address for every route; no
+# target annotation here, so the WAN IP has one copy.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway

@@ -1,52 +1,17 @@
-# Local backup target on NFS: the restic repositories and database dumps that
-# make up the LOCAL tier described in docs/backups.md.
+# Local backup tier on NFS (docs/backups.md): restic repositories and database
+# dumps. It covers bad upgrades and migrations, and carries the weekly
+# `restic check --read-data`; it shares the ZFS pool with the data, so it is
+# not disaster protection (that is S3).
 #
-# ###########################################################################
-# # SITE-SPECIFIC -- the TrueNAS address appears here, in nfs-volumes.yaml and
-# # in the inline NFS volume of apps/immich/resources/backup-files.yaml (the
-# # local Immich backup, which runs before this leaf is deployed). Update all
-# # three after the house move.
-# ###########################################################################
+# SITE-SPECIFIC: the TrueNAS address, also in nfs-volumes.yaml and
+# apps/immich/resources/backup-files.yaml.
 #
-# WHAT THIS IS FOR, AND WHAT IT IS NOT
+# Dataset homelab/k8s/backups, its own dataset (restricted export, own
+# snapshots, no shared fill-up with media), owned by uid/gid 1000: the restic
+# jobs run as 1000 and NFS AUTH_SYS passes the ids through.
 #
-# This is the tier that defends against a bad upgrade, a bad migration, or an app
-# rewriting its own data -- the things that actually happen. Reads are free and on
-# the LAN, which is why the EXPENSIVE verification (a full
-# `restic check --read-data`, weekly) runs against this copy rather than S3.
-#
-# It is NOT disaster protection. It sits on the same ZFS pool as the data it
-# backs up, so losing the pool loses both. That is what the S3 tier is for.
-# Two mechanisms, two threat models; see docs/backups.md.
-#
-# THE DATASET
-#   homelab/k8s/backups  ->  /mnt/homelab/k8s/backups
-#   LZ4 compression, atime off, no quota (16.3T free on the pool).
-#   Owned by uid/gid 1000, mode 0770, exported to 192.168.1.0/24 only.
-#
-# A SEPARATE DATASET from homelab/k8s/nfs on purpose:
-#   - its own snapshot schedule and compression setting
-#   - the media export is open to the whole LAN; this one is restricted
-#   - backups should not share a fill-up with 9.5T of media
-#
-# UID 1000 MATTERS. The restic CronJobs run as `runAsUser: 1000` with
-# `fsGroup: 1000`, and NFS with AUTH_SYS passes those numeric ids straight through
-# to the server. If the dataset were not owned by 1000, every write would fail with
-# EACCES and surface as an opaque restic error at 3am. Verified from inside the
-# cluster: it mounts, and it is writable as uid 1000.
-#
-# ---------------------------------------------------------------------------
-# ONE PV PER NAMESPACE, all pointing at the SAME export.
-#
-# A PersistentVolume binds to exactly one PersistentVolumeClaim. ReadWriteMany
-# governs how many NODES may mount it, not how many claims may bind it -- so a
-# single PV cannot be shared by claims in `immich` and `backup-verify`. The second
-# claim would sit Pending forever with no obvious reason.
-#
-# Several NFS PVs may safely reference the same server path, so the fix is one
-# PV/PVC pair per namespace. Each workload then uses a `subPath` so the
-# repositories cannot collide inside the share.
-# ---------------------------------------------------------------------------
+# One PV per namespace on the same export: a PV binds one claim, whatever its
+# access mode. Each workload uses its own `subPath`.
 ---
 apiVersion: v1
 kind: PersistentVolume

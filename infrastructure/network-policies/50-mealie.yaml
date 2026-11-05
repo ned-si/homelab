@@ -1,7 +1,4 @@
-# mealie: the Mealie Deployment and its `mealie-postgresql` CloudNativePG cluster.
-#
-# The smallest namespace (two workloads, one route, one database, one
-# outbound dependency), so it is enforced first. See ./90-enforcement.yaml.
+# mealie: the Mealie Deployment and the `mealie-postgresql` cluster.
 ---
 # ---------------------------------------------------------------------------
 # Mealie
@@ -56,12 +53,8 @@ spec:
             - port: "5432"
               protocol: TCP
 
-    # HTTPS and HTTP to the internet:
-    #
-    #   - OIDC discovery at https://auth.lilalala.com, which resolves to the WAN
-    #     address, so `world` (see 20-immich.yaml for split-horizon DNS).
-    #   - Recipe import by URL scrapes arbitrary sites, many still on plain
-    #     HTTP, hence port 80.
+    # OIDC discovery (auth.lilalala.com is the WAN address, so `world`) and
+    # recipe import by URL, which scrapes arbitrary sites, some on port 80.
     - toEntities:
         - world
       toPorts:
@@ -136,10 +129,7 @@ spec:
             - port: "9187"
               protocol: TCP
 
-    # The nightly logical dump.
-    # apps/mealie/backup.yaml -- the `mealie-backup` CronJob runs
-    # `pg_dump -h "$(cat "$d/host")" -p "$(cat "$d/port")"`, reading the
-    # `mealie-postgresql-app` Secret from a projected volume.
+    # The nightly pg_dump (apps/mealie/backup.yaml).
     - fromEndpoints:
         - matchExpressions:
             - key: batch.kubernetes.io/job-name
@@ -169,10 +159,9 @@ spec:
             - port: "6443"
               protocol: TCP
 
-    # No S3 rule yet, although the cluster archives WAL to S3 through the
-    # Barman Cloud plugin (apps/mealie/cnpg-backup.yaml). Before default-deny
-    # egress is turned on for mealie this needs `toEntities: [world]` on 443,
-    # or blocked WAL archiving fills pg_wal and stops writes.
+    # No S3 rule yet for WAL archiving (apps/mealie/cnpg-backup.yaml). Add
+    # `toEntities: [world]` on 443 before enforcing egress, or pg_wal fills
+    # and writes stop.
 
     # Peer instances, counterpart of the ingress rule above.
     - toEndpoints:
@@ -187,12 +176,8 @@ spec:
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
-# The backup CronJob
-#
-# apps/mealie/backup.yaml: `mealie-backup` pushes a pg_dump and the
-# `mealie-data` volume to S3 with restic. Separate from `mealie` so the job
-# does not inherit port 80. Selectors as in 10-theater.yaml: job-name Exists,
-# and `cnpg.io/cluster: DoesNotExist` to stay disjoint from `mealie-postgres`.
+# The backup CronJob (apps/mealie/backup.yaml), apart from `mealie` so it does
+# not inherit port 80. Selectors as in 10-theater.yaml.
 # ---------------------------------------------------------------------------
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

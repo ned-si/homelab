@@ -1,150 +1,18 @@
-# The enforcement switch: the one file to edit.
+# The enforcement switch: the one file to edit. Flip, break-glass, revert and
+# debugging: docs/runbooks/netpol-enforcement.md.
 #
-# Break-glass, merge hold, revert and the flip procedure, with expected
-# output: docs/runbooks/netpol-enforcement.md.
-#
-# Every policy in this directory sets
-#     enableDefaultDeny: {ingress: false, egress: false}
-# (contribute an allow-list, do not default-deny); only the switches below
-# block anything. Setting one `false` below to `true` turns default-deny on
-# for one namespace in one direction.
-#
-# Enforced now: paperless ingress.
-#
-# Cilium semantics (pkg/policy/repository.go):
-#
+# Every allow-list policy here sets enableDefaultDeny false in both directions;
+# only the switches below block anything. Cilium semantics
+# (pkg/policy/repository.go):
 #   1. `enableDefaultDeny` only affects a direction that has rules, so each
 #      policy below carries a real rule in each direction.
-#   2. Any selecting policy asking for default-deny enables it, so one `true`
+#   2. One selecting policy asking for default-deny enables it, so one `true`
 #      here overrides every `false` in the allow-list files.
 #   3. While all are `false`, Cilium logs "Only default-allow policies,
 #      synthesizing ingress wildcard-allow rule" per endpoint. Not an error.
 #
-# Not used instead: `policyEnforcementMode: always` (whole cluster at once,
-# kube-system included); `policyAuditMode: true` (cluster-wide, restarts every
-# agent; see step 2 for its diagnostic use); per-endpoint audit mode (lost on
-# pod restart, not in git).
-# ---------------------------------------------------------------------------
-# ROLLOUT, IN ORDER. DO NOT SKIP STEP 0.
-# ---------------------------------------------------------------------------
-#
-# STEP 0 -- land this directory with every switch below still `false`.
-#   Confirm the policies exist and that Cilium accepted them:
-#
-#     kubectl -n theater get ciliumnetworkpolicies
-#     kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
-#       cilium-dbg policy get | head -40
-#
-#   Confirm nothing is enforced. The POLICY columns of the selected endpoints
-#   read `Enabled` (Cilium computes their policy, with the synthesized
-#   wildcard-allow rule of point 3), so check the verdicts instead: no
-#   `policy-verdict` drop in a policed namespace.
-#
-#     kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
-#     hubble observe --server localhost:4245 --type policy-verdict \
-#       --verdict DROPPED --namespace mealie --last 100
-#
-#   A flow no allow-list rule covers is allowed by the wildcard rule, which
-#   Hubble reports as match type `all`: that is a would-be drop
-#   (docs/networking.md, "Network policy").
-#
-# STEP 1 -- learn what the namespace actually does, from the cluster, not from
-#           this repo. Hubble is enabled (infrastructure/cilium/values.yaml:
-#           hubble.enabled, relay.enabled, and `drop` in hubble.metrics), so:
-#
-#     kubectl -n kube-system port-forward svc/hubble-relay 4245:80 &
-#     hubble observe --server localhost:4245 \
-#       --namespace mealie --last 5000 -o dict | less
-#
-#   Every flow that appears and is not covered by a rule in this directory will
-#   be dropped the moment you flip the switch. Read the list before flipping it.
-#
-# STEP 2 -- OPTIONAL, and the closest thing to a dry run. Turn on cluster-wide
-#           policy audit mode, flip a namespace to `true`, and watch AUDIT
-#           verdicts instead of drops. Requires editing
-#           infrastructure/cilium/values.yaml (`policyAuditMode: true`) and
-#           restarts every agent, so it is a deliberate detour:
-#
-#     hubble observe --server localhost:4245 --namespace mealie --verdict AUDIT -f
-#
-#   Remember to turn it back off. An audit-mode cluster looks enforced and is not.
-#
-# STEP 3 -- flip ONE namespace, INGRESS ONLY, starting with `mealie`. It is the
-#           smallest of the six: two workloads, one HTTPRoute, one database
-#           connection, one outbound dependency. Ingress before egress, because
-#           egress is where DNS, OIDC and S3 live and is far more likely to be
-#           incomplete.
-#
-#     ... watch, in a second terminal, while you exercise the app:
-#     hubble observe --server localhost:4245 --namespace mealie --verdict DROPPED -f
-#
-# STEP 4 -- flip the same namespace's egress. Then repeat 3-4 for immich,
-#           paperless, syncthing, and theater LAST. theater is the
-#           largest (seven workloads and four Postgres clusters) and the one with
-#           a known-fragile component, so it benefits most from the practice.
-#
-# ---------------------------------------------------------------------------
-# HOW TO DEBUG A DROP
-# ---------------------------------------------------------------------------
-#
-#   # What is being dropped, with the pod names and the policy verdict:
-#   hubble observe --server localhost:4245 --verdict DROPPED -f -o dict
-#   hubble observe --server localhost:4245 --namespace theater --verdict DROPPED --last 200
-#
-#   # Same thing from the datapath, when Hubble itself is what you suspect.
-#   # Run it on the node hosting the pod (`kubectl get pod -o wide` to find it):
-#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium monitor --type drop
-#
-#   # Which directions are actually enforced for which endpoint:
-#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg endpoint list
-#
-#   # Ask Cilium directly whether a flow would be allowed, without generating it.
-#   # `--src-identity`/`--dst-identity` come from `cilium-dbg identity list`:
-#   kubectl -n kube-system exec ds/cilium -c cilium-agent -- \
-#     cilium-dbg policy trace --src-k8s-pod theater:sonarr --dst-k8s-pod theater:qbittorrent --dport 8080
-#
-#   Reading a drop: `Policy denied` with `POLICY_DENIED` means a rule is
-#   missing from this directory. A drop reported as `Stale or unroutable IP` or
-#   `Unsupported L3 protocol` is not a policy problem and adding rules will not
-#   fix it.
-#
-# ---------------------------------------------------------------------------
-# HOW TO REVERT, IN ONE STEP
-# ---------------------------------------------------------------------------
-#
-#   During an incident, when waiting for CI is not an option:
-#
-#     kubectl -n <namespace> delete ciliumnetworkpolicy enforce-default-deny
-#
-#   That is the whole revert. The namespace returns to allow-all immediately: the
-#   allow-list policies remain, but they are all default-allow, so Cilium
-#   synthesises the wildcard-allow rules again. No pod restart, no agent restart.
-#
-#   It STICKS because clusters/homelab/infrastructure/network-policies.yaml sets
-#   `syncPolicy.automated.selfHeal: false` -- unlike every other Application in
-#   this repo. Argo CD will show the Application as OutOfSync and leave it alone.
-#   Do not "fix" that setting; it is the reason this paragraph is true.
-#
-#   Then make it permanent in git by setting the relevant `true` back to `false`
-#   in this file. The next sync of this path re-creates the object, so an
-#   uncommitted `kubectl delete` is temporary by design: hold every merge until
-#   the revert lands (docs/runbooks/netpol-enforcement.md, "Hold every merge").
-#
-# ---------------------------------------------------------------------------
-# WHAT IS MOST LIKELY TO BREAK FIRST
-# ---------------------------------------------------------------------------
-#
-#   1. Egress to something reached by its PUBLIC hostname that resolves to a LAN
-#      address via split-horizon DNS. Every OIDC client in this repo points at
-#      https://auth.lilalala.com; the rules assume that is the WAN address and
-#      therefore `reserved:world`. See the commented-out alternative in
-#      20-immich.yaml.
-#   2. A Prometheus target going quiet rather than erroring, because a scrape port
-#      moved in a chart upgrade.
-#   3. A private tracker on a non-standard port in Prowlarr.
-#
-#   None of these are recoverable by guessing. They are all visible in
-#   `hubble observe --verdict DROPPED`.
+# Not used: `policyEnforcementMode: always` (whole cluster at once) and
+# `policyAuditMode` (cluster-wide, restarts every agent).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

@@ -1,16 +1,7 @@
-# metrics-server chart values (clusters/homelab/infrastructure/metrics-server.yaml).
-# Serves the metrics.k8s.io API: `kubectl top` and Headlamp's CPU and memory
-# views. Prometheus does not use it.
-#
-# TLS is verified both ways:
-#   - to the kubelets: no --kubelet-insecure-tls. The kubelet serving
-#     certificates are signed by the cluster CA
-#     (talos/patches/kubelet-serving-certs.yaml, approved by
-#     infrastructure/kubelet-serving-cert-approver), which metrics-server
-#     already trusts through its ServiceAccount CA bundle;
-#   - from the API server: a cert-manager certificate (self-signed Issuer in
-#     the namespace) and cainjector writes its CA into the APIService, so the
-#     APIService does not set insecureSkipTLSVerify.
+# metrics-server: the metrics.k8s.io API for `kubectl top` and Headlamp.
+# TLS verified both ways: kubelet serving certificates from the cluster CA
+# (talos/patches/kubelet-serving-certs.yaml), and a cert-manager certificate
+# whose CA cainjector writes into the APIService.
 image:
   repository: registry.k8s.io/metrics-server/metrics-server
   # renovate: datasource=docker depName=registry.k8s.io/metrics-server/metrics-server

@@ -1,13 +1,8 @@
-# PostSync smoke of the `cilium` Application (third source,
-# clusters/homelab/infrastructure/cilium.yaml): after every Cilium sync, a
-# request through the shared Gateway for two hostnames. A refused connection
-# fails the sync, so a Cilium update that leaves the Gateway without listeners
-# is visible within minutes instead of Healthy
-# (docs/postmortems/2026-10-23-gateway-cilium-xds.md).
-#
-# `--connect-to` sends the request to the Gateway's Service, not the WAN IP:
-# an uplink outage does not fail a Cilium sync. TLS is checked against the
-# real hostname (the wildcard certificate).
+# PostSync smoke of the `cilium` Application: a request through the shared
+# Gateway for two hostnames, so a Cilium update that leaves the Gateway
+# without listeners fails the sync
+# (docs/postmortems/2026-10-23-gateway-cilium-xds.md). `--connect-to` targets
+# the Gateway Service, so a WAN outage does not fail it.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: kube-system

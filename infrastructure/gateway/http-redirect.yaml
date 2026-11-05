@@ -1,10 +1,6 @@
-# HTTP -> HTTPS for every hostname on the shared Gateway (301, cached).
-#
-# DNS: this route must never create a record. external-dns v0.15.0 has no
-# `exclude` annotation; its gateway-httproute source skips a route whose
-# `external-dns.alpha.kubernetes.io/controller` annotation is not
-# `dns-controller`, so `none` keeps the wildcard hostname out of Cloudflare.
-# CI (repo-policy `wildcard-route-dns`) requires this on any wildcard route.
+# HTTP -> HTTPS (301) for every hostname. `controller: none` keeps the
+# wildcard out of Cloudflare; CI (repo-policy `wildcard-route-dns`) requires it
+# on any wildcard route.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
