@@ -568,7 +568,7 @@ surplus by default, and to charge fast when I ask.
 ### Requirement 21: Garage door
 
 **User story:** As a household member, I want to see whether the garage
-door is open and open it from my phone when I am home, and the door to work as today
+door is open and open it from my phone, and the door to work as today
 whatever happens to Home Assistant.
 
 #### Acceptance criteria
@@ -586,8 +586,8 @@ whatever happens to Home Assistant.
 4. THE open and close actions SHALL be on the household's phones only: the
    wall tablet user and dashboards shown on the tablet SHALL show the
    state without the control.
-5. THE open action SHALL run through one script that checks the caller:
-   it opens only when the person of `context.user_id` is in the `home`
-   zone, and asks for a confirmation on the dashboard; outside the zone
-   the dashboards show the state only. Closing is allowed from anywhere.
-   (check: the PR shows the refused open from a phone outside the zone)
+5. ANY authenticated Home Assistant user who has the control SHALL be
+   able to open and close the door from anywhere, with no location check.
+   The login of those users SHALL require OTP, and every open SHALL send
+   one household notification naming who opened it. (check: the PR shows
+   an open from a phone off the LAN and its notification)

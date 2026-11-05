@@ -305,15 +305,12 @@ The current outdoor lights are replaced, not automated as they are
 - The wall tablet's user sees the state without the control; the tablet
   is shared and at hand for anyone in the house (Requirement 21.4).
 - Opening is the first control here that gives physical access, and Home
-  Assistant is public with a password login for household members. So the
-  open action runs through one script that checks the caller: it opens
-  only when the person of `context.user_id` is in the `home` zone, after a
-  confirmation on the dashboard; outside the zone the dashboards show the
-  state only. Closing is allowed from anywhere (Requirement 21.5). If the
-  script cannot read the caller when started from a dashboard, the
-  alternative is OTP for the users who get the control, a new issue
-  against household-access-groups. The default is in
-  [What the operator decides](#what-the-operator-decides).
+  Assistant is public. The operator decided (2026-11-05) that access is
+  the gate: any authenticated user with the control opens and closes from
+  anywhere, with no `home` zone check (Requirement 21.5). The defaults
+  that remain: OTP on the login of the users who get the control (a new
+  issue against household-access-groups if their group lacks it) and one
+  household notification on every open, naming the user.
 
 ### Server corner
 
@@ -631,7 +628,7 @@ answers in chat.
 | Outdoor fixtures: which models, in which order? | Bridge fixtures, area by area in the inventory file's order ([Outdoor lighting](#outdoor-lighting)) |
 | Grid meter: buy the three-phase meter now, or only if the inverter and utility meter cannot? | Only if they cannot |
 | Server corner: page above 35 °C for 15 minutes? | Yes, and an INFO event above 30 °C |
-| Garage door: open only from a phone in the `home` zone, with a confirmation? | Yes; closing from anywhere ([Garage door](#garage-door)) |
+| Garage door: open only from a phone in the `home` zone? | No (operator, 2026-11-05): any authenticated user with the control, from anywhere; OTP login and a notification on every open ([Garage door](#garage-door)) |
 | Notifications: which household member gets which group? | Security and alarm: every household member with the companion app; plants: whoever waters; house (doorbell, mail, CO2): every member; admins: the operator |
 | Presence: the companion app's location for each household member, with their consent | On for each member who agrees |
 | Wall tablet: trial the existing one, where on the wall, power there? | Trial the existing tablet first |
@@ -659,7 +656,7 @@ chat.
 | Zigbee channel | 25 (or 15 or 20 after a scan), with the mesh's 2.4 GHz channel fixed at 1 or 6 | Keeps Zigbee and Wi-Fi apart; set before pairing |
 | Lights | Stay on their bridge; Home Assistant on top | The bridge is the fallback; no re-pairing to Zigbee2MQTT |
 | Outdoor lights | Replaced by fixtures on the bridge; motion sensors bound directly to their lights; camera detections only add | The current ones are poor; lamps must work without Home Assistant |
-| Garage door | The operator's kit in parallel with the wall button, local control, never closed by automation, no control on the wall tablet, opened only from a phone in the `home` zone | The door must work without Home Assistant; an unattended close is a safety risk |
+| Garage door | The operator's kit in parallel with the wall button, local control, never closed by automation, no control on the wall tablet, opened from anywhere by an authenticated user with the control (OTP login, a notification on every open) | The door must work without Home Assistant; an unattended close is a safety risk |
 | Server corner | One sensor, a page above 35 °C for 15 minutes, INFO above 30 °C | Heat is the hardware risk a person can act on |
 | Heating | The official integration for the model, cloud if that is all it offers; the controller keeps the schedule | Works with no purchase; local radio is a phase 2 option |
 | Heat pump | Cloud integration, polled within half its quota | No purchase; a local interface if it is not enough |

@@ -188,8 +188,9 @@ Assistant UI; the PR describes the rule, not the entity IDs
       operator's kit wired in parallel with the wall button, its local
       integration by IP (or ESPHome, MQTT), the open-too-long
       notification, the control on the phones' dashboards only, never on
-      the wall tablet; the open script that checks the caller's `home`
-      zone and asks for a confirmation; a Zigbee contact for the state if
+      the wall tablet; open and close from anywhere for users with the
+      control, OTP on their login, a notification on every open naming
+      the user; a Zigbee contact for the state if
       the kit has none. Check: the
       [fallback test](design.md#fallback-test): the button and the remotes
       open and close the door with Home Assistant at 0 replicas; an open
