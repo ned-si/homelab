@@ -63,7 +63,7 @@ task 3 writes the full block):
 | A | PR (task 1) | Add `household` to the six user-app lines and `relatives` and `friends` to the `immich`, `audiobookshelf`, `calibre-web` and `mealie` lines; the Job creates the three empty groups | Unchanged for everyone |
 | B | Operator, admin console (task 2) | Household members into `household`, relatives into `relatives`, friends into `friends` (the account of #1065 included), each out of `family` and `media`; check that both are empty | Household members: unchanged. Relatives: Immich, Mealie and the books; Home Assistant and Paperless deny them at the gate. Friends: Immich and the books as before, and Mealie |
 | C | PR (task 3) | Remove `family` and `media` from every line; docs and specs | Unchanged: both groups are empty |
-| D | Operator, from an agent's checklist (task 4) | Home Assistant and Paperless accounts of relatives; Mealie households of relatives and friends; then delete the empty `family` and `media` groups | No relative keeps a Home Assistant session; the household's meal plans stay private |
+| D | Operator, from an agent's checklist (task 4) | Home Assistant and Paperless accounts of relatives; the other adult not a Home Assistant administrator; existing relatives' Mealie accounts to the guests household; then delete the empty `family` and `media` groups | No relative keeps a Home Assistant session; the household's meal plans stay private |
 
 Every access change happens in step B, one person at a time, in the
 console. The two pull requests only add and remove group mappings that
@@ -106,8 +106,11 @@ console and the realm Job keep working throughout.
 3. Groups, `media`, Members: for each member, Join group `friends`, then
    Leave group `media`. The account of #1065, wherever it is, goes to
    `friends`. Expected: Groups, `media`, Members is empty.
-4. Comment on #1062 with the counts only: `household: <n>`,
-   `relatives: <n>`, `friends: <n>`, `family: 0`, `media: 0`.
+4. Groups, `HomeAssistantAdmins`, Members: the operator only. Anyone else:
+   Leave group. Expected: one member (Requirement 5.6).
+5. Comment on #1062 with the counts only: `household: <n>`,
+   `relatives: <n>`, `friends: <n>`, `HomeAssistantAdmins: 1`,
+   `family: 0`, `media: 0`.
 
 ### Step D: app accounts
 
@@ -121,8 +124,9 @@ anywhere.
 | App | Whose accounts | Page | Action |
 | --- | --- | --- | --- |
 | Home Assistant | relatives | Settings, People, Users (advanced mode) | delete when it owns nothing; owns devices or tokens: "Can log in" off |
+| Home Assistant | the other adult | Settings, People, the person, the user (advanced mode) | "Administrator" off if it is on; count only (Requirement 5.6) |
 | Paperless | relatives | Settings, Users & Groups | none, count only: the editor owns every document |
-| Mealie | relatives and friends | Admin settings, Users | move to a Mealie household other than the household's |
+| Mealie | existing relatives' accounts | Admin settings, Users | move to the guests household; friends need no step, they have no Mealie account yet |
 
 The agent confirms the labels against the running versions when it writes
 the checklist.
@@ -155,9 +159,10 @@ group, Delete). Expected: Groups lists neither; the next
   members (for example `neighbours`) when the audience is different.
   `apply.sh` creates the group on the next sync; the operator adds the
   people.
-- Mealie: new Keycloak users land in the default Mealie household (no
-  `DEFAULT_HOUSEHOLD`), which is the household's. A Mealie admin moves a
-  relative or a friend to another Mealie household after their first login
+- Mealie: new Keycloak users land in the guests household
+  (`DEFAULT_HOUSEHOLD` in `apps/mealie/deployment.yaml`, set by task 3),
+  so a new relative or friend needs no Mealie step. A new household member
+  is moved into the household's Mealie household after their first login
   (Requirement 6).
 - Home Assistant: `hass-oidc-auth` sets the admin role only when it creates
   the user, so a future administrator joins `HomeAssistantAdmins` before
@@ -180,7 +185,9 @@ release; the split between `relatives` and `friends` is ready for it.
 | Someone is still in `family` or `media` when step C merges | Step C runs only after the `family: 0`, `media: 0` comment of step B; if it happens anyway, the person sees "Access denied": join them to their group, the next login works |
 | A relative opens Home Assistant or Paperless after step B | "Access denied". It counts as a failed login: after 10 the account waits 60 s, then longer (`sessions.conf`), and the lock also blocks their other logins. Tell relatives they keep the photos, the recipes and the books; the operator clears a lock in Users, the user, Details |
 | A relative still has a Home Assistant session after step B | Step D ends it by deleting or disabling the account |
-| A relative or a friend sees the household's meal plans | Their Mealie account is still in the household's Mealie household: step D, Mealie row |
+| A relative sees the household's meal plans | Their account predates `DEFAULT_HOUSEHOLD` and is still in the household's Mealie household: step D, Mealie row |
+| A household member lands in the guests household at first login | Expected with `DEFAULT_HOUSEHOLD`: a Mealie admin moves them (add-a-person.md, Mealie step) |
+| `DEFAULT_HOUSEHOLD` names a household that does not exist | The first Keycloak login of a new user fails ([mealie#6379](https://github.com/mealie-recipes/mealie/issues/6379)); task 3 creates the household before it sets the variable |
 | `apply.sh` fails or a mapping differs | The PostSync Job fails, the `keycloak` sync fails and the auto-rollback reverts the merge |
 | Step C reverted after `family` and `media` were deleted | `apply.sh` recreates them empty; nobody gets access back until the operator adds members |
 
@@ -197,8 +204,9 @@ release; the split between `relatives` and `friends` is ready for it.
   The pentest test user (pentest-programme) moves to `household` before
   step B (Migration) and covers the household surface on each run.
 - After task 3: `git grep -n -w family` over the files of Requirement 8.1
-  returns exactly one line, the "Area" tag row of
-  `paperless-documents/design.md` (`family` is a Paperless tag there), and
+  returns exactly two lines, the Paperless tag rows where `family` is a
+  tag: `docs/paperless.md` (Tags row) and
+  `.kiro/specs/paperless-documents/design.md` (Area row), and
   `grep -n -w -E 'family|media' platform/keycloak/realm/access.conf`
   returns nothing. Task 3 replaces "family phone" with "household phone" in
   `pentest-programme`.
@@ -208,14 +216,16 @@ release; the split between `relatives` and `friends` is ready for it.
 Facts the reviews could not check without the running apps; the task named
 settles each one before it starts.
 
-1. Task 4: the "Can log in" label in Home Assistant against the running
-   version.
+1. Task 4: the "Can log in" and "Administrator" labels in Home Assistant
+   against the running version.
 2. Task 3: Clients, `paperless`, Client scopes, Evaluate shows the client
    role `access` only when the `roles` scope is a default scope of
    `paperless`; if it is not, the check reads the token of a real login
    instead.
 3. Task 3: a Mealie admin can move an existing user to another Mealie
-   household after their first login (Requirement 6 and the runbook text
-   depend on it).
+   household (the one-time move of step D and the runbook's step for a new
+   household member depend on it), and a first Keycloak login lands in
+   `DEFAULT_HOUSEHOLD` (checked with a test login after the variable is
+   set).
 4. Task 1: whether pentest-programme task 1 has merged with its test user
    defined in git, which decides the Migration case for that user.

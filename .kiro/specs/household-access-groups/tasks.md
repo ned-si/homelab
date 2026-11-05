@@ -1,8 +1,9 @@
 # Tasks: household-access-groups
 
 One pull request per task, in this order. Tasks 2 and 4 are console and app
-steps without a pull request of their own: task 2 is ticked in task 3's pull
-request and task 4 in task 5's, each with the link to its #1062 comment.
+steps without a pull request of their own. Rule: a console step is ticked
+with the link to its #1062 comment instead of a PR number; task 2 is ticked
+in task 3's pull request and task 4 in task 5's.
 The steps A to D are in [design.md](design.md#migration). Requirement
 numbers in brackets.
 
@@ -21,11 +22,15 @@ numbers in brackets.
       [1.2, 2.3, 4.1, 4.2]
 - [ ] 2. Operator, admin console: step B of design.md (household members
       into `household`, relatives into `relatives`, friends and the account
-      of #1065 into `friends`, `family` and `media` empty); counts on
-      #1062. [1.1, 4.2]
+      of #1065 into `friends`, `family` and `media` empty,
+      `HomeAssistantAdmins` the operator only); counts on #1062. [1.1,
+      4.2, 5.6]
 - [ ] 3. `feat(keycloak): drop the family and media groups`: after the task
       2 comment, remove `family` and `media` from every line; the full
-      group block in the header of `access.conf`; `docs/architecture.md`
+      group block in the header of `access.conf`; `DEFAULT_HOUSEHOLD` set
+      to the guests household in `apps/mealie/deployment.yaml`, after a
+      Mealie admin has created that household in Admin settings,
+      Households; `docs/architecture.md`
       (per-app access table), `docs/runbooks/add-a-person.md` (groups
       table, join groups, the Mealie household, opening an app to more
       people, `HomeAssistantAdmins` before the first login),
@@ -34,14 +39,15 @@ numbers in brackets.
       phone" to "household phone" in `pentest-programme`; the Job log and
       the two greps of design.md, Testing, in the pull request; tick task
       2. Settle items 2 and 3 of design.md, To settle at implementation.
-      [1.1, 1.2, 2, 3, 6.2, 7, 8]
+      [1.1, 1.2, 2, 3, 6, 7, 8]
 - [ ] 4. App accounts and the empty groups: step D of design.md on a
       weekday during the day. The agent settles item 1 of design.md, To
       settle at implementation, and prepares the checklist in chat; the
       operator works through it in each app's admin UI and replies with
-      counts (deleted, disabled, moved), the agent posts the counts per app
-      on #1062; then the operator deletes `family` and `media`. [1.1, 5,
-      6.1]
+      counts (deleted, disabled, moved, Home Assistant administrators
+      other than the operator), the agent posts the counts per app on
+      #1062; then the operator deletes `family` and `media`. [1.1, 5,
+      5.6, 6.1]
 - [ ] 5. Close: a Done line in the access-identity area spec (its
       Requirement 2 names no group, so it is unchanged); tick task 4;
       `status: done`, `closed:`; #1062 closed.

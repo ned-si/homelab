@@ -86,12 +86,12 @@ recipes and the books.
 
    | Client | App | Groups |
    | --- | --- | --- |
-   | `home-assistant` | Home Assistant (`home`) | `admins` `HomeAssistantAdmins` `household` |
-   | `immich` | Immich (`media`) | `admins` `household` `relatives` `friends` |
-   | `audiobookshelf` | Audiobookshelf (`audiobooks`) | `admins` `household` `relatives` `friends` |
-   | `calibre-web` | Calibre-Web (`ebooks`) | `admins` `household` `relatives` `friends` |
-   | `mealie` | Mealie (`cook`) | `admins` `household` `relatives` `friends` |
-   | `paperless` | Paperless (`archive`) | `admins` `household` |
+   | `home-assistant` | Home Assistant (home.lilalala.com) | `admins` `HomeAssistantAdmins` `household` |
+   | `immich` | Immich (media.lilalala.com) | `admins` `household` `relatives` `friends` |
+   | `audiobookshelf` | Audiobookshelf (audiobooks.lilalala.com) | `admins` `household` `relatives` `friends` |
+   | `calibre-web` | Calibre-Web (ebooks.lilalala.com) | `admins` `household` `relatives` `friends` |
+   | `mealie` | Mealie (cook.lilalala.com) | `admins` `household` `relatives` `friends` |
+   | `paperless` | Paperless (archive.lilalala.com) | `admins` `household` |
 
    The platform clients (`argocd`, `grafana-oauth`, `headlamp`, `hubble`,
    `signoz`, `syncthing`) and `theater-sso` (the *arr admin UIs: `admins`
@@ -161,6 +161,11 @@ or Paperless to be out of it now, not when their app session ends.
    deleted: relatives and friends keep those apps.
 5. THE number of accounts deleted and disabled per app SHALL be recorded on
    #1062.
+6. THE operator SHALL be the only Home Assistant administrator through
+   Keycloak: `HomeAssistantAdmins` has one member, and no other
+   Keycloak-created Home Assistant user has the administrator role (the
+   local break-glass `owner` excepted). (step B checklist item 4; step D,
+   Home Assistant row for the other adult)
 
 ### Requirement 6: Mealie keeps the household's plans private
 
@@ -170,13 +175,17 @@ ourselves.
 
 #### Acceptance criteria
 
-1. EVERY Mealie account of a relative or a friend SHALL be in a Mealie
-   household other than the household's: Mealie shares recipes across its
-   group and keeps meal plans and shopping lists per Mealie household. A
-   Mealie admin sets it in Admin settings, Users, after the person's first
-   login. (Mealie, Admin settings, Users: the household column)
+1. NEW Mealie accounts SHALL land in a Mealie household for guests
+   (`DEFAULT_HOUSEHOLD` in `apps/mealie/deployment.yaml`, a generic name
+   such as `Guests`): Mealie shares recipes across its group and keeps meal
+   plans and shopping lists per Mealie household. The household members'
+   accounts stay in the household's Mealie household. The accounts of
+   relatives that already exist are moved once, in step D. (Mealie, Admin
+   settings, Users: the household column)
 2. THE runbook [add-a-person.md](../../../docs/runbooks/add-a-person.md)
-   SHALL say so in its Mealie step.
+   SHALL say so in its Mealie step: a new relative or friend needs no
+   Mealie step; a new household member is moved into the household's
+   Mealie household after their first login.
 
 ### Requirement 7: Opening an app to more people goes through a group
 
@@ -209,8 +218,9 @@ who reaches what.
    `relatives` and `friends` and SHALL NOT name `family` or `media` as a
    Keycloak group. The `pentest-programme` phrase "family phone" SHALL
    become "household phone". (`git grep -n -w family` over these files
-   returns one line only: the "Area" tag row of
-   `paperless-documents/design.md`, where `family` is a Paperless tag;
+   returns exactly two lines, the Paperless tag rows where `family` is a
+   tag: `docs/paperless.md` (Tags row) and
+   `.kiro/specs/paperless-documents/design.md` (Area row);
    `grep -n -w -E 'family|media' platform/keycloak/realm/access.conf`
    returns nothing)
 
@@ -226,7 +236,7 @@ one PR.
 | Mealie, Audiobookshelf, Calibre-Web (operator, 2026-11-05) | `household`, `relatives` and `friends` | Relatives keep the recipes and the books; friends get the same access as relatives |
 | Relatives and friends (operator, 2026-11-05) | Two groups with the same apps for now | Their Immich access will differ later (#1073); people sorted now do not move again |
 | Home Assistant (operator, 2026-11-04) | `household` | Confirmed on 2026-11-04 |
-| Home Assistant administrators (operator, 2026-11-05) | Only the operator (`HomeAssistantAdmins`); the other adult a normal user | Requirement 7.2 for a later administrator |
+| Home Assistant administrators (operator, 2026-11-05) | Only the operator (`HomeAssistantAdmins`); the other adult a normal user | Checked in steps B and D (Requirement 5.6); Requirement 7.2 for a later administrator |
 | *arr admin UIs (operator, 2026-11-04) | Admins only: `admins` and `TheaterAdmins`, unchanged | The single login is #1063 |
 | Immich (operator, 2026-11-04) | The operator is the Immich admin; household members, relatives and friends through their own accounts and shared albums | Immich has no user groups (#1073) |
 | Plex, Jellyfin (operator) | Off SSO | The TV apps; a partial SSO for Plex is research in #1064 |
@@ -235,6 +245,6 @@ one PR.
 | Who is in `household` | The operator and the other adult | #1062; the operator's `admins` membership already covers every app, `household` lists the household |
 | OTP | Not for `household`, `relatives` or `friends` | access-identity Requirement 7.2 |
 | App accounts of relatives in Home Assistant and Paperless | The operator checks them from an agent's checklist; Home Assistant: deleted when they own nothing, disabled otherwise; Paperless: count only | A Keycloak denial does not end an app session; no agent holds app admin credentials (Requirement 5) |
-| Mealie accounts of relatives and friends | A Mealie household of their own | The household's meal plans and shopping lists stay private (Requirement 6) |
+| Mealie accounts of relatives and friends | New accounts land in a guests household (`DEFAULT_HOUSEHOLD`); existing relatives moved once | The household's meal plans and shopping lists stay private without a step per new person (Requirement 6) |
 | Pentest test user | In `household` before step B, never `family` | A test user held in `family` by git would keep `family` from emptying (design, Migration) |
 | Membership changes | The operator, in the admin console | Users stay out of git; the console is the only place they are |
