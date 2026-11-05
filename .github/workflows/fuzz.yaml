@@ -40,8 +40,25 @@ jobs:
         with:
           persist-credentials: false
 
+      # pip's download and wheel cache, keyed on the hash-pinned requirements;
+      # pip checks every file against --require-hashes, cached or not.
+      - name: Restore pip cache
+        id: pip
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-fuzz-${{ runner.os }}-${{ hashFiles('ci/requirements-fuzz.txt') }}
+
       - name: Install Atheris (pinned by hash)
+        id: setup
         run: scripts/ci/setup-python-deps.sh ci/requirements-fuzz.txt
+
+      - name: Save pip cache
+        if: ${{ steps.setup.outcome == 'success' && steps.pip.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip.outputs.cache-primary-key }}
 
       - name: Fuzz every target
         env:
