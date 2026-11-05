@@ -19,11 +19,24 @@ spec:
       labels:
         app.kubernetes.io/name: mealie
     spec:
+      automountServiceAccountToken: false
+      # PUID:PGID. The entrypoint (docker/entry.sh) skips its root chown and
+      # gosu switch when started as PUID; every file on mealie-pvc is 1000:1000.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: mealie
           # renovate: datasource=docker depName=ghcr.io/mealie-recipes/mealie
           image: ghcr.io/mealie-recipes/mealie:v3.30.0@sha256:90f83da6f3ab0a421efc827118a556168573930105f13fa3321768f42163d784
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: ALLOW_SIGNUP
               value: "false"
@@ -101,6 +114,19 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 3
+          # /api/app/about may read the database, so liveness and startup
+          # only check the port. Migrations run before the server binds it.
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
           resources:
             limits:
               memory: "1000Mi"

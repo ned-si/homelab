@@ -28,6 +28,7 @@ spec:
       labels:
         app.kubernetes.io/name: mealie
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: ALLOW_SIGNUP
@@ -92,6 +93,12 @@ spec:
           value: "false"
         image: ghcr.io/mealie-recipes/mealie:v3.30.0@sha256:90f83da6f3ab0a421efc827118a556168573930105f13fa3321768f42163d784
         imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 5
+          periodSeconds: 30
+          tcpSocket:
+            port: http
+          timeoutSeconds: 5
         name: mealie
         ports:
         - containerPort: 9000
@@ -106,9 +113,25 @@ spec:
         resources:
           limits:
             memory: 1000Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        startupProbe:
+          failureThreshold: 30
+          periodSeconds: 10
+          tcpSocket:
+            port: http
         volumeMounts:
         - mountPath: /app/data
           name: mealie-data
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
       - name: mealie-data
         persistentVolumeClaim:
