@@ -53,9 +53,10 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       kubeconfig checked before and after; a login to one OIDC app and one
       oauth2-proxy UI in the 30-minute comment;
       `scripts/psa-readiness.sh keycloak`. [3, 4, 8]
-- [ ] 9. Weekday. Sonarr and its exportarr sidecar: root profile for the
+- [x] 9. Weekday. Sonarr and its exportarr sidecar: root profile for the
       app (`UMASK=002`, NFS), exportarr non-root `65532:65532` on the
       container, pod-level seccomp, token, the stop check. [3, 4, 8, 9]
+      #1170
 - [ ] 10. Weekday. Radarr, as task 9. [3, 4, 8, 9]
 - [ ] 11. Weekday. Lidarr, as task 9. [3, 4, 8, 9]
 - [ ] 12. Weekday. Prowlarr, as task 9. [3, 4, 8, 9]
