@@ -29,6 +29,21 @@ objects and rule ids only; values are never printed.
                         listener has a ResponseHeaderModifier that sets
                         Strict-Transport-Security and X-Content-Type-Options
                         (docs/networking.md, Security headers)
+  pod-hardening         every container of every rendered pod template meets the
+                        checks of spec per-app-hardening or has a line in
+                        ci/pod-hardening-gaps.txt (`<ns>/<kind>/<name>/<container>
+                        <check> <reason>`, `*` as container for token). In
+                        APP_NAMESPACES: probes (long-running containers),
+                        seccomp, privilege-escalation, capabilities (drop ALL;
+                        add only NET_BIND_SERVICE, or root-profile ones with a
+                        non-root line), non-root. In every namespace outside
+                        EXCLUDED_NAMESPACES of scripts/ci/kyverno.sh: token (a
+                        Pod of the default ServiceAccount, or in APP_NAMESPACES
+                        of an unbound one, sets automountServiceAccountToken:
+                        false) and no binding grants a default ServiceAccount.
+                        A stale, malformed or duplicate line fails, and so does
+                        an Application under clusters/homelab/apps/ whose
+                        namespace is not in APP_NAMESPACES
   cronjob-suspended / cronjob-guard / guard-modes / cronjob-active
                         new-layout CronJobs rendered from the apps and platform
                         layers are suspended, unless listed in
@@ -235,6 +250,17 @@ BACKUP_SLO_TARGETS = "platform/kube-prometheus-stack/routes/backup-slo-targets.y
 RESTIC_CMD = re.compile(r"(?:^|\$\()restic\s+([a-z]+)\b")
 RESTIC_LOCKING = {"backup", "check", "forget", "prune", "ls"}
 RESTIC_EXCLUSIVE = {"check", "forget", "prune"}
+# pod-hardening (spec per-app-hardening): checks 1 to 5 run in these namespaces,
+# check 6 (token) in every namespace the Kyverno webhooks do not exclude.
+APP_NAMESPACES = ("books", "home", "immich", "keycloak", "mealie", "paperless", "syncthing", "theater")
+APPS_DIR = "clusters/homelab/apps"
+POD_GAPS = "ci/pod-hardening-gaps.txt"
+KYVERNO_SH = "scripts/ci/kyverno.sh"
+HARDENING_CHECKS = ("probes", "seccomp", "privilege-escalation", "capabilities", "non-root", "token")
+# Capabilities a root-profile container (one with a non-root gap) may add back.
+ROOT_CAPS = {"CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"}
+LONG_RUNNING_KINDS = {"Deployment", "StatefulSet", "DaemonSet"}
+GAP_REF = re.compile(r"^[a-z0-9-]+/[A-Za-z]+/[a-z0-9.-]+/(?:[a-z0-9.-]+|\*)$")
 
 
 class Policy:
@@ -498,6 +524,135 @@ class Policy:
                 if PSS_LEVELS.index(got[m]) < PSS_LEVELS.index(got["enforce"]):
                     self.fail(rule, f"{NAMESPACES_FILE}: Namespace {self.name_of(d)}: {m} {got[m]} is looser "
                                     f"than enforce {got['enforce']}")
+
+    def rule_pod_hardening(self) -> None:
+        # Spec per-app-hardening, requirement 1: every gap of a pod template is
+        # listed in ci/pod-hardening-gaps.txt, and every line there is a gap.
+        rule = "pod-hardening"
+        gaps_path = self.root / POD_GAPS
+        if not (gaps_path.is_file() or (self.root / KYVERNO_SH).is_file()):
+            return
+        self.on(rule)
+        excluded: set[str] = set()
+        if (self.root / KYVERNO_SH).is_file():
+            m = re.search(r'^EXCLUDED_NAMESPACES="([^"]*)"', (self.root / KYVERNO_SH).read_text(), re.M)
+            if not m:
+                self.fail(rule, f'{KYVERNO_SH}: no EXCLUDED_NAMESPACES="..." line')
+                return
+            excluded = set(m.group(1).split())
+        apps_dir = self.root / APPS_DIR
+        for f in sorted(apps_dir.glob("*.y*ml")) if apps_dir.is_dir() else []:
+            for d in yaml_file_docs(f):
+                if d.get("kind") != "Application":
+                    continue
+                ns = str(((d.get("spec") or {}).get("destination") or {}).get("namespace") or "")
+                if ns not in APP_NAMESPACES:
+                    self.fail(rule, f"{self.name_of(d)}: namespace {ns or '(none)'} is not in APP_NAMESPACES; add it")
+
+        pods: dict[str, tuple[str, str, dict]] = {}  # <ns>/<kind>/<name> -> (ns, kind, pod spec)
+        bound: set[tuple[str, str]] = set()
+        for e in self.entries():
+            for d in self.docs_of(e):
+                kind = d.get("kind")
+                if kind in ("RoleBinding", "ClusterRoleBinding") and self.group_of(d) == "rbac.authorization.k8s.io":
+                    own_ns = (d.get("metadata") or {}).get("namespace") or e.get("namespace")
+                    for s in d.get("subjects") or []:
+                        if s.get("kind") != "ServiceAccount":
+                            continue
+                        sns = s.get("namespace") or (own_ns if kind == "RoleBinding" else None)
+                        if not sns:
+                            continue
+                        bound.add((sns, str(s.get("name"))))
+                        if s.get("name") == "default" and sns not in excluded:
+                            where = f"{kind} {own_ns + '/' if kind == 'RoleBinding' and own_ns else ''}{self.name_of(d)}"
+                            self.fail(rule, f"{where} grants {sns}/default; give the Pod its own ServiceAccount")
+                    continue
+                pod = pod_spec_of(d)
+                if pod is None:
+                    continue
+                ns = self.ns_of(d, e)
+                pods.setdefault(f"{ns}/{kind}/{self.name_of(d)}", (ns, str(kind), pod))
+        if not pods:
+            return
+        if not gaps_path.is_file():
+            self.fail(rule, f"{POD_GAPS} not found; refusing to pass")
+            return
+
+        listed: dict[tuple[str, str], int] = {}
+        for n, raw in enumerate(gaps_path.read_text().splitlines(), 1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = line.split(None, 2)
+            where = f"{POD_GAPS}:{n}"
+            if len(parts) < 3:
+                self.fail(rule, f"{where}: malformed line (want: <namespace>/<kind>/<name>/<container> <check> "
+                                "<reason>)")
+                continue
+            ref, check = parts[0], parts[1]
+            if not GAP_REF.match(ref):
+                self.fail(rule, f"{where}: malformed reference {ref} (want <namespace>/<kind>/<name>/<container>)")
+                continue
+            if check not in HARDENING_CHECKS:
+                self.fail(rule, f"{where}: unknown check {check} (one of {', '.join(HARDENING_CHECKS)})")
+                continue
+            if (check == "token") != ref.endswith("/*"):
+                self.fail(rule, f"{where}: {check} takes " + ("* as container" if check == "token"
+                                                              else "a container name, not *"))
+                continue
+            if (ref, check) in listed:
+                self.fail(rule, f"{where}: duplicate of line {listed[(ref, check)]}")
+                continue
+            listed[(ref, check)] = n
+
+        found: dict[tuple[str, str], str] = {}
+        for key, (ns, kind, pod) in sorted(pods.items()):
+            sa = pod.get("serviceAccountName") or pod.get("serviceAccount") or "default"
+            if ns not in excluded and pod.get("automountServiceAccountToken") is not False:
+                if sa == "default":
+                    found[(f"{key}/*", "token")] = "runs as ServiceAccount default with its token mounted"
+                elif ns in APP_NAMESPACES and (ns, sa) not in bound:
+                    found[(f"{key}/*", "token")] = (f"ServiceAccount {sa} is named by no RoleBinding or "
+                                                    "ClusterRoleBinding and its token is mounted")
+            if ns not in APP_NAMESPACES:
+                continue
+            psc = pod.get("securityContext") or {}
+            sidecars = [c for c in pod.get("initContainers") or [] if c.get("restartPolicy") == "Always"]
+            long_running = {c.get("name") for c in (pod.get("containers") or []) + sidecars} \
+                if kind in LONG_RUNNING_KINDS else set()
+            for c in (pod.get("initContainers") or []) + (pod.get("containers") or []):
+                ref = f"{key}/{c.get('name')}"
+                csc = c.get("securityContext") or {}
+                if c.get("name") in long_running:
+                    missing = [p for p in ("readinessProbe", "livenessProbe") if not c.get(p)]
+                    if missing:
+                        found[(ref, "probes")] = "no " + ", no ".join(missing)
+                seccomp = (csc.get("seccompProfile") if "seccompProfile" in csc
+                           else psc.get("seccompProfile")) or {}
+                if seccomp.get("type") not in ("RuntimeDefault", "Localhost"):
+                    found[(ref, "seccomp")] = f"seccompProfile.type is {seccomp.get('type') or 'unset'}"
+                if csc.get("allowPrivilegeEscalation") is not False:
+                    found[(ref, "privilege-escalation")] = "allowPrivilegeEscalation is not false"
+                non_root = csc["runAsNonRoot"] if "runAsNonRoot" in csc else psc.get("runAsNonRoot")
+                if non_root is not True:
+                    found[(ref, "non-root")] = "runAsNonRoot is not true"
+                allowed = {"NET_BIND_SERVICE"}
+                if (ref, "non-root") in found and (ref, "non-root") in listed:
+                    allowed |= ROOT_CAPS
+                caps = csc.get("capabilities") or {}
+                problems = [] if "ALL" in (caps.get("drop") or []) else ["drop lacks ALL"]
+                extra = sorted(set(caps.get("add") or []) - allowed)
+                if extra:
+                    problems.append(f"add has {', '.join(extra)}")
+                if problems:
+                    found[(ref, "capabilities")] = "capabilities." + ", ".join(problems)
+
+        for (ref, check), what in sorted(found.items()):
+            if (ref, check) not in listed:
+                self.fail(rule, f'{ref} fails {check} ({what}); fix it or add "{ref} {check} <reason>" to {POD_GAPS}')
+        for (ref, check), n in sorted(listed.items(), key=lambda x: x[1]):
+            if (ref, check) not in found:
+                self.fail(rule, f"{POD_GAPS}:{n}: {ref} {check} is no longer a gap; remove the line")
 
     def rule_cronjobs(self) -> None:
         non_backup = self.read_list("ci/non-backup-cronjobs.txt")
@@ -1069,7 +1224,8 @@ class Policy:
     def run(self) -> int:
         for rule in (self.rule_lan, self.rule_wan, self.rule_immich_db, self.rule_finalizer, self.rule_pvc,
                      self.rule_exclude_annotation, self.rule_wildcard_routes, self.rule_route_headers,
-                     self.rule_iscsi_selinux_label, self.rule_pod_security_labels, self.rule_cronjobs,
+                     self.rule_iscsi_selinux_label, self.rule_pod_security_labels, self.rule_pod_hardening,
+                     self.rule_cronjobs,
                      self.rule_restic_locks,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
@@ -1292,6 +1448,20 @@ def destination_permitted(proj: dict, dest: dict, namespace: str) -> bool:
         if name is not None and item.get("name") and fnmatchcase(str(name), str(item["name"])):
             return True
     return False
+
+
+def pod_spec_of(doc: dict) -> dict | None:
+    """The pod spec of a workload or Pod manifest, else None."""
+    kind, spec = doc.get("kind"), doc.get("spec") or {}
+    if doc.get("apiVersion") not in ("v1", "apps/v1", "batch/v1"):
+        return None
+    if kind in ("Deployment", "StatefulSet", "DaemonSet", "ReplicaSet", "Job"):
+        return (spec.get("template") or {}).get("spec") or {}
+    if kind == "CronJob":
+        return (((spec.get("jobTemplate") or {}).get("spec") or {}).get("template") or {}).get("spec") or {}
+    if kind == "Pod":
+        return spec
+    return None
 
 
 def wal_archiver(cluster: dict) -> dict | None:

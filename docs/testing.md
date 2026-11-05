@@ -54,6 +54,19 @@ tools, so no test skips for a missing tool.
     `policies/kyverno/upstream/` over every file in `deploy/`
   - `scripts/ci/repo-policy.sh`: pins, repository invariants, `deploy/`
     matches its sources, kube-linter
+  - the repository invariant `pod-hardening` (spec
+    [per-app-hardening](../.kiro/specs/per-app-hardening/)): every container
+    of a rendered pod template in `APP_NAMESPACES` of
+    `scripts/ci/repo_policy.py` has readiness and liveness probes (when it is
+    long-running), seccomp `RuntimeDefault`, `allowPrivilegeEscalation:
+    false`, `capabilities.drop: [ALL]` and `runAsNonRoot: true`; outside the
+    Kyverno-excluded namespaces, a Pod of the `default` ServiceAccount sets
+    `automountServiceAccountToken: false` and no binding grants a `default`
+    ServiceAccount. What is still missing is listed with its reason in
+    `ci/pod-hardening-gaps.txt`; a new gap and a line that is no longer a gap
+    both fail, so the file only shrinks. An Application under
+    `clusters/homelab/apps/` whose namespace is not in `APP_NAMESPACES`
+    fails too.
 - `tests`:
   - unit tests: `pytest tests` (render, repo policy, workflow entry points,
     pre-commit parity, the `ci` job list) and `tests/run-bash-tests.sh`
