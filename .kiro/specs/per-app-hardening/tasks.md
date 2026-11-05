@@ -31,12 +31,12 @@ user records the stop check [8.4]. Requirement numbers in brackets.
 - [ ] 4. Weekday. Mealie: `tcpSocket` liveness and startup probes,
       non-root `1000:1000`, token; `scripts/psa-readiness.sh mealie`. [2,
       3, 4, 8, 9]
-- [ ] 5. Weekday. Syncthing (StatefulSet): readiness and liveness on
+- [x] 5. Weekday. Syncthing (StatefulSet): readiness and liveness on
       `/rest/noauth/health`, non-root `1000:1000` without `fsGroup`, token;
       stop if the ownership check finds other owners; the brief allows
       `kubectl -n syncthing delete pod syncthing-0` for a forced rollback
       after a revert (design.md "Error handling");
-      `scripts/psa-readiness.sh syncthing`. [2, 3, 4, 8, 9]
+      `scripts/psa-readiness.sh syncthing`. [2, 3, 4, 8, 9] #1156
 - [ ] 6. Weekday. Immich Valkey and machine learning: Valkey probes and
       non-root `999:1000`, machine learning non-root `1000:1000`
       (`fsGroup` on `immich-machine-learning-cache` only if the check
