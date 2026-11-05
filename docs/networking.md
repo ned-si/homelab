@@ -224,8 +224,8 @@ namespace and direction in `90-enforcement.yaml`.
 
 | Namespace | Ingress | Egress |
 | --- | --- | --- |
-| `paperless` | enforced | audit |
-| `backup-verify`, `books`, `home`, `immich`, `keycloak`, `mealie`, `monitoring`, `syncthing`, `theater` | audit | audit |
+| `paperless`, `immich` | enforced | audit |
+| `backup-verify`, `books`, `home`, `keycloak`, `mealie`, `monitoring`, `syncthing`, `theater` | audit | audit |
 
 The break-glass (delete the
 switch, then hold every merge and revert) and the flip procedure are in
