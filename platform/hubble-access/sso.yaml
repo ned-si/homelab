@@ -1,15 +1,7 @@
-# Keycloak login in front of the Hubble UI: the oauth2-proxy `hubble-sso`.
-#
-#     HTTPRoute `hubble` (shared Gateway) --> hubble-sso:4180 --> hubble-ui.kube-system:80
-#
-# Access needs membership of the Keycloak group `admins`, checked twice: the
-# client's own login flow denies anyone else (platform/keycloak/realm/access.conf)
-# and the proxy's allowedGroups (sso-alpha-config.yaml). The client `hubble` is
-# realm code (platform/keycloak/realm/platform.conf, `proxy_clients`); it is a
-# platform client, so a login older than 12 hours is asked again.
-#
-# The Hubble UI has no login of its own: when Keycloak is down, read flows with
-# the hubble CLI through a port-forward to the relay (docs/networking.md).
+# Keycloak login in front of the Hubble UI: HTTPRoute `hubble` -> hubble-sso
+# :4180 -> hubble-ui.kube-system:80. Group `admins`, checked by the client's
+# login flow and the proxy. When Keycloak is down, use the hubble CLI through
+# a port-forward to the relay (docs/networking.md).
 ---
 apiVersion: apps/v1
 kind: Deployment

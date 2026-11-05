@@ -1,8 +1,6 @@
-# Monthly Paperless restore test (scripts/verify-paperless.sh): the newest
-# paperless-export snapshot is imported into a throwaway Paperless in this pod
-# and its document counts are compared. The scratch volume is an ephemeral
-# iscsi claim, twice the size of paperless-export (the restored export plus
-# the imported copy), deleted with the pod.
+# Monthly Paperless restore test (scripts/verify-paperless.sh): import the
+# newest paperless-export snapshot into a throwaway Paperless and compare the
+# document counts. Scratch volume: an ephemeral claim twice the export's size.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

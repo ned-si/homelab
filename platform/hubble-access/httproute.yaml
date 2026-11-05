@@ -1,10 +1,6 @@
-# Hubble UI on the shared Gateway: https://hubble.lilalala.com, behind the
-# oauth2-proxy `hubble-sso` (Keycloak, group admins). Canonical route shape:
-# platform/kube-prometheus-stack/routes/grafana.yaml. external-dns publishes
-# the hostname.
-#
-# Security headers (docs/networking.md, Security headers): the full set; the
-# UI is never framed, so `frame-ancestors 'none'` and `X-Frame-Options: DENY`.
+# hubble.lilalala.com to the oauth2-proxy `hubble-sso`. Route shape:
+# platform/kube-prometheus-stack/routes/grafana.yaml. Security headers
+# (docs/networking.md): the full set, never framed.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

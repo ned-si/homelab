@@ -1,14 +1,7 @@
-# tailscale-operator chart values (clusters/homelab/platform/tailscale-operator.yaml,
-# docs/remote-access.md).
-#
-# The OAuth client is precreated as the Secret `operator-oauth` (keys
-# client_id, client_secret), so `oauth` stays empty here. Its scopes: Devices
-# Core write, Auth Keys write, Services write, tag tag:k8s-operator.
-#
-# Every pod passes Pod Security `restricted` (namespace tailscale): the
-# operator below, and the Ingress proxies through the ProxyClass `restricted`
-# (platform/tailscale-operator/resources/proxyclass.yaml). Ingress proxies run tailscaled
-# in userspace mode, so they need no TUN device and no privileges.
+# tailscale-operator (docs/remote-access.md). The OAuth client is the
+# precreated Secret `operator-oauth`, so `oauth` stays empty. Every pod passes
+# Pod Security `restricted`; Ingress proxies through the ProxyClass
+# `restricted` (resources/proxyclass.yaml), in userspace mode.
 installCRDs: true
 
 operatorConfig:

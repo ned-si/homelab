@@ -1,49 +1,18 @@
-# Would-be drops of the CiliumNetworkPolicy allow-lists
-# (infrastructure/network-policies, not enforced; docs/networking.md,
-# "Network policy").
+# Would-be drops of the CiliumNetworkPolicy allow-lists (docs/networking.md,
+# "Network policy"), from hubble_policy_verdicts_total. A connection no
+# allow-list matches is allowed by the synthesized wildcard rule and reported
+# as match="all": the default-deny switch would drop it.
 #
-# Source: the Hubble `policy` metric of the agents,
-# hubble_policy_verdicts_total{direction, match, action, source,
-# source_namespace, destination, destination_namespace}, one count per new
-# connection. With only allow-lists selecting a pod, Cilium adds a
-# wildcard-allow rule last; a connection that no allow-list rule matches is
-# allowed by it and reported with match="all". That is a would-be drop: the
-# namespace's default-deny switch would drop it. Verdicts from the host
-# (kubelet probes) are not counted by Hubble.
+# The policed namespace is the destination for ingress, the source for egress.
+# Only namespaces with a switch in 90-enforcement.yaml count; add one here
+# with its allow-list. Elsewhere match="all" is not a would-be drop.
 #
-# The policed namespace is the destination for ingress and the source for
-# egress. Only the namespaces with allow-lists count (immich|mealie|paperless|syncthing|theater, the
-# switches in infrastructure/network-policies/90-enforcement.yaml; add a
-# namespace here with its allow-list). Elsewhere `match="all"` is not a
-# would-be drop: Argo CD's chart NetworkPolicy for argocd-server allows
-# `ingress: [{}]` (every peer), and the enforced policies of headlamp,
-# hubble, signoz and kube-system are default-deny already.
+# The presence term: Hubble's first sample of a series is already 1, so rate()
+# never counts a flow seen once; netpol:would_drop:series shows it.
+# netpol.ready runs every 2 minutes, under the 5-minute lookback.
 #
-#   netpol:verdicts:rate5m{namespace, direction}        every verdict
-#   netpol:would_drop:rate5m{namespace, direction}      match="all" only
-#   netpol:would_drop:series{namespace, direction}      match="all" series present now
-#   netpol:would_drop:increase7d{namespace, direction}  from the 5m rate, averaged over 7 days;
-#                                                       0 where verdicts but no would-be drop
-#   netpol:would_drop:seen7d{namespace, direction}      most match="all" series present at once
-#                                                       in 7 days; 0 where verdicts but none
-#   netpol:ready_to_enforce{namespace, direction}       1 = no would-be drop counted and no
-#                                                       match="all" series in 7 days, with
-#                                                       7 days of verdicts
-#
-# Why the presence term: Hubble creates a counter series at the first
-# connection of each label set, so Prometheus' first sample is already 1 and
-# rate() and increase() never count that connection (nor the first one after
-# a Cilium agent restart). A flow seen once in 7 days reads 0 in the rate
-# series and is visible only as a series in netpol:would_drop:series.
-#
-# netpol.ready runs every 2 minutes, below the 5-minute lookback delta, so an
-# instant query always finds its series.
-#
-# No alert: would-be drops do not notify. A namespace and direction is
-# flipped to default-deny only when netpol:ready_to_enforce is 1 (spec
-# netpol-default-deny).
-#
-# Tests: tests/prometheus/netpol_test.yaml (promtool test rules).
+# No alert. A direction is flipped only when netpol:ready_to_enforce is 1.
+# Tests: tests/prometheus/netpol_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

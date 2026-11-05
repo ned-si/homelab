@@ -1,21 +1,8 @@
-# Prowlarr indexers that need a person: an expired login or cookie, a locked
-# account, or a site that is gone. From the health checks Prowlarr reports
-# through its exportarr sidecar (apps/theater/metrics.yaml).
-#
-#   ArrIndexersFailing   Prowlarr reports indexers failing for more than 6
-#                        hours, or indexers without a definition, for 1h   warning  human
-#
-# Prowlarr retries a failing indexer with a backoff, so a short outage of a
-# tracker never reaches the 6-hour check.
-#
-# Disabled indexers: Prowlarr's 6-hour check counts enabled indexers only, so
-# one disabled on purpose (IPTorrents) never fires this. Its no-definition
-# check counts disabled ones too, but such an indexer can be neither used nor
-# edited, and removing it is the fix. The metric does not say which indexer is
-# enabled, so the rule cannot tell them apart. The message names the indexers; it
-# is not a label of the alert, so a change in the list does not notify again.
-#
-# Tests: tests/prometheus/arr_test.yaml (promtool test rules).
+# Prowlarr indexers that need a person (expired login, locked account, dead
+# site), from the exportarr sidecar (apps/theater/metrics.yaml). Prowlarr's
+# backoff keeps short tracker outages under the 6-hour check, which counts
+# enabled indexers only. Indexer names are in the message, not a label, so a
+# list change does not notify again. Tests: tests/prometheus/arr_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

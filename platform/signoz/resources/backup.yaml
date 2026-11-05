@@ -1,14 +1,7 @@
-# SigNoz's metadata (users, dashboards, saved views, alert rules: the SQLite
-# file in /var/lib/signoz on PVC signoz-db-signoz-0), to S3 with restic,
-# nightly. The telemetry in ClickHouse is disposable and not backed up
-# (docs/backups.md, "What is not backed up").
-#
-# BEST-EFFORT COPY OF A LIVE SQLITE DATABASE, like
-# platform/kube-prometheus-stack/routes/grafana-backup.yaml (read its header
-# for the approaches rejected): the restic image has no sqlite3, so the .db
-# and its -wal/-shm files are copied as they are, tagged
-# `signoz-db-besteffort`. Losing a torn copy costs re-creating a few saved
-# views and dashboards, not data.
+# SigNoz's metadata (the SQLite file on PVC signoz-db-signoz-0) to S3 with
+# restic, nightly; ClickHouse telemetry is not backed up (docs/backups.md).
+# A best-effort copy of a live SQLite database, tagged `signoz-db-besteffort`,
+# as in platform/kube-prometheus-stack/routes/grafana-backup.yaml.
 ---
 apiVersion: batch/v1
 kind: CronJob

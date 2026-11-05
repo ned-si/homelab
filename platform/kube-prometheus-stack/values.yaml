@@ -1,33 +1,16 @@
-# kube-prometheus-stack chart 92.0.0 values, at parity with the running release
-# (ADR 0002): the legacy child Application's values, with one intended change.
+# kube-prometheus-stack values. The Grafana OIDC client secret comes from the
+# SOPS Secret `grafana-oidc` through GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET, not
+# from grafana.ini (rendered into a ConfigMap).
 #
-# The Grafana OIDC client secret is no longer inline in grafana.ini (which the
-# chart renders into a ConfigMap). Grafana reads it from the environment
-# variable GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET, set from the SOPS Secret
-# `grafana-oidc` (platform/secrets/grafana-oidc.sops.yaml, same value as live,
-# sha256 checked). Adopting this restarts Grafana once.
-#
-# Upgrading the chart (56 -> current) is a separate change with its own CRD
-# upgrade: docs/roadmap.md.
-#
-# Talos: there is no kube-proxy (Cilium replaces it), so its ServiceMonitor
-# would only ever show a target down. The controller-manager, scheduler and
-# etcd metrics endpoints are reachable because talos/talconfig.yaml binds them
-# to 0.0.0.0; the chart defaults (10257, 10259 over HTTPS) match.
-#
-# etcd is a Talos service, not a pod, so the chart's etcd Service selects
-# nothing. `kubeEtcd.endpoints` does not help under Argo CD, which excludes
-# Endpoints and EndpointSlices from sync. etcd is scraped by the ScrapeConfig
-# in routes/etcd-scrape.yaml instead; `kubeEtcd` stays enabled for the
-# chart's etcd rules.
+# Talos: no kube-proxy, so no kube-proxy ServiceMonitor. The controller-manager
+# and scheduler bind 0.0.0.0 (talos/talconfig.yaml). etcd is a Talos service
+# and Argo CD does not sync Endpoints, so routes/etcd-scrape.yaml scrapes it;
+# `kubeEtcd` stays on for the chart's etcd rules.
 kubeProxy:
   enabled: false
 
-# The apiserver job was 148k of 343k head series (2026-11-02). These nine
-# histograms (about 82k series) feed no rule, alert or dashboard, here or in
-# the chart's default rules, which use apiserver_request_sli_duration_seconds
-# and apiserver_request_duration_seconds (kept). Dropped at scrape time so the
-# 30-day retention fits (prometheusSpec below).
+# These nine histograms (about 82k series) feed no rule, alert or dashboard.
+# Dropped at scrape time so the 30-day retention fits.
 kubeApiServer:
   serviceMonitor:
     metricRelabelings:
@@ -40,31 +23,18 @@ kubeApiServer:
         regex: (apiserver_watch_events_dispatch_duration_seconds|apiserver_watch_list_duration_seconds|apiserver_storage_list_duration_seconds|apiserver_request_body_size_bytes|apiserver_watch_cache_read_wait_seconds|apiserver_response_sizes|apiserver_watch_cache_initialization_duration_seconds|apiserver_watch_events_sizes|etcd_request_duration_seconds)_bucket
         action: drop
 
-# The operator's admission webhook gets its certificate from cert-manager, not
-# from the chart's kube-webhook-certgen hook Jobs. Under Argo CD those hooks
-# break: the hook ServiceAccount is both pre- and post-install with
-# hook-succeeded, so Argo deletes it after PreSync and the PostSync
-# admission-patch Job never gets a pod (2026-10-24: the chart 92.11.0 sync
-# hung for 3 hours on it and held every later change).
+# The admission webhook certificate from cert-manager, not the chart's
+# certgen hook Jobs: under Argo CD the hook ServiceAccount is deleted after
+# PreSync and the PostSync Job never gets a pod.
 prometheusOperator:
   admissionWebhooks:
     certManager:
       enabled: true
 
-# eMMC wear. Talos exposes the eMMC's life_time and pre_eol_info only in
-# sysfs (no metric, and its Read API is admin-only), so a sidecar reads them
-# from node-exporter's read-only /host/sys mount every 5 minutes and writes a
-# .prom file that the textfile collector serves:
-#
-#   node_emmc_life_time_estimate{device, type="a"|"b"}  1..11, each step 10%
-#                                                       of rated wear used;
-#                                                       11 = exceeded
-#   node_emmc_pre_eol_info{device}                      1 normal, 2 warning
-#                                                       (80% of reserved
-#                                                       blocks used), 3 urgent
-#
-# extraArgs replaces the chart's list, so its two filesystem filters are
-# repeated here.
+# eMMC wear: Talos exposes life_time and pre_eol_info only in sysfs, so a
+# sidecar reads them from /host/sys every 5 minutes for the textfile collector
+# (docs/observability.md). extraArgs replaces the chart's list, so its two
+# filesystem filters are repeated.
 prometheus-node-exporter:
   extraArgs:
     - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run/containerd/.+|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
@@ -124,16 +94,11 @@ prometheus-node-exporter:
         initialDelaySeconds: 60
         periodSeconds: 300
 
-# The claim of the TSDB is pre-created in infrastructure/iscsi-volumes/ and
-# bound to the existing volume; the template below must keep its name (the
-# chart derives it from the release name) and its size.
-# Kyverno's PolicyReport summaries as metrics (spec wave3-runtime-security,
-# requirement 2.3): kyverno_policyreport_summary{namespace, report, result}
-# and kyverno_clusterpolicyreport_summary{report, result}, one series per
-# report and result. Kyverno writes one report per resource, so the report
-# name keeps the series apart (without it they collide and Prometheus drops
-# them, PrometheusDuplicateTimestamps). Kyverno's own per-result counter overflows its cardinality limit,
-# so the reports are the source.
+# The TSDB claim is pre-created in infrastructure/iscsi-volumes/; the template
+# below must keep its name and size.
+# Kyverno PolicyReport summaries as metrics (spec wave3-runtime-security, 2.3).
+# The report name keeps the series apart (Kyverno writes one report per
+# resource); Kyverno's own per-result counter overflows its cardinality limit.
 kube-state-metrics:
   rbac:
     extraRules:
@@ -173,18 +138,12 @@ kube-state-metrics:
 
 prometheus:
   prometheusSpec:
-    # 30 days for the SLO window (routes/slo.yaml) and the 30-day restic-data
-    # check (platform/backup-verify/alerts.yaml). Blocks grew about 1.06
-    # GiB/day (2026-11-02), so 20GiB held only 16.6 days; after the apiserver
-    # drop above about 0.81 GiB/day, 30 days = about 24 GiB. retentionSize
-    # caps the blocks, the WAL and the head chunks together at 34GiB (85% of
-    # the volume, the upstream maximum), leaving about 6Gi for compactions.
-    # Watch prometheus_tsdb_lowest_timestamp_seconds: it must stay 30 days old.
-    #
-    # The operator does not resize the PVC. The claim is declared in git
-    # (infrastructure/iscsi-volumes/monitoring-prometheus-db.yaml): change its
-    # request and the PV's capacity there to the same size, and the CSI
-    # resizer grows the zvol and the filesystem online, no restart.
+    # 30 days for the SLO windows and the 30-day restic-data check.
+    # retentionSize caps blocks, WAL and head chunks at 34GiB (85% of the
+    # volume), leaving room for compactions. Watch
+    # prometheus_tsdb_lowest_timestamp_seconds: it must stay 30 days old.
+    # Grow the volume through the claim in
+    # infrastructure/iscsi-volumes/monitoring-prometheus-db.yaml.
     retention: 30d
     retentionSize: 34GiB
     storageSpec:
@@ -200,11 +159,9 @@ grafana:
   defaultDashboardsTimezone: browser
   assertNoLeakedSecrets: false
   envFromSecret: grafana-oidc
-  # The built-in admin (break-glass, docs/runbooks/grafana-break-glass.md)
-  # from the SOPS Secret `grafana-admin`. Without it the chart renders a new
-  # random admin Secret on every Argo CD render (no `lookup`), and its
-  # checksum annotation restarted Grafana on every sync. Keys: the chart
-  # defaults, admin-user and admin-password.
+  # The built-in admin (docs/runbooks/grafana-break-glass.md) from the SOPS
+  # Secret `grafana-admin`. Without it the chart renders a new random Secret
+  # on every Argo CD render and Grafana restarts on every sync.
   admin:
     existingSecret: grafana-admin
   grafana.ini:
@@ -239,13 +196,10 @@ grafana:
   # (routes/grafana.yaml). ingress-nginx is removed (ADR 0011).
   ingress:
     enabled: false
-  # grafana.db (SQLite) on a volume, so what is not provisioned survives a
-  # restart: the service account `agent-readonly` and its token
-  # (docs/secrets.md), annotations, stars. Dashboards and datasources stay
-  # provisioned from git. PVC `kube-prometheus-stack-grafana`, the name
-  # routes/grafana-backup.yaml backs up. ReadWriteOnce, so the old pod stops
-  # before the new one starts (maxSurge 0). Not `type: Recreate`: the live
-  # Deployment keeps its defaulted rollingUpdate block and the apply is refused.
+  # grafana.db on a volume, for what is not provisioned: the `agent-readonly`
+  # service account and token, annotations, stars. ReadWriteOnce, so
+  # maxSurge 0; not `type: Recreate`, which the live Deployment's defaulted
+  # rollingUpdate block refuses.
   persistence:
     enabled: true
     type: pvc
@@ -265,77 +219,30 @@ grafana:
   initChownData:
     enabled: false
 
-# Alertmanager routes: the paging policy of docs/sre.md "Paging". A
-# notification means a person has to act. Every homelab rule carries
-# `action: human` (PAGE) or `action: auto` (INFO: what automation handles,
-# visible in Grafana and on the Homelab / Automation dashboard, sends
-# nothing); CI fails a rule without it (scripts/ci/alertmanager-test.sh).
+# Alertmanager routes: the paging policy of docs/sre.md "Paging". Every homelab
+# rule carries `action: human` (page) or `action: auto` (INFO, Grafana only);
+# CI fails a rule without it.
 #
-#   Watchdog          -> heartbeat: the dead-man's switch (healthchecks.io) in
-#                        Secret `alertmanager-notify` key `heartbeat-url`,
-#                        every 5 minutes. It alerts when the pings stop.
-#   action=human      -> ntfy, one group per alert name; the persistent SLO
-#                        burns one group per app. Repeats every 4 h when
-#                        critical, else every 24 h.
-#   chart rules       -> ntfy, by name: etcd quorum, the tuppr upgrade
-#                        failures and stalls, a failed backup Job.
-#   security critical -> ntfy: any critical rule labelled `category: security`.
-#   anything else     -> "null".
+#   Watchdog          -> the healthchecks.io heartbeat (key `heartbeat-url`)
+#   action=human      -> ntfy, one group per alert name
+#   chart rules       -> ntfy, by name: etcd quorum, tuppr, failed backup Job
+#   security critical -> ntfy
+#   anything else     -> "null"
 #
-# Quiet hours: every route to ntfy has mute_time_intervals [quiet-hours],
-# 23:00-08:00 Europe/Zurich (the location follows DST). A muted flush sends
-# nothing and records nothing, so a group still firing at 08:00 notifies at
-# its next group_interval flush (within 5 minutes), once per group, after
-# inhibition. Groups that fired and resolved overnight send nothing. The
-# heartbeat and ntfy-guard routes are never muted. A child route does not inherit
-# mute_time_intervals, so each one lists it.
+# Quiet hours 23:00-08:00 Europe/Zurich on every ntfy route (a child route
+# does not inherit mute_time_intervals): a group still firing at 08:00
+# notifies at its next flush. The heartbeat and the guard topic
+# (`ntfy-guard-url`, read by scripts/ci/auto-rollback-guard.sh) are never
+# muted.
 #
-# The ntfy pushes go to the hosted ntfy.sh topic in key `ntfy-url`. Hosted,
-# so they do not depend on this cluster or the house's network being up.
-# HomelabNodeNotReady and HomelabNASUnreachable (`action: auto`; their
-# 15- and 10-minute versions page) go, unmuted, to the guard topic in key
-# `ntfy-guard-url` (the ntfy topic plus `-guard`, which nobody subscribes
-# to): the auto-rollback outage guard reads them there at any hour
-# (scripts/ci/auto-rollback-guard.sh).
+# Inhibition hides the cause alerts of an incident that already notifies.
+# URLs are read from the mounted Secret with `url_file`, so none is in git.
+# ntfy templates the title, message and priority (`X-Template: yes`); the
+# message ends with the runbook_url.
 #
-# Inhibition removes the cause alerts of an incident that already notifies,
-# so they show as suppressed in Alertmanager:
-#
-#   SLOErrorBudgetBurnFast              -> the pod, workload and Argo CD
-#                                          alerts of the same namespace
-#   ServiceHasNoReadyBackend,           -> the same, `action: auto` only
-#   StatefulSetHasNoReadyReplica
-#   HomelabNodeNotReady                 -> the node and pod alerts with the
-#                                          same `node` label
-#   HomelabNASUnreachable               -> everything that needs storage:
-#                                          pods, workloads, Argo CD, CNPG,
-#                                          backups, SLO burns, everywhere
-#   the critical alert of an object     -> its warning (certificates, PVCs,
-#                                          node filesystems, NAS pool, eMMC)
-#
-# Tests: scripts/ci/alertmanager-test.sh (CI: alertmanager job) runs amtool on
-# tests/alertmanager/routes.txt and replays tests/alertmanager/*.json against
-# a real Alertmanager, counting notifications.
-#
-# The operator mounts the Secret at
-# /etc/alertmanager/secrets/alertmanager-notify/<key>; `url_file` reads it at
-# send time, so neither URL is in git (the ntfy topic is the only credential:
-# whoever knows it can read and post).
-#
-# ntfy formats the standard webhook JSON itself (inline templating,
-# https://docs.ntfy.sh/publish/#message-templating): `X-Template: yes` makes
-# the X-Title, X-Message and X-Priority headers Go templates over the body.
-# Priority: critical 5 (urgent), warning 4 (high), resolved 2 (low).
-#
-# Every ntfy group has one alert name, so the title names it, and the
-# message ends with that alert's runbook_url (docs/runbooks/alerts/) when it
-# has one. ntfy templates only the title, message and priority, so the link
-# is in the message, not an X-Click header.
-#
-# Helm merges `config` into the chart default: `route` keys are merged,
-# `routes`, `receivers` and `inhibit_rules` (lists) are replaced, `global`
-# and `templates` stay the chart's. The first two inhibit rules are the
-# chart's own.
+# Helm merges `config` into the chart default: `route` keys merge; `routes`,
+# `receivers` and `inhibit_rules` are replaced. The first two inhibit rules
+# are the chart's. Tests: scripts/ci/alertmanager-test.sh.
 alertmanager:
   alertmanagerSpec:
     secrets:
@@ -452,13 +359,10 @@ alertmanager:
         target_matchers:
           - severity = "info"
         equal: [namespace, alertname]
-      # The pod, workload and Argo CD alerts: KubePod*, KubeContainerWaiting,
-      # KubeDeployment*, KubeStatefulSet*, KubePdbNotEnoughHealthyPods,
-      # KubeJobFailed, Pod* (routes/alerts.yaml) and ArgoCD*. A fast burn
-      # also hides the pages among them (ArgoCDAppStillDegraded, ...): its
-      # own page, SLOErrorBudgetBurnFastPersistent, covers the app. A missing
+      # The pod, workload and Argo CD alerts. A fast burn also hides their
+      # pages: SLOErrorBudgetBurnFastPersistent covers the app. A missing
       # backend hides only the `action: auto` ones, so an app without an SLO
-      # still pages through ArgoCDAppStillDegraded.
+      # still pages.
       - source_matchers:
           - alertname = "SLOErrorBudgetBurnFast"
         target_matchers:

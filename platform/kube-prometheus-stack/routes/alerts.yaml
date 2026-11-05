@@ -1,46 +1,12 @@
-# Alerts for the cluster itself, on top of the chart's `defaultRules` (left
-# enabled: kubelet, etcd, scheduler, apiserver, the Kube* set). Each rule
-# here covers a failure this cluster has had that no default rule saw:
+# Cluster alerts on top of the chart's `defaultRules`, each for a failure this
+# cluster had that no default rule saw. In `routes/`, not
+# `additionalPrometheusRulesMap`: PromQL nested in Helm values diffs badly.
 #
-#   a pod Running 1/1 with nothing listening      docs/runbooks/arr-qbittorrent.md
-#   a pod in CreateContainerError for months      docs/observability.md
-#   certificates close to expiry
-#   the 29 GB eMMC holding kubelet and containerd  docs/runbooks/cold-start.md
-#
-# Lives in `routes/` because that is the path the kube-prometheus-stack
-# Application syncs as its third source (namespace `monitoring`). Not in
-# `additionalPrometheusRulesMap`: PromQL nested in Helm values diffs badly and
-# an indentation slip silently moves a rule to another group.
-#
-# Metric sources:
-#
-#   kube_*                  kube-state-metrics (chart ServiceMonitor).
-#   node_*                  node-exporter (chart ServiceMonitor).
-#   node_emmc_*             node-exporter's textfile collector, written by
-#                           its emmc-wear sidecar (../values.yaml).
-#   kubelet_volume_stats_*  the kubelet; the only source of PVC usage
-#                           (kube-state-metrics only knows the requested size).
-#   certmanager_*           cert-manager; needs both `prometheus.enabled` and
-#                           `prometheus.servicemonitor.enabled` in
-#                           infrastructure/cert-manager/values.yaml, plus the
-#                           `release: kube-prometheus-stack` label that
-#                           Prometheus selects ServiceMonitors by.
-#   alertmanager_*          Alertmanager (chart ServiceMonitor).
-#
-# Not available, so not used: `probe_success` (no blackbox-exporter) and any
-# CRD status (no CustomResourceStateMetrics config).
-#
-# Deliberate overlap with `defaultRules`:
-#
-#   PersistentVolume*        upstream goes critical at 3% free and warns on a
-#                            4-day projection; too late for 5Gi volumes.
-#   AlertmanagerNotificationsFailing  critical, where upstream is warning.
-#   *Absent rules            upstream TargetDown needs failing targets; a
-#                            deleted ServiceMonitor leaves no series, and only
-#                            absent() sees that.
-#
-# Left to upstream: PrometheusNotIngestingSamples, CrashLoopBackOff, the Kube*
-# set.
+# Overlaps with `defaultRules` on purpose: PersistentVolume* (upstream is too
+# late for 5Gi volumes), AlertmanagerNotificationsFailing (critical here), and
+# the *Absent rules (a deleted ServiceMonitor leaves no series for
+# TargetDown). certmanager_* needs the ServiceMonitor and the
+# `release: kube-prometheus-stack` label in infrastructure/cert-manager/values.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -55,14 +21,10 @@ spec:
     - name: homelab.workload.rules
       rules:
         - alert: PodStuckNotRunning
-          # A container that never starts waits, it does not crash-loop, so
-          # KubePodCrashLooping misses it. Excluded reasons: ContainerCreating
-          # (normal for seconds on every deploy) and CrashLoopBackOff (left to
-          # KubePodCrashLooping, which uses the restart rate).
-          #
-          # The join adds `node`, which the waiting-reason metric lacks. The
-          # HomelabNodeNotReady inhibit rule in ../values.yaml matches on
-          # `node`.
+          # A container that never starts waits rather than crash-loops, so
+          # KubePodCrashLooping misses it. ContainerCreating is normal for
+          # seconds; CrashLoopBackOff is left to KubePodCrashLooping. The join
+          # adds `node` for the HomelabNodeNotReady inhibit rule.
           expr: |
             max by (namespace, pod, container, reason, node) (
               kube_pod_container_status_waiting_reason{
@@ -118,14 +80,9 @@ spec:
               {{ $labels.pod }} -- read the Events, not the status.
 
         - alert: PodNotReady
-          # Running but not Ready: a failing readiness probe.
-          #
-          # Excluded phases: Succeeded/Failed (completed CronJob pods stay
-          # not-Ready forever) and Pending (PodPendingTooLong names the cause;
-          # two alerts for one pod would mean two notifications).
-          #
-          # `== 0` comes after the join: `(x == 0) * y` returns series with
-          # value 0, which fire only because a rule fires on any result.
+          # Running but not Ready. Succeeded/Failed pods stay not-Ready
+          # forever; Pending is PodPendingTooLong's. `== 0` after the join:
+          # `(x == 0) * y` returns value-0 series, which still fire.
           expr: |
             max by (namespace, pod, node) (
               kube_pod_status_ready{condition="true"}
@@ -147,15 +104,9 @@ spec:
               outage -- there was no probe to fail.
 
         - alert: ServiceHasNoReadyBackend
-          # Zero available replicas. This depends on a readiness probe: a pod
-          # that is Running 1/1 with nothing listening counts as available,
-          # and no metric here can tell. A blackbox probe would catch that;
-          # blackbox-exporter is not deployed.
-          #
-          # Deployment availability rather than `kube_endpoint_address*`:
-          # kube-state-metrics renamed the endpoint metrics, and a rule on a
-          # missing metric never fires. Every workload here is a Deployment
-          # or the one StatefulSet below.
+          # Zero available replicas, so it depends on a readiness probe.
+          # Deployment availability, not `kube_endpoint_address*`, which
+          # kube-state-metrics renamed (a rule on a missing metric never fires).
           expr: |
             kube_deployment_status_replicas_available == 0
             and on (namespace, deployment) (kube_deployment_spec_replicas > 0)
@@ -251,16 +202,10 @@ spec:
               not this.
 
         - alert: PrometheusTsdbVolumeNearlyFull
-          # Prometheus's own volume, called out separately because filling it
-          # takes the monitoring system down -- and a monitoring system that has
-          # stopped ingesting cannot alert on anything, including itself.
-          #
-          # retentionSize is 34GiB inside a 40Gi volume and counts the blocks,
-          # the WAL and the head chunks, so at the cap about 15% stays free. A
-          # compaction keeps its source blocks and the new block on disk
-          # together (blocks span up to 54h here, about 1.8GiB), a dip to about
-          # 10%. Below 10% for 15m, something retentionSize does not count is
-          # using the volume, such as a compaction that never finished.
+          # Prometheus's own volume: a full one stops ingestion, and then
+          # nothing alerts. retentionSize (34GiB of 40Gi) leaves about 15%
+          # free; a compaction dips to about 10%. Below 10% for 15m, something
+          # retentionSize does not count is using the volume.
           expr: |
             (
               kubelet_volume_stats_available_bytes{namespace="monitoring", persistentvolumeclaim=~"prometheus-.*"}
@@ -282,21 +227,11 @@ spec:
               platform/kube-prometheus-stack/values.yaml.
 
         - alert: PrometheusRetentionCutBySize
-          # retentionSize deleting blocks before `retention: 30d` does, so the
-          # 30-day SLO windows (routes/slo.yaml) and the 30-day restic-data
-          # check see less than 30 days. It kept 16.6 days for two weeks
-          # unnoticed (#905).
-          #
-          # Both halves are needed: a TSDB younger than 29 days with no size
-          # deletion is refilling after a wipe and fixes itself; a size
-          # deletion with 29+ days kept is harmless. 4d because blocks compact
-          # up to 10% of the retention (3 days), so a steady size cut deletes
-          # one block about every 3 days and a 1d window would flap. `and`
-          # matches on every label, `instance` included: a restarted pod's
-          # old series do not count against the new one.
-          #
-          # `action: human`: nothing grows the volume or lowers ingestion on
-          # its own.
+          # retentionSize deleting blocks before `retention: 30d`, so the
+          # 30-day SLO windows see less than 30 days (#905). Both halves: a
+          # young TSDB refills on its own, and a size cut with 29+ days kept is
+          # harmless. 4d, because a steady size cut deletes a block about every
+          # 3 days. `action: human`: nothing fixes it on its own.
           expr: |
             (time() - prometheus_tsdb_lowest_timestamp_seconds) < 29 * 86400
             and
@@ -314,15 +249,11 @@ spec:
               short. Grow the volume and retentionSize, or drop unused series.
 
         - alert: NodeFilesystemNearlyFull
-          # The nodes boot from a 29 GB eMMC that holds kubelet and containerd.
-          # Full means no image pulls, no new containers, no logs, while the
-          # node still reports Ready.
-          #
-          # Not scoped to one mountpoint, so a layout change cannot silently
-          # drop coverage; the fstype exclusions skip tmpfs/overlay and the
-          # Talos read-only rootfs bind mounts (/etc/extensions.yaml). The filter
-          # is on the numerator only: PromQL matches all labels by default, so
-          # filtering one side filters the result, and one copy cannot drift.
+          # The 29 GB eMMC holds kubelet and containerd; full means no pulls,
+          # no containers, no logs, while the node stays Ready. Not scoped to
+          # one mountpoint; the fstype exclusions skip tmpfs, overlay and the
+          # Talos read-only binds. Filtered on the numerator only (PromQL
+          # matches all labels).
           expr: |
             (
               node_filesystem_avail_bytes{fstype!~"tmpfs|ramfs|rootfs|overlay|squashfs|iso9660|nsfs|autofs"}
@@ -396,12 +327,9 @@ spec:
               `df -i` on the node.
 
         - alert: NodeEmmcWearHigh
-          # The eMMC is soldered to the RK1 module: a worn-out eMMC means a new
-          # module. life_time step 9 = 80-90% of rated wear used; pre_eol 2 =
-          # 80% of the reserved blocks consumed. Either leaves months, not
-          # days, to plan the replacement (docs/runbooks/node-replacement.md).
-          # Series from the node-exporter emmc-wear sidecar
-          # (../values.yaml).
+          # A worn-out eMMC means a new RK1 module. life_time step 9 or
+          # pre_eol 2 leaves months to plan it
+          # (docs/runbooks/node-replacement.md).
           expr: |
             max by (instance, device) (node_emmc_life_time_estimate) >= 9
             or
@@ -479,12 +407,8 @@ spec:
               recreating in a loop.
 
         - alert: CertificateNotReady
-          # The leading indicator: not Ready long before expiry (a stuck order
-          # is dead after Let's Encrypt's 7-day order expiry).
-          #
-          # "True gauge is 0" rather than "False gauge is 1": it also covers
-          # `Unknown`, where a stuck challenge sits, and does not depend on
-          # the spelling of `False`.
+          # Not Ready long before expiry (an order dies after 7 days). "True
+          # is 0", not "False is 1": it also covers `Unknown`.
           expr: |
             certmanager_certificate_ready_status{condition=~"True|true"} == 0
           for: 1h
@@ -519,10 +443,8 @@ spec:
               release=kube-prometheus-stack, and the target in Prometheus.
 
     # =====================================================================
-    # The monitoring system monitoring itself. The main defence is the
-    # Watchdog alert to the external dead-man's switch (../values.yaml):
-    # nothing in the cluster can report the cluster unreachable. These rules
-    # cover a live Prometheus with a broken delivery path.
+    # The monitoring system itself. The Watchdog to the external heartbeat
+    # covers an unreachable cluster; these cover a broken delivery path.
     # =====================================================================
     - name: homelab.meta.rules
       rules:
@@ -546,13 +468,9 @@ spec:
               phone has gone quiet, this is why.
 
         - alert: AlertmanagerHasNoReceiverConfigured
-          # Only a receiver sending something increments this counter, and the
-          # Watchdog route sends every 5 minutes. Flat for 6h means every route
-          # leads to a null receiver, or Alertmanager is not processing alerts.
-          # 6h because shorter windows are noisy across a restart.
-          #
-          # Summed: Alertmanager exports a zero counter for every integration
-          # it supports (email, slack, ...), and the unused ones stay flat.
+          # The Watchdog route sends every 5 minutes, so a flat counter for 6h
+          # means every route leads nowhere. Summed: unused integrations
+          # export flat zero counters.
           expr: |
             sum(increase(alertmanager_notifications_total[6h])) == 0
             or absent(alertmanager_notifications_total)

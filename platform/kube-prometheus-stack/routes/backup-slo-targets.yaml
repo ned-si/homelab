@@ -1,9 +1,6 @@
-# The restic backup CronJobs the backup-freshness SLO watches (backup-slo.yaml):
-# every entry of ci/active-cronjobs.txt whose name contains `-backup`, as a
-# static series, so a CronJob that is deleted or never succeeds still has a
-# target that goes stale. Repo-policy rule `backup-slo-targets` keeps this
-# list and ci/active-cronjobs.txt the same. A separate PrometheusRule so the
-# promtool tests of backup-slo.yaml can feed their own targets.
+# The restic CronJobs the backup-freshness SLO watches, as static series, so
+# a deleted or never-successful CronJob still goes stale. Repo-policy
+# `backup-slo-targets` keeps it equal to ci/active-cronjobs.txt.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

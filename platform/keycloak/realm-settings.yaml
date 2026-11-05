@@ -1,22 +1,8 @@
-# Realm settings as code: after every sync of the `keycloak` Application,
-# this Job writes realm/sessions.conf, realm/platform.conf,
-# realm/clients.conf and realm/access.conf to the `homelab` realm with
-# kcadm.sh and verifies them (realm/apply.sh). A failed Job fails the sync,
-# which the auto-rollback workflow treats like any other failed deploy.
-#
-# Scope is deliberately those four files: realm session fields, the
-# `browser-loa` flow, the default ACR of the platform clients, the clients
-# that must not exist (`removed_clients`), the oauth2-proxy clients and their
-# groups (`proxy_clients`), the redirect URIs and web origins of the app
-# clients, per-client access (the `access` role, the groups mapped to it,
-# the client's `access-<client>` flows), OTP for `mfa_groups` (realm role,
-# policy, required action), login and admin events in both realms and, in
-# the `master` realm, brute-force detection, the Job's own client, the OTP
-# browser flow `browser-otp` and no password grants. Users, group members,
-# credentials, other client settings and other groups stay managed in the
-# Keycloak admin console.
-#
-# The image is the server's image (deployment.yaml); keep the two equal.
+# Realm settings as code: after every `keycloak` sync, this Job applies
+# realm/*.conf to the realms with kcadm.sh and verifies them (realm/apply.sh).
+# A failed Job fails the sync, which auto-rollback treats as a failed deploy.
+# Users, group members, credentials and anything the files do not name stay
+# in the admin console. Keep the image equal to deployment.yaml's.
 ---
 apiVersion: batch/v1
 kind: Job
@@ -85,12 +71,9 @@ spec:
                   name: keycloak-hubble-client
                   key: HUBBLE_CLIENT_SECRET
                   optional: true
-            # The Job's own master client, platform.conf `automation_client`
-            # (platform/secrets/keycloak-automation.sops.yaml). Without it the
-            # Job logs in with the admin password, which works only while
-            # master admin-cli allows the password grant (a new database),
-            # and leaves the master browser flow and password grants as they
-            # are.
+            # The Job's own master client (platform.conf `automation_client`).
+            # Without it the Job falls back to the admin password, which works
+            # only while master admin-cli allows the password grant.
             - name: REALM_SETTINGS_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:

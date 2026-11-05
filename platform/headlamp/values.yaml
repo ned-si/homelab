@@ -1,14 +1,7 @@
-# headlamp chart values (clusters/homelab/platform/headlamp.yaml,
-# docs/remote-access.md).
-#
-# Login is the oauth2-proxy `headlamp-sso` in front (resources/sso.yaml):
-# Headlamp trusts its X-Forwarded-User header (`-proxy-auth`) and talks to the
-# API server as its own ServiceAccount (`unsafeUseServiceAccountToken`), so
-# every user gets the same read-only rights: the `view` ClusterRole (no
-# Secrets, no exec) plus `headlamp-read` (nodes and other cluster-scoped
-# objects, resources/rbac.yaml). Only headlamp-sso may reach the pod
-# (resources/network-policy.yaml): the header is trusted, so nothing else may
-# send it.
+# headlamp (docs/remote-access.md). Login is headlamp-sso in front; Headlamp
+# talks to the API as its own ServiceAccount, so every user gets the same
+# read-only rights (resources/rbac.yaml). Only headlamp-sso may reach the pod
+# (resources/network-policy.yaml).
 fullnameOverride: headlamp
 
 image:

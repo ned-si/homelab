@@ -1,18 +1,7 @@
-# trivy-operator chart values: in-cluster CVE reports for every running image
-# (VulnerabilityReports), exported as Prometheus metrics for the Security
-# dashboard (docs/observability.md).
-#
-# Resource-light on purpose:
-#   - one scan Job at a time (scanJobsConcurrentLimit: 1);
-#   - ClientServer mode with the built-in Trivy server: the vulnerability DB is
-#     downloaded once into the server's emptyDir (no PVC), not by every Job;
-#   - only vulnerability scanning. Config audit, RBAC, infra assessment
-#     (node-collector needs hostPath), exposed secrets, SBOMs and compliance
-#     reports are off; CI already covers manifests (Trivy gate, kube-linter,
-#     Kyverno CLI).
-#   - reports live 24 h, then the image is scanned again with a fresh DB.
-#
-# Every pod passes Pod Security `restricted` (namespace trivy-system).
+# trivy-operator: CVE reports for every running image, as metrics for the
+# Security dashboard (docs/observability.md). Light on purpose: one scan Job
+# at a time, the built-in Trivy server holds the DB, vulnerability scanning
+# only (CI covers manifests), reports live 24 h.
 operator:
   scanJobsConcurrentLimit: 1
   scanJobTimeout: 10m

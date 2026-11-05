@@ -1,13 +1,7 @@
-# Read-only rights of the Headlamp ServiceAccount, on top of the chart's
-# binding to `view` (namespaced core objects, no Secrets, no exec, logs
-# allowed).
-#
-# `headlamp-read` is an aggregated ClusterRole: Kubernetes fills its rules
-# from every ClusterRole labelled `homelab.lilalala.com/aggregate-to-headlamp:
-# "true"`. To show a new CRD in Headlamp, add a labelled ClusterRole below
-# with get/list/watch on its resources. Never Secrets, never a report kind
-# that copies secret material (trivy `exposedsecretreports`), never a verb
-# other than get/list/watch.
+# Read-only rights on top of the chart's `view` binding. `headlamp-read`
+# aggregates every ClusterRole labelled
+# `homelab.lilalala.com/aggregate-to-headlamp: "true"`: add one per CRD to
+# show, get/list/watch only. Never Secrets or `exposedsecretreports`.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

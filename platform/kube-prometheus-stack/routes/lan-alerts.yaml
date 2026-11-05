@@ -1,18 +1,7 @@
-# LAN devices, from the ICMP probes (job `blackbox-lan`,
-# platform/blackbox-exporter/probes/lan.yaml) and the ARP inventory
-# (platform/lan-inventory).
-#
-#   LANDeviceUnreachable   the router or the BMC does not answer a ping for 10m   warning
-#   LANNewDeviceSeen       a fixed MAC not seen in the last 30 days answers ARP    warning
-#   LANInventoryFailing    no completed ARP scan for 30m                          warning
-#   LANInventoryAbsent     no lan_inventory_devices series for 30m                warning
-#
-# All four need a person (`action: human`, docs/sre.md "Paging"). A new
-# randomised MAC has no alert: phones rotate those, and nobody can act on it;
-# the Homelab / LAN dashboard counts them.
-#
-# Nodes and the NAS are left to the alerts of outage-alerts.yaml.
-#
+# LAN devices, from the ICMP probes (platform/blackbox-exporter/probes/lan.yaml)
+# and the ARP inventory (platform/lan-inventory), all `action: human`. New
+# randomised MACs do not alert (phones rotate them); the LAN dashboard counts
+# them. Nodes and the NAS: outage-alerts.yaml.
 # Tests: tests/prometheus/lan_test.yaml, tests/prometheus/lan_inventory_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -53,13 +42,9 @@ spec:
       interval: 5m
       rules:
         - alert: LANNewDeviceSeen
-          # A MAC with a fixed (vendor) address that answers now and did not
-          # answer in the 30 days before the last hour. Quiet for the first
-          # day of data, so the first scans do not report every device.
-          # A scan that misses the device (asleep, power saving) would
-          # resolve it and the next scan fire it again, one push each time
-          # (2026-10-31: four for one PC); keep_firing_for holds it through
-          # those gaps. One device: one push, resolved about two hours later.
+          # A fixed (vendor) MAC answering now that did not in the previous
+          # 30 days; quiet on the first day of data. keep_firing_for holds it
+          # through missed scans, so one device pushes once.
           expr: |
             max by (mac, ip, random_mac) (lan_device_present{random_mac="false"})
             unless on (mac) max_over_time(lan:device_present:max_by_mac[30d] offset 1h)

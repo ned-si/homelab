@@ -1,16 +1,7 @@
-# Keycloak login in front of the SigNoz UI: the oauth2-proxy `signoz-sso`.
-#
-#     HTTPRoute `signoz` (shared Gateway) --> signoz-sso:4180 --> signoz:8080
-#
-# Access needs membership of the Keycloak group `admins`, checked twice: the
-# client's own login flow denies anyone else (platform/keycloak/realm/access.conf)
-# and the proxy's allowedGroups (sso-alpha-config.yaml). The client `signoz` is
-# realm code (platform/keycloak/realm/platform.conf, `proxy_clients`); it is a
-# platform client, so a login older than 12 hours is asked again.
-#
-# SigNoz's own login (one admin, password in platform/secrets/signoz-sso.sops.yaml)
-# sits behind this one. When Keycloak is down, port-forward to `svc/signoz`
-# 8080 and use that login.
+# Keycloak login in front of the SigNoz UI: HTTPRoute `signoz` -> signoz-sso
+# :4180 -> signoz:8080. Group `admins`, checked by the client's login flow and
+# the proxy. SigNoz's own admin login sits behind it: when Keycloak is down,
+# port-forward to `svc/signoz` 8080.
 ---
 apiVersion: apps/v1
 kind: Deployment

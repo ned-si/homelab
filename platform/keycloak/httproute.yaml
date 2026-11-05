@@ -1,8 +1,5 @@
-# auth.lilalala.com -> Keycloak.
-#
-# No external-dns target or cert-manager annotation: the WAN IP is set once in
-# infrastructure/external-dns/values.yaml and the certificate on the shared
-# Gateway.
+# auth.lilalala.com -> Keycloak. The WAN IP and the certificate are set once,
+# in external-dns and on the shared Gateway.
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

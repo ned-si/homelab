@@ -1,12 +1,7 @@
 # The Talos version every node runs. tuppr upgrades one node at a time, never
-# from the node it runs on: health checks, `talosctl upgrade` to the node's
-# own installer image (the RK1 Image Factory schematic) at this version,
-# reboot, wait for the node to be Ready on it, then the next node. A failure
-# stops the run (phase Failed, alert TalosUpgradeFailed); a node that does not
-# boot the new image falls back to the previous one (Talos A/B).
-#
-# Before each node, besides tuppr's own etcd health and membership check:
-# every node Ready and every Argo CD Application Healthy.
+# its own, to the node's installer image; a failure stops the run, and a node
+# that does not boot falls back (Talos A/B). Before each node: etcd healthy,
+# every node Ready, every Argo CD Application Healthy.
 ---
 apiVersion: tuppr.home-operations.com/v1alpha1
 kind: TalosUpgrade
