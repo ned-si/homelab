@@ -42,12 +42,6 @@ signoz/Pod/signoz-test-connection/*                   token                #726 
 signoz/StatefulSet/signoz-zookeeper/*                 token                #726 task 19
 syncthing/CronJob/syncthing-backup/*                  token                #726 task 18
 syncthing/CronJob/syncthing-prune/*                   token                #726 task 18
-syncthing/StatefulSet/syncthing/*                     token                #726 task 5
-syncthing/StatefulSet/syncthing/syncthing             capabilities         #726 task 5
-syncthing/StatefulSet/syncthing/syncthing             non-root             #726 task 5
-syncthing/StatefulSet/syncthing/syncthing             privilege-escalation #726 task 5
-syncthing/StatefulSet/syncthing/syncthing             probes               #726 task 5
-syncthing/StatefulSet/syncthing/syncthing             seccomp              #726 task 5
 theater/CronJob/bazarr-nightly/*                      token                #726 task 18
 theater/CronJob/qbittorrent-private-seed/*            token                #726 task 18
 theater/CronJob/recyclarr-sync/*                      token                #726 task 18
