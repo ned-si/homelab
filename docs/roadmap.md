@@ -37,9 +37,12 @@ and put home automation fourth on 2026-11-04.
    - One identity: the Kubernetes API (#711), Headlamp (#712) and Jellyfin
      (#730) on Keycloak.
 4. **Home automation in daily use** (#1072). Home Assistant runs the
-   lights, heating, energy, plants, cameras and alarm sensors, with a main
-   Home dashboard for the phones and a wall tablet, and the house keeps
-   working when the cluster is down.
+   lights, heating, room climate, energy and solar-surplus charging,
+   plants, outdoor cameras, the doorbell, the garage door and the alarm
+   sensors, with a main Home dashboard for the phones and a wall tablet.
+   The doorbell, the garage door, the vacuum, the lamps and basic heating
+   keep working when the cluster is down. No paid cloud service, for
+   anything in the house.
 5. **The final version of observability and security monitoring.** Every
    metric and log answers a question (an SLO, an alert, a runbook, a
    detection, an audit) or is dropped or sampled; SigNoz with traces, or
@@ -54,7 +57,11 @@ and put home automation fourth on 2026-11-04.
    automatically (#718, spec PR #964).
 7. **Website, blog and dashboard.** The public site with a blog (#971) and
    the homepage/dashboard (#817). Still to decide: a public demo dashboard,
-   or everything private.
+   or everything private. House data on it is limited to daily, delayed
+   aggregates that say nothing about who is home (for example yesterday's
+   solar production), pushed out as a static file; the site never reaches
+   Home Assistant
+   ([home-automation design, Public data](../.kiro/specs/home-automation/design.md#public-data)).
 8. **Everything else.**
    - High availability and elastic where it can be: HPA for the stateless
      workloads, KEDA for event-driven scaling, VPA recommendations to size
