@@ -7,9 +7,9 @@ in task 3's pull request and task 4 in task 5's.
 The steps A to D are in [design.md](design.md#migration). Requirement
 numbers in brackets.
 
-## Open
+## Done
 
-- [ ] 1. `feat(keycloak): household, relatives and friends groups`: add
+- [x] 1. `feat(keycloak): household, relatives and friends groups`: add
       `household` to the lines `home-assistant`, `immich`,
       `audiobookshelf`, `calibre-web`, `mealie` and `paperless` of
       `access.conf`, and `relatives` and `friends` to `immich`,
@@ -20,6 +20,11 @@ numbers in brackets.
       `ok   client <client> access groups=<groups, sorted>` lines with them.
       Settle item 4 of design.md, To settle at implementation.
       [1.2, 2.3, 4.1, 4.2]
+      (#1159; pentest-programme task 1 has not merged and no Keycloak user
+      is defined in git, so nothing moved in git)
+
+## Open
+
 - [ ] 2. Operator, admin console: step B of design.md (household members
       into `household`, relatives into `relatives`, friends and the account
       of #1065 into `friends`, `family` and `media` empty,
