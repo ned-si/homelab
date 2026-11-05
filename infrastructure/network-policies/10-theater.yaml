@@ -67,6 +67,17 @@ spec:
     # Inbound peers via the `qbittorrent-peer` LoadBalancer (50000 TCP+UDP).
     # `host`/`remote-node`: the node holding the L2 announcement may SNAT
     # before forwarding to a pod on another node.
+    #
+    # Intended drop (spec netpol-default-deny, decision D5): `world` to
+    # qBittorrent outside these rules, port not seen live. 4 connections in
+    # the 7 days to 2026-11-04, the last on 2026-11-01; the only ingress
+    # would-be drop of `theater`. Internet traffic reaches the pod only
+    # through the router's 50000/TCP forward to `qbittorrent-seed`, which
+    # this rule matches, so these are packets Cilium no longer tracks: most
+    # likely late packets (FIN, RST, UDP replies) of outbound peer
+    # connections whose conntrack entry expired, or ICMP types other than the
+    # errors `qbittorrent-icmp` allows. qBittorrent uses neither: the
+    # connections are already closed. Re-check at the theater ingress flip.
     - fromEntities:
         - world
         - host
