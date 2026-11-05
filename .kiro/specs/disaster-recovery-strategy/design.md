@@ -46,7 +46,7 @@ The proposed "Disaster scenarios" table for `docs/sre.md` (task 1).
 | The NAS | `HomelabNASDown` (unreachable 10 min), `NASPoolUnhealthy`, `NASPoolDeviceNotOnline` | every iSCSI volume, the media share, the NAS copy of the Immich library | S3 (restic, Barman), git, the nodes | pool intact on dead hardware: move the disks to a replacement and import the pool (RPO 0); pool gone: the DR site, `docs/runbooks/site-lost.md` (task 8) |
 | The house (fire, theft, a power cut longer than the tier 1 RTO) | the healthchecks.io heartbeat stops and notifies ntfy directly, at night too | nodes, NAS, router, and whatever was in the house, possibly the Mac with `~/homelab-backups/` (local dumps, etcd snapshots) and the phone with the TOTP apps | S3, git on GitHub, the password manager | a short power cut: [cold-start.md](../../../docs/runbooks/cold-start.md); otherwise the DR site, `docs/runbooks/site-lost.md` |
 | The AWS account (closed, locked, suspended for billing) | `BackupNotFresh`, `CNPGWALArchivingFailing`, `CNPGBackupFailed`; the `tofu` workflow posts a failed plan | every off-site backup and its version history, the OpenTofu state bucket `ned-si-homelab-tofu-state`, the GitHub OIDC roles, the AWS cost dashboard, and the DR site's provider until access is back | every live app and its data at home, git | `docs/runbooks/aws-account-lost.md` (task 5): regain a locked or suspended account, reopen a closed one within the 90-day post-closure period, or rebuild in a new account |
-| The operator | a member of the household notices; pages go unanswered | the knowledge, the Mac, the phone | automation (Renovate, auto-rollback, backups, restore tests), the password manager through emergency access | `docs/runbooks/operator-unavailable.md` (task 4) |
+| The operator | a member of the household notices; pages go unanswered | the knowledge, the Mac, the phone | automation (Renovate, auto-rollback, backups, restore tests), the credentials and recovery codes kept offline by the operator | `docs/runbooks/operator-unavailable.md` (task 4) |
 
 Variants that need no row of their own:
 
@@ -431,14 +431,10 @@ the house. The operator accepted that risk on 2026-11-03 instead of a
 second copy at another provider. What makes a permanent loss of the
 account unlikely:
 
-- The root user has two MFA devices: the phone, and a TOTP seed in the
-  password manager's `homelab break-glass` folder, so a burnt phone does
-  not lock the account.
-- The root user's mailbox, which password resets go through, has its
-  recovery codes in the same folder.
-- The password manager's own two-step login recovery code is printed,
-  sealed and held outside the house ([Break-glass and emergency
-  access](#break-glass-and-emergency-access)).
+- The root user has MFA. Its credentials and recovery codes, and those of
+  its mailbox, which password resets go through, are kept offline by the
+  operator, each with one documented off-site place
+  ([Break-glass items](#break-glass-items)).
 - A closed account can be reopened within the 90-day post-closure period
   ([Sources](#sources)); the runbook starts there before any rebuild.
 - An expired payment method is the likeliest cause of a suspension: the
@@ -868,7 +864,7 @@ source that does not need it:
 | `tofu`, `talhelper`, `talosctl`, `kubectl`, `sops` | the versions pinned in `.github/workflows/ci.yaml` (`TOFU_VERSION`, `TALHELPER_VERSION`, and so on) |
 | The SOPS age key | the password manager, written to `~/.config/sops/age/keys.txt` |
 | `TOFU_STATE_PASSPHRASE` | the password manager, written to `secrets.local.env` in the clone (git-ignored), where `scripts/tofu.sh` reads it |
-| The state backend, S3 `ned-si-homelab-tofu-state`, and the DR site itself | `aws login --profile homelab --region eu-central-1`: a browser sign-in with the AWS account's credentials and MFA (break-glass items: [Break-glass and emergency access](#break-glass-and-emergency-access)). One sign-in covers both: the DR site is in the same account |
+| The state backend, S3 `ned-si-homelab-tofu-state`, and the DR site itself | `aws login --profile homelab --region eu-central-1`: a browser sign-in with the AWS account's credentials and MFA ([Break-glass items](#break-glass-items)). One sign-in covers both: the DR site is in the same account |
 | A drill's Cloudflare token | created by `scripts/dr-rehearsal.sh` with the token-creator token from the password manager ([The drill's Cloudflare token](#the-drills-cloudflare-token)); a real loss uses the home tokens from git |
 
 ```sh
@@ -1057,7 +1053,7 @@ narrowed by the two limits Cloudflare does offer, and never stored:
 - The exit trap deletes the token through the API, whatever happened; its
   expiry covers a trap that never ran.
 - The creator is a token with the API Tokens Write permission, an item in
-  the password manager's `homelab break-glass` folder, used only on the
+  the password manager, used only on the
   operator's machine and never on a drill node. It can mint tokens as
   powerful as the account, so it is treated like the account's own
   sign-in.
@@ -1145,18 +1141,17 @@ never by value.
 
 | Item | Copies today | One node | The NAS | The house | The AWS account | The operator |
 | --- | --- | --- | --- | --- | --- | --- |
-| SOPS age key | the Mac (`~/.config/sops/age/keys.txt`), the password manager, `argo/sops-age` ([secrets.md](../../../docs/secrets.md#the-key)); also the `bootstrap` OpenTofu state | all | all three | password manager | all three | password manager, through emergency access |
+| SOPS age key | the Mac (`~/.config/sops/age/keys.txt`), the password manager, `argo/sops-age` ([secrets.md](../../../docs/secrets.md#the-key)); also the `bootstrap` OpenTofu state | all | all three | password manager | all three | password manager |
 | `talosconfig` | the password manager, `~/homelab-backups/talos/`; regenerated by `task talos:genconfig` from `talos/talsecret.sops.yaml` and the age key | all | all | password manager, or git and the age key | all | password manager |
 | `RESTIC_PASSWORD` | `platform/secrets/s3-backup.sops.yaml` (git, needs the age key), the password manager | all | all | password manager, or git and the age key | all | password manager |
 | `TOFU_STATE_PASSPHRASE` | the password manager, the Mac's working copy; the Actions secret cannot be read back | all | all | password manager | not needed: the state is gone with the account | password manager |
-| Cloudflare token-creator token (API Tokens Write), for drills only | the password manager, folder `homelab break-glass` | not needed | all | password manager | all | not needed |
+| Cloudflare token-creator token (API Tokens Write), for drills only | the password manager | not needed | all | password manager | all | not needed |
 | Rehearsal age key | the password manager, the Mac while a drill runs | not needed | all | password manager | all | not needed |
-| Recovery codes and second factors: GitHub recovery codes, a second MFA device on the AWS root user (a TOTP seed), the recovery codes of the AWS root user's mailbox, Cloudflare recovery codes | the password manager, folder `homelab break-glass`, one item each | all | all | password manager | all | emergency access |
-| The password manager's own recovery (its two-step login recovery code) | a printed sealed envelope held by the emergency contact, outside the house | all | all | the envelope | all | the envelope |
+| Recovery codes and second factors (GitHub, the AWS root user and its mailbox, Cloudflare, the password manager) | kept offline by the operator, one documented off-site place each | all | all | the off-site place | all | the off-site place |
 | Immich library | live on the NAS, the NAS restic repository, S3 `immich/library` | all | S3 | S3 | live and the NAS copy | S3 or the NAS, with `RESTIC_PASSWORD` |
 | Databases | live on the NAS; Barman WAL and base backups in S3 `cnpg/`; `pg_dump` of Mealie, Home Assistant and the four *arr clusters in restic; dumps by hand on the Mac | all | S3 | S3 | live, and the Mac's dumps if recent | S3 |
 | Cluster configuration | git on GitHub, every clone | all | all | GitHub | all | GitHub |
-| Break-glass credentials | the password manager | all | all | password manager, through the envelope if the phone is gone | all | emergency access |
+| Break-glass credentials | the password manager | all | all | password manager, with its recovery code from the off-site place if the phone is gone | all | the off-site place |
 
 Gaps until the tasks land:
 
@@ -1165,46 +1160,21 @@ Gaps until the tasks land:
   decision: one provider, no copy outside AWS
   ([Accepted risk](#accepted-risk-one-account)). Task 5 hardens the
   account against lockout instead.
-- **Recovery codes, the envelope and emergency access.** Not set up yet;
-  task 4 sets them up and adds them to the break-glass check
-  ([Break-glass and emergency access](#break-glass-and-emergency-access)).
+- **Recovery codes and second factors.** Not all in place yet; task 4
+  records them and adds them to the break-glass check
+  ([Break-glass items](#break-glass-items)).
 
-### Break-glass and emergency access
+### Break-glass items
 
-Decided 2026-11-03, on the operator's direction: documented locations in
-the password manager plus an emergency contact.
+Decided 2026-11-03, on the operator's direction: credentials and recovery
+codes are kept offline by the operator.
 
-- Every recovery code and second factor a recovery needs is an item in the
-  password manager's folder `homelab break-glass`. The inventory above names
-  the items; git never holds a value. The AWS root user gets a second MFA
-  device (AWS allows several per root user), a TOTP seed in that folder, so
-  a burnt phone does not lock the account.
-- The password manager is then the single way in, so its own recovery must
-  not depend on the house: its two-step login recovery code is printed,
-  sealed in an envelope and held by the emergency contact, outside the
-  house. The master password stays in the operator's head.
-- The emergency contact is a trusted person outside the household, named
-  only in the password manager. They get the password manager's emergency
-  access, view only, with a 2-day wait: short next to the household's
-  7-day target, long enough for the operator to refuse a request made by
-  mistake. Emergency access covers the operator's whole individual vault,
-  not one folder: after the wait, the contact can see every item, the
-  homelab ones and the personal ones. That is accepted: the person is
-  trusted with the age key anyway, which opens every backup. The
-  alternative, sharing only the break-glass folder through an organization
-  collection, was rejected: a shared collection is readable at once, with
-  no wait period and no chance for the operator to refuse.
-- The household gets a printed copy of
-  `docs/runbooks/operator-unavailable.md`.
-- Trade-off: the root MFA seed in the same vault as the root password makes
-  the vault one factor for AWS. It already holds the age key, which opens
-  every backup, so the vault is the keystone either way; its own
-  protection (master password, second factor, the envelope) is what
-  matters.
-- The quarterly break-glass check confirms each item exists and signs in
-  with it, and that emergency access is still granted; the yearly
-  walk-through (December) confirms with the emergency contact that the
-  envelope is still sealed and in their keeping.
+- Every recovery code and second factor a recovery needs has one
+  documented off-site place. The inventory above names the items; git
+  never holds a value. How and where they are kept is in the operator's
+  private notes.
+- The quarterly break-glass check confirms each item is still in place and
+  signs in with it.
 
 ## Rehearsal calendar
 
@@ -1216,11 +1186,10 @@ Zurich.
 | --- | --- | --- | --- | --- |
 | `backup-verify` (exists) | data of every scenario | weekly, Saturday and Sunday evenings | home cluster | restore per CNPG cluster, restic samples, the bucket lock |
 | `dr-rebuild` CI (#723, task 6) | tier 0 from git | monthly, first Tuesday | GitHub Actions, Talos in QEMU | time from empty nodes to infrastructure and platform Healthy, without data; a lower bound for tier 0 |
-| Break-glass check (task 4) | the house, the AWS account, the operator | quarterly: January, April, July, October | the Mac and the password manager | each item of the inventory works; emergency access still set up; the AWS payment method valid for the next 6 months |
+| Break-glass check (task 4) | the house, the AWS account, the operator | quarterly: January, April, July, October | the Mac and the password manager | each item of the inventory works; the AWS payment method valid for the next 6 months |
 | Node replacement (task 10) | one node | twice a year: March and September, `homelab-w-1` first, then a control plane in turn | home cluster | reset to `Ready`, and to every tier 1 probe green |
 | DR drill (#723, task 9) | the NAS, the house | twice a year: May and November | the DR module in AWS `eu-central-1` | each step and tier against its RTO, the full Immich restore, the RPO reached, the cost |
-| AWS account tabletop | the AWS account | yearly, June | desk: walk `docs/runbooks/aws-account-lost.md` (lockout, reopening, rebuild); sign in as root with the second MFA device | pass or fail, and the steps that did not match |
-| Operator walk-through | the operator | yearly, December | the emergency contact, with `docs/runbooks/operator-unavailable.md` | one album and one document restored to a laptop; the envelope still sealed |
+| AWS account tabletop | the AWS account | yearly, June | desk: walk `docs/runbooks/aws-account-lost.md` (lockout, reopening, rebuild); sign in as root with MFA | pass or fail, and the steps that did not match |
 
 ## Measurement
 
@@ -1397,10 +1366,6 @@ Each entry gives the decision, the alternative rejected, and the reason.
   repository variable. The file is reviewed in a pull request, dated and
   in the history; the leftover check fails both on resources without it
   and on it without resources.
-- **Emergency access to the whole vault after a 2-day wait.** Rejected:
-  an organization collection with only the break-glass items. A collection
-  has no wait period and no refusal, and the contact is trusted with the
-  age key anyway.
 - **Drill name resolution by a drill-only Talos `StaticHostConfig`
   patch.** Rejected: disabling Talos's CoreDNS and deploying a replacement
   from the drill component. Talos v1.14 host DNS serves static hosts to
@@ -1422,11 +1387,9 @@ Each entry gives the decision, the alternative rejected, and the reason.
   with no per-app change, and the drill tests the real path. The cost is
   `_acme-challenge` TXT records in the production zone, written with a
   token usable only from the drill nodes and only during the drill.
-- **Recovery codes in the password manager, its own recovery in an
-  envelope with the emergency contact.** Rejected: codes on paper in the
-  house; a second password manager. Every code has one documented place,
-  and the one thing that cannot live in the vault, its own recovery, lives
-  outside the house.
+- **Credentials and recovery codes kept offline by the operator, each
+  with one documented off-site place.** Rejected: codes on paper in the
+  house. Every code has one documented place outside the house.
 - **DR probes with `curl --resolve` against the DR Gateway.** Rejected:
   the public blackbox probes. During a drill the public names point home,
   so the public probes would measure home and always pass.

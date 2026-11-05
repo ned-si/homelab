@@ -44,15 +44,13 @@ point at it.
       matches `.sops.yaml` and decrypts a sealed file, `talosconfig` reaches a
       node, `RESTIC_PASSWORD` opens `immich/library` with the verifier key,
       the state passphrase decrypts a state file; prompts for the AWS root
-      sign-in with the second MFA device, the AWS payment method's expiry,
-      each item of the `homelab break-glass` folder and the emergency
-      access; `tofu plan` on `bootstrap/dr-cloud/` from the
-      password-manager copies once task 8 has merged);
+      sign-in with MFA, the AWS payment method's expiry, each break-glass
+      item in the off-site inventory; `tofu plan` on `bootstrap/dr-cloud/`
+      from the password-manager copies once task 8 has merged);
       `docs/runbooks/operator-unavailable.md`; the operator's one-time
-      set-up listed in the pull request (the folder, the second AWS root
-      MFA device, the root mailbox's recovery codes, the Cloudflare
-      token-creator token, the envelope with the two-step login recovery
-      code, emergency access with a 2-day wait); the first run recorded.
+      set-up (credentials and recovery codes kept offline by the operator,
+      each with one documented off-site place, and the Cloudflare
+      token-creator token); the first run recorded.
       [4.3, 4.4, 5.3, 9.1, 9.2, 10.7]
 - [ ] 5. AWS account lost or locked out: `docs/runbooks/aws-account-lost.md`
       (lockout first: lost MFA device, lost root password through the

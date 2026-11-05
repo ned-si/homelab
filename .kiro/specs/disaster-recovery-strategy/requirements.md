@@ -210,10 +210,10 @@ within a day.
    again within 24 h. (review; the yearly tabletop in the calendar)
 3. THE AWS account SHALL be protected against lockout, since the backups
    have no copy outside it (an accepted risk, operator 2026-11-03): the
-   root user with two MFA devices, one of them a TOTP seed in the password
-   manager's `homelab break-glass` folder; the recovery codes of the root
-   user's mailbox in the same folder; the payment method valid for the
-   next 6 months at each quarterly break-glass check. The runbook SHALL
+   root user with MFA; its credentials and recovery codes, and those of
+   its mailbox, kept offline by the operator, each with one documented
+   off-site place in the off-site inventory; the payment method valid for
+   the next 6 months at each quarterly break-glass check. The runbook SHALL
    cover a locked or suspended account and the reopening of a closed one
    within the 90-day post-closure period before a rebuild in a new
    account. (`scripts/dr-offsite-check.sh` prompts; `docs/runbooks/aws-account-lost.md`)
@@ -334,12 +334,10 @@ there.
    renewed, and how to restore the photo library and the documents to a
    laptop with restic. It names no person and holds no value. (review;
    tech-docs checklist)
-2. THE password manager SHALL give the emergency contact view-only
-   emergency access after a 2-day wait. That access covers the operator's
-   whole individual vault, not only the `homelab break-glass` folder, and
-   the design states it as accepted. The quarterly break-glass check
-   confirms the access is still set up. (`scripts/dr-offsite-check.sh`
-   prompt; a row in `ci/dr-rehearsals.tsv`)
+2. THE credentials and recovery codes the runbook needs SHALL be kept
+   offline by the operator, each with one documented off-site place. The
+   quarterly break-glass check confirms they are still in place.
+   (`scripts/dr-offsite-check.sh` prompt; a row in `ci/dr-rehearsals.tsv`)
 
 ### Requirement 10: The DR site is a module applied only on loss or drill
 
@@ -468,37 +466,28 @@ to be decided on a reasoned default; the reasons are in
    copy outside AWS. $659 a month always on (Full shape), $12.27 a drill,
    $2 a month at two drills a year. Google Cloud and Hetzner stay in the
    cost tables for comparison. The accepted risk: losing the AWS account
-   with the house loses the backups; root MFA on two devices and recovery
-   codes off-site mitigate it (requirement 5.3).
+   with the house loses the backups; root MFA and recovery codes kept
+   offline by the operator mitigate it (requirement 5.3).
    ([Recovery provider](design.md#recovery-provider),
    [Accepted risk](design.md#accepted-risk-one-account))
-2. Recovery codes: **items in the password manager**, folder `homelab
-   break-glass`, one per code, named in the off-site inventory; a second
-   AWS root MFA device as a TOTP seed in that folder; the recovery codes
-   of the AWS root user's mailbox there too; the password manager's own
-   two-step login recovery code printed, sealed and held by the emergency
-   contact outside the house.
-   ([Break-glass and emergency access](design.md#break-glass-and-emergency-access))
-3. Operator unavailable: **an emergency contact**, a trusted person outside
-   the household named only in the password manager, with view-only
-   emergency access after a 2-day wait, which covers the whole individual
-   vault (accepted: the contact is trusted with the age key anyway), and
-   the envelope; the household keeps a printed copy of
-   `docs/runbooks/operator-unavailable.md`. (same section)
-4. Drill calendar: **as proposed**: the DR drill in May and November,
+2. Recovery codes and operator unavailable: **credentials and recovery
+   codes are kept offline by the operator**, each with one documented
+   off-site place, named in the off-site inventory.
+   ([Break-glass items](design.md#break-glass-items))
+3. Drill calendar: **as proposed**: the DR drill in May and November,
    node replacement in March and September, the break-glass check
-   quarterly, the AWS tabletop in June, the operator walk-through in
-   December, `dr-rebuild` monthly. ([Rehearsal calendar](design.md#rehearsal-calendar))
-5. Rehearsal key: **a separate rehearsal age key**, with drill copies of
+   quarterly, the AWS tabletop in June, `dr-rebuild` monthly.
+   ([Rehearsal calendar](design.md#rehearsal-calendar))
+4. Rehearsal key: **a separate rehearsal age key**, with drill copies of
    the Secrets sealed to it; the real key never reaches a drill node
    (requirement 8.7). ([The drill](design.md#the-drill))
-6. Drill certificates: **Let's Encrypt through DNS-01, as at home**, with
+5. Drill certificates: **Let's Encrypt through DNS-01, as at home**, with
    a Cloudflare token created for each drill, limited to the drill nodes'
    addresses, expiring after 12 h and deleted on exit, never in git; the
    OIDC clients trust the DR Keycloak unchanged. A drill CA was rejected:
    a trust patch per client and a path a real loss never takes.
    ([The drill's Cloudflare token](design.md#the-drills-cloudflare-token))
-7. Real-loss declaration: **the file `ci/dr-site-lost.txt`**, added in a
+6. Real-loss declaration: **the file `ci/dr-site-lost.txt`**, added in a
    pull request at step 0 of `site-lost.md`, which the daily leftover
    check reads. ([Leftover check and the real-loss declaration](design.md#leftover-check-and-the-real-loss-declaration))
 

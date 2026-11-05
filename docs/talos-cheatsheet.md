@@ -40,7 +40,7 @@ are the ones pinned in [`talos/talconfig.yaml`](../talos/talconfig.yaml).
   `talos/talsecret.sops.yaml` (SOPS). `task talos:genconfig` writes them to
   `talos/clusterconfig/`, which is git-ignored: those files and `talosconfig`
   hold the keys in plaintext. Regenerate them any time from the sealed
-  secrets; keep a copy of `talosconfig` in the password manager (Bitwarden)
+  secrets; keep a copy of `talosconfig` in the password manager
   and in `~/homelab-backups/talos/` (mode 700).
 - The API VIP `192.168.1.11` is held by Talos itself on the control planes
   (`vip:` in `talconfig.yaml`). There is no kube-vip. `talosctl` talks to the
