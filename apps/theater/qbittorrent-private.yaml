@@ -2,6 +2,7 @@
 # torrents beyond 10 active, and a queued seed counts as a hit and run. Every
 # 10 minutes this CronJob force-starts every torrent in category `private` and
 # every torrent flagged private. It never stops, removes or recategorises.
+# While qBittorrent restarts it waits up to 4 minutes for the WebUI.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -10,12 +11,30 @@ metadata:
   namespace: theater
 data:
   private-seed.py: |
-    import http.cookiejar, json, os, sys, urllib.parse, urllib.request
+    import http.cookiejar, json, os, sys, time, urllib.error, urllib.parse, urllib.request
 
-    BASE = "http://qbittorrent.theater.svc.cluster.local:8080/api/v2"
+    ROOT = "http://qbittorrent.theater.svc.cluster.local:8080"
+    BASE = f"{ROOT}/api/v2"
     CATEGORY, SAVE_PATH = "private", "private"
+    WAIT_SECONDS = 240  # within the Job's activeDeadlineSeconds (300)
     opener = urllib.request.build_opener(
         urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+    def wait_for_webui():
+        # During a restart (Recreate) the Service has no endpoint: connection
+        # refused or timeout. Any HTTP answer means the WebUI is up.
+        deadline = time.monotonic() + WAIT_SECONDS
+        while True:
+            try:
+                with urllib.request.urlopen(f"{ROOT}/", timeout=10):
+                    return
+            except urllib.error.HTTPError:
+                return
+            except OSError as e:
+                if time.monotonic() >= deadline:
+                    sys.exit(f"qBittorrent unreachable for {WAIT_SECONDS}s: {e}")
+                print(f"waiting for qBittorrent: {e}", flush=True)
+                time.sleep(10)
 
     def post(path, **form):
         data = urllib.parse.urlencode(form).encode()
@@ -29,6 +48,7 @@ data:
 
     login = {"username": os.environ["QBITTORRENT_USER"],
              "password": os.environ["QBITTORRENT_PASS"]}
+    wait_for_webui()
     # qBittorrent 5.2 answers 204 with the session cookie; older ones 200 "Ok.".
     status, body = post("auth/login", **login)
     if not (status == 204 or (status == 200 and body.strip() == "Ok.")):
