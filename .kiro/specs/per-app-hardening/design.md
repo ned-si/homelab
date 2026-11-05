@@ -146,9 +146,10 @@ kubectl -n <ns> exec <pod> -c <container> -- \
 
 The container keeps the root profile when the output is not empty or the
 export's Mapall user is not known to be `1000`. It is not known today
-(operator decision 2 in requirements.md), so every read-write NFS mount
-keeps the root profile until it is recorded. `fsGroup` is never set for an
-NFS mount.
+(operator decision 2 in requirements.md), so every container that runs as
+root today and has a read-write NFS mount keeps the root profile until the
+Mapall user is recorded. A container already non-root on NFS
+(Audiobookshelf) is unchanged. `fsGroup` is never set for an NFS mount.
 
 ### Root
 

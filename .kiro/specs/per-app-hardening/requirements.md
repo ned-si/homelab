@@ -412,7 +412,8 @@ at a time while I am around, with a way back.
 Decided on 2026-11-05. Changing one later is a new issue.
 
 1. **Immich server stays root.** `immich-server` writes the photo library
-   on `immich-data` (about 278,000 files, 344 GiB). Running it non-root
+   on `immich-data` (277,908 files, `kubelet_volume_stats_inodes_used`,
+   design.md evidence). Running it non-root
    would need the library owned by its uid: a recursive `chown`, a write
    to `immich-data` beyond reading. The operator judged the gain not worth
    it. `immich-server` runs the root profile (file access unchanged),
@@ -421,6 +422,8 @@ Decided on 2026-11-05. Changing one later is a new issue.
 2. **Jellyfin keeps the root profile.** Whether
    `192.168.1.228:/mnt/homelab/k8s/nfs/media` maps every client to uid
    `1000` (TrueNAS: Sharing, NFS, the export, Mapall User) is not known.
-   Every container with a read-write NFS mount therefore keeps the root
-   profile; Jellyfin was the only one whose outcome depended on it, the
-   others are root for other reasons.
+   Every container that runs as root today and has a read-write NFS mount
+   therefore keeps the root profile. Jellyfin was the only one whose
+   outcome depended on it; the others are root for other reasons.
+   Audiobookshelf already runs as `1000:1000` on a read-write mount of
+   `192.168.1.228:/mnt/homelab/k8s/nfs` and stays as it is.
