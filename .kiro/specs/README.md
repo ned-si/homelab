@@ -70,6 +70,7 @@ Change specs, active:
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 1: the `household`, `relatives` and `friends` groups on the app lines, then the console move and the removal of `family` and `media` |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [pentest-programme](pentest-programme/) | 2026-11-03 | #718 | task 1: rules of engagement, scope file and the dedicated test credentials |
+| [per-app-hardening](per-app-hardening/) | 2026-11-04 | #726 | task 1: the `pod-hardening` rule and its gaps file, then qBittorrent |
 | [pod-security-restricted](pod-security-restricted/) | 2026-11-04 | #724 | task 1: complete Kyverno reports, then the readiness check, the CI rule, the break-glass and the `home` flip |
 
 Change specs, done:
