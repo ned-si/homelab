@@ -1,13 +1,6 @@
 # kube-prometheus-stack: Prometheus, Alertmanager, Grafana, node-exporter.
-#
-# Chart 92.0.0, at parity with the running release (values in
-# platform/kube-prometheus-stack/values.yaml). Multi-source: the chart, plus a
-# git path holding the Grafana HTTPRoute for the shared Gateway (the Grafana
-# subchart has no Gateway API template). The chart's own Ingress is disabled
-# (ingress-nginx is removed, ADR 0011).
-#
-# A fourth source holds the Grafana dashboards
-# (platform/kube-prometheus-stack/dashboards).
+# Multi-source: the chart, its values, the routes (the Grafana HTTPRoute and
+# the rules) and the dashboards.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -49,12 +42,8 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
-    # The only Application that does not use the repo-wide 5s/3m retry window.
-    # This chart applies ~13MB of CRDs; the API server takes tens of seconds to
-    # establish them, and the first pass routinely fails on a kind that is
-    # mid-establishment. 30s doubling to a 10m cap covers that. A shorter window
-    # exhausts its attempts before the CRDs are servable and reports a failure
-    # that would have resolved itself.
+    # Longer retry than the repo default: ~13MB of CRDs take tens of seconds
+    # to establish, and a 3m window gives up first.
     retry:
       limit: 5
       backoff:

@@ -1,9 +1,5 @@
-# Keycloak: the identity provider every other app federates against.
-#
-# Kept as hand-written manifests rather than a chart, deliberately. The upstream
-# Keycloak chart is thin, and the Bitnami chart's images moved behind a
-# subscription in 2025. A single Deployment plus a CloudNativePG Cluster is less
-# code than the values file would be, and the failure modes are visible.
+# Keycloak, the identity provider. Hand-written manifests, not a chart: the
+# upstream chart is thin and Bitnami's images need a subscription.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

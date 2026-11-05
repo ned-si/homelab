@@ -1,19 +1,8 @@
-# Immich - photo library.
-#
-# Synced automatically, like every other app. Renovate updates the server
-# and machine-learning image and the chart (.github/renovate.json5). The
-# database image (cloudnative-vectorchord, apps/immich/resources/database.yaml)
-# is never updated by Renovate: docs/runbooks/immich-upgrade.md.
-#
-# Before every sync a PreSync hook takes a base backup of immich-db, and
-# after it a PostSync hook checks the server answers
-# (apps/immich/resources).
-#
-# Multi-source: the chart, plus a git path (apps/immich/resources) carrying
-# the database Cluster, the Valkey Deployment and Service, the HTTPRoute and
-# the backup jobs. The photo library PVC immich-data is in no leaf at all, so
-# prune never sees it (CI rule pvc-sync-options); every rendered PVC and the
-# Cluster carry Delete=false,Prune=false.
+# Immich, the photo library. Renovate updates the server and ML image and the
+# chart; never the database image (docs/runbooks/immich-upgrade.md). A PreSync
+# hook takes a base backup of immich-db, a PostSync hook checks the server.
+# Multi-source: the chart plus apps/immich/resources. The library PVC is in no
+# leaf, so prune never sees it (CI rule pvc-sync-options).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -50,12 +39,9 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      # Client-side apply, as the running child Application does. Its
-      # objects carry last-applied-configuration from client-side apply;
-      # switching this leaf to server-side apply on adoption would keep
-      # fields the new render drops (e.g. a volume source) and fail
-      # validation. Move to ServerSideApply=true in its own change, after
-      # adoption.
+      # Client-side apply: the objects carry last-applied-configuration, and
+      # server-side apply would keep fields the render drops. Switch in its
+      # own change.
       - CreateNamespace=true
     retry:
       limit: 5

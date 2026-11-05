@@ -1,10 +1,6 @@
-# blackbox-exporter: probes every public hostname and the endpoints the
-# cluster depends on from outside the pod (docs/observability.md).
-#
-# Multi-source: the chart, its values from this repo, and the Probe objects
-# (deploy/platform/blackbox-exporter/probes). Prometheus, from
-# kube-prometheus-stack, scrapes the Probes; this Application only runs the
-# prober and declares the targets.
+# blackbox-exporter: probes the public hostnames and the endpoints the cluster
+# depends on (docs/observability.md). Multi-source: the chart, its values and
+# the Probes (deploy/platform/blackbox-exporter/probes).
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

@@ -80,17 +80,10 @@ worker:
   machineSpec: *machineSpec
 
 # Tailnet (docs/remote-access.md, "Talos API"): each node joins as
-# talos-<node> with tag:talos through the siderolabs/tailscale extension, and
-# apid's certificate carries that name. TS_OAUTH_SECRET is the operator's
-# Tailscale OAuth client secret, sealed in talos/talenv.sops.yaml; talhelper
-# substitutes it. TS_AUTH_ONCE logs in on first start only: the node key
-# then lives in the extension's state on EPHEMERAL. TS_USERSPACE=true
-# overrides the extension's kernel mode: tailscaled terminates the tailnet in
-# userspace and hands incoming connections to the node's own services (apid
-# on 50000) over loopback, so the node holds no tailscale0 address. Talos
-# publishes every address on an up link to cluster discovery, with no filter
-# to configure; a tailnet address there became a KubePrism endpoint and the
-# address `talosctl health` dials, both unreachable between nodes.
+# talos-<node> with tag:talos; TS_OAUTH_SECRET comes from
+# talos/talenv.sops.yaml. TS_USERSPACE=true keeps the tailnet address off the
+# node's links: Talos publishes every link address to discovery, and a
+# tailnet one became an unreachable KubePrism endpoint.
 nodes:
   - hostname: homelab-cp-1
     ipAddress: 192.168.1.247

@@ -1,23 +1,18 @@
 # ---------------------------------------------------------------------------
-# GitHub Actions to AWS without stored keys: the GitHub OIDC identity provider
-# and the two roles .github/workflows/tofu.yaml assumes.
+# GitHub Actions to AWS without stored keys: the OIDC provider and the two
+# roles .github/workflows/tofu.yaml assumes. Plan: read-only on every module's
+# resources and state, from pull requests and main. Apply: bootstrap/aws-backup
+# only, from main only.
 #
-#   homelab-github-tofu-plan   read-only on the resources of every module under
-#                              bootstrap/ that holds AWS resources, and on their
-#                              state. Assumable from pull requests and from main.
-#   homelab-github-tofu-apply  applies bootstrap/aws-backup, and only that
-#                              module. Assumable from main only.
-#
-# This module and bootstrap/tofu-state are plan-only: CI never applies them.
-# The apply role must not be able to change its own permissions, and the state
-# bucket must not depend on the pipeline that writes to it. Apply them by hand:
+# This module and bootstrap/tofu-state are applied by hand, so the apply role
+# cannot change its own permissions:
 #
 #     aws login --profile homelab --region eu-central-1
 #     scripts/tofu.sh bootstrap/github-oidc init
 #     scripts/tofu.sh bootstrap/github-oidc apply
 #
-# then store the role ARNs as the repository secrets AWS_PLAN_ROLE_ARN and
-# AWS_APPLY_ROLE_ARN (docs/bootstrap.md "Drift detection").
+# then store the role ARNs as AWS_PLAN_ROLE_ARN and AWS_APPLY_ROLE_ARN
+# (docs/bootstrap.md "Drift detection").
 # ---------------------------------------------------------------------------
 
 data "aws_caller_identity" "current" {}
@@ -158,10 +153,8 @@ resource "aws_iam_role_policy" "plan" {
 }
 
 # ---------------------------------------------------------------------------
-# Apply role: what bootstrap/aws-backup needs to create and update its
-# resources, and nothing that deletes one. The workflow refuses any plan that
-# destroys or replaces a resource, so those changes are applied by hand; the
-# role could not run them anyway.
+# Apply role: create and update bootstrap/aws-backup, nothing that deletes.
+# The workflow refuses plans that destroy or replace; those are applied by hand.
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "apply" {
   statement {

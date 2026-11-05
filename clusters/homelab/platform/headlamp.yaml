@@ -1,11 +1,6 @@
 # Headlamp: read-only Kubernetes web UI, https://headlamp.lilalala.com
-# (docs/remote-access.md).
-#
-#     Gateway --> headlamp-sso (oauth2-proxy, Keycloak, group admins)
-#     --> headlamp (ServiceAccount, read-only)
-#
-# Multi-source: the chart, its values from this repo, and the rendered proxy,
-# HTTPRoute, RBAC and network policies (deploy/platform/headlamp/resources).
+# (docs/remote-access.md), behind headlamp-sso. Multi-source: the chart, its
+# values and deploy/platform/headlamp/resources.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

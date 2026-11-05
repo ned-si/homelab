@@ -1,54 +1,26 @@
 # ---------------------------------------------------------------------------
-# The off-site backup target: one S3 bucket and one tightly-scoped IAM user.
+# The off-site backup target: one S3 bucket and tightly scoped IAM users. Its
+# own root module and state: it must survive a cluster rebuild, so nothing
+# that manages the cluster can destroy it.
 #
-# Separate OpenTofu root module from bootstrap/, with its own state, because it
-# has a different lifetime and a different blast radius. The cluster can be
-# rebuilt from scratch; this bucket is the thing that must survive the cluster
-# being rebuilt from scratch, so nothing that manages the cluster should be able
-# to destroy it by accident.
-#
-# Apply it with YOUR OWN short-lived credentials, through the wrapper:
+# Applied by the `tofu` workflow; by hand, with short-lived credentials:
 #
 #     aws login --profile homelab --region eu-central-1
 #     scripts/tofu.sh bootstrap/aws-backup init
 #     scripts/tofu.sh bootstrap/aws-backup plan
 #     scripts/tofu.sh bootstrap/aws-backup apply
-#     scripts/tofu.sh bootstrap/aws-backup output -raw backup_access_key_id
-#     scripts/tofu.sh bootstrap/aws-backup output -raw backup_secret_access_key
 #
-# scripts/tofu.sh exports the `aws login` session as environment credentials
-# (the AWS provider cannot read login sessions itself) and supplies the state
-# passphrase. Never create long-lived access keys for yourself, and never root
-# access keys: a leaked key could delete the backups and everything else.
-#
-# NOTE ON STATE: the state contains both generated secret access keys. It lives
-# in s3://ned-si-homelab-tofu-state (bootstrap/tofu-state), encrypted by
-# OpenTofu before upload, so there is no local state file to protect. It is
-# only as safe as TOFU_STATE_PASSPHRASE. See docs/bootstrap.md.
-#
-# Full reasoning for the storage classes and the verification strategy:
-# docs/backups.md.
+# The state holds the generated secret keys: encrypted by OpenTofu in
+# s3://ned-si-homelab-tofu-state, only as safe as TOFU_STATE_PASSPHRASE
+# (docs/bootstrap.md). Storage classes and verification: docs/backups.md.
 # ---------------------------------------------------------------------------
 
 locals {
-  # restic repositories, as laid out by the CronJobs in apps/. Each one gets its
-  # own lifecycle rule, because S3 prefix filters are literal prefixes with no
-  # wildcard support -- there is no way to say `*/data/`.
-  #
-  # ONLY the `data/` prefix may be archived. restic reads `config`, `keys/`,
-  # `index/` and `snapshots/` on EVERY operation, so those must stay in a class
-  # with immediate GET. Archiving them makes the repository unusable, which is
-  # the single most common way people break restic-on-Glacier.
-  # EVERY restic repository must be listed here. A repository that is missing
-  # still works -- its packs simply stay in S3 Standard at roughly 6x the price,
-  # for ever, with nothing to indicate it. That is the failure mode this list
-  # exists to prevent, so it is checked by scripts/check-restic-repos.sh in CI
-  # against the actual RESTIC_REPOSITORY values in the manifests.
-  #
-  # Derived from the manifests, not from memory. To regenerate:
-  #   scripts/check-restic-repos.sh
-  # which reads the RESTIC_REPOSITORY values out of apps/ and platform/ and
-  # diffs them against this list in both directions.
+  # restic repositories, one lifecycle rule each (S3 prefix filters have no
+  # wildcards). Only `data/` may be archived: restic reads `config`, `keys/`,
+  # `index/` and `snapshots/` on every operation. A repository missing here
+  # still works but stays in S3 Standard at about 6x the price;
+  # scripts/check-restic-repos.sh keeps this list equal to the manifests.
   restic_repos = [
     "grafana/data",    # platform/kube-prometheus-stack/routes/grafana-backup.yaml
     "immich/library",  # apps/immich/resources/backup-files.yaml
@@ -101,28 +73,16 @@ resource "aws_s3_bucket_public_access_block" "backups" {
 }
 
 # ---------------------------------------------------------------------------
-# Immutable versions: the bucket policy
-#
-# The IAM denials on each user below protect against those keys. This policy
-# protects against every other principal in the account too, the account's
-# own admin sessions and the CI roles included: nobody can delete an object
-# version, suspend versioning or delete the bucket. A delete only ever adds a
-# delete marker, and the noncurrent-version lifecycle rule (30 days) is the
-# only thing that removes old versions. Lifecycle expiration is done by S3
-# itself and is not subject to bucket policies.
-#
-# The rules that bound that window (lifecycle) and this policy can be changed
-# only by the CI apply role (bootstrap/github-oidc), i.e. by a merge to main.
-# The account root user can always delete a bucket policy (S3 exempts it from
-# denials on the policy actions): that is the break-glass, in the console
+# Immutable versions: the bucket policy. It denies every principal, the CI
+# roles and admin sessions included, deleting an object version, suspending
+# versioning or deleting the bucket; only the 30-day noncurrent-version
+# lifecycle rule removes old versions. Only the CI apply role can change the
+# lifecycle and this policy. Break-glass: the root user can delete the policy
 # (docs/backups.md "Immutable versions").
 #
-# Not S3 Object Lock: default retention counts from each version's creation,
-# so a restic pack written a year ago and pruned today would get no
-# protection, while this policy covers every noncurrent version for its whole
-# 30 days. Default retention also makes every PUT require a checksum header,
-# a new failure mode for WAL archiving, and enabling Object Lock cannot be
-# undone.
+# Not Object Lock: its retention counts from each version's creation, so an
+# old pack pruned today would get none; it also forces checksum headers on
+# every PUT and cannot be undone.
 # ---------------------------------------------------------------------------
 data "aws_caller_identity" "current" {}
 
@@ -216,19 +176,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
   bucket = aws_s3_bucket.backups.id
 
   # --- restic pack files -> Glacier Instant Retrieval ----------------------
-  #
-  # GIR, not Flexible Retrieval or Deep Archive. Those require an asynchronous
-  # thaw before an object can be read, and restic has no concept of that -- it
-  # expects every GET to work. GIR keeps millisecond reads, so restic (and
-  # `restic check --read-data`, and a real restore) keep working unchanged.
-  #
-  # Transition at 1 day rather than 0 so a pack written during a run cannot
-  # change class mid-run. The cost difference is a rounding error.
-  #
-  # Trade-off to be aware of: GIR has a 90-day minimum storage duration. Deleting
-  # a pack earlier is billed to 90 days anyway. That is fine here because the
-  # data is write-once photos and documents, so `restic prune` rarely deletes
-  # packs -- but it is why the retention policies are months, not days.
+  # Not Flexible Retrieval or Deep Archive: restic expects every GET to work.
+  # After 1 day, so a pack cannot change class mid-run. GIR bills 90 days at
+  # least, which is why retention is months, not days.
   dynamic "rule" {
     for_each = local.restic_repos
     content {
@@ -247,10 +197,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
   }
 
   # --- bound the cost of the versioning safety net --------------------------
-  #
-  # Without this, every object restic prunes is retained forever as a noncurrent
-  # version and the bill grows without limit. 30 days is long enough to notice
-  # and recover from a compromised credential or a bad prune.
+  # 30 days to notice a compromised credential or a bad prune.
   rule {
     id     = "expire-noncurrent-versions"
     status = "Enabled"
@@ -275,13 +222,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
     }
   }
 
-  # NOTE: there is deliberately no expiry rule for `cnpg/`. The Barman Cloud
-  # plugin enforces the 30-day retention of each ObjectStore itself, and it needs
-  # to be the one deciding, because deleting a base backup that later WAL still
-  # depends on silently destroys the ability to recover to any point in that
-  # window. Nor is it transitioned to Glacier: WAL is a stream of small objects
-  # with constant churn, the worst possible fit for a class with a 90-day minimum
-  # duration.
+  # No expiry rule for `cnpg/`: the Barman Cloud plugin enforces retention,
+  # since deleting a base backup that later WAL depends on breaks recovery.
+  # Not transitioned: WAL churn is the worst fit for a 90-day minimum.
   depends_on = [aws_s3_bucket_versioning.backups]
 }
 
@@ -323,16 +266,9 @@ data "aws_iam_policy_document" "backup" {
     resources = [aws_s3_bucket.backups.arn]
   }
 
-  # THE IMPORTANT PART.
-  #
-  # A backup credential that can permanently destroy the backups is ransomware's
-  # first target, and it is also what turns one bad script into total data loss.
-  # DeleteObject above only writes a delete marker; these denials stop anything
-  # from making a deletion irreversible or from disabling the mechanism that
-  # makes it reversible.
-  #
-  # Deny beats Allow in IAM unconditionally, so these hold even if someone later
-  # attaches a broader policy to this user.
+  # DeleteObject above only writes a delete marker; these denials stop
+  # anything making a deletion irreversible or disabling versioning. Deny
+  # beats Allow, so they hold even under a broader policy.
   statement {
     sid    = "DenyIrreversibleDestruction"
     effect = "Deny"
@@ -365,10 +301,8 @@ resource "aws_iam_access_key" "backup" {
 }
 
 # ---------------------------------------------------------------------------
-# The Postgres credential, used by the Barman Cloud plugin of every CNPG cluster
-# (WAL archiving and base backups under cnpg/<cluster>/). Separate from the
-# writer so a database pod never holds a key that can reach the restic
-# repositories, and the restic jobs never hold one that can reach the WAL.
+# The Barman Cloud credential (cnpg/<cluster>/), apart from the restic writer
+# so neither holds a key to the other's data.
 # ---------------------------------------------------------------------------
 resource "aws_iam_user" "cnpg" {
   name = "${var.bucket_name}-cnpg"
@@ -448,10 +382,8 @@ resource "aws_iam_access_key" "cnpg" {
 }
 
 # ---------------------------------------------------------------------------
-# A read-only credential for verification, used by the restore tests
-# (platform/backup-verify) and the annual in-region restore drill
-# (docs/backups.md). It writes only restic lock files and the _lock-test/
-# prefix, so a test gone wrong cannot damage the backup it is testing.
+# Read-only credential for the restore tests and the annual drill
+# (docs/backups.md): it writes only restic locks and _lock-test/.
 # ---------------------------------------------------------------------------
 resource "aws_iam_user" "verify" {
   name = "${var.bucket_name}-verifier"
@@ -483,11 +415,9 @@ data "aws_iam_policy_document" "verify" {
     actions   = ["s3:PutObject", "s3:DeleteObject"]
     resources = ["${aws_s3_bucket.backups.arn}/*/locks/*"]
   }
-  # The weekly version-lock test (platform/backup-verify/lock-test.yaml): it
-  # writes _lock-test/weekly, tries to delete an old version of it and reads
-  # the bucket policy. DeleteObjectVersion is allowed here on purpose, on that
-  # prefix only: the bucket policy's deny is then the only thing that stops
-  # it, so the test fails if that statement goes.
+  # The weekly version-lock test: DeleteObjectVersion is allowed on
+  # _lock-test/ only, so the bucket policy's deny is what stops it, and the
+  # test fails if that statement goes.
   statement {
     sid       = "LockTestObject"
     effect    = "Allow"
@@ -513,10 +443,8 @@ resource "aws_iam_access_key" "verify" {
 }
 
 # ---------------------------------------------------------------------------
-# A read-only metrics credential for the AWS dashboard (platform/aws-exporter):
-# CloudWatch S3 storage metrics (bucket size per storage class, via YACE),
-# Cost Explorer (cost per day, month and service) and a listing of the backup
-# bucket for the size per prefix. No object reads, no writes.
+# Read-only metrics credential for platform/aws-exporter: CloudWatch S3
+# metrics, Cost Explorer and a listing of the bucket. No object reads.
 # ---------------------------------------------------------------------------
 resource "aws_iam_user" "metrics" {
   name = "homelab-metrics-reader"

@@ -1,9 +1,5 @@
-# Tetragon: eBPF runtime events on every node, observe only
-# (docs/observability.md#runtime-tetragon). The operator installs the
-# TracingPolicy CRDs at start, so the policies retry until they exist.
-#
-# Multi-source: the chart, its values from this repo, and the rendered
-# vendored TracingPolicies (deploy/platform/tetragon).
+# Tetragon, observe only (docs/observability.md#runtime-tetragon). The
+# policies retry until the operator has installed their CRDs.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

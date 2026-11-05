@@ -1,18 +1,8 @@
 # ---------------------------------------------------------------------------
-# Bootstrap: the minimum needed to hand control to Argo CD, and nothing more.
-#
-# Everything OpenTofu does here is a genuine chicken-and-egg problem that GitOps
-# cannot solve on its own:
-#
-#   1. Cilium  -- no pod can be scheduled without a CNI, including Argo CD.
-#   2. Argo CD -- something has to install the thing that installs everything.
-#   3. The age key and the Git credential -- Argo CD cannot read encrypted
-#      secrets from git until it holds the key that decrypts them, and the key
-#      obviously cannot be stored in the repo it protects.
-#   4. The root Application -- one object that points Argo CD at the repo.
-#
-# After `tofu apply`, this directory should never need to run again. If you find
-# yourself adding a workload here, it belongs in clusters/homelab/ instead.
+# Bootstrap: the minimum to hand control to Argo CD. Cilium (no pod runs
+# without a CNI), Argo CD, the age key and Git credential (which cannot live
+# in the repo), and the root Application. A workload added here belongs in
+# clusters/homelab/.
 # ---------------------------------------------------------------------------
 
 resource "kubernetes_namespace_v1" "argocd" {
@@ -27,12 +17,8 @@ resource "kubernetes_namespace_v1" "argocd" {
 }
 
 # ---------------------------------------------------------------------------
-# 1. Cilium
-#
-# Installed here, then ADOPTED by the `cilium` Argo CD Application which reads
-# the same values file, so the two cannot drift. Argo CD (step 3 below) is
-# adopted the same way. The Gateway API CRDs must exist before this runs (Cilium checks
-# for them at startup): docs/bootstrap.md step 3.
+# 1. Cilium, adopted afterwards by the `cilium` Application with the same
+# values file. The Gateway API CRDs must exist first (docs/bootstrap.md step 3).
 # ---------------------------------------------------------------------------
 resource "helm_release" "cilium" {
   name       = "cilium"
@@ -126,17 +112,9 @@ resource "helm_release" "argocd" {
 }
 
 # ---------------------------------------------------------------------------
-# 4. The root Application
-#
-# Rendered from clusters/homelab/root.yaml so the file in git stays the single
-# definition, with only `targetRevision` overridden -- that lets the bootstrap
-# track a working branch while the committed manifest tracks `main`.
-#
-# `kubernetes_manifest` is avoided deliberately: it needs the CRD to exist at
-# PLAN time, which it does not on a fresh cluster. A manifest applied through
-# the `kubernetes` provider's generic resource has the same problem, so this
-# uses a null-free approach: the Application is created by Helm as an extra
-# object instead.
+# 4. The root Application, rendered from clusters/homelab/root.yaml with only
+# `targetRevision` overridden. Created by Helm: `kubernetes_manifest` needs
+# the CRD at plan time, which a fresh cluster does not have.
 # ---------------------------------------------------------------------------
 resource "helm_release" "root_application" {
   name      = "root-application"
@@ -164,26 +142,11 @@ resource "helm_release" "root_application" {
 
   depends_on = [helm_release.argocd]
 
-  # #########################################################################
-  # # The root Application carries no `resources-finalizer` (CI:
-  # # repo_policy.py `no-resources-finalizer`), so deleting it orphans what it
-  # # created instead of cascade-deleting the cluster's workloads. A finalizer
-  # # added later would turn `tofu destroy` into a complete teardown that prints
-  # # a green "Destroy complete!".
-  # #
-  # # `prevent_destroy` makes OpenTofu refuse such a plan anyway, so a bare
-  # # `tofu destroy` is rejected as a whole rather than partially executed. It
-  # # guards THIS resource only: `tofu destroy -target=kubernetes_namespace_v1.argocd`
-  # # still deletes the namespace and everything Argo CD runs in it.
-  # #
-  # # Rebuilding the Application itself is cheap: `tofu apply` recreates it and
-  # # Argo CD re-adopts the existing objects. Teardown steps: docs/bootstrap.md.
-  # #
-  # # SIDE EFFECT to know about: `prevent_destroy` also blocks any change that
-  # # would REPLACE this release (destroy-then-create) -- renaming it or moving
-  # # it to another namespace. Changing `targetRevision` is an in-place update
-  # # and is unaffected, which is the only field expected to change here.
-  # #########################################################################
+  # No `resources-finalizer` on the root Application (CI:
+  # `no-resources-finalizer`), so deleting it orphans its workloads.
+  # `prevent_destroy` makes a bare `tofu destroy` fail as a whole; it guards
+  # this resource only, and also blocks a replacement (rename, namespace
+  # move). `targetRevision` changes in place. Teardown: docs/bootstrap.md.
   lifecycle {
     prevent_destroy = true
   }

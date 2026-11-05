@@ -1,9 +1,7 @@
-# Expected findings of tetragon/tetragon (the agent DaemonSet):
-# disallow-privileged-containers (chart up to 1.7), disallow-capabilities
-# (chart 1.8: not privileged, adds SYS_ADMIN, SYS_PTRACE, SYS_RESOURCE,
-# DAC_OVERRIDE and SYSLOG), disallow-host-namespaces, disallow-host-path,
-# disallow-host-ports. Matched by namespace and name prefix; the operator
-# Deployment (tetragon-operator) needs none of them but shares the prefix.
+# Expected findings of the tetragon agent DaemonSet: disallow-capabilities
+# (SYS_ADMIN, SYS_PTRACE, SYS_RESOURCE, DAC_OVERRIDE, SYSLOG),
+# disallow-host-namespaces, disallow-host-path, disallow-host-ports. Matched
+# by name prefix.
 ---
 apiVersion: policies.kyverno.io/v1
 kind: PolicyException

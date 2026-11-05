@@ -1,12 +1,8 @@
-# Helm releases the bootstrap installs with the helm CLI before Argo CD can
-# (docs/bootstrap.md). Argo CD adopts each one afterwards through an
-# Application with the same release name and values file, so these entries are
-# the versions the bootstrap installs; CI (repo-policy
-# `bootstrap-chart-versions`) keeps each equal to its Application's chart
-# version. CI also renders each entry (scripts/ci/render_apps.py scope 4) and
-# validates the render with kubeconform. Each version carries the same
-# Renovate annotation as bootstrap/main.tf and its Application, so one
-# Renovate PR moves all three.
+# Helm releases the bootstrap installs before Argo CD can (docs/bootstrap.md),
+# adopted afterwards by an Application with the same name and values. CI
+# (repo-policy `bootstrap-chart-versions`) keeps each version equal to its
+# Application's and renders it; the shared Renovate annotation moves all
+# three together.
 releases:
   # Application clusters/homelab/infrastructure/argocd.yaml.
   - name: argocd

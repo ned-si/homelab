@@ -1,16 +1,6 @@
-# Layer 1 - infrastructure. Nothing else can be healthy until this is.
-#
-# Tracks `main`, like every Application in this repo: a merge is a deployment
-# and a rollback is a revert pull request (clusters/homelab/root.yaml,
-# docs/decisions.md).
-#
-# This Application owns nothing but other Application objects, and Argo CD has
-# no built-in health check for `argoproj.io/Application`, so its own health
-# says nothing about the infrastructure: read the leaves.
-#
-# This Application only ever creates other Applications, so it lives in the
-# `default` project; the workloads it spawns live in the `infrastructure`
-# project and are the ones subject to the RBAC there.
+# Layer 1, infrastructure. Tracks `main` (docs/decisions.md). It owns only
+# Application objects, so its health says nothing: read the leaves. In the
+# `default` project; its leaves are in `infrastructure`.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

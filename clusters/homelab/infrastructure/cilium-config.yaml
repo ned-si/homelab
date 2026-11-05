@@ -1,8 +1,5 @@
-# Cilium runtime configuration that lives in CRs rather than Helm values:
-# LoadBalancer IP pools and the L2 announcement policy.
-#
-# Kept separate from the `cilium` Application so that changing which IPs the
-# LAN hands out never risks a re-render of the CNI DaemonSet itself.
+# Cilium CRs (LB IP pools, L2 announcement policy), apart from the `cilium`
+# Application so an IP change never re-renders the CNI.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application

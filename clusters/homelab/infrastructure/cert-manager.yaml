@@ -1,9 +1,5 @@
-# cert-manager. Issues the wildcard certificate that the shared Gateway serves.
-#
-# Split into two Applications on purpose: the controller (this one) must be
-# running and its CRDs established before any ClusterIssuer can be validated.
-# A single Application would try to apply both in one pass and fail the first
-# sync every time.
+# cert-manager, issuer of the Gateway's wildcard certificate. Its CRDs must be
+# established before a ClusterIssuer validates, hence a separate Application.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -35,12 +31,9 @@ spec:
       prune: false # ships CRDs: pruning one deletes every Certificate
       selfHeal: true
     syncOptions:
-      # Client-side apply, as the running child Application does. Its
-      # objects carry last-applied-configuration from client-side apply;
-      # switching this leaf to server-side apply on adoption would keep
-      # fields the new render drops (e.g. a volume source) and fail
-      # validation. Move to ServerSideApply=true in its own change, after
-      # adoption.
+      # Client-side apply: the objects carry last-applied-configuration, and
+      # server-side apply would keep fields the render drops. Switch in its
+      # own change.
       - CreateNamespace=true
     retry:
       limit: 5

@@ -12,10 +12,6 @@
 
 git_username = "ned-si"
 
-# LEFT COMMENTED OUT ON PURPOSE, so that a copy of this file inherits the
-# variable's default of `main`, which every Application in clusters/homelab/
-# tracks.
-#
-# Uncomment ONLY while rebuilding a cluster that owns nothing yet, and delete the
-# line again the moment the branch is merged.
+# Commented out so a copy inherits the default `main`. Uncomment only while
+# rebuilding a cluster that owns nothing yet.
 # target_revision = "some-working-branch"

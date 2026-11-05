@@ -1,8 +1,5 @@
-# Applications: the things this cluster actually exists to run.
-#
-# Namespaced only. An application that needs a cluster-scoped resource is a
-# design smell and should be promoted to the platform layer instead of having
-# this list widened.
+# Applications. Namespaced only: an app that needs a cluster-scoped resource
+# belongs in the platform layer.
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
