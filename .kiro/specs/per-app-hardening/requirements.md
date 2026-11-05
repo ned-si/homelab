@@ -51,8 +51,8 @@ Issue [#726](https://github.com/ned-si/homelab/issues/726), from
 gitops-delivery task 19. The operator authorised the whole security
 hardening on 2026-11-03 with two conditions: never lock ourselves out, and
 always keep a way back. The technical defaults are decided in
-[design.md](design.md#decisions); what needs the operator is in
-[To settle at implementation](#to-settle-at-implementation).
+[design.md](design.md#decisions); the two that needed the operator are in
+[Operator decisions](#operator-decisions).
 
 ## Glossary
 
@@ -407,22 +407,20 @@ at a time while I am around, with a way back.
   `kyverno`, `tailscale`).
 - Network policies (#709). CPU limits (none, by the repo's convention).
 
-## To settle at implementation
+## Operator decisions
 
-Only the operator can decide these. Until he does, the default holds.
+Decided on 2026-11-05. Changing one later is a new issue.
 
-1. **Immich server as non-root.** `immich-server` writes the photo library
+1. **Immich server stays root.** `immich-server` writes the photo library
    on `immich-data` (about 278,000 files, 344 GiB). Running it non-root
-   needs the library owned by its uid: a recursive `chown`, which is a
-   write to `immich-data` beyond reading and so needs his explicit
-   approval, a fresh TrueNAS ZFS snapshot of its zvol and a restic snapshot
-   under 24 hours old. Default: `immich-server` runs the root profile
-   (file access unchanged), `immich` stays `baseline`, and #1020 keeps
-   `immich` open with this reason.
-2. **The Mapall user of the media NFS export.** Whether
+   would need the library owned by its uid: a recursive `chown`, a write
+   to `immich-data` beyond reading. The operator judged the gain not worth
+   it. `immich-server` runs the root profile (file access unchanged),
+   `immich` stays `baseline`, and #1020 keeps `immich` open with this
+   reason.
+2. **Jellyfin keeps the root profile.** Whether
    `192.168.1.228:/mnt/homelab/k8s/nfs/media` maps every client to uid
-   `1000` (TrueNAS: Sharing, NFS, the export, Mapall User) is not
-   recorded, and the API key is only in his records. Default: until he
-   states it, every container with a read-write NFS mount keeps the root
-   profile (today only Jellyfin's outcome depends on it; the others are
-   root for other reasons).
+   `1000` (TrueNAS: Sharing, NFS, the export, Mapall User) is not known.
+   Every container with a read-write NFS mount therefore keeps the root
+   profile; Jellyfin was the only one whose outcome depended on it, the
+   others are root for other reasons.

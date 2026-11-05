@@ -36,18 +36,18 @@ them. The image column gives the config `User` and the entrypoint from
 | 5 | `syncthing/syncthing` (StatefulSet) | syncthing 2.1.7: `""`, `/bin/entrypoint.sh` (`su-exec $PUID:$PGID`) | readiness, liveness, security context, token | non-root `1000:1000`, no `fsGroup`: the entrypoint's user (`script/docker-entrypoint.sh` at v2.1.7); its init container already runs as `1000:1000` |
 | 6 | `immich/valkey` | as in `paperless` | as in `paperless` | non-root `999:1000` |
 | 6 | `immich/immich-machine-learning` | Immich ML v3.3.6: `""`, `tini` | security context, token | non-root `1000:1000`: upstream documents `user:` ([FAQ](https://docs.immich.app/FAQ), "How can I run Immich as a non-root user?"); `fsGroup` on its cache PVC if the check asks (it runs as root today) |
-| 7 | `immich/immich-server` | Immich server v3.3.6: `""`, `tini` | security context, token | root (To settle 1) |
+| 7 | `immich/immich-server` | Immich server v3.3.6: `""`, `tini` | security context, token | root: operator decision 1 in requirements.md |
 | 8 | `keycloak/keycloak` | keycloak 26.8.1: `"1000"`, `kc.sh` | security context, token | non-root `1000:0`: the config user; its files are group `0` and group-writable |
 | 9-12 | `theater/{sonarr,radarr,lidarr,prowlarr}` | hotio: `""`, `/init` (s6); exportarr: `nonroot:nonroot` | security context (exportarr: pod seccomp), token | app root: `UMASK=002`, read-write NFS mount; exportarr non-root `65532:65532` set on the container (distroless `nonroot`; a non-numeric `User` needs `runAsUser` for `runAsNonRoot`) |
 | 13 | `theater/bazarr` | hotio: `""`, `/init` (s6) | capabilities, non-root, token | root: `UMASK=002` (group-writable subtitles for Sonarr and Radarr), read-write NFS mount |
 | 14 | `theater/lazylibrarian` | linuxserver: `/init` (s6) | capabilities, non-root, token | root: `UMASK=002`, read-write NFS mount |
-| 15 | `theater/jellyfin` | jellyfin 12.4: `""`, `/jellyfin/jellyfin` (no switch, root today) | liveness, security context, token | non-root `1000:1000` when the NFS check passes and To settle 2 is answered, else root: upstream documents `user: uid:gid` ([container install](https://jellyfin.org/docs/general/installation/container/), not versioned); `jellyfin-config` and `jellyfin-cache` by the ownership check |
+| 15 | `theater/jellyfin` | jellyfin 12.4: `""`, `/jellyfin/jellyfin` (no switch, root today) | liveness, security context, token | root: read-write NFS mount and the export's Mapall user not known (operator decision 2 in requirements.md), although upstream documents `user: uid:gid` ([container install](https://jellyfin.org/docs/general/installation/container/), not versioned) |
 | 16 | `theater/plex` | pms-docker: `""`, `/init` (s6) | liveness, security context, token | root: its init needs root and upstream documents no uid |
 | 17 | `books/calibre-web` | calibre-web-automated v4.0.8: `""`, `/init` (s6) | capabilities, non-root, token | root: upstream documents no uid; read-write NFS mount |
 
 What this means for #1020: `paperless`, `mealie`, `syncthing` and
 `keycloak` are expected to read `READY` after their tasks; `immich` stays
-open (To settle 1, and the inline NFS volume of
+open (operator decision 1, and the inline NFS volume of
 `immich-library-backup-local`); `theater` and `books` stay `baseline`.
 Each pull request re-reads the image evidence at the digest it merges
 with, and the `/etc/passwd` line of the user it runs as.
@@ -145,8 +145,10 @@ kubectl -n <ns> exec <pod> -c <container> -- \
 ```
 
 The container keeps the root profile when the output is not empty or the
-export's Mapall user is not known to be `1000` (To settle 2). `fsGroup`
-is never set for an NFS mount.
+export's Mapall user is not known to be `1000`. It is not known today
+(operator decision 2 in requirements.md), so every read-write NFS mount
+keeps the root profile until it is recorded. `fsGroup` is never set for an
+NFS mount.
 
 ### Root
 

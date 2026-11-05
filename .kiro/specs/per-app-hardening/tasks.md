@@ -45,8 +45,8 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       3, 4, 8, 9]
 - [ ] 7. Weekday. Immich server: root profile (no `KILL`, `SETGID` or
       `SETUID` unless the log asks), token through the chart's pod
-      options [4.3], the `non-root` gap line with To settle 1 as its
-      reason; nothing on `immich-data`; `scripts/psa-readiness.sh immich`
+      options [4.3], the `non-root` gap line with operator decision 1 as
+      its reason; nothing on `immich-data`; `scripts/psa-readiness.sh immich`
       quoted for #1020. [3, 4, 8, 9]
 - [ ] 8. Weekday. Keycloak: non-root `1000:0`, token on the Deployment
       (the `keycloak-realm-settings` Job already has it off); the admin
@@ -62,11 +62,9 @@ user records the stop check [8.4]. Requirement numbers in brackets.
 - [ ] 13. Weekday. Bazarr: root profile (capabilities within the six,
       `UMASK=002` kept), token, the stop check. [3, 4, 8, 9]
 - [ ] 14. Weekday. LazyLibrarian, as task 13. [3, 4, 8, 9]
-- [ ] 15. Weekday. Jellyfin: liveness and startup probes; non-root
-      `1000:1000` with the ownership check on `jellyfin-config` and
-      `jellyfin-cache` when the NFS check passes and To settle 2 is
-      answered, else the root profile with its gap line; token. [2, 3, 4,
-      8, 9]
+- [ ] 15. Weekday. Jellyfin: liveness and startup probes; the root
+      profile with its gap line naming operator decision 2; token. [2, 3,
+      4, 8, 9]
 - [ ] 16. Weekday. Plex: liveness and startup probes, root profile with
       its gap line, token, the stop check. [2, 3, 4, 8, 9]
 - [ ] 17. Weekday. Calibre-Web: root profile with its gap line, token, the
