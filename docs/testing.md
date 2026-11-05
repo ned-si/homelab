@@ -39,8 +39,9 @@ Expected: every hook `Passed` (or `Skipped` when no file matches).
 
 `.github/workflows/ci.yaml`, parallel jobs, no cluster. `ci` needs every job
 and fails unless each one passed (`tests/test_ci_workflow.py` keeps the list
-complete). `render`, `tests`, `promtool` and `alertmanager` install the same
-tools, so no test skips for a missing tool.
+complete). `render` and `tests` install the same tools, so no test skips
+for a missing tool; `promtool` and `alertmanager` install only the binaries
+their script runs, and the script fails when one is missing.
 
 - `lint`: `pre-commit run --all-files`, skipping only the hooks that another
   CI step runs with the same script or pinned binary; then yamllint,
@@ -102,10 +103,12 @@ a downloaded one.
 |---|---|---|---|
 | Helm chart archives (`scripts/ci/chart_fetch.py`) | the Application files and `ci/helm-releases.yaml`; restores the newest older key and fetches what is missing | `render`, pruned to the pinned charts | sha256 recorded at fetch time, `Chart.yaml` name and version against the pin |
 | kubeconform core schemas | `KUBE_SCHEMA_SHA`, `K8S_VERSION` and the rendered kinds | `render` | none, as before: the URL pins the commit |
+| Tool archives (`scripts/ci/install-tool.sh`, `TOOL_CACHE`) | `tools-<job>-` and the `<TOOL>_VERSION` of every tool the job installs (`tests/test_ci_workflow.py` checks the list) | each job its own; `tests` restores `render`'s | the `<TOOL>_SHA256` pin; a mismatch is deleted and downloaded again |
 
 `chart_fetch.py` retries `helm pull` after 5, 15 and 45 s on a transient
 error (HTTP 5xx or 429, timeout, reset, DNS); kubeconform retries schema
-downloads twice itself.
+downloads twice itself; `install-tool.sh` lets curl retry six times with
+exponential backoff.
 
 Kyverno policies:
 
