@@ -24,7 +24,9 @@ Assistant UI; the PR describes the rule, not the entity IDs
       table; a history rewrite is out of scope (secrets-hygiene owns it).
       The purchases the photos make necessary are listed back to the
       operator in chat with their prices, each one checked against
-      Requirement 12. [1.1, 1.2, 1.3, 1.4, 12.2]
+      Requirement 12. The addresses in use in `192.168.1.21`-`.49` (a
+      device with a hand-set address) are listed in the inventory file
+      before any device gets one. [1.1, 1.2, 1.3, 1.4, 12.2]
 - [ ] 2. Zigbee online: the coordinator answering on TCP (the Raspberry Pi
       steps, or the network coordinator if the operator buys one); the
       mesh's 2.4 GHz channel fixed and the Zigbee channel set in the
@@ -70,7 +72,8 @@ Assistant UI; the PR describes the rule, not the entity IDs
       read-only: no arm or disarm action on any dashboard or automation; the
       critical notification on trigger. For SIA, the
       [receiver](design.md#sia-receiver): Service `home-assistant-sia`,
-      LoadBalancer pinned to `192.168.1.202`, one TCP port equal to the
+      LoadBalancer pinned to `192.168.1.202` (free live first: `kubectl get
+      svc -A` shows no Service on it), one TCP port equal to the
       integration's listening port, the `home` ingress allow-list admitting
       LAN sources on that port, no router port forward, the account ID and
       AES key in the UI, a row in the LoadBalancer table of
@@ -92,8 +95,8 @@ Assistant UI; the PR describes the rule, not the entity IDs
       the tablet's charging plug between 20% and 80%. Check: power the
       plug off and on: it stays off; the
       [fallback test](design.md#fallback-test). [3.3, 5.3, 9.3, 11.1]
-- [ ] 14. Room climate: the sensors paired (the outbuildings, the utility
-      rooms and the server corner included), the climate dashboard, the CO2
+- [ ] 14. Room climate: the sensors paired (every space of the inventory
+      file and the server corner), the climate dashboard, the CO2
       and humidity notifications with their cooldowns. [14.1, 14.2, 14.3,
       14.4]
 - [ ] 15. Mailbox: the sensor paired over Zigbee after a link-quality check
@@ -102,7 +105,8 @@ Assistant UI; the PR describes the rule, not the entity IDs
       dashboard; the daily notification. [19.1, 19.2, 19.3]
 - [ ] 16. Outdoor lights: the replacement plan of the
       [design](design.md#outdoor-lighting), one approved purchase at a
-      time (entrance, path, the new point; electrician for fixed wiring),
+      time (area by area, in the inventory file's order; electrician for
+      fixed wiring),
       motion sensors bound directly, the off delay; the night camera
       trigger comes with task 19. Check: the
       [fallback test](design.md#fallback-test): the lamps switch from
@@ -114,13 +118,23 @@ Assistant UI; the PR describes the rule, not the entity IDs
       `.example` and a `ci/secret-rotation.tsv` row, PVC `evcc-data` in
       the restic targets, MQTT user `evcc` (key in
       `apps/secrets/mosquitto-users.sops.yaml`, ACL `topic readwrite
-      evcc/#`), the `evcc` allow-list, the route
-      ([design](design.md#solar-surplus-charging)) at `charge.lilalala.com`
-      with the `access.conf` line `evcc=admins household`; the car's local
-      Bluetooth proxy, no paid vehicle API; the grid meter if task 5 found
-      no grid power. Check: a solar-only charge follows the surplus for an
-      hour; evcc at 0 replicas, the car still charges. [1.5, 4.1, 13.1,
-      20.1, 20.2, 20.3, 20.4, 20.5, 20.6]
+      evcc/#`), the `evcc` allow-list; after household-access-groups task
+      1 has merged (the `household` group exists), the route at
+      `charge.lilalala.com` behind an oauth2-proxy
+      ([design](design.md#solar-surplus-charging)): `proxy_clients` entry
+      `evcc:household` in `platform/keycloak/realm/platform.conf`, the
+      redirect URI in `clients.conf`, the `access.conf` line
+      `evcc=admins household`, `allowedGroups: [admins, household]`,
+      `EVCC_CLIENT_SECRET` in the Keycloak realm Secret and the proxy's
+      Secret with a `ci/secret-rotation.tsv` row; per evcc template
+      (charger, vehicle, meters) the docs page and "no sponsor token"; the
+      car's local Bluetooth proxy with the most limited key role, a fixed
+      address without gateway or DNS, no paid vehicle API; the grid meter
+      if task 5 found no grid power. Check: a solar-only charge follows the
+      surplus for an hour; evcc at 0 replicas, the car still charges; the
+      key's role recorded, and from a LAN host a non-charging command is
+      refused or not offered. [1.5, 4.1, 13.1, 20.1, 20.2, 20.3, 20.4,
+      20.5, 20.6]
 
 ## Phase 3: cameras
 
@@ -161,7 +175,7 @@ Assistant UI; the PR describes the rule, not the entity IDs
       away and night mode; the night trigger for the outdoor lights; the
       doorbell's press notification, tablet view, TV pause if the TV is
       integrated, and two-way talk from its vendor app on the LAN; a second
-      doorbell at the outer gate last, only if the operator wants one. If
+      doorbell at a second entrance last, only if the operator wants one. If
       the trial fails its threshold: the USB port on the worker confirmed,
       the accelerator, generic-device-plugin and its Kyverno
       PolicyException in the same task. Check: the
@@ -174,14 +188,19 @@ Assistant UI; the PR describes the rule, not the entity IDs
       operator's kit wired in parallel with the wall button, its local
       integration by IP (or ESPHome, MQTT), the open-too-long
       notification, the control on the phones' dashboards only, never on
-      the wall tablet; a Zigbee contact for the state if the kit has none.
-      Check: the [fallback test](design.md#fallback-test): the button and
-      the remotes open and close the door with Home Assistant at 0
-      replicas. [11.1, 21.1, 21.2, 21.3, 21.4]
+      the wall tablet; the open script that checks the caller's `home`
+      zone and asks for a confirmation; a Zigbee contact for the state if
+      the kit has none. Check: the
+      [fallback test](design.md#fallback-test): the button and the remotes
+      open and close the door with Home Assistant at 0 replicas; an open
+      from a phone outside the zone is refused. [11.1, 21.1, 21.2, 21.3,
+      21.4, 21.5]
 - [ ] 21. Server-corner alert, after task 14: `HomelabRackHot` and
-      `HomelabRackWarm` of the [design](design.md#server-corner) next to
-      the other homelab alert rules, their unit tests in `tests/`, a
-      runbook for the page. [14.5]
+      `HomelabRackWarm` of the [design](design.md#server-corner) in
+      `platform/kube-prometheus-stack/routes/homelab-rack-alerts.yaml`,
+      their unit tests in `tests/prometheus/`, a line in
+      `tests/alertmanager/routes.txt`, the runbook
+      `docs/runbooks/alerts/HomelabRackHot.md`. [14.5]
 
 ## Close
 

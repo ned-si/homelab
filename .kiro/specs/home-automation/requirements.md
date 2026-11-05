@@ -405,8 +405,8 @@ and CO2 of every room, and a nudge to air a room before the air gets bad.
 
 #### Acceptance criteria
 
-1. EVERY room in the inventory file, outbuildings and utility rooms
-   included, SHALL have a sensor for temperature and humidity, and every
+1. EVERY indoor space of the inventory file, heated or not, SHALL have a
+   sensor for temperature and humidity, and every
    living room, bedroom and office one for CO2 with an NDIR cell;
    estimated CO2 (eCO2, from VOC) does not count. THE corner where the
    cluster and the NAS stand SHALL have a temperature and humidity sensor
@@ -428,8 +428,8 @@ and CO2 of every room, and a nudge to air a room before the air gets bad.
 
 ### Requirement 15: A video doorbell
 
-**User story:** As a household member, I want to see and talk to whoever is
-at the door, on my phone and on the wall tablet.
+**User story:** As a household member, I want to see who is at the door on
+my phone and on the wall tablet, and talk to them from my phone at home.
 
 #### Acceptance criteria
 
@@ -437,7 +437,8 @@ at the door, on my phone and on the wall tablet.
    speaker and a microphone for two-way talk, on mains power (its bell
    wiring or a plug-in supply), and SHALL report a press through a local
    integration or ONVIF event; a doorbell that reports presses only
-   through its cloud, or needs a subscription, is not bought.
+   through its cloud, needs a subscription, or whose app cannot reach it
+   by its local address with P2P and cloud off, is not bought.
 2. WHEN the doorbell is pressed, THE house group SHALL get one household
    notification with a snapshot within 5 seconds, at most one per
    30 seconds, THE wall tablet SHALL show its live view for 60 seconds,
@@ -445,8 +446,11 @@ at the door, on my phone and on the wall tablet.
    pause.
 3. THE doorbell SHALL ring its own chime, and its vendor app SHALL show the
    visitor and talk to them over the LAN, without Home Assistant and
-   without a cloud account.
-4. A second doorbell at an outer gate, or the doorbell moved there, is the
+   without a cloud account. Two-way talk is the vendor app's, on the LAN.
+   Talk from the wall tablet or from away needs WebRTC through Frigate's
+   go2rtc, a new issue if wanted
+   ([design](design.md#suggestions)).
+4. A second doorbell at a second entrance, or the doorbell moved there, is the
    operator's choice after the first one is installed
    ([design](design.md#what-the-operator-decides)); it follows the same
    criteria.
@@ -459,9 +463,9 @@ outdoor lights.
 
 #### Acceptance criteria
 
-1. THE current outdoor fixtures, the path lamps included, SHALL be
-   replaced, and the new outdoor point the operator wants SHALL be added,
-   following the replacement plan in
+1. EVERY current outdoor fixture SHALL be replaced, and the new outdoor
+   points of the inventory file SHALL be added, following the replacement
+   plan in
    [design](design.md#outdoor-lighting); each outdoor light SHALL be on
    the lights' bridge or behind a Zigbee relay, and SHALL keep working from
    its wall switch.
@@ -539,7 +543,11 @@ surplus by default, and to charge fast when I ask.
    solar production, grid power and the charger, and set the charging
    current; when the charger cannot be controlled, through the car, over a
    local Bluetooth proxy. No paid vehicle API or cloud command proxy SHALL
-   be used (Requirement 1.5).
+   be used (Requirement 1.5). THE evcc templates used (charger, vehicle,
+   meters) SHALL need no sponsor token; the evcc docs' template page says
+   so for each. IF a needed template requires one, THEN the operator
+   decides in chat between a one-time sponsorship (a purchase,
+   Requirement 1.4) and not using it.
 2. THE modes SHALL be off, solar only, minimum plus solar, and fast;
    solar only is the default. A household member sets the mode from Home
    Assistant or from the charge controller's UI at `charge.lilalala.com`,
@@ -560,7 +568,7 @@ surplus by default, and to charge fast when I ask.
 ### Requirement 21: Garage door
 
 **User story:** As a household member, I want to see whether the garage
-door is open and open it from my phone, and the door to work as today
+door is open and open it from my phone when I am home, and the door to work as today
 whatever happens to Home Assistant.
 
 #### Acceptance criteria
@@ -578,3 +586,8 @@ whatever happens to Home Assistant.
 4. THE open and close actions SHALL be on the household's phones only: the
    wall tablet user and dashboards shown on the tablet SHALL show the
    state without the control.
+5. THE open action SHALL run through one script that checks the caller:
+   it opens only when the person of `context.user_id` is in the `home`
+   zone, and asks for a confirmation on the dashboard; outside the zone
+   the dashboards show the state only. Closing is allowed from anywhere.
+   (check: the PR shows the refused open from a phone outside the zone)
