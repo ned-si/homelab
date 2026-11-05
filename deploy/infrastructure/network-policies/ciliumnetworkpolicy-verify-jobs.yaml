@@ -1,0 +1,73 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: verify-jobs
+  namespace: backup-verify
+spec:
+  description: 'The restore-test CronJobs: kubectl to the API server, psql to the
+    source databases, restic and the AWS CLI to S3, results to the Pushgateway.'
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "6443"
+        protocol: TCP
+  - toEndpoints:
+    - matchExpressions:
+      - key: io.kubernetes.pod.namespace
+        operator: In
+        values:
+        - immich
+        - keycloak
+        - mealie
+        - home
+        - theater
+      - key: cnpg.io/cluster
+        operator: Exists
+    toPorts:
+    - ports:
+      - port: "5432"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: pushgateway
+    toPorts:
+    - ports:
+      - port: "9091"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchExpressions:
+    - key: batch.kubernetes.io/job-name
+      operator: Exists
+    - key: cnpg.io/cluster
+      operator: DoesNotExist
