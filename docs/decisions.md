@@ -428,10 +428,10 @@ makes OTP on the human admin possible: the same account cannot be both
 OTP-protected in the browser and usable by a script with only a password.
 
 Rejected: leaving the master realm password-only (the most powerful login
-stays the weakest), OTP for every `homelab` user (the household does not use
-authenticator apps), removing OTP from the master `direct grant` flow so
-the Job could keep the password (a password grant would bypass the OTP), and
-an unconditional OTP step in the master `direct grant` flow instead of
+stays the weakest), OTP for every `homelab` user (OTP is required for the
+admin groups and optional for everyone else), removing OTP from the master
+`direct grant` flow so the Job could keep the password (a password grant
+would bypass the OTP), and an unconditional OTP step in the master `direct grant` flow instead of
 turning the grant off (`kcadm.sh` cannot send a code, so the password
 fallback dies either way, and a password-and-code grant stays open on the
 public token endpoint).

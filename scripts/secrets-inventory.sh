@@ -111,7 +111,7 @@ task secrets:leak-check
 - [ ] `task secrets:leak-check` passes
 - [ ] `git status` shows no `*.sops.yaml` that lacks a `sops:` block
 - [ ] **delete this file** once the sealed versions exist
-- [ ] every value above is in Bitwarden — this is what makes the no-rotation
+- [ ] every value above is in the password manager — this is what makes the no-rotation
       decision reversible later instead of a one-way door
 - [ ] scrub the history, AFTER the migration is finished, not during it. A rewrite
       changes every commit hash, which invalidates the `deployed` tag Argo CD
@@ -288,13 +288,13 @@ PLEX
   echo '- **GitHub PAT** for Argo CD — `contents: read` on this repo only.'
   echo '  Export as `TF_VAR_git_token`.'
   echo
-  echo '### S3 backup credentials — SAVE ALL SIX TO BITWARDEN'
+  echo '### S3 backup credentials — SAVE ALL SIX TO THE PASSWORD MANAGER'
   echo
   echo 'Created by `scripts/tofu.sh bootstrap/aws-backup apply`. Read each with'
   echo '`scripts/tofu.sh bootstrap/aws-backup output -raw <name>` (the `tofu output`'
   echo 'below is shorthand for that).'
   echo
-  echo '| Bitwarden entry | Where it comes from | Used by |'
+  echo '| Password manager entry | Where it comes from | Used by |'
   echo '|---|---|---|'
   echo '| `homelab / AWS backup writer — key id` | `tofu output -raw backup_access_key_id` | barman + restic CronJobs |'
   echo '| `homelab / AWS backup writer — secret` | `tofu output -raw backup_secret_access_key` | same |'

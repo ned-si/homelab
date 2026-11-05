@@ -160,7 +160,7 @@ removes the Pi but costs a new device.
 | Honeywell thermostat | Honeywell evohome or Honeywell Lyric (model decides) | Cloud | Add in the UI with the Honeywell/Resideo account; no local API |
 | Smoke alarms (brand TBD) | Depends on the brand: Zigbee models through Zigbee2MQTT; gateway models through their cloud | Local if Zigbee | Pick a Zigbee model for new purchases |
 | Wi-Fi cameras | ONVIF, streams by RTSP | Local | Enable RTSP/ONVIF in the camera's app, fixed IP; recordings later in Frigate |
-| Video doorbell (to buy) | ONVIF/RTSP, or the vendor's local integration | Local | Buy a model with local RTSP/ONVIF (for example Reolink); avoid cloud-only doorbells |
+| Video doorbell (to buy) | ONVIF/RTSP, or the vendor's local integration | Local | Buy a model with local RTSP/ONVIF; avoid cloud-only doorbells |
 | Geberit AquaClean | Bluetooth LE, community integration | Local | An ESP32 near the toilet running ESPHome `bluetooth_proxy`, added by IP; the AquaClean protocol needs a community (HACS) integration, check its state before relying on it |
 | Fridge (hOn app) | hOn, community (HACS) integration | Cloud | hOn account login; no local API |
 | Tesla Wall Connector (Gen 3) | Tesla Wall Connector | Local | Fixed IP on the connector, add by IP; read-only (power, energy, vehicle connected) |

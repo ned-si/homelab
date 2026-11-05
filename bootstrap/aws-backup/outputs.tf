@@ -19,37 +19,37 @@ output "s3_endpoint" {
 }
 
 output "backup_access_key_id" {
-  description = "ACCESS_KEY_ID for the s3-backup Secret. Save to Bitwarden."
+  description = "ACCESS_KEY_ID for the s3-backup Secret. Save to the password manager."
   value       = aws_iam_access_key.backup.id
   sensitive   = true
 }
 
 output "backup_secret_access_key" {
-  description = "ACCESS_SECRET_KEY for the s3-backup Secret. Save to Bitwarden."
+  description = "ACCESS_SECRET_KEY for the s3-backup Secret. Save to the password manager."
   value       = aws_iam_access_key.backup.secret
   sensitive   = true
 }
 
 output "cnpg_access_key_id" {
-  description = "ACCESS_KEY_ID for the cnpg-backup-s3 Secret (Barman Cloud plugin). Save to Bitwarden."
+  description = "ACCESS_KEY_ID for the cnpg-backup-s3 Secret (Barman Cloud plugin). Save to the password manager."
   value       = aws_iam_access_key.cnpg.id
   sensitive   = true
 }
 
 output "cnpg_secret_access_key" {
-  description = "ACCESS_SECRET_KEY for the cnpg-backup-s3 Secret (Barman Cloud plugin). Save to Bitwarden."
+  description = "ACCESS_SECRET_KEY for the cnpg-backup-s3 Secret (Barman Cloud plugin). Save to the password manager."
   value       = aws_iam_access_key.cnpg.secret
   sensitive   = true
 }
 
 output "verify_access_key_id" {
-  description = "Read-only key for restore drills. Save to Bitwarden."
+  description = "Read-only key for restore drills. Save to the password manager."
   value       = aws_iam_access_key.verify.id
   sensitive   = true
 }
 
 output "verify_secret_access_key" {
-  description = "Read-only secret for restore drills. Save to Bitwarden."
+  description = "Read-only secret for restore drills. Save to the password manager."
   value       = aws_iam_access_key.verify.secret
   sensitive   = true
 }
@@ -72,7 +72,7 @@ output "next_steps" {
 
     Bucket ${aws_s3_bucket.backups.id} created in ${var.region}.
 
-    1. Save all four keys to Bitwarden, plus RESTIC_PASSWORD (see below).
+    1. Save all four keys to the password manager, plus RESTIC_PASSWORD (see below).
        terraform.tfstate now contains the secrets -- treat it as one.
 
     2. Generate the restic repository password. WITHOUT IT THE FILE BACKUPS ARE

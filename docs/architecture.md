@@ -355,9 +355,9 @@ any of the manifests (`task render`).
   client gets the same rule. Rejected: per-client session lifetimes, which do
   not force a password when the SSO cookie is still valid.
 - OTP by realm role, not for everyone: the admins hold cluster-admin tools,
-  the household does not use authenticator apps. Rejected: OTP for every
-  user, and the `auth-conditional-otp-form` authenticator (deprecated in
-  favour of conditional subflows).
+  so OTP is required for the admin groups and optional for everyone else.
+  Rejected: OTP for every user, and the `auth-conditional-otp-form`
+  authenticator (deprecated in favour of conditional subflows).
 - Realm settings applied by a Job with `kcadm.sh`, scoped to what two files
   list: it cannot reset users, credentials or other client settings. Rejected: a full
   realm import (keycloak-config-cli), which would make every client and
