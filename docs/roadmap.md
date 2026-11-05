@@ -9,7 +9,8 @@ with its own diff, test and rollback
 
 ## Themes
 
-In priority order, top first. The operator set this order on 2026-11-03.
+In priority order, top first. The operator set this order on 2026-11-03
+and later put home automation fourth.
 
 1. **Fix what is broken now.** The open bugs (#836, #943, #735) and the
    weekday issues: the snapshotter sidecar without snapshot CRDs (#944),
@@ -35,22 +36,34 @@ In priority order, top first. The operator set this order on 2026-11-03.
      bootstrap and break-glass store.
    - One identity: the Kubernetes API (#711), Headlamp (#712) and Jellyfin
      (#730) on Keycloak.
-4. **The final version of observability and security monitoring.** Every
+4. **Home automation in daily use** (#1072, spec
+   [home-automation](../.kiro/specs/home-automation/)). Home Assistant runs the
+   lights, heating, room climate, energy and solar-surplus charging,
+   plants, outdoor cameras, the doorbell, the garage door and the alarm
+   sensors, with a main Home dashboard for the phones and a wall tablet.
+   The doorbell, the garage door, the vacuum, the lamps and basic heating
+   keep working when the cluster is down. No paid cloud service, for
+   anything in the house.
+5. **The final version of observability and security monitoring.** Every
    metric and log answers a question (an SLO, an alert, a runbook, a
    detection, an audit) or is dropped or sampled; SigNoz with traces, or
    Honeycomb, as the one place for reliability and security signals, or
    neither (#801, #734); Prometheus keeps its 30 days (#905, #922);
    detection that contains a runtime threat automatically and captures the
    evidence (#803).
-5. **A pentest to prove it works.** A scoped, technical pentest with a
+6. **A pentest to prove it works.** A scoped, technical pentest with a
    written report per run, from outside (the own IPs and domains) and from
    inside (the LAN, a compromised pod, a stolen session), its findings as
    issues: the homelab is secure, an intrusion is detected and blocked
    automatically (#718, spec PR #964).
-6. **Website, blog and dashboard.** The public site with a blog (#971) and
+7. **Website, blog and dashboard.** The public site with a blog (#971) and
    the homepage/dashboard (#817). Still to decide: a public demo dashboard,
-   or everything private.
-7. **Everything else.**
+   or everything private. House data on it is limited to daily, delayed
+   aggregates that say nothing about who is home (for example yesterday's
+   solar production), pushed out as a static file; the site never reaches
+   Home Assistant
+   ([home-automation design, Public data](../.kiro/specs/home-automation/design.md#public-data)).
+8. **Everything else.**
    - High availability and elastic where it can be: HPA for the stateless
      workloads, KEDA for event-driven scaling, VPA recommendations to size
      requests; no scale to zero (seconds of delay on the first request to
