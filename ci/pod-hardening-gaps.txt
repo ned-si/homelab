@@ -14,20 +14,10 @@ immich/CronJob/immich-library-backup-local/*          token                #726 
 immich/CronJob/immich-library-backup/*                token                #726 task 18
 immich/CronJob/immich-library-prune/*                 token                #726 task 18
 immich/Deployment/barman-cloud/barman-cloud           probes               #726 task 20
-immich/Deployment/immich-machine-learning/main        capabilities         #726 task 6
-immich/Deployment/immich-machine-learning/main        non-root             #726 task 6
-immich/Deployment/immich-machine-learning/main        privilege-escalation #726 task 6
-immich/Deployment/immich-machine-learning/main        seccomp              #726 task 6
 immich/Deployment/immich-server/main                  capabilities         #726 task 7
 immich/Deployment/immich-server/main                  non-root             root profile: writes the photo library on immich-data, which keeps its owner (operator decision 1)
 immich/Deployment/immich-server/main                  privilege-escalation #726 task 7
 immich/Deployment/immich-server/main                  seccomp              #726 task 7
-immich/Deployment/valkey/*                            token                #726 task 6
-immich/Deployment/valkey/valkey                       capabilities         #726 task 6
-immich/Deployment/valkey/valkey                       non-root             #726 task 6
-immich/Deployment/valkey/valkey                       privilege-escalation #726 task 6
-immich/Deployment/valkey/valkey                       probes               #726 task 6
-immich/Deployment/valkey/valkey                       seccomp              #726 task 6
 keycloak/Deployment/keycloak/*                        token                #726 task 8
 keycloak/Deployment/keycloak/keycloak                 capabilities         #726 task 8
 keycloak/Deployment/keycloak/keycloak                 non-root             #726 task 8

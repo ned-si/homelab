@@ -25,9 +25,34 @@ spec:
       labels:
         app.kubernetes.io/name: valkey
     spec:
+      automountServiceAccountToken: false
       containers:
       - image: valkey/valkey:9.2-alpine@sha256:cdcb7b1c7b6f1c9cb9442c71ac6275e78184657448407b2c1fdde7ee8024f4fb
+        livenessProbe:
+          failureThreshold: 5
+          periodSeconds: 30
+          tcpSocket:
+            port: 6379
+          timeoutSeconds: 5
         name: valkey
         ports:
         - containerPort: 6379
           protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - valkey-cli
+            - ping
+          failureThreshold: 3
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 999
+        seccompProfile:
+          type: RuntimeDefault
