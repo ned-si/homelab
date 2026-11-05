@@ -214,7 +214,7 @@ Expected: `READY True`.
 ## Network policy
 
 `infrastructure/network-policies/` holds a `CiliumNetworkPolicy` set per app
-namespace (`books`, `immich`, `mealie`, `paperless`, `syncthing`, `theater`),
+namespace (`books`, `home`, `immich`, `mealie`, `paperless`, `syncthing`, `theater`),
 synced by the Application `network-policies` (infrastructure layer, wave 30,
 prune on, self-heal off). Every allow-list ships with
 `enableDefaultDeny: {ingress: false, egress: false}`; enforcement is opt-in per
@@ -223,7 +223,7 @@ namespace and direction in `90-enforcement.yaml`.
 | Namespace | Ingress | Egress |
 | --- | --- | --- |
 | `paperless` | enforced | audit |
-| `books`, `immich`, `mealie`, `syncthing`, `theater` | audit | audit |
+| `books`, `home`, `immich`, `mealie`, `syncthing`, `theater` | audit | audit |
 
 The break-glass (delete the
 switch, then hold every merge and revert) and the flip procedure are in

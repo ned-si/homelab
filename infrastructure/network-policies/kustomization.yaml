@@ -25,5 +25,6 @@ resources:
   - 40-books.yaml
   - 50-mealie.yaml
   - 60-syncthing.yaml
+  - 70-home.yaml
   # The switch. Last on purpose: it is the file you edit.
   - 90-enforcement.yaml
