@@ -24,7 +24,7 @@ spec:
         sum by (namespace, direction) (
           label_replace(rate(hubble_policy_verdicts_total{
               direction="ingress",
-              destination_namespace=~"books|home|immich|mealie|paperless|syncthing|theater"
+              destination_namespace=~"backup-verify|books|home|immich|mealie|paperless|syncthing|theater"
             }[5m]),
             "namespace", "$1", "destination_namespace", "(.*)")
         )
@@ -32,7 +32,7 @@ spec:
         sum by (namespace, direction) (
           label_replace(rate(hubble_policy_verdicts_total{
               direction="egress",
-              source_namespace=~"books|home|immich|mealie|paperless|syncthing|theater"
+              source_namespace=~"backup-verify|books|home|immich|mealie|paperless|syncthing|theater"
             }[5m]),
             "namespace", "$1", "source_namespace", "(.*)")
         )
@@ -42,7 +42,7 @@ spec:
           label_replace(rate(hubble_policy_verdicts_total{
               match="all",
               direction="ingress",
-              destination_namespace=~"books|home|immich|mealie|paperless|syncthing|theater"
+              destination_namespace=~"backup-verify|books|home|immich|mealie|paperless|syncthing|theater"
             }[5m]),
             "namespace", "$1", "destination_namespace", "(.*)")
         )
@@ -51,7 +51,7 @@ spec:
           label_replace(rate(hubble_policy_verdicts_total{
               match="all",
               direction="egress",
-              source_namespace=~"books|home|immich|mealie|paperless|syncthing|theater"
+              source_namespace=~"backup-verify|books|home|immich|mealie|paperless|syncthing|theater"
             }[5m]),
             "namespace", "$1", "source_namespace", "(.*)")
         )
@@ -61,7 +61,7 @@ spec:
           label_replace(hubble_policy_verdicts_total{
               match="all",
               direction="ingress",
-              destination_namespace=~"books|home|immich|mealie|paperless|syncthing|theater"
+              destination_namespace=~"backup-verify|books|home|immich|mealie|paperless|syncthing|theater"
             },
             "namespace", "$1", "destination_namespace", "(.*)")
         )
@@ -70,7 +70,7 @@ spec:
           label_replace(hubble_policy_verdicts_total{
               match="all",
               direction="egress",
-              source_namespace=~"books|home|immich|mealie|paperless|syncthing|theater"
+              source_namespace=~"backup-verify|books|home|immich|mealie|paperless|syncthing|theater"
             },
             "namespace", "$1", "source_namespace", "(.*)")
         )
