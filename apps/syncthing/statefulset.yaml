@@ -18,6 +18,15 @@ spec:
         app: syncthing
     spec:
       terminationGracePeriodSeconds: 60
+      automountServiceAccountToken: false
+      # The entrypoint skips su-exec when started as PUID; no fsGroup, since
+      # Syncthing syncs permission bits to its peers.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       # SSO only (sso.yaml): removes the GUI user and password from config.xml
       # before every start and sets insecureAdminAccess, which only hides the
       # GUI's "no password" banner. The API key stays. Safe because :8384
@@ -96,6 +105,23 @@ spec:
             - name: syncthing-disc
               containerPort: 21027
               protocol: UDP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /rest/noauth/health
+              port: web-ui
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /rest/noauth/health
+              port: web-ui
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
           volumeMounts:
             - name: syncthing
               mountPath: /var/syncthing

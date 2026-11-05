@@ -26,6 +26,7 @@ spec:
       labels:
         app: syncthing
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: PUID
@@ -33,6 +34,13 @@ spec:
         - name: PGID
           value: "1000"
         image: syncthing/syncthing:2.1.7@sha256:2b71da7c0d0a91a6ae5285ad079226fecc0a365d08b27720e1f7037b018f7546
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /rest/noauth/health
+            port: web-ui
+          periodSeconds: 30
+          timeoutSeconds: 5
         name: syncthing
         ports:
         - containerPort: 8384
@@ -46,6 +54,17 @@ spec:
         - containerPort: 21027
           name: syncthing-disc
           protocol: UDP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /rest/noauth/health
+            port: web-ui
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
         volumeMounts:
         - mountPath: /var/syncthing
           name: syncthing
@@ -107,6 +126,12 @@ spec:
         volumeMounts:
         - mountPath: /var/syncthing
           name: syncthing
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       terminationGracePeriodSeconds: 60
       volumes:
       - name: syncthing
