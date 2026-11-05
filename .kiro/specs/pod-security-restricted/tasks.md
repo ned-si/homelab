@@ -52,12 +52,12 @@ both blocked by #726.
       pull request. [5] (#1087)
 - [x] 8. Flip `home`, with G4 for `home-assistant-postgresql` and the
       checks of Requirement 7 (`home.lilalala.com`). [6, 7, 8] (#1096)
+- [x] 9. Flip `system-upgrade`, with G4 for the tuppr Jobs (the pinned
+      source, and after the sync a server dry-run of an equivalent Pod) and
+      the G3 result of the `talos-drift` CronJob named. [6, 7, 8] (#1098)
 
 ## Open
 
-- [ ] 9. Flip `system-upgrade`, with G4 for the tuppr Jobs (the pinned
-      source, and after the sync a server dry-run of an equivalent Pod) and
-      the G3 result of the `talos-drift` CronJob named. [6, 7, 8]
 - [ ] 10. Close: `docs/architecture.md`, `docs/threat-model.md` and the
       `namespaces.yaml` header describe the enforced levels;
       [gitops-delivery](../gitops-delivery/) task 17b points here;
