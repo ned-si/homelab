@@ -76,10 +76,11 @@ Assistant UI; the PR describes the rule, not the entity IDs
       AES key in the UI, a row in the LoadBalancer table of
       `docs/networking.md`. Skipped with the reason in the feasibility
       table if the panel offers nothing. [7.1, 7.2, 7.3, 7.4]
-- [ ] 11. TV and streamer: the TV's local integration and the streamer's
-      remote and cast integrations, by IP; the TV switched on through the
-      streamer; the film scene. Check: the remotes and the TV's apps work
-      with Home Assistant at 0 replicas. [17.1, 17.2, 17.3]
+- [ ] 11. TV (optional): the TV's local integration by IP, the streamer's
+      only if the household uses it; the film scene. Check: the remotes and
+      the TV's apps work with Home Assistant at 0 replicas. If the TV does
+      not integrate locally, the task is ticked with the reason in the
+      feasibility table. [17.1, 17.2, 17.3]
 - [ ] 12. Robot vacuum: the existing integration's entities on the media
       dashboard, the away-mode clean, docking on arrival, consumables in
       the weekly digest. [18.1, 18.2, 18.3, 5.4]
@@ -91,19 +92,22 @@ Assistant UI; the PR describes the rule, not the entity IDs
       the tablet's charging plug between 20% and 80%. Check: power the
       plug off and on: it stays off; the
       [fallback test](design.md#fallback-test). [3.3, 5.3, 9.3, 11.1]
-- [ ] 14. Room climate: the sensors paired, the climate dashboard, the CO2
+- [ ] 14. Room climate: the sensors paired (the outbuildings, the utility
+      rooms and the server corner included), the climate dashboard, the CO2
       and humidity notifications with their cooldowns. [14.1, 14.2, 14.3,
       14.4]
 - [ ] 15. Mailbox: the sensor paired over Zigbee after a link-quality check
-      in Zigbee2MQTT at the mailbox (a mains router nearby if needed), or
-      ESPHome on Wi-Fi; mail waiting on the main Home dashboard; the daily
-      notification. [19.1, 19.2, 19.3]
-- [ ] 16. Outdoor lights: fixtures on the bridge or relays behind the
-      current ones (electrician where needed), motion sensors bound
-      directly, the off delay; the night camera trigger comes with task 19.
-      Check: the [fallback test](design.md#fallback-test): motion turns the
-      lights on at night with Home Assistant at 0 replicas. [16.1, 16.2,
-      11.1]
+      in Zigbee2MQTT at the mailbox (an outdoor Zigbee router nearby if
+      needed), or ESPHome on Wi-Fi; mail waiting on the main Home
+      dashboard; the daily notification. [19.1, 19.2, 19.3]
+- [ ] 16. Outdoor lights: the replacement plan of the
+      [design](design.md#outdoor-lighting), one approved purchase at a
+      time (entrance, path, the new point; electrician for fixed wiring),
+      motion sensors bound directly, the off delay; the night camera
+      trigger comes with task 19. Check: the
+      [fallback test](design.md#fallback-test): the lamps switch from
+      their switches and motion turns them on at night with Home Assistant
+      at 0 replicas. [16.1, 16.2, 11.1]
 - [ ] 17. Solar-surplus charging: app and namespace `evcc` (Application in
       `clusters/homelab/apps/`, arm64 image checked, restricted Pod
       Security), config as `apps/secrets/evcc-config.sops.yaml` with its
@@ -111,10 +115,12 @@ Assistant UI; the PR describes the rule, not the entity IDs
       the restic targets, MQTT user `evcc` (key in
       `apps/secrets/mosquitto-users.sops.yaml`, ACL `topic readwrite
       evcc/#`), the `evcc` allow-list, the route
-      ([design](design.md#solar-surplus-charging)); the command proxy; the
-      grid meter if task 5 found no grid power. Check: a solar-only charge
-      follows the surplus for an hour; evcc at 0 replicas, the car still
-      charges. [4.1, 11.4, 13.1, 20.1, 20.2, 20.3, 20.4, 20.5]
+      ([design](design.md#solar-surplus-charging)) at `charge.lilalala.com`
+      with the `access.conf` line `evcc=admins household`; the car's local
+      Bluetooth proxy, no paid vehicle API; the grid meter if task 5 found
+      no grid power. Check: a solar-only charge follows the surplus for an
+      hour; evcc at 0 replicas, the car still charges. [1.5, 4.1, 13.1,
+      20.1, 20.2, 20.3, 20.4, 20.5, 20.6]
 
 ## Phase 3: cameras
 
@@ -153,17 +159,35 @@ Assistant UI; the PR describes the rule, not the entity IDs
       with the first two (mean inference, skipped detections, CPU against
       the thresholds in the design, in the PR); the person notification in
       away and night mode; the night trigger for the outdoor lights; the
-      doorbell's press notification, tablet view and TV pause. If the trial
-      fails its threshold: the USB port on the worker confirmed, the
-      accelerator, generic-device-plugin and its Kyverno PolicyException in
-      the same task. Check: the [fallback test](design.md#fallback-test).
-      [6.1, 6.3, 6.5, 6.6, 6.7, 11.1, 12.3, 15.1, 15.2, 15.3, 16.3]
+      doorbell's press notification, tablet view, TV pause if the TV is
+      integrated, and two-way talk from its vendor app on the LAN; a second
+      doorbell at the outer gate last, only if the operator wants one. If
+      the trial fails its threshold: the USB port on the worker confirmed,
+      the accelerator, generic-device-plugin and its Kyverno
+      PolicyException in the same task. Check: the
+      [fallback test](design.md#fallback-test). [6.1, 6.3, 6.5, 6.6, 6.7,
+      11.1, 12.3, 15.1, 15.2, 15.3, 15.4, 16.3]
+
+## Out of order
+
+- [ ] 20. Garage door, current hardware, any time after task 7: the
+      operator's kit wired in parallel with the wall button, its local
+      integration by IP (or ESPHome, MQTT), the open-too-long
+      notification, the control on the phones' dashboards only, never on
+      the wall tablet; a Zigbee contact for the state if the kit has none.
+      Check: the [fallback test](design.md#fallback-test): the button and
+      the remotes open and close the door with Home Assistant at 0
+      replicas. [11.1, 21.1, 21.2, 21.3, 21.4]
+- [ ] 21. Server-corner alert, after task 14: `HomelabRackHot` and
+      `HomelabRackWarm` of the [design](design.md#server-corner) next to
+      the other homelab alert rules, their unit tests in `tests/`, a
+      runbook for the page. [14.5]
 
 ## Close
 
-- [ ] 20. The [fallback test](design.md#fallback-test) with every phase in
+- [ ] 22. The [fallback test](design.md#fallback-test) with every phase in
       place, a restic restore of `home-assistant-config` into a throwaway
       pod, `docs/home-automation.md` complete, the media-home area spec
-      updated; the deferred issues opened (blinds, air conditioning, camera
-      segmentation); then header `status: done`, `closed:`, issue #1072
-      closed. [11.1, 11.2, 11.3, 13.3, 13.4]
+      updated; the deferred issues opened (blinds, air conditioning); then
+      header `status: done`, `closed:`, issue #1072 closed. [11.1, 11.2,
+      11.3, 11.4, 13.3, 13.4]

@@ -15,9 +15,9 @@ flowchart LR
   ha --> pg[(recorder: home-assistant-postgresql)]
   ha <--> mq[Mosquitto] <--> z2m[Zigbee2MQTT] -- TCP --> coord[Zigbee coordinator]
   evcc <--> mq
-  ha -- LAN, local --> ctrl[Device controllers: lights bridge, inverter, meter, EV charger, TV, streamer, ESPHome]
+  ha -- LAN, local --> ctrl[Device controllers: lights bridge, inverter, meter, EV charger, garage door kit, TV, ESPHome]
   evcc -- LAN --> ctrl
-  evcc -- command proxy --> car[Car]
+  evcc -- LAN --> bt[Bluetooth proxy] -- Bluetooth --> car[Car]
   ha -- internet --> cloud[Vendor clouds: heating, heat pump, vacuum, where no local API]
   alarm[Alarm panel] -- SIA, LB .202 --> ha
   ha <--> nvr[Frigate, namespace frigate]
@@ -30,8 +30,10 @@ flowchart LR
 ```
 
 Each device keeps its own controller. Home Assistant reads, automates
-and shows; it is never the only path for lights, heating or the alarm
-(Requirement 11).
+and shows; it is never the only path for the lamps, the heating, the
+doorbell, the garage door or the vacuum (Requirement 11), nor for the
+alarm (Requirement 7). Nothing in the picture is a paid service
+(Requirement 1.5).
 
 ## Feasibility research (2026-11-04)
 
@@ -44,19 +46,20 @@ per-device findings, the table below only the options.
 | Lights | The lights' vendor bridge, local integration by IP | Local | The bridge keeps scenes, schedules and switch bindings without Home Assistant; switches show up as event entities for extra automations |
 | Outdoor lights and motion | Outdoor fixtures or outdoor motion sensors on the lights' bridge; or a Zigbee relay behind an existing fixture's switch and a Zigbee outdoor motion sensor bound to it | Local | The binding works without Home Assistant (Requirement 16.2); work on fixed wiring is done by an electrician where Swiss rules require one |
 | Heating | The heating vendor's official integration (often cloud); a local RF option where the system has one (the radio on the Zigbee Pi, shared over TCP like the Zigbee coordinator); non-smart heaters through a rated plug | Cloud or local, the model decides | [HomeKit Device](https://www.home-assistant.io/integrations/homekit_controller/) needs mDNS discovery, which this pod network does not have, so it is not used. Plug-in electric heaters keep their own thermostat dial and regulate themselves; the plug only enables or disables them (away, window open), with `power_on_behavior: on`, a rating of at least the heater's load (Swiss sockets: 10 A), and no `generic_thermostat`. A heater without its own thermostat is not automated (Requirement 11.2) |
-| Room climate | Combined sensors with an NDIR CO2 cell, temperature and humidity, mains (USB) powered, through Zigbee2MQTT or ESPHome; battery Zigbee temperature and humidity sensors for rooms without CO2 | Local | NDIR cells draw too much for batteries; mains Zigbee devices also route, which extends the mesh outdoors. Models are picked against the [Zigbee2MQTT device list](https://www.zigbee2mqtt.io/supported-devices/) or ESPHome |
+| Room climate | Combined sensors with an NDIR CO2 cell, temperature and humidity, mains (USB) powered, through Zigbee2MQTT or ESPHome; battery Zigbee temperature and humidity sensors for rooms without CO2, outbuildings and the server corner | Local | NDIR cells draw too much for batteries; mains Zigbee devices also route, which extends the mesh outdoors. Models are picked against the [Zigbee2MQTT device list](https://www.zigbee2mqtt.io/supported-devices/) or ESPHome. The server-corner sensor feeds a homelab alert ([Server corner](#server-corner)) |
+| Garage door | The opener kit's local integration: its own local API, ESPHome or MQTT, wired in parallel with the wall button | Local | Model from the label photo; a cloud-only kit is read at most, never used for control ([Garage door](#garage-door)) |
 | Solar inverter | The inverter vendor's local integration (Modbus TCP or HTTP) when it has one; its cloud otherwise | Local for most current inverters | Brand and model from the label photo; [Energy](https://www.home-assistant.io/docs/energy/) takes production, grid and battery sensors |
 | Grid meter | The inverter's own meter; the utility meter's customer interface, if the grid operator enables it, read by an ESPHome or P1-style reader; otherwise a three-phase meter with current clamps and a local API | Local | evcc needs grid power at least every 10 seconds (Requirement 20.3); clamps in the distribution board are electrician's work |
 | Heat pump | The vendor's cloud integration, or a local interface (the vendor's Modbus gateway, or ESPHome on the unit's service port) | Cloud by default | Some vendor clouds cap requests (one major heat-pump vendor at 200 per day per application, source in the inventory file); Requirement 4.3 keeps polling under half |
-| EV charger and car | The charger's local integration, read-only (power, energy, vehicle connected); [evcc](https://docs.evcc.io/) for control | Local, the car's API for commands | Where the charger cannot set the current, evcc sets it through the car (sources in the inventory file), see [Solar-surplus charging](#solar-surplus-charging) |
-| TV and streamer | The TV vendor's local integration; for the streamer, [Android TV Remote](https://www.home-assistant.io/integrations/androidtv_remote/) and [Cast](https://www.home-assistant.io/integrations/cast/) with its known-hosts option | Local | All added by IP, no discovery needed. Without broadcast from the pod, Wake-on-LAN does not reach the TV, so the TV is switched on through the streamer and HDMI-CEC |
+| EV charger and car | The charger's local integration, read-only (power, energy, vehicle connected); [evcc](https://docs.evcc.io/) for control | Local: the car over a Bluetooth proxy on the LAN | Where the charger cannot set the current, evcc sets it through the car, and reads its charge state, over Bluetooth; the car vendor's API is paid per use and is not used (sources in the inventory file), see [Solar-surplus charging](#solar-surplus-charging) |
+| TV and streamer (optional) | The TV vendor's local integration; for the streamer, if the household uses it, [Android TV Remote](https://www.home-assistant.io/integrations/androidtv_remote/) and [Cast](https://www.home-assistant.io/integrations/cast/) with its known-hosts option | Local | Added by IP, no discovery needed. Without broadcast from the pod, Wake-on-LAN does not reach the TV; the TV's own integration switches it on where it can, and other sources on its HDMI switch may wake it through CEC. Skipped with the reason if it does not work (Requirement 17) |
 | Robot vacuum | The vendor's integration, a community one pinned in the `custom-components` init container (exists) | Cloud | Read, start, dock; the robot's own schedule and app work without it |
-| Mailbox | A Zigbee contact or vibration sensor on the flap; ESPHome in deep sleep on the nearest access point if Zigbee does not reach | Local | A metal mailbox blocks radio: the radio sits outside the metal. A mains Zigbee device near the mailbox (a plug, a room sensor) extends the mesh |
+| Mailbox | A Zigbee contact or vibration sensor on the flap; an outdoor-rated mains Zigbee router (repeater) near it if the link is weak; ESPHome in deep sleep on the nearest access point if Zigbee still does not reach | Local | A metal mailbox blocks radio: the radio sits outside the metal. A mains Zigbee device near the mailbox (a plug, a room sensor in the nearest building, an outdoor router) extends the mesh |
 | Appliances | The vendors' integrations, mostly cloud community ones, pinned in the `custom-components` init container | Cloud | Read and start only; nothing safety-related depends on them |
 | Smoke alarms | Zigbee models through Zigbee2MQTT; gateway models through their cloud, or none | Local if Zigbee | Low priority. The alarms sound on their own; Home Assistant only adds the critical notification |
 | Plants | Zigbee moisture sensors through Zigbee2MQTT; BLE sensors with light and conductivity through an ESPHome [Bluetooth proxy](https://esphome.io/components/bluetooth_proxy/); [Plant Monitor](https://github.com/Olen/homeassistant-plant) with [OpenPlantbook](https://github.com/Olen/home-assistant-openplantbook) thresholds | Local (OpenPlantbook only fetches species data) | Many Zigbee soil sensors have no light sensor; light needs BLE or a Zigbee model with lux. OpenPlantbook needs an account ([credentials](#credentials)) |
 | Watering plug | Zigbee smart plug | Local | Run time limited by the watering device's timer or the plug's countdown (Requirement 5.3) |
-| Cameras and doorbell | Wi-Fi RTSP/ONVIF cameras on mains power ([ONVIF](https://www.home-assistant.io/integrations/onvif/)), recorded by [Frigate](https://docs.frigate.video/) and shown through the [Frigate integration](https://github.com/blakeblackshear/frigate-hass-integration); the doorbell's press through its local integration or an ONVIF event | Local | Cloud-only cameras do not fit; replacements are bought for RTSP, ONVIF and a detection sub-stream ([Frigate hardware](https://docs.frigate.video/frigate/hardware)). Frigate does not see the doorbell's button |
+| Cameras and doorbell | Outdoor Wi-Fi RTSP/ONVIF cameras on mains power; a doorbell with a speaker and a microphone ([ONVIF](https://www.home-assistant.io/integrations/onvif/)), recorded by [Frigate](https://docs.frigate.video/) and shown through the [Frigate integration](https://github.com/blakeblackshear/frigate-hass-integration); the doorbell's press through its local integration or an ONVIF event | Local | Cloud-only cameras do not fit; replacements are bought for RTSP, ONVIF and a detection sub-stream ([Frigate hardware](https://docs.frigate.video/frigate/hardware)). Frigate does not see the doorbell's button |
 | Alarm | [SIA Alarm Systems](https://www.home-assistant.io/integrations/sia/) (SIA DC-09 over IP, local) when the panel can report to a second receiver; else the vendor's integration, or none | Local with SIA | The brand is still unknown; the label photos decide. SIA is receive-only: state and sensors, no arming. The panel sends to the receiver below |
 | Wall tablet | Any tablet with a current browser engine; [Fully Kiosk Browser](https://www.home-assistant.io/integrations/fully_kiosk/) for kiosk mode, screen and motion control | Local | The companion app needs Android 6+ ([requirements](https://companion.home-assistant.io/docs/getting_started/)); the frontend needs a recent WebView, which is what an old tablet usually lacks |
 | Phones | Companion app, Keycloak login through `hass-oidc-auth` (already working) | Push through the app's push service | 500 pushes per device per day ([rate limits](https://companion.home-assistant.io/docs/notifications/notification-details)) |
@@ -188,8 +191,10 @@ Isolation the mesh can offer:
 - Its IoT network is a separate SSID on the same LAN, for 2.4 GHz-only
   devices: compatibility, not isolation.
 - In access point mode it tags no VLAN on any SSID (source in the
-  inventory file), so a camera VLAN would need both a VLAN-capable router
-  and new access points.
+  inventory file). A camera VLAN is not wanted anyway (Non-goals).
+- A router's DMZ setting is not isolation: it forwards every inbound port
+  from the internet to one LAN host, which exposes that host. It is not
+  used.
 
 So cameras and the doorbell are isolated on the device (Requirement 6.5):
 a fixed address in `192.168.1.21`-`.49`, no gateway and no DNS server, so
@@ -200,8 +205,10 @@ before the gateway is removed; firmware is then updated by hand from a
 downloaded file. A camera's clock can drift without NTP: Frigate stamps
 recordings with its own time. This keeps cameras off the internet while
 their firmware behaves; it does not contain a compromised camera, which
-could set its own gateway. Containment is the deferred networking issue
-(VLAN router and access points), opened when the spec closes.
+could set its own gateway. No separate network is planned for that: the
+homelab already treats the LAN as untrusted (Keycloak in front of every
+UI, network policies per app), and a compromised camera reaches nothing
+there that a phone on the LAN could not.
 
 Other Wi-Fi devices (TV, streamer, vacuum, charger, meter, room sensors on
 ESPHome) stay on the main LAN with internet where their integration needs
@@ -219,12 +226,14 @@ it, on fixed addresses where Home Assistant adds them by IP.
   clamps and a local API (purchase, electrician). The charger's own
   integration gives power and "vehicle connected".
 - Control: where the charger cannot set the current, evcc sets it through
-  the car with a command proxy. Default: a local Bluetooth command proxy
-  on a small Linux board in the car's Bluetooth range where it parks, on
-  Wi-Fi, so start, stop and current commands stay local; the alternative
-  is a pay-per-use cloud proxy. Vehicle data comes from the car's cloud
-  API with evcc's default cache (15 minutes), which needs a developer
-  account with the car's vendor (sources in the inventory file).
+  the car over a local Bluetooth proxy: a small board (an ESP32 or a
+  Linux board) in the car's Bluetooth range where it parks, on Wi-Fi,
+  answering evcc over HTTP on the LAN. Start, stop, current and the
+  charge state all go over Bluetooth, through evcc's Bluetooth vehicle
+  template, so no vehicle cloud API is needed. The car vendor's API is
+  paid per use above a monthly credit, and cloud command proxies are paid
+  services; neither is used (Requirement 1.5; sources in the inventory
+  file).
 - On three phases at 6 A, the lowest charging power is about 4.1 kW, so
   solar-only charging starts above that surplus; "minimum plus solar"
   charges at that floor and adds the surplus.
@@ -232,11 +241,83 @@ it, on fixed addresses where Home Assistant adds them by IP.
   `topic readwrite evcc/#`, password in `mosquitto-users` and in evcc's
   Secret, a `ci/secret-rotation.tsv` row); Home Assistant shows the
   sessions and sets the mode through MQTT entities.
-- UI: `charge.lilalala.com` (name to confirm), behind Keycloak through the
-  oauth2-proxy pattern of `apps/theater/sso.yaml`, for the Home Assistant
-  users' group.
+- UI: `charge.lilalala.com`, behind Keycloak through the oauth2-proxy
+  pattern of `apps/theater/sso.yaml`, with the `access.conf` line
+  `evcc=admins household`: the whole household may open it, though the
+  operator is its only expected user.
+- Home Assistant only, or evcc's own UI too: Home Assistant shows the mode,
+  the power and the sessions through MQTT, which covers the daily use.
+  evcc's UI adds what Home Assistant does not show well (charge plans by
+  a target time, the session log, its own diagnostics) and keeps working
+  when Home Assistant is down. The cost is one route and one oauth2-proxy
+  client. Both are kept.
 - Fallback: with evcc down, the car charges when plugged in at the last
-  current evcc gave it or the one set in its app (Requirement 11.4).
+  current evcc gave it or the one set in its app (Requirement 20.6).
+
+### Outdoor lighting
+
+The current outdoor lights are replaced, not automated as they are
+(Requirement 16.1). Positions and counts are in the inventory file.
+
+- Fixtures: outdoor fixtures on the lights' bridge at every existing
+  powered point; a Zigbee relay behind a fixture only where the household
+  keeps one. The path lamps are replaced as one set, so they match and
+  share one bridge group.
+- The new point, where the power is already in place, gets a bridge
+  fixture like the others.
+- Motion: outdoor motion sensors on the bridge, bound to their group
+  (Requirement 16.2); camera detections only add a trigger at night.
+- Order: the entrance first, then the path, then the new point, each one
+  purchase the operator approves. Work on fixed wiring is the
+  electrician's.
+- Fallback: wall switches and the bridge (Requirement 11.1, lamps).
+
+### Garage door
+
+- The opener kit is wired in parallel with the opener's wall button, so
+  the button and the remotes work with or without it (Requirement 21.2).
+  Its integration and whether it needs a separate door-position sensor
+  come from the label photo; a Zigbee contact on the door is the fallback
+  for the state.
+- Home Assistant opens and closes, notifies when the door stays open
+  (Requirement 21.3), and never closes it by automation: a door that
+  closes on its own when nobody watches is a safety risk.
+- The wall tablet's user sees the state without the control; the tablet
+  is shared and at hand for anyone in the house (Requirement 21.4).
+
+### Server corner
+
+- A battery Zigbee temperature and humidity sensor where the cluster and
+  the NAS stand, named generically (`sensor.homelab_rack_temperature`,
+  `sensor.homelab_rack_humidity`).
+- Prometheus already scrapes Home Assistant's `/api/prometheus` (the
+  Grafana "Home" dashboard). Two rules in the homelab's rule files, with
+  unit tests in `tests/`: `HomelabRackHot` (above 35 °C for 15 minutes,
+  `action: human`, a runbook: check the room's airflow, then the nodes'
+  temperatures) and `HomelabRackWarm` (above 30 °C for 30 minutes, an INFO
+  event on the dashboards).
+- When Home Assistant is down the series goes stale and neither rule
+  fires; the Home Assistant probe already pages.
+
+### Public data
+
+For the future public website (its own roadmap item): what the house may
+show, and how.
+
+- Only aggregated, delayed values that say nothing about who is home:
+  for example the solar production of each past day, the month's
+  self-consumption share, the yearly CO2 saved. Never live power, grid
+  import, consumption by hour, charging sessions, camera, door, presence,
+  lights or the alarm: live or hourly values show when the house is empty
+  and the household's routine.
+- Pushed, not pulled: once a day, after midnight, a job in the cluster
+  reads yesterday's totals from the recorder and publishes a small static
+  file to wherever the website is built. The website never calls Home
+  Assistant: no new route, no Home Assistant token on a public server, no
+  query a visitor can shape. If the job fails, the site shows the last
+  day it has.
+- The values and their delay are listed in the website's spec and checked
+  there against this section.
 
 ### Matter and Thread
 
@@ -256,19 +337,26 @@ table lists.
 
 ### Fallback when Home Assistant or the cluster is down
 
+Must keep working (Requirement 11.1, tested):
+
 | Function | Keeps working because |
 | --- | --- |
-| Lights | The bridge holds lights, scenes, schedules and switch bindings; the vendor app works on the LAN |
-| Outdoor lights | Motion sensors bound to their lights on the bridge or over Zigbee; wall switches |
-| Zigbee switches and plugs | Direct Zigbee bindings for anything a person needs (Requirement 2.4) |
-| Heating | The controller's own schedule; Home Assistant only overrides with an end time |
-| Alarm | The panel is autonomous: keypad, app, sirens, monitoring |
+| Lamps, indoor and outdoor | The bridge holds lights, scenes, schedules, switch and motion bindings; the vendor app works on the LAN; direct Zigbee bindings for anything else a person needs (Requirement 2.4) |
+| Heating, basic functions | The controller's own schedule and controls; Home Assistant only overrides with an end time. Plug-in heaters keep their thermostat dial and power on after a power cut |
+| Doorbell | Its own chime; its vendor app shows and talks to the visitor on the LAN |
+| Garage door | The wall button and remotes; the kit is in parallel |
+| Robot vacuum | Its own schedule and app |
+
+May stop until Home Assistant is back (Requirement 11.3), with what still
+holds:
+
+| Function | What still holds |
+| --- | --- |
+| Alarm | Not affected: the panel is autonomous (Requirement 7) |
 | Cameras | Each camera records to its own card |
-| Doorbell | Its own chime |
-| Car charging | The car charges at its last current or its app's setting |
-| TV, vacuum | Remotes, the TV's apps, the robot's own schedule and app |
-| Plug-in heaters | Their own thermostat dial; the plug only enables them and powers on after a power cut |
+| Car charging | The car charges at its last current or its app's setting (Requirement 20.6) |
 | Watering | The device's timer or the plug's countdown; the plug starts off after a power cut |
+| Notifications, plants, mailbox, dashboards, TV | Nothing; they resume when Home Assistant is back |
 | Wall tablet | Shows "disconnected"; the vendor apps on the phones still work |
 
 Home Assistant down is already an operator page (blackbox probe and SLO).
@@ -287,13 +375,13 @@ automated sync is turned off in git, as in the
 3. `kubectl -n home scale deploy/home-assistant --replicas=0`.
 4. The checks of Requirement 11.1 for what the phase added, for 10 minutes.
 5. `kubectl -n home scale deploy/home-assistant --replicas=1`; the
-   entities match the devices within 5 minutes (Requirement 11.3).
+   entities match the devices within 5 minutes (Requirement 11.4).
 6. A PR restores `automated:` (revert of step 1); Argo CD shows `home`
    Synced and Healthy.
 7. `scripts/maintenance-silence.sh --expire <id>`.
 
 The result and the 10 minutes of downtime against the error budget go in
-the task's PR. The evcc fallback (Requirement 11.4) is tested the same way
+the task's PR. The evcc fallback (Requirement 20.6) is tested the same way
 on `clusters/homelab/apps/evcc.yaml` and `deploy/evcc`, once, in task 17.
 
 ### Notifications
@@ -306,8 +394,8 @@ on `clusters/homelab/apps/evcc.yaml` and `deploy/evcc`, once, in task 17.
   if such sensors are added.
 - Cooldowns: one per camera per 5 minutes, one per doorbell press per 30
   seconds, one per plant per day, one CO2 reminder per room per 2 hours,
-  one mail notification per day, one weekly digest for batteries, silent
-  sensors and vacuum consumables.
+  one mail notification per day, one per garage-door opening left open,
+  one weekly digest for batteries, silent sensors and vacuum consumables.
 - ntfy stays the operator's pager for the platform, and Alertmanager
   routes no house event. Home Assistant's ntfy integration would be set up
   in the UI and stored in `.storage`, where no repo check sees it, so the
@@ -334,8 +422,9 @@ on `clusters/homelab/apps/evcc.yaml` and `deploy/evcc`, once, in task 17.
      slower WebView.
   3. A wall-mount Android panel with PoE or USB-C power (about 250-450):
      cleaner install, pricier.
-- The tablet user has no alarm controls; Home Assistant never arms or
-  disarms the panel (Requirement 7.3).
+- The tablet user has no alarm or garage-door controls; Home Assistant
+  never arms or disarms the panel (Requirement 7.3), and the garage door
+  opens only from the phones (Requirement 21.4).
 
 ### Credentials
 
@@ -345,8 +434,9 @@ similar API credentials are entered in the Home Assistant UI and stored in
 Each one is recorded in the operator's password manager with the
 integration it belongs to. `ci/secret-rotation.tsv` lists only sealed
 files, so these have no row there; a credential that moves into a SOPS
-file gets one. The car's API tokens and the command proxy's settings are
-in evcc's Secret, with a row for `evcc-config.sops.yaml`.
+file gets one. The car's Bluetooth key pairing lives on the proxy board;
+the proxy's address and evcc's settings are in evcc's Secret, with a row
+for `evcc-config.sops.yaml`.
 
 ### Dashboards
 
@@ -357,7 +447,8 @@ in evcc's Secret, with a row for `evcc-config.sops.yaml`.
   8.1; each tile navigates to its dashboard.
 - Area dashboards: Lights (indoor and outdoor), Climate and energy (rooms,
   heating, the built-in Energy dashboard, the car), Plants, Security
-  (cameras, doorbell, alarm, doors), Media (TV and streamer, vacuum).
+  (cameras, doorbell, garage door, alarm, doors), Media (vacuum, the TV
+  if integrated).
   Wall tablet: large tiles, landscape, no admin controls, the doorbell's
   live view on a press. System: admin only (updates, batteries,
   integrations in error).
@@ -388,23 +479,26 @@ Each phase ends with the [fallback test](#fallback-test) of Requirement
    automations; heating; energy from what the inverter, meter and heat pump
    allow; plants with the existing sensors; notifications; the main Home
    and area dashboards; the existing tablet on trial; the alarm through SIA
-   if the panel supports it; the TV and streamer; the robot vacuum.
+   if the panel supports it; the TV, if it integrates (optional); the
+   robot vacuum; the garage door with the kit the operator already has.
 2. **Small purchases.** The watering plug, plant sensors with light and a
    Bluetooth proxy where needed, door and window contacts (window-open
    heating rule), a smart plug for the tablet's charging, room climate
-   sensors, the mailbox sensor, outdoor lights and motion sensors, a meter
-   reader or a three-phase meter if grid power is missing, the car's
-   command proxy and evcc, a local heating or heat pump interface if the
-   cloud is not good enough, a new tablet if the trial fails.
-3. **Cameras.** The Wi-Fi check of each position, Frigate with the CPU
-   trial on the first two cameras, the other cameras and the doorbell one
-   by one after each passes its stream test, then an accelerator if the
-   trial says so. The current cloud cameras are retired once the new ones
-   record.
+   sensors and the server-corner sensor with its alert, the mailbox sensor
+   (and an outdoor Zigbee router if needed), the outdoor lighting
+   replacement and motion sensors, a meter reader or a three-phase meter
+   if grid power is missing, the car's Bluetooth proxy and evcc, a local
+   heating or heat pump interface if the cloud is not good enough, a new
+   tablet if the trial fails.
+3. **Cameras.** The Wi-Fi check of each outdoor position, Frigate with the
+   CPU trial on the first two cameras, the other cameras and the doorbell
+   one by one after each passes its stream test, then an accelerator if
+   the trial says so. The current cloud cameras are retired once the new
+   ones record. A second doorbell at an outer gate, if the operator wants
+   one, comes last.
 4. **Later (deferred issues).** Motorised blinds (Zigbee motors),
-   air conditioning (an air-to-air unit with a local integration), camera
-   segmentation (a VLAN-capable router and access points), anything from
-   the suggestions the operator picks.
+   air conditioning (an air-to-air unit with a local integration),
+   anything from the suggestions the operator picks.
 
 ## Purchases
 
@@ -422,28 +516,34 @@ is bought without the operator's approval in chat.
 | Door and window contacts, each | 2 | 10-20 | For the window-open heating rule |
 | Room climate sensor with NDIR CO2, mains, each | 2 | 40-90 | Every living room, bedroom and office |
 | Temperature and humidity sensor (Zigbee, battery), each | 2 | 10-20 | Other rooms |
-| Mailbox sensor (Zigbee contact or vibration) | 2 | 10-25 | Always; plus 15-25 for a Zigbee plug near the mailbox if the signal needs a router |
+| Mailbox sensor (Zigbee contact or vibration) | 2 | 10-25 | Always |
+| Outdoor-rated Zigbee router (repeater, mains) | 2 | 20-50 | Only if the link quality at the mailbox needs it |
+| Server-corner temperature and humidity sensor (Zigbee, battery) | 2 | 10-20 | Always |
 | Outdoor motion sensor (bridge or Zigbee), each | 2 | 30-60 | Each outdoor area |
-| Outdoor fixture on the bridge, or Zigbee relay for an existing one, each | 2 | 30-150 | Each outdoor light; electrician extra where needed |
+| Outdoor fixture on the bridge, each | 2 | 50-150 | Each existing outdoor point, the path lamps and the new point; electrician extra |
+| Zigbee relay for a fixture that stays, each | 2 | 20-40 | Only where the household keeps a fixture |
 | Meter reader for the grid meter's customer interface | 2 | 20-40 | If the grid operator enables the interface |
 | Three-phase grid meter with clamps and a local API | 2 | 150-250, plus 150-300 electrician | Only if neither the inverter nor the utility meter gives grid power every 10 seconds |
-| Bluetooth command proxy board for the car | 2 | 30-80 | For local charge control; else a pay-per-use cloud proxy |
+| Bluetooth proxy board for the car (ESP32 or small Linux board) | 2 | 10-80 | Always, for charge control and the charge state |
 | Heating RF dongle | 2 | 30-60 | On the Zigbee Pi, over TCP; only if the heating system has a supported local radio and local control is wanted; dropped if its integration cannot use a network port |
 | Heat pump local interface | 2 | 30-200 | Only if the cloud quota or outages bite |
 | Wall tablet and mount | 2 | 100-450 | Only if the existing tablet fails the trial; classes in [Identity and access](#identity-and-access) |
-| Wi-Fi cameras (mains, 5 GHz, RTSP/ONVIF), each, with a storage card | 3 | 70-175 | Count from the inventory file |
-| Wi-Fi video doorbell (bell wiring or plug-in supply) | 3 | 100-200 | Always |
+| Outdoor Wi-Fi cameras (mains, 5 GHz, RTSP/ONVIF), each, with a storage card | 3 | 70-175 | Count from the inventory file |
+| Wi-Fi video doorbell with two-way talk (bell wiring or plug-in supply), no subscription | 3 | 100-200 | Always |
+| Second video doorbell at an outer gate | 3 | 100-200 | Only if the operator wants one there |
 | Wired backhaul for one mesh unit (Ethernet run or powerline pair) | 3 | 40-150 | Only if a camera position fails the Wi-Fi check |
 | USB detection accelerator | 3 | 60-120 | Only if the CPU trial fails its threshold |
 | Blind motors, each window | 4 | 100-300 | Next year |
-| VLAN-capable router and access points | 4 | 400-1000 | Only if the deferred segmentation issue goes ahead |
 
-Phase 1 costs about 8 (the kiosk licence), plus 40-60 if the network
-coordinator replaces the Pi. Phase 2's fixed items (two plugs, the mailbox
-sensor, the command proxy) cost about 70-155; the per-room, per-plant,
-per-window and per-outdoor-light items and the conditional ones (grid
-meter, heating or heat pump interface, tablet) come on top, priced in task
-1 from the inventory. Phase 3 costs about 100-470 plus the cameras.
+Phase 1 costs about 8 (the kiosk licence, a one-time purchase), plus 40-60
+if the network coordinator replaces the Pi; the garage door kit is already
+bought. Phase 2's fixed items (two plugs, the mailbox sensor, the
+server-corner sensor, the Bluetooth proxy) cost about 60-175; the
+per-room, per-plant, per-window and per-outdoor-light items and the
+conditional ones (Zigbee router, grid meter, heating or heat pump
+interface, tablet) come on top, priced in task 1 from the inventory. Phase
+3 costs about 100-470 plus the cameras, and 100-200 more for a second
+doorbell.
 
 ## What the operator provides
 
@@ -454,7 +554,8 @@ file, never to the repo.
 | Category | Photos and facts |
 | --- | --- |
 | Lights | The bridge's label (round or square), every switch, dimmer and motion sensor, any light that is not on the bridge |
-| Outdoor lights | Each outdoor fixture and its current motion sensor, and how it is switched today |
+| Outdoor lights | Each outdoor fixture and its current motion sensor, how it is switched today, and the powered points without a fixture |
+| Garage door | The opener's label, the kit's label and how it connects (Wi-Fi, Zigbee, wired to the button), whether it reports the door position |
 | Heating | The thermostat or controller (front and label), the radiator valves or zone units, the heat source, the app the household uses for it; electric heaters' wattage if they are plug-in |
 | Rooms | The list of rooms to monitor, and which have a socket where a sensor can sit |
 | Solar | The inverter's label, any battery or meter connected to it, the monitoring app |
@@ -462,8 +563,8 @@ file, never to the repo.
 | Heat pump | Indoor and outdoor unit labels, the controller and any Wi-Fi adapter, the app used |
 | EV | The charger's label (phases, maximum current), whether the car stays in its Bluetooth range when parked |
 | Plants | The existing plant sensors' label, the watering device (label, mains or battery, its own timer), how many plants and roughly where |
-| Cameras | The current cameras' labels; the wanted positions (indoor or outdoor), power nearby, the phone's Wi-Fi signal (5 GHz, dBm) at each |
-| Doorbell | The current bell's wiring and transformer label, the chime |
+| Cameras | The current cameras' labels; the wanted outdoor positions, power nearby, the phone's Wi-Fi signal (5 GHz, dBm) at each |
+| Doorbell | The current bell's wiring and transformer label, the chime; power and Wi-Fi at the outer gate if a second unit is wanted |
 | Mailbox | Its material and its distance to the nearest mains socket or access point |
 | Alarm | The panel or hub label, a sensor label, the app's name, whether a monitoring company is contracted, whether the installer or user menu allows a second receiver (SIA) |
 | Smoke alarms | One label (low priority) |
@@ -478,22 +579,29 @@ answers in chat.
 | --- | --- |
 | Phase order: cameras earlier than phase 3? | No: lights, heating, energy and plants first |
 | Zigbee coordinator: the Raspberry Pi with the existing USB coordinator, or a network coordinator? | The Pi (no purchase) |
-| Cameras: indoor or outdoor only, budget | Outdoor first; budget from the camera count |
 | Recording: retention, continuous recording, off-site copy of alert clips | Motion 7 days, alerts 30, detections 14; no continuous recording, no off-site copy |
-| Network: camera segmentation (VLAN router and access points)? | No; cameras without gateway or DNS; a deferred issue |
+| Doorbell: a second unit at the outer gate, or the one doorbell moved there? | One doorbell at the house door; the gate decided once it is installed |
 | Frigate detector: CPU trial first, or buy the accelerator upfront? | CPU trial first |
 | Alarm: is a monitoring company contracted, and does the panel allow a second receiver? | Read-only in Home Assistant whatever the answer |
 | Heating: thermostat and valve system, or plug-in electric heaters? Local control worth a purchase? | Whatever the label photos show; cloud integration, no purchase |
 | Heat pump: air-to-water or air-to-air, which app? | Cloud integration within half its quota |
 | Rooms: which get a CO2 sensor? | Living rooms, bedrooms and offices; temperature and humidity only elsewhere |
-| Outdoor lights: replace fixtures, or relays behind the current ones? | Relays where the fixture is fine, bridge fixtures where it is not |
-| EV: local Bluetooth command proxy or the pay-per-use cloud proxy? Public name for evcc's UI? | Local proxy; `charge.lilalala.com` |
+| Outdoor fixtures: which models, in which order? | Bridge fixtures, entrance first ([Outdoor lighting](#outdoor-lighting)) |
 | Grid meter: buy the three-phase meter now, or only if the inverter and utility meter cannot? | Only if they cannot |
+| Server corner: page above 35 °C for 15 minutes? | Yes, and an INFO event above 30 °C |
 | Notifications: which household member gets which group? | Security and alarm: every household member with the companion app; plants: whoever waters; house (doorbell, mail, CO2): every member; admins: the operator |
 | Presence: the companion app's location for each household member, with their consent | On for each member who agrees |
 | Wall tablet: trial the existing one, where on the wall, power there? | Trial the existing tablet first |
 | Suggestions: which ones become issues? | None until picked |
-| Blinds, air conditioning, segmentation: deferred issues now or later? | Opened as deferred issues when the spec closes |
+| Blinds, air conditioning: deferred issues now or later? | Opened as deferred issues when the spec closes |
+
+Answered by the operator on 2026-11-05, now in the requirements: no paid
+cloud service for anything; no network segmentation; cameras outdoors
+only; the TV optional, no preference for the streamer; the car through a
+local Bluetooth proxy; evcc at `charge.lilalala.com` for the household;
+the outdoor lights replaced; a doorbell with camera and two-way talk; the
+garage door in scope; what must work without Home Assistant narrowed to
+the doorbell, the garage door, the vacuum, the lamps and basic heating.
 
 ## Decided defaults
 
@@ -505,18 +613,20 @@ chat.
 | Radio for new devices | Zigbee through Zigbee2MQTT; no Matter or Thread | Local, no IP address, works with the pod network; Matter needs `hostNetwork` |
 | Zigbee channel | 25 (or 15 or 20 after a scan), with the mesh's 2.4 GHz channel fixed at 1 or 6 | Keeps Zigbee and Wi-Fi apart; set before pairing |
 | Lights | Stay on their bridge; Home Assistant on top | The bridge is the fallback; no re-pairing to Zigbee2MQTT |
-| Outdoor lights | Motion sensors bound directly to their lights; camera detections only add | Motion lighting works without Home Assistant |
+| Outdoor lights | Replaced by fixtures on the bridge; motion sensors bound directly to their lights; camera detections only add | The current ones are poor; lamps must work without Home Assistant |
+| Garage door | The operator's kit in parallel with the wall button, local control, never closed by automation, no control on the wall tablet | The door must work without Home Assistant; an unattended close is a safety risk |
+| Server corner | One sensor, a page above 35 °C for 15 minutes, INFO above 30 °C | Heat is the hardware risk a person can act on |
 | Heating | The official integration for the model, cloud if that is all it offers; the controller keeps the schedule | Works with no purchase; local radio is a phase 2 option |
 | Heat pump | Cloud integration, polled within half its quota | No purchase; a local interface if it is not enough |
 | Room climate | NDIR CO2 sensors on mains in living rooms, bedrooms and offices; reminder above 1200 ppm | Real CO2, not an estimate; mains Zigbee devices strengthen the mesh |
-| EV charging | evcc in the cluster, solar only by default, local Bluetooth command proxy | Purpose-built for surplus charging; commands stay local |
+| EV charging | evcc in the cluster, solar only by default, the car over a local Bluetooth proxy, its own UI for the household as well as Home Assistant | Purpose-built for surplus charging; no paid vehicle API |
 | Alarm | Read-only, through SIA if the panel supports it, on LoadBalancer `.202`; arming and disarming stay on the panel | The alarm must not depend on the homelab |
-| Cameras | Wi-Fi and mains, 5 GHz, RTSP/ONVIF, storage card, no gateway or DNS, cloud off | Cabling is not practical; isolation without new network gear |
-| Doorbell | Wi-Fi, mains, local press event | A press must reach the phones without a cloud |
+| Cameras | Outdoor only, Wi-Fi and mains, 5 GHz, RTSP/ONVIF, storage card, no gateway or DNS, cloud off | Cabling is not practical; off the internet without new network gear |
+| Doorbell | Wi-Fi, mains, camera, speaker and microphone, local press event, no subscription | A press must reach the phones without a cloud |
 | NVR | Frigate in its own namespace on the worker, CPU detection on trial, USB accelerator if needed | No new host to run; the NPU is out of reach on Talos |
 | Recording | Motion 7 days, alerts 30 days, detections 14 days, quota from the camera count (default 1 TB), no off-site copy | Enough to look back over a week; privacy; storage bounded |
 | Live view | Through Home Assistant (HLS/MSE); no WebRTC port at first | No extra LoadBalancer IP or UDP port; a few seconds of latency is fine |
-| TV | Local integrations by IP; switched on through the streamer and HDMI-CEC | No discovery or Wake-on-LAN from the pod network |
+| TV | Optional: the TV's local integration by IP if it works; the streamer only if the household uses it | The remotes and the vendor app are enough for the household |
 | Dashboards | In Home Assistant's storage, backed up, not in git | They name rooms and devices |
 | Automations, scripts, scenes | UI-managed, in `automations.yaml`, `scripts.yaml` and `scenes.yaml` on `home-assistant-config`, backed up, not in git; PRs describe the rule, not the entity IDs | They name rooms and devices |
 | NVR UI | No route; `kubectl port-forward` through the tailnet API proxy | Camera footage is too sensitive for a public route, even behind SSO; the household sees cameras through Home Assistant |
@@ -525,7 +635,9 @@ chat.
 | Wall tablet | Trial the existing tablet with Fully Kiosk Browser (PLUS licence) and a local non-admin user | No purchase until it fails |
 | Presence | Companion app location (the `home` zone); no indoor presence | Already in the app; location stays in Home Assistant |
 | Device addresses | Fixed, on the device, in `192.168.1.21`-`.49` | The router cannot reserve addresses |
-| Blinds, AC, segmentation | Deferred issues; Zigbee motors and local-integration units when bought | Nothing to integrate yet |
+| Blinds, AC | Deferred issues; Zigbee motors and local-integration units when bought | Nothing to integrate yet |
+| Paid services | None, ever; one-time licences (the kiosk browser) are purchases | Operator rule, Requirement 1.5 |
+| Public data | Daily aggregates only, pushed as a static file | [Public data](#public-data) |
 
 ## Suggestions
 

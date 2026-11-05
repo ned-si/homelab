@@ -16,12 +16,18 @@ recorded locally (#729) and there is no dashboard for daily use.
 This spec makes Home Assistant the one place where the household sees and
 controls the house: lights with automations, indoor and outdoor; heating;
 the indoor climate of every room; solar production, the heat pump and
-solar-surplus charging of the car; plants; cameras and a video doorbell;
-the existing alarm system's sensors; the TV, the robot vacuum and the
-mailbox; a main Home dashboard with one dashboard per area, on the phones
-and on a shared wall tablet. The house keeps working when the cluster or
-Home Assistant is down: Home Assistant adds automations and one view on
-top of devices that run on their own.
+solar-surplus charging of the car; plants; outdoor cameras and a video
+doorbell; the garage door; the existing alarm system's sensors; the robot
+vacuum, the mailbox and, optionally, the TV; a main Home dashboard with one
+dashboard per area, on the phones and on a shared wall tablet. What the
+household needs every day (the doorbell, the garage door, the vacuum, the
+lamps and basic heating) keeps working when the cluster or Home Assistant
+is down; the rest may wait for Home Assistant.
+
+One rule covers every device: no paid cloud service, for anything in the
+house (operator, 2026-11-05). Hardware is bought and run locally; a free
+vendor cloud is used only where the feasibility table says there is no
+local way.
 
 Work is phased: what the current hardware allows first, purchases flagged
 with a rough cost and made only once the operator approves them
@@ -38,15 +44,22 @@ Non-goals:
   are deferred issues, and this spec only picks the protocol they must use
   (Requirement 12).
 - Cloud recording of camera footage, or any camera vendor cloud.
+- Indoor cameras: every camera is outdoors (operator, 2026-11-05).
+- Paid cloud services and subscriptions of any kind, including pay-per-use
+  vehicle APIs and command proxies.
 - A voice assistant. Suggested in the design, a new issue if wanted.
 - Per-appliance power metering and indoor (per-room) presence detection:
   not wanted. Presence here means "at home or not", from the phones.
 - New smoke or water leak sensors: low priority. The existing smoke alarms
   get a feasibility row; nothing is bought for them.
-- Network segmentation. With Wi-Fi cameras it needs a VLAN-capable router
-  and access points that map an SSID to a VLAN; that is a deferred
-  networking issue. This spec isolates the cameras without it
+- Network segmentation (VLANs, a separate camera network): not wanted
+  (operator, 2026-11-05). The homelab does not trust the LAN: every UI
+  needs a Keycloak login and the cluster's network policies admit only
+  what each app needs. Cameras are kept off the internet on the device
   (Requirement 6.5).
+- Publishing house data. The future public website may show some of it;
+  the rules for that are in [design](design.md#public-data), and the
+  website is its own roadmap item.
 
 ## Glossary
 
@@ -89,8 +102,9 @@ anything.
 
 1. FOR every device category in scope (lights, outdoor lights and motion
    sensors, heating, room climate sensors, solar, grid meter, heat pump, EV
-   charger and car, plants, cameras, doorbell, alarm, smoke alarms, TV and
-   streamer, robot vacuum, mailbox sensor, appliances, wall tablet), THE
+   charger and car, plants, cameras, doorbell, garage door, alarm, smoke
+   alarms, TV and streamer, robot vacuum, mailbox sensor, appliances, wall
+   tablet), THE
    inventory file SHALL record the operator's label photos' findings, the
    matching integration, local or cloud, and what it can read and control.
 2. THE feasibility table in `docs/home-automation.md` SHALL have one row per
@@ -101,6 +115,10 @@ anything.
 4. A purchase SHALL be listed in [design](design.md#purchases) with a rough
    cost and the phase that needs it before it is made; the operator approves
    it in chat.
+5. NO device or integration SHALL need a paid cloud service or a
+   subscription to do what this spec asks of it; a device that does is not
+   bought, and an existing one is used only for what works without paying.
+   (the feasibility table's local or cloud column, and each purchase row)
 
 ### Requirement 2: Lights with automations, and without Home Assistant
 
@@ -250,14 +268,15 @@ the house is, and a tap to the details.
 1. THE main Home dashboard SHALL be the default for every user and SHALL
    show: alarm state, who is home, open doors and windows, lights on,
    heating mode, indoor temperature and the room with the highest CO2,
-   power now (solar, grid, house, car), the car's charge mode, plants
-   needing water, mail waiting, the robot vacuum's state, the last camera
-   or doorbell event and the weather; each tile SHALL link to its area's
-   dashboard.
+   power now (solar, grid, house, car), the car's charge mode, the garage
+   door, plants needing water, mail waiting, the robot vacuum's state, the
+   last camera or doorbell event and the weather; each tile SHALL link to
+   its area's dashboard.
 2. THERE SHALL be one dashboard each for lights, climate and energy
    (rooms, heating, solar, car), plants, security (cameras, doorbell,
-   alarm, doors) and media, plus a wall tablet dashboard and an admin-only
-   system dashboard.
+   garage door, alarm, doors) and media (the vacuum, and the TV if it is
+   integrated), plus a wall tablet dashboard and an admin-only system
+   dashboard.
 3. THE dashboards SHALL be readable on a phone in portrait and on the wall
    tablet in landscape without horizontal scrolling.
 4. THE dashboards SHALL live in Home Assistant's storage, kept by its
@@ -302,33 +321,37 @@ phones and platform problems on my pager, never mixed.
    platform problems of Home Assistant itself (down, backups, probes) stay
    operator pages as today.
 3. Camera, doorbell and sensor notifications SHALL be rate-limited
-   (Requirements 5.2, 5.4, 6.3, 14.3, 15.2, 19.2) so no phone gets near the
+   (Requirements 5.2, 5.4, 6.3, 14.3, 15.2, 19.2, 21.3) so no phone gets near the
    companion app's 500 pushes per day.
 4. Only the alarm and safety sensors (smoke, water leak, if any are added)
    SHALL use critical notifications.
 
-### Requirement 11: The house works when the cluster is down
+### Requirement 11: What the household needs works when the cluster is down
 
-**User story:** As a household member, I want lights, heating and the alarm
-to work whatever happens to the homelab.
+**User story:** As a household member, I want the doorbell, the garage
+door, the vacuum, the lamps and the heating to work whatever happens to the
+homelab; the extras can wait for Home Assistant.
 
 #### Acceptance criteria
 
-1. WITH Home Assistant scaled to 0 for 10 minutes, THE lights SHALL switch
-   from their switches, THE outdoor lights SHALL follow their motion
-   sensors, THE heating SHALL follow its schedule, THE alarm SHALL arm and
-   disarm from its own keypad or app, THE doorbell SHALL ring its chime, and
-   THE cameras SHALL record to their cards. (test: the
+1. WITH Home Assistant scaled to 0 for 10 minutes, THE lamps, indoor and
+   outdoor, SHALL switch from their switches and the bridge's app; THE
+   heating SHALL follow its schedule and change its setpoint from its own
+   controls; THE doorbell SHALL ring its chime and show and talk to the
+   visitor in its own app on the LAN; THE garage door SHALL open and close
+   from its wall button and remotes; and THE robot vacuum SHALL run from
+   its own schedule and app. (test: the
    [fallback test](design.md#fallback-test), once per phase, on a weekday;
    the result in the PR)
-2. No automation that keeps people safe or warm SHALL exist only in Home
-   Assistant; such an automation runs on the device controller and Home
-   Assistant only mirrors it.
-3. AFTER Home Assistant comes back, ITS entities SHALL match the devices'
+2. THE functions of 11.1 SHALL NOT depend on an automation that exists only
+   in Home Assistant; they run on their device or controller, and Home
+   Assistant only adds to them.
+3. Everything else (motion automations beyond the bridge, camera and
+   doorbell notifications, plants, the mailbox, the dashboards, the wall
+   tablet, solar-surplus charging, the TV) MAY stop while Home Assistant or
+   the cluster is down.
+4. AFTER Home Assistant comes back, ITS entities SHALL match the devices'
    state within 5 minutes without a manual step.
-4. WITH the charge controller stopped, THE car SHALL still charge when
-   plugged in, at the current it was last given or the one set in the
-   car's app.
 
 ### Requirement 12: Devices added later fit without a redesign
 
@@ -344,10 +367,11 @@ works locally with this setup.
 2. A new device with a Wi-Fi or Ethernet connection SHALL have an official,
    local Home Assistant integration or run ESPHome; cloud-only devices are
    not bought.
-3. A new camera SHALL use Wi-Fi (5 GHz capable) with mains power, support
-   RTSP and ONVIF, H.264 or H.265, a second low-resolution stream for
-   detection and a storage card, and work with its vendor cloud off.
-   Battery cameras are not bought: they do not stream continuously.
+3. A new camera SHALL be an outdoor model on Wi-Fi (5 GHz capable) with
+   mains power, support RTSP and ONVIF, H.264 or H.265, a second
+   low-resolution stream for detection and a storage card, and work with
+   its vendor cloud off. Battery cameras are not bought: they do not stream
+   continuously.
 
 ### Requirement 13: Backups and privacy
 
@@ -381,9 +405,12 @@ and CO2 of every room, and a nudge to air a room before the air gets bad.
 
 #### Acceptance criteria
 
-1. EVERY room the operator lists SHALL have a sensor for temperature and
-   humidity, and every living room, bedroom and office one for CO2 with an
-   NDIR cell; estimated CO2 (eCO2, from VOC) does not count.
+1. EVERY room in the inventory file, outbuildings and utility rooms
+   included, SHALL have a sensor for temperature and humidity, and every
+   living room, bedroom and office one for CO2 with an NDIR cell;
+   estimated CO2 (eCO2, from VOC) does not count. THE corner where the
+   cluster and the NAS stand SHALL have a temperature and humidity sensor
+   too.
 2. THE climate dashboard SHALL show each room's three readings and its
    24-hour history; the main Home dashboard shows the room with the highest
    CO2.
@@ -392,34 +419,52 @@ and CO2 of every room, and a nudge to air a room before the air gets bad.
    air it, at most one per room per 2 hours; WHEN a room's humidity stays
    above 65% for 24 hours, one mould-risk notification per room per day.
 4. THE readings SHALL be kept like the energy readings (Requirement 4.4).
+5. THE server-corner temperature SHALL feed the homelab's alerting:
+   Prometheus scrapes it from Home Assistant's `/api/prometheus`, and a
+   rule pages the operator (`action: human`) WHEN it stays above 35 °C for
+   15 minutes; above 30 °C for 30 minutes is an INFO event on the Grafana
+   dashboards. A silent sensor is not a page: Home Assistant down already
+   is one. (the rule and its test in `tests/`)
 
 ### Requirement 15: A video doorbell
 
-**User story:** As a household member, I want to know who is at the door,
-on my phone and on the wall tablet.
+**User story:** As a household member, I want to see and talk to whoever is
+at the door, on my phone and on the wall tablet.
 
 #### Acceptance criteria
 
-1. THE doorbell SHALL be a camera under Requirements 6 and 12.3, on mains
-   power (its bell wiring or a plug-in supply), and SHALL report a press
-   through a local integration or ONVIF event; a doorbell that reports
-   presses only through its cloud is not bought.
+1. THE doorbell SHALL be a camera under Requirements 6 and 12.3 with a
+   speaker and a microphone for two-way talk, on mains power (its bell
+   wiring or a plug-in supply), and SHALL report a press through a local
+   integration or ONVIF event; a doorbell that reports presses only
+   through its cloud, or needs a subscription, is not bought.
 2. WHEN the doorbell is pressed, THE house group SHALL get one household
    notification with a snapshot within 5 seconds, at most one per
-   30 seconds, THE wall tablet SHALL show its live view for 60 seconds, and
-   playback on the TV SHALL pause.
-3. THE doorbell SHALL ring its own chime without Home Assistant.
+   30 seconds, THE wall tablet SHALL show its live view for 60 seconds,
+   and, if the TV is integrated (Requirement 17), playback on the TV SHALL
+   pause.
+3. THE doorbell SHALL ring its own chime, and its vendor app SHALL show the
+   visitor and talk to them over the LAN, without Home Assistant and
+   without a cloud account.
+4. A second doorbell at an outer gate, or the doorbell moved there, is the
+   operator's choice after the first one is installed
+   ([design](design.md#what-the-operator-decides)); it follows the same
+   criteria.
 
 ### Requirement 16: Outdoor lights that follow motion
 
 **User story:** As a household member, I want the outdoor lights to come
 on when someone walks up at night, reliably, and to replace the current
-motion lights.
+outdoor lights.
 
 #### Acceptance criteria
 
-1. EACH outdoor light SHALL be on the lights' bridge or behind a Zigbee
-   relay, and SHALL keep working from its wall switch.
+1. THE current outdoor fixtures, the path lamps included, SHALL be
+   replaced, and the new outdoor point the operator wants SHALL be added,
+   following the replacement plan in
+   [design](design.md#outdoor-lighting); each outdoor light SHALL be on
+   the lights' bridge or behind a Zigbee relay, and SHALL keep working from
+   its wall switch.
 2. EACH outdoor motion sensor SHALL be paired with the lights' bridge or
    bound directly to its lights over Zigbee, so motion turns them on
    between sunset and sunrise without Home Assistant, and off after
@@ -428,20 +473,27 @@ motion lights.
    night, and SHALL include the outdoor lights in the vacation mode's
    presence simulation.
 
-### Requirement 17: TV and streamer
+### Requirement 17: TV and streamer (optional)
 
-**User story:** As a household member, I want the TV in the same app, and
-the lights to follow what we watch.
+**User story:** As a household member, I want the TV in the same app if it
+is easy, and the lights to follow what we watch.
+
+Optional (operator, 2026-11-05): the household is fine with the remotes or
+the TV vendor's app, and has no preference between the TV's own apps and
+the streamer. Task 11 is done when these criteria hold for the TV, or
+skipped with the reason in the feasibility table.
 
 #### Acceptance criteria
 
-1. Home Assistant SHALL read and control the TV and the streamer locally,
-   added by IP: power, volume, source, playback state and play or pause.
+1. IF the TV has a local integration that works by IP, THEN Home Assistant
+   SHALL read and control it: power, volume, source, playback state and
+   play or pause. The streamer is added the same way only if the
+   household uses it.
 2. WHEN playback starts on the TV after sunset, THE TV's room SHALL switch
    to a film scene; WHEN it stops for 5 minutes, the previous scene comes
    back.
-3. THE remotes and the TV's own apps SHALL keep working without Home
-   Assistant.
+3. THE remotes, the vendor app and the TV's own apps SHALL keep working
+   without Home Assistant.
 
 ### Requirement 18: Robot vacuum
 
@@ -471,8 +523,10 @@ arrived.
    household member clears it from the dashboard.
 2. THE house group SHALL get one household notification per day for the
    first delivery.
-3. THE sensor SHALL run on a battery for at least a year, over Zigbee where
-   the signal reaches, otherwise over Wi-Fi with ESPHome in deep sleep.
+3. THE sensor SHALL run on a battery for at least a year, over Zigbee,
+   with an outdoor-rated Zigbee router (repeater) near the mailbox where
+   the link quality needs one; over Wi-Fi with ESPHome in deep sleep only
+   if Zigbee still does not reach.
 
 ### Requirement 20: The car charges on solar surplus
 
@@ -483,10 +537,14 @@ surplus by default, and to charge fast when I ask.
 
 1. THE charge controller SHALL run as app `evcc` in namespace `evcc`, read
    solar production, grid power and the charger, and set the charging
-   current; when the charger cannot be controlled, through the car.
+   current; when the charger cannot be controlled, through the car, over a
+   local Bluetooth proxy. No paid vehicle API or cloud command proxy SHALL
+   be used (Requirement 1.5).
 2. THE modes SHALL be off, solar only, minimum plus solar, and fast;
    solar only is the default. A household member sets the mode from Home
-   Assistant or from the charge controller's UI.
+   Assistant or from the charge controller's UI at `charge.lilalala.com`,
+   behind Keycloak for `admins` and `household`
+   ([household-access-groups](../household-access-groups/)).
 3. Grid power SHALL come from the inverter's meter or the grid meter's
    customer interface, updated at least every 10 seconds; IF neither can,
    THEN a three-phase grid meter is bought (phase 2).
@@ -495,3 +553,28 @@ surplus by default, and to charge fast when I ask.
    `evcc-data`, backed up (Requirement 13.1).
 5. Charge sessions and charging power SHALL reach Home Assistant through
    MQTT, and the car's charge state SHALL be on the energy dashboard.
+6. WITH the charge controller stopped, THE car SHALL still charge when
+   plugged in, at the current it was last given or the one set in the
+   car's app.
+
+### Requirement 21: Garage door
+
+**User story:** As a household member, I want to see whether the garage
+door is open and open it from my phone, and the door to work as today
+whatever happens to Home Assistant.
+
+#### Acceptance criteria
+
+1. THE garage door opener kit the operator bought SHALL be connected in
+   parallel with the opener's wall button, and Home Assistant SHALL read
+   its open or closed state and open and close it through a local
+   integration (its own local API, ESPHome or MQTT). A kit that works only
+   through a cloud is not used for control. (the feasibility table row)
+2. THE wall button and the remotes SHALL keep working without Home
+   Assistant and without the kit. (Requirement 11.1)
+3. WHEN the door has been open for 30 minutes, or is open at 22:00
+   (Zurich), THE house group SHALL get one household notification; Home
+   Assistant SHALL NOT close the door on its own.
+4. THE open and close actions SHALL be on the household's phones only: the
+   wall tablet user and dashboards shown on the tablet SHALL show the
+   state without the control.
