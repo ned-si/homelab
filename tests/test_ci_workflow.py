@@ -98,3 +98,21 @@ def test_one_job_saves_each_tool_cache():
             savers[prefix] = name
     assert savers["tools-render-"] == "render"
     assert len(savers) == 8
+
+
+def test_each_cache_key_has_one_saving_job():
+    """A save names its job's restore step; no two jobs save the same key."""
+    savers = {}
+    for name, job in jobs().items():
+        steps = job.get("steps", [])
+        restores = {s["id"]: s["with"] for s in steps if "actions/cache/restore@" in s.get("uses", "") and "id" in s}
+        for s in steps:
+            if "actions/cache/save@" not in s.get("uses", ""):
+                continue
+            m = re.fullmatch(r"\$\{\{ steps\.([\w-]+)\.outputs\.cache-primary-key \}\}", s["with"]["key"])
+            assert m and m.group(1) in restores, f"{name}: {s.get('name')}"
+            restored = restores[m.group(1)]
+            assert s["with"]["path"] == restored["path"], f"{name}: {s.get('name')}"
+            assert restored["key"] not in savers, f"{name} and {savers.get(restored['key'])} both save {restored['key']}"
+            savers[restored["key"]] = name
+    assert len(savers) >= 13

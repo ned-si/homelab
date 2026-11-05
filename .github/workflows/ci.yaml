@@ -116,6 +116,15 @@ jobs:
           key: tools-lint-${{ env.ACTIONLINT_VERSION }}-${{ env.SHELLCHECK_VERSION }}-${{ env.TOFU_VERSION }}
           restore-keys: tools-lint-
 
+      # pip's download cache, keyed on the hash-pinned requirements; pip
+      # checks every file against --require-hashes, cached or not. render
+      # saves it.
+      - name: Restore pip cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('ci/requirements-ci.txt') }}
+
       - name: Install pinned tools
         id: setup
         env:
@@ -133,22 +142,40 @@ jobs:
           key: ${{ steps.tools.outputs.cache-primary-key }}
 
       # Hook environments (pre-commit-hooks, the renovate npm package) are
-      # keyed on the config that pins them.
-      - name: Cache pre-commit environments
+      # keyed on the config that pins them. Only pushes to main save (98 MB
+      # an entry, so one per pull request filled the 10 GB cache); a pull
+      # request that changes the config starts from main's newest entry.
+      - name: Restore pre-commit environments
+        id: pre-commit-cache
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: pre-commit-${{ runner.os }}-
 
       # .pre-commit-config.yaml is the one list of local checks. SKIP names the
       # hooks a dedicated CI step runs with the same script or pinned binary
       # (tests/test_precommit_parity.py keeps the two in line).
       - name: pre-commit (hooks without a dedicated step)
+        id: pre-commit
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         env:
           SKIP: gitleaks,yamllint,shellcheck,terraform_fmt,actionlint,kyverno,leak-check,placeholder-check,secrets-check,trivy-waivers,render-deploy
         run: pre-commit run --all-files --show-diff-on-failure --color always
+
+      # gc drops the environments the config no longer uses before saving.
+      - name: Prune pre-commit environments
+        id: pre-commit-gc
+        if: ${{ !cancelled() && github.event_name == 'push' && steps.pre-commit.outcome == 'success' && steps.pre-commit-cache.outputs.cache-hit != 'true' }}
+        run: pre-commit gc
+
+      - name: Save pre-commit environments
+        if: ${{ !cancelled() && steps.pre-commit-gc.outcome == 'success' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ steps.pre-commit-cache.outputs.cache-primary-key }}
 
       - name: yamllint (strict)
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
@@ -167,10 +194,27 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: tofu fmt -check -recursive -diff
 
-      - name: tofu init + validate
+      # Provider plugin cache, keyed on the lock files. tofu installs a cached
+      # provider only when it matches the lock file's hashes; bootstrap/ has
+      # no lock file, so its providers are still downloaded and verified.
+      - name: Restore tofu providers
+        id: tofu-cache
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tofu-plugins
+          key: tofu-providers-${{ env.TOFU_VERSION }}-${{ hashFiles('bootstrap/**/.terraform.lock.hcl') }}
+
+      - name: tofu init + validate
+        id: tofu
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/tofu-plugins
+          # Retries on connection errors and 5xx, with backoff (default 2).
+          TF_PROVIDER_DOWNLOAD_RETRY: "6"
         run: |
           set -euo pipefail
+          mkdir -p "$TF_PLUGIN_CACHE_DIR"
           # -backend=false: no AWS credentials or state passphrase in CI.
           for d in bootstrap bootstrap/aws-backup bootstrap/github-oidc bootstrap/tofu-state; do
             if [ -d "$d" ] && ls "$d"/*.tf >/dev/null 2>&1; then
@@ -179,6 +223,13 @@ jobs:
               echo "::endgroup::"
             fi
           done
+
+      - name: Save tofu providers
+        if: ${{ !cancelled() && steps.tofu.outcome == 'success' && steps.tofu-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tofu-plugins
+          key: ${{ steps.tofu-cache.outputs.cache-primary-key }}
 
   render:
     runs-on: ubuntu-26.04
@@ -200,6 +251,14 @@ jobs:
             ${{ env.KUBE_LINTER_VERSION }}-${{ env.PROMTOOL_VERSION }}-${{ env.ALERTMANAGER_VERSION }}-${{ env.KYVERNO_VERSION }}"
           restore-keys: tools-render-
 
+      # Shared with lint and tests; render saves it.
+      - name: Restore pip cache
+        id: pip
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('ci/requirements-ci.txt') }}
+
       - name: Install pinned tools
         id: setup
         env:
@@ -215,6 +274,13 @@ jobs:
         with:
           path: ${{ runner.temp }}/tool-cache
           key: ${{ steps.tools.outputs.cache-primary-key }}
+
+      - name: Save pip cache
+        if: ${{ steps.setup.outcome == 'success' && steps.pip.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: ${{ steps.pip.outputs.cache-primary-key }}
 
       # Chart archives (scripts/ci/chart_fetch.py): the newest cache with the
       # same prefix is restored; each archive is checked against the sha256
@@ -325,6 +391,13 @@ jobs:
           key: "tools-render-${{ env.HELM_VERSION }}-${{ env.KUBECTL_VERSION }}-${{ env.KUBECONFORM_VERSION }}-\
             ${{ env.KUBE_LINTER_VERSION }}-${{ env.PROMTOOL_VERSION }}-${{ env.ALERTMANAGER_VERSION }}-${{ env.KYVERNO_VERSION }}"
           restore-keys: tools-render-
+
+      # render's pip cache (restore only).
+      - name: Restore pip cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('ci/requirements-ci.txt') }}
 
       - name: Install pinned tools
         id: setup
