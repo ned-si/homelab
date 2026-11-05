@@ -998,3 +998,186 @@ def test_alert_runbooks_auto_alert_url_must_resolve(tmp_path):
     # A page for an auto alert is still stale: pages are for action: human alerts.
     assert [x for x in fails(policy(tmp_path / "b", files=files)) if "alert-runbooks" in x] == [
         "FAIL alert-runbooks: docs/runbooks/alerts/DiskSlow.md names no action: human alert"]
+
+
+GAPS = "ci/pod-hardening-gaps.txt"
+APP = "mealie/Deployment/app/app"
+
+
+def hardened(name="app", ns="mealie", kind="Deployment"):
+    c = {"name": name, "image": "x", "readinessProbe": {"tcpSocket": {"port": 8080}},
+         "livenessProbe": {"tcpSocket": {"port": 8080}},
+         "securityContext": {"allowPrivilegeEscalation": False, "capabilities": {"drop": ["ALL"]}}}
+    pod = {"automountServiceAccountToken": False, "containers": [c],
+           "securityContext": {"runAsNonRoot": True, "runAsUser": 1000, "seccompProfile": {"type": "RuntimeDefault"}}}
+    api = "batch/v1" if kind == "Job" else "apps/v1"
+    return {"apiVersion": api, "kind": kind, "metadata": {"name": name, "namespace": ns},
+            "spec": {"template": {"spec": pod}}}
+
+
+def binding(sa, ns="mealie", kind="RoleBinding"):
+    meta = {"name": "b", "namespace": ns} if kind == "RoleBinding" else {"name": "b"}
+    return {"apiVersion": "rbac.authorization.k8s.io/v1", "kind": kind, "metadata": meta,
+            "roleRef": {"apiGroup": "rbac.authorization.k8s.io", "kind": "ClusterRole", "name": "view"},
+            "subjects": [{"kind": "ServiceAccount", "name": sa, "namespace": ns}]}
+
+
+def hardening(tmp_path, docs, gaps="# none\n", files=None):
+    f = {"scripts/ci/kyverno.sh": 'EXCLUDED_NAMESPACES="kube-system argo"\n'}
+    if gaps is not None:
+        f[GAPS] = gaps
+    f.update(files or {})
+    r = policy(tmp_path, files=f, renders=[("mealie", "2+3", "apps", "mealie", docs)])
+    assert "pod-hardening" in r.stdout, r.stdout
+    return [x.removeprefix("FAIL pod-hardening: ") for x in fails(r) if x.startswith("FAIL pod-hardening")]
+
+
+def test_pod_hardening_hardened_passes(tmp_path):
+    job = hardened("once", kind="Job")
+    del job["spec"]["template"]["spec"]["containers"][0]["livenessProbe"]
+    assert hardening(tmp_path, [hardened(), job]) == []
+
+
+def test_pod_hardening_inactive_without_its_files(tmp_path):
+    r = policy(tmp_path, renders=[("mealie", "2+3", "apps", "mealie", [{"apiVersion": "apps/v1", "kind": "Deployment",
+                                                                        "metadata": {"name": "a"}, "spec": {}}])])
+    assert "pod-hardening" not in r.stdout
+
+
+def _pod(d):
+    return d["spec"]["template"]["spec"]
+
+
+def _ctr(d):
+    return _pod(d)["containers"][0]
+
+
+@pytest.mark.parametrize("check,mutate,what", [
+    ("probes", lambda d: _ctr(d).pop("livenessProbe"), "no livenessProbe"),
+    ("seccomp", lambda d: _pod(d)["securityContext"].pop("seccompProfile"), "seccompProfile.type is unset"),
+    ("privilege-escalation", lambda d: _ctr(d)["securityContext"].update(allowPrivilegeEscalation=True),
+     "allowPrivilegeEscalation is not false"),
+    ("capabilities", lambda d: _ctr(d)["securityContext"].update(capabilities={"add": ["NET_BIND_SERVICE"]}),
+     "capabilities.drop lacks ALL"),
+    ("non-root", lambda d: _pod(d)["securityContext"].pop("runAsNonRoot"), "runAsNonRoot is not true"),
+])
+def test_pod_hardening_each_check_fails(tmp_path, check, mutate, what):
+    d = hardened()
+    mutate(d)
+    assert hardening(tmp_path, [d]) == [
+        f'{APP} fails {check} ({what}); fix it or add "{APP} {check} <reason>" to {GAPS}']
+    assert hardening(tmp_path / "b", [d], gaps=f"{APP} {check} #726 task 4\n") == []
+
+
+def test_pod_hardening_token_of_default_account(tmp_path):
+    d = hardened()
+    del _pod(d)["automountServiceAccountToken"]
+    ref = "mealie/Deployment/app/*"
+    assert hardening(tmp_path, [d]) == [
+        f'{ref} fails token (runs as ServiceAccount default with its token mounted); '
+        f'fix it or add "{ref} token <reason>" to {GAPS}']
+    assert hardening(tmp_path / "b", [d], gaps=f"{ref} token #726 task 18\n") == []
+    other = copy.deepcopy(d)
+    other["metadata"]["namespace"] = "kube-system"
+    assert hardening(tmp_path / "c", [other]) == []
+
+
+def test_pod_hardening_own_account_needs_a_binding_in_app_namespaces(tmp_path):
+    d = hardened()
+    del _pod(d)["automountServiceAccountToken"]
+    _pod(d)["serviceAccountName"] = "app"
+    assert hardening(tmp_path, [d]) == [
+        "mealie/Deployment/app/* fails token (ServiceAccount app is named by no RoleBinding or ClusterRoleBinding "
+        'and its token is mounted); fix it or add "mealie/Deployment/app/* token <reason>" to ' + GAPS]
+    assert hardening(tmp_path / "b", [d, binding("app")]) == []
+    assert hardening(tmp_path / "c", [d, binding("app", kind="ClusterRoleBinding")]) == []
+    platform = copy.deepcopy(d)
+    platform["metadata"]["namespace"] = "monitoring"
+    assert hardening(tmp_path / "d", [platform]) == []
+
+
+def test_pod_hardening_default_account_binding_fails(tmp_path):
+    assert hardening(tmp_path, [hardened(), binding("default")]) == [
+        "RoleBinding mealie/b grants mealie/default; give the Pod its own ServiceAccount"]
+    assert hardening(tmp_path / "b", [hardened(), binding("default", ns="argo")]) == []
+
+
+def root_profile(caps):
+    d = hardened()
+    del _pod(d)["securityContext"]["runAsNonRoot"]
+    del _pod(d)["securityContext"]["runAsUser"]
+    _ctr(d)["securityContext"]["capabilities"] = {"drop": ["ALL"], "add": caps}
+    return d
+
+
+def test_pod_hardening_root_profile_needs_its_non_root_line(tmp_path):
+    line = f"{APP} non-root root profile: sets UMASK=002\n"
+    assert hardening(tmp_path, [root_profile(["CHOWN", "KILL"])], gaps=line) == []
+    assert hardening(tmp_path / "b", [root_profile(["CHOWN", "KILL"])]) == [
+        f'{APP} fails capabilities (capabilities.add has CHOWN, KILL); fix it or add "{APP} capabilities <reason>" '
+        f"to {GAPS}",
+        f'{APP} fails non-root (runAsNonRoot is not true); fix it or add "{APP} non-root <reason>" to {GAPS}']
+    assert hardening(tmp_path / "c", [root_profile(["CHOWN", "SYS_ADMIN"])], gaps=line) == [
+        f'{APP} fails capabilities (capabilities.add has SYS_ADMIN); fix it or add "{APP} capabilities <reason>" '
+        f"to {GAPS}"]
+
+
+def test_pod_hardening_container_seccomp_overrides_the_pod(tmp_path):
+    d = hardened()
+    _ctr(d)["securityContext"]["seccompProfile"] = {"type": "Unconfined"}
+    assert hardening(tmp_path, [d]) == [
+        f'{APP} fails seccomp (seccompProfile.type is Unconfined); fix it or add "{APP} seccomp <reason>" to {GAPS}']
+    d = hardened()
+    del _pod(d)["securityContext"]["seccompProfile"]
+    _ctr(d)["securityContext"]["seccompProfile"] = {"type": "RuntimeDefault"}
+    assert hardening(tmp_path / "b", [d]) == []
+
+
+def test_pod_hardening_native_sidecar_is_long_running(tmp_path):
+    d = hardened()
+    init = copy.deepcopy(_ctr(d))
+    del init["readinessProbe"], init["livenessProbe"]
+    _pod(d)["initContainers"] = [dict(init, name="wait"), dict(init, name="proxy", restartPolicy="Always")]
+    ref = "mealie/Deployment/app/proxy"
+    assert hardening(tmp_path, [d]) == [
+        f'{ref} fails probes (no readinessProbe, no livenessProbe); fix it or add "{ref} probes <reason>" to {GAPS}']
+
+
+def test_pod_hardening_stale_lines_fail(tmp_path):
+    gaps = f"# comment\n\n{APP} seccomp #726 task 4\nmealie/Deployment/gone/gone probes #726 task 4\n"
+    assert hardening(tmp_path, [hardened()], gaps=gaps) == [
+        f"{GAPS}:3: {APP} seccomp is no longer a gap; remove the line",
+        f"{GAPS}:4: mealie/Deployment/gone/gone probes is no longer a gap; remove the line"]
+
+
+def test_pod_hardening_malformed_lines_fail(tmp_path):
+    d = hardened()
+    _ctr(d).pop("livenessProbe")
+    gaps = (f"{APP} probes\n"
+            f"mealie/app probes #726 task 4\n"
+            f"{APP} rootless #726 task 4\n"
+            f"{APP} token #726 task 4\n"
+            "mealie/Deployment/app/* probes #726 task 4\n"
+            f"{APP} probes #726 task 4\n"
+            f"{APP} probes #726 task 4\n")
+    assert hardening(tmp_path, [d], gaps=gaps) == [
+        f"{GAPS}:1: malformed line (want: <namespace>/<kind>/<name>/<container> <check> <reason>)",
+        f"{GAPS}:2: malformed reference mealie/app (want <namespace>/<kind>/<name>/<container>)",
+        f"{GAPS}:3: unknown check rootless (one of probes, seccomp, privilege-escalation, capabilities, non-root, "
+        "token)",
+        f"{GAPS}:4: token takes * as container",
+        f"{GAPS}:5: probes takes a container name, not *",
+        f"{GAPS}:7: duplicate of line 6"]
+
+
+def test_pod_hardening_missing_gaps_file_refuses(tmp_path):
+    assert hardening(tmp_path, [hardened()], gaps=None) == [f"{GAPS} not found; refusing to pass"]
+
+
+def test_pod_hardening_app_namespace_must_be_listed(tmp_path):
+    app = ("apiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: scratch\n  namespace: argo\n"
+           "spec:\n  destination:\n    namespace: scratch\n")
+    assert hardening(tmp_path, [hardened()], files={"clusters/homelab/apps/scratch.yaml": app}) == [
+        "scratch: namespace scratch is not in APP_NAMESPACES; add it"]
+    ok = app.replace("namespace: scratch\n", "namespace: mealie\n")
+    assert hardening(tmp_path / "b", [hardened()], files={"clusters/homelab/apps/scratch.yaml": ok}) == []
