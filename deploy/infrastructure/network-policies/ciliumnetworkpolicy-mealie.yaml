@@ -57,3 +57,10 @@ spec:
     - ports:
       - port: "9000"
         protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: postsync-smoke
+    toPorts:
+    - ports:
+      - port: "9000"
+        protocol: TCP

@@ -29,6 +29,17 @@ spec:
         - ports:
             - port: "9000"
               protocol: TCP
+
+    # The PostSync smoke Job after every sync of `mealie`.
+    # apps/mealie/kustomization.yaml -- postsync-smoke args
+    # http://mealie:9000/api/app/about (components/postsync-smoke).
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "9000"
+              protocol: TCP
   egress:
     # Cluster DNS.
     - toEndpoints:
