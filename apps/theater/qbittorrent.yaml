@@ -19,22 +19,11 @@ spec:
       labels:
         app.kubernetes.io/name: qbittorrent
     spec:
-      automountServiceAccountToken: false
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: qbittorrent
           # renovate: datasource=docker depName=ghcr.io/hotio/qbittorrent
           image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:6f1ec0af12c605544423c12eb4f30db3aec6fecea0d224ab02e69a500b0480d7
           imagePullPolicy: Always
-          # Root profile: s6 runs as root and drops to hotio (1000) with
-          # s6-setuidgid, which needs SETGID, SETUID and KILL to stop it.
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"]
           env:
             - name: TZ
               value: Europe/Zurich
@@ -58,15 +47,6 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 3
-          # A stale ipc-socket makes the process exit every two seconds;
-          # this restarts the container (docs/runbooks/arr-qbittorrent.md).
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 5
           volumeMounts:
             - name: config
               mountPath: /config
