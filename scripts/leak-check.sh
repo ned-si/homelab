@@ -17,14 +17,8 @@ fail=0
 bad()  { printf '\033[31m%s\033[0m\n' "$*" >&2; fail=1; }
 good() { printf '\033[32m%s\033[0m\n' "$*"; }
 
-# Prefer the staged set, which is what a pre-commit hook cares about.
-#
-# Otherwise scan tracked files AND untracked-but-not-ignored files. `git ls-files`
-# alone would miss a brand-new secret sitting in the working tree, which is
-# exactly the moment you most want to be told -- a clean report on a tree
-# containing an unstaged private key is worse than no report at all.
-# `--exclude-standard` keeps .gitignore'd paths (the age key, kubeconfig,
-# secrets-to-encrypt.local.md) out of scope, since those are meant to exist.
+# The staged set for a pre-commit hook; otherwise tracked plus untracked,
+# not-ignored files, so a new secret in the working tree is caught.
 files="$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null)"
 scope="staged"
 if [[ -z "$files" ]]; then
@@ -33,15 +27,11 @@ if [[ -z "$files" ]]; then
 fi
 echo "Scanning $scope files..."
 
-# Files that legitimately contain the patterns we grep for:
-#   *.example    templates showing the SHAPE of a secret, with placeholders
-#   .sops.yaml   the SOPS CONFIG (recipients), not a secret. Note it matches the
-#                *.sops.yaml glob by accident, hence the explicit exclusion.
+# Files that legitimately contain the patterns (checks 1-3 only):
+#   *.example    templates with placeholders
+#   .sops.yaml   the SOPS config; it matches the *.sops.yaml glob by accident
 #   docs/        prose that discusses these patterns
 #   this script  contains the patterns as literals
-#
-# NOTE: this exemption applies to checks 1-3 only. Check 4 (inline credentials)
-# uses its own, narrower scope -- see is_argo_synced() and the reasoning above it.
 is_exempt() {
   case "$1" in
     *.example|.sops.yaml|docs/*|"$SELF") return 0 ;;
@@ -49,28 +39,10 @@ is_exempt() {
   esac
 }
 
-# Scope for check 4: everything that ends up on the cluster, plus the sources it
-# is rendered from so the report names the file a human would edit.
-#
-# `deploy/` is what Argo CD applies. The four source trees are where the value
-# would have been written. `bootstrap/` configures Argo CD itself and holds the
-# OpenTofu that seeds the age key, so a literal there is applied too.
-#
-# DELIBERATELY OUT OF SCOPE, and this is a decision rather than an oversight:
-#
-#   docs/ and *.md   Prose. docs/backups.md contains shell snippets with
-#                    `-p'<OLD>'`. Argo CD never syncs a markdown file, so a value
-#                    there cannot reach the cluster -- and a check that fires on
-#                    the document describing the incident is a check that gets an
-#                    exclusion added to it within a week.
-#
-# NOT out of scope, unlike checks 1-3: `*.example`. Those files live inside the
-# source trees below and check 4 sees them. That is on purpose. A template is
-# exactly where a real credential gets pasted by accident -- you edit the copy,
-# but the first thing you did was open the original -- and nothing else in the
-# repo would notice. The placeholder guard in the awk program below is what keeps
-# the shipped templates quiet: every one of them holds a `PUT_THE_..._HERE`-shaped
-# value, and a value that is NOT placeholder-shaped in a template is a finding.
+# Scope for check 4: deploy/ (what Argo CD applies), the source trees and
+# bootstrap/. docs/ and *.md are out: Argo CD never syncs them. `*.example`
+# is in: a template is where a real credential gets pasted by accident; the
+# placeholder guard in the awk program keeps the shipped ones quiet.
 is_argo_synced() {
   case "$1" in
     apps/*|platform/*|infrastructure/*|clusters/*|deploy/*|bootstrap/*) return 0 ;;
@@ -148,16 +120,9 @@ while IFS= read -r f; do
     bad "AGE SECRET KEY: $f"
   fi
 
-  # 3. A plaintext Kubernetes Secret payload. Only meaningful in YAML that is
-  #    not SOPS-encrypted (encrypted files were skipped above).
-  #
-  #    This is PER YAML DOCUMENT, not per file. A naive per-file grep breaks on
-  #    any multi-document file, where `kind: Secret` in one
-  #    document and a `data:` key in an unrelated CRD schema in another look
-  #    identical to a leaked Secret. Two false positives, both silenced by
-  #    scoping to a single document and requiring `data:`/`stringData:` at zero
-  #    indent -- which is where a Secret's payload always lives, and where a
-  #    field inside a CRD's openAPIV3Schema never does.
+  # 3. A plaintext Secret payload in YAML that is not SOPS-encrypted, per YAML
+  #    document, with `data:`/`stringData:` at zero indent, so a CRD schema in
+  #    another document does not match.
   case "$f" in
     *.yaml|*.yml)
       offenders=$(awk '
@@ -188,57 +153,17 @@ while IFS= read -r f; do
 done <<<"$files"
 
 # ---------------------------------------------------------------------------
-# 4. A CREDENTIAL AS A LITERAL VALUE, ANYWHERE -- not just in a Secret object.
+# 4. A CREDENTIAL AS A LITERAL VALUE, ANYWHERE: an `env:` literal, a
+#   `client_secret:` key in Helm values, a JSON blob. A ConfigMap is applied
+#   just like a Secret. awk, not grep -P: BSD grep has no -P, and `- name: X`
+#   then `value:` needs two-line state.
 #
-# WHY THIS EXISTS
-#   Check 3 above only recognises a `kind: Secret` with a `data:`/`stringData:`
-#   payload. Six of the nine credentials once committed in plaintext were not
-#   that shape at all. They were:
+# Not reported: valueFrom/secretKeyRef, *Ref and *Name keys, plural *Secrets
+# keys, *_FILE and *Path keys, block scalars (check 2 catches PEM), templated
+# values, booleans and numbers, placeholders (scripts/placeholder-check.sh).
 #
-#     KC_BOOTSTRAP_ADMIN_PASSWORD   an `env:` entry with a literal `value:`
-#     MARIADB_ROOT_PASSWORD         same, and pasted a second time as DB_ROOT_PASSWD
-#     PAPERLESS_ADMIN_PASSWORD      same
-#     SEAFILE_ADMIN_PASSWORD        same
-#     the OIDC client secrets       a `client_secret:` mapping key in Helm values,
-#                                   and one buried in a JSON blob in an env value
-#     PLEX_CLAIM                    same env shape
-#
-#   Every one of them was invisible to this script, which is why the script
-#   reported clean while the repository was leaking. A ConfigMap and a Helm
-#   values.yaml are just as applied as a Secret; only the kind differs.
-#
-# WHY awk AND NOT grep -P
-#   BSD grep on macOS has no -P, and the shapes need two-line state anyway (an
-#   `- name: X` followed by a `value: Y` on a later line, where an intervening
-#   `valueFrom:` means the opposite conclusion). Perl-compatible lookahead is not
-#   needed once tolower() is doing the case-insensitivity.
-#
-# HOW FALSE POSITIVES ARE AVOIDED. Each of these is a real construct in this repo
-# and each one used to fire before it was excluded:
-#
-#   secretKeyRef / valueFrom   the correct pattern. `- name: X` followed by
-#                              `valueFrom:` clears the pending match instead of
-#                              reporting it.
-#   *Ref / *Name keys          `secretName`, `secretKeyRef`, `tokenSecretRef`,
-#                              `privateKeySecretRef`, `existingSecret` all hold
-#                              the NAME of a Secret, never its contents.
-#   *Secrets (plural) keys     `imagePullSecrets`, `secretResources`,
-#                              `assertNoLeakedSecrets` are lists or flags.
-#   *_FILE / *Path keys        point at a file, by definition not the value.
-#   block scalars              `privateKey: |` -- the key material is on the
-#                              following lines and check 2 (the PEM armour) is
-#                              what catches it. Reporting the `|` would be noise.
-#   templated values           `$__env{...}` (Grafana), `${...}`, `$(...)`,
-#                              `{{ ... }}`, `<...>`.
-#   booleans and numbers       `OIDC_AUTH_ENABLED: "true"`, `port: 443`.
-#   placeholders               `PUT_THE_..._HERE`, `REPLACE-ME` and friends. Note
-#                              scripts/placeholder-check.sh owns the question of
-#                              whether a placeholder should still be there; this
-#                              check only needs to know it is not a credential.
-#
-# WHAT IT CANNOT SEE, stated so nobody assumes otherwise: a credential under a key
-# whose name does not suggest one (`foo: hunter2`), a credential inside a base64
-# blob, and a credential inside a block scalar that is not PEM-armoured.
+# Blind to: a credential under an innocent key, inside base64, or in a block
+# scalar without PEM armour.
 # ---------------------------------------------------------------------------
 inline_scan() {
   awk '

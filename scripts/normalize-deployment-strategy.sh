@@ -1,36 +1,13 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# One-time normalisation: switch existing Deployments to `strategy: Recreate`.
+# One-time normalisation: switch existing Deployments to `strategy: Recreate`
+# (single replicas on ReadWriteOnce volumes cannot roll).
 #
-# WHY THIS SCRIPT EXISTS
-#
-# Several single-replica workloads sit on ReadWriteOnce iSCSI volumes. With the
-# default RollingUpdate strategy Kubernetes tries to start the replacement pod
-# *before* terminating the old one, the new pod can never attach the volume, and
-# the rollout hangs until it times out. `Recreate` is the correct strategy and
-# the repo declares it.
-#
-# But you cannot simply apply that over an existing Deployment:
-#
-#   spec.strategy.rollingUpdate: Forbidden: may not be specified when
-#   strategy `type` is 'Recreate'
-#
-# The API server defaulted `spec.strategy.rollingUpdate` (maxSurge 25%,
-# maxUnavailable 25%) when the Deployment was first created. A server-side apply
-# only manages the fields it *sets*; it will not delete a field owned by another
-# field manager. So the merged object ends up with both `type: Recreate` and a
-# `rollingUpdate` block, which is invalid. `--force-conflicts` does not help,
-# because there is no conflict -- nobody is claiming that field.
-#
-# A strategic-merge patch with an explicit null DOES remove it. That is all this
-# script does.
-#
-# IS IT DISRUPTIVE? No. Verified against the live cluster: the pod template is
-# untouched, so no new ReplicaSet is created and no pod restarts. Only
-# `metadata.generation` moves. The change takes effect on the *next* rollout.
-#
-# Run this BEFORE the first Argo CD sync of the affected layers, or those syncs
-# will fail.
+# Applying `Recreate` over an existing Deployment fails: the API server
+# defaulted `rollingUpdate`, and server-side apply never removes a field it
+# does not own. A strategic-merge patch with an explicit null does. The pod
+# template is untouched, so nothing restarts. Run it before the first sync of
+# the affected layers.
 #
 # USAGE
 #   scripts/normalize-deployment-strategy.sh            # report only (default)
@@ -45,14 +22,9 @@ if [ -z "${KUBECONFIG:-}" ] && [ -f ./kubeconfig-homelab ]; then
   export KUBECONFIG=./kubeconfig-homelab
 fi
 
-# Deployments the repo declares as `strategy.type: Recreate`.
-#
-# Regenerate this list with:
+# Deployments the repo declares as `strategy.type: Recreate`, a literal table
+# so a parsing bug cannot patch the wrong thing. Regenerate with
 #   grep -rln 'type: Recreate' --include='*.yaml' apps platform
-# then read each file for its namespace and Deployment name. Kept as a literal
-# table rather than parsed at runtime so that a YAML-parsing bug can never cause
-# this script to patch something it should not.
-#
 # format: <namespace> <deployment>
 DEPLOYMENTS="
 keycloak  keycloak

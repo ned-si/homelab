@@ -1,66 +1,17 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # Dump every database in the cluster to local disk, and prove each dump arrived
-# intact.
+# intact. Needs only a kubeconfig; run it before a migration or an upgrade.
+# A point-in-time logical dump, not PITR (that is WAL archiving). Read-only.
 #
-# WHY THIS EXISTS ALONGSIDE THE S3 BACKUPS
-#
-# The Barman Cloud plugin (WAL archiving and daily base backups of every CNPG
-# cluster) and the restic jobs are the real, continuous, off-site backup. They
-# need an S3 bucket and credentials.
-#
-# This script needs nothing but a kubeconfig. It is what you run:
-#
-#   - right now, before touching anything, because a migration without a backup
-#     is a gamble
-#   - before any upgrade on docs/roadmap.md
-#   - before the house move
-#
-# It is a POINT-IN-TIME LOGICAL DUMP, not point-in-time recovery. It cannot
-# restore to 14:32 yesterday. That is what WAL archiving is for. What it can do
-# is survive the cluster being destroyed, which is the failure this is about.
-#
-# NOTHING HERE WRITES TO THE CLUSTER. Every command is a read, run inside the
-# database pod, streamed to stdout.
-#
-# ---------------------------------------------------------------------------
-# INTEGRITY: every dump is verified, not assumed.
-#
-# `kubectl exec` streams binary over a websocket. A truncated or mangled stream
-# produces a file that looks plausible and restores to nothing, which is the
-# classic silent backup failure. Three independent checks per Postgres dump,
-# because each one misses something the others catch:
-#
-#   1. sha256 computed AT THE SOURCE and compared locally.
-#      Catches corruption in transit. pg_dump's custom format has no internal
-#      checksums, so nothing else will find a flipped byte -- measured: a 4-byte
-#      overwrite mid-archive passes a full pg_restore parse silently.
-#
-#   2. `set -o pipefail` on the pg_dump pipeline.
-#      Catches pg_dump itself failing. Without this, a dump that died early
-#      produces a short stream whose checksum matches on BOTH sides -- the
-#      checksum only proves the bytes travelled, not that they are a whole dump.
-#
-#   3. The archive magic (`PGDMP`) and a non-zero size, checked locally.
-#      Catches a file that is actually an error message, and costs nothing.
-#
-# There is deliberately NO `pg_restore --list` round-trip back into the pod.
-# It was tried and removed: `kubectl exec -i` with redirected stdin hangs
-# intermittently -- it wedged for 15 minutes on the fifth of seven databases --
-# and it adds nothing, because a pg_dump that exited 0 has by definition written
-# a structurally valid archive, and the checksum proves the copy is identical.
-# A verification step that can hang forever is worse than no verification step.
-#
-# On how the source-side checksum is taken without any disk: the pod has a
-# read-only root filesystem, /controller sits on a node disk that is already 83%
-# full, and the only large writable path is the live PGDATA volume -- writing a
-# dump there could fill it and stop the database. So the dump is teed through a
-# FIFO into sha256sum, which needs no storage, with the sum going to stderr and
-# the dump to stdout. kubectl keeps those streams separate.
-#
-# `pg_restore --list` alone is NOT sufficient and was rejected on evidence: a
-# file truncated by 10% still lists its full table of contents and exits 0,
-# because the TOC lives at the start.
+# Each Postgres dump is checked three ways:
+#   1. sha256 taken at the source and compared locally: pg_dump's custom
+#      format has no checksums, and a flipped byte passes pg_restore.
+#   2. `set -o pipefail`: a pg_dump that died early still checksums equal.
+#   3. the `PGDMP` magic and a non-zero size.
+# No `pg_restore --list` round-trip: `kubectl exec -i` with stdin hangs, and a
+# truncated file still lists its full TOC. The source sum goes through a FIFO,
+# because the pod has no free disk.
 # ---------------------------------------------------------------------------
 #
 # USAGE
@@ -129,21 +80,10 @@ kubectl get clusters.postgresql.cnpg.io -A \
     [ -z "${pod:-}" ] && continue
     f="$DEST/pg-${ns}-${cl}.dump"
 
-    # -Fc: custom format. Compressed, and pg_restore can inspect it, which is
-    # what makes verification possible at all.
-    #
-    # The FIFO carries the same bytes to sha256sum that go to stdout, so the sum
-    # describes the SOURCE data rather than being recomputed from whatever
-    # arrived -- which would prove nothing. It occupies no disk.
-    #
-    # pipefail is why bash rather than sh: it makes the pipeline exit non-zero
-    # when pg_dump fails, which is the only way to distinguish "a short dump"
-    # from "a complete dump of a small database".
-    #
-    # SC2016: single quotes are required. Every `$` in this block belongs to the
-    # shell INSIDE the pod -- `$$` must be that pod's pid for the fifo name to be
-    # unique there, not this laptop's. Double quotes would expand all of it here
-    # and send an already-substituted script over the wire.
+    # -Fc: custom format. The FIFO sends the same bytes to sha256sum, so the
+    # sum describes the source. pipefail tells a short dump from a small one.
+    # SC2016: every `$` belongs to the shell inside the pod (`$$` names its
+    # FIFO there).
     # shellcheck disable=SC2016
     kubectl -n "$ns" exec "$pod" -c postgres -- bash -c '
       set -uo pipefail
@@ -196,15 +136,8 @@ kubectl get clusters.postgresql.cnpg.io -A \
   done
 
 # ---------------------------------------------------------------------------
-# 2. Paperless SQLite
-#
-#    NOT a file copy. Copying a live SQLite file can capture a torn write.
-#    The image has no `sqlite3` binary -- checked -- but it does have Python,
-#    whose sqlite3.Connection.backup() is the online backup API: it cooperates
-#    with the running writer instead of reading bytes from underneath it.
-#
-#    This resolves the open question in docs/backups.md about sqlite3 being
-#    absent from the image.
+# 2. Paperless SQLite, through Python's sqlite3.Connection.backup() (the
+#    image has no sqlite3 binary): an online backup, not a file copy.
 # ---------------------------------------------------------------------------
 if kubectl -n paperless get deploy paperless >/dev/null 2>&1; then
   f="$DEST/sqlite-paperless.db"

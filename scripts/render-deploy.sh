@@ -1,82 +1,23 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Render every kustomization into deploy/, the directory Argo CD actually syncs.
+# Render every kustomization into deploy/, the directory Argo CD syncs: what
+# is applied is then what is in git and reviewable, and KSOPS (an exec plugin)
+# runs on the repo-server for the secrets directories only. deploy/ is build
+# output; CI fails when it differs from the sources (docs/architecture.md).
+# Layout: deploy/<source dir>/<kind>-<name>.yaml (split_objects below).
 #
-# WHY RENDERED MANIFESTS
+# Not rendered: */secrets (rendering decrypts them; enforced below, covered by
+# scripts/secrets-check.sh) and upstream Helm charts (versioned `chart:`
+# sources).
 #
-# Without this, Argo CD runs kustomize itself at sync time. That has three
-# consequences this repo would rather not live with:
+# The renderer is pinned: `kubectl kustomize`, with EXPECT_KUSTOMIZE the
+# single source of the embedded version (ci.yaml pins the matching
+# KUBECTL_VERSION). A mismatch is fatal in --check mode, because a byte diff
+# from the wrong renderer looks like a missed render. Unrelated to
+# K8S_VERSION, which tracks the cluster.
 #
-#   1. What gets applied is not what is in the repo. `git show` tells you the
-#      overlay changed; it does not tell you what the cluster will receive. A
-#      one-line change to a `labels:` block can rewrite two hundred objects.
-#
-#   2. The repo-server needs the plugins. KSOPS is an *exec* plugin, so
-#      enabling it means `--enable-alpha-plugins --enable-exec` globally on the
-#      repo-server: any kustomization it builds may execute a binary. Rendering
-#      ahead of time shrinks that blast radius to the three secret directories
-#      that genuinely need it.
-#
-#   3. Renders happen N times, on a machine you are not watching, with network
-#      access to fetch remote bases. Doing it once in CI makes it reproducible
-#      and reviewable.
-#
-# So: source of truth stays the kustomizations. deploy/ is BUILD OUTPUT, checked
-# in so Argo can read it, and verified in CI to be exactly what the sources
-# produce. If deploy/ is ever edited by hand, CI fails.
-#
-# Layout: deploy/<source dir>/<kind>-<name>.yaml, one file per object (see
-# split_objects below).
-#
-# WHAT IS NOT RENDERED HERE
-#
-#   */secrets   Rendering these means running KSOPS, which DECRYPTS them. The
-#               output would be plaintext Secrets in git -- the exact thing this
-#               repo exists to stop. Those three Applications keep pointing at
-#               their source directory and keep using the plugin. The skip is
-#               enforced below and is not a configuration option.
-#
-#               What DOES cover them: scripts/secrets-check.sh, which asserts
-#               every file a KSOPS generator references exists and is encrypted,
-#               without needing the age key.
-#
-#   Helm charts  Upstream charts stay as versioned `chart:` references. They are
-#               not this repo's manifests; Renovate tracks their versions, and a
-#               chart upgrade is reviewable as a version bump plus a values
-#               diff. Rendering them would add ~50k lines of vendored YAML and
-#               take Helm hook ordering away from Argo. See docs/architecture.md.
-#
-# THE RENDERER IS PINNED, AND IT HAS TO BE
-#
-# Checking generated output into git only works if the generator is
-# deterministic. Two different kustomize versions can order or format the same
-# input differently, which shows up as a `--check` failure that has nothing to do
-# with anyone's change.
-#
-# So this uses `kubectl kustomize` -- one binary, already required, with kustomize
-# embedded -- and records the embedded version below. EXPECT_KUSTOMIZE is the
-# SINGLE SOURCE OF TRUTH for that number; ci.yaml deliberately does not restate
-# it, and pins the kubectl release that carries it (KUBECTL_VERSION) instead.
-#
-# In --check mode a mismatch is FATAL, not a warning. A warning was worthless
-# here: --check compares bytes, so the wrong renderer produces a diff that reads
-# as "someone forgot to re-render" and sends you looking at the wrong thing.
-# Bumping KUBECTL_VERSION therefore means updating EXPECT_KUSTOMIZE and
-# re-rendering, in the same commit, and CI will say so.
-#
-# Note this is unrelated to K8S_VERSION in ci.yaml. That one must track the
-# cluster (kubernetesVersion in talos/talconfig.yaml) because it validates
-# against the API schema. This one is a local templating engine and never
-# talks to the cluster.
-#
-# RETRIES, AND WHY ONLY FOR SOME DIRECTORIES
-#
-# Two kustomizations resolve remote URLs at render time:
-# infrastructure/gateway-api and platform/barman-cloud-plugin. A github.com blip therefore fails a CI job that
-# has nothing to do with networking. Those directories -- and only those, keyed
-# off an actual URL in the kustomization rather than off a name list or an
-# error-message regex -- are retried with backoff, and a final failure is
-# labelled NETWORK so it is distinguishable from a broken manifest at a glance.
+# Kustomizations with a remote URL (gateway-api, barman-cloud-plugin) are
+# retried with backoff, and a final failure is labelled NETWORK.
 #
 # USAGE
 #   scripts/render-deploy.sh            regenerate deploy/
@@ -158,14 +99,9 @@ mkdir -p "$OUT"
 
 ERRF="$WORK/stderr"
 
-# Render one directory. stdout of `kubectl kustomize` lands in $body; stderr
-# lands in $ERRF and is NEVER merged into it.
-#
-# Do NOT merge them with `2>&1`. `kubectl kustomize` writes deprecation warnings
-# to stderr ON SUCCESS, so a merged capture puts the warning text verbatim into
-# deploy/ -- invalid YAML, in a file the exit status still calls ok. The
-# tree happens to be warning-free today; that is a property of the current
-# kustomize version, not of this script.
+# Render one directory: stdout into $body, stderr into $ERRF, never merged
+# (`kubectl kustomize` warns on stderr on success, which would land in
+# deploy/ as invalid YAML).
 render_one() {
   : >"$ERRF"
   body=$(kubectl kustomize "$1" 2>"$ERRF")
@@ -178,23 +114,13 @@ has_remote_resource() {
 
 # split_objects <out-dir> <source-dir>
 #
-# Read one rendered kustomize stream on stdin and write ONE FILE PER OBJECT into
-# <out-dir>, named `<kind>-<name>.yaml`, lowercase. Only when two objects in the
-# same directory would get the same name (same kind and name, different
-# namespaces) do both get `-<namespace>` appended. Characters outside
-# [a-z0-9.-] become `_` (RBAC names may hold `:`). Every file carries the
-# generated-file header, a `---`, then the object exactly as kustomize printed
-# it, so `cat <dir>/*.yaml` is a valid multi-document stream again.
-#
-# Why one file per object: a single concatenated stream per directory is
-# unreadable when the question is "what is running". Argo CD reads every
-# *.yaml in a directory source, so the set of objects it applies is unchanged.
-#
-# Parsing is safe on kustomize output only, for the same reason
-# published-hostnames.sh gives: documents are separated by `---` at column 0,
-# `kind:` is at column 0, and `metadata.name` / `metadata.namespace` are at
-# exactly two spaces under `metadata:`. A document without a kind or a name, or
-# two objects that still map to one file name, is an error rather than a guess.
+# Write one file per object of the kustomize stream on stdin into <out-dir>,
+# `<kind>-<name>.yaml` lowercase, plus `-<namespace>` only when two objects
+# would collide; characters outside [a-z0-9.-] become `_`. Each file has the
+# generated-file header, `---`, then the object as printed, so `cat
+# <dir>/*.yaml` is a valid stream. Safe on kustomize output only (`---`,
+# `kind:` at column 0, name and namespace at two spaces); a missing kind or
+# name, or a collision, is an error.
 split_objects() {
   awk -v dir="$1" -v src="$2" '
     function unquote(s) {

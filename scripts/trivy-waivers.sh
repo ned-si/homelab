@@ -1,35 +1,9 @@
 #!/bin/bash
 #
-# Lint .trivyignore.yaml. Every waiver must justify and expire itself.
-#
-# Runs in pre-commit and CI. Needs no Trivy, no cluster and no network: it only
-# reads the waiver file, so it is cheap enough to be unconditional.
-#
-# ---------------------------------------------------------------------------
-# WHAT IT ENFORCES, AND WHY EACH RULE EXISTS
-#
-#   statement present     A waiver with no reason is indistinguishable from a
-#                         waiver added to make a build green. Being unable to
-#                         write the reason is the signal to fix the finding.
-#
-#   expired_at present    Without it a waiver is permanent, and permanent
-#                         waivers accumulate silently. The old flat
-#                         `.trivyignore` had five of them and one was actively
-#                         hiding a real defect in our own manifests.
-#
-#   expiry bounded        A waiver expiring in 2040 is a permanent waiver with
-#                         extra steps. MAX_MONTHS caps it.
-#
-#   not already expired   An expired waiver no longer suppresses anything, so
-#                         Trivy has already started failing on it. Saying so
-#                         here names the cause instead of leaving someone to
-#                         work out why a finding reappeared.
-#
-#   warn near expiry      WARN_DAYS ahead, so renewal is a decision taken with
-#                         time rather than under a red build.
-#
-# It deliberately does NOT check that a waiver still matches a real finding.
-# That needs a full scan, so it lives in scripts/trivy-gate.sh which has one.
+# Lint .trivyignore.yaml: every waiver has a `statement`, an `expired_at`
+# within MAX_MONTHS, is not expired (a finding would reappear unexplained),
+# and warns WARN_DAYS before expiry. Reads only the file. Whether a waiver
+# still matches a finding is scripts/trivy-gate.sh's job.
 #
 # USAGE
 #   scripts/trivy-waivers.sh              lint, warn near expiry
@@ -81,18 +55,8 @@ main() {
     return 1
   fi
 
-  # `yq` converts to JSON and python reads it with the standard library.
-  #
-  # Deliberately not PyYAML: it is not installed system-wide on macOS and
-  # homebrew's python refuses `pip install` into it (externally-managed), so a
-  # bare `bash scripts/trivy-waivers.sh` would fail on a developer machine while
-  # passing in the pre-commit hook's own venv. Two behaviours for one script is
-  # worse than one more binary.
-  #
-  # And deliberately not awk: this is nested YAML, and scripts/leak-check.sh is
-  # the standing demonstration of what hand-rolling that costs.
-  #
-  # `yq` is already in `task tools` and `tools:check`.
+  # yq to JSON, read by the standard library: no PyYAML on macOS's python,
+  # and awk on nested YAML is a mistake.
   if ! command -v yq >/dev/null 2>&1; then
     red "${ANN_ERR}yq not found. Run 'task tools' (or: brew install yq)."
     return 1

@@ -1,53 +1,14 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Validate every renderable kustomization against the LIVE API server.
+# Validate every renderable kustomization against the LIVE API server with
+# --dry-run=server --server-side and Argo CD's field manager, as a sync does:
+# client-side apply and the default `kubectl` manager produce merges and
+# conflicts Argo CD never hits. No --force-conflicts: no Application forces,
+# so a conflict is reported (CONFLICT). Nothing is written.
 #
-# Uses --dry-run=server --server-side, which is what the Argo Applications
-# actually do (syncOptions: ServerSideApply=true). This matters: CLIENT-side
-# apply merges into the existing object and can invent invalid combinations --
-# e.g. an env entry carrying both `value` and `valueFrom` -- that server-side
-# apply does not produce. A client-side dry-run therefore reports failures that
-# would never happen in practice.
-#
-# THE FIELD MANAGER MATTERS TOO. Server-side apply resolves ownership per field
-# manager, so running as the default `kubectl` manager produces conflicts and
-# bogus merges that Argo CD would never hit. Impersonating Argo's manager name
-# is what makes this dry-run predictive rather than merely plausible. Without
-# it you get a pile of
-#
-#   env[N].valueFrom: Invalid value: "": may not be specified when 'value' is
-#   not empty
-#
-# which are artefacts of the wrong manager, not bugs in the manifests.
-#
-# NO --force-conflicts. None of the Applications set `Force=true`
-# (grep syncOptions in clusters/homelab/), and Argo's server-side apply does not
-# force by default, so forcing here made the dry-run strictly MORE permissive
-# than the sync it claims to predict: a field-ownership conflict that would stop
-# a real sync was being resolved silently and reported ok. Conflicts are now
-# reported as their own class -- see CONFLICT below.
-#
-# Nothing here mutates the cluster: --dry-run=server validates through admission
-# and merge logic, then discards.
-#
-# ---------------------------------------------------------------------------
-# EXPECTED FAILURES ARE KEYED ON THE FAILURE, NOT ON THE DIRECTORY
-#
-# A dry-run against a cluster that has not been migrated yet cannot be clean, so
-# "no output" is not a usable success signal and some failures have to be
-# tolerated. The question is which.
-#
-# Keying the tolerance on the DIRECTORY -- which is what this script used to do
-# -- meant 12 of 20 directories were blanket-excused. Any new, real, undocumented
-# breakage in 60% of the tree read as green, while README.md advertised that this
-# script "can tell you whether anything is failing for an *undocumented* reason".
-# It could not.
-#
-# So an expected failure is a (directory, regex-over-the-dry-run-output) pair. A
-# failure in a listed directory whose message does NOT match the regex is an
-# UNEXPECTED failure and is counted as such. Entries that never match during a
-# run are reported as stale, so the table shrinks as the migration proceeds
-# instead of quietly outliving it.
+# Expected failures are (directory, regex over the output) pairs: a failure
+# in a listed directory that does not match is unexpected, and entries that
+# never match are reported as stale.
 #
 # Format:  <dir>::<extended regex over the kubectl output>::<why>
 # ---------------------------------------------------------------------------

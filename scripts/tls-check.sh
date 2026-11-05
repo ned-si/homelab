@@ -1,44 +1,20 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Check TLS and security headers on every published hostname.
+# Check TLS and security headers on every published hostname: the DAST gate.
+# ZAP reports to code scanning and gates on HIGH alerts only; its header
+# rules are WARN in .zap/rules.tsv.
 #
-# THIS IS THE DAST GATE. ZAP is not.
+# Hard failures: not reachable over HTTPS, plain HTTP serving content instead
+# of redirecting (a route without `sectionName: https`), an unreadable
+# certificate, or one closer to expiry than MIN_DAYS.
 #
-# There are three artefacts that have an opinion about the same handful of
-# response headers: this script, .zap/rules.tsv, and .github/workflows/dast.yaml.
-# They used to hold three different positions on one control -- rules.tsv marked
-# a missing HSTS header FAIL, this script warned about it, and the workflow set
-# `fail_action: false` and discarded ZAP's exit code entirely.
-#
-# Resolved as follows, and all three files say the same thing:
-#
-#   * ZAP REPORTS to code scanning (SARIF) and gates only on HIGH alerts. The
-#     four header rules are WARN in rules.tsv.
-#   * This script is the GATE, because it is cheap, deterministic, and its hard
-#     checks are things that are true today and would be regressions if they
-#     stopped being true.
-#
-# HARD FAILURES (a real regression, and green today)
-#   - hostname not reachable over HTTPS
-#   - plain HTTP serves content instead of redirecting -- catches an HTTPRoute
-#     attached to both Gateway listeners, i.e. a missing `sectionName: https`
-#   - certificate unreadable
-#   - certificate closer to expiry than MIN_DAYS
-#
-# HEADERS
-#   - the four security headers below, on the page `/` lands on (same-host
-#     redirects followed). The Gateway sets them per route
-#     (docs/networking.md, Security headers). Warnings by default; hard
-#     failures with STRICT_HEADERS=1, which dast.yaml sets:
+# The four security headers, on the page `/` lands on (docs/networking.md,
+# Security headers), warn by default and fail with STRICT_HEADERS=1, which
+# dast.yaml sets:
 #
 #         STRICT_HEADERS=1 ./scripts/tls-check.sh
 #
-# Deliberately dependency-free (curl + openssl) so it runs on a stock CI
-# runner and locally on macOS. dast.yaml keeps its output off the public log.
-#
-# Hostnames are DERIVED from deploy/ by scripts/published-hostnames.sh -- see
-# that script for why the list is 15 names and not the 17 a naive grep finds.
-#
+# curl + openssl only. Hostnames come from scripts/published-hostnames.sh.
 # Exit 1 if any hostname fails a hard check.
 # ---------------------------------------------------------------------------
 set -uo pipefail

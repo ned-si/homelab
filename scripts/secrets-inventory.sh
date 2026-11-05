@@ -1,78 +1,15 @@
 #!/usr/bin/env bash
 # Extract every credential that was committed in plaintext, and write a crib
-# sheet mapping each one to the sealed file it now belongs in.
-#
-# WHY THIS SCRIPT READS FROM GIT RATHER THAN CONTAINING THE VALUES
-#   This script is tracked. If the values were embedded here, the leak would just
-#   move to a new file. Instead it reads them out of the pre-restructure commit
-#   at runtime and writes them to a git-ignored output file.
+# sheet mapping each one to the sealed file it now belongs in. The values are
+# read from git at runtime, never embedded here.
 #
 # OUTPUT: secrets-to-encrypt.local.md  (git-ignored, chmod 600)
 #
 # Usage:
-#   ./scripts/secrets-inventory.sh [git-ref]
+#   ./scripts/secrets-inventory.sh [git-ref]      # default origin/main
 #
-# `git-ref` defaults to `origin/main`, i.e. the tree as it was before this
-# restructure. Pass a commit if origin/main has already moved on.
-#
-# ---------------------------------------------------------------------------
-# DECISION: THE LEAKED CREDENTIALS ARE CARRIED FORWARD, NOT ROTATED.
-# Recorded 2026-08-28. Owner's decision, not an oversight, and not a TODO.
-#
-# The nine credentials inventoried below are re-encrypted with SOPS and kept at their current values. Rotation is
-# deferred; the git history is scrubbed once the migration is finished. This
-# script exists to move the values into sealed files, not to change them.
-#
-# The whole point of writing this down is that the decision is CONDITIONAL. It
-# holds because of the following facts, all of which are true today:
-#
-#   - Single operator. There is nobody else with a clone, and no collaborator has
-#     ever been added.
-#   - Every affected service is reachable only from the LAN or from behind
-#     Keycloak. The credentials grant nothing to someone who cannot already reach
-#     the network.
-#   - Every value is recorded in Bitwarden, so rotation is a decision that can be
-#     taken later at leisure rather than a recovery operation.
-#   - The repository is private, and the history rewrite is scheduled -- at the
-#     END of the migration, deliberately, because rewriting history mid-migration
-#     invalidates the `deployed` tag that Argo CD tracks and breaks every existing
-#     clone at the moment the cluster is least stable.
-#
-# ANY OF THE FOLLOWING INVALIDATES IT, and then rotation comes first:
-#
-#   - the repository becoming public, forked, or gaining a collaborator
-#   - any of these services becoming reachable from the internet without
-#     authentication in front of it
-#   - a GitHub App or CI runner with read access to the tree being compromised
-#     (Renovate has read access to the whole repository)
-#   - evidence that any of the values has been used from an address that is not
-#     the operator's
-#
-# TWO EXCEPTIONS THAT ARE NOT COVERED BY THIS DECISION, because they are not
-# LAN-only application passwords:
-#
-#   - the OpenSSH private key for root@truenas and the TrueNAS API key.
-#     These grant filesystem-level
-#     access to every dataset including the backups, and
-#     infrastructure/secrets/democratic-csi-iscsi.sops.yaml.example already
-#     requires a NEW keypair and a non-root account, so the replacement is a
-#     prerequisite of the driver working at all rather than a rotation task.
-#   - the Cloudflare API token. It is not LAN-scoped: it edits public DNS
-#     for the zone, from anywhere, and therefore enables issuing valid
-#     certificates for any subdomain.
-#
-# ---------------------------------------------------------------------------
-# SC2016 IS DISABLED FILE-WIDE, AND THAT IS THE RIGHT CALL HERE.
-#
-# This script's entire output is Markdown, and Markdown uses backticks for code
-# spans. Single-quoted `echo 'a `literal` b'` is therefore the correct quoting on
-# almost every line: the point is that nothing expands. shellcheck's "expressions
-# don't expand in single quotes" is true and irrelevant sixty times over, and
-# sixty inline suppressions would bury the two or three lines where a missing
-# expansion WOULD be a bug.
-#
-# The alternative -- switching to double quotes and escaping every backtick --
-# would introduce exactly the class of bug the warning is about, in reverse.
+# SC2016 is disabled file-wide: the output is Markdown, and single quotes keep
+# its backticks literal on almost every line.
 # ---------------------------------------------------------------------------
 # shellcheck disable=SC2016
 set -uo pipefail

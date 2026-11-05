@@ -1,40 +1,25 @@
 #!/bin/bash
 # renovate-next.sh -- rebase the next Renovate pull request, and only that one.
 #
-# Branch protection on main requires the strict `ci` check, so a pull request
-# merges only when it is up to date with main. With `rebaseWhen:
-# behind-base-branch`, Renovate rebased every open pull request after each
-# merge and CI ran on all of them, although only one can merge next. Now
-# Renovate rebases on conflicts only (`rebaseWhen: conflicted`), and this
-# script, run by .github/workflows/renovate-next.yaml after each push to main
-# and every 30 minutes, ticks the rebase checkbox of one pull request at a
-# time. Renovate rebases and signs it, CI runs once, auto-merge merges it, the
-# push to main runs this again.
+# main requires a strict `ci`, so only an up-to-date pull request merges.
+# Renovate rebases on conflicts only (`rebaseWhen: conflicted`); this script,
+# run by .github/workflows/renovate-next.yaml after each push to main and
+# every 30 minutes, ticks the rebase checkbox of one pull request at a time,
+# so CI runs once per merge.
 #
-# Considered: open, not draft, by Renovate, oldest first. Renovate does not
-# always turn GitHub auto-merge on (#837), so this does it for every
-# candidate that lacks it. Left alone: the label `no-automerge` (the
-# exceptions in .github/renovate.json5, data-store majors), and the label
-# `automerge-weekdays` (cilium) outside Monday-Friday 9:00-16:59
-# Europe/Zurich, Renovate's automergeSchedule for it. A pull request whose
-# `renovate/stability-days` status is pending (minimumReleaseAge) is not
-# merged either; it gets one comment saying so, and joins once it passes.
+# Candidates: open, not draft, by Renovate, oldest first; auto-merge is turned
+# on where Renovate did not (#837). Skipped: label `no-automerge`, label
+# `automerge-weekdays` outside Monday-Friday 9:00-16:59 Europe/Zurich, and a
+# pending `renovate/stability-days` (one comment says so).
 #
-#   1. Something is already moving: a rebase is requested (box ticked), or a
-#      pull request is up to date with main and its `ci` check is queued or
-#      running. Then nothing is done.
-#   2. Otherwise the oldest pull request behind main whose `ci` did not fail
-#      gets its box ticked. A failed `ci` waits for Renovate's next update or
-#      a human; it does not block the others.
+#   1. A rebase is requested, or an up-to-date pull request's `ci` is queued
+#      or running: do nothing.
+#   2. Otherwise tick the oldest pull request behind main whose `ci` did not
+#      fail.
 #
-# Paused: scripts/pr-merge.sh sets the repository variable
-# RENOVATE_TRAIN_PAUSED ("<pr> <utc time>") while it holds its merge lock, so
-# Renovate merges do not move main under the pull request it is merging.
-# Then nothing is ticked and nothing else is changed, and the run succeeds.
-# GitHub auto-merge stays as it is (#960), so a pull request already
-# rebased before the pause can still merge, and
-# pr-merge.sh rebases again (its retries). A pause older than PAUSE_STALE_MIN
-# (90) minutes is ignored: its pr-merge run died.
+# Paused while RENOVATE_TRAIN_PAUSED ("<pr> <utc time>", set by
+# scripts/pr-merge.sh during its merge lock) is younger than PAUSE_STALE_MIN
+# (90) minutes; GitHub auto-merge stays as it is (#960).
 #
 # Prints one line per auto-merge turned on, then one line, what it did
 # and why. Environment: REPO (owner/name), GH (default gh), DRY_RUN (1:

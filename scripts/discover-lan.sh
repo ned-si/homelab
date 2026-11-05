@@ -1,37 +1,18 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Find what is on the LAN, identify it by behaviour, and say whether the cluster's
-# static addresses are free.
+# Find what is on the LAN, identify it by open ports, and say whether the
+# cluster's static addresses are free. Power on one device, run this, check.
 #
-# Built for the plug-one-thing-in-then-scan loop: power on one device, run this,
-# confirm it landed where expected, move on.
-#
-# ---------------------------------------------------------------------------
-# IT IDENTIFIES BY OPEN PORTS, NOT BY MAC VENDOR.
-#
-# Vendor lookup needs an OUI database and is wrong often enough to mislead: the
-# device squatting on .247 at the new house has a MAC prefix that resolves to a
-# network-equipment vendor, which would have read as "probably one of your nodes".
-# It is not one -- it has no SSH and no kubelet. Ports settle it in one round trip:
+# Ports, not MAC vendor (OUI lookups mislead):
 #
 #   6443 + 10250   Kubernetes control plane
 #   10250 only     Kubernetes worker
 #   3260 + 2049    TrueNAS (iSCSI + NFS)
 #   22 only        some other Linux box
 #
-# ---------------------------------------------------------------------------
-# WHY THIS DOES NOT SUGGEST NEW ADDRESSES
-#
-# The nodes' addresses are static in their Talos machine configs (talos/talconfig.yaml),
-# and they are baked into the API VIP config, the apiserver certificate SANs and
-# etcd's peer URLs. The NAS address is baked into the iSCSI portal config and every
-# NFS PersistentVolume. A device that comes back on a different address does not
-# reconfigure itself; it breaks things that then need certificates re-issued.
-#
-# So the output is DHCP RESERVATIONS that pin each device to the address it already
-# has, plus a conflict report. Reservations are belt-and-braces: the static config
-# is what actually assigns the address, and the reservation stops the router handing
-# it to something else.
+# It suggests no new addresses: node and NAS addresses are baked into Talos
+# configs, certificates, etcd and the storage config. The output is DHCP
+# reservations that pin each device to its current address, plus conflicts.
 #
 # Usage:
 #   scripts/discover-lan.sh              # scan the /24 the Mac is on

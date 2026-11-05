@@ -5,21 +5,12 @@
 # Prints exactly one word on stdout:
 #   absent    the control call returned 200 AND the per-name call returned 404
 #   present   the control call returned 200 AND the per-name call returned 200
-#   error     anything else: the control call was not 200 (GitHub also answers
-#             404 for a private repository this token cannot see, so a 404 on
-#             the name alone proves nothing), another status, a network error,
-#             or no HTTP status line at all
+#   error     anything else (a 404 on the name alone proves nothing: GitHub
+#             also answers 404 for a repository the token cannot see)
 #
-# It is the only way the repository's scripts read a variable's existence
-# (pr-merge.sh's merge-freeze guard), so every caller fails closed in the same
-# way. A variables *list* is never used as the answer: it is
-# paginated, and a failed call lists nothing, which would read as "absent".
-#
-# Only the HTTP status line is read, whatever gh's exit code: gh exits 1 on any
-# non-2xx (including the 404 that means "absent"), so every call is captured as
-# `out=$(gh api --include ... 2>&1) || true`. This keeps the function correct
-# under `set -euo pipefail`. The function always returns 0; callers branch on
-# the printed word.
+# The only way the scripts read a variable's existence, so every caller fails
+# closed the same way; never a (paginated) variables list. Only the HTTP
+# status line is read, since gh exits 1 on any non-2xx. Always returns 0.
 #
 # Repository: $GH_VAR_REPO, default ned-si/homelab.
 

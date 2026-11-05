@@ -1,9 +1,8 @@
 #!/bin/bash
 # pr-merge.sh [--dry-run] [--ff] <pr-number>
 #
-# The only way code lands on `main` while branch protection is unavailable
-# (private repository on GitHub Free, see the governance ADR). It refuses
-# (exit 2, one line per failed guard) unless every guard holds:
+# The only way code lands on `main`. It refuses (exit 2, one line per failed
+# guard) unless every guard holds:
 #
 #   checks         every required check reports SUCCESS for the PR head SHA
 #   title          the PR title passes scripts/ci/check-title.sh
@@ -19,10 +18,8 @@
 #
 # Then it squash-merges (`gh pr merge --squash --delete-branch
 # --match-head-commit <sha>`), or with --ff pushes the verified head SHA to main
-# as a fast-forward (`git push origin <sha>:refs/heads/main`, which the server
-# rejects if it is not one). --dry-run prints the decision and changes nothing:
-# "would merge (<mode>) PR #<n> at <sha>" on exit 0.
-#
+# as a fast-forward. --dry-run prints "would merge (<mode>) PR #<n> at <sha>"
+# and changes nothing.
 # Merge lock (not with --dry-run). `main` requires a strict, up-to-date `ci`
 # and runs on this Mac merge from different worktrees, so merges are
 # serialised:
