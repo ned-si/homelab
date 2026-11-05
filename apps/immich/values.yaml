@@ -95,8 +95,23 @@ machine-learning:
                   matchExpressions:
                     - key: node-role.kubernetes.io/control-plane
                       operator: DoesNotExist
+        # Rootless as upstream documents it (FAQ, "How can I run Immich as a
+        # non-root user?"): it writes only /cache. The cache was written as
+        # root, so the kubelet gives its files group 1000 once.
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          fsGroup: 1000
+          fsGroupChangePolicy: OnRootMismatch
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           # Peak about 2.4Gi with both SigLIP models loaded.
           resources:
             requests:

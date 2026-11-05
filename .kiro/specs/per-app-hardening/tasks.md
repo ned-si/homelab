@@ -37,12 +37,12 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       `kubectl -n syncthing delete pod syncthing-0` for a forced rollback
       after a revert (design.md "Error handling");
       `scripts/psa-readiness.sh syncthing`. [2, 3, 4, 8, 9] #1156
-- [ ] 6. Weekday. Immich Valkey and machine learning: Valkey probes and
+- [x] 6. Weekday. Immich Valkey and machine learning: Valkey probes and
       non-root `999:1000`, machine learning non-root `1000:1000`
       (`fsGroup` on `immich-machine-learning-cache` only if the check
       asks), tokens in `resources/` and, for the chart-created account,
       through the chart's pod options [4.3]; `forceRename` unchanged. [2,
-      3, 4, 8, 9]
+      3, 4, 8, 9] #1166
 - [ ] 7. Weekday. Immich server: root profile (no `KILL`, `SETGID` or
       `SETUID` unless the log asks), token through the chart's pod
       options [4.3], the `non-root` gap line with operator decision 1 as
