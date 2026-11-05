@@ -3,31 +3,17 @@
 #     pre-commit install --install-hooks
 #     pre-commit install --hook-type commit-msg
 #
-# These are the same checks CI runs (.github/workflows/ci.yaml), so a green
-# pre-commit plus a green pre-push means a green CI static stage.
 # Run against everything with: pre-commit run --all-files
 #                              pre-commit run --all-files --hook-stage pre-push
 #
-# ONE SOURCE OF TRUTH. CI's `lint` job runs this file (`pre-commit run
-# --all-files`) and SKIPs only the hooks that a dedicated CI step runs with the
-# same script or the same pinned binary; tests/test_precommit_parity.py fails
-# when a hook is skipped in CI without such a step, or a hook is added without
-# being either run or skipped there.
-#
-# Stages: `pre-commit` is the fast set (seconds). `pre-push` adds the slow
-# ones that render every Application (helm, network): the same render,
-# kubeconform and repo-policy steps as CI's `render` job.
-#
-# NOTE ON PINS: each `rev` is pinned and tracked by Renovate's native
-# `pre-commit` manager, which is why these need no `# renovate:` comment.
+# CI's `lint` job runs this file and skips only hooks a dedicated CI step runs
+# with the same script or binary; tests/test_precommit_parity.py keeps the two
+# in step. `pre-push` adds the slow render, kubeconform and repo-policy steps.
+# Each `rev` is tracked by Renovate's `pre-commit` manager.
 default_install_hook_types: [pre-commit, commit-msg, pre-push]
 
-# NOTE ON deploy/: it is generated output (scripts/render-deploy.sh). Any hook
-# that REWRITES files is excluded from it. A formatter that "fixes" generated
-# YAML puts it permanently out of sync with its source, so `render-deploy.sh
-# --check` would fail forever and the only way out would be to disable the check.
-# Hooks that merely READ deploy/ (check-yaml, gitleaks, leak-check,
-# placeholder-check) still apply.
+# deploy/ is generated: hooks that rewrite files exclude it, or
+# `render-deploy.sh --check` would fail for ever. Hooks that read it still run.
 repos:
   # ---------------------------------------------------------------------------
   # Hygiene
@@ -65,38 +51,13 @@ repos:
         # on a Gateway API version bump, which is behind manual review anyway.
         exclude: ^deploy/
       - id: check-executables-have-shebangs
-      # The one that actually matters here, and the mirror image of the above:
-      # a file with a `#!` line that is NOT executable. Four scripts were once
-      # committed as mode 644, so a `task` target that ran one died with
-      # "permission denied, exit status 127" at the worst possible moment.
-      #
-      # git tracks the executable bit, so a local `chmod +x` that is never staged
-      # fixes it for you and for nobody else.
-      #
-      # It is not only shell scripts: scripts/renovate-dryrun.js carries a
-      # `#!/usr/bin/env node` line and was committed 644, which failed this hook,
-      # which failed `lint`, which failed `ci-passed`. Verify the whole tree with
-      # `git ls-files -s scripts/`.
+      # A file with a `#!` line that is not executable fails here (git tracks
+      # the bit; a local chmod that is never staged fixes nothing).
       - id: check-shebang-scripts-are-executable
       - id: detect-private-key
-        # This hook matches the BARE PHRASE `BEGIN ... PRIVATE KEY`, with no
-        # requirement that the PEM armour delimiters or any key material follow
-        # it. So it fires on anything that talks ABOUT private keys:
-        #
-        #   *.example                 templates show a key's shape around a
-        #                             placeholder, which is their whole job
-        #   scripts/leak-check.sh     mentions the phrase in a comment -- one that
-        #                             documents this exact false positive, because
-        #                             leak-check.sh hit it against its own tooling
-        #                             first and fixed it by requiring the armour
-        #   scripts/secrets-inventory.sh
-        #                             passes the phrase as a search argument to
-        #                             extract the old key from a git ref
-        #
-        # Excluding them does not create a gap: scripts/leak-check.sh scans the
-        # same files and DOES require the armour delimiters, so real key material
-        # in either script still fails the commit. This hook is the cheap
-        # pre-filter, not the control.
+        # This hook matches the bare phrase, so it fires on templates and on
+        # the two scripts that talk about it. scripts/leak-check.sh scans the
+        # same files and requires the armour, so nothing slips through.
         exclude: |
           (?x)^(
             .*\.example
@@ -135,27 +96,10 @@ repos:
         # tests/bash/lib.sh, which a commit rarely stages too.
         args: [-x]
 
-  # THE ONLY OpenTofu FORMAT CHECK. `task lint:tofu` invokes this hook rather
-  # than running its own `tofu fmt -check`, because two commands meant two
-  # behaviours for one rule: the hook REWRITES and fails (the formatter
-  # convention this repo already uses for trailing-whitespace and
-  # end-of-file-fixer), while the task only reported. A file could be reformatted
-  # by a commit and still be flagged by `task lint`.
-  #
-  # The hook picks its binary via pre-commit-terraform's own resolution order:
-  # PCT_TFPATH, then `terraform`, then `tofu`. That is why it is called
-  # terraform_fmt in an OpenTofu repo -- `fmt` has not diverged between the two,
-  # so the bytes are the same either way.
-  #
-  # IT NEEDS ONE OF THOSE BINARIES ON PATH AND DOES NOT SAY SO WHEN IT IS MISSING.
-  # An earlier version of this comment claimed the GitHub runner supplies
-  # `terraform`. It did once; ubuntu-24.04 no longer ships it. The hook then found
-  # neither binary and failed with `exit code: 127` -- "command not found" --
-  # inside a pre-commit run whose every other line said Passed, which reads like
-  # a formatting failure rather than a missing tool.
-  #
-  # CI does not run this hook: its `lint` job runs `tofu fmt -check -recursive`
-  # with the pinned tofu binary. Locally, `task tools` gets tofu via Homebrew.
+  # The only OpenTofu format check (`task lint:tofu` calls this hook). It uses
+  # PCT_TFPATH, then `terraform`, then `tofu`, and fails with exit code 127
+  # when none is on PATH. CI's `lint` runs `tofu fmt -check -recursive`
+  # instead.
   - repo: https://github.com/antonbabenko/pre-commit-terraform
     rev: v1.109.4
     hooks:
@@ -163,11 +107,8 @@ repos:
         files: ^bootstrap/
 
   # ---------------------------------------------------------------------------
-  # Conventional commits.
-  #
-  # Local guard only. CI checks every PR title and commit subject with
-  # scripts/ci/check-title.sh (the `pr-metadata` job); keep the types here in
-  # line with its regex.
+  # Conventional commits, locally. CI checks titles and subjects with
+  # scripts/ci/check-title.sh; keep the types in line with its regex.
   # ---------------------------------------------------------------------------
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.5.0
@@ -241,28 +182,11 @@ repos:
         pass_filenames: false
         always_run: true
 
-      # A placeholder is not a syntax error, so nothing else here catches it:
-      # `homelab-backups-REPLACE-ME` is well-formed YAML that validates against
-      # the API schema and renders deterministically. Deferrals live in
+      # A placeholder is valid YAML, so only this catches it; deferrals live in
       # scripts/placeholder-allowlist.tsv with a reason each.
-      # Waiver hygiene only -- reason present, expiry present, not already
-      # expired, not absurdly far out. Cheap: reads one file, needs no Trivy, no
-      # network and no cluster, so it can be unconditional.
-      #
-      # The GATE is not here. scripts/trivy-gate.sh scans the tree twice (HEAD and
-      # the merge-base) and takes ~30s, which is too slow for every commit; CI owns
-      # it. This hook catches the mistake that is actually common: adding a waiver
-      # without a reason or an expiry.
-      #
-      # `always_run`, NOT `files: ^\.trivyignore\.yaml$`, and the difference
-      # matters: expiry is a function of TIME, not of the file changing. Scoped to
-      # the file, a waiver quietly aging past its date would never trigger the
-      # hook, and the first sign would be CI failing on a finding that reappeared
-      # for no reason visible in the diff. That is exactly the failure this whole
-      # mechanism exists to prevent.
-      #
-      # `verbose: true` because pre-commit hides the output of a hook that exits 0,
-      # and the approaching-expiry warning is the entire point.
+      # Waiver hygiene only (scripts/trivy-waivers.sh); the gate is CI's
+      # trivy-gate.sh. `always_run`: expiry depends on time, not on the file
+      # changing. `verbose: true` so the near-expiry warning shows.
       - id: trivy-waivers
         name: trivy waivers carry a reason and an expiry
         entry: ./scripts/trivy-waivers.sh
@@ -278,26 +202,11 @@ repos:
         pass_filenames: false
         always_run: true
 
-      # BLOCKS. It was advisory while the *.sops.yaml files did not exist yet;
-      # all twelve now do, so the condition it warns about -- a KSOPS generator
-      # naming a file that is missing or unsealed -- is a regression rather than
-      # unfinished work.
-      #
-      # The value of it being fatal: a `secrets-*` Application sits at
-      # `sync-wave: -25`, the earliest wave in its layer, so one missing file
-      # stalls EVERY Application below it. That is not a thing to discover from
-      # the cluster.
-      #
-      # `verbose: true` stays: pre-commit hides the output of a hook that exits
-      # 0, and the list of sealed files is worth seeing.
-      # `language: system` + `env` in the ENTRY, not an `env:` key.
-      #
-      # A local hook has no `env:` key. Setting one does not fail -- pre-commit
-      # prints "Unexpected key(s) present on local => secrets-check: env" and
-      # carries on with the variable UNSET. So the hook looked strict, ran
-      # advisory, and passed for the wrong reason. Prefixing the entry with
-      # `env VAR=value` is the supported way, and `language: system` is what
-      # allows the entry to be a command line rather than a single executable.
+      # Blocking: one missing or unsealed file stalls its `secrets-*`
+      # Application at wave -25 and everything below it. `verbose: true` lists
+      # the sealed files. A local hook has no `env:` key (pre-commit ignores it
+      # with a warning), hence `env VAR=value` in the entry and
+      # `language: system`.
       - id: secrets-check
         name: KSOPS generators reference files that exist and are sealed
         entry: env SECRETS_CHECK_STRICT=1 ./scripts/secrets-check.sh
@@ -313,17 +222,9 @@ repos:
         pass_filenames: false
         files: '(\.ya?ml$|\.tf$|Taskfile\.yml$|renovate\.json5$)'
 
-      # Regenerates deploy/ rather than only checking it, so the answer to "you
-      # forgot to re-render" is a staged file instead of an error message. If it
-      # changes anything, pre-commit fails and you `git add` and commit again --
-      # the same flow as any formatter. CI runs the same script with --check in
-      # the `rendered-manifests` job, so skipping the hook cannot get a stale
-      # deploy/ merged.
-      #
-      # This subsumes what a separate render-check hook did. Both rendered the
-      # whole tree; this one also writes the result and diffs it, so a
-      # kustomization that fails to render fails here too. Three full renders per
-      # push became one.
+      # Regenerates deploy/, so "you forgot to re-render" becomes a staged
+      # file; commit again when it changes something. CI runs the same script
+      # with --check.
       - id: render-deploy
         name: deploy/ matches its sources
         entry: ./scripts/render-deploy.sh

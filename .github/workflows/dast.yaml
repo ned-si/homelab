@@ -1,33 +1,15 @@
 ---
-# DAST: dynamic scanning of the running site.
+# DAST of the running site, weekly and on demand, not on pull requests (they
+# have nothing running).
 #
-# NOT A PR GATE. DAST exercises a running application over HTTP. A pull request
-# has nothing running (no preview environment), so a PR-triggered job would
-# either scan production on behalf of an arbitrary PR or scan nothing and report
-# green. It runs weekly and on demand, from a GitHub-hosted runner, against the
-# public hostnames.
+# Findings stay private, since a public repository's logs are public: tool
+# output goes to files under $RUNNER_TEMP, never uploaded; the log shows
+# counts; findings go to code scanning as SARIF.
 #
-# FINDINGS STAY PRIVATE. Workflow logs, step summaries and artifacts of a public
-# repository are public, so:
-#   - nothing ZAP or tls-check prints reaches the log; it goes to files under
-#     $RUNNER_TEMP, which are never uploaded as artifacts;
-#   - the log shows counts only;
-#   - findings are uploaded as SARIF to code scanning, whose alerts only people
-#     with write access to the repository can see (Security tab);
-#   - no issues, comments or artifacts are created.
-#
-# WHAT GATES
-#   zap  any HIGH alert fails the job, by count. The accepted baseline is zero
-#        HIGH: a HIGH that is accepted gets an IGNORE row with its reason in
-#        .zap/rules.tsv, so every HIGH that reaches the gate is new. Medium and
-#        below are reported only.
-#   tls  scripts/tls-check.sh hard-fails on reachability, a missing
-#        http -> https redirect, certificate expiry and, with
-#        STRICT_HEADERS=1, a missing security header.
-#
-# The targets sit behind Keycloak, so an unauthenticated baseline scan mostly
-# checks headers, TLS and error handling: exactly what regresses silently when
-# routing changes.
+# Gates: zap fails on any HIGH alert (an accepted one gets an IGNORE row with
+# its reason in .zap/rules.tsv); tls is scripts/tls-check.sh with
+# STRICT_HEADERS=1. Behind Keycloak, an unauthenticated scan mostly checks
+# headers, TLS and error handling.
 name: dast
 
 on:

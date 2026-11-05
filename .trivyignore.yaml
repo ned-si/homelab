@@ -1,49 +1,15 @@
-# Trivy config-scan waivers.
+# Trivy config-scan waivers, each scoped by `paths`, with an `expired_at` and a
+# `statement`.
 #
-# Replaces the flat `.trivyignore`. Same decisions, three properties the old
-# format could not express:
+#   1. scripts/trivy-waivers.sh rejects an entry without `statement` or
+#      `expired_at`, or expiring more than 6 months out. Unable to write the
+#      reason: fix the finding.
+#   2. Prefer `paths` over a bare id, which waives the rule everywhere.
+#   3. List both the source and its rendered copy under deploy/.
+#   4. The reason must be about the control the ID names.
 #
-#   paths       a waiver applies to the files named and nowhere else
-#   expired_at  a waiver stops working on a date, and the finding comes back
-#   statement   the reason travels with the entry
-#
-# ---------------------------------------------------------------------------
-# WHY THE FLAT FILE WAS NOT GOOD ENOUGH
-#
-# `.trivyignore` suppresses by rule ID, everywhere, forever. That produced a real
-# defect, not a hypothetical one: the `AVD-KSV-0118` line was written for the
-# linuxserver/hotio images, whose entrypoints need root. Because it had no path
-# scope it ALSO silenced
-#
-#   platform/backup-verify/restore-postgres.yaml   -- ours, no securityContext
-#                                                    at all, fixed in this PR
-#   deploy/infrastructure/snapshot-controller/...  -- vendored upstream
-#
-# and the file's own comment said the waiver was "for images whose entrypoint
-# requires root, not for new work" -- which was prose, enforced by nothing.
-#
-# The same shape let Bazarr add two findings of an already-waived class with CI
-# unable to say so. scripts/trivy-gate.sh now catches that separately.
-#
-# ---------------------------------------------------------------------------
-# THE RULES FOR THIS FILE
-#
-#   1. Every entry needs `statement` and `expired_at`.
-#      scripts/trivy-waivers.sh rejects entries missing either, and rejects an
-#      expiry more than 6 months out. Being unable to write a reason is the
-#      signal to fix the finding instead.
-#   2. Prefer `paths` over a bare id. A bare id is a claim that the finding is
-#      never acceptable to fix ANYWHERE in this repository, now or later.
-#   3. Both the source and its rendered copy under deploy/ must be listed. They
-#      are separate findings to Trivy.
-#   4. The reason must be about the control the ID actually names. An invented
-#      mapping reads like a decision and silences a real finding.
-#
-# EXPERIMENTAL FORMAT. Trivy documents .trivyignore.yaml as experimental and may
-# change it without preserving compatibility. Both callers pass `--ignorefile`
-# explicitly, so a format change is a one-line fix, but a Trivy bump is the moment
-# to re-read this. Verified working on 0.74.0: path scoping confirmed to leave
-# non-matching files reporting, and a past `expired_at` confirmed to un-suppress.
+# Trivy documents this format as experimental; both callers pass
+# `--ignorefile`, so re-read it on a Trivy bump.
 #
 # Reproduce the unfiltered list:
 #     trivy config . --severity HIGH,CRITICAL --ignorefile /dev/null \
@@ -53,17 +19,11 @@ misconfigurations:
   # =========================================================================
   # CRITICAL -- RBAC that grants RBAC or reads Secrets
   # =========================================================================
-  # The Barman Cloud plugin's per-namespace Roles (platform/barman-cloud-plugin/
-  # rbac.yaml, #951). For each CNPG Cluster the plugin creates and patches a
-  # Role and RoleBinding `<cluster>-barman-cloud` in the Cluster's namespace
-  # (upstream internal/cnpgi/operator/rbac/ensure.go at v0.15.1), so it needs
-  # create/patch/update on roles and rolebindings there. Upstream grants that
-  # cluster-wide; here it is one Role in each of the six namespaces with an
-  # ObjectStore. The upstream ClusterRole keeps only get/list/watch on them
-  # (its cache watches every namespace) and no Secrets, so it has no finding.
-  #
-  # Reported by Trivy 0.70.0 (the CI pin), not by 0.76. Re-check on a Trivy
-  # bump and drop the entry once it stops matching.
+  # The Barman Cloud plugin's per-namespace Roles
+  # (platform/barman-cloud-plugin/rbac.yaml): it creates and patches a
+  # `<cluster>-barman-cloud` Role and RoleBinding in each Cluster's namespace.
+  # Reported by the CI's Trivy pin, not by 0.76: drop the entry once it stops
+  # matching.
   - id: AVD-KSV-0050
     paths:
       - "platform/barman-cloud-plugin/rbac.yaml"
@@ -79,22 +39,10 @@ misconfigurations:
   # =========================================================================
   # FALSE POSITIVE -- proven
   # =========================================================================
-  # The "secret" Trivy reports is the literal string `echo "PASS`, from
-  # `echo "PASS: $TAG"` (restore-files.yaml:263) and
-  # `echo "PASS: $SRC restored and verified"` (restore-postgres.yaml:276). The
-  # check matches PASS as the start of PASSWORD. Both drills read real
-  # credentials from the `s3-backup` Secret via envFrom.
-  #
-  # Path-scoped rather than global specifically BECAUSE it is a false positive:
-  # scoped to these files, a genuine secret pasted into a ConfigMap anywhere else
-  # still fails. scripts/leak-check.sh remains the control that covers these two.
-  #
-  # This entry originally carried a one-year expiry on the reasoning that the
-  # string is not going to change meaning. scripts/trivy-waivers.sh rejected it
-  # against MAX_MONTHS=6 -- correctly. "The reason will still be true later" is an
-  # argument for renewing easily, not for skipping the review; a false positive
-  # can also be fixed upstream, and a year is long enough for that to happen
-  # without anyone noticing.
+  # The "secret" is `echo "PASS` in restore-files.yaml and
+  # restore-postgres.yaml: the check reads PASS as the start of PASSWORD. Path
+  # scoped, so a real secret elsewhere still fails; scripts/leak-check.sh
+  # covers these two.
   - id: AVD-KSV-0109
     paths:
       - "deploy/platform/backup-verify/configmap-backup-verify-scripts-*.yaml"
@@ -158,13 +106,9 @@ misconfigurations:
   # =========================================================================
   # DEFERRED -- the fix would break the thing
   # =========================================================================
-  # pods/exec on a NAMESPACED Role, not a ClusterRole. This is how the drill
-  # verifies: it restores a dump into a throwaway CNPG cluster and execs psql to
-  # compare table counts, row counts and extension sets against the source.
-  # Removing the verb removes the only mechanism that proves a backup restores.
-  #
-  # Scope that makes it acceptable: a Role cannot exec into another namespace, and
-  # backup-verify holds only the drills and the ephemeral clusters they create.
+  # pods/exec on a namespaced Role: the drill execs psql into its throwaway
+  # CNPG cluster to compare counts, the only proof a backup restores.
+  # backup-verify holds nothing else.
   - id: AVD-KSV-0053
     paths:
       - "platform/backup-verify/rbac.yaml"
@@ -176,23 +120,10 @@ misconfigurations:
       rewriting the drill to connect over the Service instead.
     expired_at: 2027-03-01
 
-  # S3 encryption mode of the live backup bucket (ned-si-homelab-backups).
-  # The comment above aws_s3_bucket_server_side_encryption_configuration in
-  # bootstrap/aws-backup/main.tf records the choice: SSE-S3 (AES256, bucket key
-  # on) because restic encrypts client-side.
-  #
-  # What this finding is actually about: the CNPG objects under
-  # cnpg/<serverName>/{base,wals}/ are NOT client-side encrypted, so for those
-  # SSE-S3 is the only encryption at rest and AWS holds the key.
-  #
-  # barman-cloud cannot close it: its `encryption` setting only picks the S3
-  # server-side mode (AES256 or aws:kms), and client-side encryption is an open
-  # upstream request (EnterpriseDB/barman#1155). A customer managed KMS key was
-  # proposed in #952 and declined by the operator (2026-11-03): AWS keeps
-  # managing the key, nobody here has to. The CNPG objects rely on SSE-S3 plus
-  # the bucket policy and the version lock.
-  #
-  # Accepted risk by operator decision. Revisit if barman-cloud gains
+  # SSE-S3 on the backup bucket. restic encrypts client-side; the CNPG objects
+  # under cnpg/ do not, and barman-cloud cannot (EnterpriseDB/barman#1155). A
+  # customer managed KMS key was declined (#952): accepted risk, with the
+  # bucket policy and the version lock. Revisit if barman-cloud gains
   # client-side encryption.
   - id: AVD-AWS-0132
     paths:
@@ -224,21 +155,10 @@ misconfigurations:
   # =========================================================================
   # DEFERRED -- upstream images that need root, SCOPED to exactly those
   # =========================================================================
-  # linuxserver/hotio-style containers start an s6 supervision tree as root,
-  # chown their config and media paths, then drop to PUID/PGID 1000. Setting
-  # runAsNonRoot or a non-root runAsUser makes the entrypoint fail before the
-  # application starts.
-  #
-  # What they do have: pod-level fsGroup 1000 with
-  # fsGroupChangePolicy: OnRootMismatch, and the namespace-wide PUID/PGID/UMASK
-  # contract documented in apps/theater/sonarr.yaml.
-  #
-  # ENUMERATED FILE BY FILE, not by a bare id. That is the point of this PR: a new
-  # workload that CAN satisfy the check is not silently covered. Adding a new
-  # root-requiring image means adding a line here, in a reviewable diff, with a
-  # reason -- which is what the old blanket entry only asked for in prose.
-  #
-  # Same position .kube-linter.yaml takes on the equivalent check.
+  # linuxserver/hotio-style images start s6 as root, chown, then drop to
+  # PUID/PGID 1000; runAsNonRoot breaks the entrypoint. They run with fsGroup
+  # 1000 (OnRootMismatch). Listed file by file, so a new workload that can
+  # satisfy the check is not covered. Same position as .kube-linter.yaml.
   - id: AVD-KSV-0118
     paths:
       - "apps/theater/*.yaml"
@@ -298,17 +218,9 @@ misconfigurations:
       policies/.
     expired_at: 2027-04-01
 
-  # readOnlyRootFilesystem. The upstream app images below write to their own
-  # filesystem at runtime with no way to relocate it, so enforcing this would
-  # mean forking every image.
-  #
-  # .kube-linter.yaml holds the SAME position for `no-read-only-root-fs`, which is
-  # advisory there rather than blocking. One control, one answer, both files.
-  #
-  # ENUMERATED FILE BY FILE, like KSV-0118. A bare id suppressed the finding in
-  # the baseline scan too, so the delta gate never saw a new workload without
-  # the flag. With paths, a new or renamed workload reports again and has to
-  # set the flag or be listed here. A stale path only stops matching.
+  # readOnlyRootFilesystem: these images write to their own filesystem with no
+  # way to relocate it. Same position as `no-read-only-root-fs` in
+  # .kube-linter.yaml. Listed file by file, so a new workload reports again.
   - id: AVD-KSV-0014
     paths:
       - "apps/books/audiobookshelf.yaml"

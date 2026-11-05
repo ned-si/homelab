@@ -1,15 +1,9 @@
 ---
 # tailscale-policy: bootstrap/tailscale/policy.hujson is the tailnet policy
-# (docs/remote-access.md). A pull request that changes it runs the policy
-# check against the tailnet (`test`: validate and run its tests, change
-# nothing); a merge to main applies it (`apply`). A change made by hand in
-# the admin console is overwritten on the next apply.
-#
-# Credential: a Tailscale OAuth client with the Policy File write scope
-# (admin console, Settings -> Trust credentials), in the repository secrets
-# TS_POLICY_OAUTH_CLIENT_ID and TS_POLICY_OAUTH_SECRET. It is not the
-# operator's client, which has no policy scope. Until both secrets exist the
-# job prints a notice and does nothing.
+# (docs/remote-access.md). Pull requests run `test`; a merge to main runs
+# `apply`, overwriting hand edits. Credential: an OAuth client with the Policy
+# File write scope in TS_POLICY_OAUTH_CLIENT_ID and TS_POLICY_OAUTH_SECRET;
+# without them the job does nothing.
 name: tailscale-policy
 
 on:

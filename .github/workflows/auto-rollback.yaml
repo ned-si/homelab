@@ -1,35 +1,22 @@
 ---
-# Automatic rollback of a deploy that Argo CD reports as broken.
+# Automatic rollback of a deploy that Argo CD reports as broken
+# (docs/decisions.md#automatic-rollback).
 #
-# Argo CD Notifications (bootstrap/argocd-values.yaml) sends a
-# `repository_dispatch` of type `argo-degraded` when an Application's sync
-# fails or its health turns Degraded, with the Application name and the
-# revision of its last sync. `decide` checks the guard rails
-# (scripts/ci/auto-rollback-decide.sh: newest commit on main, merged under
-# 1 h ago, changes that app, not cilium, democratic-csi or tuppr, never two automatic
-# reverts in a row) and the outage guard (scripts/ci/auto-rollback-guard.sh:
-# not 3+ apps failing within 10 minutes, no node NotReady, NAS reachable).
-# `act` runs only for a revert: an auto-merged revert pull request with label
-# `auto-rollback` (scripts/ci/auto-rollback-act.sh), then rebuilt on main
-# whenever main moves until it merges (scripts/ci/auto-rollback-keep.sh:
-# main requires an up-to-date ci). Every other decision is a
-# skip, written to the run summary; no issue is opened, because the failure is
-# an Alertmanager alert (PrometheusRule homelab-argocd, in Grafana).
+# Argo CD Notifications sends an `argo-degraded` repository_dispatch with the
+# Application and the revision of its last sync. `decide` checks the guard
+# rails (scripts/ci/auto-rollback-decide.sh) and the outage guard
+# (scripts/ci/auto-rollback-guard.sh). `act` runs only for a revert: an
+# auto-merged revert pull request labelled `auto-rollback`, kept up to date
+# with main until it merges (scripts/ci/auto-rollback-act.sh, -keep.sh).
+# Anything else is a skip in the run summary; the failure is an alert.
 #
 # Manual test: `gh workflow run auto-rollback.yaml -f app=<app>
 # -f revision=<sha>` runs with dry_run=true by default: `decide` prints what it
 # would do and `act` is skipped, so nothing is created.
 #
-# - `decide` reads the repository and the run list of this workflow (the
-#   several-apps check), and the ntfy.sh guard topic (secret NTFY_TOPIC plus
-#   `-guard`, platform/secrets/alertmanager-notify.sops.yaml `ntfy-guard-url`)
-#   for the node and NAS alerts. `act` gets `contents: write` for the verified
-#   revert commit and its branch; the pull request, its label and auto-merge
-#   use the AUTO_ROLLBACK_TOKEN secret (fine-grained, this repository only),
-#   see platform/secrets/argocd-notifications.sops.yaml.example.
-# - Every value from the payload or the inputs reaches a script through `env`,
-#   never through `${{ }}` inside `run:`. `run-name` carries the app name: the
-#   several-apps check counts runs by it.
+# Payload and input values reach scripts through `env`, never `${{ }}` in
+# `run:`. `run-name` carries the app name: the several-apps check counts runs
+# by it. The pull request uses the AUTO_ROLLBACK_TOKEN secret.
 name: auto-rollback
 run-name: auto-rollback ${{ github.event.inputs.app || github.event.client_payload.app }}
 

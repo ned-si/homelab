@@ -1,15 +1,8 @@
 ---
-# fuzz: coverage-guided fuzzing (Atheris, libFuzzer) of the parsers in
-# scripts/ci/repo_policy.py that gate every merge: image references, the
-# Kubernetes version, the HCL of the backup bucket policy. Targets and their
-# properties: tests/fuzz/targets.py; seeds and past findings:
-# tests/fuzz/corpus/ (replayed by the unit tests in `ci`).
-#
-# Pull requests that touch a fuzzed parser or the fuzzing itself: 60 s per
-# target. Nightly and on demand: 10 min per target, and a finding posts to
-# ntfy. Not part of the required `ci` check: a finding is a parser bug to fix
-# forward, not a gate on unrelated changes. No secrets, no cluster access, no
-# image build.
+# fuzz: Atheris fuzzing of the parsers in scripts/ci/repo_policy.py that gate
+# every merge (targets: tests/fuzz/targets.py; corpus replayed by the unit
+# tests). 60 s per target on pull requests that touch them; 10 min nightly,
+# with a finding posted to ntfy. Not part of `ci`.
 name: fuzz
 
 on:
