@@ -68,7 +68,6 @@ Change specs, active:
 | [autoscaling](autoscaling/) | 2026-11-03 | #917 | task 1: the HA inventory and its repo-policy rules |
 | [disaster-recovery-strategy](disaster-recovery-strategy/) | 2026-11-03 | #918 | task 1: the decision, the scenario table and the off-site inventory |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
-| [paperless-documents](paperless-documents/) | 2026-11-03 | #732 | task 1: the settings (OCR `fra+eng+spa+deu`, time zone, file names), then tasks 2-9 |
 | [pentest-programme](pentest-programme/) | 2026-11-03 | #718 | task 1: rules of engagement, scope file and the dedicated test credentials |
 | [pod-security-restricted](pod-security-restricted/) | 2026-11-04 | #724 | task 1: complete Kyverno reports, then the readiness check, the CI rule, the break-glass and the `home` flip |
 
@@ -78,6 +77,7 @@ Change specs, done:
 | --- | --- | --- |
 | [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | 2026-11-02 |
 | [immich-v3-migration](immich-v3-migration/) | 2026-10-16 | 2026-10-16 |
+| [paperless-documents](paperless-documents/) | 2026-11-03 | 2026-11-04 |
 | [scorecard-hardening](scorecard-hardening/) | 2026-10-16 | 2026-10-26 |
 | [wave3-network-logs](wave3-network-logs/) | 2026-10-16 | 2026-11-02 |
 | [wave3-reliability](wave3-reliability/) | 2026-10-16 | 2026-10-16 |

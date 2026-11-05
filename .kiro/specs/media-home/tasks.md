@@ -33,6 +33,12 @@ needs one ([README](../README.md)).
 - [x] 22. Backfill: a full subtitle re-index, then one wanted search over the
       whole library (`bazarr-nightly-backfill`). [6.4, 6.7]
 - [x] 23. Subtitle coverage per language on the Usage dashboard. [6.8] (#518)
+- [x] 24. Paperless as the home for documents, change spec
+      [paperless-documents](../paperless-documents/): settings, taxonomy as
+      code, access, the consistent backup with the export, the restore
+      test, the ingest canary, the import script, the mail import off.
+      [7.1-7.5] (#1009, #1014, #1035, #1016, #1054, #1080, #1091, #1092,
+      #1094; the import batches are #1093)
 
 ## Moved to the backlog (2026-10-26)
 
