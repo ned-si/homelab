@@ -438,6 +438,12 @@
       addLabels: ['no-automerge'],
     },
     {
+      // Keycloak 26.8.2 breaks the realm-settings client on the admin API
+      // (#1163). Held until the keycloak-realm-settings Job passes on it.
+      matchPackageNames: ['keycloak/keycloak', 'quay.io/keycloak/keycloak'],
+      allowedVersions: '!/^26\\.8\\.2$/',
+    },
+    {
       // Talos and Kubernetes: talosVersion / kubernetesVersion in
       // talos/talconfig.yaml and the tuppr upgrade resources in
       // platform/tuppr/upgrades/ share a depName, so one pull request bumps
