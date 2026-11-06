@@ -72,6 +72,7 @@ url=${*: -1}
 host=${url#http://}
 host=${host%%/*}
 f="$CODES/$host"
+printf '%s\n' "$@" >> "$CODES/args-$host"
 code=200
 if [ -f "$f" ]; then
   code=$(head -n 1 "$f")
@@ -123,5 +124,24 @@ reset
 printf '503\n503\n503\n503\n503\n503\n200\n' > "$CODES/a:1"
 o=$(run http://a:1/ping)
 expect_contains "six failed tries fail the hook" "rc=1" "$o"
+
+f=deploy/apps/theater/job-postsync-smoke.yaml
+expect_eq "theater hook: Plex through the Gateway with a large cookie" \
+  "https://theater.lilalala.com/identity" \
+  "$(yq '.spec.template.spec.containers[0].env[] | select(.name == "SMOKE_COOKIE_URLS") | .value' "$f")"
+
+reset
+export SMOKE_COOKIE_URLS="http://c:3/identity" SMOKE_COOKIE_CURL_OPTS="--connect-to ::gw:"
+o=$(run http://a:1/ping)
+expect_contains "cookie URL: passes on 200" "ok   200 http://c:3/identity (8 KB cookie)" "$o"
+cookie=$(grep '^Cookie: ' "$CODES/args-c:3" | head -n 1)
+if [ "${#cookie}" -ge 8192 ]; then ok "cookie URL: Cookie header of ${#cookie} bytes"; else bad "cookie URL: Cookie header of ${#cookie} bytes"; fi
+expect_contains "cookie URL: its curl options" "--connect-to" "$(cat "$CODES/args-c:3")"
+reset
+printf '400\n' > "$CODES/c:3"
+o=$(run http://a:1/ping)
+expect_contains "cookie URL: a 400 fails the hook" "rc=1" "$o"
+expect_contains "cookie URL: named in the failure" "FAIL 400 http://c:3/identity (8 KB cookie)" "$o"
+unset SMOKE_COOKIE_URLS SMOKE_COOKIE_CURL_OPTS
 
 finish

@@ -42,19 +42,34 @@ spec:
             - |
               # Up to 6 tries per URL, 5 s apart, 5 s timeout each.
               fail=0
-              for url in "$@"; do
+              check() { # check <label> <url> [curl options...]
+                label=$1 url=$2
+                shift 2
                 code=000
                 for try in 1 2 3 4 5 6; do
-                  # shellcheck disable=SC2086 # options split on purpose
-                  code=$(curl ${SMOKE_CURL_OPTS:-} -s -o /dev/null -w '%{http_code}' --max-time 5 "$url") || code=000
+                  code=$(curl "$@" -s -o /dev/null -w '%{http_code}' --max-time 5 "$url") || code=000
                   case "$code" in 2??|3??) break ;; esac
                   [ "$try" -lt 6 ] && sleep 5
                 done
                 case "$code" in
-                  2??|3??) echo "ok   $code $url" ;;
-                  *) echo "FAIL $code $url"; fail=1 ;;
+                  2??|3??) echo "ok   $code $url$label" ;;
+                  *) echo "FAIL $code $url$label"; fail=1 ;;
                 esac
+              }
+              for url in "$@"; do
+                # shellcheck disable=SC2086 # options split on purpose
+                check "" "$url" ${SMOKE_CURL_OPTS:-}
               done
+              # SMOKE_COOKIE_URLS: also requested with an 8 KB Cookie header,
+              # the size the SSO session cookies reach on a shared host;
+              # SMOKE_COOKIE_CURL_OPTS adds curl options for them.
+              if [ -n "${SMOKE_COOKIE_URLS:-}" ]; then
+                cookie="Cookie: smoke=$(head -c 8192 /dev/zero | tr '\0' x)"
+                for url in $SMOKE_COOKIE_URLS; do
+                  # shellcheck disable=SC2086 # options split on purpose
+                  check " (8 KB cookie)" "$url" ${SMOKE_COOKIE_CURL_OPTS:-} -H "$cookie"
+                done
+              fi
               exit "$fail"
             - postsync-smoke
           # Set by each user of the component.

@@ -94,3 +94,14 @@ patches:
           - http://lazylibrarian:5299/arr/lazylibrarian/auth/login
           - http://bazarr:6767/arr/bazarr/api/system/ping
           - http://theater-sso:4180/ping
+      # Plex through the Gateway with an SSO-sized Cookie header: Plex
+      # answers 400 to large headers, so the route must strip cookies
+      # (httproute.yaml). --connect-to the Gateway Service, as in
+      # infrastructure/cilium-smoke.
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: SMOKE_COOKIE_URLS
+            value: https://theater.lilalala.com/identity
+          - name: SMOKE_COOKIE_CURL_OPTS
+            value: "--connect-to ::cilium-gateway-shared.gateway.svc.cluster.local:"
