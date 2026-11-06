@@ -27,6 +27,7 @@ spec:
       labels:
         app.kubernetes.io/name: keycloak
     spec:
+      automountServiceAccountToken: false
       containers:
       - args:
         - start
@@ -94,6 +95,11 @@ spec:
             path: /health/ready
             port: mgmt
             scheme: HTTP
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
         startupProbe:
           failureThreshold: 30
           httpGet:
@@ -101,3 +107,9 @@ spec:
             port: mgmt
             scheme: HTTP
           periodSeconds: 10
+      securityContext:
+        runAsGroup: 0
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
