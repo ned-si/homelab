@@ -87,6 +87,15 @@ for e in 's/^mfa_role=.*/mfa_role=mfa required/' 's/^automation_client=.*/automa
   expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf" "$o"
 done
 
+# The pentest test user: one name each, its group never admins or an OTP group.
+expect_eq "pentest_group is family" "family" "$(sed -n 's/^pentest_group=//p' "$REALM_DIR/platform.conf")"
+for e in 's/^pentest_user=.*/pentest_user=/' 's/^pentest_client=.*/pentest_client=a b/' \
+  's/^pentest_group=.*/pentest_group=admins/' 's/^pentest_group=.*/pentest_group=TheaterAdmins/'; do
+  sed "$e" "$REALM_DIR/platform.conf" > "$tmp/p7.conf"
+  o=$(run "$tmp/p7.conf" "$REALM_DIR/clients.conf")
+  expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf: pentest_" "$o"
+done
+
 # master_fields: sessions.conf fields, brute-force detection among them;
 # events_expiration: seconds.
 for e in 's/^master_fields=.*/master_fields=bruteForceProtected/' \

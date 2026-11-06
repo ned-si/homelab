@@ -66,6 +66,12 @@ spec:
               key: REALM_SETTINGS_CLIENT_SECRET
               name: keycloak-automation
               optional: true
+        - name: PENTEST_SETUP_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: PENTEST_SETUP_CLIENT_SECRET
+              name: keycloak-pentest
+              optional: true
         - name: SIGNOZ_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
@@ -107,7 +113,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-6ffhgdb2cf
+          name: keycloak-realm-settings-f6bh66478m
         name: realm
       - emptyDir: {}
         name: tmp
