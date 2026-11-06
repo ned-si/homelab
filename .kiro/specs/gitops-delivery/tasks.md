@@ -42,7 +42,8 @@ Wave 3 puts Kyverno in the cluster in Audit mode: `.kiro/specs/wave3-*`.
         the excluded namespaces (2026-10-24, after the PolicyExceptions);
         CI blocks on the same 16 over `deploy/` and the rendered Helm apps.
         (#687)
-      - 17b. Moved to the backlog: #724 (Kyverno: the PSS-restricted policies in Deny, then PSA enforce).
+      - 17b. PSA enforce: [pod-security-restricted](../pod-security-restricted/) (#724); the
+        Kyverno restricted set in Deny is #1021.
 - 18. Moved to the backlog: #725 (Image provenance and a weekly SBOM).
 - 19. Moved to the backlog: #726 (Per-app hardening: resources, probes, non-root).
 - 20. Moved to the backlog: #723 (Disaster recovery: rebuild from git, rehearsed).

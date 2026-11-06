@@ -148,6 +148,7 @@ mapping names no policy, or an ID is malformed.
 | Boundary | Control | Mapping |
 | --- | --- | --- |
 | Every workload (admission and posture) | Kyverno: the upstream Pod Security Standards baseline and restricted, ten upstream best-practices policies, the homelab `require-probes` ([testing.md](testing.md)) | [controls.yaml](../policies/kyverno/upstream/controls.yaml): CIS Kubernetes Benchmark section 5, NIST SP 800-190 section 4, NSA/CISA Kubernetes Hardening Guide, NIST CSF 2.0 |
+| Every workload (Pod Security admission) | `enforce: restricted` in the platform and admin namespaces plus `home` and `system-upgrade`; `baseline` or `privileged` elsewhere, each with its reason in the header of [namespaces.yaml](../infrastructure/namespaces/namespaces.yaml); `scripts/ci/kyverno.sh` blocks what a `restricted` namespace would reject; the alert `PodSecurityEnforceDenied` pages on a denial ([runbooks/pod-security.md](runbooks/pod-security.md)) | same file |
 | Supply chain: Renovate to `main` | `disallow-latest-tag`, `check-deprecated-apis`, and the `image-digest` rule of `scripts/ci/repo_policy.py` | same file |
 
 CIS sections 1 to 4 (control plane, etcd, kubelet and their files) are set by

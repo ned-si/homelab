@@ -55,11 +55,8 @@ both blocked by #726.
 - [x] 9. Flip `system-upgrade`, with G4 for the tuppr Jobs (the pinned
       source, and after the sync a server dry-run of an equivalent Pod) and
       the G3 result of the `talos-drift` CronJob named. [6, 7, 8] (#1098)
-
-## Open
-
-- [ ] 10. Close: `docs/architecture.md`, `docs/threat-model.md` and the
+- [x] 10. Close: `docs/architecture.md`, `docs/threat-model.md` and the
       `namespaces.yaml` header describe the enforced levels;
       [gitops-delivery](../gitops-delivery/) task 17b points here;
       `status: done`, `closed:`; #724 closed with links to #1020 and #1021.
-      [9]
+      [9] (#1190)
