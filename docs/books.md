@@ -92,9 +92,11 @@ indexers tagged `books`. Only public indexers carry that tag
 scripts/check-indexers.sh
 ```
 
-Login: Keycloak through the theater SSO proxy ([theater.md](theater.md#login)),
-then LazyLibrarian's own form login `admin` (it has no OIDC); the password is
-in the operator's password manager and is the break-glass login. Its config is backed up nightly by
+Login: Keycloak through the theater SSO proxy ([theater.md](theater.md#login))
+only. LazyLibrarian's own login is off (empty `WebServer.http_pass`); its port
+is reachable only from the proxy and Prowlarr, and `/api` still needs the API
+key. Break-glass: `kubectl -n theater port-forward deploy/lazylibrarian 5299`
+over the tailnet. Its config is backed up nightly by
 `theater-config-backup-lazylibrarian` (05:30) to `theater/configs`.
 
 ## Backups

@@ -24,7 +24,7 @@ data:
     general:
       base_url: /arr/bazarr
     auth:
-      type: form
+      type: null
       username: admin
       password: $hash
       apikey: $API_KEY
@@ -197,7 +197,9 @@ data:
         # External files next to the video, named <video>.<lang>[.forced].srt.
         "settings-general-subfolder": "current",
         "settings-general-utf8_encode": "true",
-        "settings-auth-type": "form",
+        # No login of its own (Bazarr turns "None" into null); the
+        # username and password stay for a switch back to `form`.
+        "settings-auth-type": "None",
         "settings-auth-username": "admin",
         "settings-auth-password": os.environ["ADMIN_PASSWORD"],
     }

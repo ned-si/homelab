@@ -156,6 +156,10 @@ spec:
               value: "002"
             - name: LIDARR__SERVER__URLBASE
               value: /arr/lidarr
+            # The SSO proxy is the login (sso.yaml); only it reaches the UI
+            # (10-theater.yaml). The API still requires the API key.
+            - name: LIDARR__AUTH__METHOD
+              value: External
           ports:
             - name: http
               containerPort: 8686

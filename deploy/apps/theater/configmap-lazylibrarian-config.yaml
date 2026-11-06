@@ -52,10 +52,13 @@ data:
     WebServer.http_port=5299
     WebServer.http_root=/arr/lazylibrarian
     # Behind the Gateway's TLS: build redirects from X-Forwarded-Proto/Host,
-    # so the login redirect stays on https.
+    # so redirects stay on https.
     WebServer.http_proxy=1
+    # No own login: an empty password turns LazyLibrarian's web auth off.
+    # Keycloak (theater-sso) is the only login; the port is reachable only
+    # from that proxy and Prowlarr (10-theater.yaml). /api keeps its key.
     WebServer.http_user=${HTTP_USER}
-    WebServer.http_pass=${HTTP_PASS}
+    WebServer.http_pass=
     API.api_enabled=1
     API.api_key=${API_KEY}
     TORRENT.tor_downloader_qbittorrent=1

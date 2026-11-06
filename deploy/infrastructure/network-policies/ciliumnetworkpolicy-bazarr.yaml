@@ -14,8 +14,8 @@ metadata:
   name: bazarr
   namespace: theater
 spec:
-  description: 'Bazarr: UI from the Gateway, egress to the Sonarr and Radarr APIs
-    and to subtitle providers on the internet.'
+  description: 'Bazarr: UI through the SSO proxy, egress to the Sonarr and Radarr
+    APIs and to subtitle providers on the internet.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -56,14 +56,6 @@ spec:
     matchLabels:
       app.kubernetes.io/name: bazarr
   ingress:
-  - fromEntities:
-    - ingress
-    - host
-    - remote-node
-    toPorts:
-    - ports:
-      - port: "6767"
-        protocol: TCP
   - fromEndpoints:
     - matchExpressions:
       - key: app.kubernetes.io/name

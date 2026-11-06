@@ -1,8 +1,9 @@
 # Keycloak SSO in front of the theater admin UIs: oauth2-proxy `theater-sso`
 # on https://theater.lilalala.com/arr/<app> (docs/theater.md, "Login"), for
 # apps without OIDC. It routes by path; qBittorrent's prefix is stripped.
-# Groups `admins` or `TheaterAdmins` (platform/keycloak/realm/). Each app's
-# own form login is the break-glass, through a port-forward. In-cluster API
+# Groups `admins` or `TheaterAdmins` (platform/keycloak/realm/). The proxy is
+# the only login of the *arr apps and Bazarr (External auth, none); LazyLibrarian
+# and qBittorrent keep their form login. Break-glass: a port-forward. In-cluster API
 # calls never pass the proxy. Bump `config-version` when the alpha config
 # changes (read at start only).
 ---
