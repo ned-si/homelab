@@ -27,9 +27,14 @@ of both groups need OTP. The client `theater-sso` and the groups are realm code 
 session lasts a year, refreshed from the Keycloak session
 ([architecture.md](architecture.md#sessions)).
 
-Each app keeps its own form login behind the proxy, so a login asks twice.
-That local admin is the break-glass account when Keycloak is down: forward
-the app's port and log in locally, for example
+Sonarr, Radarr, Lidarr and Prowlarr run with `AUTH__METHOD=External` and
+Bazarr with no authentication: the proxy is their only login. Their ports
+admit only `theater-sso` and the in-cluster API clients
+(`infrastructure/network-policies/10-theater.yaml`), and their APIs still
+require the API key, so the `/api` routes the proxy lets through stay
+protected. LazyLibrarian and qBittorrent keep their own form login behind
+the proxy. When Keycloak is down, forward the app's port (no login for the
+first five; the local admin for the other two), for example
 
 ```sh
 kubectl -n theater port-forward svc/sonarr 8989:8989

@@ -1,9 +1,10 @@
 # Bazarr: external .srt subtitles for what Sonarr and Radarr manage.
-# https://theater.lilalala.com/arr/bazarr, own form login (docs/theater.md,
-# "Subtitles").
+# https://theater.lilalala.com/arr/bazarr, no login of its own: the SSO proxy
+# is the login and the only way in (docs/theater.md, "Login"); the API still
+# requires the API key.
 #
 # Config as code: `seed.sh` writes a minimal config.yaml on first start (URL
-# base, API key, login, so the UI never runs without auth); `settings.py`
+# base, API key); `settings.py`
 # applies the rest as the `bazarr-settings` PostSync Job and the
 # `bazarr-nightly` CronJob, overwriting UI changes to those keys.
 #
@@ -35,7 +36,7 @@ data:
     general:
       base_url: /arr/bazarr
     auth:
-      type: form
+      type: null
       username: admin
       password: $hash
       apikey: $API_KEY
@@ -208,7 +209,9 @@ data:
         # External files next to the video, named <video>.<lang>[.forced].srt.
         "settings-general-subfolder": "current",
         "settings-general-utf8_encode": "true",
-        "settings-auth-type": "form",
+        # No login of its own (Bazarr turns "None" into null); the
+        # username and password stay for a switch back to `form`.
+        "settings-auth-type": "None",
         "settings-auth-username": "admin",
         "settings-auth-password": os.environ["ADMIN_PASSWORD"],
     }

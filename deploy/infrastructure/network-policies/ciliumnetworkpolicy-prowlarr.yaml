@@ -14,9 +14,9 @@ metadata:
   name: prowlarr
   namespace: theater
 spec:
-  description: 'Prowlarr: UI from the Gateway, search API from the three *arr apps,
-    egress to its own Postgres, to the *arr apps it syncs, and to indexers on the
-    internet.'
+  description: 'Prowlarr: UI through the SSO proxy, search API from the three *arr
+    apps, egress to its own Postgres, to the *arr apps it syncs, and to indexers on
+    the internet.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -69,14 +69,6 @@ spec:
   - fromEndpoints:
     - matchLabels:
         app.kubernetes.io/component: sso-proxy
-    toPorts:
-    - ports:
-      - port: "9696"
-        protocol: TCP
-  - fromEntities:
-    - ingress
-    - host
-    - remote-node
     toPorts:
     - ports:
       - port: "9696"

@@ -122,7 +122,7 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    Sonarr/Radarr/Lidarr: UI from the Gateway, release pushes from Prowlarr,
+    Sonarr/Radarr/Lidarr: UI through the SSO proxy, release pushes from Prowlarr,
     egress to their own Postgres, to qBittorrent, to Prowlarr and to indexers.
   endpointSelector:
     matchExpressions:
@@ -147,21 +147,8 @@ spec:
             - port: "8686"
               protocol: TCP    # lidarr
 
-    # Direct from the Gateway. Unused while SSO is in front; kept so reverting
-    # SSO (a two-line HTTPRoute change) does not turn into a silent 503 once
-    # enforcement is on.
-    - fromEntities:
-        - ingress
-        - host
-        - remote-node
-      toPorts:
-        - ports:
-            - port: "8989"
-              protocol: TCP    # sonarr
-            - port: "7878"
-              protocol: TCP    # radarr
-            - port: "8686"
-              protocol: TCP    # lidarr
+    # Nothing direct from the Gateway: the apps trust the proxy for login
+    # (AUTH__METHOD External), so a route that skipped it must fail closed.
 
     # Prowlarr pushes indexers and releases into each app's API.
     - fromEndpoints:
@@ -267,7 +254,7 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    Prowlarr: UI from the Gateway, search API from the three *arr apps, egress to
+    Prowlarr: UI through the SSO proxy, search API from the three *arr apps, egress to
     its own Postgres, to the *arr apps it syncs, and to indexers on the internet.
   endpointSelector:
     matchLabels:
@@ -285,15 +272,7 @@ spec:
             - port: "9696"
               protocol: TCP
 
-    # Direct from the Gateway; unused, kept as on `arr-apps`.
-    - fromEntities:
-        - ingress
-        - host
-        - remote-node
-      toPorts:
-        - ports:
-            - port: "9696"
-              protocol: TCP
+    # Nothing direct from the Gateway, as on `arr-apps`.
 
     # Search requests from the *arr apps.
     - fromEndpoints:
@@ -365,7 +344,7 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    Bazarr: UI from the Gateway, egress to the Sonarr and Radarr APIs and to
+    Bazarr: UI through the SSO proxy, egress to the Sonarr and Radarr APIs and to
     subtitle providers on the internet.
   endpointSelector:
     matchLabels:
@@ -374,16 +353,8 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # Direct from the Gateway. Unused while SSO is in front; kept so reverting
-    # SSO (a two-line HTTPRoute change) needs no policy change.
-    - fromEntities:
-        - ingress
-        - host
-        - remote-node
-      toPorts:
-        - ports:
-            - port: "6767"
-              protocol: TCP
+    # Nothing direct from the Gateway, as on `arr-apps`: Bazarr has no login
+    # of its own.
 
     # The `bazarr-settings` PostSync Job and the `bazarr-nightly` CronJob
     # (apps/theater/bazarr.yaml) and the SSO proxy (apps/theater/sso.yaml).
