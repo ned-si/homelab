@@ -1,6 +1,6 @@
 # LazyLibrarian: finds ebooks and audiobooks for qBittorrent (Readarr is
-# retired upstream). https://theater.lilalala.com/arr/lazylibrarian, own form
-# login (docs/books.md). In `theater` with the share root mounted, so
+# retired upstream). https://theater.lilalala.com/arr/lazylibrarian, behind
+# the theater SSO proxy only: its own login is off (docs/books.md). In `theater` with the share root mounted, so
 # downloads hardlink into /data/books: category `ebooks` -> books/ingest
 # (Calibre-Web imports it), `audiobooks` -> books/audiobooks. Indexers: public
 # ones tagged `books` from Prowlarr.
@@ -27,10 +27,13 @@ data:
     WebServer.http_port=5299
     WebServer.http_root=/arr/lazylibrarian
     # Behind the Gateway's TLS: build redirects from X-Forwarded-Proto/Host,
-    # so the login redirect stays on https.
+    # so redirects stay on https.
     WebServer.http_proxy=1
+    # No own login: an empty password turns LazyLibrarian's web auth off.
+    # Keycloak (theater-sso) is the only login; the port is reachable only
+    # from that proxy and Prowlarr (10-theater.yaml). /api keeps its key.
     WebServer.http_user=${HTTP_USER}
-    WebServer.http_pass=${HTTP_PASS}
+    WebServer.http_pass=
     API.api_enabled=1
     API.api_key=${API_KEY}
     TORRENT.tor_downloader_qbittorrent=1
@@ -102,7 +105,7 @@ spec:
       labels:
         app.kubernetes.io/name: lazylibrarian
       annotations:
-        homelab.lilalala.com/config-version: "4"
+        homelab.lilalala.com/config-version: "5"
     spec:
       securityContext:
         fsGroup: 1000
@@ -158,16 +161,16 @@ spec:
               containerPort: 5299
               protocol: TCP
           # Ready = answers on the endpoint the PostSync smoke test checks:
-          # the login page, which is exempt from authentication.
+          # the web root, a redirect to the home page.
           readinessProbe:
             httpGet:
-              path: /arr/lazylibrarian/auth/login
+              path: /arr/lazylibrarian/
               port: http
             periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /arr/lazylibrarian/auth/login
+              path: /arr/lazylibrarian/
               port: http
             initialDelaySeconds: 60
             periodSeconds: 30

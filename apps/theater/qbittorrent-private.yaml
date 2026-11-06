@@ -2,7 +2,8 @@
 # torrents beyond 10 active, and a queued seed counts as a hit and run. Every
 # 10 minutes this CronJob force-starts every torrent in category `private` and
 # every torrent flagged private. It never stops, removes or recategorises.
-# While qBittorrent restarts it waits up to 4 minutes for the WebUI.
+# While qBittorrent restarts it waits up to 4 minutes for the WebUI. It also
+# keeps the WebUI auth bypass that makes SSO the only login (docs/theater.md).
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -53,6 +54,22 @@ data:
     status, body = post("auth/login", **login)
     if not (status == 204 or (status == 200 and body.strip() == "Ok.")):
         sys.exit(f"login failed: HTTP {status}")
+
+    # SSO only: no WebUI login for pod addresses, so `theater-sso` (Keycloak)
+    # is the only login. The port admits only that proxy and the in-cluster
+    # clients (10-theater.yaml); host-network sources are node addresses,
+    # outside the pod network. Reverse-proxy mode off: the client address
+    # stays the proxy's, never X-Forwarded-For.
+    WEBUI = {"bypass_auth_subnet_whitelist_enabled": True,
+             "bypass_auth_subnet_whitelist": "10.244.0.0/16",
+             "web_ui_reverse_proxy_enabled": False}
+    with opener.open(f"{BASE}/app/preferences", timeout=30) as r:
+        prefs = json.load(r)
+    if any(prefs.get(k) != v for k, v in WEBUI.items()):
+        status, _ = post("app/setPreferences", json=json.dumps(WEBUI))
+        if not 200 <= status < 300:
+            sys.exit(f"setPreferences: HTTP {status}")
+        print("WebUI auth bypass for the pod network set")
 
     status, _ = post("torrents/createCategory", category=CATEGORY, savePath=SAVE_PATH)
     if status == 409:

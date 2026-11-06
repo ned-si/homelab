@@ -14,8 +14,8 @@ metadata:
   name: qbittorrent
   namespace: theater
 spec:
-  description: 'qBittorrent: WebUI reachable from the Gateway and the *arr apps, peer
-    port reachable from the LAN, egress to internet peers but NOT to the LAN.'
+  description: 'qBittorrent: WebUI reachable from the SSO proxy and the *arr apps,
+    peer port reachable from the LAN, egress to internet peers but NOT to the LAN.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -45,14 +45,6 @@ spec:
   - fromEndpoints:
     - matchLabels:
         app.kubernetes.io/component: sso-proxy
-    toPorts:
-    - ports:
-      - port: "8080"
-        protocol: TCP
-  - fromEntities:
-    - ingress
-    - host
-    - remote-node
     toPorts:
     - ports:
       - port: "8080"

@@ -27,14 +27,15 @@ of both groups need OTP. The client `theater-sso` and the groups are realm code 
 session lasts a year, refreshed from the Keycloak session
 ([architecture.md](architecture.md#sessions)).
 
-Sonarr, Radarr, Lidarr and Prowlarr run with `AUTH__METHOD=External` and
-Bazarr with no authentication: the proxy is their only login. Their ports
+Sonarr, Radarr, Lidarr and Prowlarr run with `AUTH__METHOD=External`,
+Bazarr and LazyLibrarian with no authentication, and qBittorrent skips its
+WebUI login for the pod network (set every 10 minutes by
+`qbittorrent-private-seed`): the proxy is their only login. Their ports
 admit only `theater-sso` and the in-cluster API clients
 (`infrastructure/network-policies/10-theater.yaml`), and their APIs still
 require the API key, so the `/api` routes the proxy lets through stay
-protected. LazyLibrarian and qBittorrent keep their own form login behind
-the proxy. When Keycloak is down, forward the app's port (no login for the
-first five; the local admin for the other two), for example
+protected (none for qBittorrent). When Keycloak is down, forward
+the app's port (no login, except qBittorrent: its local admin), for example
 
 ```sh
 kubectl -n theater port-forward svc/sonarr 8989:8989

@@ -22,7 +22,7 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    qBittorrent: WebUI reachable from the Gateway and the *arr apps, peer port
+    qBittorrent: WebUI reachable from the SSO proxy and the *arr apps, peer port
     reachable from the LAN, egress to internet peers but NOT to the LAN.
   endpointSelector:
     matchLabels:
@@ -36,17 +36,6 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/component: sso-proxy
-      toPorts:
-        - ports:
-            - port: "8080"
-              protocol: TCP
-
-    # Direct from the Gateway. Unused while SSO is in front; kept so reverting
-    # SSO (a two-line HTTPRoute change) needs no policy change.
-    - fromEntities:
-        - ingress
-        - host
-        - remote-node
       toPorts:
         - ports:
             - port: "8080"
