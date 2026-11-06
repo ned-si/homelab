@@ -51,8 +51,20 @@ server:
                   matchExpressions:
                     - key: node-role.kubernetes.io/control-plane
                       operator: DoesNotExist
+        # Root profile (operator decision 1, #726): the library on
+        # immich-data stays owned by root, so no runAsUser. The chart already
+        # turns the token off.
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         main:
+          # Runs as root without switching user: no KILL, SETGID or SETUID.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
           # Peak RSS about 3.2Gi (2026-10-21, thumbnail backlog); the rest of
           # its working set is page cache. No CPU limit, like the other apps.
           resources:
