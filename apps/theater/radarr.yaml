@@ -143,7 +143,7 @@ spec:
       containers:
         - name: radarr
           # renovate: datasource=docker depName=ghcr.io/hotio/radarr
-          image: ghcr.io/hotio/radarr:release-6.4.4.10685@sha256:137e730e5b7469de37331c2beb9ddfdc5f33df0ee2b0e8428aa85a3d3cae66f7
+          image: ghcr.io/hotio/radarr:release-6.4.4.10685@sha256:69916cd9f53ab7510e2af1d9ca6eb58626ae128b874d63c390844ba884514b69
           imagePullPolicy: Always
           env:
             - name: TZ

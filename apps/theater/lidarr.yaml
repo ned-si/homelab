@@ -143,7 +143,7 @@ spec:
       containers:
         - name: lidarr
           # renovate: datasource=docker depName=ghcr.io/hotio/lidarr
-          image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:4e183325ecf4dbc72a45356916b91896aa25a219ba88538cb1dcf97001868c3d
+          image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:ace6a1d8bd2eb2c8da3f038c6145dfa9c116fc3d7b49453eed0be52908602c79
           imagePullPolicy: Always
           env:
             - name: TZ

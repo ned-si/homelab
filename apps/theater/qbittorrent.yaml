@@ -22,7 +22,7 @@ spec:
       containers:
         - name: qbittorrent
           # renovate: datasource=docker depName=ghcr.io/hotio/qbittorrent
-          image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:4e009296effbc82a2bd4d81efc4970c5d29cdf15d9519c90c923ead7203e4dfc
+          image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:040a8c0665a3ab9bf6a9c5477b12fc64430de3f0b5dd70df4145d7dcc8462b9d
           imagePullPolicy: Always
           env:
             - name: TZ
