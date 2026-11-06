@@ -311,3 +311,37 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
+---
+# pentest: the agent-driven pentest namespace (platform/pentest,
+# docs/pentest/). It is empty between runs and only ever holds the run-scoped
+# test pod. Ingress default-deny from the start (no workload serves traffic
+# here); egress stays open so a compromised-pod run can probe other
+# namespaces against their own enforced policies.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: pentest
+spec:
+  description: >-
+    Enforcement switch for the pentest namespace, plus kubelet probes in and
+    cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP

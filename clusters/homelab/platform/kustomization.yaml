@@ -25,3 +25,4 @@ resources:
   - hubble-access.yaml
   - signoz.yaml
   - tetragon.yaml
+  - pentest.yaml
