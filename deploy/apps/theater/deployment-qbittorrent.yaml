@@ -28,6 +28,7 @@ spec:
       labels:
         app.kubernetes.io/name: qbittorrent
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: TZ
@@ -40,6 +41,13 @@ spec:
           value: "002"
         image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:040a8c0665a3ab9bf6a9c5477b12fc64430de3f0b5dd70df4145d7dcc8462b9d
         imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
         name: qbittorrent
         ports:
         - containerPort: 8080
@@ -54,11 +62,26 @@ spec:
             path: /
             port: http
           periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - FOWNER
+            - KILL
+            - SETGID
+            - SETUID
+            drop:
+            - ALL
         volumeMounts:
         - mountPath: /config
           name: config
         - mountPath: /data/torrents
           name: torrents
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
       - name: config
         persistentVolumeClaim:
