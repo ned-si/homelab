@@ -102,6 +102,13 @@ objects and rule ids only; values are never printed.
                         (status living), a created date; done has a closed date
                         and no unticked task, living no unticked task, active an
                         issue; .kiro/specs/README.md links every spec
+  pentest-roe           once docs/pentest/ exists: docs/pentest/README.md,
+                        scope.yaml and scripts/pentest-scope-check.sh exist,
+                        repo-policy.sh runs the scope check, and the README has
+                        the sections of PENTEST_ROE_SECTIONS naming their terms
+                        (banned credentials, setup credentials, the window, the
+                        big-change paths) and a Tooling row with purpose,
+                        availability and source for every PENTEST_TOOLS entry
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -214,6 +221,30 @@ CILIUM_VALUES = "infrastructure/cilium/values.yaml"
 # What the backup bucket policy must deny to everyone (docs/backups.md#immutable-versions).
 LOCK_ACTIONS = {"s3:DeleteObjectVersion", "s3:PutBucketVersioning", "s3:DeleteBucket"}
 CI_WORKFLOW = ".github/workflows/ci.yaml"
+# Pentest rules of engagement (spec pentest-programme, Requirements 1, 4, 5, 7).
+PENTEST_DIR = "docs/pentest/"
+PENTEST_README = "docs/pentest/README.md"
+PENTEST_SCOPE = "docs/pentest/scope.yaml"
+PENTEST_SCOPE_CHECK = "scripts/pentest-scope-check.sh"
+# Paths whose change calls for an out-of-cycle run (Requirement 7.1).
+PENTEST_BIG_CHANGE_PATHS = ("deploy/**/httproute-*.yaml", "deploy/**/gateway-*.yaml", "platform/keycloak/**",
+                            "bootstrap/tailscale/**", "infrastructure/network-policies/**", "talos/**")
+PENTEST_ROE_SECTIONS = {
+    "Authorisation": ("#718", "scope.yaml"),
+    "Runner": ("agent",),
+    "Passes": ("External", "LAN", "pod", "Stolen session"),
+    "Scope": ("scope.yaml", "--default-targets"),
+    "Guardrails": ("`os:admin`", "admin kubeconfig", "BMC login", "Keycloak admin", "Tailscale admin",
+                   "Cloudflare API token", "`gh` session", "AWS and NAS admin keys", "immich-data",
+                   "backup bucket", "Rate-limit", "`pentest-setup`", "automation client", "OAuth client",
+                   "GitHub App"),
+    "Window": ("Monday to Friday", "09:00–16:59", "Europe/Zurich"),
+    "Schedule": ("quarter", "`GITHUB_TOKEN`") + tuple(f"`{p}`" for p in PENTEST_BIG_CHANGE_PATHS),
+    "Report flow": ("advisory", "never published", "docs/pentest/<date>-<pass>.md"),
+    "Tooling": (),
+}
+PENTEST_TOOLS = ("scripts/tls-check.sh", "scripts/dast-zap.sh", "nmap", "testssl.sh", "nuclei", "kube-bench",
+                 "trivy", "gitleaks", "kubectl auth can-i")
 # The only tracked parts of .kiro/; settings, hooks and skills stay local.
 KIRO_TRACKED = (".kiro/specs/", ".kiro/steering/")
 TALCONFIG = "talos/talconfig.yaml"
@@ -1019,6 +1050,45 @@ class Policy:
             if f"]({name}/)" not in index_text:
                 self.fail(rule, f".kiro/specs/README.md does not link {name}/")
 
+    def rule_pentest_roe(self) -> None:
+        rule = "pentest-roe"
+        if not any(rel.startswith(PENTEST_DIR) for rel in self.tracked()):
+            return
+        self.on(rule)
+        for rel in (PENTEST_README, PENTEST_SCOPE, PENTEST_SCOPE_CHECK):
+            if not (self.root / rel).is_file():
+                self.fail(rule, f"{rel} is missing")
+        wrapper = self.root / "scripts/ci/repo-policy.sh"
+        if wrapper.is_file() and PENTEST_SCOPE_CHECK not in wrapper.read_text():
+            self.fail(rule, f"scripts/ci/repo-policy.sh does not run {PENTEST_SCOPE_CHECK}")
+        readme = self.root / PENTEST_README
+        if not readme.is_file():
+            return
+        sections: dict[str, str] = {}
+        for part in re.split(r"^## ", readme.read_text(), flags=re.M)[1:]:
+            title, _, body = part.partition("\n")
+            sections[title.strip()] = body
+        for title, needles in PENTEST_ROE_SECTIONS.items():
+            if title not in sections:
+                self.fail(rule, f"{PENTEST_README}: no section '## {title}'")
+                continue
+            for needle in needles:
+                if needle not in sections[title]:
+                    self.fail(rule, f"{PENTEST_README}: section '{title}' does not name {needle!r}")
+        tooling = sections.get("Tooling", "")
+        rows = {}
+        for line in tooling.splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")] if line.startswith("|") else []
+            if len(cells) >= 4 and not set(cells[0]) <= {"-", " "} and cells[0] != "Tool":
+                rows[cells[0]] = cells
+        for tool in PENTEST_TOOLS:
+            row = next((c for name, c in rows.items() if f"`{tool}`" in name), None)
+            if row is None:
+                self.fail(rule, f"{PENTEST_README}: Tooling lists no `{tool}`")
+            elif len(row) != 4 or not row[2] or row[3] not in ("in repo", "new"):
+                self.fail(rule, f"{PENTEST_README}: Tooling row `{tool}` needs purpose, availability "
+                                "and source (in repo or new)")
+
     def rule_kiro_tracked(self) -> None:
         rule = "kiro-tracked"
         self.on(rule)
@@ -1230,6 +1300,7 @@ class Policy:
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
                      self.rule_monitor_selected, self.rule_appproject_kinds, self.rule_spec_lifecycle,
+                     self.rule_pentest_roe,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
