@@ -59,7 +59,7 @@ spec:
           containers:
             - name: check
               # renovate: datasource=docker depName=bash
-              image: bash:5.3.20-alpine3.24@sha256:1aeded7acb6953d5108a32413159cac5d40acb5681d30887d8d73c5cefebe849
+              image: bash:5.3.20-alpine3.24@sha256:bfe8f6d356f2944ec5ad456e44620924862263aa0717036b3c2cdce0ee4c0af0
               command: ["bash", "/app/check.sh"]
               env:
                 - name: PATH
