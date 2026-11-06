@@ -22,10 +22,23 @@ spec:
         # rotating keycloak-admin so the pod env matches the Secret.
         kubectl.kubernetes.io/restartedAt: "2026-10-07T00:00:00Z"
     spec:
+      automountServiceAccountToken: false
+      # The image's config user 1000; its files are group 0 and group-writable.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: keycloak
           # renovate: datasource=docker depName=quay.io/keycloak/keycloak
           image: quay.io/keycloak/keycloak:26.8.1@sha256:3f3c5f8e03c614774b4bd9173b88391fefa4153bfc010d8012d59ad825377332
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - /opt/keycloak/bin/kc.sh
           args:
