@@ -43,7 +43,7 @@ spec:
               value: /var/run/secrets/talos.dev/config
             - name: PUSHGATEWAY
               value: http://pushgateway.backup-verify.svc:9091
-            image: bash:5.3.20-alpine3.24@sha256:1aeded7acb6953d5108a32413159cac5d40acb5681d30887d8d73c5cefebe849
+            image: bash:5.3.20-alpine3.24@sha256:bfe8f6d356f2944ec5ad456e44620924862263aa0717036b3c2cdce0ee4c0af0
             name: check
             resources:
               limits:
