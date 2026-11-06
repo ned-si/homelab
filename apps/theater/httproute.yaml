@@ -246,6 +246,13 @@ spec:
             type: PathPrefix
             value: /
       filters:
+        # Plex authenticates with X-Plex-Token, not cookies. The theater-sso
+        # session cookies on this host reach ~7 KB and Plex answers 400 to
+        # request headers over ~5 KB, so cookies are not forwarded to it.
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - Cookie
         - type: ResponseHeaderModifier
           responseHeaderModifier:
             set:
