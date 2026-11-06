@@ -9,6 +9,7 @@
 #   3. when present (they arrive with the restructured layout):
 #      scripts/secrets-check.sh (strict), scripts/leak-check.sh,
 #      scripts/placeholder-check.sh, scripts/check-restic-repos.sh,
+#      scripts/pentest-scope-check.sh,
 #      scripts/render-deploy.sh --check, kube-linter on deploy/
 #   4. scripts/ci/secret_rotation.py coverage: every sealed file has a row in
 #      ci/secret-rotation.tsv
@@ -60,6 +61,7 @@ step secret-rotation python3 scripts/ci/secret_rotation.py coverage
 [ -x scripts/leak-check.sh ] && step leak-check scripts/leak-check.sh
 [ -x scripts/placeholder-check.sh ] && step placeholder-check scripts/placeholder-check.sh
 [ -x scripts/check-restic-repos.sh ] && step check-restic-repos scripts/check-restic-repos.sh
+[ -x scripts/pentest-scope-check.sh ] && step pentest-scope-check scripts/pentest-scope-check.sh
 [ -x scripts/render-deploy.sh ] && step render-deploy-check scripts/render-deploy.sh --check
 if [ -d deploy ]; then
   if [ -f .kube-linter.yaml ]; then
