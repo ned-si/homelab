@@ -250,6 +250,10 @@ spec:
       port: 32400
       weight: 1
     filters:
+    - requestHeaderModifier:
+        remove:
+        - Cookie
+      type: RequestHeaderModifier
     - responseHeaderModifier:
         set:
         - name: Strict-Transport-Security
