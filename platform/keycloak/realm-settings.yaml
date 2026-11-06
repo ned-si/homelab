@@ -80,14 +80,6 @@ spec:
                   name: keycloak-automation
                   key: REALM_SETTINGS_CLIENT_SECRET
                   optional: true
-            # The pentest setup client (platform.conf `pentest_client`),
-            # platform/secrets/keycloak-pentest.sops.yaml.
-            - name: PENTEST_SETUP_CLIENT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: keycloak-pentest
-                  key: PENTEST_SETUP_CLIENT_SECRET
-                  optional: true
             # platform/secrets/signoz-sso.sops.yaml.
             - name: SIGNOZ_CLIENT_SECRET
               valueFrom:
