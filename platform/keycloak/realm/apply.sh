@@ -128,6 +128,20 @@ for g in $(conf mfa_groups); do
     bad=1
   fi
 done
+# The pentest test user: one name each, its group never an OTP group.
+for v in "pentest_user:$(conf pentest_user)" "pentest_group:$(conf pentest_group)" \
+  "pentest_client:$(conf pentest_client)"; do
+  if ! [[ "${v#*:}" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "FAIL platform.conf: ${v%%:*} is not one name: ${v#*:}" >&2
+    bad=1
+  fi
+done
+for g in admins $(conf mfa_groups); do
+  if [ "$g" = "$(conf pentest_group)" ]; then
+    echo "FAIL platform.conf: pentest_group must not be $g" >&2
+    bad=1
+  fi
+done
 for c in $(conf direct_grant_clients); do
   if ! [[ "$c" =~ ^[A-Za-z0-9_-]+$ ]]; then
     echo "FAIL platform.conf: direct_grant_clients entry is not a client ID: $c" >&2
@@ -884,6 +898,141 @@ for c in $access_clients; do
   if [ "$(override "$live" direct_grant)" = "$did" ]; then got=$df; fi
   check "client $c direct_grant flow" "$df" "$got"
 done
+
+# --- platform.conf: the pentest test user and its setup client -----------------
+# The user exists between runs, disabled and in pentest_group only. The client's
+# service account holds query-users and one fine-grained admin permission:
+# view and manage on that user, nothing else.
+PT_USER=$(conf pentest_user)
+PT_GROUP=$(conf pentest_group)
+PT_CLIENT=$(conf pentest_client)
+PT_POLICY="$PT_CLIENT-service-account"
+PT_PERMISSION="$PT_CLIENT-$PT_USER"
+# Looked up by email: the homelab realm uses the email as username
+# (registrationEmailAsUsername), so the username is not pentest_user (#1184).
+PT_EMAIL="$PT_USER@example.org"
+user_id() { # email -> id; empty when absent
+  kc get users -r "$REALM" -q email="$1" -q exact=true --format csv --noquotes --fields id,email |
+    awk -F, -v e="$1" '$2 == e { print $1 }' || true
+}
+json_val() { # JSON, field -> first string value of that field
+  printf '%s\n' "$1" | sed -n "s/^ *\"$2\" : \"\\(.*\\)\",\\{0,1\\}\$/\\1/p" | head -n 1
+}
+if [ -z "$(user_id "$PT_EMAIL")" ]; then
+  echo "creating user $PT_USER"
+  kc create users -r "$REALM" -s username="$PT_USER" -s enabled=false -s firstName=Pentest \
+    -s lastName=Test -s email="$PT_EMAIL" -s emailVerified=true >/dev/null
+fi
+uid=$(user_id "$PT_EMAIL")
+if [ -z "$uid" ]; then
+  check "user $PT_USER" present ""
+else
+  kc update "users/$uid" -r "$REALM" -s enabled=false
+  check "user $PT_USER enabled" false "$(kc get "users/$uid" -r "$REALM" --fields enabled |
+    sed -n 's/^ *"enabled" : \([a-z]*\).*$/\1/p')"
+  gid=$(name_id groups "$PT_GROUP")
+  if [ -z "$gid" ]; then
+    echo "creating group $PT_GROUP"
+    kc create groups -r "$REALM" -s name="$PT_GROUP" >/dev/null
+    gid=$(name_id groups "$PT_GROUP")
+  fi
+  user_groups() { kc get "users/$uid/groups" -r "$REALM" --format csv --noquotes --fields id,name; }
+  while IFS=, read -r g n; do
+    [ -n "$g" ] || continue
+    if [ "$g" != "$gid" ]; then
+      echo "removing user $PT_USER from group $n"
+      kc delete "users/$uid/groups/$g" -r "$REALM"
+    fi
+  done < <(user_groups)
+  if ! user_groups | grep -qx "$gid,$PT_GROUP"; then
+    kc update "users/$uid/groups/$gid" -r "$REALM" -n
+  fi
+  check "user $PT_USER groups" "$PT_GROUP" "$(user_groups | cut -d, -f2 | sorted)"
+fi
+
+if [ -z "$(client_id "$PT_CLIENT")" ]; then
+  echo "creating client $PT_CLIENT"
+  kc create clients -r "$REALM" -s clientId="$PT_CLIENT" -s protocol=openid-connect \
+    -s publicClient=false -s standardFlowEnabled=false -s directAccessGrantsEnabled=false \
+    -s implicitFlowEnabled=false -s serviceAccountsEnabled=true \
+    -s "description=Pentest setup and teardown of user $PT_USER (platform.conf pentest_client)" >/dev/null
+fi
+cid=$(client_id "$PT_CLIENT")
+if [ -z "$cid" ]; then
+  check "client $PT_CLIENT" present ""
+else
+  # The secret is never printed: only whether the live one matches.
+  var=$(env_name "$PT_CLIENT")
+  want=${!var:-}
+  field=secret
+  if usable "$want"; then
+    kc update "clients/$cid" -r "$REALM" -s "$field=$want"
+    live=$(kc get "clients/$cid/client-$field" -r "$REALM" | sed -n 's/^ *"value" : "\(.*\)",\{0,1\}$/\1/p')
+    if [ "$live" = "$want" ]; then got=matches; else got=differs; fi
+    check "client $PT_CLIENT $field ($var)" matches "$got"
+  else
+    echo "WARN client $PT_CLIENT: $var is unset or PENDING; client $field left as is" >&2
+  fi
+  unset want live
+
+  sa="service-account-$PT_CLIENT"
+  sa_roles() { kc get-roles -r "$REALM" --uusername "$sa" --cclientid realm-management "$@" \
+    --format csv --noquotes --fields name | sorted; }
+  for r in $(sa_roles); do
+    if [ "$r" != query-users ]; then
+      echo "removing realm-management role $r from $sa"
+      kc remove-roles -r "$REALM" --uusername "$sa" --cclientid realm-management --rolename "$r"
+    fi
+  done
+  case " $(sa_roles) " in
+    *" query-users "*) ;;
+    *) kc add-roles -r "$REALM" --uusername "$sa" --cclientid realm-management --rolename query-users ;;
+  esac
+  check "client $PT_CLIENT realm-management roles" query-users "$(sa_roles --effective)"
+
+  kc update "realms/$REALM" -s adminPermissionsEnabled=true
+  check adminPermissionsEnabled true "$(realm_val "$(kc get "realms/$REALM")" adminPermissionsEnabled)"
+  ap=$(client_id admin-permissions)
+  said=$(json_val "$(kc get "clients/$cid/service-account-user" -r "$REALM" --fields id)" id)
+  if [ -z "$ap" ] || [ -z "$said" ] || [ -z "$uid" ]; then
+    check "admin permission $PT_PERMISSION" present ""
+  else
+    rs="clients/$ap/authz/resource-server"
+    named() { # list path, name -> id of the entry with exactly that name
+      kc get "$rs/$1" -r "$REALM" -q name="$2" --format csv --noquotes --fields id,name |
+        grep -E ",$2\$" | cut -d, -f1 || true
+    }
+    pol_body="{\"name\":\"$PT_POLICY\",\"logic\":\"POSITIVE\",\"users\":[\"$said\"],\"description\":\"The service account of client $PT_CLIENT (platform.conf)\"}"
+    pid=$(named policy "$PT_POLICY")
+    if [ -z "$pid" ]; then
+      kc create "$rs/policy/user" -r "$REALM" -b "$pol_body" >/dev/null
+      pid=$(named policy "$PT_POLICY")
+    else
+      kc update "$rs/policy/user/$pid" -r "$REALM" -n -b "{\"id\":\"$pid\",${pol_body#\{}"
+    fi
+    got=$(kc get "$rs/policy/user/$pid" -r "$REALM" | tr -d ' \n' | sed -n 's/.*"users":\[\([^]]*\)\].*/\1/p' | tr -d '"')
+    check "policy $PT_POLICY users" "$said" "$got"
+
+    perm_body="{\"name\":\"$PT_PERMISSION\",\"resourceType\":\"Users\",\"scopes\":[\"view\",\"manage\"],\"resources\":[\"$uid\"],\"policies\":[\"$PT_POLICY\"],\"decisionStrategy\":\"UNANIMOUS\",\"description\":\"view and manage user $PT_USER only (platform.conf)\"}"
+    mid=$(named permission "$PT_PERMISSION")
+    if [ -z "$mid" ]; then
+      kc create "$rs/permission/scope" -r "$REALM" -b "$perm_body" >/dev/null
+      mid=$(named permission "$PT_PERMISSION")
+    else
+      kc update "$rs/permission/scope/$mid" -r "$REALM" -n -b "{\"id\":\"$mid\",${perm_body#\{}"
+    fi
+    if [ -z "$mid" ]; then
+      check "admin permission $PT_PERMISSION" present ""
+    else
+      names() { kc get "$rs/policy/$mid/$1" -r "$REALM" --format csv --noquotes --fields name | sorted; }
+      check "admin permission $PT_PERMISSION scopes" "manage view" "$(names scopes)"
+      check "admin permission $PT_PERMISSION resources" "$uid" "$(names resources)"
+      check "admin permission $PT_PERMISSION policies" "$PT_POLICY" "$(names associatedPolicies)"
+      check "policy $PT_POLICY permissions" "$PT_PERMISSION" \
+        "$(kc get "$rs/policy/$pid/dependentPolicies" -r "$REALM" --format csv --noquotes --fields name | sorted)"
+    fi
+  fi
+fi
 
 # Read back the realm flow and its binding.
 check_flow "$FLOW" "$loa_rows" "$(login_rows "$FLOW" 0)"
