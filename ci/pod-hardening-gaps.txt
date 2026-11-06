@@ -77,14 +77,7 @@ theater/Deployment/prowlarr/prowlarr                  privilege-escalation #726 
 theater/Deployment/prowlarr/prowlarr                  seccomp              #726 task 12
 theater/Deployment/prowlarr/wait-for-db               seccomp              #726 task 12
 theater/Deployment/qbittorrent/qbittorrent            non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/radarr/*                           token                #726 task 10
-theater/Deployment/radarr/exportarr                   seccomp              #726 task 10
-theater/Deployment/radarr/exportarr-key               seccomp              #726 task 10
-theater/Deployment/radarr/radarr                      capabilities         #726 task 10
 theater/Deployment/radarr/radarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/radarr/radarr                      privilege-escalation #726 task 10
-theater/Deployment/radarr/radarr                      seccomp              #726 task 10
-theater/Deployment/radarr/wait-for-db                 seccomp              #726 task 10
 theater/Deployment/sonarr/sonarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/theater-sso/*                      token                #726 task 18
 theater/Job/arr-import-lists/*                        token                #726 task 18
