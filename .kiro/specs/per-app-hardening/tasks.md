@@ -43,11 +43,11 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       asks), tokens in `resources/` and, for the chart-created account,
       through the chart's pod options [4.3]; `forceRename` unchanged. [2,
       3, 4, 8, 9] #1166
-- [ ] 7. Weekday. Immich server: root profile (no `KILL`, `SETGID` or
+- [x] 7. Weekday. Immich server: root profile (no `KILL`, `SETGID` or
       `SETUID` unless the log asks), token through the chart's pod
       options [4.3], the `non-root` gap line with operator decision 1 as
       its reason; nothing on `immich-data`; `scripts/psa-readiness.sh immich`
-      quoted for #1020. [3, 4, 8, 9]
+      quoted for #1020. [3, 4, 8, 9] #1183
 - [ ] 8. Weekday. Keycloak: non-root `1000:0`, token on the Deployment
       (the `keycloak-realm-settings` Job already has it off); the admin
       kubeconfig checked before and after; a login to one OIDC app and one
