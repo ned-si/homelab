@@ -229,3 +229,6 @@ settles each one before it starts.
    set).
 4. Task 1: whether pentest-programme task 1 has merged with its test user
    defined in git, which decides the Migration case for that user.
+   Settled in task 1: it has not merged, and no Keycloak user is defined
+   in git, so the third case applies: the test user uses `household` from
+   the start.

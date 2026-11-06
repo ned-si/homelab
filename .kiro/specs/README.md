@@ -68,7 +68,7 @@ Change specs, active:
 | [autoscaling](autoscaling/) | 2026-11-03 | #917 | task 1: the HA inventory and its repo-policy rules |
 | [disaster-recovery-strategy](disaster-recovery-strategy/) | 2026-11-03 | #918 | task 1: the decision, the scenario table and the off-site inventory |
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
-| [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 1: the `household`, `relatives` and `friends` groups on the app lines, then the console move and the removal of `family` and `media` |
+| [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 2: the console move (operator), then the removal of `family` and `media` |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [pentest-programme](pentest-programme/) | 2026-11-03 | #718 | task 1: rules of engagement, scope file and the dedicated test credentials |
 | [per-app-hardening](per-app-hardening/) | 2026-11-04 | #726 | task 1: the `pod-hardening` rule and its gaps file, then qBittorrent |
