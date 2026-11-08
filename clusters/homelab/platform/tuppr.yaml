@@ -18,7 +18,7 @@ spec:
     - repoURL: ghcr.io/home-operations/charts
       chart: tuppr
       # renovate: datasource=docker depName=ghcr.io/home-operations/charts/tuppr
-      targetRevision: 0.5.12
+      targetRevision: 0.5.13
       helm:
         releaseName: tuppr
         valueFiles:
