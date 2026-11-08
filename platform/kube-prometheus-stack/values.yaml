@@ -27,6 +27,15 @@ kubeApiServer:
 # certgen hook Jobs: under Argo CD the hook ServiceAccount is deleted after
 # PreSync and the PostSync Job never gets a pod.
 prometheusOperator:
+  # Operator v0.95.1 (chart v93) was published for amd64 only, and all nodes
+  # are arm64: the pod sat in ImagePullBackOff. Pinned to the last multi-arch
+  # release, the reloader too (the operator injects it into Prometheus and
+  # Alertmanager). Drop both pins once v0.95.x ships arm64 images.
+  image:
+    tag: v0.94.2
+  prometheusConfigReloader:
+    image:
+      tag: v0.94.2
   admissionWebhooks:
     certManager:
       enabled: true
