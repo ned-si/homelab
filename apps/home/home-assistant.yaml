@@ -46,7 +46,7 @@ spec:
         - name: config
           # Same image as the app: one Renovate dependency, and it has a shell.
           # renovate: datasource=docker depName=ghcr.io/home-assistant/home-assistant
-          image: ghcr.io/home-assistant/home-assistant:2026.11.0@sha256:c6c1ca9931036bf3a2c4cc088d8db25dfea3b33935a5ecc83c40349462e2f69e
+          image: ghcr.io/home-assistant/home-assistant:2026.11.1@sha256:6785d1eca68747a524c156faae1b139ed415c07357386ae6fe17291986e59e82
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-euc"]
           args:
@@ -80,7 +80,7 @@ spec:
         # restart does not depend on GitHub or PyPI.
         - name: custom-components
           # renovate: datasource=docker depName=ghcr.io/home-assistant/home-assistant
-          image: ghcr.io/home-assistant/home-assistant:2026.11.0@sha256:c6c1ca9931036bf3a2c4cc088d8db25dfea3b33935a5ecc83c40349462e2f69e
+          image: ghcr.io/home-assistant/home-assistant:2026.11.1@sha256:6785d1eca68747a524c156faae1b139ed415c07357386ae6fe17291986e59e82
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-euc"]
           args:
@@ -161,7 +161,7 @@ spec:
       containers:
         - name: home-assistant
           # renovate: datasource=docker depName=ghcr.io/home-assistant/home-assistant
-          image: ghcr.io/home-assistant/home-assistant:2026.11.0@sha256:c6c1ca9931036bf3a2c4cc088d8db25dfea3b33935a5ecc83c40349462e2f69e
+          image: ghcr.io/home-assistant/home-assistant:2026.11.1@sha256:6785d1eca68747a524c156faae1b139ed415c07357386ae6fe17291986e59e82
           imagePullPolicy: IfNotPresent
           command: ["python3", "-m", "homeassistant", "--config", "/config"]
           env:
