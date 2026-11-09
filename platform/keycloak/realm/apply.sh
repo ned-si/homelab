@@ -491,6 +491,22 @@ else
     got=absent
   fi
   check "master client $AUTO realm role admin" present "$got"
+  # Keycloak 26.8.2 refuses Admin API tokens without the kc-admin-api scope
+  # (CVE-2026-19688, #1163). The scope exists once the database has been
+  # migrated to 26.8.2; it must be on the client before that version runs,
+  # since the client cannot add it to itself afterwards.
+  sid=$(name_id client-scopes kc-admin-api)
+  if [ -n "$sid" ]; then
+    if ! kc get "clients/$id/default-client-scopes" -r "$REALM" --format csv --noquotes --fields name | grep -qx kc-admin-api; then
+      kc update "clients/$id/default-client-scopes/$sid" -r "$REALM"
+    fi
+    if kc get "clients/$id/default-client-scopes" -r "$REALM" --format csv --noquotes --fields name | grep -qx kc-admin-api; then
+      got=present
+    else
+      got=absent
+    fi
+    check "master client $AUTO default scope kc-admin-api" present "$got"
+  fi
   # A fresh login with the client alone, and one read with that token.
   if login /tmp/kcadm-auto.config &&
     "$KCADM" get realms/master --config /tmp/kcadm-auto.config --fields realm >/dev/null 2>&1; then
