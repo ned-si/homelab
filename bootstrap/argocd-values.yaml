@@ -172,9 +172,14 @@ notifications:
       # for about a minute and is not a bad merge. The controller
       # re-evaluates on every app refresh (3 min), so a real failure
       # still dispatches within 8 minutes of turning Degraded.
-      - description: The Application's health has been Degraded for 5 minutes.
+      # Only if it turned Degraded after the last sync started: an app that
+      # was already Degraded is not broken by the new revision, which may be
+      # the fix (#1208 was auto-reverted by #1210).
+      - description: The Application's health turned Degraded after the last sync and has stayed so for 5 minutes.
         when: >-
           app.status?.health?.status == 'Degraded' &&
+          app.status?.operationState?.startedAt != nil &&
+          time.Parse(app.status.health.lastTransitionTime).After(time.Parse(app.status.operationState.startedAt)) &&
           time.Now().Sub(time.Parse(app.status.health.lastTransitionTime)).Minutes() >= 5
         oncePer: >-
           [app.status?.operationState?.syncResult?.revision,
