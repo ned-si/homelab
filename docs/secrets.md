@@ -105,7 +105,16 @@ chmod 600 "$out"; rm /tmp/agent-ca.crt; unset token
 KUBECONFIG=$out kubectl auth can-i get secrets -A
 ```
 
-Expected: `no`. Argo CD token: `argocd account generate-token --account agent`
+Expected: `no`. The pentest setup credential (ServiceAccount
+`pentest/pentest-setup`, `platform/pentest/rbac.yaml`, docs/pentest/README.md
+Setup credentials) is built the same way, once, by the operator: Secret
+`pentest/pentest-setup-token`, file
+`~/homelab-backups/agent/kubeconfig-pentest-setup`, user `pentest-setup`,
+namespace `pentest` in the context. Its check:
+`kubectl auth can-i create pods -n pentest` is `yes`,
+`kubectl auth can-i get secrets -n pentest` is `no`.
+
+Argo CD token: `argocd account generate-token --account agent`
 as an admin. Grafana token: Administration, Service accounts,
 `agent-readonly`, Add token. Revoke by deleting the token Secret (Argo CD
 recreates it with a new value), the Argo CD token
