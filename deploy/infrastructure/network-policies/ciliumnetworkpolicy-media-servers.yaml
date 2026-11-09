@@ -14,8 +14,9 @@ metadata:
   name: media-servers
   namespace: theater
 spec:
-  description: 'Plex and Jellyfin: HTTP from the Gateway, metadata lookup on the internet,
-    and deliberately no in-cluster egress at all.'
+  description: 'Plex and Jellyfin: HTTP from the Gateway, Plex API calls from Sonarr,
+    Radarr and arr-import-lists, metadata lookup on the internet, and deliberately
+    no in-cluster egress at all.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -55,4 +56,16 @@ spec:
       - port: "32400"
         protocol: TCP
       - port: "8096"
+        protocol: TCP
+  - fromEndpoints:
+    - matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values:
+        - sonarr
+        - radarr
+        - arr-import-lists
+    toPorts:
+    - ports:
+      - port: "32400"
         protocol: TCP

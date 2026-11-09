@@ -14,7 +14,8 @@ metadata:
   name: arr-import-lists
   namespace: theater
 spec:
-  description: 'arr-import-lists Job: egress to the Sonarr and Radarr APIs. No ingress.'
+  description: 'arr-import-lists Job: egress to the Sonarr, Radarr and Plex APIs.
+    No ingress.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -39,6 +40,13 @@ spec:
     toPorts:
     - ports:
       - port: "7878"
+        protocol: TCP
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: plex
+    toPorts:
+    - ports:
+      - port: "32400"
         protocol: TCP
   enableDefaultDeny:
     egress: false
