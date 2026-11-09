@@ -12,25 +12,29 @@ user records the stop check [8.4]. Requirement numbers in brackets.
 
 ## Open
 
-- [ ] 1. `feat(ci): pod-hardening rule with its gaps file`: the rule
+- [x] 1. `feat(ci): pod-hardening rule with its gaps file`: the rule
       `pod-hardening` in `scripts/ci/repo_policy.py` as in design.md, with
       `APP_NAMESPACES`; `ci/pod-hardening-gaps.txt` seeded from its
       findings on `main` (each line `#726 task <n>` or its lasting
       reason), the fixtures in `tests/test_repo_policy.py`, the rule in
       `docs/testing.md`. [1]
-- [ ] 2. Weekday. qBittorrent: liveness probe, root profile with `KILL`,
+      #1131
+- [x] 2. Weekday. qBittorrent: liveness probe, root profile with `KILL`,
       `SETGID`, `SETUID` (`UMASK=002`, NFS), token, the stop check; the
       "Prevention" section of `docs/runbooks/arr-qbittorrent.md` as it is
       now. [2, 3, 4, 8, 9]
-- [ ] 3. Weekday. Paperless and its Valkey: probes (Valkey readiness and
+      #1161
+- [x] 3. Weekday. Paperless and its Valkey: probes (Valkey readiness and
       liveness; Paperless `tcpSocket` liveness and startup), profiles
       (Valkey non-root `999:1000`, Paperless non-root `1000:1000` per its
       rootless docs), tokens; the ownership check on its four PVCs; the
       kind boot of Valkey green; `scripts/psa-readiness.sh paperless`
       after the sync. [2, 3, 4, 8, 9]
-- [ ] 4. Weekday. Mealie: `tcpSocket` liveness and startup probes,
+      #1136
+- [x] 4. Weekday. Mealie: `tcpSocket` liveness and startup probes,
       non-root `1000:1000`, token; `scripts/psa-readiness.sh mealie`. [2,
       3, 4, 8, 9]
+      #1141
 - [x] 5. Weekday. Syncthing (StatefulSet): readiness and liveness on
       `/rest/noauth/health`, non-root `1000:1000` without `fsGroup`, token;
       stop if the ownership check finds other owners; the brief allows
@@ -48,29 +52,36 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       options [4.3], the `non-root` gap line with operator decision 1 as
       its reason; nothing on `immich-data`; `scripts/psa-readiness.sh immich`
       quoted for #1020. [3, 4, 8, 9] #1183
-- [ ] 8. Weekday. Keycloak: non-root `1000:0`, token on the Deployment
+- [x] 8. Weekday. Keycloak: non-root `1000:0`, token on the Deployment
       (the `keycloak-realm-settings` Job already has it off); the admin
       kubeconfig checked before and after; a login to one OIDC app and one
       oauth2-proxy UI in the 30-minute comment;
       `scripts/psa-readiness.sh keycloak`. [3, 4, 8]
+      #1186
 - [x] 9. Weekday. Sonarr and its exportarr sidecar: root profile for the
       app (`UMASK=002`, NFS), exportarr non-root `65532:65532` on the
       container, pod-level seccomp, token, the stop check. [3, 4, 8, 9]
       #1170
-- [ ] 10. Weekday. Radarr, as task 9. [3, 4, 8, 9]
-- [ ] 11. Weekday. Lidarr, as task 9. [3, 4, 8, 9]
-- [ ] 12. Weekday. Prowlarr, as task 9. [3, 4, 8, 9]
-- [ ] 13. Weekday. Bazarr: root profile (capabilities within the six,
+- [x] 10. Weekday. Radarr, as task 9. [3, 4, 8, 9]
+      #1189
+- [x] 11. Weekday. Lidarr, as task 9. [3, 4, 8, 9]
+      #1216
+- [x] 12. Weekday. Prowlarr, as task 9. [3, 4, 8, 9]
+      #1217
+- [x] 13. Weekday. Bazarr: root profile (capabilities within the six,
       `UMASK=002` kept), token, the stop check. [3, 4, 8, 9]
-- [ ] 14. Weekday. LazyLibrarian, as task 13. [3, 4, 8, 9]
+      #1219
+- [x] 14. Weekday. LazyLibrarian, as task 13. [3, 4, 8, 9]
+      #1220
 - [ ] 15. Weekday. Jellyfin: liveness and startup probes; the root
       profile with its gap line naming operator decision 2; token. If
       Jellyfin is scaled to 0 or removed before this task, the task is
       ticked with that PR and its gap lines removed. [2, 3, 4, 8, 9]
 - [ ] 16. Weekday. Plex: liveness and startup probes, root profile with
       its gap line, token, the stop check. [2, 3, 4, 8, 9]
-- [ ] 17. Weekday. Calibre-Web: root profile with its gap line, token, the
+- [x] 17. Weekday. Calibre-Web: root profile with its gap line, token, the
       stop check. [3, 4, 8, 9]
+      #1225
 - [ ] 18. Weekday. Tokens off on what is left in the apps layer (design.md
       "Tokens"), the `components/postsync-smoke` Job included. [4, 8]
 - [ ] 19. Weekday. Tokens off on what is left in the platform and
