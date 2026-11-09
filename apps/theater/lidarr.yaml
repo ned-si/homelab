@@ -66,6 +66,10 @@ spec:
       labels:
         app.kubernetes.io/name: lidarr
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       # Starts the app only once its database accepts connections: started
       # without it, the app hangs instead of retrying.
       initContainers:
@@ -145,6 +149,14 @@ spec:
           # renovate: datasource=docker depName=ghcr.io/hotio/lidarr
           image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:64fc12db9a72b151f6506c3a84e01a820d8bb291b8d34507b11df4ba45e047d9
           imagePullPolicy: Always
+          # Root profile: UMASK=002 and a read-write NFS mount. s6 runs as
+          # root and drops to hotio (1000) with s6-setuidgid, which needs
+          # SETGID, SETUID and KILL to stop it.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"]
           env:
             - name: TZ
               value: Europe/Zurich
@@ -226,10 +238,11 @@ spec:
               memory: 24Mi
             limits:
               memory: 128Mi
+          # The image's distroless nonroot user.
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsUser: 65532
+            runAsGroup: 65532
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:

@@ -49,14 +49,7 @@ theater/Deployment/jellyfin/jellyfin                  seccomp              #726 
 theater/Deployment/lazylibrarian/*                    token                #726 task 14
 theater/Deployment/lazylibrarian/lazylibrarian        capabilities         #726 task 14
 theater/Deployment/lazylibrarian/lazylibrarian        non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/lidarr/*                           token                #726 task 11
-theater/Deployment/lidarr/exportarr                   seccomp              #726 task 11
-theater/Deployment/lidarr/exportarr-key               seccomp              #726 task 11
-theater/Deployment/lidarr/lidarr                      capabilities         #726 task 11
 theater/Deployment/lidarr/lidarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/lidarr/lidarr                      privilege-escalation #726 task 11
-theater/Deployment/lidarr/lidarr                      seccomp              #726 task 11
-theater/Deployment/lidarr/wait-for-db                 seccomp              #726 task 11
 theater/Deployment/plex/*                             token                #726 task 16
 theater/Deployment/plex/plex                          capabilities         #726 task 16
 theater/Deployment/plex/plex                          non-root             root profile: the pms-docker init needs root and upstream documents no uid
