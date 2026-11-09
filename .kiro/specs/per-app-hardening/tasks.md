@@ -73,12 +73,14 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       #1219
 - [x] 14. Weekday. LazyLibrarian, as task 13. [3, 4, 8, 9]
       #1220
-- [ ] 15. Weekday. Jellyfin: liveness and startup probes; the root
+- [x] 15. Weekday. Jellyfin: liveness and startup probes; the root
       profile with its gap line naming operator decision 2; token. If
       Jellyfin is scaled to 0 or removed before this task, the task is
       ticked with that PR and its gap lines removed. [2, 3, 4, 8, 9]
-- [ ] 16. Weekday. Plex: liveness and startup probes, root profile with
+      #1222
+- [x] 16. Weekday. Plex: liveness and startup probes, root profile with
       its gap line, token, the stop check. [2, 3, 4, 8, 9]
+      #1224
 - [x] 17. Weekday. Calibre-Web: root profile with its gap line, token, the
       stop check. [3, 4, 8, 9]
       #1225
