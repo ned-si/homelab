@@ -136,6 +136,10 @@ point, a credential or an admission path is added or removed.
   console revokes it.
 - The tailnet policy is applied from git by CI
   (`.github/workflows/tailscale-policy.yaml`).
+- Residual: a lost or stolen owner or admin phone reaches the Kubernetes API
+  proxy as `tailnet-admins` (cluster-admin) until the operator removes the device in the
+  admin console. The stolen-session pentest pass cannot reproduce it with its
+  `tag:pentest` node ([runbook](pentest/runbooks/stolen-session.md)).
 - Planned: a reduced talosconfig on the phone
   (`os:operator`), never the `os:admin` one.
 
