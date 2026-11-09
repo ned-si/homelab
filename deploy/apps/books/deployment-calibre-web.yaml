@@ -27,6 +27,7 @@ spec:
       labels:
         app.kubernetes.io/name: calibre-web
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: TZ
@@ -67,6 +68,16 @@ spec:
             memory: 512Mi
         securityContext:
           allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - FOWNER
+            - KILL
+            - SETGID
+            - SETUID
+            drop:
+            - ALL
         startupProbe:
           failureThreshold: 60
           httpGet:
