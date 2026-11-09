@@ -120,6 +120,7 @@ objects and rule ids only; values are never printed.
                         workflow_dispatch only, checks the window in its first
                         step, uploads SARIF and no plaintext artifact;
                         pentest-schedule.yaml, when present, runs no scanner
+                        and triggers on exactly the big-change paths
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -1212,6 +1213,11 @@ class Policy:
                 if scanner in text:
                     self.fail(rule, f"{PENTEST_SCHEDULE_WORKFLOW}: names {scanner!r}; it only opens or "
                                     "comments on the pentest-run issue")
+            docs = yaml_file_docs(path)
+            push = ((docs[0] if docs else {}).get("on") or {}).get("push") or {}
+            if sorted(push.get("paths") or []) != sorted(PENTEST_BIG_CHANGE_PATHS):
+                self.fail(rule, f"{PENTEST_SCHEDULE_WORKFLOW}: on.push.paths are not the big-change paths "
+                                f"of {PENTEST_README} ({', '.join(PENTEST_BIG_CHANGE_PATHS)})")
 
     def rule_kiro_tracked(self) -> None:
         rule = "kiro-tracked"
