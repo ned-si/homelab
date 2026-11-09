@@ -3,8 +3,6 @@
 #   - inline credentials replaced by secretKeyRef to SOPS Secrets with the same
 #     value (per-key sha256 checked), which restarts the pod once on adoption;
 #   - PVCs carry argocd.argoproj.io/sync-options: Delete=false,Prune=false.
-# Hardening (probes, security contexts, resources, image digests) is a later,
-# separate change: docs/roadmap.md.
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
@@ -73,6 +71,10 @@ spec:
       labels:
         app.kubernetes.io/name: prowlarr
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       # Starts the app only once its database accepts connections: started
       # without it, the app hangs instead of retrying.
       initContainers:
@@ -152,6 +154,14 @@ spec:
           # renovate: datasource=docker depName=ghcr.io/hotio/prowlarr
           image: ghcr.io/hotio/prowlarr:release-2.7.0.5723@sha256:50ccdde38e1ad0834cc05b7eae54e9734ac6af76a1780b99066dd18d37b9802d
           imagePullPolicy: Always
+          # Root profile: UMASK=002 and a read-write NFS mount. s6 runs as
+          # root and drops to hotio (1000) with s6-setuidgid, which needs
+          # SETGID, SETUID and KILL to stop it.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"]
           env:
             - name: TZ
               value: Europe/Zurich
@@ -258,10 +268,11 @@ spec:
               memory: 24Mi
             limits:
               memory: 128Mi
+          # The image's distroless nonroot user.
           securityContext:
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
+            runAsUser: 65532
+            runAsGroup: 65532
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
