@@ -115,6 +115,11 @@ objects and rule ids only; values are never printed.
                         <YYYY-MM-DD>-<pass>.md with those sections, a draft
                         advisory link, and findings rows with a severity, each
                         withheld row linking its issue
+  pentest-runbooks      once docs/pentest/ exists: every PENTEST_RUNBOOKS runbook
+                        names its boundary and terms; pentest-external.yaml is
+                        workflow_dispatch only, checks the window in its first
+                        step, uploads SARIF and no plaintext artifact;
+                        pentest-schedule.yaml, when present, runs no scanner
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -258,6 +263,17 @@ PENTEST_REPORT_SECTIONS = ("Scope", "Tools", "Findings", "Not reached", "Alerts"
 PENTEST_SEVERITIES = ("critical", "high", "medium", "low", "info")
 PENTEST_ADVISORY = re.compile(r"https://github\.com/ned-si/homelab/security/advisories/GHSA(-[0-9a-z]{4}){3}")
 PENTEST_ISSUE = re.compile(r"#\d+|/issues/\d+")
+# Pentest runbooks and the external workflow (spec pentest-programme,
+# Requirements 2 and 3). Each runbook names its boundary and the terms its
+# requirement asks for; tasks 3 and 4 add theirs.
+PENTEST_RUNBOOKS = {
+    "docs/pentest/runbooks/external.md": (
+        "Boundary:", "Internet to the Gateway", "80 and 443", "22000", "50000", "`scripts/tls-check.sh`",
+        "`dast.yaml`", "`full_scan: true`", "`pentest-family`", "pentest-external.yaml", "GitHub-hosted runner"),
+}
+PENTEST_EXTERNAL_WORKFLOW = ".github/workflows/pentest-external.yaml"
+PENTEST_SCHEDULE_WORKFLOW = ".github/workflows/pentest-schedule.yaml"
+PENTEST_SCANNERS = ("nmap", "nuclei", "testssl", "zap", "docker run")
 # The only tracked parts of .kiro/; settings, hooks and skills stay local.
 KIRO_TRACKED = (".kiro/specs/", ".kiro/steering/")
 TALCONFIG = "talos/talconfig.yaml"
@@ -1145,6 +1161,51 @@ class Policy:
                                     f"not one of {', '.join(PENTEST_SEVERITIES)}")
                 if "withheld" in cells[3].lower() and not PENTEST_ISSUE.search(cells[6]):
                     self.fail(rule, f"{rel}: finding {cells[0]} is withheld and links no issue")
+    def rule_pentest_runbooks(self) -> None:
+        rule = "pentest-runbooks"
+        if not any(rel.startswith(PENTEST_DIR) for rel in self.tracked()):
+            return
+        self.on(rule)
+        for rel, needles in PENTEST_RUNBOOKS.items():
+            path = self.root / rel
+            if not path.is_file():
+                self.fail(rule, f"{rel} is missing")
+                continue
+            text = path.read_text()
+            for needle in needles:
+                if needle not in text:
+                    self.fail(rule, f"{rel} does not name {needle!r}")
+        path = self.root / PENTEST_EXTERNAL_WORKFLOW
+        if not path.is_file():
+            self.fail(rule, f"{PENTEST_EXTERNAL_WORKFLOW} is missing")
+        else:
+            docs = yaml_file_docs(path)
+            wf = docs[0] if docs else {}
+            trigger = wf.get("on")
+            keys = set(trigger) if isinstance(trigger, dict) else {trigger} if isinstance(trigger, str) \
+                else set(trigger or [])
+            if keys != {"workflow_dispatch"}:
+                self.fail(rule, f"{PENTEST_EXTERNAL_WORKFLOW}: the only trigger is workflow_dispatch, "
+                                f"not {', '.join(sorted(map(str, keys))) or 'none'}")
+            steps = [st for job in (wf.get("jobs") or {}).values() for st in (job.get("steps") or [])]
+            first = steps[0] if steps else {}
+            if "TZ=Europe/Zurich" not in str(first.get("run", "")):
+                self.fail(rule, f"{PENTEST_EXTERNAL_WORKFLOW}: the first step checks the window "
+                                "(TZ=Europe/Zurich, Mon-Fri 09:00-16:59)")
+            uses = [str(st.get("uses", "")) for st in steps]
+            if not any("codeql-action/upload-sarif" in u for u in uses):
+                self.fail(rule, f"{PENTEST_EXTERNAL_WORKFLOW}: findings leave the run as SARIF "
+                                "(github/codeql-action/upload-sarif)")
+            if any("upload-artifact" in u for u in uses):
+                self.fail(rule, f"{PENTEST_EXTERNAL_WORKFLOW}: uploads an artifact; artifacts of this "
+                                "repository are public")
+        path = self.root / PENTEST_SCHEDULE_WORKFLOW
+        if path.is_file():
+            text = path.read_text().lower()
+            for scanner in PENTEST_SCANNERS:
+                if scanner in text:
+                    self.fail(rule, f"{PENTEST_SCHEDULE_WORKFLOW}: names {scanner!r}; it only opens or "
+                                    "comments on the pentest-run issue")
 
     def rule_kiro_tracked(self) -> None:
         rule = "kiro-tracked"
@@ -1357,7 +1418,7 @@ class Policy:
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
                      self.rule_monitor_selected, self.rule_appproject_kinds, self.rule_spec_lifecycle,
-                     self.rule_pentest_roe, self.rule_pentest_reports,
+                     self.rule_pentest_roe, self.rule_pentest_runbooks, self.rule_pentest_reports,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
