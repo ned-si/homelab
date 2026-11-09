@@ -28,6 +28,7 @@ spec:
       labels:
         app.kubernetes.io/name: plex
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: TZ
@@ -39,6 +40,13 @@ spec:
               name: plex-claim
         image: plexinc/pms-docker:1.43.7.11114-4b588ea35@sha256:531ad94c469748dcaa9d6f3d6c6160ad3598617a55319d389e7d08216bc680a7
         imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /identity
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
         name: plex
         ports:
         - containerPort: 32400
@@ -50,6 +58,24 @@ spec:
             path: /identity
             port: http
           periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - FOWNER
+            - KILL
+            - SETGID
+            - SETUID
+            drop:
+            - ALL
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /identity
+            port: http
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config
@@ -57,6 +83,9 @@ spec:
           name: transcode
         - mountPath: /media
           name: media
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
       - name: config
         persistentVolumeClaim:
