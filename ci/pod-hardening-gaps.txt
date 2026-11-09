@@ -36,12 +36,7 @@ theater/CronJob/theater-config-backup-sonarr/*        token                #726 
 theater/CronJob/theater-configs-prune/*               token                #726 task 18
 theater/CronJob/theater-postgres-backup/*             token                #726 task 18
 theater/Deployment/bazarr/bazarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/jellyfin/*                         token                #726 task 15
-theater/Deployment/jellyfin/jellyfin                  capabilities         #726 task 15
 theater/Deployment/jellyfin/jellyfin                  non-root             root profile: read-write NFS mount, the export's Mapall user is not known (operator decision 2)
-theater/Deployment/jellyfin/jellyfin                  privilege-escalation #726 task 15
-theater/Deployment/jellyfin/jellyfin                  probes               #726 task 15
-theater/Deployment/jellyfin/jellyfin                  seccomp              #726 task 15
 theater/Deployment/lazylibrarian/lazylibrarian        non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/lidarr/lidarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/plex/*                             token                #726 task 16

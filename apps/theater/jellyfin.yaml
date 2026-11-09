@@ -19,6 +19,10 @@ spec:
       labels:
         app.kubernetes.io/name: jellyfin
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: jellyfin
           # renovate: datasource=docker depName=ghcr.io/jellyfin/jellyfin
@@ -41,6 +45,28 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          # Migrations at start after an update: up to 5 minutes.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          # Root profile: read-write NFS mount, the export's Mapall user is
+          # not known (operator decision 2). Jellyfin does not switch user,
+          # so no KILL, SETGID or SETUID.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
           volumeMounts:
             - name: config
               mountPath: /config

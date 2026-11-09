@@ -28,12 +28,20 @@ spec:
       labels:
         app.kubernetes.io/name: jellyfin
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: JELLYFIN_PublishedServerUrl
           value: https://cinema.lilalala.com/
         image: ghcr.io/jellyfin/jellyfin:12.4@sha256:fea863d0cd9ec445985d9c75fc6ed64e38a1d2766cf0c250a33d553f4fc1b771
         imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 5
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
         name: jellyfin
         ports:
         - containerPort: 8096
@@ -48,6 +56,21 @@ spec:
             path: /health
             port: http
           periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - FOWNER
+            drop:
+            - ALL
+        startupProbe:
+          failureThreshold: 30
+          httpGet:
+            path: /health
+            port: http
+          periodSeconds: 10
         volumeMounts:
         - mountPath: /config
           name: config
@@ -55,6 +78,9 @@ spec:
           name: cache
         - mountPath: /media
           name: media
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
       - name: cache
         persistentVolumeClaim:
