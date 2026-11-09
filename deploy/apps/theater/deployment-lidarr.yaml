@@ -30,6 +30,7 @@ spec:
       labels:
         app.kubernetes.io/name: lidarr
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: TZ
@@ -64,6 +65,18 @@ spec:
             path: /arr/lidarr/ping
             port: http
           periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - FOWNER
+            - KILL
+            - SETGID
+            - SETUID
+            drop:
+            - ALL
         startupProbe:
           failureThreshold: 90
           httpGet:
@@ -115,9 +128,9 @@ spec:
             drop:
             - ALL
           readOnlyRootFilesystem: true
-          runAsGroup: 1000
+          runAsGroup: 65532
           runAsNonRoot: true
-          runAsUser: 1000
+          runAsUser: 65532
         volumeMounts:
         - mountPath: /run/exportarr
           name: exportarr
@@ -193,6 +206,9 @@ spec:
           readOnly: true
         - mountPath: /run/exportarr
           name: exportarr
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
       - emptyDir:
           medium: Memory
