@@ -222,6 +222,17 @@ spec:
             - port: "9696"
               protocol: TCP
 
+    # Library updates in Plex after an import (connection `Plex`,
+    # apps/theater/arr-import-lists.yaml). Lidarr has none; Plex admits only
+    # Sonarr and Radarr.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: plex
+      toPorts:
+        - ports:
+            - port: "32400"
+              protocol: TCP
+
     # Metadata providers and update checks. `world`, not `toFQDNs`: FQDN
     # policy routes all DNS through Cilium's L7 DNS proxy.
     - toEntities:
@@ -407,7 +418,8 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    arr-import-lists Job: egress to the Sonarr and Radarr APIs. No ingress.
+    arr-import-lists Job: egress to the Sonarr, Radarr and Plex APIs. No
+    ingress.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: arr-import-lists
@@ -439,6 +451,14 @@ spec:
       toPorts:
         - ports:
             - port: "7878"
+              protocol: TCP
+    # Plex preferences (the periodic library scan).
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: plex
+      toPorts:
+        - ports:
+            - port: "32400"
               protocol: TCP
 ---
 # ---------------------------------------------------------------------------
@@ -683,8 +703,9 @@ metadata:
   namespace: theater
 spec:
   description: >-
-    Plex and Jellyfin: HTTP from the Gateway, metadata lookup on the internet,
-    and deliberately no in-cluster egress at all.
+    Plex and Jellyfin: HTTP from the Gateway, Plex API calls from Sonarr,
+    Radarr and arr-import-lists, metadata lookup on the internet, and
+    deliberately no in-cluster egress at all.
   endpointSelector:
     matchExpressions:
       - key: app.kubernetes.io/name
@@ -705,6 +726,17 @@ spec:
               protocol: TCP   # plex
             - port: "8096"
               protocol: TCP   # jellyfin
+    # Library updates from Sonarr and Radarr, preferences from the
+    # arr-import-lists Job (apps/theater/arr-import-lists.yaml).
+    - fromEndpoints:
+        - matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values: [sonarr, radarr, arr-import-lists]
+      toPorts:
+        - ports:
+            - port: "32400"
+              protocol: TCP
   egress:
     # Cluster DNS.
     - toEndpoints:

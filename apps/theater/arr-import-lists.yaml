@@ -1,7 +1,9 @@
-# Plex Watchlist import lists in Sonarr and Radarr, as code (docs/theater.md,
-# "Plex watchlist"): a PostSync Job upserts one list per app with quality
-# profile HD-Original, reading the watchlist with the `plex-token` Secret. UI
-# changes to these lists are overwritten.
+# Plex wiring for Sonarr and Radarr, as code (docs/theater.md, "Plex
+# watchlist" and "Plex library updates"): a PostSync Job upserts per app the
+# import list `Plex Watchlist` (quality profile HD-Original) and the connection
+# `Plex` (a library update on every import), and turns on Plex's periodic
+# library scan. All read the `plex-token` Secret. UI changes to these are
+# overwritten.
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -11,7 +13,7 @@ metadata:
 data:
   import-lists.py: |
     # Idempotent; standard library only.
-    import json, os, urllib.error, urllib.request
+    import json, os, urllib.error, urllib.parse, urllib.request
 
     NAME = "Plex Watchlist"
     PROFILE = "HD-Original"
@@ -66,8 +68,60 @@ data:
             item["id"] = old["id"]
             call("PUT", f"{api}/importlist/{old['id']}?forceSave=true", key, item)
         print(f"{app}: import list '{NAME}' -> {PROFILE}, {root}")
+
+    # Library updates. Plex mounts only the share's media/ at /media, so its
+    # file watcher misses what the *arr pods write over NFS: each import asks
+    # Plex to scan the item's folder, mapped from /data/media/.
+    CONN = "Plex"
+    PLEX_HOST, PLEX_PORT = "plex.theater.svc.cluster.local", 32400
+    EVENTS = ["onDownload", "onUpgrade", "onImportComplete", "onRename",
+              "onSeriesDelete", "onEpisodeFileDelete", "onEpisodeFileDeleteForUpgrade",
+              "onMovieDelete", "onMovieFileDelete", "onMovieFileDeleteForUpgrade"]
+    PLEX_FIELDS = {"host": PLEX_HOST, "port": PLEX_PORT, "useSsl": False,
+                   "authToken": os.environ["PLEX_TOKEN"], "updateLibrary": True,
+                   "mapFrom": "/data/media/", "mapTo": "/media/"}
+    for app, (base, env, _) in APPS.items():
+        key = os.environ[env]
+        api = f"{base}/api/v3"
+        schema = next(s for s in call("GET", f"{api}/notification/schema", key)
+                      if s["implementation"] == "PlexServer")
+        names = {f["name"] for f in schema["fields"]}
+        missing = set(PLEX_FIELDS) - names
+        if missing:
+            raise SystemExit(f"{app}: PlexServer schema lacks {sorted(missing)}")
+        for f in schema["fields"]:
+            if f["name"] in PLEX_FIELDS:
+                f["value"] = PLEX_FIELDS[f["name"]]
+        item = dict(schema, name=CONN)
+        on = [e for e in EVENTS if item.get("supports" + e[0].upper() + e[1:])]
+        item.update({e: True for e in on})
+        for k in ("presets", "message", "infoLink"):
+            item.pop(k, None)
+        old = next((i for i in call("GET", f"{api}/notification", key) if i["name"] == CONN), None)
+        # forceSave: the save tests Plex, which a sync can run before the
+        # network policy allowing it has applied. The hourly scan covers that.
+        if old is None:
+            call("POST", f"{api}/notification?forceSave=true", key, item)
+        else:
+            item["id"] = old["id"]
+            call("PUT", f"{api}/notification/{old['id']}?forceSave=true", key, item)
+        print(f"{app}: connection '{CONN}' -> {PLEX_HOST}:{PLEX_PORT}, {len(on)} events")
+
+    # Periodic scan: every hour, catches what no import announced (files
+    # added by hand). Metadata refresh is Plex's own nightly task, on by
+    # default (ButlerTaskRefreshPeriodicMetadata).
+    PREFS = {"ScheduledLibraryUpdatesEnabled": "1", "ScheduledLibraryUpdateInterval": "3600"}
+    req = urllib.request.Request(
+        f"http://{PLEX_HOST}:{PLEX_PORT}/:/prefs?" + urllib.parse.urlencode(PREFS),
+        method="PUT", headers={"X-Plex-Token": os.environ["PLEX_TOKEN"]})
+    try:
+        with urllib.request.urlopen(req, timeout=60):
+            pass
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"PUT plex /:/prefs: HTTP {e.code}")
+    print("plex: " + ", ".join(f"{k}={v}" for k, v in PREFS.items()))
 ---
-# Applies the lists after every sync. Re-run by hand: sync `theater` in Argo CD.
+# Applies all of it after every sync. Re-run by hand: sync `theater` in Argo CD.
 apiVersion: batch/v1
 kind: Job
 metadata:

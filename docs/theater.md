@@ -203,7 +203,24 @@ last run (read-only):
 kubectl -n theater logs job/arr-import-lists
 ```
 
-Expected: one `import list 'Plex Watchlist'` line each for sonarr and radarr.
+Expected: one `import list 'Plex Watchlist'` line each for sonarr and radarr,
+one `connection 'Plex'` line each, and one `plex:` line (next section).
+
+## Plex library updates
+
+Plex's own change detection does not see new files: the *arr pods write them
+over NFS, and inotify only reports changes made on the same mount. Two things
+cover it, both set by the same `arr-import-lists` Job:
+
+- Sonarr and Radarr have the connection `Plex`: after each import, upgrade,
+  rename or delete, Plex scans that one folder (path mapping `/data/media/` to
+  `/media/`). New episodes and films show up within a minute.
+- Plex scans every library each hour (`ScheduledLibraryUpdatesEnabled`), for
+  files added by hand.
+
+Metadata (posters, descriptions) is matched during the scan and refreshed by
+Plex's nightly task "Refresh metadata periodically" (02:00 to 05:00, on by
+default). A title matched wrongly still needs Fix Match in Plex.
 
 ## Indexers
 
