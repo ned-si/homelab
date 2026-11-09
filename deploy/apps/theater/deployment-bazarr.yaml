@@ -27,6 +27,7 @@ spec:
       labels:
         app.kubernetes.io/name: bazarr
     spec:
+      automountServiceAccountToken: false
       containers:
       - env:
         - name: TZ
@@ -65,6 +66,16 @@ spec:
             memory: 256Mi
         securityContext:
           allowPrivilegeEscalation: false
+          capabilities:
+            add:
+            - CHOWN
+            - DAC_OVERRIDE
+            - FOWNER
+            - KILL
+            - SETGID
+            - SETUID
+            drop:
+            - ALL
         volumeMounts:
         - mountPath: /config
           name: config
