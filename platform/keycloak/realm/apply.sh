@@ -913,7 +913,7 @@ PT_PERMISSION="$PT_CLIENT-$PT_USER"
 PT_EMAIL="$PT_USER@example.org"
 user_id() { # email -> id; empty when absent
   kc get users -r "$REALM" -q email="$1" -q exact=true --format csv --noquotes --fields id,email |
-    awk -F, -v e="$1" '$2 == e { print $1 }' || true
+    while IFS=, read -r i e; do [ "$e" = "$1" ] && echo "$i"; done || true
 }
 json_val() { # JSON, field -> first string value of that field
   printf '%s\n' "$1" | sed -n "s/^ *\"$2\" : \"\\(.*\\)\",\\{0,1\\}\$/\\1/p" | head -n 1
