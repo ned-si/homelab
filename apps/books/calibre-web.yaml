@@ -23,6 +23,7 @@ spec:
       labels:
         app.kubernetes.io/name: calibre-web
     spec:
+      automountServiceAccountToken: false
       securityContext:
         seccompProfile:
           type: RuntimeDefault
@@ -76,8 +77,14 @@ spec:
             # Conversions (ebook-convert) are the peak.
             limits:
               memory: 2Gi
+          # Root profile: upstream documents no uid, read-write NFS mount. s6
+          # drops the app to 1000, which needs SETGID, SETUID and KILL to
+          # stop it.
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"]
           volumeMounts:
             - name: config
               mountPath: /config

@@ -7,8 +7,6 @@ books/CronJob/books-config-backup-audiobookshelf/*    token                #726 
 books/CronJob/books-config-backup-calibre-web/*       token                #726 task 18
 books/CronJob/books-configs-prune/*                   token                #726 task 18
 books/Deployment/audiobookshelf/*                     token                #726 task 18
-books/Deployment/calibre-web/*                        token                #726 task 17
-books/Deployment/calibre-web/calibre-web              capabilities         #726 task 17
 books/Deployment/calibre-web/calibre-web              non-root             root profile: upstream documents no uid, read-write NFS mount
 immich/CronJob/immich-library-backup-local/*          token                #726 task 18
 immich/CronJob/immich-library-backup/*                token                #726 task 18
