@@ -13,6 +13,9 @@
 		// The Talos nodes (siderolabs/tailscale extension), which log in
 		// with the operator's OAuth client secret (talos/talconfig.yaml).
 		"tag:talos": ["tag:k8s-operator"],
+		// The pentest test node. Only the pentest OAuth client mints its
+		// single-use key (docs/pentest/README.md, Setup credentials).
+		"tag:pentest": [],
 	},
 
 	// The exit node needs no approval in the admin console.
@@ -80,6 +83,19 @@
 			"src": ["autogroup:owner", "autogroup:admin"],
 			"dst": ["tag:talos"],
 			"ip":  ["tcp:50000"],
+		},
+		// The pentest test node reaches what a member reaches from outside
+		// the LAN: the cluster's tailnet services over HTTPS and an exit node
+		// for the internet. Not the Kubernetes API proxy, not tag:talos.
+		{
+			"src": ["tag:pentest"],
+			"dst": ["tag:k8s"],
+			"ip":  ["tcp:443"],
+		},
+		{
+			"src": ["tag:pentest"],
+			"dst": ["autogroup:internet"],
+			"ip":  ["*"],
 		},
 	],
 

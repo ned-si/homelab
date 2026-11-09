@@ -109,7 +109,9 @@ default allow-all:
 - the owner and admins reach `tag:k8s-operator` on 443, with the Kubernetes
   capability `impersonate: groups: [tailnet-admins]`;
 - the owner and admins reach `tag:talos` (the nodes) on TCP 50000 only;
-  `tag:talos` reaches nothing.
+  `tag:talos` reaches nothing;
+- the pentest test node (`tag:pentest`, docs/pentest/README.md) reaches
+  `tag:k8s` on TCP 443 and `autogroup:internet` only; nothing reaches it.
 
 Apply a change: edit the file in a pull request. The workflow
 `.github/workflows/tailscale-policy.yaml` tests it against the tailnet on the
