@@ -109,6 +109,12 @@ objects and rule ids only; values are never printed.
                         (banned credentials, setup credentials, the window, the
                         big-change paths) and a Tooling row with purpose,
                         availability and source for every PENTEST_TOOLS entry
+  pentest-reports       once docs/pentest/ exists: docs/pentest/template.md has the
+                        PENTEST_REPORT_SECTIONS; every other file at the top of
+                        docs/pentest/ is README.md, scope.yaml or a report
+                        <YYYY-MM-DD>-<pass>.md with those sections, a draft
+                        advisory link, and findings rows with a severity, each
+                        withheld row linking its issue
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -245,6 +251,13 @@ PENTEST_ROE_SECTIONS = {
 }
 PENTEST_TOOLS = ("scripts/tls-check.sh", "scripts/dast-zap.sh", "nmap", "testssl.sh", "nuclei", "kube-bench",
                  "trivy", "gitleaks", "kubectl auth can-i")
+# Pentest reports (spec pentest-programme, Requirement 6).
+PENTEST_TEMPLATE = "docs/pentest/template.md"
+PENTEST_REPORT = re.compile(r"docs/pentest/\d{4}-\d{2}-\d{2}-(external|internal-lan|internal-pod|stolen-session)\.md")
+PENTEST_REPORT_SECTIONS = ("Scope", "Tools", "Findings", "Not reached", "Alerts", "Teardown")
+PENTEST_SEVERITIES = ("critical", "high", "medium", "low", "info")
+PENTEST_ADVISORY = re.compile(r"https://github\.com/ned-si/homelab/security/advisories/GHSA(-[0-9a-z]{4}){3}")
+PENTEST_ISSUE = re.compile(r"#\d+|/issues/\d+")
 # The only tracked parts of .kiro/; settings, hooks and skills stay local.
 KIRO_TRACKED = (".kiro/specs/", ".kiro/steering/")
 TALCONFIG = "talos/talconfig.yaml"
@@ -1089,6 +1102,50 @@ class Policy:
                 self.fail(rule, f"{PENTEST_README}: Tooling row `{tool}` needs purpose, availability "
                                 "and source (in repo or new)")
 
+    def rule_pentest_reports(self) -> None:
+        rule = "pentest-reports"
+        tracked = [rel for rel in self.tracked() if rel.startswith(PENTEST_DIR)]
+        if not tracked:
+            return
+        self.on(rule)
+
+        def sections(rel: str) -> dict[str, str] | None:
+            path = self.root / rel
+            if not path.is_file():
+                self.fail(rule, f"{rel} is missing")
+                return None
+            found: dict[str, str] = {}
+            for part in re.split(r"^## ", path.read_text(), flags=re.M)[1:]:
+                title, _, body = part.partition("\n")
+                found[title.strip()] = body
+            for title in PENTEST_REPORT_SECTIONS:
+                if title not in found:
+                    self.fail(rule, f"{rel}: no section '## {title}'")
+            return found
+
+        sections(PENTEST_TEMPLATE)
+        top = {rel for rel in tracked if "/" not in rel[len(PENTEST_DIR):]}
+        for rel in sorted(top - {PENTEST_README, PENTEST_SCOPE, PENTEST_TEMPLATE}):
+            if not PENTEST_REPORT.fullmatch(rel):
+                self.fail(rule, f"{rel}: a report is named docs/pentest/<YYYY-MM-DD>-<pass>.md, "
+                                "<pass> one of external, internal-lan, internal-pod, stolen-session")
+                continue
+            found = sections(rel)
+            if found is None:
+                continue
+            if not PENTEST_ADVISORY.search((self.root / rel).read_text()):
+                self.fail(rule, f"{rel}: no link to its draft advisory "
+                                "(https://github.com/ned-si/homelab/security/advisories/GHSA-...)")
+            for line in found.get("Findings", "").splitlines():
+                cells = [c.strip() for c in line.strip().strip("|").split("|")] if line.startswith("|") else []
+                if len(cells) < 7 or cells[0] == "ID" or set(cells[0]) <= {"-", " "}:
+                    continue
+                if cells[2].lower() not in PENTEST_SEVERITIES:
+                    self.fail(rule, f"{rel}: finding {cells[0]} has severity {cells[2]!r}, "
+                                    f"not one of {', '.join(PENTEST_SEVERITIES)}")
+                if "withheld" in cells[3].lower() and not PENTEST_ISSUE.search(cells[6]):
+                    self.fail(rule, f"{rel}: finding {cells[0]} is withheld and links no issue")
+
     def rule_kiro_tracked(self) -> None:
         rule = "kiro-tracked"
         self.on(rule)
@@ -1300,7 +1357,7 @@ class Policy:
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
                      self.rule_monitor_selected, self.rule_appproject_kinds, self.rule_spec_lifecycle,
-                     self.rule_pentest_roe,
+                     self.rule_pentest_roe, self.rule_pentest_reports,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,
                      self.rule_image_bulky,
