@@ -42,8 +42,6 @@ theater/Deployment/jellyfin/jellyfin                  non-root             root 
 theater/Deployment/jellyfin/jellyfin                  privilege-escalation #726 task 15
 theater/Deployment/jellyfin/jellyfin                  probes               #726 task 15
 theater/Deployment/jellyfin/jellyfin                  seccomp              #726 task 15
-theater/Deployment/lazylibrarian/*                    token                #726 task 14
-theater/Deployment/lazylibrarian/lazylibrarian        capabilities         #726 task 14
 theater/Deployment/lazylibrarian/lazylibrarian        non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/lidarr/lidarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/plex/*                             token                #726 task 16

@@ -107,6 +107,7 @@ spec:
       annotations:
         homelab.lilalala.com/config-version: "5"
     spec:
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         fsGroupChangePolicy: OnRootMismatch
@@ -181,8 +182,14 @@ spec:
               memory: 256Mi
             limits:
               memory: 1Gi
+          # Root profile: UMASK=002 and a read-write NFS mount. s6 runs as
+          # root and drops the app to 1000, which needs SETGID, SETUID and
+          # KILL to stop it.
           securityContext:
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"]
           volumeMounts:
             - name: config
               mountPath: /config
