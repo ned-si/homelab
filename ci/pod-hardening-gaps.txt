@@ -15,11 +15,6 @@ immich/CronJob/immich-library-backup/*                token                #726 
 immich/CronJob/immich-library-prune/*                 token                #726 task 18
 immich/Deployment/barman-cloud/barman-cloud           probes               #726 task 20
 immich/Deployment/immich-server/main                  non-root             root profile: writes the photo library on immich-data, which keeps its owner (operator decision 1)
-keycloak/Deployment/keycloak/*                        token                #726 task 8
-keycloak/Deployment/keycloak/keycloak                 capabilities         #726 task 8
-keycloak/Deployment/keycloak/keycloak                 non-root             #726 task 8
-keycloak/Deployment/keycloak/keycloak                 privilege-escalation #726 task 8
-keycloak/Deployment/keycloak/keycloak                 seccomp              #726 task 8
 mealie/CronJob/mealie-backup/*                        token                #726 task 18
 mealie/CronJob/mealie-prune/*                         token                #726 task 18
 monitoring/CronJob/grafana-backup/*                   token                #726 task 19
