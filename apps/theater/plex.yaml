@@ -19,6 +19,10 @@ spec:
       labels:
         app.kubernetes.io/name: plex
     spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: plex
           # renovate: datasource=docker depName=plexinc/pms-docker
@@ -43,6 +47,27 @@ spec:
               port: http
             periodSeconds: 10
             failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /identity
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          # Migrations at start after an update: up to 5 minutes.
+          startupProbe:
+            httpGet:
+              path: /identity
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          # Root profile: the pms-docker init needs root. s6 drops Plex to
+          # uid 1000, which needs SETGID, SETUID and KILL to stop it.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "KILL", "SETGID", "SETUID"]
           volumeMounts:
             - name: config
               mountPath: /config
