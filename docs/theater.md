@@ -229,8 +229,8 @@ Prowlarr syncs its indexers to Sonarr and Radarr (full sync). The set is
 
 | Indexer | Privacy | State |
 |---|---|---|
-| BT.etree, LimeTorrents, The Pirate Bay, Torrent9 | public | enabled, profile `Standard`, tag `books` |
-| EBookBay | public | disabled (see below) |
+| BT.etree, LimeTorrents, The Pirate Bay | public | enabled, profile `Standard`, tag `books` |
+| EBookBay, Torrent9 | public | disabled (see below) |
 | C411 | private | enabled, profile `Manual only` |
 | IPTorrents | private | disabled (see below) |
 
@@ -269,6 +269,11 @@ freeleech releases, because other automatic grabs break its ratio rules.
   ```
 
   Expected today: `DNS:audiobookbay.lu, DNS:www.audiobookbay.lu`.
+- Torrent9 is disabled: from 2026-11-09 its site answered 502 Bad Gateway to
+  every query, so Prowlarr held it failing and `ArrIndexersFailing` fired.
+  It keeps the profile `Standard` and the tag `books`. To try it again:
+  Prowlarr, Indexers, Torrent9, Test; if it passes, enable it and remove it
+  from `MUST_BE_DISABLED`.
 
 Prowlarr keeps this in its database, not in git. Check it after adding an
 indexer (read-only):
