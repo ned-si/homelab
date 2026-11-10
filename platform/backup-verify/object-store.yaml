@@ -5,6 +5,8 @@ apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
   name: verify-source
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   configuration:
     destinationPath: s3://ned-si-homelab-backups/cnpg
@@ -24,3 +26,9 @@ spec:
     env:
       - name: AWS_DEFAULT_REGION
         value: eu-central-1
+    resources:
+      requests:
+        cpu: 20m
+        memory: 96Mi
+      limits:
+        memory: 448Mi
