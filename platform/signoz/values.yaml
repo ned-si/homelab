@@ -70,6 +70,20 @@ clickhouse:
         repository: altinity/metrics-exporter
         # renovate: datasource=docker depName=docker.io/altinity/metrics-exporter
         tag: 0.28.0@sha256:e5a28f05d46d5bae9af93d87fe2ee3add58db65d7ec39196f7764a0746955458
+    # ClickHouse's own system log tables (days kept). The chart keeps 30, and
+    # at this ingest zookeeper_log (~0.65 GB/day) and query_log (~0.3 GB/day)
+    # alone would fill the 50Gi volume. Only for debugging ClickHouse itself;
+    # SigNoz's data (signoz_*) has its own retention. A TTL change makes
+    # ClickHouse keep the old table as <name>_N: drop those by hand
+    # (docs/observability.md, "ClickHouse system logs").
+    zookeeperLog: { ttl: 2 }
+    queryLog: { ttl: 7 }
+    partLog: { ttl: 7 }
+    metricLog: { ttl: 7 }
+    asynchronousMetricLog: { ttl: 7 }
+    sessionLog: { ttl: 7 }
+    crashLog: { ttl: 7 }
+    blobStorageLog: { ttl: 7 }
 
 signoz:
   image:
