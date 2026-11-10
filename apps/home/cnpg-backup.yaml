@@ -6,6 +6,10 @@ kind: ObjectStore
 metadata:
   name: cnpg-backup
   namespace: home
+  annotations:
+    # Before the Cluster: the plugin sizes its sidecar when the instance
+    # Pod is created (per-app-hardening design.md, Sizing).
+    argocd.argoproj.io/sync-wave: "-1"
 spec:
   retentionPolicy: "30d"
   configuration:
@@ -27,6 +31,13 @@ spec:
       # boto3 signs for this region; it must match the bucket.
       - name: AWS_DEFAULT_REGION
         value: eu-central-1
+    # The injected plugin-barman-cloud sidecar, 14-day sizing (#726).
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        memory: 320Mi
 ---
 apiVersion: postgresql.cnpg.io/v1
 kind: ScheduledBackup
