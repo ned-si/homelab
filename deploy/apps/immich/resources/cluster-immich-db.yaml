@@ -40,5 +40,11 @@ spec:
   postgresql:
     shared_preload_libraries:
     - vchord.so
+  resources:
+    limits:
+      memory: 768Mi
+    requests:
+      cpu: 40m
+      memory: 336Mi
   storage:
     size: 5Gi
