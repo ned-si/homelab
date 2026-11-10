@@ -4,7 +4,6 @@
 # else a reason that stays. CI fails on a gap with no line and on a line with no gap.
 
 books/Deployment/calibre-web/calibre-web              non-root             root profile: upstream documents no uid, read-write NFS mount
-immich/Deployment/barman-cloud/barman-cloud           probes               #726 task 20
 immich/Deployment/immich-server/main                  non-root             root profile: writes the photo library on immich-data, which keeps its owner (operator decision 1)
 signoz/Pod/signoz-test-connection/*                   token                chart: signoz's helm test Pod has no pod options
 signoz/StatefulSet/signoz-zookeeper/*                 token                chart: the zookeeper subchart sets no pod-level token option and creates no ServiceAccount

@@ -42,6 +42,28 @@ patches:
         value: [get, list, watch]
       - op: remove
         path: /rules/0
+  # Liveness (#726 task 20): the bundle ships only a TCP readiness probe. The
+  # same port, slower: a hung plugin blocks every CNPG backup. The `test` ops
+  # fail the render when a bump renames the container or moves its port.
+  - target:
+      kind: Deployment
+      name: barman-cloud
+    patch: |-
+      - op: test
+        path: /spec/template/spec/containers/0/name
+        value: barman-cloud
+      - op: test
+        path: /spec/template/spec/containers/0/readinessProbe/tcpSocket/port
+        value: 9090
+      - op: add
+        path: /spec/template/spec/containers/0/livenessProbe
+        value:
+          tcpSocket:
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 5
 
 # `namespace: immich` above overrides every namespace, so the Roles and
 # RoleBindings of rbac.yaml get theirs back here. Transformers run after it.
