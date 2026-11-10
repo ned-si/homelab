@@ -1,0 +1,22 @@
+# Expected require-probes findings of signoz: signoz-clickhouse-operator.
+# require-probes matches Deployments only, so the exception names them
+# exactly and covers nothing else in the namespace.
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: signoz-clickhouse-operator-probes
+  namespace: kyverno
+  annotations:
+    homelab/reason: >-
+      The SigNoz chart has no probe option for the ClickHouse operator
+      or its metrics-exporter container.
+spec:
+  policyRefs:
+    - name: require-probes
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: signoz-clickhouse-operator-probes
+      expression: >-
+        object.metadata.namespace == 'signoz' &&
+        object.metadata.name in ['signoz-clickhouse-operator']

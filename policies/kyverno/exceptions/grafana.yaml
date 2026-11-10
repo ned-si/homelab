@@ -1,0 +1,23 @@
+# Expected require-probes findings of monitoring: kube-prometheus-stack-grafana.
+# require-probes matches Deployments only, so the exception names them
+# exactly and covers nothing else in the namespace.
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: grafana-probes
+  namespace: kyverno
+  annotations:
+    homelab/reason: >-
+      Grafana itself has both probes; its k8s-sidecar containers
+      (grafana-sc-dashboard, grafana-sc-datasources) serve no health
+      endpoint and have no shell for an exec probe.
+spec:
+  policyRefs:
+    - name: require-probes
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: grafana-probes
+      expression: >-
+        object.metadata.namespace == 'monitoring' &&
+        object.metadata.name in ['kube-prometheus-stack-grafana']

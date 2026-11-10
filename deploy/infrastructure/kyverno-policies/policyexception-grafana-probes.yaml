@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  annotations:
+    homelab/reason: Grafana itself has both probes; its k8s-sidecar containers (grafana-sc-dashboard,
+      grafana-sc-datasources) serve no health endpoint and have no shell for an exec
+      probe.
+  name: grafana-probes
+  namespace: kyverno
+spec:
+  matchConditions:
+  - expression: object.metadata.namespace == 'monitoring' && object.metadata.name
+      in ['kube-prometheus-stack-grafana']
+    name: grafana-probes
+  policyRefs:
+  - kind: ValidatingPolicy
+    name: require-probes
