@@ -39,5 +39,11 @@ spec:
     parameters:
       barmanObjectName: cnpg-backup
       serverName: mealie-postgresql-t1
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 30m
+      memory: 112Mi
   storage:
     size: 5Gi
