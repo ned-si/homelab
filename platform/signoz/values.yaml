@@ -59,6 +59,12 @@ clickhouse:
       dataLogDir:
         size: 1Gi
   clickhouseOperator:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
     image:
       registry: docker.io
       repository: altinity/clickhouse-operator
@@ -70,6 +76,12 @@ clickhouse:
         repository: altinity/metrics-exporter
         # renovate: datasource=docker depName=docker.io/altinity/metrics-exporter
         tag: 0.28.0@sha256:e5a28f05d46d5bae9af93d87fe2ee3add58db65d7ec39196f7764a0746955458
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          memory: 128Mi
     # ClickHouse's own system log tables (days kept). The chart keeps 30, and
     # at this ingest zookeeper_log (~0.65 GB/day) and query_log (~0.3 GB/day)
     # alone would fill the 50Gi volume. Only for debugging ClickHouse itself;
