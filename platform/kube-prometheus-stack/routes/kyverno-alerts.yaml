@@ -1,7 +1,11 @@
 # Kyverno: stale PolicyReports make the Security dashboard's counts stale.
 # PodSecurityEnforceDenied (spec pod-security-restricted, D15): the API
 # server's counter has no namespace; a retrying controller passes 5 in
-# minutes, a single dry run does not. Tests: tests/prometheus/kyverno_test.yaml.
+# minutes, a single dry run does not. KyvernoDenied (spec per-app-hardening,
+# requirement 7): the same for a Kyverno policy in Deny; `name` is the
+# webhook, vpol.validate.kyverno.svc-ignore-finegrained-<policy>, and no
+# namespace label, so a namespace silence does not mute it.
+# Tests: tests/prometheus/kyverno_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -43,3 +47,16 @@ spec:
               A controller or an operator keeps creating Pods that a
               namespace's enforce level rejects. Find the namespace from the
               FailedCreate events, then run the Pod Security break-glass.
+        - alert: KyvernoDenied
+          expr: |
+            sum by (name) (increase(apiserver_admission_webhook_rejection_count{name=~"vpol\\.validate\\.kyverno\\.svc.*",error_type="no_error"}[30m])) > 5
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoDenied.md
+            summary: Kyverno policy {{ $labels.name }} rejected {{ $value | printf "%.0f" }} requests in 30 minutes
+            description: >-
+              A controller or an operator keeps creating objects that a
+              Kyverno policy in Deny rejects. Find the object from the
+              FailedCreate events, then run the Kyverno break-glass.

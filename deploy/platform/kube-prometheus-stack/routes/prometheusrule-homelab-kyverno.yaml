@@ -46,3 +46,16 @@ spec:
       labels:
         action: human
         severity: critical
+    - alert: KyvernoDenied
+      annotations:
+        description: A controller or an operator keeps creating objects that a Kyverno
+          policy in Deny rejects. Find the object from the FailedCreate events, then
+          run the Kyverno break-glass.
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoDenied.md
+        summary: Kyverno policy {{ $labels.name }} rejected {{ $value | printf "%.0f"
+          }} requests in 30 minutes
+      expr: |
+        sum by (name) (increase(apiserver_admission_webhook_rejection_count{name=~"vpol\\.validate\\.kyverno\\.svc.*",error_type="no_error"}[30m])) > 5
+      labels:
+        action: human
+        severity: critical
