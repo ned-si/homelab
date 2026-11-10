@@ -28,3 +28,9 @@ sources:
 extraArgs:
   - --default-targets=31.164.170.92
   - --force-default-targets
+resources:
+  requests:
+    cpu: 10m
+    memory: 48Mi
+  limits:
+    memory: 128Mi
