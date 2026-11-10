@@ -35,8 +35,9 @@ books = {t["id"] for t in json.load(open(f"{d}/tag.json")) if t["label"] == "boo
 FREELEECH = {"freeleechonly", "freeleech"}
 # Off whatever their settings (docs/theater.md): IPTorrents has locked the
 # account; no use, freeleech included, until it restores access. EBookBay
-# serves another site's certificate.
-MUST_BE_DISABLED = {"ebookbay", "iptorrents"}
+# serves another site's certificate. Torrent9 failed every query from
+# 2026-11-09 (ArrIndexersFailing).
+MUST_BE_DISABLED = {"ebookbay", "iptorrents", "torrent9"}
 # The indexers Prowlarr should have (docs/theater.md, "Indexers"). Add one here
 # when you add it in Prowlarr; remove one whose definition Prowlarr no longer
 # ships (Prowlarr -> System -> Status, "Indexers have no definition").
