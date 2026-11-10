@@ -36,8 +36,9 @@ grep -v -E '^[^#[:space:]]+@' .zap/rules.tsv | cut -f1-3 >"$out/rules.tsv"
 if [ "$FULL_SCAN" = "true" ]; then
   scan=(zap-full-scan.py -a -j)
 else
-  # -T 10: at most 10 minutes for ZAP to start and the passive scan to finish.
-  scan=(zap-baseline.py -a -j -T 10)
+  # -T 20: at most 20 minutes for ZAP to start and the passive scan to finish
+  # (10 was not enough for Mealie's crawl, run 42469742825).
+  scan=(zap-baseline.py -a -j -T 20)
 fi
 
 docker pull -q "$ZAP_IMAGE" >/dev/null
@@ -48,11 +49,17 @@ while IFS= read -r h; do
   # -I: warnings do not change the exit code. ZAP exits 0 (pass), 1 (FAIL rows
   # hit), 2 (warnings) or 3 (scan error); only a missing report or 3 is an
   # error here, the gate is in zap_sarif.py.
+  # One retry on a scan error (exit 3 or no report): a slow crawl or a
+  # transient failure should not fail the whole run.
   set +e
-  docker run --rm -v "$out:/zap/wrk:rw" "$ZAP_IMAGE" \
-    "${scan[@]}" -I -t "https://$h" -c rules.tsv -J "$h.json" \
-    >"$out/$h.log" 2>&1
-  rc=$?
+  for attempt in 1 2; do
+    docker run --rm -v "$out:/zap/wrk:rw" "$ZAP_IMAGE" \
+      "${scan[@]}" -I -t "https://$h" -c rules.tsv -J "$h.json" \
+      >"$out/$h.log" 2>&1
+    rc=$?
+    if [ "$rc" -lt 3 ] && [ -s "$out/$h.json" ]; then break; fi
+    [ "$attempt" = 1 ] && echo "$h: scan error (exit $rc), retrying once"
+  done
   set -e
   if [ "$rc" -ge 3 ] || [ ! -s "$out/$h.json" ]; then
     echo "::warning::$h: scan did not complete (exit $rc)"

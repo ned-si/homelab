@@ -36,6 +36,8 @@ spec:
                 value: "strict-origin-when-cross-origin"
               - name: Content-Security-Policy
                 value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
       backendRefs:
         - group: ""
           kind: Service
