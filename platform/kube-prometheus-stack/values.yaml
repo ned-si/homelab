@@ -36,6 +36,12 @@ prometheusOperator:
   prometheusConfigReloader:
     image:
       tag: v0.94.2
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
   admissionWebhooks:
     certManager:
       enabled: true
@@ -169,6 +175,12 @@ prometheus:
           resources:
             requests:
               storage: 40Gi
+    resources:
+      requests:
+        cpu: 220m
+        memory: 4928Mi
+      limits:
+        memory: 11136Mi
 
 grafana:
   defaultDashboardsTimezone: browser
@@ -262,6 +274,12 @@ alertmanager:
   alertmanagerSpec:
     secrets:
       - alertmanager-notify
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 128Mi
   config:
     route:
       receiver: "null"
