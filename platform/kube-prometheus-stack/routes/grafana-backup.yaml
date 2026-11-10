@@ -57,6 +57,7 @@ spec:
             fsGroup: 472
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
