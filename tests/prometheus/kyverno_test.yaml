@@ -71,6 +71,49 @@ tests:
       - eval_time: 60m
         alertname: PodSecurityEnforceDenied
         exp_alerts: []
+  # Kyverno: a controller retrying a rejected Pod every minute fires
+  # within 10 minutes, per policy; one rejected dry run does not.
+  - interval: 1m
+    input_series:
+      - series: 'apiserver_admission_webhook_rejection_count{name="vpol.validate.kyverno.svc-ignore-finegrained-require-probes",error_type="no_error",operation="CREATE",rejection_code="400",type="validating"}'
+        values: '0x60 1+1x30'
+      - series: 'apiserver_admission_webhook_rejection_count{name="vpol.validate.kyverno.svc-ignore-finegrained-disallow-latest-tag",error_type="no_error",operation="CREATE",rejection_code="400",type="validating"}'
+        values: '0x60 1x30'
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: KyvernoDenied
+        exp_alerts: []
+      - eval_time: 70m
+        alertname: KyvernoDenied
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              action: human
+              name: vpol.validate.kyverno.svc-ignore-finegrained-require-probes
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoDenied.md
+              summary: Kyverno policy vpol.validate.kyverno.svc-ignore-finegrained-require-probes rejected 10 requests in 30 minutes
+              description: >-
+                A controller or an operator keeps creating objects that a
+                Kyverno policy in Deny rejects. Find the object from the
+                FailedCreate events, then run the Kyverno break-glass.
+  # Exactly 5 in 30 minutes: silent. Webhook errors (Kyverno down, fails
+  # open) and another webhook's rejections: ignored.
+  - interval: 1m
+    input_series:
+      - series: 'apiserver_admission_webhook_rejection_count{name="vpol.validate.kyverno.svc-ignore-finegrained-require-probes",error_type="no_error",operation="CREATE",rejection_code="400",type="validating"}'
+        values: '0x60 1 2 3 4 5 5x55'
+      - series: 'apiserver_admission_webhook_rejection_count{name="vpol.validate.kyverno.svc-ignore-finegrained-require-ro-rootfs",error_type="calling_webhook_error",operation="CREATE",rejection_code="0",type="validating"}'
+        values: '0+5x120'
+      - series: 'apiserver_admission_webhook_rejection_count{name="vkubernetesupgrade.kb.io",error_type="no_error",operation="CREATE",rejection_code="403",type="validating"}'
+        values: '0+5x120'
+    alert_rule_test:
+      - eval_time: 70m
+        alertname: KyvernoDenied
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: KyvernoDenied
+        exp_alerts: []
   # Not scraped at all: absent() carries the selector's label.
   - interval: 1m
     input_series:
