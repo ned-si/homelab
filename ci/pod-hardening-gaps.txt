@@ -3,38 +3,12 @@
 # with * as container for token. The reason is `#726 task <n>` while a task is pending,
 # else a reason that stays. CI fails on a gap with no line and on a line with no gap.
 
-books/CronJob/books-config-backup-audiobookshelf/*    token                #726 task 18
-books/CronJob/books-config-backup-calibre-web/*       token                #726 task 18
-books/CronJob/books-configs-prune/*                   token                #726 task 18
-books/Deployment/audiobookshelf/*                     token                #726 task 18
 books/Deployment/calibre-web/calibre-web              non-root             root profile: upstream documents no uid, read-write NFS mount
-immich/CronJob/immich-library-backup-local/*          token                #726 task 18
-immich/CronJob/immich-library-backup/*                token                #726 task 18
-immich/CronJob/immich-library-prune/*                 token                #726 task 18
 immich/Deployment/barman-cloud/barman-cloud           probes               #726 task 20
 immich/Deployment/immich-server/main                  non-root             root profile: writes the photo library on immich-data, which keeps its owner (operator decision 1)
-mealie/CronJob/mealie-backup/*                        token                #726 task 18
-mealie/CronJob/mealie-prune/*                         token                #726 task 18
 monitoring/CronJob/grafana-backup/*                   token                #726 task 19
-paperless/CronJob/paperless-backup/*                  token                #726 task 18
-paperless/CronJob/paperless-prune/*                   token                #726 task 18
 signoz/Pod/signoz-test-connection/*                   token                #726 task 19
 signoz/StatefulSet/signoz-zookeeper/*                 token                #726 task 19
-syncthing/CronJob/syncthing-backup/*                  token                #726 task 18
-syncthing/CronJob/syncthing-prune/*                   token                #726 task 18
-theater/CronJob/bazarr-nightly/*                      token                #726 task 18
-theater/CronJob/qbittorrent-private-seed/*            token                #726 task 18
-theater/CronJob/recyclarr-sync/*                      token                #726 task 18
-theater/CronJob/theater-config-backup-bazarr/*        token                #726 task 18
-theater/CronJob/theater-config-backup-jellyfin/*      token                #726 task 18
-theater/CronJob/theater-config-backup-lazylibrarian/* token                #726 task 18
-theater/CronJob/theater-config-backup-lidarr/*        token                #726 task 18
-theater/CronJob/theater-config-backup-plex/*          token                #726 task 18
-theater/CronJob/theater-config-backup-prowlarr/*      token                #726 task 18
-theater/CronJob/theater-config-backup-radarr/*        token                #726 task 18
-theater/CronJob/theater-config-backup-sonarr/*        token                #726 task 18
-theater/CronJob/theater-configs-prune/*               token                #726 task 18
-theater/CronJob/theater-postgres-backup/*             token                #726 task 18
 theater/Deployment/bazarr/bazarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/jellyfin/jellyfin                  non-root             root profile: read-write NFS mount, the export's Mapall user is not known (operator decision 2)
 theater/Deployment/lazylibrarian/lazylibrarian        non-root             root profile: sets UMASK=002 and has a read-write NFS mount
@@ -44,6 +18,3 @@ theater/Deployment/prowlarr/prowlarr                  non-root             root 
 theater/Deployment/qbittorrent/qbittorrent            non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/radarr/radarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
 theater/Deployment/sonarr/sonarr                      non-root             root profile: sets UMASK=002 and has a read-write NFS mount
-theater/Deployment/theater-sso/*                      token                #726 task 18
-theater/Job/arr-import-lists/*                        token                #726 task 18
-theater/Job/bazarr-settings/*                         token                #726 task 18

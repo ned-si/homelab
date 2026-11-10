@@ -25,6 +25,7 @@ spec:
           labels:
             app.kubernetes.io/name: qbittorrent-private-seed
         spec:
+          automountServiceAccountToken: false
           containers:
           - command:
             - python3

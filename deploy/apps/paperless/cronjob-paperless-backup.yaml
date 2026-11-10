@@ -29,6 +29,7 @@ spec:
                   matchLabels:
                     app.kubernetes.io/name: paperless
                 topologyKey: kubernetes.io/hostname
+          automountServiceAccountToken: false
           containers:
           - args:
             - |

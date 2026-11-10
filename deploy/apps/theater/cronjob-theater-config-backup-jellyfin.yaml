@@ -32,6 +32,7 @@ spec:
                   matchLabels:
                     app.kubernetes.io/name: jellyfin
                 topologyKey: kubernetes.io/hostname
+          automountServiceAccountToken: false
           containers:
           - args:
             - |

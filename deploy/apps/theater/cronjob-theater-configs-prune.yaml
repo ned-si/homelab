@@ -25,6 +25,7 @@ spec:
           labels:
             app.kubernetes.io/name: theater-configs-prune
         spec:
+          automountServiceAccountToken: false
           containers:
           - command:
             - /bin/sh

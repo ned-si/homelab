@@ -208,6 +208,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           initContainers:
             - name: dump
               # Same image as the four *arr clusters, so pg_dump matches the
@@ -348,6 +349,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -449,6 +451,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -543,6 +546,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -637,6 +641,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -736,6 +741,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -845,6 +851,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -974,6 +981,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic

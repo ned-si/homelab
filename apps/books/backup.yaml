@@ -42,6 +42,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -138,6 +139,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic
@@ -236,6 +238,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic

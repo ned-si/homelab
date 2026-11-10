@@ -24,6 +24,7 @@ spec:
       labels:
         app.kubernetes.io/name: bazarr-settings
     spec:
+      automountServiceAccountToken: false
       containers:
       - command:
         - python3
