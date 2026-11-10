@@ -20,7 +20,7 @@ metadata:
 spec:
   matchConditions:
   - expression: object.metadata.namespace == 'cert-manager' && object.metadata.name
-      in ['cert-manager cert-manager-cainjector']
+      in ['cert-manager', 'cert-manager-cainjector']
     name: cert-manager-probes
   policyRefs:
   - kind: ValidatingPolicy

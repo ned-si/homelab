@@ -20,4 +20,4 @@ spec:
     - name: cert-manager-probes
       expression: >-
         object.metadata.namespace == 'cert-manager' &&
-        object.metadata.name in ['cert-manager cert-manager-cainjector']
+        object.metadata.name in ['cert-manager', 'cert-manager-cainjector']
