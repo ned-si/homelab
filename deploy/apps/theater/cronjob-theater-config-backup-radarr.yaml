@@ -32,6 +32,7 @@ spec:
                   matchLabels:
                     app.kubernetes.io/name: radarr
                 topologyKey: kubernetes.io/hostname
+          automountServiceAccountToken: false
           containers:
           - command:
             - /bin/sh

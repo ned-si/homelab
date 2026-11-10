@@ -32,6 +32,7 @@ spec:
                   matchLabels:
                     app.kubernetes.io/name: plex
                 topologyKey: kubernetes.io/hostname
+          automountServiceAccountToken: false
           containers:
           - command:
             - /bin/sh

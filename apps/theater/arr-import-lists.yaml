@@ -145,6 +145,7 @@ spec:
         runAsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      automountServiceAccountToken: false
       containers:
         - name: import-lists
           # renovate: datasource=docker depName=python

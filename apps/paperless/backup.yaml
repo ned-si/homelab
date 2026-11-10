@@ -51,6 +51,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           initContainers:
             - name: db-copy
               # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
@@ -300,6 +301,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic

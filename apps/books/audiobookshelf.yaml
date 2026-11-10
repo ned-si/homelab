@@ -34,6 +34,7 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
         seccompProfile:
           type: RuntimeDefault
+      automountServiceAccountToken: false
       containers:
         - name: audiobookshelf
           # renovate: datasource=docker depName=ghcr.io/advplyr/audiobookshelf

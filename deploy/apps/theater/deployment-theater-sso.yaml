@@ -31,6 +31,7 @@ spec:
         app.kubernetes.io/component: sso-proxy
         app.kubernetes.io/name: theater-sso
     spec:
+      automountServiceAccountToken: false
       containers:
       - args:
         - --alpha-config=/config/alpha-config.yaml

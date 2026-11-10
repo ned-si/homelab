@@ -25,6 +25,7 @@ spec:
           labels:
             app.kubernetes.io/name: paperless-prune
         spec:
+          automountServiceAccountToken: false
           containers:
           - args:
             - |

@@ -25,6 +25,7 @@ spec:
           labels:
             app.kubernetes.io/name: recyclarr-sync
         spec:
+          automountServiceAccountToken: false
           containers:
           - args:
             - sync

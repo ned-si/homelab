@@ -24,6 +24,7 @@ spec:
       labels:
         app.kubernetes.io/name: arr-import-lists
     spec:
+      automountServiceAccountToken: false
       containers:
       - command:
         - python3

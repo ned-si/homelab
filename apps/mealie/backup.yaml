@@ -45,6 +45,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           initContainers:
             - name: dump
               # Same image as mealie-postgresql (database.yaml, one Renovate
@@ -220,6 +221,7 @@ spec:
             runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
+          automountServiceAccountToken: false
           containers:
             - name: restic
               # renovate: datasource=docker depName=restic/restic

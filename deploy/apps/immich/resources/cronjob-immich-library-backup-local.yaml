@@ -33,6 +33,7 @@ spec:
                     app.kubernetes.io/instance: immich
                     app.kubernetes.io/name: server
                 topologyKey: kubernetes.io/hostname
+          automountServiceAccountToken: false
           containers:
           - args:
             - |
