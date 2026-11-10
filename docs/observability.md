@@ -317,6 +317,29 @@ Expected: every pod `Running` (the `signoz-telemetrystore-migrator` Job
 Retention is set once in the UI (Settings → General): logs 15 days, traces
 7 days. SigNoz stores no metrics: Prometheus keeps them.
 
+### ClickHouse system logs
+
+ClickHouse logs about itself into the `system` database (`zookeeper_log`,
+`query_log`, `part_log` and others). They only help debug ClickHouse, and at
+the chart's 30 days they would fill the volume: `zookeeperLog` keeps 2 days,
+the rest 7 (`clickhouse.clickhouseOperator` in `platform/signoz/values.yaml`).
+
+When a table's definition changes (a TTL here, or a ClickHouse upgrade),
+ClickHouse renames the old table to `<name>_0`, `_1`, ... and writes to a new
+one. Nothing reads the old copies. List them, then drop them (only `system`
+tables whose name ends in `_<digits>`):
+
+```sh
+kubectl -n signoz exec chi-signoz-clickhouse-cluster-0-0-0 -c clickhouse -- clickhouse-client -q "SELECT name, formatReadableSize(total_bytes) FROM system.tables WHERE database='system' AND match(name, '_log_[0-9]+\$')"
+```
+
+```sh
+kubectl -n signoz exec chi-signoz-clickhouse-cluster-0-0-0 -c clickhouse -- sh -c 'for t in $(clickhouse-client -q "SELECT name FROM system.tables WHERE database='"'system'"' AND match(name, '"'_log_[0-9]+\$'"')"); do clickhouse-client -q "DROP TABLE system.$t SYNC"; done'
+```
+
+Space comes back at once. The alert for this volume is
+`PersistentVolumeNearlyFull` on `data-volumeclaim-template-chi-signoz-clickhouse-cluster-0-0-0`.
+
 ### SigNoz trial
 
 Trial: 2026-10-17 to 2026-10-31 (14 days from the first day SigNoz
