@@ -7,6 +7,13 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
+  # postgres, bootstrap init and the operator's Jobs; 14-day sizing (#726).
+  resources:
+    requests:
+      cpu: 40m
+      memory: 160Mi
+    limits:
+      memory: 512Mi
   instances: 1
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
   imageName: ghcr.io/cloudnative-pg/postgresql:18.6-minimal-trixie@sha256:ec2ed3404e89fff99643901b58a2a34c46a46345fe69a3d96500b82f995c327b
