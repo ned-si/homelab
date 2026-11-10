@@ -38,7 +38,8 @@ metadata:
     pod-security.kubernetes.io/enforce: restricted
 EOF
 
-# deployment <namespace>: passes baseline and the other blocking policies,
+# deployment <namespace>: passes baseline and the other blocking policies
+# (require-probes included),
 # fails the restricted set (no seccomp, no runAsNonRoot, capabilities kept,
 # privilege escalation allowed).
 deployment() {
@@ -60,6 +61,12 @@ spec:
       containers:
         - name: app
           image: registry.example/app:1.0
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+          livenessProbe:
+            tcpSocket:
+              port: 8080
 EOF
 }
 

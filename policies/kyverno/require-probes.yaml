@@ -1,7 +1,7 @@
 # Every Deployment container has a readiness and a liveness probe: Argo CD
 # health, and so the PostSync smoke tests and the automatic rollback, only
-# mean something when Ready means "serves requests". Audit: most Deployments
-# have no probes yet.
+# mean something when Ready means "serves requests". Deny; the charts that
+# cannot set probes have a PolicyException (policies/kyverno/exceptions).
 ---
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
