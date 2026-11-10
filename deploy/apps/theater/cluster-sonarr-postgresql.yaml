@@ -39,5 +39,11 @@ spec:
     parameters:
       barmanObjectName: cnpg-backup
       serverName: sonarr-postgresql-t1
+  resources:
+    limits:
+      memory: 512Mi
+    requests:
+      cpu: 40m
+      memory: 160Mi
   storage:
     size: 5Gi
