@@ -141,6 +141,21 @@ patched`; the next admission of the rejected object passes. Then hold, revert
 the Deny change as above, and remove the annotation from `kyverno-policies`
 once the revert has synced. Tested in #1021's first pull request.
 
+To end a break-glass without a revert (the policy stays in Deny), patch it
+back before removing the annotation:
+
+```sh
+kubectl patch validatingpolicy <name> --type merge -p '{"spec":{"validationActions":["Deny"]}}'
+kubectl -n argo annotate application kyverno-policies argocd.argoproj.io/skip-reconcile-
+```
+
+Removing the annotation alone is not enough: Argo CD applies
+`kyverno-policies` with server-side apply and `validationActions` is a set,
+so the patch's `Audit` stays next to Argo's `Deny` (`["Audit","Deny"]`) and
+the Application still reads Synced. Check with `kubectl get validatingpolicy
+<name> -o jsonpath='{.spec.validationActions}'`. Tested for `require-probes`
+on 2026-11-10 (#1272).
+
 ## Flip one namespace
 
 One pull request sets one namespace's `enforce` label to `restricted`
