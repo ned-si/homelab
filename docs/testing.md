@@ -136,6 +136,14 @@ blocks too, except the CLI gaps listed in the script (fields the API server
 defaults, such as a Service's `spec.type`). A policy joins `BLOCKING` once
 `deploy/` passes it.
 
+In the cluster, a policy moves from Audit to Deny once
+`scripts/kyverno-deny-readiness.sh <policy>` prints `READY` (read-only, any
+kubeconfig): K1, no `fail` of the policy in the PolicyReports on a workload
+(a ReplicaSet only above 0 replicas) outside `EXCLUDED_NAMESPACES`; K2,
+`KyvernoReportsStale` not firing and the newest result under 2 hours old.
+An API or parse error, or an unknown policy, reads `NOT READY`. Test:
+`tests/bash/test_kyverno_deny_readiness.sh`.
+
 Pod Security: in a namespace that `infrastructure/namespaces/namespaces.yaml`
 labels `pod-security.kubernetes.io/enforce: restricted`, a finding of the
 restricted set (`policies/kyverno/upstream/pod-security-vpol/restricted/`)
