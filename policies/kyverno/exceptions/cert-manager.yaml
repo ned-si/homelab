@@ -1,0 +1,23 @@
+# Expected require-probes findings of cert-manager: cert-manager, cert-manager-cainjector.
+# require-probes matches Deployments only, so the exception names them
+# exactly and covers nothing else in the namespace.
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: cert-manager-probes
+  namespace: kyverno
+  annotations:
+    homelab/reason: >-
+      The jetstack chart (v1.21.3) has no readinessProbe option for the
+      controller and no probe option for the cainjector; only the
+      webhook has both.
+spec:
+  policyRefs:
+    - name: require-probes
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: cert-manager-probes
+      expression: >-
+        object.metadata.namespace == 'cert-manager' &&
+        object.metadata.name in ['cert-manager cert-manager-cainjector']

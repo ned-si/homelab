@@ -1,0 +1,27 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/kyverno-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/kyverno-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  annotations:
+    homelab/reason: The democratic-csi chart sets a livenessProbe on csi-driver only
+      and has no probe option for the csi-driver readiness or the external-attacher,
+      external-provisioner, external-resizer and csi-proxy sidecars.
+  name: democratic-csi-controller-probes
+  namespace: kyverno
+spec:
+  matchConditions:
+  - expression: object.metadata.namespace == 'democratic-csi' && object.metadata.name
+      in ['iscsi-democratic-csi-controller']
+    name: democratic-csi-controller-probes
+  policyRefs:
+  - kind: ValidatingPolicy
+    name: require-probes

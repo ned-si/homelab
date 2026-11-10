@@ -1,0 +1,24 @@
+# Expected require-probes findings of democratic-csi: iscsi-democratic-csi-controller.
+# require-probes matches Deployments only, so the exception names them
+# exactly and covers nothing else in the namespace.
+---
+apiVersion: policies.kyverno.io/v1
+kind: PolicyException
+metadata:
+  name: democratic-csi-controller-probes
+  namespace: kyverno
+  annotations:
+    homelab/reason: >-
+      The democratic-csi chart sets a livenessProbe on csi-driver only
+      and has no probe option for the csi-driver readiness or the
+      external-attacher, external-provisioner, external-resizer and
+      csi-proxy sidecars.
+spec:
+  policyRefs:
+    - name: require-probes
+      kind: ValidatingPolicy
+  matchConditions:
+    - name: democratic-csi-controller-probes
+      expression: >-
+        object.metadata.namespace == 'democratic-csi' &&
+        object.metadata.name in ['iscsi-democratic-csi-controller']
