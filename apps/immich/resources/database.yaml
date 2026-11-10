@@ -7,6 +7,13 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
+  # postgres, bootstrap init and the operator's Jobs; 14-day sizing (#726).
+  resources:
+    requests:
+      cpu: 40m
+      memory: 336Mi
+    limits:
+      memory: 768Mi
   instances: 1
   # PostgreSQL 16 with VectorChord (`vchord`) and pgvector, the extensions
   # Immich 3 requires. Renovate never updates it: a VectorChord update needs
