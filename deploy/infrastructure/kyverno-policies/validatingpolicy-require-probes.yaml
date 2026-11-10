@@ -30,7 +30,7 @@ spec:
       resources:
       - deployments
   validationActions:
-  - Audit
+  - Deny
   validations:
   - expression: object.spec.template.spec.containers.all(c, has(c.readinessProbe)
       && has(c.livenessProbe))

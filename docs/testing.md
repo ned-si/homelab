@@ -128,6 +128,7 @@ moves the commit and the `renovate-render` workflow re-vendors.
 |---|---|
 | `disallow-latest-tag` | blocks |
 | `disallow-privileged-containers` | blocks |
+| `require-probes` | blocks |
 | every other policy | reported in the step summary |
 
 What blocks is the `BLOCKING` list in `scripts/ci/kyverno.sh`, by policy name;

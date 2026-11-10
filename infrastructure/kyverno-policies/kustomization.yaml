@@ -29,7 +29,7 @@ patches:
   - target:
       group: policies.kyverno.io
       kind: ValidatingPolicy
-      name: "^(disallow-capabilities|disallow-container-sock-mounts|disallow-default-namespace|disallow-host-namespaces|disallow-host-path|disallow-host-ports|disallow-host-process|disallow-latest-tag|disallow-privileged-containers|disallow-proc-mount|disallow-selinux|require-run-as-non-root-user|restrict-external-ips|restrict-nodeport|restrict-seccomp|restrict-sysctls)$"
+      name: "^(disallow-capabilities|disallow-container-sock-mounts|disallow-default-namespace|disallow-host-namespaces|disallow-host-path|disallow-host-ports|disallow-host-process|disallow-latest-tag|disallow-privileged-containers|disallow-proc-mount|disallow-selinux|require-probes|require-run-as-non-root-user|restrict-external-ips|restrict-nodeport|restrict-seccomp|restrict-sysctls)$"
     patch: |-
       - op: replace
         path: /spec/validationActions

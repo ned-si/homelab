@@ -7,7 +7,7 @@ Shell: [Before you start](README.md#before-you-start).
 
 Kyverno's reports controller has not run a background scan for 3 hours (it
 runs every hour), or Prometheus no longer scrapes it. Admission keeps
-working (16 policies in Deny, the rest in Audit); the PolicyReports, the Security dashboard row
+working (17 policies in Deny, the rest in Audit); the PolicyReports, the Security dashboard row
 "Admission policy (Kyverno, audit)" and the Deny-readiness they show are stale.
 
 ## Confirm

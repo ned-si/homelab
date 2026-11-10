@@ -28,7 +28,7 @@ trap 'rm -rf "$out"' EXIT
 
 # The policies whose violations fail CI: the ones the cluster runs in Deny
 # (infrastructure/kyverno-policies/kustomization.yaml). Keep the lists equal.
-BLOCKING="disallow-capabilities disallow-container-sock-mounts disallow-default-namespace disallow-host-namespaces disallow-host-path disallow-host-ports disallow-host-process disallow-latest-tag disallow-privileged-containers disallow-proc-mount disallow-selinux require-run-as-non-root-user restrict-external-ips restrict-nodeport restrict-seccomp restrict-sysctls"
+BLOCKING="disallow-capabilities disallow-container-sock-mounts disallow-default-namespace disallow-host-namespaces disallow-host-path disallow-host-ports disallow-host-process disallow-latest-tag disallow-privileged-containers disallow-proc-mount disallow-selinux require-probes require-run-as-non-root-user restrict-external-ips restrict-nodeport restrict-seccomp restrict-sysctls"
 # Excluded from admission by the webhook's namespaceSelector
 # (infrastructure/kyverno/values.yaml): not checked here either.
 EXCLUDED_NAMESPACES="kube-system argo cilium kyverno tailscale"
