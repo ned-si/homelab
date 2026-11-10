@@ -15,10 +15,37 @@ controller:
       registry: docker.io/democraticcsi/democratic-csi
       # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
       tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
+    resources:
+      requests:
+        cpu: 20m
+        memory: 80Mi
+      limits:
+        memory: 256Mi
   # No CSI snapshots: no snapshot CRDs or controller; backups are restic and
   # Barman (docs/backups.md). Re-enable with both.
   externalSnapshotter:
     enabled: false
+  externalAttacher:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  externalProvisioner:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  externalResizer:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
 # Talos has no iscsiadm: the node plugin enters the iscsi-tools extension's
 # iscsid namespaces with `nsenter`, which needs the host PID namespace and
 # Talos workload isolation off (talos/patches/talosctl/security-profile.yaml).
@@ -45,10 +72,30 @@ node:
         mountPath: /etc/selinux/config
         subPath: config
         readOnly: true
+    resources:
+      requests:
+        cpu: 60m
+        memory: 144Mi
+      limits:
+        memory: 320Mi
   extraVolumes:
     - name: selinux-config
       configMap:
         name: iscsi-node-selinux-config
+  driverRegistrar:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
+  cleanup:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        memory: 128Mi
 
 driver:
   # Same name as the Secret the chart used to render, so the pods' volume
@@ -105,3 +152,10 @@ storageClasses:
       node-stage-secret:
       node-publish-secret:
       controller-expand-secret:
+csiProxy:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
