@@ -11,6 +11,8 @@
 apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
   name: verify-source
   namespace: backup-verify
 spec:
@@ -32,3 +34,9 @@ spec:
     env:
     - name: AWS_DEFAULT_REGION
       value: eu-central-1
+    resources:
+      limits:
+        memory: 448Mi
+      requests:
+        cpu: 20m
+        memory: 96Mi
