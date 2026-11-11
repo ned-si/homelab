@@ -26,7 +26,7 @@ resources:
   # Keycloak login in front of the /arr/* UIs (docs/theater.md, "Login").
   - sso.yaml
   - httproute.yaml
-  - watch-alias.yaml
+  - watch.yaml
   # restic CronJobs for the /config volumes and the *arr databases, plus the
   # monthly prune of their shared repository.
   - backup.yaml

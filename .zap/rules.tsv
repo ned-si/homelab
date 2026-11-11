@@ -63,3 +63,5 @@
 10098@archive.lilalala.com	IGNORE	Cross-Domain Misconfiguration - Access-Control-Allow-Origin * on public static CSS only (E7)	expires=2027-05-31
 30003@archive.lilalala.com	IGNORE	Integer Overflow Error - a 500 from the OIDC login view on junk process/next values; no data returned (E7)	expires=2027-05-31
 10202@archive.lilalala.com	IGNORE	Absence of Anti-CSRF Tokens - the Keycloak login form reached from archive; Keycloak binds the form to its session code (E7)	expires=2027-05-31
+10003@watch.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Plex web app (watch serves Plex)	expires=2027-01-31
+20016@watch.lilalala.com	IGNORE	Cross-Domain Misconfiguration (Adobe read/send, Silverlight): Plex's legacy crossdomain.xml and clientaccesspolicy.xml, as on theater; no current browser runs either plugin	expires=2027-05-31
