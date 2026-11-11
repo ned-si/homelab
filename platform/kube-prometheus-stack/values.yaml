@@ -198,11 +198,17 @@ grafana:
     # A platform tool: the session ends after 12 hours without use and 24
     # hours at most, and Keycloak asks for the password again once the last
     # login is 12 hours old (docs/architecture.md "Sessions").
+    # No password form (pentest 2026-11-10 E2, #1294): every interactive
+    # login goes through Keycloak and its OTP. The local admin stays for the
+    # dashboard sidecars' basic-auth reload on localhost and as break-glass
+    # (kubectl port-forward, then the API with the grafana-admin password).
     auth:
       login_maximum_inactive_lifetime_duration: 12h
       login_maximum_lifetime_duration: 24h
+      disable_login_form: true
     auth.generic_oauth:
       enabled: true
+      auto_login: true
       name: Keycloak-OAuth
       allow_sign_up: true
       client_id: grafana-oauth

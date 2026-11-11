@@ -3,8 +3,11 @@
 Everyday login to `https://grafana.lilalala.com` is Keycloak (client
 `grafana-oauth`): members of group `admins` get the org role Admin
 (`role_attribute_path` in `platform/kube-prometheus-stack/values.yaml`),
-anyone else who can log in gets Viewer. When Keycloak is down or the mapping
-breaks, Grafana's built-in user `admin` still logs in with a password:
+anyone else who can log in gets Viewer. The login page sends straight to
+Keycloak and has no password form (`auth.disable_login_form`, pentest
+2026-11-10 E2), so every interactive login has Keycloak's OTP. When Keycloak
+is down or the mapping breaks, Grafana's built-in user `admin` still works
+with a password, through the API or after turning the form back on:
 
 | What | Where |
 | --- | --- |
@@ -19,12 +22,8 @@ so after a change of the Secret the stored password stays the old one until
 
 ## Log in
 
-1. Open `https://grafana.lilalala.com/login`.
-2. Below "Sign in with Keycloak-OAuth", enter user `admin` and the password.
-
-Expected: the home dashboard; Administration is in the menu.
-
-From a terminal (the password goes through stdin, never the command line):
+From a terminal, through the API (the password goes through stdin, never the
+command line):
 
 ```sh
 kubectl -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-password}' | base64 -d |
@@ -35,6 +34,27 @@ kubectl -n monitoring get secret grafana-admin -o jsonpath='{.data.admin-passwor
 Expected: `{"login": "admin", "isGrafanaAdmin": true}`. `{"message": "Invalid
 username or password"}` means the database holds another password: set it as
 below.
+
+In the browser, only while Keycloak is broken: pause Argo CD on the
+Application, turn the form back on, and undo both when done.
+
+```sh
+kubectl -n argo annotate application kube-prometheus-stack argocd.argoproj.io/skip-reconcile=true
+kubectl -n monitoring set env deploy/kube-prometheus-stack-grafana -c grafana \
+  GF_AUTH_DISABLE_LOGIN_FORM=false GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN=false
+```
+
+Then open `https://grafana.lilalala.com/login` and sign in as `admin`. When
+done, remove the two variables first (with server-side apply, self-heal does
+not remove fields another manager added), then the annotation:
+
+```sh
+kubectl -n monitoring set env deploy/kube-prometheus-stack-grafana -c grafana \
+  GF_AUTH_DISABLE_LOGIN_FORM- GF_AUTH_GENERIC_OAUTH_AUTO_LOGIN-
+kubectl -n argo annotate application kube-prometheus-stack argocd.argoproj.io/skip-reconcile-
+```
+
+Expected: the login page sends straight to Keycloak again.
 
 ## Set the stored password
 
