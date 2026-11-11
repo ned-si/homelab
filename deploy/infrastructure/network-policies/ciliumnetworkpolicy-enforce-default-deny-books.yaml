@@ -28,7 +28,7 @@ spec:
       - port: "53"
         protocol: TCP
   enableDefaultDeny:
-    egress: false
+    egress: true
     ingress: true
   endpointSelector: {}
   ingress:
