@@ -10,6 +10,11 @@
 
 global:
   domain: argo.lilalala.com
+  # No chart NetworkPolicies: argocd-server's allowed ingress from anywhere.
+  # infrastructure/network-policies/87-platform-ingress.yaml (allow-list) and
+  # the argo switch in 90-enforcement.yaml police the namespace instead.
+  networkPolicy:
+    create: false
 
 configs:
   cm:
