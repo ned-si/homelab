@@ -52,3 +52,14 @@
 10021	WARN	X-Content-Type-Options missing
 10063	WARN	Permissions-Policy not set - not set on Home Assistant (microphone for Assist)
 40018@ebooks.lilalala.com	IGNORE	SQL Injection - not reproducible (1 of 3 full scans, 2026-11-11); Calibre-Web queries go through SQLAlchemy bind parameters (#1331)	expires=2027-02-28
+10055@archive.lilalala.com	IGNORE	CSP - the Gateway's frame-ancestors/base-uri/object-src policy; Paperless needs inline scripts and styles, a full CSP waits for upstream support (E7)	expires=2027-05-31
+10055@cook.lilalala.com	IGNORE	CSP - the Gateway's frame-ancestors/base-uri/object-src policy; Mealie's Nuxt UI needs inline scripts and styles (E7)	expires=2027-05-31
+40025@archive.lilalala.com	IGNORE	Proxy Disclosure - Envoy answers TRACE/OPTIONS as the Gateway; names no version (E7)	expires=2027-05-31
+40025@cook.lilalala.com	IGNORE	Proxy Disclosure - Envoy answers TRACE/OPTIONS as the Gateway; names no version (E7)	expires=2027-05-31
+10011@archive.lilalala.com	IGNORE	Cookie Without Secure Flag - Paperless csrftoken/sessionid; HSTS with includeSubDomains keeps every request on HTTPS (E7)	expires=2027-05-31
+10011@cook.lilalala.com	IGNORE	Cookie Without Secure Flag - Mealie OAuth session cookie; HSTS with includeSubDomains keeps every request on HTTPS (E7)	expires=2027-05-31
+10010@archive.lilalala.com	IGNORE	Cookie No HttpOnly Flag - Django's csrftoken, read by Paperless's own JavaScript by design (E7)	expires=2027-05-31
+40040@archive.lilalala.com	IGNORE	CORS Misconfiguration - Access-Control-Allow-Origin * on public static CSS only (E7)	expires=2027-05-31
+10098@archive.lilalala.com	IGNORE	Cross-Domain Misconfiguration - Access-Control-Allow-Origin * on public static CSS only (E7)	expires=2027-05-31
+30003@archive.lilalala.com	IGNORE	Integer Overflow Error - a 500 from the OIDC login view on junk process/next values; no data returned (E7)	expires=2027-05-31
+10202@archive.lilalala.com	IGNORE	Absence of Anti-CSRF Tokens - the Keycloak login form reached from archive; Keycloak binds the form to its session code (E7)	expires=2027-05-31
