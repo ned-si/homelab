@@ -1,7 +1,7 @@
 # Read-only access for automation that inspects the cluster (coding agents,
 # MCP servers): `view` (no Secrets, no exec, port-forward or proxy) plus
-# nodes. The token is the long-lived ServiceAccount token below; extract it
-# outside the repo (docs/secrets.md). Revoke: delete the Secret.
+# nodes. No long-lived token: scripts/agent-kubeconfig.sh readonly mints a
+# 12-hour one into ~/homelab-backups/agent/kubeconfig-readonly.
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -9,15 +9,6 @@ metadata:
   name: agent-readonly
   namespace: kube-system
 automountServiceAccountToken: false
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: agent-readonly-token
-  namespace: kube-system
-  annotations:
-    kubernetes.io/service-account.name: agent-readonly
-type: kubernetes.io/service-account-token
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

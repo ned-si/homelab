@@ -91,33 +91,28 @@ credentials that live outside the repository, under `~/homelab-backups/agent/`
 | Argo CD account `agent` (API key only) | `bootstrap/argocd-values.yaml`, `accounts.agent` | `role:readonly` |
 | Grafana service account `agent-readonly` | Grafana API (Grafana has no service account provisioning); kept in `grafana.db` on PVC `monitoring/kube-prometheus-stack-grafana`, so it survives restarts | Viewer |
 
-Build the Kubernetes kubeconfig from the token Secret (prints nothing):
+Kubernetes kubeconfigs hold short-lived tokens only (no token Secret, finding
+P8 of the 2026-11-10 assessment). Mint one with the operator's kubeconfig
+(prints the file and its expiry, never the token; default 12h):
 
 ```sh
-token=$(kubectl -n kube-system get secret agent-readonly-token -o jsonpath='{.data.token}' | base64 -d)
-out=~/homelab-backups/agent/kubeconfig-readonly
-kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > /tmp/agent-ca.crt
-KUBECONFIG=$out kubectl config set-cluster homelab --server=https://192.168.1.11:6443 --certificate-authority=/tmp/agent-ca.crt --embed-certs=true
-KUBECONFIG=$out kubectl config set-credentials agent-readonly --token="$token"
-KUBECONFIG=$out kubectl config set-context agent --cluster=homelab --user=agent-readonly
-KUBECONFIG=$out kubectl config use-context agent
-chmod 600 "$out"; rm /tmp/agent-ca.crt; unset token
-KUBECONFIG=$out kubectl auth can-i get secrets -A
+scripts/agent-kubeconfig.sh readonly            # kubeconfig-readonly
+scripts/agent-kubeconfig.sh pentest-setup 4h    # kubeconfig-pentest-setup, per run
+KUBECONFIG=~/homelab-backups/agent/kubeconfig-readonly kubectl auth can-i get secrets -A
 ```
 
 Expected: `no`. The pentest setup credential (ServiceAccount
 `pentest/pentest-setup`, `platform/pentest/rbac.yaml`, docs/pentest/README.md
-Setup credentials) is built the same way, once, by the operator: Secret
-`pentest/pentest-setup-token`, file
-`~/homelab-backups/agent/kubeconfig-pentest-setup`, user `pentest-setup`,
-namespace `pentest` in the context. Its check:
+Setup credentials) is minted per run, so its pod-create in `theater` exists
+only while a run is going. Its check:
 `kubectl auth can-i create pods -n pentest` is `yes`,
-`kubectl auth can-i get secrets -n pentest` is `no`.
+`kubectl auth can-i get secrets -n pentest` is `no`. A token cannot be
+revoked before it expires; to cut one early, delete and recreate the
+ServiceAccount.
 
 Argo CD token: `argocd account generate-token --account agent`
 as an admin. Grafana token: Administration, Service accounts,
-`agent-readonly`, Add token. Revoke by deleting the token Secret (Argo CD
-recreates it with a new value), the Argo CD token
+`agent-readonly`, Add token. Revoke the Argo CD token
 (`argocd account delete-token`) or the Grafana token.
 
 ## Rotation periods
