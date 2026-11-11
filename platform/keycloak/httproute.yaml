@@ -19,9 +19,14 @@ spec:
     - auth.lilalala.com
   rules:
     # The admin console, the admin REST API and the master realm are on the
-    # tailnet only (admin-ingress.yaml, pentest 2026-11-10 E1): here they
-    # redirect to the homelab account page.
+    # tailnet only (admin-ingress.yaml, pentest 2026-11-10 E1): here they,
+    # and the root, redirect to the homelab account page.
     - matches:
+        # Keycloak answers the root with a redirect to the admin console,
+        # which would name the tailnet admin address here.
+        - path:
+            type: Exact
+            value: /
         - path:
             type: PathPrefix
             value: /admin
@@ -36,6 +41,12 @@ spec:
                 value: "max-age=31536000; includeSubDomains"
               - name: X-Content-Type-Options
                 value: "nosniff"
+              # The Gateway answers this redirect itself, so Keycloak's own
+              # headers are missing; scripts/tls-check.sh gates on both.
+              - name: X-Frame-Options
+                value: "SAMEORIGIN"
+              - name: Content-Security-Policy
+                value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
         - type: RequestRedirect
           requestRedirect:
             path:
