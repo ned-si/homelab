@@ -345,3 +345,148 @@ spec:
               protocol: UDP
             - port: "53"
               protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: kyverno
+spec:
+  description: >-
+    Enforcement switch for the kyverno namespace (allow-list:
+    87-platform-ingress.yaml), plus kubelet probes in and cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: cert-manager
+spec:
+  description: >-
+    Enforcement switch for the cert-manager namespace (allow-list:
+    87-platform-ingress.yaml), plus kubelet probes in and cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: system-upgrade
+spec:
+  description: >-
+    Enforcement switch for the system-upgrade namespace (allow-list:
+    87-platform-ingress.yaml), plus kubelet probes in and cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: trivy-system
+spec:
+  description: >-
+    Enforcement switch for the trivy-system namespace (allow-list:
+    87-platform-ingress.yaml), plus kubelet probes in and cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: enforce-default-deny
+  namespace: democratic-csi
+spec:
+  description: >-
+    Enforcement switch for the democratic-csi namespace (allow-list:
+    87-platform-ingress.yaml), plus kubelet probes in and cluster DNS out.
+  endpointSelector: {}
+  enableDefaultDeny:
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
+    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+  ingress:
+    - fromEntities:
+        - host
+        - remote-node
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
