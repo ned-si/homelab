@@ -40,6 +40,19 @@ spec:
         - ports:
             - port: "8080"
               protocol: TCP
+    # The tailnet admin console: the Tailscale Ingress proxy
+    # (platform/keycloak/admin-ingress.yaml) -> keycloak :8080.
+    # Only that Ingress's proxy pods, not the exit nodes or other proxies.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: tailscale
+            tailscale.com/parent-resource: keycloak-admin
+            tailscale.com/parent-resource-ns: keycloak
+            tailscale.com/parent-resource-type: ingress
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
     # platform/keycloak/realm/apply.sh -- kcadm to
     # http://keycloak.keycloak.svc.cluster.local:8080 (PostSync Job
     # `keycloak-realm-settings`, realm-settings.yaml).

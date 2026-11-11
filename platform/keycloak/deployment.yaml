@@ -60,6 +60,10 @@ spec:
               value: impersonation
             - name: KC_HOSTNAME
               value: https://auth.lilalala.com
+            # The admin console and admin API on the tailnet only
+            # (admin-ingress.yaml, pentest 2026-11-10 E1).
+            - name: KC_HOSTNAME_ADMIN
+              value: https://keycloak-admin.tail32a1fc.ts.net
             - name: KC_HOSTNAME_STRICT
               value: "true"
             - name: KC_HTTP_ENABLED

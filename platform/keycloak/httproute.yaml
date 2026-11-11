@@ -18,6 +18,30 @@ spec:
   hostnames:
     - auth.lilalala.com
   rules:
+    # The admin console, the admin REST API and the master realm are on the
+    # tailnet only (admin-ingress.yaml, pentest 2026-11-10 E1): here they
+    # redirect to the homelab account page.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /admin
+        - path:
+            type: PathPrefix
+            value: /realms/master
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /realms/homelab/account/
+            statusCode: 302
     - matches:
         - path:
             type: PathPrefix

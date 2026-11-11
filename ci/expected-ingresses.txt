@@ -1,3 +1,5 @@
 # Ingresses the layered tree must render (repo-policy expected-ingresses).
-# Empty: ingress-nginx and its ten Ingresses are removed (ADR 0011); every
-# public hostname is an HTTPRoute on the shared Gateway.
+# ingress-nginx and its ten Ingresses are removed (ADR 0011); every public
+# hostname is an HTTPRoute on the shared Gateway. The Tailscale Ingresses
+# below are tailnet-only.
+keycloak/keycloak-admin

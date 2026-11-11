@@ -23,6 +23,27 @@ spec:
     namespace: gateway
     sectionName: https
   rules:
+  - filters:
+    - responseHeaderModifier:
+        set:
+        - name: Strict-Transport-Security
+          value: max-age=31536000; includeSubDomains
+        - name: X-Content-Type-Options
+          value: nosniff
+      type: ResponseHeaderModifier
+    - requestRedirect:
+        path:
+          replaceFullPath: /realms/homelab/account/
+          type: ReplaceFullPath
+        statusCode: 302
+      type: RequestRedirect
+    matches:
+    - path:
+        type: PathPrefix
+        value: /admin
+    - path:
+        type: PathPrefix
+        value: /realms/master
   - backendRefs:
     - group: ""
       kind: Service

@@ -37,7 +37,7 @@ Preconditions: an authenticator app on the phone (Aegis, 2FAS, Google
 Authenticator, 1Password, Bitwarden).
 
 1. Log in as usual: an app (realm `homelab`) or
-   `https://auth.lilalala.com/admin/master/console/` (realm `master`).
+   `https://keycloak-admin.tail32a1fc.ts.net/admin/master/console/` (tailnet, owner or admin device) (realm `master`).
 2. After the password, Keycloak shows "Mobile Authenticator Setup" with a QR
    code. Scan it, type the 6-digit code, give the device a name, Submit.
 3. Every later password login asks for the code. The SSO cookie still logs
