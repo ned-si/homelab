@@ -38,9 +38,7 @@
 # ---------------------------------------------------------------------------
 10003@syncthing.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Syncthing web UI	expires=2027-01-31
 10003@theater.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Plex web app	expires=2027-01-31
-20016-1@theater.lilalala.com	IGNORE	Cross-Domain Misconfiguration (Adobe read): Plex serves a permissive crossdomain.xml for its legacy Flash/Silverlight clients; no current browser runs either plugin, so nothing reads it (checked 2026-11-11)	expires=2027-05-31
-20016-2@theater.lilalala.com	IGNORE	Cross-Domain Misconfiguration (Adobe send): Plex serves a permissive crossdomain.xml for its legacy Flash/Silverlight clients; no current browser runs either plugin, so nothing reads it (checked 2026-11-11)	expires=2027-05-31
-20016-3@theater.lilalala.com	IGNORE	Cross-Domain Misconfiguration (Silverlight): Plex serves a permissive clientaccesspolicy.xml for its legacy Flash/Silverlight clients; no current browser runs either plugin, so nothing reads it (checked 2026-11-11)	expires=2027-05-31
+20016@theater.lilalala.com	IGNORE	Cross-Domain Misconfiguration (Adobe read/send, Silverlight): Plex serves permissive crossdomain.xml and clientaccesspolicy.xml for its legacy Flash/Silverlight clients; no current browser runs either plugin (checked 2026-11-11). Plugin id, not the -1/-2/-3 alert refs: scripts/zap_sarif.py matches pluginid	expires=2027-05-31
 10003@ebooks.lilalala.com	IGNORE	Vulnerable JS Library - bootstrap and underscore bundled in the upstream Calibre-Web app	expires=2027-01-31
 10003@audiobooks.lilalala.com	IGNORE	Vulnerable JS Library - bundled in the upstream Audiobookshelf web app	expires=2027-01-31
 43@grafana.lilalala.com	IGNORE	Source Code Disclosure - File Inclusion: false positive. Grafana answers any unknown path with a redirect to /login?redirectTo=<path>, so the probed file name comes back in the URL; no file content is served (checked 2026-11-11)	expires=2027-05-31
