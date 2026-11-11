@@ -96,10 +96,12 @@ point, a credential or an admission path is added or removed.
   the protections above. Argo CD AppProjects enumerate destinations.
 - Residual: exec plugins are enabled for every kustomize build on the
   repo-server, so a commit that reaches `main` with a malicious generator can
-  read the age key ([secrets.md](secrets.md#how-argo-cd-decrypts)); the local
-  Argo CD admin account is still enabled beside SSO.
-- Planned: disable the local admin account; a per-plugin sidecar only if the
-  repository ever gets a second author.
+  read the age key ([secrets.md](secrets.md#how-argo-cd-decrypts)). Argo CD
+  `role:admin` (groups `admins` and `ArgoCDAdmins`, behind OTP) can sync to
+  any destination, so it is effectively cluster-admin; the local admin
+  account is disabled, SSO only.
+- Planned: a per-plugin sidecar only if the repository ever gets a second
+  author.
 
 ### The LAN
 
