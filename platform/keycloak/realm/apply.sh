@@ -178,6 +178,12 @@ for f in bruteForceProtected permanentLockout; do
       ;;
   esac
 done
+# password_policy: <id>(<arg>) terms joined by " and ", length() among them.
+if ! [[ "$(conf password_policy)" =~ ^[A-Za-z]+\([A-Za-z0-9]+\)(\ and\ [A-Za-z]+\([A-Za-z0-9]+\))*$ ]] ||
+  ! [[ "$(conf password_policy)" =~ (^|\ )length\([0-9]+\) ]]; then
+  echo "FAIL platform.conf: password_policy is not <id>(<arg>) and ..., with length(): $(conf password_policy)" >&2
+  bad=1
+fi
 if ! [[ "$(conf events_expiration)" =~ ^[1-9][0-9]*$ ]]; then
   echo "FAIL platform.conf: events_expiration is not a number of seconds: $(conf events_expiration)" >&2
   bad=1
@@ -238,6 +244,14 @@ set_fields() { # <field>=<value> lines [check label] -> written to $REALM, read 
   done
 }
 set_fields "$(session_lines)"
+
+# --- platform.conf: password policy of $REALM --------------------------------
+# Keycloak may write `notUsername` for `notUsername(undefined)`: compare
+# without spaces and without `(undefined)`.
+policy_norm() { printf '%s' "$1" | sed -e 's/(undefined)//g' -e 's/[[:space:]]//g'; }
+kc update "realms/$REALM" -s "passwordPolicy=$(conf password_policy)"
+check "$REALM passwordPolicy" "$(policy_norm "$(conf password_policy)")" \
+  "$(policy_norm "$(realm_val "$(kc get "realms/$REALM")" passwordPolicy)")"
 
 # --- platform.conf: login and admin events, in both realms ----------------------
 events_settings() {
