@@ -67,6 +67,16 @@ spec:
         protocol: TCP
   - fromEndpoints:
     - matchLabels:
+        io.kubernetes.pod.namespace: tailscale
+        tailscale.com/parent-resource: keycloak-admin
+        tailscale.com/parent-resource-ns: keycloak
+        tailscale.com/parent-resource-type: ingress
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
+  - fromEndpoints:
+    - matchLabels:
         app.kubernetes.io/name: keycloak-realm-settings
     toPorts:
     - ports:

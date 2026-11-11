@@ -8,7 +8,7 @@ Jellyfin are off SSO and keep their own accounts.
 Preconditions:
 
 - The Keycloak admin console,
-  `https://auth.lilalala.com/admin/master/console/`, as the master `admin`
+  `https://keycloak-admin.tail32a1fc.ts.net/admin/master/console/` (tailnet, owner or admin device), as the master `admin`
   (password and OTP, [keycloak-otp.md](keycloak-otp.md)). Switch the realm
   selector to `homelab` for every step below.
 - An admin account in each app you configure: the operator's account (group

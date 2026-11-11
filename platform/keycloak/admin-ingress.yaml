@@ -1,0 +1,24 @@
+# The admin console and admin REST API on the tailnet, off the internet
+# (pentest 2026-11-10 E1, #1293): https://keycloak-admin.tail32a1fc.ts.net,
+# a Tailscale Ingress proxy tagged tag:k8s-admin, which only the tailnet owner
+# and admins reach (bootstrap/tailscale/policy.hujson). KC_HOSTNAME_ADMIN in
+# deployment.yaml points the console here; the public HTTPRoute no longer
+# routes /admin or /realms/master.
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak-admin
+  namespace: keycloak
+  annotations:
+    tailscale.com/tags: tag:k8s-admin
+spec:
+  ingressClassName: tailscale
+  defaultBackend:
+    service:
+      name: keycloak
+      port:
+        number: 8080
+  tls:
+    - hosts:
+        - keycloak-admin
