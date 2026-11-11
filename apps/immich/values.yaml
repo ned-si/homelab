@@ -77,6 +77,71 @@ server:
             # Every asset path in the database starts with this. A different
             # location makes the server rewrite all of them on start.
             IMMICH_MEDIA_LOCATION: /usr/src/app/upload
+        # Immich v3.4.0 pulled in OpenTelemetry JS 0.300, whose Prometheus
+        # exporter listens on localhost only and no longer reads
+        # OTEL_EXPORTER_PROMETHEUS_HOST (immich-app/immich#33173). This
+        # sidecar shares the pod's network namespace and re-exposes 8081 and
+        # 8082 on 9081 and 9082 for Prometheus. Remove it, and the targetPort
+        # overrides below, once Immich passes a host to the exporter.
+        metrics-proxy:
+          image:
+            repository: alpine/socat
+            # renovate: datasource=docker depName=alpine/socat
+            tag: 1.8.1.3@sha256:e8a6e8868a8e6e01d9c2c321a8f8d4474d2d741d962462e5c5a124a8e66a0055
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              socat TCP-LISTEN:9081,fork,reuseaddr TCP:127.0.0.1:8081 &
+              exec socat TCP-LISTEN:9082,fork,reuseaddr TCP:127.0.0.1:8082
+          ports:
+            - name: metrics-api-fwd
+              containerPort: 9081
+              protocol: TCP
+            - name: metrics-ms-fwd
+              containerPort: 9082
+              protocol: TCP
+          probes:
+            liveness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 9081
+                periodSeconds: 30
+            readiness:
+              enabled: true
+              custom: true
+              spec:
+                tcpSocket:
+                  port: 9082
+                periodSeconds: 30
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+  # The metrics Service ports point at the proxy (see metrics-proxy above).
+  service:
+    main:
+      controller: main
+      ports:
+        metrics-api:
+          port: 8081
+          targetPort: 9081
+          protocol: HTTP
+        metrics-ms:
+          port: 8082
+          targetPort: 9082
+          protocol: HTTP
   persistence:
     # The chart's library volume (`immich.persistence.library`), mounted at
     # the old path instead of the chart's /data.
