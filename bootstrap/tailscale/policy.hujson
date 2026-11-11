@@ -8,6 +8,9 @@
 		"tag:k8s-operator": [],
 		// Every proxy the operator creates (Tailscale Ingress, Service).
 		"tag:k8s": ["tag:k8s-operator"],
+		// Admin-only proxies (the Keycloak admin console): reached by the
+		// owner and admins only, not by members or tag:pentest.
+		"tag:k8s-admin": ["tag:k8s-operator"],
 		// The exit node on the home connection (Connector `home-exit`).
 		"tag:exit": ["tag:k8s-operator"],
 		// The Talos nodes (siderolabs/tailscale extension), which log in
@@ -75,6 +78,13 @@
 					{"impersonate": {"groups": ["tailnet-admins"]}},
 				],
 			},
+		},
+		// The owner and admins reach the admin-only proxies over HTTPS
+		// (keycloak-admin, pentest 2026-11-10 E1).
+		{
+			"src": ["autogroup:owner", "autogroup:admin"],
+			"dst": ["tag:k8s-admin"],
+			"ip":  ["tcp:443"],
 		},
 		// The owner and admins reach the Talos API (apid, mTLS with the
 		// talosconfig) on the nodes; nothing else reaches tag:talos, and
