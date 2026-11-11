@@ -51,3 +51,4 @@
 10020	WARN	Missing X-Frame-Options / frame-ancestors
 10021	WARN	X-Content-Type-Options missing
 10063	WARN	Permissions-Policy not set - not set on Home Assistant (microphone for Assist)
+40018@ebooks.lilalala.com	IGNORE	SQL Injection - not reproducible (1 of 3 full scans, 2026-11-11); Calibre-Web queries go through SQLAlchemy bind parameters (#1331)	expires=2027-02-28
