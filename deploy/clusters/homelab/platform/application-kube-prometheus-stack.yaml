@@ -33,7 +33,7 @@ spec:
       valueFiles:
       - $values/platform/kube-prometheus-stack/values.yaml
     repoURL: https://prometheus-community.github.io/helm-charts
-    targetRevision: 93.2.0
+    targetRevision: 93.2.2
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
