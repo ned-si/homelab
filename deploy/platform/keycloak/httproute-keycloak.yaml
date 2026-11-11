@@ -30,6 +30,10 @@ spec:
           value: max-age=31536000; includeSubDomains
         - name: X-Content-Type-Options
           value: nosniff
+        - name: X-Frame-Options
+          value: SAMEORIGIN
+        - name: Content-Security-Policy
+          value: frame-ancestors 'self'; base-uri 'self'; object-src 'none'
       type: ResponseHeaderModifier
     - requestRedirect:
         path:
@@ -38,6 +42,9 @@ spec:
         statusCode: 302
       type: RequestRedirect
     matches:
+    - path:
+        type: Exact
+        value: /
     - path:
         type: PathPrefix
         value: /admin
