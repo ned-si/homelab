@@ -53,7 +53,7 @@ admissionController:
       registry: ghcr.io
       repository: kyverno/kyvernopre
       # renovate: datasource=docker depName=ghcr.io/kyverno/kyvernopre
-      tag: v1.19.2@sha256:27f3cc52e628559b56d08363b85316819802086c9808606914f7805a244148f4
+      tag: v1.20.0@sha256:339067e083430e0c97007541bef9cfdbac89bee13f7228772c77ae8aead14b8b
     resources:
       requests:
         cpu: 10m
@@ -65,7 +65,7 @@ admissionController:
       registry: ghcr.io
       repository: kyverno/kyverno
       # renovate: datasource=docker depName=ghcr.io/kyverno/kyverno
-      tag: v1.19.2@sha256:c8c4dd09e720d2cd7fd24ca73ac28e46651001372f988e0cba3f2f612f04b955
+      tag: v1.20.0@sha256:9de49c5416ea536f00a205527197ac048abdf32c5a75d633cd9afff8928f359d
     resources:
       requests:
         cpu: 50m
@@ -83,7 +83,7 @@ cleanupController:
     registry: ghcr.io
     repository: kyverno/cleanup-controller
     # renovate: datasource=docker depName=ghcr.io/kyverno/cleanup-controller
-    tag: v1.19.2@sha256:d7340aa7c9315080c3dafa7b765d090ced37353e89e5cd7a3f9ac69e8fb532b2
+    tag: v1.20.0@sha256:0f9ce0c203561c52499e871a987ff987371f57385fcafe7af1a01dfd6db1feee
   rbac:
     clusterRole:
       # What the DeletingPolicies delete; the chart grants no deletes.
@@ -104,7 +104,7 @@ reportsController:
     registry: ghcr.io
     repository: kyverno/reports-controller
     # renovate: datasource=docker depName=ghcr.io/kyverno/reports-controller
-    tag: v1.19.2@sha256:5fb6d3e738050dbce84f60ecabaede7665fbe0578d07c1e8c912443b035e79c3
+    tag: v1.20.0@sha256:f54e3cc106fadb1a615d0ec11c42f741f51d3580a5f70dfbe7bd7ec58864ef03
   rbac:
     clusterRole:
       # Kyverno reports a pods/ephemeralcontainers policy only if this
