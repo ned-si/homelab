@@ -22,7 +22,7 @@ spec:
     - repoURL: https://argoproj.github.io/argo-helm
       chart: argo-cd
       # renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
-      targetRevision: 10.17.2
+      targetRevision: 10.18.0
       helm:
         releaseName: argocd
         valueFiles:
