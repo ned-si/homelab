@@ -38,11 +38,8 @@ spec:
         - --log-level=debug
         env:
         - name: SIDECAR_IMAGE
-          valueFrom:
-            secretKeyRef:
-              key: SIDECAR_IMAGE
-              name: plugin-barman-cloud-5kkd8f288d
-        image: ghcr.io/cloudnative-pg/plugin-barman-cloud:v0.16.0
+          value: ghcr.io/cloudnative-pg/plugin-barman-cloud-sidecar:v0.16.0@sha256:c669259e20ed1e11fad821f735c396c19d929985aa05b9544b13ecc8b5a386d0
+        image: ghcr.io/cloudnative-pg/plugin-barman-cloud:v0.16.0@sha256:6404a416718bd7aad943c67a25a7bb20d0558b43edfeab0bf167f013ca435882
         livenessProbe:
           failureThreshold: 5
           initialDelaySeconds: 30
