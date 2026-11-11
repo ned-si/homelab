@@ -11,8 +11,9 @@
 # chart labels change on upgrades. NFS and iSCSI mounts happen in the host
 # network namespace, which pod policy never sees.
 #
-# Not covered, allow-all: cert-manager, external-dns, gateway, democratic-csi,
-# kube-system, argo.
+# Not covered, allow-all: external-dns, gateway, kube-system. Observed, not
+# enforced: argo, kyverno, cert-manager, system-upgrade, trivy-system,
+# democratic-csi (87-platform-ingress.yaml).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -28,6 +29,7 @@ resources:
   - 70-home.yaml
   - 80-backup-verify.yaml
   - 85-keycloak.yaml
+  - 87-platform-ingress.yaml
   - 88-monitoring.yaml
   # Every pod: no NAS. A deny, independent of the switch below.
   - 95-nas-egress.yaml

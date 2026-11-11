@@ -114,3 +114,9 @@ numbers in brackets.
       `docs/threat-model.md` describe the enforced state;
       [access-identity](../access-identity/) updated where it names the
       network boundary; `status: done`, `closed:`; #709 closed. [8]
+
+- [ ] 33. Platform namespaces (assessment P3, #1011): `87-platform-ingress.yaml`
+  observes argo, kyverno, cert-manager, system-upgrade, trivy-system and
+  democratic-csi from 2026-11-11. After 7 days, `netpol-observe.sh --days 7`
+  per namespace, a rule or a reason for every `all` row, then flip ingress one
+  namespace at a time, webhooks first checked with a server dry run. [2, 4, 7]
