@@ -61,7 +61,7 @@ spec:
   endpointSelector: {}
   enableDefaultDeny:
     ingress: true      # <-- true enforces INGRESS default-deny for this namespace
-    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+    egress: true       # <-- true enforces EGRESS default-deny for this namespace
   ingress:
     - fromEntities:
         - host
