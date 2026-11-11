@@ -42,6 +42,30 @@ patches:
         value: [get, list, watch]
       - op: remove
         path: /rules/0
+  # Digests for the bundle's two images (E10). The bundle sets both by tag,
+  # SIDECAR_IMAGE through its own Secret; the patch sets it inline instead.
+  # Renovate moves both with the bundle URL (group `cloudnative-pg`); keep
+  # their tags equal to the release in the URL above.
+  - target:
+      kind: Deployment
+      name: barman-cloud
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: barman-cloud
+      spec:
+        template:
+          spec:
+            containers:
+              - name: barman-cloud
+                # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/plugin-barman-cloud
+                image: ghcr.io/cloudnative-pg/plugin-barman-cloud:v0.16.0@sha256:6404a416718bd7aad943c67a25a7bb20d0558b43edfeab0bf167f013ca435882
+                env:
+                  - name: SIDECAR_IMAGE
+                    # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/plugin-barman-cloud-sidecar
+                    value: ghcr.io/cloudnative-pg/plugin-barman-cloud-sidecar:v0.16.0@sha256:c669259e20ed1e11fad821f735c396c19d929985aa05b9544b13ecc8b5a386d0
+                    valueFrom: null
   # Liveness (#726 task 20): the bundle ships only a TCP readiness probe. The
   # same port, slower: a hung plugin blocks every CNPG backup. The `test` ops
   # fail the render when a bump renames the container or moves its port.
