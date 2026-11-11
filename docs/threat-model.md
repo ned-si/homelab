@@ -114,6 +114,11 @@ point, a credential or an admission path is added or removed.
   the whole LAN and the backups export (the NAS copy of the photo library) to
   the whole subnet ([runbooks/nfs-hardening.md](runbooks/nfs-hardening.md));
   the audit log stays on each control plane's eMMC.
+- Control (pods): no pod reaches the NAS except the CSI controller, the
+  TrueNAS exporter and the blackbox probes
+  (`infrastructure/network-policies/95-nas-egress.yaml`): pod traffic leaves
+  with the node's address, so the export allow-lists alone would admit any
+  pod (pentest 2026-11-10, P1).
 - Planned: NFS exports scoped to the node addresses; Kubernetes API login
   through Keycloak OIDC with the admin certificate kept as break-glass;
   central logs including the audit log; SELinux enforcing on Talos, which

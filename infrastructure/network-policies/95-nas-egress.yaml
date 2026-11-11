@@ -1,0 +1,31 @@
+# No pod reaches the NAS (pentest 2026-11-10 P1, #1284). Pod traffic leaves
+# with the node's address (tunnel mode, masquerading), so the NAS export
+# allow-lists cannot tell a pod from the kubelet: without this, any pod could
+# read the NFS exports with a userspace client. The kubelet's and iscsid's
+# NFS and iSCSI mounts run in the host network namespace and are not
+# selected. Exempt: democratic-csi (the CSI controller's API and SSH, the
+# TrueNAS exporter) and blackbox-exporter (its iSCSI, NFS and ping probes).
+#
+# A deny with default-deny off: it blocks the NAS and changes nothing else.
+# Cluster-wide, so a new namespace is covered without an edit.
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: deny-pod-egress-to-nas
+spec:
+  description: No pod reaches the NAS except democratic-csi and blackbox-exporter.
+  endpointSelector:
+    matchExpressions:
+      - key: io.kubernetes.pod.namespace
+        operator: NotIn
+        values: [democratic-csi]
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: [prometheus-blackbox-exporter]
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egressDeny:
+    - toCIDR:
+        - 192.168.1.228/32

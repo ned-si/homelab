@@ -4,5 +4,6 @@
 cilium.io CiliumLoadBalancerIPPool Cluster      # cilium-operator
 cilium.io CiliumL2AnnouncementPolicy Cluster    # cilium-operator
 cilium.io CiliumNetworkPolicy Namespaced        # cilium-operator
+cilium.io CiliumClusterwideNetworkPolicy Cluster # cilium-operator
 cilium.io TracingPolicy Cluster                 # tetragon-operator
 talos.dev ServiceAccount Namespaced             # Talos (kubernetesTalosAPIAccess)
