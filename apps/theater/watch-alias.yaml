@@ -1,6 +1,8 @@
 # watch.lilalala.com: a second name for Theater, a 302 to the same path on
 # theater.lilalala.com. 302 (not 301) so browsers cache nothing, in case
 # `watch` later becomes the main name. external-dns publishes the record.
+# No `scheme: https`: Cilium guards a scheme redirect with X-Forwarded-Proto
+# != https, so on this HTTPS listener the rule would never match (404).
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -41,6 +43,5 @@ spec:
                 value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
         - type: RequestRedirect
           requestRedirect:
-            scheme: https
             hostname: theater.lilalala.com
             statusCode: 302

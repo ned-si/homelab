@@ -41,7 +41,6 @@ spec:
       type: ResponseHeaderModifier
     - requestRedirect:
         hostname: theater.lilalala.com
-        scheme: https
         statusCode: 302
       type: RequestRedirect
     matches:
