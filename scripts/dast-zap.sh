@@ -34,7 +34,10 @@ chmod 777 "$out"
 grep -v -E '^[^#[:space:]]+@' .zap/rules.tsv | cut -f1-3 >"$out/rules.tsv"
 
 if [ "$FULL_SCAN" = "true" ]; then
-  scan=(zap-full-scan.py -a -j)
+  # Caps so one hostname cannot hold the run for hours (home.lilalala.com
+  # ran over 90 minutes on 2026-11-10): 5 minutes of spidering, 30 of active
+  # scan, 40 for ZAP to start and the passive scan.
+  scan=(zap-full-scan.py -a -j -m 5 -T 40 -z "-config scanner.maxScanDurationInMins=30")
 else
   # -T 20: at most 20 minutes for ZAP to start and the passive scan to finish
   # (10 was not enough for Mealie's crawl, run 42469742825).
