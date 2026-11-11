@@ -104,6 +104,8 @@ default allow-all:
 
 - a member's own devices reach each other (as before);
 - members reach `tag:k8s` (the Ingress proxies) on TCP 443 only;
+- only the owner and admins reach `tag:k8s-admin` (admin-only Ingress
+  proxies: `keycloak-admin`) on TCP 443; members and `tag:pentest` do not;
 - members use the exit nodes (`tag:exit`, auto-approved) for
   `autogroup:internet`;
 - the owner and admins reach `tag:k8s-operator` on 443, with the Kubernetes
