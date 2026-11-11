@@ -16,9 +16,28 @@ spec:
   ingressClassName: tailscale
   defaultBackend:
     service:
-      name: keycloak
+      name: keycloak-http
       port:
         number: 8080
   tls:
     - hosts:
         - keycloak-admin
+---
+# The Tailscale Ingress needs a backend with a ClusterIP; `keycloak`
+# (deployment.yaml) is headless.
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/name: keycloak
+  name: keycloak-http
+  namespace: keycloak
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: keycloak

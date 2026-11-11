@@ -18,7 +18,7 @@ metadata:
 spec:
   defaultBackend:
     service:
-      name: keycloak
+      name: keycloak-http
       port:
         number: 8080
   ingressClassName: tailscale
