@@ -84,75 +84,95 @@ user records the stop check [8.4]. Requirement numbers in brackets.
 - [x] 17. Weekday. Calibre-Web: root profile with its gap line, token, the
       stop check. [3, 4, 8, 9]
       #1225
-- [ ] 18. Weekday. Tokens off on what is left in the apps layer (design.md
+- [x] 18. Weekday. Tokens off on what is left in the apps layer (design.md
       "Tokens"), the `components/postsync-smoke` Job included. [4, 8]
-- [ ] 19. Weekday. Tokens off on what is left in the platform and
+      #1254
+- [x] 19. Weekday. Tokens off on what is left in the platform and
       infrastructure layers, through chart values where a chart exposes
       it; `token` gap lines with the chart as reason where it does not.
       [4, 8]
-- [ ] 20. Weekday. Barman Cloud plugin: a liveness probe on its Deployment
+      #1255
+- [x] 20. Weekday. Barman Cloud plugin: a liveness probe on its Deployment
       through a patch in `platform/barman-cloud-plugin/kustomization.yaml`.
       [6]
-- [ ] 21. Weekday. `home-assistant-postgresql`: the `plugin-barman-cloud`
+      #1256
+- [x] 21. Weekday. `home-assistant-postgresql`: the `plugin-barman-cloud`
       sidecar resources on ObjectStore `cnpg-backup` (sync wave below the
       Cluster), `spec.resources` only if the rule gives more than today's;
       after the sync the sidecar check on the instance Pods and, since the
       Cluster may not change, `kubectl cnpg restart` under the silence
       (allowed by the brief); `instances` at merge time, 24 hours apart
       from #917's change of the Cluster. [5.1, 5.5, 8, 9]
-- [ ] 22. Weekday. `mealie-postgresql`: `spec.resources` and the sidecar
+      #1257
+- [x] 22. Weekday. `mealie-postgresql`: `spec.resources` and the sidecar
       resources, as task 21. [5.1, 5.5, 8, 9]
-- [ ] 23. Weekday. The four `theater` Clusters and their sidecar, as task
+      #1258
+- [x] 23. Weekday. The four `theater` Clusters and their sidecar, as task
       22. [5.1, 5.5, 8, 9]
-- [ ] 24. Weekday. `keycloak-db`, as task 22, with the admin kubeconfig
+      #1259
+- [x] 24. Weekday. `keycloak-db`, as task 22, with the admin kubeconfig
       check. [5.1, 5.5, 8, 9]
-- [ ] 25. Weekday. `immich-db`, as task 22; image unchanged; the last
+      #1261
+- [x] 25. Weekday. `immich-db`, as task 22; image unchanged; the last
       base backup under 24 hours old quoted. [5.1, 5.5, 8, 9]
-- [ ] 26. `backup-verify`: the `verify-source` sidecar resources (sync
+      #1264
+- [x] 26. `backup-verify`: the `verify-source` sidecar resources (sync
       wave as in task 21); the next weekly restore test passes. [5.2]
-- [ ] 27. Weekday. cert-manager: requests and memory limits for the
+      #1260
+- [x] 27. Weekday. cert-manager: requests and memory limits for the
       controller, cainjector and webhook in its values; probes where the
       chart exposes them, the rest listed for task 38. [5.3, 6]
-- [ ] 28. Weekday. external-dns: requests and memory limit in its values.
+      #1262
+- [x] 28. Weekday. external-dns: requests and memory limit in its values.
       [5.3]
-- [ ] 29. Weekday. democratic-csi: requests and memory limits for every
+      #1263
+- [x] 29. Weekday. democratic-csi: requests and memory limits for every
       container of the controller and the node DaemonSet, controller probes
       where the chart exposes them, under `scripts/maintenance-silence.sh
       democratic-csi`. [5.3, 6]
-- [ ] 30. Weekday. SigNoz: requests, memory limit and probes for the
+      #1265
+- [x] 30. Weekday. SigNoz: requests, memory limit and probes for the
       ClickHouse operator in its values. [5.3, 6]
+      #1266
 - [ ] 31. Weekday. Tetragon: requests and memory limits for every
       container the render shows without them, in
       `platform/tetragon` values. [5.3]
-- [ ] 32. Weekday. node-exporter: `prometheus-node-exporter.resources` in
+      Open: the chart sets no resources option for the `mount-bpf-fs`
+      init container; it goes to task 37's PolicyException.
+- [x] 32. Weekday. node-exporter: `prometheus-node-exporter.resources` in
       `platform/kube-prometheus-stack/values.yaml`. [5.3]
-- [ ] 33. Weekday. Prometheus and Alertmanager:
+      #1267
+- [x] 33. Weekday. Prometheus and Alertmanager:
       `prometheus.prometheusSpec.resources`,
       `alertmanager.alertmanagerSpec.resources` and
       `prometheusOperator.prometheusConfigReloader.resources`; the live
       PolicyReports of both Pods `pass` after the sync. [5.3]
+      #1268
 - [ ] 34. Weekday. `grafana-postgresql`, after #917 task 13: its sidecar
       resources, and `spec.resources` if task 13 left them unset, as task
       22. [5.4, 5.5, 8, 9]
-- [ ] 35. `feat(scripts): kyverno-deny-readiness.sh per policy`: K1 and K2
+- [x] 35. `feat(scripts): kyverno-deny-readiness.sh per policy`: K1 and K2
       of design.md, read-only, `tests/bash/test_kyverno_deny_readiness.sh`;
       one live run for each of the two policies quoted in the pull
       request. [6.1]
-- [ ] 36. `feat(monitoring): page on Kyverno denials`: `KyvernoDenied` in
+      #1269
+- [x] 36. `feat(monitoring): page on Kyverno denials`: `KyvernoDenied` in
       `kyverno-alerts.yaml`, its tests, its runbook
       `docs/runbooks/alerts/KyvernoDenied.md`, the runbook index,
       `docs/sre.md`, `tests/alertmanager/routes.txt`; the live 7-day query
       in the pull request. [7]
+      #1270
 - [ ] 37. Weekday. `require-requests-limits` to Deny and `BLOCKING`, after
       #917 tasks 13 and 18 to 20 and tasks 21 to 34: readiness `READY`,
       the operator-built Pods with evidence (tuppr from its source), the
       PolicyExceptions of D7, the live Kyverno break-glass test if #1021
       has not run it, the dry run with a Pod without requests. [6, 8.6]
-- [ ] 38. Weekday. `require-probes` to Deny and `BLOCKING`, after tasks 2
+- [x] 38. Weekday. `require-probes` to Deny and `BLOCKING`, after tasks 2
       to 17, 20, 27, 29 and 30: readiness `READY`, the PolicyExceptions of
       D7 (Grafana's sidecars, the cert-manager cainjector if its chart
       has no probes), the dry run with a Deployment without probes. [6,
       8.6]
+      #1273, #1274, #1272, #1275
 - [ ] 39. Close: `docs/architecture.md`, `docs/threat-model.md` and
       `docs/testing.md` as built; `ci/pod-hardening-gaps.txt` holds only
       lasting reasons, each fixable one with an issue; no "Hardening
