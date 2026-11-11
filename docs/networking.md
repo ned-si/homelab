@@ -247,6 +247,14 @@ NFS and iSCSI are mounted by the kubelet and `iscsid` in the host network
 namespace, so a pod policy never sees that traffic. The NAS export allow-list is
 what limits it ([runbooks/nfs-hardening.md](runbooks/nfs-hardening.md)).
 
+Pods do not reach the NAS at all: `95-nas-egress.yaml`, the one
+`CiliumClusterwideNetworkPolicy`, denies pod egress to `192.168.1.228` for
+every namespace except `democratic-csi` (the CSI controller, the TrueNAS
+exporter) and the blackbox exporter's probes. Pod traffic leaves with the
+node's address, so the export allow-list alone cannot tell a pod from the
+kubelet (pentest 2026-11-10, P1). It is a deny with default-deny off and does
+not depend on the switches above.
+
 ## Metrics
 
 The Cilium agents export datapath metrics (`cilium_*`, port 9962) and Hubble

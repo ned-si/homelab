@@ -37,6 +37,8 @@ spec:
       kind: CiliumLoadBalancerIPPool # cilium/ip-pools.yaml
     - group: cilium.io
       kind: CiliumL2AnnouncementPolicy # cilium/l2-announcement-policy.yaml
+    - group: cilium.io
+      kind: CiliumClusterwideNetworkPolicy # network-policies/95-nas-egress.yaml: one deny for every pod (pentest P1, #1284)
     # Created by the charts this layer installs (argo-cd, cilium, cert-manager,
     # external-dns, democratic-csi) and by the vendored CRD bundle
     # (gateway-api).
