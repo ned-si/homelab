@@ -18,18 +18,6 @@ output "s3_endpoint" {
   value       = "https://s3.${var.region}.amazonaws.com"
 }
 
-output "backup_access_key_id" {
-  description = "ACCESS_KEY_ID for the s3-backup Secret. Save to the password manager."
-  value       = aws_iam_access_key.backup.id
-  sensitive   = true
-}
-
-output "backup_secret_access_key" {
-  description = "ACCESS_SECRET_KEY for the s3-backup Secret. Save to the password manager."
-  value       = aws_iam_access_key.backup.secret
-  sensitive   = true
-}
-
 output "restic_access_keys" {
   description = "Per-namespace restic writer keys: { namespace = { id, secret } }, for each namespace's s3-backup Secret."
   value       = { for ns, k in aws_iam_access_key.restic : ns => { id = k.id, secret = k.secret } }
