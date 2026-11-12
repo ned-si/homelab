@@ -14,8 +14,12 @@
 # Alerting must survive a flip (lockout invariant L8): Alertmanager's
 # egress to ntfy.sh and healthchecks.io is in `alertmanager` below.
 #
-# Not enforced: every policy here is default-allow; the switch is the
-# `monitoring` block in ./90-enforcement.yaml. Its flips come last (D4).
+# Enforced both ways (the `monitoring` block in ./90-enforcement.yaml).
+# Before the egress flip, no monitoring pod sent a packet through the
+# synthesized allow-all entry (cilium-dbg bpf policy get, 2026-11-12).
+# Hubble reports flows matched through an aggregate entity entry
+# (`cluster`, `world`) as match="all", so netpol:would_drop overcounts
+# Prometheus and blackbox-exporter, whose rules use those entities.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

@@ -223,8 +223,8 @@ namespace and direction in `90-enforcement.yaml`.
 
 | Namespace | Ingress | Egress |
 | --- | --- | --- |
-| `paperless`, `immich`, `mealie`, `books`, `backup-verify`, `keycloak`, `syncthing`, `theater` | enforced | enforced |
-| `home`, `monitoring` | enforced | audit |
+| `paperless`, `immich`, `mealie`, `books`, `backup-verify`, `keycloak`, `syncthing`, `theater`, `monitoring` | enforced | enforced |
+| `home` | enforced | audit |
 
 In `syncthing`, `apps/syncthing/network-policy.yaml` (`syncthing-gui`,
 `syncthing-sso`) also enforces ingress on the StatefulSet and the SSO proxy,
