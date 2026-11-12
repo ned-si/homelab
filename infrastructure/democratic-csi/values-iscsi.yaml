@@ -15,6 +15,15 @@ controller:
       registry: docker.io/democraticcsi/democratic-csi
       # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
       tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
+    # Trust the NAS's own CA (resources/truenas-ca.yaml) for the TrueNAS API:
+    # the driver config verifies TLS (allowInsecure: false).
+    extraEnv:
+      - name: NODE_EXTRA_CA_CERTS
+        value: /etc/truenas-ca/ca.crt
+    extraVolumeMounts:
+      - name: truenas-ca
+        mountPath: /etc/truenas-ca
+        readOnly: true
     resources:
       requests:
         cpu: 20m
@@ -23,6 +32,10 @@ controller:
         memory: 256Mi
   # No CSI snapshots: no snapshot CRDs or controller; backups are restic and
   # Barman (docs/backups.md). Re-enable with both.
+  extraVolumes:
+    - name: truenas-ca
+      configMap:
+        name: truenas-ca
   externalSnapshotter:
     enabled: false
   externalAttacher:
