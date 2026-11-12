@@ -6,11 +6,15 @@
 # Hubble had no verdicts to read. The 7-day audit of spec
 # netpol-default-deny starts with this file; what it misses shows up as
 # would-be drops (`match="all"`). Home Assistant reaches devices on the LAN
-# by address on their own ports (docs/home-automation.md); those flows are
-# left to the audit rather than guessed here.
+# by address on their own ports (docs/home-automation.md). None is set up
+# yet: before the egress flip (2026-11-12) Home Assistant sent only SSDP and
+# mDNS discovery outside these rules (about 7 packets an hour to
+# 224.0.0.251, 239.255.255.250, 255.255.255.255), which a pod cannot use
+# anyway, so they are dropped. A device added by IP needs a `toCIDR` rule
+# with its address and port in `home-assistant` below, or the integration
+# cannot reach it.
 #
-# Not enforced: every policy here is default-allow; the switch is the
-# `home` block in ./90-enforcement.yaml.
+# Enforced both ways (the `home` block in ./90-enforcement.yaml).
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy

@@ -166,6 +166,12 @@ removes the Pi but costs a new device.
 | Tesla Wall Connector (Gen 3) | Tesla Wall Connector | Local | Fixed IP on the connector, add by IP; read-only (power, energy, vehicle connected) |
 | Tesla car | Tesla Fleet | Cloud | Fleet API app registration (developer.tesla.com) with a public key on a domain; or Teslemetry as a paid relay |
 
+Local devices added by IP need an egress rule first: the `home` namespace
+enforces egress default-deny, so add the device's address and port as a
+`toCIDR` rule to `home-assistant` in
+`infrastructure/network-policies/70-home.yaml`. Cloud integrations on 443
+need nothing.
+
 Custom (HACS) integrations go in like `auth_oidc`: a pinned release installed
 by the `custom-components` init container, not through the HACS UI.
 
