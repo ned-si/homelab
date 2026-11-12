@@ -26,7 +26,7 @@ spec:
   endpointSelector: {}
   enableDefaultDeny:
     ingress: true      # <-- true enforces INGRESS default-deny for this namespace
-    egress: false      # <-- true enforces EGRESS default-deny for this namespace
+    egress: true       # <-- true enforces EGRESS default-deny for this namespace
   ingress:
     # Kubelet probes from the pod's node. Already allowed by
     # `--allow-localhost=auto`; stated explicitly, and it gives the ingress
