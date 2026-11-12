@@ -72,6 +72,21 @@ spec:
     # their own ports, and an enumerated set gives peers that connect sometimes.
     - toEntities:
         - world
+    # Its own announced addresses (the node IPs, hostPort 22000) and local
+    # discovery on the LAN reach the nodes: `host`, `remote-node`, and
+    # `kube-apiserver` for the control-plane nodes.
+    - toEntities:
+        - host
+        - remote-node
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "22000"
+              protocol: TCP
+            - port: "22000"
+              protocol: UDP
+            - port: "21027"
+              protocol: UDP
 ---
 # ---------------------------------------------------------------------------
 # The backup CronJob (apps/syncthing/backup.yaml). `app: syncthing` does not
@@ -115,4 +130,79 @@ spec:
       toPorts:
         - ports:
             - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: syncthing-sso-egress
+  namespace: syncthing
+spec:
+  description: >-
+    The Syncthing SSO proxy (oauth2-proxy): DNS, the Syncthing GUI upstream and
+    Keycloak (auth.lilalala.com, the WAN address, so `world`; the Gateway if
+    DNS answers with it).
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: syncthing-sso
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app: syncthing
+      toPorts:
+        - ports:
+            - port: "8384"
+              protocol: TCP
+    - toEntities:
+        - world
+        - ingress
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postsync-smoke
+  namespace: syncthing
+spec:
+  description: >-
+    The Argo CD PostSync smoke Job (apps/syncthing): DNS and the Syncthing GUI.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postsync-smoke
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app: syncthing
+      toPorts:
+        - ports:
+            - port: "8384"
               protocol: TCP
