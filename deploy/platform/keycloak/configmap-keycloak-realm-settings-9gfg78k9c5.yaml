@@ -175,6 +175,10 @@ data:
         bad=1
       fi
     done
+    if ! [[ "$(conf master_frontend_url)" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+      echo "FAIL platform.conf: master_frontend_url is not an https origin: $(conf master_frontend_url)" >&2
+      bad=1
+    fi
     # The pentest test user: one name each, its group never an OTP group.
     for v in "pentest_user:$(conf pentest_user)" "pentest_group:$(conf pentest_group)" \
       "pentest_client:$(conf pentest_client)"; do
@@ -537,6 +541,10 @@ data:
     done
     set_fields "$master_lines" master
     events_settings
+    MFU=$(conf master_frontend_url)
+    kc update "realms/$REALM" -s "attributes.frontendUrl=$MFU"
+    check "master frontendUrl" "$MFU" \
+      "$(kc get "realms/$REALM" | sed -n 's/^ *"frontendUrl" : "\(.*\)",\{0,1\}$/\1/p')"
     if [ -z "$(client_id "$AUTO")" ]; then
       echo "creating master client $AUTO"
       kc create clients -r "$REALM" -s clientId="$AUTO" -s protocol=openid-connect \
@@ -1211,6 +1219,12 @@ data:
     # Keycloak's defaults, so the fallback still works on its first run.
     automation_client=realm-settings
 
+    # Frontend URL of the `master` realm: the admin hostname (KC_HOSTNAME_ADMIN).
+    # Without it the master realm's URLs use the public hostname, whose route sends
+    # /realms/master to the account page, and the admin console's third-party
+    # cookie check (an iframe under /realms/master) never answers.
+    master_frontend_url=https://keycloak-admin.tail32a1fc.ts.net
+
     # Fields of sessions.conf also written to the `master` realm, by name: the
     # brute-force detection of `homelab`, with its temporary lockout only. Master
     # sessions stay at the Keycloak defaults.
@@ -1316,5 +1330,5 @@ data:
     minimumQuickLoginWaitSeconds=60
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-482ft75b89
+  name: keycloak-realm-settings-9gfg78k9c5
   namespace: keycloak

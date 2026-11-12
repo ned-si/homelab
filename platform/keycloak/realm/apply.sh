@@ -128,6 +128,10 @@ for g in $(conf mfa_groups); do
     bad=1
   fi
 done
+if ! [[ "$(conf master_frontend_url)" =~ ^https://[A-Za-z0-9.-]+$ ]]; then
+  echo "FAIL platform.conf: master_frontend_url is not an https origin: $(conf master_frontend_url)" >&2
+  bad=1
+fi
 # The pentest test user: one name each, its group never an OTP group.
 for v in "pentest_user:$(conf pentest_user)" "pentest_group:$(conf pentest_group)" \
   "pentest_client:$(conf pentest_client)"; do
@@ -490,6 +494,10 @@ for f in $(conf master_fields); do
 done
 set_fields "$master_lines" master
 events_settings
+MFU=$(conf master_frontend_url)
+kc update "realms/$REALM" -s "attributes.frontendUrl=$MFU"
+check "master frontendUrl" "$MFU" \
+  "$(kc get "realms/$REALM" | sed -n 's/^ *"frontendUrl" : "\(.*\)",\{0,1\}$/\1/p')"
 if [ -z "$(client_id "$AUTO")" ]; then
   echo "creating master client $AUTO"
   kc create clients -r "$REALM" -s clientId="$AUTO" -s protocol=openid-connect \
