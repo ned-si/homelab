@@ -48,6 +48,20 @@ envoy:
 l2announcements:
   enabled: true
 
+# Transparent encryption (assessment finding P4): pod traffic between nodes
+# goes through WireGuard (cilium_wg0, UDP 51871) inside the VXLAN tunnel.
+# Talos ships the WireGuard module. Pod-to-node and node-to-node traffic stay
+# plain (nodeEncryption is beta). Takes effect when the agents restart
+# (`rollOutCiliumPods` is off); pods created before keep their old route MTU
+# until they restart, and the kernel fragments the few oversized packets.
+encryption:
+  enabled: true
+  type: wireguard
+# One agent at a time on a restart (chart default 2 of 4 nodes).
+updateStrategy:
+  rollingUpdate:
+    maxUnavailable: 1
+
 # Metrics: agent :9962, Hubble :9965, operator :9963, Envoy :9964, scraped by
 # the PodMonitors in platform/kube-prometheus-stack/routes/cilium-monitors.yaml
 # (the chart installs before the Prometheus CRDs exist).
