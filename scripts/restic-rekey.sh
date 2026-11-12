@@ -61,11 +61,10 @@ scripts/tofu.sh bootstrap/aws-backup output -json restic_access_keys >"$TMP/keys
 sops -d "$SHARED" >"$TMP/shared.yaml"
 sops -d "$SIGNOZ" >"$TMP/signoz.yaml"
 
-# The shared password and writer key, from the backup-verify copy.
+# The shared password, from the backup-verify copy (whose S3 key only reads:
+# the key is added with the namespace's own, which can write its prefix).
 field() { yq "select(.metadata.namespace == \"$2\") | .stringData.$3" "$1"; }
 field "$TMP/shared.yaml" backup-verify RESTIC_PASSWORD | tr -d '\n' >"$TMP/old.pw"
-OLD_ID=$(field "$TMP/shared.yaml" backup-verify AWS_ACCESS_KEY_ID)
-OLD_SECRET=$(field "$TMP/shared.yaml" backup-verify AWS_SECRET_ACCESS_KEY)
 
 rc=0
 for ns in $(jq -r 'keys[]' "$TMP/keys.json"); do
@@ -81,7 +80,7 @@ for ns in $(jq -r 'keys[]' "$TMP/keys.json"); do
   NEW_SECRET=$(jq -r --arg n "$ns" '.[$n].secret' "$TMP/keys.json")
   openssl rand -base64 32 | tr -d '\n' >"$TMP/$ns.pw"
 
-  AWS_ACCESS_KEY_ID=$OLD_ID AWS_SECRET_ACCESS_KEY=$OLD_SECRET \
+  AWS_ACCESS_KEY_ID=$NEW_ID AWS_SECRET_ACCESS_KEY=$NEW_SECRET \
     restic -q -r "$S3/$repo" --password-file "$TMP/old.pw" key add \
     --new-password-file "$TMP/$ns.pw" --host "$ns" --user "$ns-writer"
   if ! AWS_ACCESS_KEY_ID=$NEW_ID AWS_SECRET_ACCESS_KEY=$NEW_SECRET \
