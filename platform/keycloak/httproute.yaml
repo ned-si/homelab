@@ -73,5 +73,7 @@ spec:
           name: keycloak
           port: 8080
           weight: 1
+      # Bounded (pentest 2026-11-10, low): Keycloak has no long-lived
+      # request, so an unlimited timeout only lets a client hold a stream.
       timeouts:
-        request: 0s
+        request: 60s
