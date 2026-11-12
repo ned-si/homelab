@@ -263,7 +263,7 @@ spec:
     cluster DNS out.
   endpointSelector: {}
   enableDefaultDeny:
-    ingress: false     # <-- true enforces INGRESS default-deny for this namespace
+    ingress: true      # <-- true enforces INGRESS default-deny for this namespace
     egress: true       # <-- true enforces EGRESS default-deny for this namespace
   ingress:
     - fromEntities:

@@ -218,14 +218,17 @@ namespace (`backup-verify`, `books`, `home`, `immich`, `keycloak`, `mealie`,
 `monitoring`, `paperless`, `syncthing`, `theater`), synced by the Application
 `network-policies` (infrastructure layer, wave 30, prune on, self-heal off).
 Every allow-list ships with
-(infrastructure layer, wave 30, prune on, self-heal off). Every allow-list ships with
 `enableDefaultDeny: {ingress: false, egress: false}`; enforcement is opt-in per
 namespace and direction in `90-enforcement.yaml`.
 
 | Namespace | Ingress | Egress |
 | --- | --- | --- |
-| `paperless`, `immich`, `mealie`, `books`, `theater`, `home`, `backup-verify`, `keycloak`, `monitoring` | enforced | audit |
-| `syncthing` | audit | audit |
+| `paperless`, `immich`, `mealie`, `books`, `backup-verify`, `keycloak`, `syncthing` | enforced | enforced |
+| `theater`, `home`, `monitoring` | enforced | audit |
+
+In `syncthing`, `apps/syncthing/network-policy.yaml` (`syncthing-gui`,
+`syncthing-sso`) also enforces ingress on the StatefulSet and the SSO proxy,
+with the app; the switch covers the other pods (backup and smoke Jobs).
 
 The break-glass (delete the
 switch, then hold every merge and revert) and the flip procedure are in
