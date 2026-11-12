@@ -53,6 +53,9 @@ TMP=$(mktemp -d)
 trap '/bin/rm -rf "$TMP"' EXIT
 . ./scripts/lib/sops-age.sh && sops_age_env
 
+# A new worktree has no .terraform yet: init reads the backend, changes nothing.
+scripts/tofu.sh bootstrap/aws-backup init -input=false >"$TMP/tofu.err" 2>&1 ||
+  { sed -n '/Error/,$p' "$TMP/tofu.err" >&2; exit 1; }
 scripts/tofu.sh bootstrap/aws-backup output -json restic_access_keys >"$TMP/keys.json" 2>"$TMP/tofu.err" ||
   { sed -n '/Error/,$p' "$TMP/tofu.err" >&2; exit 1; }
 sops -d "$SHARED" >"$TMP/shared.yaml"
