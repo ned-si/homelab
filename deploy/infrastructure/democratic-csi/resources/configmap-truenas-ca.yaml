@@ -1,0 +1,40 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/democratic-csi/resources
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/democratic-csi/resources and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIID6jCCAtKgAwIBAgIEAP7rjzANBgkqhkiG9w0BAQsFADB9MRcwFQYDVQQDDA5o
+    b21lbGFiLW5hcy1jYTELMAkGA1UEBhMCQ0gxDzANBgNVBAgMBlp1cmljaDEPMA0G
+    A1UEBwwGWnVyaWNoMRAwDgYDVQQKDAdob21lbGFiMSEwHwYJKoZIhvcNAQkBFhJh
+    ZG1pbkBsaWxhbGFsYS5jb20wHhcNMjYxMTEyMTAwMjMwWhcNMjcxMjE0MTAwMjMw
+    WjB9MRcwFQYDVQQDDA5ob21lbGFiLW5hcy1jYTELMAkGA1UEBhMCQ0gxDzANBgNV
+    BAgMBlp1cmljaDEPMA0GA1UEBwwGWnVyaWNoMRAwDgYDVQQKDAdob21lbGFiMSEw
+    HwYJKoZIhvcNAQkBFhJhZG1pbkBsaWxhbGFsYS5jb20wggEiMA0GCSqGSIb3DQEB
+    AQUAA4IBDwAwggEKAoIBAQCa8hNjJ3p3ALKvxw/c97hUOreAkYCLkOH8SGmL0xzP
+    Xh+W684z+1fHOOvI3BnGWh5uNpBJPP1MF12UasT0oOQ+r13g4Cvn3WdalE0cPk1u
+    F32YPNw7NL/k6Ynx/JiTjzMHXJdtK4Qj/VK+k3U1BapVmbFvU+OwSn2Shmgn3hA8
+    rkygNd8g6/I4qmWH1NMEOH9elyKgaF2coIQk4dqm1GsL+eOLqLRjLE2BKJ4SlrES
+    mxbkkOrWbXng32EvJKLCifYtSKUDMNvwxenFnwjJcd5lM8fq4siDvIzwvUaU9F0N
+    39LyTlS4jA2YC0EdyfMJ7yWl57jBeSN5uiyyGmJLOvWjAgMBAAGjcjBwMBkGA1Ud
+    EQQSMBCCDmhvbWVsYWItbmFzLWNhMB0GA1UdDgQWBBTMhZAHa1imBcywrhiKqIGd
+    ntLL0zAPBgNVHRMBAf8EBTADAQH/MBMGA1UdJQQMMAoGCCsGAQUFBwMBMA4GA1Ud
+    DwEB/wQEAwIBBjANBgkqhkiG9w0BAQsFAAOCAQEAKIHlgIB01e5W4VIUBgy65xKU
+    DFop5SS8+X8CVkIYppylC83Qvg1rMjQb7UxcwhkhUSh7rw4SS9WkWdyjDbhKZbT7
+    7cpiA6nlGfGRXCsuCX3EGL4F6dWocWMdARvjbZB6szLZMdUq2lcSDZQQNmDs4CEh
+    UOeUojeaALmh0TORUCwMUY86sf/YsdAmejtUsRDJgXEiB+8iW1RlxAH8qcE13Bj5
+    0x/LXFxxji4IwA1/Fkgcg5+Pw/JUmcoc1g/0mpA516l6HGuLKir4q9x2DIpZ5++8
+    cCpbqsV1oBklRKBM0+puamZwRgdOfIbAfsb6QZfhtY5E+Hd5q1HPc8dL2kmy5w==
+    -----END CERTIFICATE-----
+kind: ConfigMap
+metadata:
+  name: truenas-ca
+  namespace: democratic-csi
