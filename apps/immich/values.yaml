@@ -81,8 +81,9 @@ server:
         # exporter listens on localhost only and no longer reads
         # OTEL_EXPORTER_PROMETHEUS_HOST (immich-app/immich#33173). This
         # sidecar shares the pod's network namespace and re-exposes 8081 and
-        # 8082 on 9081 and 9082 for Prometheus. `localhost` is [::1] in this
-        # container, so the forward targets IPv6. Remove the sidecar and the
+        # 8082 on 9081 and 9082 for Prometheus. Since v3.4.1 the exporter
+        # listens on 0.0.0.0 (IPv4) only, no longer on [::1], so the forward
+        # targets 127.0.0.1. Remove the sidecar and the
         # targetPort overrides below once Immich passes a host to the exporter.
         metrics-proxy:
           image:
@@ -92,8 +93,8 @@ server:
           command: ["/bin/sh", "-c"]
           args:
             - >-
-              socat TCP-LISTEN:9081,fork,reuseaddr TCP6:[::1]:8081 &
-              exec socat TCP-LISTEN:9082,fork,reuseaddr TCP6:[::1]:8082
+              socat TCP-LISTEN:9081,fork,reuseaddr TCP4:127.0.0.1:8081 &
+              exec socat TCP-LISTEN:9082,fork,reuseaddr TCP4:127.0.0.1:8082
           ports:
             - name: metrics-api-fwd
               containerPort: 9081
