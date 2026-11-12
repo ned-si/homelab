@@ -2,6 +2,35 @@
 # driver config must stay as the existing volumes were created;
 # infrastructure/iscsi-volumes/ depends on them. The driver config is the SOPS
 # Secret iscsi-democratic-csi-driver-config (`driver.existingConfigSecret`).
+# The CA that signed the NAS web/API certificate (TrueNAS internal CA
+# `homelab-nas-ca`, created 2026-11-12). The chart puts it in its ConfigMap and
+# points NODE_EXTRA_CA_CERTS at it, so the driver config verifies TLS
+# (allowInsecure: false). Public, not a secret. It expires 2027-12-14: renew
+# it in TrueNAS, re-sign the `nas` certificate and replace it here.
+extraCaCerts: |-
+  -----BEGIN CERTIFICATE-----
+  MIID6jCCAtKgAwIBAgIEAP7rjzANBgkqhkiG9w0BAQsFADB9MRcwFQYDVQQDDA5o
+  b21lbGFiLW5hcy1jYTELMAkGA1UEBhMCQ0gxDzANBgNVBAgMBlp1cmljaDEPMA0G
+  A1UEBwwGWnVyaWNoMRAwDgYDVQQKDAdob21lbGFiMSEwHwYJKoZIhvcNAQkBFhJh
+  ZG1pbkBsaWxhbGFsYS5jb20wHhcNMjYxMTEyMTAwMjMwWhcNMjcxMjE0MTAwMjMw
+  WjB9MRcwFQYDVQQDDA5ob21lbGFiLW5hcy1jYTELMAkGA1UEBhMCQ0gxDzANBgNV
+  BAgMBlp1cmljaDEPMA0GA1UEBwwGWnVyaWNoMRAwDgYDVQQKDAdob21lbGFiMSEw
+  HwYJKoZIhvcNAQkBFhJhZG1pbkBsaWxhbGFsYS5jb20wggEiMA0GCSqGSIb3DQEB
+  AQUAA4IBDwAwggEKAoIBAQCa8hNjJ3p3ALKvxw/c97hUOreAkYCLkOH8SGmL0xzP
+  Xh+W684z+1fHOOvI3BnGWh5uNpBJPP1MF12UasT0oOQ+r13g4Cvn3WdalE0cPk1u
+  F32YPNw7NL/k6Ynx/JiTjzMHXJdtK4Qj/VK+k3U1BapVmbFvU+OwSn2Shmgn3hA8
+  rkygNd8g6/I4qmWH1NMEOH9elyKgaF2coIQk4dqm1GsL+eOLqLRjLE2BKJ4SlrES
+  mxbkkOrWbXng32EvJKLCifYtSKUDMNvwxenFnwjJcd5lM8fq4siDvIzwvUaU9F0N
+  39LyTlS4jA2YC0EdyfMJ7yWl57jBeSN5uiyyGmJLOvWjAgMBAAGjcjBwMBkGA1Ud
+  EQQSMBCCDmhvbWVsYWItbmFzLWNhMB0GA1UdDgQWBBTMhZAHa1imBcywrhiKqIGd
+  ntLL0zAPBgNVHRMBAf8EBTADAQH/MBMGA1UdJQQMMAoGCCsGAQUFBwMBMA4GA1Ud
+  DwEB/wQEAwIBBjANBgkqhkiG9w0BAQsFAAOCAQEAKIHlgIB01e5W4VIUBgy65xKU
+  DFop5SS8+X8CVkIYppylC83Qvg1rMjQb7UxcwhkhUSh7rw4SS9WkWdyjDbhKZbT7
+  7cpiA6nlGfGRXCsuCX3EGL4F6dWocWMdARvjbZB6szLZMdUq2lcSDZQQNmDs4CEh
+  UOeUojeaALmh0TORUCwMUY86sf/YsdAmejtUsRDJgXEiB+8iW1RlxAH8qcE13Bj5
+  0x/LXFxxji4IwA1/Fkgcg5+Pw/JUmcoc1g/0mpA516l6HGuLKir4q9x2DIpZ5++8
+  cCpbqsV1oBklRKBM0+puamZwRgdOfIbAfsb6QZfhtY5E+Hd5q1HPc8dL2kmy5w==
+  -----END CERTIFICATE-----
 csiDriver:
   name: org.democratic-csi.iscsi
 
@@ -15,15 +44,6 @@ controller:
       registry: docker.io/democraticcsi/democratic-csi
       # renovate: datasource=docker depName=docker.io/democraticcsi/democratic-csi
       tag: v1.9.5@sha256:fc3b7d7ed3a616714139525075312758e23a5d425ffb539ad12c9bd20fb6001f
-    # Trust the NAS's own CA (resources/truenas-ca.yaml) for the TrueNAS API:
-    # the driver config verifies TLS (allowInsecure: false).
-    extraEnv:
-      - name: NODE_EXTRA_CA_CERTS
-        value: /etc/truenas-ca/ca.crt
-    extraVolumeMounts:
-      - name: truenas-ca
-        mountPath: /etc/truenas-ca
-        readOnly: true
     resources:
       requests:
         cpu: 20m
@@ -32,10 +52,6 @@ controller:
         memory: 256Mi
   # No CSI snapshots: no snapshot CRDs or controller; backups are restic and
   # Barman (docs/backups.md). Re-enable with both.
-  extraVolumes:
-    - name: truenas-ca
-      configMap:
-        name: truenas-ca
   externalSnapshotter:
     enabled: false
   externalAttacher:
