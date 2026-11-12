@@ -325,7 +325,7 @@ resource "aws_iam_user" "restic" {
   for_each = local.restic_writers
   name     = "${var.bucket_name}-restic-${each.key}"
   tags = {
-    Purpose = "restic writer for ${each.value}/, namespace ${each.key}"
+    Purpose = "restic writer for ${each.value}/ in namespace ${each.key}"
     Managed = "opentofu"
   }
 }
