@@ -32,15 +32,19 @@ point, a credential or an admission path is added or removed.
   `admins` and the Keycloak admin (realm `master`) need a TOTP code after the
   password ([keycloak-otp.md](runbooks/keycloak-otp.md)). Both Keycloak
   realms run brute-force detection and allow no password grant.
-  Plex and Jellyfin keep their own login (their TV apps cannot use SSO), and
-  so do the *arr UIs under `theater.lilalala.com/arr/<app>`. PSA `restricted`
-  on the `gateway` namespace. DAST (ZAP) runs against the public names.
-- Residual: any realm user reaches every Keycloak app; the *arr UIs rely on
-  logins configured inside each app, not in git; no
-  security response headers; no rate limit at the Gateway.
-- Planned: oauth2-proxy in front of the *arr UIs (`apps/theater/sso.yaml`,
-  written, not deployed); per-app access groups enforced at Keycloak; security
-  headers on every HTTPRoute with DAST green; default-deny network policies.
+  The *arr UIs, Bazarr and LazyLibrarian under
+  `theater.lilalala.com/arr/<app>` sit behind an oauth2-proxy for groups
+  `admins` or `TheaterAdmins` (`apps/theater/sso.yaml`), their only login;
+  qBittorrent keeps its form login behind the same proxy. Plex and Jellyfin
+  keep their own login (their TV apps cannot use SSO). Every HTTPRoute sets
+  security response headers. PSA `restricted` on the `gateway` namespace.
+  Ingress and egress default-deny network policies in every application
+  namespace ([networking.md](networking.md)). DAST (ZAP) runs against the
+  public names.
+- Residual: any realm user reaches every Keycloak app except the proxied
+  ones; Plex and Jellyfin logins are configured inside each app, not in git;
+  no rate limit at the Gateway.
+- Planned: per-app access groups enforced at Keycloak.
 
 ### Internet to Syncthing (22000 TCP and UDP on `192.168.1.201`)
 
