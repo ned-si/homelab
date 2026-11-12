@@ -1202,3 +1202,26 @@ spec:
               protocol: TCP    # sonarr
             - port: "4180"
               protocol: TCP    # theater-sso
+---
+# ---------------------------------------------------------------------------
+# Plex: the internet on any port
+# ---------------------------------------------------------------------------
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-internet
+  namespace: theater
+spec:
+  description: >-
+    Plex beyond media-servers' 443/80: plex.tv, relays and remote clients on
+    other ports (about 40 flows a day matched nothing else before egress was
+    enforced, 2026-11-12). The internet only, still nothing in the cluster.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: plex
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEntities:
+        - world

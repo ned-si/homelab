@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: plex-internet
+  namespace: theater
+spec:
+  description: 'Plex beyond media-servers'' 443/80: plex.tv, relays and remote clients
+    on other ports (about 40 flows a day matched nothing else before egress was enforced,
+    2026-11-12). The internet only, still nothing in the cluster.'
+  egress:
+  - toEntities:
+    - world
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: plex
