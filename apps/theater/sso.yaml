@@ -2,8 +2,8 @@
 # on https://theater.lilalala.com/arr/<app> (docs/theater.md, "Login"), for
 # apps without OIDC. It routes by path; qBittorrent's prefix is stripped.
 # Groups `admins` or `TheaterAdmins` (platform/keycloak/realm/). The proxy is
-# the only login of the *arr apps and Bazarr (External auth, none); LazyLibrarian
-# and qBittorrent keep their form login. Break-glass: a port-forward. In-cluster API
+# the only login of the *arr apps, Bazarr (External auth, none) and
+# LazyLibrarian (empty password); qBittorrent keeps its form login. Break-glass: a port-forward. In-cluster API
 # calls never pass the proxy. Bump `config-version` when the alpha config
 # changes (read at start only).
 ---
