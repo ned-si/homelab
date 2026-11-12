@@ -301,6 +301,107 @@ resource "aws_iam_access_key" "backup" {
 }
 
 # ---------------------------------------------------------------------------
+# One restic writer per namespace (assessment finding P6), scoped to that
+# namespace's top-level prefix, so one namespace's key reaches neither another
+# namespace's repository nor cnpg/. Replaces the shared writer above once
+# every s3-backup Secret holds its own key; the shared one then goes.
+# ---------------------------------------------------------------------------
+locals {
+  # namespace = top-level prefix of its restic repositories (restic_repos).
+  restic_writers = {
+    books      = "books"
+    home       = "home"
+    immich     = "immich"
+    mealie     = "mealie"
+    monitoring = "grafana"
+    paperless  = "paperless"
+    signoz     = "signoz"
+    syncthing  = "syncthing"
+    theater    = "theater"
+  }
+}
+
+resource "aws_iam_user" "restic" {
+  for_each = local.restic_writers
+  name     = "${var.bucket_name}-restic-${each.key}"
+  tags = {
+    Purpose = "restic writer for ${each.value}/ (namespace ${each.key})"
+    Managed = "opentofu"
+  }
+}
+
+data "aws_iam_policy_document" "restic" {
+  for_each = local.restic_writers
+
+  # restic prunes, so DeleteObject is required (a delete marker only).
+  statement {
+    sid    = "PrefixReadWrite"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts",
+    ]
+    resources = ["${aws_s3_bucket.backups.arn}/${each.value}/*"]
+  }
+
+  # As for cnpg: HeadBucket is ListBucket without a prefix; any listing with
+  # a prefix outside this namespace's is denied.
+  statement {
+    sid       = "PrefixList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.backups.arn]
+    condition {
+      test     = "StringLikeIfExists"
+      variable = "s3:prefix"
+      values   = ["${each.value}/*"]
+    }
+  }
+
+  statement {
+    sid       = "BucketLocation"
+    effect    = "Allow"
+    actions   = ["s3:GetBucketLocation", "s3:ListBucketMultipartUploads"]
+    resources = [aws_s3_bucket.backups.arn]
+  }
+
+  statement {
+    sid    = "DenyIrreversibleDestruction"
+    effect = "Deny"
+    actions = [
+      "s3:DeleteObjectVersion",
+      "s3:DeleteObjectVersionTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutLifecycleConfiguration",
+      "s3:DeleteBucket",
+      "s3:DeleteBucketPolicy",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketAcl",
+      "s3:PutEncryptionConfiguration",
+    ]
+    resources = [
+      aws_s3_bucket.backups.arn,
+      "${aws_s3_bucket.backups.arn}/*",
+    ]
+  }
+}
+
+resource "aws_iam_user_policy" "restic" {
+  for_each = local.restic_writers
+  name     = "restic-${each.key}"
+  user     = aws_iam_user.restic[each.key].name
+  policy   = data.aws_iam_policy_document.restic[each.key].json
+}
+
+resource "aws_iam_access_key" "restic" {
+  for_each = local.restic_writers
+  user     = aws_iam_user.restic[each.key].name
+}
+
+# ---------------------------------------------------------------------------
 # The Barman Cloud credential (cnpg/<cluster>/), apart from the restic writer
 # so neither holds a key to the other's data.
 # ---------------------------------------------------------------------------
