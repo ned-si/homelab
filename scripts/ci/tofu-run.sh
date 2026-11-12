@@ -90,6 +90,12 @@ esac
 rc=0
 tofu apply -input=false -no-color "$work/plan.bin" > "$work/apply.log" 2>&1 || rc=$?
 mask "$work/apply.log"
-# The apply log repeats the plan, sensitive values masked by tofu.
-tail -n 5 "$work/apply.log"
+# The apply log repeats the plan, sensitive values masked by tofu. On a
+# failure, every `Error:` block (account ID masked above); the last lines
+# alone cut the message off and leave only its source location.
+if [ "$rc" -ne 0 ] && grep -q '^Error: ' "$work/apply.log"; then
+  sed -n '/^Error: /,$p' "$work/apply.log"
+else
+  tail -n 5 "$work/apply.log"
+fi
 exit "$rc"
