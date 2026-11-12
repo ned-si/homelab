@@ -6,4 +6,3 @@ kind: Kustomization
 namespace: democratic-csi
 resources:
   - selinux-config.yaml
-  - truenas-ca.yaml
