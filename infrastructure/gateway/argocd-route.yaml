@@ -41,5 +41,8 @@ spec:
           name: argocd-server
           port: 80
           weight: 1
+      # Unlimited on purpose: the UI holds watch streams
+      # (/api/v1/stream/applications) and log follows open; Envoy's 15 s
+      # default would cut them. Unauthenticated requests get a 401 at once.
       timeouts:
         request: 0s
