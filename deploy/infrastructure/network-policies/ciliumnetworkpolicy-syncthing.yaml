@@ -29,6 +29,18 @@ spec:
         protocol: TCP
   - toEntities:
     - world
+  - toEntities:
+    - host
+    - remote-node
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "22000"
+        protocol: TCP
+      - port: "22000"
+        protocol: UDP
+      - port: "21027"
+        protocol: UDP
   enableDefaultDeny:
     egress: false
     ingress: false
