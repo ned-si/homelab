@@ -30,6 +30,12 @@ output "backup_secret_access_key" {
   sensitive   = true
 }
 
+output "restic_access_keys" {
+  description = "Per-namespace restic writer keys: { namespace = { id, secret } }, for each namespace's s3-backup Secret."
+  value       = { for ns, k in aws_iam_access_key.restic : ns => { id = k.id, secret = k.secret } }
+  sensitive   = true
+}
+
 output "cnpg_access_key_id" {
   description = "ACCESS_KEY_ID for the cnpg-backup-s3 Secret (Barman Cloud plugin). Save to the password manager."
   value       = aws_iam_access_key.cnpg.id
