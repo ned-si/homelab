@@ -73,7 +73,10 @@ MCP servers fit together:
 - CNPG clusters: `<service>-postgresql` (`mealie-postgresql`,
   `sonarr-postgresql`, `home-assistant-postgresql`); `immich-db` and
   `keycloak-db` keep their historical names.
-- Public hostnames: `<prefix>.lilalala.com`, the prefix chosen per app
+- Domains: `nedsi.io` is the public identity (the blog at the apex, its
+  dashboard at `/homelab/`, anything public later); `lilalala.com` is the
+  household's, for private and semi-private services and admin UIs.
+- Household hostnames: `<prefix>.lilalala.com`, the prefix chosen per app
   (`media` for Immich, `cook` for Mealie).
 - Hostname prefixes: household services get everyday words (`media`,
   `theater`, `cook`, `archive`, ...); platform and operator tools keep their
