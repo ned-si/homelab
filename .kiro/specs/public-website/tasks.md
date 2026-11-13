@@ -8,7 +8,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
 
 ## Phase 1: the blog
 
-- [ ] 0. Operator console steps for `nedsi.io` (no PR). Defaults in
+- [x] 0. Operator console steps for `nedsi.io` (no PR). Defaults in
       brackets:
       1. Cloudflare, same account: Add a site `nedsi.io` [Free plan, skip
          the record import, DNS only, no proxy].
@@ -38,6 +38,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       workflow pushes `ghcr.io/ned-si/homelab-site:main` with a
       `linux/arm64` manifest; the GHCR package is public; `docker run` of
       the image answers `200` on `/` and `405` on `POST`. [2.4, 3.3, 3.6, 6.3]
+      #1398
 - [ ] 3. Domain and app (after task 0): `nedsi.io` in the ClusterIssuers'
       `dnsZones`, the `nedsi-io` Certificate, the Gateway listeners, the
       HTTP redirect and `www` routes; `apps/website/`,
