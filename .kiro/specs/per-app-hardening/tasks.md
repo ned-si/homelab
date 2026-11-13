@@ -181,3 +181,4 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       [gitops-delivery](../gitops-delivery/) task 19 points here;
       `status: done`, `closed:`; #726 closed with a comment on #1020
       listing the namespaces whose `psa-readiness.sh` reads `READY`. [10]
+      #1408
