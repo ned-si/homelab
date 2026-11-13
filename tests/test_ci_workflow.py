@@ -83,7 +83,7 @@ def test_tool_cache_key_names_every_installed_tool():
         assert "\\" not in keys[0] and "\n" not in keys[0] and "}} " not in keys[0] and "- " not in keys[0], name
         assert VERSION_REF.findall(keys[0]) == [t.upper().replace("-", "_") for t in installs[0]], name
         checked += 1
-    assert checked == 9
+    assert checked == 10
 
 
 def test_one_job_saves_each_tool_cache():
@@ -97,7 +97,7 @@ def test_one_job_saves_each_tool_cache():
             assert prefix not in savers, f"{name} and {savers.get(prefix)} both save {prefix}"
             savers[prefix] = name
     assert savers["tools-render-"] == "render"
-    assert len(savers) == 8
+    assert len(savers) == 9
 
 
 def test_each_cache_key_has_one_saving_job():
