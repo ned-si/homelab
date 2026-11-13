@@ -40,8 +40,6 @@ spec:
         - https://audiobooks.lilalala.com/healthcheck
         - https://ebooks.lilalala.com/login
         - https://home.lilalala.com/manifest.json
-        # The blog; `app` is `nedsi` from the relabeling below.
-        - https://nedsi.io/
         # oauth2-proxy's own health endpoint: needs no session.
         - https://hubble.lilalala.com/ping
         - https://signoz.lilalala.com/ping
