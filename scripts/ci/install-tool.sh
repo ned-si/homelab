@@ -5,7 +5,8 @@
 # the download is verified with sha256sum before anything is extracted or run.
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
 # Tools: kubeconform actionlint shellcheck gitleaks trivy kyverno kube-linter helm
-#        kubectl kind tofu promtool alertmanager talhelper talosctl
+#        kubectl kind tofu promtool alertmanager talhelper talosctl hugo htmltest
+#        exiftool
 #
 # TOOL_CACHE=<dir> (restored in CI by actions/cache): downloads are kept there
 # as <sha256>. A cached file goes through the same sha256 check as a download;
@@ -94,6 +95,21 @@ for tool in "$@"; do
     talosctl)
       v=$(need TALOSCTL_VERSION); fetch "https://github.com/siderolabs/talos/releases/download/$v/talosctl-linux-amd64" "$(need TALOSCTL_SHA256)"
       install -m 0755 "$work/dl" "$bin/talosctl" ;;
+    hugo) # the extended edition
+      v=$(need HUGO_VERSION); fetch "https://github.com/gohugoio/hugo/releases/download/v$v/hugo_extended_${v}_linux-amd64.tar.gz" "$(need HUGO_SHA256)"
+      tar -xzf "$work/dl" -C "$bin" hugo ;;
+    htmltest)
+      v=$(need HTMLTEST_VERSION); fetch "https://github.com/wjdp/htmltest/releases/download/v$v/htmltest_${v}_linux_amd64.tar.gz" "$(need HTMLTEST_SHA256)"
+      tar -xzf "$work/dl" -C "$bin" htmltest ;;
+    exiftool) # a Perl script that loads lib/ from its own directory
+      v=$(need EXIFTOOL_VERSION); fetch "https://github.com/exiftool/exiftool/archive/refs/tags/$v.tar.gz" "$(need EXIFTOOL_SHA256)"
+      rm -rf "$bin/exiftool-dist" && mkdir -p "$bin/exiftool-dist"
+      tar -xzf "$work/dl" -C "$bin/exiftool-dist" --strip-components=1 "exiftool-$v/exiftool" "exiftool-$v/lib"
+      cat > "$bin/exiftool" <<EOF
+#!/bin/sh
+exec perl "$bin/exiftool-dist/exiftool" "\$@"
+EOF
+      chmod 0755 "$bin/exiftool" ;;
     *) echo "install-tool: unknown tool $tool" >&2; exit 64 ;;
   esac
   rm -f "$work/dl"

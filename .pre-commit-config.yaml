@@ -222,6 +222,15 @@ repos:
         pass_filenames: false
         files: '(\.ya?ml$|\.tf$|Taskfile\.yml$|renovate\.json5$)'
 
+      # site/ against the operator's git-ignored deny list (household names,
+      # address terms). Passes when site/denylist.local.txt is absent, as in CI.
+      - id: site-denylist
+        name: site/ holds no term of site/denylist.local.txt
+        entry: ./scripts/site-denylist.sh
+        language: script
+        pass_filenames: false
+        files: ^site/
+
       # Regenerates deploy/, so "you forgot to re-render" becomes a staged
       # file; commit again when it changes something. CI runs the same script
       # with --check.

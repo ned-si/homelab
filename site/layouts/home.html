@@ -1,0 +1,9 @@
+{{ define "main" }}
+<p class="intro">{{ site.Params.description }}</p>
+{{- $posts := where site.RegularPages "Section" "posts" }}
+{{- range $posts.ByDate.Reverse }}
+{{ partial "summary.html" . }}
+{{- else }}
+<p>No articles yet.</p>
+{{- end }}
+{{ end }}
