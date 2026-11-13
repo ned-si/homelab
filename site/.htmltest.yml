@@ -1,0 +1,7 @@
+---
+# htmltest for scripts/ci/site-check.sh: internal links, anchors and images,
+# offline. The directory comes from the command line.
+CheckExternal: false
+CheckFavicon: false
+IgnoreAltMissing: false
+EnforceHTTPS: false

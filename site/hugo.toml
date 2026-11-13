@@ -1,0 +1,45 @@
+# The blog at https://nedsi.io (.kiro/specs/public-website/design.md).
+baseURL = "https://nedsi.io/"
+locale = "en-GB"
+title = "nedsi"
+buildDrafts = false
+buildFuture = false
+buildExpired = false
+enableRobotsTXT = true
+refLinksErrorLevel = "ERROR"
+disableKinds = ["section"]
+
+[params]
+author = "nedsi"
+description = "How a family homelab is built and run."
+
+[taxonomies]
+tag = "tags"
+
+# One feed, /index.xml, with the full content of every article.
+[outputs]
+home = ["html", "rss"]
+taxonomy = ["html"]
+term = ["html"]
+
+[services.rss]
+limit = -1
+
+[markup.goldmark.renderer]
+unsafe = false
+
+# Classes, not inline styles: the CSP allows no style attribute.
+[markup.highlight]
+noClasses = false
+
+# Keeps the server-side include directives of the dashboard (phase 2).
+[minify.tdewolff.html]
+keepComments = true
+
+[[module.mounts]]
+source = "static"
+target = "static"
+
+[[module.mounts]]
+source = "LICENSE"
+target = "static/LICENSE.txt"

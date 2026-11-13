@@ -1,0 +1,14 @@
+{{ define "main" }}
+<h1>{{ .Title }}</h1>
+{{- if eq .Kind "taxonomy" }}
+<ul class="terms">
+{{- range .Pages }}
+<li><a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a> ({{ len .Pages }})</li>
+{{- end }}
+</ul>
+{{- else }}
+{{- range .Pages.ByDate.Reverse }}
+{{ partial "summary.html" . }}
+{{- end }}
+{{- end }}
+{{ end }}

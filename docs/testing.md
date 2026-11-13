@@ -7,7 +7,7 @@ deploy time, against production.
 | Layer | Where | Runs | Blocks |
 |---|---|---|---|
 | 1. Local hooks | the operator's Mac | `pre-commit` on commit, `pre-push` on push | the commit or push |
-| 2. Static CI | GitHub Actions `ci` (`lint`, `render`, `tests`, `promtool`, `alertmanager`, `security`, `pr-metadata`) | every pull request and push to `main` | the merge (`ci` is the required check) |
+| 2. Static CI | GitHub Actions `ci` (`lint`, `render`, `tests`, `promtool`, `alertmanager`, `security`, `pr-metadata`, `site`) | every pull request and push to `main` | the merge (`ci` is the required check) |
 | 3. Pre-production | GitHub Actions `ci` / `preprod`, an ephemeral kind cluster | every pull request and push to `main` | the merge |
 | 4. Deploy-time smoke tests | Argo CD PostSync hooks in the live cluster | after every sync of a user-facing app | the sync, which triggers the automatic rollback |
 

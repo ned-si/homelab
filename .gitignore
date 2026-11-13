@@ -24,6 +24,11 @@ secrets-to-encrypt.local.md
 # password-manager exports). Covers *.local.env below as well.
 *.local.*
 
+# Hugo output and caches (site/).
+/site/public/
+/site/resources/
+/site/.hugo_build.lock
+
 # Personal notes kept beside the docs; never published.
 /docs/logs/
 /docs/todo.md

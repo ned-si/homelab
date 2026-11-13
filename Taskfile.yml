@@ -39,6 +39,8 @@ tasks:
       # the terraform_fmt hook fails with exit 127 without it. nmap:
       # scripts/discover-lan.sh. talosctl stays on talosVersion.
       - brew install go-task sops age kustomize kubeconform helm yq pre-commit ksops opentofu nmap kube-linter actionlint kyverno talhelper talosctl
+      # `task site:build`; Hugo itself comes from scripts/site.sh.
+      - brew install htmltest exiftool
       # Installs every type in default_install_hook_types (pre-commit,
       # commit-msg, pre-push).
       - pre-commit install --install-hooks
@@ -284,6 +286,24 @@ tasks:
     desc: Fail if deploy/ does not match its sources (what CI runs)
     cmds:
       - ./scripts/render-deploy.sh --check
+
+  # -------------------------------------------------------------------------
+  # Site (site/, the blog at nedsi.io; pinned Hugo, scripts/site.sh)
+  # -------------------------------------------------------------------------
+  site:serve:
+    desc: Serve site/ with drafts on http://localhost:1313
+    cmds:
+      - ./scripts/site.sh serve
+
+  site:build:
+    desc: Build site/ and run the CI site checks
+    cmds:
+      - ./scripts/site.sh build
+
+  site:strip:
+    desc: Remove EXIF, XMP, IPTC and GPS metadata from the images under site/
+    cmds:
+      - ./scripts/site.sh strip
 
   validate:
     desc: Render + schema-validate against the cluster's Kubernetes version

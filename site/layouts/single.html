@@ -1,0 +1,13 @@
+{{ define "main" }}
+<article>
+<h1>{{ .Title }}</h1>
+{{- if eq .Section "posts" }}
+<p class="meta"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2 January 2006" }}</time> by {{ site.Params.author }}
+{{- with .GetTerms "tags" }} ·{{ range . }} <a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}{{ end }}</p>
+{{- end }}
+{{- with .Params.canonical }}
+<p class="meta">First published at <a href="{{ . }}">{{ (urls.Parse .).Host }}</a>.</p>
+{{- end }}
+{{ .Content }}
+</article>
+{{ end }}

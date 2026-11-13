@@ -91,6 +91,16 @@ env:
   # after Renovate's bump has merged).
   TALOSCTL_VERSION: v1.14.2
   TALOSCTL_SHA256: c6c9552b0e5f767352c595fa1c0af4f186f697488646872955057d23990a66c4
+  # The site job (scripts/ci/site-check.sh). HUGO_DARWIN_SHA256 pins the macOS
+  # package scripts/site.sh installs for `task site:serve` and `site:build`.
+  HUGO_VERSION: 0.169.0
+  HUGO_SHA256: c41672a0725d307758a132bc94a962e59760eb33f9ba08c991b81f9881d6fa7d
+  HUGO_DARWIN_SHA256: d48dfd5adab308f941e83e48c5ba925747cf383395972278942cf526ad27cf38
+  HTMLTEST_VERSION: 0.17.0
+  HTMLTEST_SHA256: 775c597ee74899d6002cd2d93076f897f4ba68686bceabe2e5d72e84c57bc0fb
+  # exiftool from its tag archive; perl comes with the runner.
+  EXIFTOOL_VERSION: "13.63"
+  EXIFTOOL_SHA256: a306420abf76dbfc5b4ca1a9de7bb2523bc93500a075c4fc9ce543b15f09195f
   # One checkout serves every step of a job: keep it free of bytecode and
   # pytest caches so no check sees another check's leftovers.
   PYTHONDONTWRITEBYTECODE: "1"
@@ -808,13 +818,63 @@ jobs:
         if: ${{ !cancelled() }}
         run: scripts/ci/kind-preprod.sh boot
 
+  # The blog under site/ (scripts/ci/site-check.sh): build, links, markup,
+  # image metadata, content. Exits early when the change does not touch it.
+  # fetch-depth 2: HEAD^1 is the base (main for a pull request's merge commit).
+  site:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-site-${{ env.HUGO_VERSION }}-${{ env.HTMLTEST_VERSION }}-${{ env.EXIFTOOL_VERSION }}-${{ env.GITLEAKS_VERSION }}
+          restore-keys: tools-site-
+
+      - name: Install pinned tools
+        id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
+        run: scripts/ci/install-tool.sh hugo htmltest exiftool gitleaks
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
+
+      - name: Site checks
+        id: check
+        env:
+          SITE_OUT: ${{ runner.temp }}/site-public
+        run: scripts/ci/site-check.sh
+
+      - name: Upload the site preview
+        if: ${{ !cancelled() && steps.check.outputs.built == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site-preview
+          path: ${{ runner.temp }}/site-public
+          retention-days: 7
+          if-no-files-found: error
+
   # The one required check. `always()` so it reports even when a job above
   # failed; it fails unless every job succeeded, except pr-metadata, which may
   # be skipped outside a pull request, and talos-upgrade, which may be skipped
   # when `talos` did not plan a rehearsal.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod]
+    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod, site]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -827,7 +887,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod; do
+          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod site; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"
