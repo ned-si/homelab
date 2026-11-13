@@ -166,6 +166,16 @@ mapping names no policy, or an ID is malformed.
 | Every workload (Pod Security admission) | `enforce: restricted` in the platform and admin namespaces plus `home` and `system-upgrade`; `baseline` or `privileged` elsewhere, each with its reason in the header of [namespaces.yaml](../infrastructure/namespaces/namespaces.yaml); `scripts/ci/kyverno.sh` blocks what a `restricted` namespace would reject; the alert `PodSecurityEnforceDenied` pages on a denial ([runbooks/pod-security.md](runbooks/pod-security.md)) | same file |
 | Supply chain: Renovate to `main` | `disallow-latest-tag`, `check-deprecated-apis`, and the `image-digest` rule of `scripts/ci/repo_policy.py` | same file |
 
+Inside a workload, a compromised app process runs with the profile of
+[architecture.md](architecture.md#admission-policy-kyverno): non-root where the
+image allows it, otherwise root with three to six capabilities, never privilege
+escalation, seccomp `RuntimeDefault`, and no ServiceAccount token. Kyverno
+denies at admission what would weaken it (the 16 baseline policies) and a pod
+without probes (`require-probes`); `require-requests-limits` stays in Audit until #1406, so a container without
+limits is reported, not refused. What is left, root in the Immich server, Plex,
+Calibre-Web and the media apps on NFS (#1407) and a token in two SigNoz chart
+Pods, is in `ci/pod-hardening-gaps.txt` with its reason.
+
 CIS sections 1 to 4 (control plane, etcd, kubelet and their files) are set by
 Talos, not re-implemented here.
 

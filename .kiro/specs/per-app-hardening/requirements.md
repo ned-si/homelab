@@ -1,7 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-04
+closed: 2026-11-13
 issue: 726
 ---
 # Requirements: per-app-hardening

@@ -134,11 +134,12 @@ user records the stop check [8.4]. Requirement numbers in brackets.
 - [x] 30. Weekday. SigNoz: requests, memory limit and probes for the
       ClickHouse operator in its values. [5.3, 6]
       #1266
-- [ ] 31. Weekday. Tetragon: requests and memory limits for every
+- [x] 31. Weekday. Tetragon: requests and memory limits for every
       container the render shows without them, in
       `platform/tetragon` values. [5.3]
-      Open: the chart sets no resources option for the `mount-bpf-fs`
-      init container; it goes to task 37's PolicyException.
+      The chart sets no resources option for the `mount-bpf-fs` init
+      container; it goes to task 37's PolicyException (#1406).
+      #1404
 - [x] 32. Weekday. node-exporter: `prometheus-node-exporter.resources` in
       `platform/kube-prometheus-stack/values.yaml`. [5.3]
       #1267
@@ -148,7 +149,7 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       `prometheusOperator.prometheusConfigReloader.resources`; the live
       PolicyReports of both Pods `pass` after the sync. [5.3]
       #1268
-- [ ] 34. Weekday. `grafana-postgresql`, after #917 task 13: its sidecar
+- [x] 34. Moved to #1406 on 2026-11-13 (waits on #917), not done here. Weekday. `grafana-postgresql`, after #917 task 13: its sidecar
       resources, and `spec.resources` if task 13 left them unset, as task
       22. [5.4, 5.5, 8, 9]
 - [x] 35. `feat(scripts): kyverno-deny-readiness.sh per policy`: K1 and K2
@@ -162,7 +163,7 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       `docs/sre.md`, `tests/alertmanager/routes.txt`; the live 7-day query
       in the pull request. [7]
       #1270
-- [ ] 37. Weekday. `require-requests-limits` to Deny and `BLOCKING`, after
+- [x] 37. Moved to #1406 on 2026-11-13 (waits on #917), not done here. Weekday. `require-requests-limits` to Deny and `BLOCKING`, after
       #917 tasks 13 and 18 to 20 and tasks 21 to 34: readiness `READY`,
       the operator-built Pods with evidence (tuppr from its source), the
       PolicyExceptions of D7, the live Kyverno break-glass test if #1021
@@ -173,7 +174,7 @@ user records the stop check [8.4]. Requirement numbers in brackets.
       has no probes), the dry run with a Deployment without probes. [6,
       8.6]
       #1273, #1274, #1272, #1275
-- [ ] 39. Close: `docs/architecture.md`, `docs/threat-model.md` and
+- [x] 39. Close: `docs/architecture.md`, `docs/threat-model.md` and
       `docs/testing.md` as built; `ci/pod-hardening-gaps.txt` holds only
       lasting reasons, each fixable one with an issue; no "Hardening
       (probes, ...)" header comment left under `apps/` or `platform/`;
