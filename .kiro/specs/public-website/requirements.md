@@ -19,7 +19,7 @@ production. It covers #971 and the public part of #817.
 domain for private and semi-private services.
 
 Phase 1 puts the blog live with an intro article, RSS and a privacy page.
-Phase 2 adds statistics, comments, the dashboard and the republished
+Phase 2 adds statistics, the dashboard and the republished
 articles. Each phase is useful on its own.
 
 Non-goals are listed under [Out of scope](#out-of-scope).
@@ -96,7 +96,7 @@ attack surface to the homelab as possible.
 
 1. THE site SHALL load no third-party resource (fonts, scripts, images,
    embeds) and set no cookie. Its only JavaScript SHALL be the self-hosted
-   comment and statistics scripts, served from `nedsi.io`; the dashboard
+   statistics script, served from `nedsi.io`; the dashboard
    and every other page work without JavaScript.
 2. EVERY response SHALL carry: `Content-Security-Policy` with
    `default-src 'none'`, only `'self'` for scripts, styles, images, fonts
@@ -107,21 +107,20 @@ attack surface to the homelab as possible.
    DENY`, `Permissions-Policy` denying camera, microphone, geolocation,
    payment and usb, `Cross-Origin-Opener-Policy: same-origin`.
 3. THE site server SHALL answer only `GET` and `HEAD`; any other method
-   gets `405`. Only the comment and statistics endpoints accept `POST`.
+   gets `405`. Only the statistics collect endpoint accepts `POST`.
 4. EVERY pod SHALL run as non-root with a read-only root file system, no
    capabilities, the `RuntimeDefault` seccomp profile, no service account
    token unless it needs the API, requests and limits, and pass every
    Kyverno baseline policy with no PolicyException.
 5. EACH namespace SHALL have enforced network policies: ingress from the
-   shared Gateway only; no egress for the site, comment and statistics
-   pods except the statistics database.
+   shared Gateway only; no egress for the site and statistics pods
+   except the statistics database.
 6. THE site image SHALL be built in this repository's CI, pushed to
    `ghcr.io/ned-si/homelab-site`, and run by digest; every image SHALL
    publish `linux/arm64`.
 7. `nedsi.io` SHALL be in the pentest scope and the `dast` workflow's
    targets.
-8. Admin interfaces (comment moderation, statistics) SHALL NOT be reachable
-   on `nedsi.io`; they are on `lilalala.com` behind Keycloak, group
+8. THE statistics UI SHALL NOT be reachable on `nedsi.io`; it is on `lilalala.com` behind Keycloak, group
    `admins`.
 
 ## Requirement 4: No household data, ever
@@ -178,24 +177,9 @@ banner.
 3. THE site's access logs SHALL keep `time`, `method`, `path`, `status`
    and `bytes`, and SHALL NOT keep the client address, the user agent or
    the referrer.
-4. THE privacy page SHALL list exactly what is collected by the logs, the
-   statistics and the comments, why, how long it is kept, who to contact
+4. THE privacy page SHALL list exactly what is collected by the logs and
+   the statistics, why, how long it is kept, who to contact
    and how to have data deleted.
-
-## Requirement 7: Comments
-
-**User story:** As a reader, I want to comment on an article; as the
-operator, I want to moderate comments and switch them off easily.
-
-1. Comments SHALL be self-hosted in the cluster with no third party, on
-   article pages only.
-2. EVERY new comment SHALL wait for the operator's approval before it is
-   shown.
-3. A comment SHALL need only its text; a name is optional, and no e-mail
-   address, website or avatar is asked for or stored. Client addresses are
-   not stored in full.
-4. THE operator SHALL be able to delete any comment on request, and to
-   switch comments off for the whole site with one setting.
 
 ## Non-functional requirements
 
@@ -221,7 +205,7 @@ operator, I want to moderate comments and switch them off easily.
 4. `curl -s -X POST -o /dev/null -w '%{http_code}' https://nedsi.io/`
    prints `405`. [3.3]
 5. The built site contains no `<form`, `<iframe`, inline `<script>` or
-   `style=`, no `<script src=` other than the two self-hosted scripts, and
+   `style=`, no `<script src=` other than the statistics script, and
    no `src=` or `href=` to another origin outside `<article>`, checked in
    the `site` job. [3.1]
 6. A PR adding a JPEG with GPS EXIF under `site/` fails `ci`. [4.3]
@@ -239,16 +223,14 @@ operator, I want to moderate comments and switch them off easily.
 13. The site's log lines in SigNoz contain no client address or user
     agent; the statistics database has no column holding a full IP
     address. [6.1, 6.3]
-14. `https://nedsi.io/comments/admin` and the statistics UI paths return
-    `404` on `nedsi.io`. [3.8]
-15. A new comment is not visible until approved; with comments switched
-    off, article pages load no comment script. [7.2, 7.4]
+14. The statistics UI paths return `404` on `nedsi.io`. [3.8]
 
 ## Out of scope
 
 - The private homepage behind Keycloak (#817's private part): it stays on
   #817.
-- Newsletters, search, a second language.
+- Comments (Hugo has none built in; readers can open a GitHub issue),
+  newsletters, search, a second language.
 - Household consumption, presence, cameras, doors, alarm, at any
   granularity (home-automation design, Public data).
 - Hosting off the cluster and Cloudflare's proxy: rejected for now, see
@@ -268,7 +250,7 @@ Each default holds until the operator says otherwise. Rows marked
 | Blog generator | Hugo, home-made layouts, no theme (operator) | One pinned binary, built-in RSS, no npm tree to keep patched |
 | Dashboard | Home-made: the publisher renders HTML and SVG from the figures (operator) | Shows the project's own work; no JavaScript |
 | Sources | `site/` in this repository (operator) | One CI, articles link to the code they describe |
-| Comments | Isso, self-hosted, moderated, phase 2 (operator) | Small, arm64, same-origin, no account needed |
+| Comments | None; readers can open a GitHub issue (operator) | No moderation, no extra service, no personal data to hold |
 | Statistics | Umami, self-hosted, cookieless, phase 2 (operator) | Every wanted dimension without cookies or stored IPs |
 | Dashboard apps | Household and platform apps by name; no *arr, qBittorrent or indexers (operator) | Nothing about the download stack |
 | Solar | Near real time, production only (operator) | Production says nothing about who is home |

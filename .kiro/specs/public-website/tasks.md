@@ -1,8 +1,8 @@
 # Tasks: public-website
 
 One PR per task, in order within a phase. Phase 1 (tasks 0-5) puts the
-blog live on `nedsi.io` with the intro article; phase 2 (tasks 6-10) adds
-statistics, comments, the dashboard, solar and the republished articles.
+blog live on `nedsi.io` with the intro article; phase 2 (tasks 6-9) adds
+statistics, the dashboard, solar and the republished articles.
 No task writes to the cluster outside Argo CD. The defaults are in
 [requirements.md](requirements.md#decided-defaults).
 
@@ -56,7 +56,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       PR for the operator to edit and mark ready. Check: acceptance
       criteria 3 and 8. [1.3]
 
-## Phase 2: statistics, comments, the dashboard
+## Phase 2: statistics and the dashboard
 
 - [ ] 6. Statistics: `apps/umami/` (Deployment, `umami-postgresql`, the
       oauth2-proxy route on `umami.lilalala.com`, retention CronJob,
@@ -65,14 +65,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       privacy page's statistics section. Check: acceptance criteria 5,
       13, 14; a visit shows in Umami with country, browser and device.
       [3.1, 3.8, 6.1, 6.2, 6.4]
-- [ ] 7. Comments: `apps/isso/` (arm64 image check first, else Remark42;
-      config, PVC, restic, the oauth2-proxy route on
-      `comments.lilalala.com`, network policies), the `/comments/` routes,
-      the embed in `single` behind `params.comments`, the privacy page's
-      comments section. Check: acceptance criteria 14 and 15; the stored
-      test comment has no e-mail or website and a truncated address.
-      [7.1-7.4, 6.4]
-- [ ] 8. Dashboard: `apps/website/publisher/` (CronJob, `publisher.py`
+- [ ] 7. Dashboard: `apps/website/publisher/` (CronJob, `publisher.py`
       with the renderer, `schema.json`, `config.json` with the shown apps,
       Role), the `website-data` placeholder and its `ignoreDifferences`,
       the read-only mount, `location /homelab/ { ssi on; }`,
@@ -80,13 +73,13 @@ No task writes to the cluster outside Argo CD. The defaults are in
       egress policy, `tests/website/test_publisher.py`, the CronJob lists.
       Check: acceptance criteria 11 and 12; one manual Job run on a
       weekday. [5.1-5.4]
-- [ ] 9. Solar: the `website-solar` CronJob every 5 minutes and its
+- [ ] 8. Solar: the `website-solar` CronJob every 5 minutes and its
       ConfigMap, from the Home Assistant production sensors in Prometheus;
       production only. Starts once the home-automation spec records solar
       production; until then it is an issue labelled `blocked`. Check: the
       page shows current power and today's total, and no consumption
       figure. [5.5]
-- [ ] 10. Republished articles: the two articles the operator wrote for
+- [ ] 9. Republished articles: the two articles the operator wrote for
       another company's blog, with `canonical` and the "First published
       at" line. Blocked until the operator has checked he may reuse them
       and supplied the texts; draft PRs he marks ready. Check: each page

@@ -7,12 +7,10 @@ an unprivileged nginx image, pushed to GHCR by a workflow on `main`.
 Renovate sees the new digest and opens the usual digest PR, which merges on
 green CI; Argo CD rolls out the `website` app at `https://nedsi.io`.
 
-Phase 2 adds three things next to the static site, each in its own app:
+Phase 2 adds two things next to the static site:
 
 - `umami`: cookieless statistics, its tracker and collect endpoint proxied
   under `nedsi.io/stats/`, its UI on `umami.lilalala.com` behind Keycloak.
-- `isso`: moderated comments under `nedsi.io/comments/`, its admin on
-  `comments.lilalala.com` behind Keycloak.
 - The publisher CronJobs in `website`: they read Prometheus, validate a
   fixed set of figures, render the dashboard's HTML and SVG and write them
   to ConfigMaps the site pod mounts read-only. nginx includes them in
@@ -21,7 +19,7 @@ Phase 2 adds three things next to the static site, each in its own app:
 The site pod talks to nothing. Stack, locked: Hugo extended (pinned with
 its checksum in `scripts/ci/install-tool.sh`), `nginxinc/nginx-unprivileged`
 alpine by digest, Python 3 from the `python` alpine image by digest for the
-publisher, Isso and Umami images by digest, GitHub Actions, GHCR, Renovate,
+publisher, the Umami image by digest, GitHub Actions, GHCR, Renovate,
 Argo CD, Kustomize, CloudNativePG for Umami's database.
 
 ## Domains
@@ -57,18 +55,18 @@ DNS and TLS for `nedsi.io`:
 
 | Path | Holds |
 | --- | --- |
-| `site/hugo.toml` | Base URL `https://nedsi.io/`, RSS, markup settings, `buildDrafts=false`, `buildFuture=false`, `params.comments` (on/off), `[minify.tdewolff.html] keepComments = true` |
+| `site/hugo.toml` | Base URL `https://nedsi.io/`, RSS, markup settings, `buildDrafts=false`, `buildFuture=false`, `[minify.tdewolff.html] keepComments = true` |
 | `site/layouts/` | Home-made templates: `baseof`, `list`, `single`, `index`, `404`, `rss` (full content), `homelab` |
-| `site/assets/css/main.css` | The only stylesheet, fingerprinted by Hugo Pipes; Isso's stylesheet copied in |
+| `site/assets/css/main.css` | The only stylesheet, fingerprinted by Hugo Pipes |
 | `site/content/` | `about.md`, `privacy.md`, `homelab.md` (phase 2), `posts/<yyyy-mm-dd>-<slug>/index.md` |
 | `site/LICENSE` | CC BY 4.0 for the content under `site/content/` |
 | `site/Dockerfile`, `site/nginx.conf` | The image |
 | `apps/website/` | Namespace, Deployment, Service, HTTPRoutes, NetworkPolicy, PostSync smoke, publisher (phase 2) |
-| `apps/umami/`, `apps/isso/` | Phase 2 apps |
-| `clusters/homelab/apps/{website,umami,isso}.yaml` | The Applications |
+| `apps/umami/` | Phase 2 statistics |
+| `clusters/homelab/apps/{website,umami}.yaml` | The Applications |
 | `.github/workflows/site-publish.yaml` | Build and push on `main` |
 | `scripts/ci/site-check.sh` | The `site` job's checks |
-| `docs/website.md` | How to write, preview and publish; the privacy rules; comments and statistics operations; Why it is like this |
+| `docs/website.md` | How to write, preview and publish; the privacy rules; statistics operations; Why it is like this |
 
 `structure.md` gets the `site/` row. The name `website` is the app
 directory, Application and namespace; `site/` holds sources, like
@@ -97,13 +95,12 @@ Three options were weighed:
 - **In the cluster, behind the shared Gateway** (chosen by the operator).
   Free; headers set at the HTTPRoute like every app; the same Kyverno,
   netpol, probe, SLO and pentest coverage; the blog runs on the homelab it
-  describes; comments, statistics and the dashboard data stay in the
-  house. Costs: the site is down when the house is (power cuts), and it
+  describes; statistics and the dashboard data stay in the house. Costs: the site is down when the house is (power cuts), and it
   adds public routes. The site serves static files from a pod with no
   token and no egress.
 - **GitHub Pages**: free and independent of the house, but no CSP header,
-  no `frame-ancestors`, no HSTS control, and comments and statistics would
-  still need the cluster. Rejected for Requirement 3.2.
+  no `frame-ancestors`, no HSTS control, and statistics would still need the
+  cluster. Rejected for Requirement 3.2.
 - **Cloudflare Pages**: free with a `_headers` file, but a new token with
   write access to the account, and the dashboard data would have to be
   pushed out of the house. The fallback if home outages hurt the blog.
@@ -152,7 +149,7 @@ required check, so the job always runs and exits 0 early when
 | --- | --- |
 | `hugo --panicOnWarning --printPathWarnings` | Any template or content warning, a broken `ref`/`relref` (`refLinksErrorLevel = "ERROR"`) |
 | `htmltest` offline on `public/` | A broken internal link, anchor or image |
-| Markup check (grep on `public/`) | `<form`, `<iframe`, `style=`, an inline `<script>`, a `<script src=` other than `/stats/s.js` and `/comments/js/embed.min.js`, or a `src=`/`href=` to another origin outside `<article>` |
+| Markup check (grep on `public/`) | `<form`, `<iframe`, `style=`, an inline `<script>`, a `<script src=` other than `/stats/s.js`, or a `src=`/`href=` to another origin outside `<article>` |
 | `exiftool -if '$EXIF:all or $XMP:all or $IPTC:all or $GPS:all'` over `site/**/*.{jpg,jpeg,png,webp,heic}` | Any image carries metadata; the fix is `task site:strip` (`exiftool -all= -overwrite_original`) |
 | Deny patterns | An e-mail address other than `nedsi@pm.me`; gitleaks already scans the tree |
 | Local files | `git ls-files site \| grep -E '\.local\.'` is non-empty |
@@ -190,11 +187,8 @@ Routes on `nedsi.io` (HTTPRoute `website`, listener `https-nedsi`):
 | --- | --- |
 | `/` | `website` Service, 8080 |
 | `/stats/s.js`, `/stats/api/send` (exact) | `umami` Service, rewritten to its tracker and collect paths (phase 2) |
-| `/comments/admin` (prefix) | `website` Service, which answers `404` |
-| `/comments/` (prefix) | `isso` Service, prefix stripped (phase 2) |
 
-Gateway API picks the longest match, so the admin path never reaches
-Isso and no other Umami path is public.
+Exact matches only, so no other Umami path is public.
 
 Response headers are set at the HTTPRoute with `ResponseHeaderModifier`,
 as on `apps/mealie/httproute.yaml`:
@@ -210,9 +204,7 @@ Cross-Origin-Opener-Policy: same-origin
 ```
 
 Phase 1 ships without `script-src` and `connect-src` (both fall back to
-`'none'`); phase 2 adds them with the first script. Isso's embed is loaded
-with `data-isso-css="false"`, so it injects no inline style; its
-stylesheet is part of `main.css`.
+`'none'`); phase 2 adds them with the statistics script.
 
 The PostSync smoke Job (`components/postsync-smoke`) asserts each header
 on `/` and on a 404, the `405`, and the `www` redirect, so a header lost in
@@ -270,35 +262,6 @@ which Requirement 6.3 forbids).
 - Network policies: ingress from the Gateway; egress to
   `umami-postgresql` only.
 
-## Comments: Isso
-
-Isso (`ghcr.io/isso-comments/isso` by digest, arm64 checked in task 7;
-fallback Remark42), app `isso`, namespace `isso`, SQLite on an
-`iscsi-retain` PVC with a restic CronJob like the other apps.
-
-Why Isso: one small process, SQLite, a moderation queue, no account or
-third party, and it runs under a path of the site, so the CSP stays
-`'self'`. Remark42 is the fallback: richer, but it renders in an iframe
-and pushes social logins.
-
-- `isso.cfg`: `moderation.enabled = true`, `public-endpoint =
-  https://nedsi.io/comments`, `gravatar = false`, admin on, notifications
-  off (no SMTP); Isso stores client addresses truncated (IPv4 /24, IPv6
-  /48).
-- Client: `data-isso-require-email="false"`,
-  `data-isso-require-author="false"`, `[guard] require-email = false`, the
-  e-mail and website fields hidden with CSS and so left empty. Task 7
-  checks the `comments` table after a test comment: empty `email` and
-  `website`, truncated `remote_addr`.
-- Moderation: `comments.lilalala.com` routes to Isso's `/admin` behind
-  the oauth2-proxy pattern, group `admins`.
-- Off switch: `params.comments = false` in `hugo.toml` removes the embed
-  from every page; scaling `isso` to 0 stops the service. Existing
-  comments stay in the database.
-- Deletion on request: the operator deletes the comment in the admin; the
-  privacy page gives `nedsi@pm.me`.
-- Network policies: ingress from the Gateway (both routes); no egress.
-
 ## Public figures
 
 Phase 2. The allow-list, in `apps/website/publisher/schema.json` (JSON
@@ -315,7 +278,7 @@ Schema, `additionalProperties: false`):
 | `apps` | Integer 1-200 | Argo CD Applications, `count(argocd_app_info)` |
 | `talos_version`, `kubernetes_version` | Strings matching `^v\d+\.\d+\.\d+$`; the lowest when nodes disagree (mid-upgrade) | `max by (os_image) (kube_node_info)` and `max by (kubelet_version) (kube_node_info)`, version taken from the label with `re.search(r"v\d+\.\d+\.\d+", label)` |
 
-Solar, in its own document `solar.json` (task 9):
+Solar, in its own document `solar.json` (task 8):
 
 | Key | Value | Source |
 | --- | --- | --- |
@@ -351,7 +314,7 @@ of the 30 daily values, the budget, the platform facts) and `solar.html`
 - CronJob `website-publisher` in `website`, `schedule: "30 3 * * *"`,
   `timeZone: Europe/Zurich`, writes `website-data`; CronJob
   `website-solar`, `schedule: "*/5 * * * *"`, writes `website-solar`
-  (task 9). Both `concurrencyPolicy: Forbid`, `backoffLimit: 2`, in
+  (task 8). Both `concurrencyPolicy: Forbid`, `backoffLimit: 2`, in
   `ci/non-backup-cronjobs.txt` and `ci/active-cronjobs.txt`; same pod
   hardening as the site.
 - `publisher.py` from a ConfigMap on the `python` alpine image, standard
@@ -431,8 +394,6 @@ The privacy page (`site/content/privacy.md`) lists:
 - Statistics (phase 2): page, referrer, country, browser, operating
   system, device type, screen size, language; no cookie, no stored IP, a
   monthly rotating hash; kept 13 months; `Do Not Track` respected.
-- Comments (phase 2): the text, the optional name, the time, a truncated
-  address for spam control; kept until deleted; deletion on request.
 - Legal basis: legitimate interest (GDPR art. 6(1)(f); nFADP), no
   transfer to third parties, data stored in Switzerland on the operator's
   hardware; off-site backups in AWS eu-central-1. Contact `nedsi@pm.me`.
@@ -444,8 +405,8 @@ The privacy page (`site/content/privacy.md`) lists:
 | Templates, links, markup, metadata, drafts | `site` job on every PR (unit level) |
 | Image and nginx config | kind boot in pre-production (`ci/kind-workloads.txt`), `curl` checks of method, headers and the SSI in the kind job |
 | Headers, method, redirect live | PostSync smoke, blackbox probe, `dast` |
-| Publisher | pytest with a fake Prometheus; one manual Job run in task 8 |
-| Umami, Isso | PostSync smoke: tracker and collect answer on `nedsi.io/stats/`, admin paths `404` on `nedsi.io`; a test comment waits for moderation |
+| Publisher | pytest with a fake Prometheus; one manual Job run in task 7 |
+| Umami | PostSync smoke: tracker and collect answer on `nedsi.io/stats/`, UI paths `404` on `nedsi.io` |
 | Network policy | Hubble shows no denied flow from the Gateway; acceptance criterion 10 |
 
 ## Edge cases
@@ -461,8 +422,6 @@ The privacy page (`site/content/privacy.md`) lists:
   DNS-01 until the zone answers.
 - DNS: external-dns is upsert only; removing the site later needs the
   records deleted by hand (as for every app).
-- Comments switched off: Isso keeps running until scaled to 0; no page
-  loads its script.
 
 ## Why it is like this
 
@@ -472,7 +431,9 @@ The privacy page (`site/content/privacy.md`) lists:
   cannot set the CSP header.
 - Hugo with no theme; the dashboard rendered by the project's own code:
   the strictest CSP is possible and there is little to patch.
-- Comments and statistics self-hosted under the site's own origin: no
+- No comments: no moderation, no extra service, no reader data to hold;
+  readers can open a GitHub issue.
+- Statistics self-hosted under the site's own origin: no
   third party, no cookie, no consent banner, CSP `'self'` only.
 - Renovate publishes: it already pins and automerges images; a second
   merge path would need a new token.
