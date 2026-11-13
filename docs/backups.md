@@ -768,7 +768,7 @@ would make the repository unreadable. Instant Retrieval, not Deep Archive, so
 
 | IAM user | Used by | Can |
 |---|---|---|
-| `ned-si-homelab-backups-writer` | the backup jobs, via `s3-backup` | get, put and delete objects; list the bucket |
+| `ned-si-homelab-backups-restic-<namespace>` | that namespace's restic CronJobs, via its `s3-backup` | get, put and delete objects under its own prefix only (`grafana/` for monitoring); list the bucket only with that prefix |
 | `ned-si-homelab-backups-verifier` | restores, drills and the lock test | get objects and versions, list the bucket, write only under `*/locks/` and `_lock-test/`; delete versions under `_lock-test/` (refused by the bucket policy, which is the test); read the bucket policy |
 | `ned-si-homelab-backups-cnpg` | the Barman Cloud plugin, via `cnpg-backup-s3` | get, put and delete objects under `cnpg/` only; list the bucket only without a prefix or with `cnpg/*` |
 | `homelab-metrics-reader` | the AWS dashboard, via `aws-exporter` | list the bucket (no object reads); read CloudWatch metrics and Cost Explorer |

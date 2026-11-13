@@ -288,7 +288,7 @@ PLEX
   echo '- **GitHub PAT** for Argo CD — `contents: read` on this repo only.'
   echo '  Export as `TF_VAR_git_token`.'
   echo
-  echo '### S3 backup credentials — SAVE ALL SIX TO THE PASSWORD MANAGER'
+  echo '### S3 backup credentials — SAVE THEM TO THE PASSWORD MANAGER'
   echo
   echo 'Created by `scripts/tofu.sh bootstrap/aws-backup apply`. Read each with'
   echo '`scripts/tofu.sh bootstrap/aws-backup output -raw <name>` (the `tofu output`'
@@ -296,8 +296,7 @@ PLEX
   echo
   echo '| Password manager entry | Where it comes from | Used by |'
   echo '|---|---|---|'
-  echo '| `homelab / AWS backup writer — key id` | `tofu output -raw backup_access_key_id` | barman + restic CronJobs |'
-  echo '| `homelab / AWS backup writer — secret` | `tofu output -raw backup_secret_access_key` | same |'
+  echo '| `homelab / AWS restic writers` | `tofu output -json restic_access_keys` (re-key: `scripts/restic-rekey.sh`) | each namespace'"'"'s restic CronJobs |'
   echo '| `homelab / AWS backup verifier — key id` | `tofu output -raw verify_access_key_id` | read-only restore drills |'
   echo '| `homelab / AWS backup verifier — secret` | `tofu output -raw verify_secret_access_key` | same |'
   echo '| `homelab / RESTIC_PASSWORD` | `openssl rand -base64 48` | encrypts the restic repositories |'

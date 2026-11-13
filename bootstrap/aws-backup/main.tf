@@ -229,82 +229,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "backups" {
 }
 
 # ---------------------------------------------------------------------------
-# The backup credential
-# ---------------------------------------------------------------------------
-resource "aws_iam_user" "backup" {
-  name = "${var.bucket_name}-writer"
-  tags = {
-    Purpose = "homelab backup writer -- used by CNPG barman and restic CronJobs"
-    Managed = "opentofu"
-  }
-}
-
-data "aws_iam_policy_document" "backup" {
-  # What the backup jobs genuinely need. restic prunes and barman enforces
-  # retention, so DeleteObject is required -- it is not a mistake.
-  statement {
-    sid    = "ObjectReadWrite"
-    effect = "Allow"
-    actions = [
-      "s3:GetObject",
-      "s3:PutObject",
-      "s3:DeleteObject",
-      "s3:AbortMultipartUpload",
-      "s3:ListMultipartUploadParts",
-    ]
-    resources = ["${aws_s3_bucket.backups.arn}/*"]
-  }
-
-  statement {
-    sid    = "BucketList"
-    effect = "Allow"
-    actions = [
-      "s3:ListBucket",
-      "s3:ListBucketMultipartUploads",
-      "s3:GetBucketLocation",
-    ]
-    resources = [aws_s3_bucket.backups.arn]
-  }
-
-  # DeleteObject above only writes a delete marker; these denials stop
-  # anything making a deletion irreversible or disabling versioning. Deny
-  # beats Allow, so they hold even under a broader policy.
-  statement {
-    sid    = "DenyIrreversibleDestruction"
-    effect = "Deny"
-    actions = [
-      "s3:DeleteObjectVersion",
-      "s3:DeleteObjectVersionTagging",
-      "s3:PutBucketVersioning",
-      "s3:PutLifecycleConfiguration",
-      "s3:DeleteBucket",
-      "s3:DeleteBucketPolicy",
-      "s3:PutBucketPolicy",
-      "s3:PutBucketAcl",
-      "s3:PutEncryptionConfiguration",
-    ]
-    resources = [
-      aws_s3_bucket.backups.arn,
-      "${aws_s3_bucket.backups.arn}/*",
-    ]
-  }
-}
-
-resource "aws_iam_user_policy" "backup" {
-  name   = "backup-writer"
-  user   = aws_iam_user.backup.name
-  policy = data.aws_iam_policy_document.backup.json
-}
-
-resource "aws_iam_access_key" "backup" {
-  user = aws_iam_user.backup.name
-}
-
-# ---------------------------------------------------------------------------
 # One restic writer per namespace (assessment finding P6), scoped to that
 # namespace's top-level prefix, so one namespace's key reaches neither another
-# namespace's repository nor cnpg/. Replaces the shared writer above once
-# every s3-backup Secret holds its own key; the shared one then goes.
+# namespace's repository nor cnpg/. They replaced the shared writer user
+# (ned-si-homelab-backups-writer), removed once no Secret held its key.
 # ---------------------------------------------------------------------------
 locals {
   # namespace = top-level prefix of its restic repositories (restic_repos).
