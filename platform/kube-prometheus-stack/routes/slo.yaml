@@ -23,15 +23,15 @@ spec:
       interval: 30s
       rules:
         - record: slo:probe_error:ratio_rate5m
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[5m]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[5m]))
         - record: slo:probe_error:ratio_rate30m
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30m]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[30m]))
         - record: slo:probe_error:ratio_rate1h
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[1h]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[1h]))
         - record: slo:probe_error:ratio_rate2h
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[2h]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[2h]))
         - record: slo:probe_error:ratio_rate6h
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[6h]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[6h]))
 
     # The long windows change slowly; evaluating them every 2 minutes keeps the
     # cost of reading days of samples low. Not 5m or more: an instant query
@@ -40,11 +40,11 @@ spec:
       interval: 2m
       rules:
         - record: slo:probe_error:ratio_rate1d
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[1d]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[1d]))
         - record: slo:probe_error:ratio_rate3d
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[3d]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[3d]))
         - record: slo:probe_error:ratio_rate30d
-          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30d]))
+          expr: 1 - avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[30d]))
         - record: slo:availability:ratio_rate30d
           expr: 1 - slo:probe_error:ratio_rate30d
         # 1 = the whole budget is left, 0 = spent, negative = SLO missed.
@@ -58,7 +58,7 @@ spec:
           expr: |
             clamp_max(
               avg by (app) (
-                count_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing"}[30d])
+                count_over_time(probe_success{job="blackbox-public", app=~"auth|cinema|theater|media|archive|cook|syncthing|nedsi"}[30d])
               ) / (30 * 2880),
               1
             )
@@ -89,6 +89,9 @@ spec:
         - record: slo:app:info
           expr: vector(1)
           labels: {app: syncthing, namespace: syncthing}
+        - record: slo:app:info
+          expr: vector(1)
+          labels: {app: nedsi, namespace: website}
 
     - name: homelab.slo.alerts
       rules:
@@ -305,6 +308,20 @@ spec:
               The {{ $labels.app }} target is missing from the Probes in
               platform/blackbox-exporter/probes, or its `app` relabeling no
               longer matches.
+        - alert: SLOTargetProbeAbsent
+          expr: absent(probe_success{job="blackbox-public", app="nedsi"}) unless on() absent(probe_success{job="blackbox-public"})
+          for: 15m
+          labels:
+            app: nedsi
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SLOTargetProbeAbsent.md
+            summary: "No probe results for {{ $labels.app }}: its SLO alerts are blind"
+            description: >-
+              The {{ $labels.app }} target is missing from the Probes in
+              platform/blackbox-exporter/probes, or its `app` relabeling no
+              longer matches.
 
     # Latency thresholds from scripts/slo-latency-thresholds.sh: the smallest
     # of 0.25 0.5 1 2 5 s at least twice the app's p95, static so a
@@ -332,6 +349,10 @@ spec:
         - record: slo:latency_threshold_seconds
           expr: vector(0.25)
           labels: {app: syncthing}
+        # The blog: static files, no p95 history yet; the smallest bar.
+        - record: slo:latency_threshold_seconds
+          expr: vector(0.25)
+          labels: {app: nedsi}
 
     # 1 per probe target when its last probe succeeded within the threshold,
     # else 0. Evaluated every 30s, the probe interval, so each probe counts

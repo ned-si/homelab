@@ -6,5 +6,6 @@ kind: Kustomization
 resources:
   - gateway.yaml
   - certificate.yaml
+  - certificate-nedsi.yaml
   - http-redirect.yaml
   - argocd-route.yaml
