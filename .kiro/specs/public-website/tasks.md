@@ -21,7 +21,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       4. Cloudflare, `nedsi.io` DNS: add CAA `0 issue "letsencrypt.org"`
          [yes]; enable DNSSEC and add the DS record at Dynadot [yes].
       Check: `dig NS nedsi.io` returns the Cloudflare nameservers.
-- [ ] 1. Site sources: `site/hugo.toml`, the layouts (canonical link,
+- [x] 1. Site sources: `site/hugo.toml`, the layouts (canonical link,
       licence footer), `main.css`, `site/LICENSE` (CC BY 4.0), the About
       stub for the operator, the privacy page (phase 1 content: logs
       only), full-content RSS. `task site:serve`, `task site:build`,
@@ -31,6 +31,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       `site-denylist` pre-commit hook. Check: a draft, a future-dated page,
       a `<script>` and a GPS-tagged JPEG each fail the job in a throwaway
       commit; the clean tree passes. [1.2, 1.4-1.7, 2.1-2.3, 3.1, 4.2-4.4, 6.4]
+      #1393
 - [ ] 2. Image and publishing: `site/Dockerfile`, `site/nginx.conf` (method
       limit, log format, cache headers), `.github/workflows/site-publish.yaml`
       with its ntfy failure step, the Renovate package rule. Check: the
