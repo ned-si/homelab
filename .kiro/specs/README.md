@@ -72,6 +72,7 @@ Change specs, active:
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [pentest-programme](pentest-programme/) | 2026-11-03 | #718 | task 1: rules of engagement, scope file and the dedicated test credentials |
 | [per-app-hardening](per-app-hardening/) | 2026-11-04 | #726 | task 1: the `pod-hardening` rule and its gaps file, then qBittorrent |
+| [public-website](public-website/) | 2026-11-13 | #971 | task 0: `nedsi.io` console steps (operator); task 1: the Hugo sources and the `site` job |
 
 Change specs, done:
 
