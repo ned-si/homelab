@@ -90,6 +90,8 @@
     // `enabledManagers` is an allow-list -- omitting it here meant nothing
     // updated those revs and the claim in that file was false.
     'pre-commit',
+    // The FROM line of site/Dockerfile (repo:tag@digest).
+    'dockerfile',
   ],
 
   // The pre-commit manager is opt-in even when listed above, so both settings
@@ -393,6 +395,17 @@
       matchDatasources: ['docker'],
       matchUpdateTypes: ['digest'],
       groupName: 'image digests',
+    },
+    {
+      // Publishing the blog: site-publish.yaml pushes a new :main, and its
+      // digest pull request deploys it. Its own pull request, out of the
+      // digest group, at once (spec public-website, design step 5).
+      description: 'Deploy each new blog image at once',
+      matchPackageNames: ['ghcr.io/ned-si/homelab-site'],
+      matchUpdateTypes: ['digest'],
+      groupName: 'homelab-site',
+      automerge: true,
+      minimumReleaseAge: '0 days',
     },
     {
       // The *arr apps and qBittorrent share a download-client credential

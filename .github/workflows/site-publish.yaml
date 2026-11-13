@@ -1,0 +1,109 @@
+---
+# Build the blog under site/ and push ghcr.io/ned-si/homelab-site:main and
+# :<sha> for linux/arm64 (.kiro/specs/public-website/design.md#publishing-flow).
+# Renovate sees the new digest of :main and opens the digest pull request that
+# deploys it. A failure deploys nothing; the running site stays.
+name: site-publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - site/**
+      - .github/workflows/site-publish.yaml
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: site-publish
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/ned-si/homelab-site
+
+jobs:
+  publish:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The Hugo pin lives in ci.yaml's env, as for the site job.
+      - name: Install the pinned Hugo
+        run: |
+          set -euo pipefail
+          HUGO_VERSION=$(sed -n 's/^  HUGO_VERSION: *//p' .github/workflows/ci.yaml)
+          HUGO_SHA256=$(sed -n 's/^  HUGO_SHA256: *//p' .github/workflows/ci.yaml)
+          export HUGO_VERSION HUGO_SHA256
+          scripts/ci/install-tool.sh hugo
+
+      - name: Build the site
+        run: hugo --source site --destination "$GITHUB_WORKSPACE/site/public" --minify --panicOnWarning --gc
+
+      # The same Dockerfile for the runner's platform, run as the cluster runs
+      # it (read-only root, /tmp writable), before anything is pushed.
+      - name: Smoke-test the image
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/amd64 --load -t site:smoke site
+          docker run -d --name site --read-only --tmpfs /tmp -p 127.0.0.1:8080:8080 site:smoke
+          code() { curl -s -m 5 -o /dev/null -w '%{http_code}' "$@" http://127.0.0.1:8080/; }
+          for _ in $(seq 1 20); do [ "$(code)" = 200 ] && break; sleep 1; done
+          rc=0
+          [ "$(code)" = 200 ] || { echo "GET / is not 200"; rc=1; }
+          [ "$(code -X POST)" = 405 ] || { echo "POST / is not 405"; rc=1; }
+          [ "$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/no-such-page)" = 404 ] || { echo "a missing page is not 404"; rc=1; }
+          docker logs site
+          docker rm -f site >/dev/null
+          exit "$rc"
+
+      - name: Log in to GHCR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+
+      - name: Build and push linux/arm64
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/arm64 --push \
+            --label org.opencontainers.image.source=https://github.com/ned-si/homelab \
+            --label "org.opencontainers.image.revision=$SHA" \
+            -t "$IMAGE:main" -t "$IMAGE:$SHA" site
+
+      - name: Check the pushed image is linux/arm64
+        run: |
+          set -euo pipefail
+          digest=$(docker buildx imagetools inspect "$IMAGE:main" --format '{{json .Manifest}}' | jq -r .digest)
+          docker pull -q --platform linux/arm64 "$IMAGE@$digest" >/dev/null
+          platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE@$digest")
+          echo "$IMAGE:main@$digest ($platform)" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$platform" = linux/arm64 ]
+
+      - name: Log out of GHCR
+        if: ${{ always() }}
+        run: docker logout ghcr.io
+
+      # A copy of the renovate-render step: one place for alerts, priority
+      # low, held in quiet hours (docs/sre.md). The topic is the secret.
+      - name: Notify ntfy on failure
+        if: ${{ failure() }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          delay=$(scripts/ci/ntfy-quiet-delay.sh)
+          curl -fsS -m 10 -o /dev/null ${delay:+-H "Delay: ${delay}m"} \
+            -H "Title: site-publish failed" -H "Priority: low" -H "Tags: warning" \
+            -H "Click: $RUN_URL" \
+            -d "site-publish failed on ${SHA:0:7}; nothing deployed; see $RUN_URL" \
+            "https://ntfy.sh/$NTFY_TOPIC"
