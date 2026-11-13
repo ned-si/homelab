@@ -10,4 +10,3 @@ resources:
   - syncthing.yaml
   - books.yaml
   - home.yaml
-  - website.yaml
