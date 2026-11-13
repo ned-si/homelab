@@ -63,8 +63,9 @@ their script runs, and the script fails when one is missing.
     false`, `capabilities.drop: [ALL]` and `runAsNonRoot: true`; outside the
     Kyverno-excluded namespaces, a Pod of the `default` ServiceAccount sets
     `automountServiceAccountToken: false` and no binding grants a `default`
-    ServiceAccount. What is still missing is listed with its reason in
-    `ci/pod-hardening-gaps.txt`; a new gap and a line that is no longer a gap
+    ServiceAccount. What is still missing is listed in
+    `ci/pod-hardening-gaps.txt` with a reason that stays, and the issue when
+    it can be fixed later; a new gap and a line that is no longer a gap
     both fail, so the file only shrinks. An Application under
     `clusters/homelab/apps/` whose namespace is not in `APP_NAMESPACES`
     fails too.

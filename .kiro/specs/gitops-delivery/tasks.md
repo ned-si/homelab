@@ -45,7 +45,7 @@ Wave 3 puts Kyverno in the cluster in Audit mode: `.kiro/specs/wave3-*`.
       - 17b. PSA enforce: [pod-security-restricted](../pod-security-restricted/) (#724); the
         Kyverno restricted set in Deny is #1021.
 - 18. Moved to the backlog: #725 (Image provenance and a weekly SBOM).
-- 19. Moved to the backlog: #726 (Per-app hardening: resources, probes, non-root).
+- 19. Moved to #726, done in [per-app-hardening](../per-app-hardening/).
 - 20. Moved to the backlog: #723 (Disaster recovery: rebuild from git, rehearsed).
 - 21. Moved to the backlog: #749 (Adopt or delete the staged snapshot-controller and nfs-storage trees).
 - 22. Stale Helm ownership of the adopted Cilium release: owned by

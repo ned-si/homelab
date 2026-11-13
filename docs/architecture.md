@@ -122,7 +122,23 @@ Kyverno runs the same policy files as CI (`policies/kyverno/`, see
 live finding outside the excluded namespaces once the PolicyExceptions
 (`policies/kyverno/exceptions`) were in, and which block in CI over `deploy/`
 and the rendered Helm apps (`BLOCKING` in `scripts/ci/kyverno.sh`). The rest
-stay in Audit until their reports are clean.
+stay in Audit until their reports are clean. `require-requests-limits` waits
+on #1406 (after the HA work of #917).
+
+Every app container runs with one of two profiles (spec
+[per-app-hardening](../.kiro/specs/per-app-hardening/)), checked in CI by the
+repo-policy rule `pod-hardening`:
+
+- non-root: the image's own uid and gid (else `1000:1000`), `runAsNonRoot`,
+  seccomp `RuntimeDefault`, no privilege escalation, every capability dropped;
+- root, when the image cannot start non-root: the same, without `runAsNonRoot`,
+  and only `CHOWN`, `DAC_OVERRIDE`, `FOWNER` (plus `KILL`, `SETGID`, `SETUID`
+  for images that switch user) added back.
+
+Both set readiness and liveness probes and no ServiceAccount token unless the
+app calls the API. The containers still on the root profile, and the two SigNoz
+chart Pods that mount a token, are listed with their reason in
+`ci/pod-hardening-gaps.txt`; the media containers on the NFS share wait on #1407.
 
 - `infrastructure/kyverno`: the chart, admission and reports controllers only,
   one replica each, namespace `kyverno` (PSA `restricted`).
