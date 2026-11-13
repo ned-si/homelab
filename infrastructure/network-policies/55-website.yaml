@@ -1,0 +1,68 @@
+# website: the blog's nginx and its PostSync smoke Job (spec public-website).
+# The site pod talks to nothing: ingress from the Gateway only, no egress.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: website
+  namespace: website
+spec:
+  description: >-
+    The blog: HTTP from the Gateway and the smoke Job, no egress.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: website
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # nedsi.io -> website :8080 (apps/website/httproute.yaml).
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # apps/website/kustomization.yaml -- postsync-smoke, http://website:8080/.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postsync-smoke
+  namespace: website
+spec:
+  description: >-
+    The PostSync smoke Job calls website:8080 and nedsi.io through the shared
+    Gateway after every sync.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postsync-smoke
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: website
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # https://nedsi.io and the redirects, --connect-to the Gateway Service.
+    - toEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP

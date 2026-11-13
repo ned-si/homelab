@@ -15,7 +15,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 # Services that come from a Helm chart, not from deploy/.
 CHART_SERVICES="immich/immich-server"
-EXPECTED="deploy/apps/books deploy/apps/home deploy/apps/immich/resources deploy/apps/mealie deploy/apps/paperless deploy/apps/syncthing deploy/apps/theater deploy/platform/keycloak"
+EXPECTED="deploy/apps/books deploy/apps/home deploy/apps/immich/resources deploy/apps/mealie deploy/apps/paperless deploy/apps/syncthing deploy/apps/theater deploy/apps/website deploy/platform/keycloak"
 
 # The cilium smoke requests public hostnames through the shared Gateway's
 # Service (curl --connect-to), not an app Service: checked on its own below.

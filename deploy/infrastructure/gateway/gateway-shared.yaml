@@ -42,3 +42,49 @@ spec:
         kind: Secret
         name: wildcard-lilalala-tls
       mode: Terminate
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: nedsi.io
+    name: http-nedsi
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: www.nedsi.io
+    name: http-nedsi-www
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      kinds:
+      - group: gateway.networking.k8s.io
+        kind: HTTPRoute
+      namespaces:
+        from: All
+    hostname: nedsi.io
+    name: https-nedsi
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: nedsi-io-tls
+      mode: Terminate
+  - allowedRoutes:
+      kinds:
+      - group: gateway.networking.k8s.io
+        kind: HTTPRoute
+      namespaces:
+        from: All
+    hostname: www.nedsi.io
+    name: https-nedsi-www
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: nedsi-io-tls
+      mode: Terminate

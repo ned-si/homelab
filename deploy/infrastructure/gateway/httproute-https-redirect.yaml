@@ -18,12 +18,18 @@ metadata:
 spec:
   hostnames:
   - '*.lilalala.com'
+  - nedsi.io
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
     name: shared
     namespace: gateway
     sectionName: http
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
+    namespace: gateway
+    sectionName: http-nedsi
   rules:
   - filters:
     - requestRedirect:
