@@ -9,12 +9,13 @@ tetragon:
     repository: quay.io/cilium/tetragon
     # renovate: datasource=docker depName=quay.io/cilium/tetragon
     tag: v1.8.0@sha256:5ed9088a1582131d71b06c98e0d549a37a71ae63ab13aabefc7a47553c822a9d
+  # Sized by per-app-hardening design.md "Sizing" (14-day p95).
   resources:
     requests:
-      cpu: 50m
-      memory: 192Mi
+      cpu: 30m
+      memory: 320Mi
     limits:
-      memory: 512Mi
+      memory: 768Mi
   exportFileMaxSizeMB: 10
   exportFileMaxBackups: 2
   # One filter per line; lines are OR'ed, the fields of a line AND'ed.
@@ -43,15 +44,17 @@ tetragonOperator:
       cpu: 10m
       memory: 64Mi
     limits:
+      # Drops the chart's default CPU limit: the sizing rule sets none.
+      cpu: null
       memory: 128Mi
 
 export:
   resources:
     requests:
-      cpu: 5m
-      memory: 16Mi
+      cpu: 10m
+      memory: 32Mi
     limits:
-      memory: 64Mi
+      memory: 128Mi
   stdout:
     image:
       repository: quay.io/cilium/hubble-export-stdout
