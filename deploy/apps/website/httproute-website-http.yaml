@@ -1,0 +1,47 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/website
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/website and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: website-http
+  namespace: website
+spec:
+  hostnames:
+  - nedsi.io
+  - www.nedsi.io
+  - blog.nedsi.io
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
+    namespace: gateway
+    sectionName: http-nedsi
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
+    namespace: gateway
+    sectionName: http-nedsi-www
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
+    namespace: gateway
+    sectionName: http-nedsi-blog
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: website
+      port: 8081
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /

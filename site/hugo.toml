@@ -1,5 +1,5 @@
-# The blog at https://nedsi.io (.kiro/specs/public-website/design.md).
-baseURL = "https://nedsi.io/"
+# The blog at https://blog.nedsi.io (.kiro/specs/public-website/design.md).
+baseURL = "https://blog.nedsi.io/"
 locale = "en-GB"
 title = "nedsi"
 buildDrafts = false
