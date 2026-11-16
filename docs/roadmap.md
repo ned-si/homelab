@@ -55,7 +55,9 @@ and later put home automation fourth.
    written report per run, from outside (the own IPs and domains) and from
    inside (the LAN, a compromised pod, a stolen session), its findings as
    issues: the homelab is secure, an intrusion is detected and blocked
-   automatically (#718, spec PR #964).
+   automatically (#718, spec PR #964). Paused since 2026-11-16 after the
+   first assessment; the live run is not done
+   ([status](pentest/README.md#status)).
 7. **Website, blog and dashboard.** The public site with a blog (#971) and
    the homepage/dashboard (#817). Still to decide: a public demo dashboard,
    or everything private. House data on it is limited to daily, delayed
