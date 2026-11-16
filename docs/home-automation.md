@@ -56,7 +56,7 @@ release (`minimumReleaseAge`, `.github/renovate.json5`).
   `https://home.lilalala.com/auth/oidc/callback` (in
   `platform/keycloak/realm/clients.conf`).
 - Keycloak group `HomeAssistantAdmins`: Home Assistant administrator, with
-  OTP. Every other user who passes the gate (`admins`, `family`) gets a
+  OTP. Every other user who passes the gate (`admins`, `household`) gets a
   normal user. `hass-oidc-auth` maps one group to its admin role and sets the
   role only when it creates the user, at the first login: to make an
   existing user an administrator, change it in Home Assistant (Settings,

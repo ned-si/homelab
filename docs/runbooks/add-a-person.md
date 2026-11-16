@@ -25,8 +25,9 @@ group can log in to no app ([architecture.md](../architecture.md#per-app-access)
 
 | Keycloak group | For | Apps |
 | --- | --- | --- |
-| `family` | the household and relatives | Immich, Audiobookshelf, Calibre-Web, Mealie, Paperless, Home Assistant |
-| `media` | friends | Immich, Audiobookshelf, Calibre-Web |
+| `household` | the household members | Immich, Audiobookshelf, Calibre-Web, Mealie, Paperless, Home Assistant |
+| `relatives` | relatives | Immich, Audiobookshelf, Calibre-Web, Mealie |
+| `friends` | friends | Immich, Audiobookshelf, Calibre-Web, Mealie |
 | `admins` | the operator | every app, plus OTP at every password login |
 | `HomeAssistantAdmins` | Home Assistant administrators | Home Assistant, as an administrator |
 | `TheaterAdmins` | the *arr admin UIs | `https://theater.lilalala.com/arr/<app>` |
@@ -50,7 +51,10 @@ apps they have.
    - Email verified: On. The admin sets every address; Mealie is configured
      for that (`OIDC_REQUIRES_EMAIL_VERIFICATION=false`).
    - Required user actions: leave empty.
-   - Join groups: `family` or `media`, as in the table above.
+   - Join groups: `household`, `relatives` or `friends`, as in the table
+     above. A future Home Assistant administrator also joins
+     `HomeAssistantAdmins` now, before their first Home Assistant login
+     ([step 8](#8-home-assistant)).
    - Create.
 2. Credentials, Set password: a temporary password, Temporary On. Keycloak
    adds the required action Update Password, so the person picks their own at
@@ -134,12 +138,22 @@ documents.
 
 `apps/mealie/deployment.yaml`: OIDC on, `OIDC_AUTO_REDIRECT=true`,
 `ALLOW_SIGNUP=false`. `ALLOW_SIGNUP` closes only the local registration form;
-the first Keycloak login creates the user, in Mealie's default group and
-household (`DEFAULT_GROUP` and `DEFAULT_HOUSEHOLD` are not set), where the
-recipes are shared. No `OIDC_ADMIN_GROUP` is set, so admin rights are given
-in Mealie by an admin.
+the first Keycloak login creates the user in Mealie's default group, where
+the recipes are shared, and in the Mealie household `Guests`
+(`DEFAULT_HOUSEHOLD`). Meal plans and shopping lists are per Mealie
+household, so guests do not see the household's. No `OIDC_ADMIN_GROUP` is
+set, so admin rights are given in Mealie by an admin.
 
-Expected: Admin settings, Users lists the person.
+- A relative or a friend: no Mealie step.
+- A household member: after their first login, as a Mealie admin, Admin
+  settings, Users, the user, Household: the household's Mealie household,
+  Save.
+
+The `Guests` household must exist (Admin settings, Households): if
+`DEFAULT_HOUSEHOLD` names a missing one, the first login of every new user
+fails ([mealie#6379](https://github.com/mealie-recipes/mealie/issues/6379)).
+
+Expected: Admin settings, Users lists the person, in the household above.
 
 ### 6. Audiobookshelf
 
@@ -172,6 +186,9 @@ Expected: the person can open a book in the browser.
 login page redirects to Keycloak, and the first login creates a normal user.
 Members of the Keycloak group `HomeAssistantAdmins` become administrators;
 add the person to that group in step 1 only if they should change the setup.
+`hass-oidc-auth` sets the admin role only when it creates the user, so the
+group must be joined before their first Home Assistant login; later, change
+it in Home Assistant (Settings, People).
 
 Expected: Settings, People, Users (advanced mode on) lists the user.
 
@@ -229,6 +246,21 @@ code, and the person enters it on their phone, logged in to Jellyfin, under
 Settings, Quick Connect.
 
 Expected: the person logs in and sees the libraries you picked.
+
+## Open an app to more people
+
+The gate maps groups only, so an app cannot be opened to one person.
+
+1. Add a group to the app's line in `platform/keycloak/realm/access.conf`:
+   an existing audience group, or a new one named for its members (for
+   example `neighbours`) when the audience is different. Describe a new
+   group in the file's header. Open a pull request and merge.
+2. After the sync, the `keycloak-realm-settings` log shows
+   `ok   client <client> access groups=<groups, sorted>` with the group, and
+   `creating group` for a new one.
+3. Add the people to the group (Users, the user, Groups, Join group).
+
+Expected: the person logs in to the app; the other apps are unchanged.
 
 ## Remove a person
 

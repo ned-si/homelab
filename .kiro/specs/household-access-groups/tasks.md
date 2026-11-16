@@ -23,14 +23,14 @@ numbers in brackets.
       (#1159; pentest-programme task 1 has not merged and no Keycloak user
       is defined in git, so nothing moved in git)
 
-## Open
-
-- [ ] 2. Operator, admin console: step B of design.md (household members
+- [x] 2. Operator, admin console: step B of design.md (household members
       into `household`, relatives into `relatives`, friends and the account
       of #1065 into `friends`, `family` and `media` empty,
       `HomeAssistantAdmins` the operator only); counts on #1062. [1.1,
       4.2, 5.6]
-- [ ] 3. `feat(keycloak): drop the family and media groups`: after the task
+      ([#1062 comment](https://github.com/ned-si/homelab/issues/1062#issuecomment-6687160085))
+
+- [x] 3. `feat(keycloak): drop the family and media groups`: after the task
       2 comment, remove `family` and `media` from every line; the full
       group block in the header of `access.conf`; `DEFAULT_HOUSEHOLD` set
       to the guests household in `apps/mealie/deployment.yaml`, after a
@@ -45,6 +45,10 @@ numbers in brackets.
       the two greps of design.md, Testing, in the pull request; tick task
       2. Settle items 2 and 3 of design.md, To settle at implementation.
       [1.1, 1.2, 2, 3, 6, 7, 8]
+      (#1416)
+
+## Open
+
 - [ ] 4. App accounts and the empty groups: step D of design.md on a
       weekday during the day. The agent settles item 1 of design.md, To
       settle at implementation, and prepares the checklist in chat; the

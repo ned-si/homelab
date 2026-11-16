@@ -298,8 +298,9 @@ a user who keeps opening an app they are not in can lock their account.
 | Group | Apps |
 | --- | --- |
 | `admins` | every app; admin in Argo CD (`role:admin`), Grafana (org Admin) and the theater admin UIs; a normal user in Home Assistant |
-| `family` | Immich, Audiobookshelf, Calibre-Web, Mealie, Paperless, Home Assistant |
-| `media` | Immich, Audiobookshelf, Calibre-Web |
+| `household` | Immich, Audiobookshelf, Calibre-Web, Mealie, Paperless, Home Assistant |
+| `relatives` | Immich, Audiobookshelf, Calibre-Web, Mealie |
+| `friends` | Immich, Audiobookshelf, Calibre-Web, Mealie |
 | `ArgoCDAdmins` | Argo CD, `role:admin` |
 | `TheaterAdmins` | the theater admin UIs |
 | `HomeAssistantAdmins` | Home Assistant, administrator |
@@ -313,7 +314,9 @@ login.
 
 A new user gets no app until they are in a group: Users, the user, Groups,
 Join group. To give a group another app, add it to the client's line in
-`access.conf` and merge.
+`access.conf` and merge. A different audience gets a new group named for
+its members, never a grant to one person
+([add-a-person.md](runbooks/add-a-person.md#open-an-app-to-more-people)).
 
 To change a value, edit the file, run `task render` and merge. To check the
 live realm:

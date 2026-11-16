@@ -40,6 +40,11 @@ spec:
           env:
             - name: ALLOW_SIGNUP
               value: "false"
+            # New accounts land here, out of the household's meal plans and
+            # shopping lists. It must exist first: a missing household fails
+            # the first login (docs/runbooks/add-a-person.md, Mealie).
+            - name: DEFAULT_HOUSEHOLD
+              value: Guests
             - name: TZ
               value: Europe/Zurich
             - name: PUID

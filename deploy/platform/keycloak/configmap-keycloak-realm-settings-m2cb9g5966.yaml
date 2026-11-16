@@ -24,12 +24,13 @@ data:
     #
     # Users and their group membership stay in the admin console: a new user gets
     # no app until they are added to a group.
-    #   household  the household members: the household apps
-    #   relatives  relatives: photos, recipes and books
-    #   friends    friends: photos, recipes and books
-    #   family     household and relatives: the user apps
-    #   media      friends: photos and books
-    #   admins     the operator: every app
+    #   household            the household members: the household apps
+    #   relatives            relatives: photos, recipes and books
+    #   friends              friends: photos, recipes and books
+    #   admins               the operator: every app
+    #   ArgoCDAdmins         Argo CD administrators (OTP)
+    #   TheaterAdmins        the theater admin UIs (OTP)
+    #   HomeAssistantAdmins  Home Assistant administrators (OTP)
 
     argocd=admins ArgoCDAdmins
     grafana-oauth=admins
@@ -38,12 +39,12 @@ data:
     hubble=admins
     signoz=admins
     syncthing=admins
-    home-assistant=admins HomeAssistantAdmins family household
-    immich=admins family media household relatives friends
-    audiobookshelf=admins family media household relatives friends
-    calibre-web=admins family media household relatives friends
-    mealie=admins family household relatives friends
-    paperless=admins family household
+    home-assistant=admins HomeAssistantAdmins household
+    immich=admins household relatives friends
+    audiobookshelf=admins household relatives friends
+    calibre-web=admins household relatives friends
+    mealie=admins household relatives friends
+    paperless=admins household
   apply.sh: |
     #!/bin/bash
     # Apply sessions.conf, platform.conf, clients.conf and access.conf to the
@@ -1330,5 +1331,5 @@ data:
     minimumQuickLoginWaitSeconds=60
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-9gfg78k9c5
+  name: keycloak-realm-settings-m2cb9g5966
   namespace: keycloak
