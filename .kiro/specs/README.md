@@ -70,7 +70,6 @@ Change specs, active:
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 2: the console move (operator), then the removal of `family` and `media` |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
-| [pentest-programme](pentest-programme/) | 2026-11-03 | #718 | task 1: rules of engagement, scope file and the dedicated test credentials |
 | [public-website](public-website/) | 2026-11-13 | #971 | task 3: the `nedsi.io` domain and the `website` app |
 
 Change specs, done:
@@ -80,6 +79,7 @@ Change specs, done:
 | [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | 2026-11-02 |
 | [immich-v3-migration](immich-v3-migration/) | 2026-10-16 | 2026-10-16 |
 | [paperless-documents](paperless-documents/) | 2026-11-03 | 2026-11-04 |
+| [pentest-programme](pentest-programme/) | 2026-11-03 | 2026-11-16, task 6 deferred |
 | [per-app-hardening](per-app-hardening/) | 2026-11-04 | 2026-11-13 |
 | [pod-security-restricted](pod-security-restricted/) | 2026-11-04 | 2026-11-06 |
 | [scorecard-hardening](scorecard-hardening/) | 2026-10-16 | 2026-10-26 |
