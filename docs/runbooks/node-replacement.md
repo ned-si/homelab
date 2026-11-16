@@ -132,10 +132,13 @@ Expected: `mmcblk0` in the disk list, then `apply-config` exits 0. The node
 moves to `$IP` and joins; a control plane joins etcd by itself. If it stays
 on the DHCP address, read the UART again.
 
-TrueNAS: if iSCSI initiator group 1 (Shares, Block (iSCSI), Initiators Groups)
-lists initiator names instead of allowing all initiators, add the new node's
-name from `talosctl -n "$IP" read /etc/iscsi/initiatorname.iscsi`. Otherwise
-volumes cannot attach on this node.
+TrueNAS: iSCSI initiator group 1 (Shares, Block (iSCSI), Initiators Groups)
+accepts the four node addresses only (Authorized Networks, one `/32` each),
+and both NFS exports list the same addresses under Hosts. A node that comes
+back on its usual `$IP` needs nothing. A node on a new address needs it added
+in all three places, otherwise its volumes cannot attach or mount. If the
+group also lists initiator names, add the new node's name from
+`talosctl -n "$IP" read /etc/iscsi/initiatorname.iscsi`.
 
 ## Step 5: check
 
