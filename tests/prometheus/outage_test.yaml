@@ -89,23 +89,6 @@ tests:
                 (3260 iSCSI: every PVC; 2049 NFS: media and local backups).
                 auto-rollback reverts nothing while this fires. Check the NAS
                 and the basement switch.
-      - eval_time: 14m
-        alertname: HomelabNASDown
-        exp_alerts: []
-      - eval_time: 16m
-        alertname: HomelabNASDown
-        exp_alerts:
-          - exp_labels:
-              instance: 192.168.1.228:3260
-              severity: critical
-              action: human
-            exp_annotations:
-              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
-              summary: NAS port 192.168.1.228:3260 has been unreachable for 10 minutes
-              description: >-
-                The NAS does not power on by itself after a power loss: press
-                its power button. Otherwise check the basement switch and the
-                NAS network link.
 
   # The Gateway refuses everything from minute 10 (2026-10-23): 3 of 4 probes
   # fail, GatewayDown after 2m of window plus 5m. One app down alone never

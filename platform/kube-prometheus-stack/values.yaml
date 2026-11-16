@@ -167,6 +167,20 @@ prometheus:
     # infrastructure/iscsi-volumes/monitoring-prometheus-db.yaml.
     retention: 30d
     retentionSize: 34GiB
+    # The chart's selectors, minus the objects of the nas-watch Prometheus
+    # (routes/nas-watch.yaml), so HomelabNASDown fires once.
+    ruleSelector:
+      matchLabels:
+        release: kube-prometheus-stack
+      matchExpressions:
+        - key: homelab.lilalala.com/prometheus
+          operator: DoesNotExist
+    probeSelector:
+      matchLabels:
+        release: kube-prometheus-stack
+      matchExpressions:
+        - key: homelab.lilalala.com/prometheus
+          operator: DoesNotExist
     storageSpec:
       volumeClaimTemplate:
         spec:

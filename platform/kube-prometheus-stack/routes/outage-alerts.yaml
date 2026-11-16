@@ -3,8 +3,8 @@
 # Two alerts per outage. The short one (`action: auto`) feeds the outage guard
 # of auto-rollback, which matches it by name (OUTAGE_ALERTS in
 # scripts/ci/auto-rollback-guard.sh: rename both), and inhibits the alerts it
-# causes. The long one pages: 15m covers a Talos upgrade reboot, 10m the NAS
-# switch flaps.
+# causes. The long one pages: 15m covers a Talos upgrade reboot. The NAS's
+# page, HomelabNASDown, is in nas-watch.yaml: this Prometheus needs the NAS.
 #
 # GatewayDown is every app at once: not in the outage guard, pages through
 # quiet hours (ntfy-urgent) and inhibits the per-app SLO burns.
@@ -66,22 +66,6 @@ spec:
               auto-rollback reverts nothing while this fires. Check the NAS
               and the basement switch.
 
-        - alert: HomelabNASDown
-          expr: |
-            max by (instance) (
-              probe_success{job="blackbox-internal", instance=~"192\\.168\\.1\\.228:(3260|2049)"}
-            ) == 0
-          for: 10m
-          labels:
-            severity: critical
-            action: human
-          annotations:
-            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
-            summary: "NAS port {{ $labels.instance }} has been unreachable for 10 minutes"
-            description: >-
-              The NAS does not power on by itself after a power loss: press
-              its power button. Otherwise check the basement switch and the
-              NAS network link.
         - alert: GatewayDown
           expr: |
             count(avg_over_time(probe_success{job="blackbox-public"}[2m]) < 0.5)

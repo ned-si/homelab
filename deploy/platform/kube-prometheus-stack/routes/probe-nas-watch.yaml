@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  labels:
+    homelab.lilalala.com/prometheus: nas-watch
+    release: kube-prometheus-stack
+  name: nas-watch
+  namespace: monitoring
+spec:
+  interval: 30s
+  jobName: nas-watch
+  module: tcp_connect
+  prober:
+    path: /probe
+    url: blackbox-exporter.monitoring.svc:9115
+  scrapeTimeout: 10s
+  targets:
+    staticConfig:
+      static:
+      - 192.168.1.228:443
+      - 192.168.1.228:2049
+      - 192.168.1.228:3260

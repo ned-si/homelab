@@ -1,0 +1,77 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/nas-watch.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
+rule_files:
+  - homelab-nas-watch.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # The NAS hangs at minute 5 (2026-11-15): every port stops answering.
+  # Nothing before 10 minutes, then one alert per port.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="nas-watch", instance="192.168.1.228:443"}'
+        values: '1x4 0x20'
+      - series: 'probe_success{job="nas-watch", instance="192.168.1.228:2049"}'
+        values: '1x4 0x20'
+      - series: 'probe_success{job="nas-watch", instance="192.168.1.228:3260"}'
+        values: '1x4 0x20'
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: HomelabNASDown
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: HomelabNASDown
+        exp_alerts:
+          - exp_labels:
+              instance: 192.168.1.228:443
+              severity: critical
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
+              summary: NAS port 192.168.1.228:443 has been unreachable for 10 minutes
+              description: >-
+                The NAS is off, hung or cut from the network. If it is dark,
+                press its power button; if it is on but does not answer, power
+                it off and on. Otherwise check the basement switch and the NAS
+                network link.
+          - exp_labels:
+              instance: 192.168.1.228:2049
+              severity: critical
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
+              summary: NAS port 192.168.1.228:2049 has been unreachable for 10 minutes
+              description: >-
+                The NAS is off, hung or cut from the network. If it is dark,
+                press its power button; if it is on but does not answer, power
+                it off and on. Otherwise check the basement switch and the NAS
+                network link.
+          - exp_labels:
+              instance: 192.168.1.228:3260
+              severity: critical
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
+              summary: NAS port 192.168.1.228:3260 has been unreachable for 10 minutes
+              description: >-
+                The NAS is off, hung or cut from the network. If it is dark,
+                press its power button; if it is on but does not answer, power
+                it off and on. Otherwise check the basement switch and the NAS
+                network link.
+
+  # A switch flap: the iSCSI port is gone for 6 minutes, never a page. A probe
+  # of another job never fires it.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="nas-watch", instance="192.168.1.228:3260"}'
+        values: '1x4 0x5 1x20'
+      - series: 'probe_success{job="blackbox-internal", instance="192.168.1.228:2049"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: HomelabNASDown
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: HomelabNASDown
+        exp_alerts: []

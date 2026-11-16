@@ -8,6 +8,7 @@ chart's defaults apart from Prometheus storage and the Grafana login.
 | Part | State |
 | --- | --- |
 | Prometheus | running, 15 Gi volume, the chart's default rules and scrape targets |
+| NAS watch | Prometheus `nas-watch` without a volume, for `HomelabNASDown` only ([NAS watch](#nas-watch)) |
 | Grafana | `https://grafana.lilalala.com`, Keycloak login (client `grafana-oauth`, secret from `monitoring/grafana-oidc`; group `admins` is org Admin), break-glass user `admin` from `monitoring/grafana-admin` ([runbook](runbooks/grafana-break-glass.md)), the chart's default dashboards; `grafana.db` on a 1 Gi volume (PVC `kube-prometheus-stack-grafana`, `iscsi-retain`), so service accounts and their tokens survive restarts |
 | Alertmanager | `Watchdog` goes to the dead-man's switch every 5 minutes ([Heartbeat](#heartbeat)); alerts labelled `action: human` (a person has to act), a few chart alerts by name and critical security alerts go to the hosted ntfy.sh topic ([Notifications](#notifications), policy in [sre.md](sre.md#paging)); everything else goes to `null` and is visible in Grafana and on the Homelab / Automation dashboard |
 | Custom alert rules | `backup-verify` (group `backup.verify`, the restore tests, in `platform/backup-verify/alerts.yaml`; [backups.md](backups.md#verification)); `cnpg-backups` (group `cnpg.backups`, CNPG backup and WAL archiving) with PodMonitor `cnpg-instances`, in `platform/barman-cloud-plugin/monitoring.yaml`; `homelab-argocd` ([Argo CD alerts](#argo-cd-alerts)); `vuln-enrich` ([Vulnerability priority](#vulnerability-priority)); `talos-drift` in `system-upgrade` ([Talos drift check](talos.md#drift-check)) |
@@ -95,6 +96,27 @@ exporters with the read-only key of IAM user `homelab-metrics-reader`
 Cost Explorer bills $0.01 per request: two a day, plus two per pod restart.
 The CloudWatch reads cost a few cents a month. The prefix figures leave out
 noncurrent versions (kept 30 days); the CloudWatch bucket size includes them.
+
+## NAS watch
+
+The main Prometheus keeps its TSDB on an iSCSI volume, so it cannot report
+the NAS down. A second Prometheus, `monitoring/nas-watch`
+(`platform/kube-prometheus-stack/routes/nas-watch.yaml`, pod
+`prometheus-nas-watch-0`), has no volume: 6 hours in an emptyDir. It scrapes
+only Probe `nas-watch` (job `nas-watch`, blackbox `tcp_connect` to
+`192.168.1.228` on 443, 2049 and 3260), evaluates only PrometheusRule
+`homelab-nas-watch` and sends to the same Alertmanager, which has no volume
+either.
+
+| Alert | Fires when | Severity |
+| --- | --- | --- |
+| `HomelabNASDown` | a NAS port does not answer for 10m | `critical`, pages |
+
+Both objects carry `homelab.lilalala.com/prometheus: nas-watch`, which the
+main Prometheus's `ruleSelector` and `probeSelector` exclude
+(`platform/kube-prometheus-stack/values.yaml`), so the alert fires once.
+Tests: `tests/prometheus/nas_watch_test.yaml`. What to do:
+[runbooks/alerts/HomelabNASDown.md](runbooks/alerts/HomelabNASDown.md).
 
 ## NAS metrics
 
