@@ -5,6 +5,7 @@
 #   2. kyverno test policies/kyverno/tests the policies' own unit tests
 #   3. kyverno apply                       policies/kyverno/*.yaml and the
 #                                          vendored upstream over deploy/
+#                                          and scripts/nas-canary/
 #
 # BLOCKING names the policies that fail the check; the vendored files stay as
 # upstream wrote them. Every other finding is reported with counts. In a
@@ -98,6 +99,13 @@ while IFS= read -r f; do
   resources+=(--resource "$f")
 done < <(find "$DEPLOY" -name '*.yaml' -type f | sort)
 [ "${#resources[@]}" -gt 0 ] || { echo "kyverno: no files in $DEPLOY/; refusing to pass" >&2; exit 1; }
+# Objects operator scripts create at run time (scripts/nas-maintenance.sh
+# canary): admission sees them like deploy/.
+OPERATOR_OBJECTS=(scripts/nas-canary/*.yaml)
+for f in "${OPERATOR_OBJECTS[@]}"; do
+  [ -f "$f" ] || { echo "kyverno: $f not found" >&2; exit 1; }
+  resources+=(--resource "$f")
+done
 : > "$out/kept.txt"
 # KYVERNO_EXTRA (CI: the render_apps.py output): the Helm-rendered apps, which
 # deploy/ does not hold. Their objects in the excluded namespaces are dropped,
@@ -145,6 +153,7 @@ fi
 {
   printf 'apiVersion: cli.kyverno.io/v1alpha1\nkind: Value\nmetadata:\n  name: values\nnamespaces:\n'
   { echo default; find "$DEPLOY" -name '*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ;
+    yq -N '.metadata.namespace // ""' "${OPERATOR_OBJECTS[@]}";
     [ -z "${KYVERNO_EXTRA:-}" ] || find "$out" -name 'extra-*.yaml' -type f -exec yq -N '.metadata.namespace // ""' {} + ; } \
     | grep -v '^$' | sort -u | while IFS= read -r ns; do
       printf -- '- apiVersion: v1\n  kind: Namespace\n  metadata:\n    name: %s\n' "$ns"

@@ -153,14 +153,15 @@ repos:
         pass_filenames: false
         files: ^\.github/workflows/
 
-      # The Kyverno policies, their unit tests, and deploy/ against them: the
-      # same script as the CI render job. Needs the kyverno CLI (`task tools`).
+      # The Kyverno policies, their unit tests, and deploy/ and the NAS canary
+      # against them: the same script as the CI render job. Needs the kyverno
+      # CLI (`task tools`).
       - id: kyverno
         name: kyverno policies over deploy/
         entry: scripts/ci/kyverno.sh
         language: script
         pass_filenames: false
-        files: ^(deploy|policies/kyverno)/
+        files: ^(deploy|policies/kyverno|scripts/nas-canary)/
 
       # The CI `render` job, end to end: render every Application the way Argo
       # CD does, kubeconform it against the pinned schemas, then
