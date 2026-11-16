@@ -40,7 +40,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       `linux/arm64` manifest; the GHCR package is public; `docker run` of
       the image answers `200` on `/` and `405` on `POST`. [2.4, 3.3, 3.6, 6.3]
       #1398
-- [ ] 3. Domain, landing page and app (after task 0). First attempt #1399,
+- [x] 3. Domain, landing page and app (after task 0). First attempt #1399,
       reverted in #1401 (`www` over HTTPS answered `404`, the HTTP
       redirects sent `:443`); redone as designed in
       [Redirects](design.md#redirects):
@@ -62,7 +62,8 @@ No task writes to the cluster outside Argo CD. The defaults are in
       Second attempt #1421, reverted in #1430: the proxied records were
       still in the zone, and the smoke's plain-HTTP checks got `403` from
       Cilium's Envoy, which also enforces the smoke pod's egress on the
-      upstream leg (website `:8081` was not allowed).
+      upstream leg (website `:8081` was not allowed). Re-landed with both
+      fixed. #1434
 - [ ] 4. Docs: `docs/website.md` (write, preview, publish with article PRs
       as drafts that only the operator marks ready, privacy rules, Why it
       is like this), the draft rule in the run-conventions skill, the
