@@ -11,6 +11,7 @@ expected output, rollback. Pages for paging alerts are in
 | [grafana-break-glass.md](grafana-break-glass.md) | Log in to Grafana without Keycloak |
 | [syncthing-hub.md](syncthing-hub.md) | Keep the cluster Syncthing as the only peer of every device |
 | [cold-start.md](cold-start.md) | Bring everything back after a power loss or a move |
+| [nas-scale-migration.md](nas-scale-migration.md) | Move the NAS from TrueNAS CORE to SCALE and flash the BMC, or roll back to CORE |
 | [node-power-cycle.md](node-power-cycle.md) | Hard-reset a node from the Turing Pi 2 BMC |
 | [node-replacement.md](node-replacement.md) | Reflash a node and join it back |
 | [wan-ip-change.md](wan-ip-change.md) | The ISP changed the public address |
