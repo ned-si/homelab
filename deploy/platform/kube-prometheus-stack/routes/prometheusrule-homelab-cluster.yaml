@@ -127,6 +127,8 @@ spec:
           kubelet_volume_stats_available_bytes
           / kubelet_volume_stats_capacity_bytes
         ) < 0.15
+        unless on (namespace, persistentvolumeclaim)
+          kubelet_volume_stats_capacity_bytes{namespace="monitoring", persistentvolumeclaim=~"prometheus-.*"}
       for: 30m
       labels:
         action: human

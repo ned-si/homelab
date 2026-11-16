@@ -9,6 +9,10 @@ PVC `namespace/persistentvolumeclaim` has had less than 15% free for 30
 minutes. A full volume under a database is an outage, and on an iSCSI zvol
 with xfs not always a clean one. Nothing grows volumes automatically.
 
+The Prometheus volume is excluded: `retentionSize` keeps it near 15% free by
+design, and [PrometheusTsdbVolumeNearlyFull](PrometheusTsdbVolumeNearlyFull.md)
+covers it.
+
 ## Confirm
 
 ```sh
