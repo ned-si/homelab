@@ -64,7 +64,7 @@ ac246169f98423475b2eda678013d58bb5c2250c8e3e4ef8b207cf1c88807d6c  TrueNAS-SCALE-
 21c8d658b0ac96e4ea88af3fcaca03bcbeb0f41ec05a728536679fcc64f0c902  TrueNAS-SCALE-25.04.2.6.update
 c518e5407759686d1ba46512900b887ad4d8f5f7f80e40bc3317bf38b035190d  TrueNAS-SCALE-25.10.8.update
 EOF
-cd ~/homelab-backups/bmc-firmware
+mkdir -p ~/homelab-backups/bmc-firmware && cd ~/homelab-backups/bmc-firmware
 shasum -a 256 -c <<'EOF'
 2c726062ba535c0a1d6b655bc1e668a712e0e8eb252474089c07ff2c5da1fe3e  tp2-ota-v2.1.0.tpu
 28247398f3a8415a4759f9c3ecf4956328009968bf5e5782df75728e24ab9549  tp2-firmware-sdcard-v2.1.0.img
@@ -127,9 +127,24 @@ by hand; rollback step 0 reads it.
    features, services, nfs, smb, iscsi, tls, ui). Set `PRE` in step 0 to this
    directory on the window day. A `FAIL` line: fix it on CORE, or stop the
    window until it is understood.
-3. The four update files and both BMC files are downloaded and check `OK`
+3. The smoke inputs exist under `~/homelab-smoke/` (create them as in
+   [cold-start.md step 8](cold-start.md#step-8-smoke-suite)) and a run on
+   CORE is green, so step 14 has a previous run to compare with:
+
+   ```sh
+   S=~/homelab-smoke; out="$S/S-$(date -u +%Y%m%dT%H%M%SZ).json"
+   prev=$(ls -1t "$S"/S-*.json 2>/dev/null | head -1)
+   bash scripts/smoke.sh --node-macs "$S/node-macs.txt" --immich-sql "$S/immich-sql.txt" \
+     --argo-gate "$S/argo-gate.txt" --entry-ip 192.168.1.254 ${prev:+--previous "$prev"} \
+     > "$out"; echo "exit=$?"
+   jq -c '{green, failing: [.items[] | select(.pass | not) | {id, name, failures}]}' "$out"
+   ```
+
+   Expected: `exit=0` and `{"green":true,"failing":[]}` after a few
+   minutes. A failing item: fix it on CORE before the window.
+4. The four update files and both BMC files are downloaded and check `OK`
    ([Files](#files)).
-4. The BMC's 2.1 network change does not apply. Open a BMC shell (`ssh
+5. The BMC's 2.1 network change does not apply. Open a BMC shell (`ssh
    root@turingpi.local`, the BMC login) and run the test from the
    [v2.1 network migration page](https://docs.turingpi.com/docs/v20-to-v21-migration):
 
@@ -142,7 +157,7 @@ by hand; rollback step 0 reads it.
 
    Expected: `Not affected`. Anything else: stop and read that page before
    the window; the flash would rewrite the BMC's network configuration.
-5. **Operator**: tells the household: from 09:00 to about 12:30 (14:00 at
+6. **Operator**: tells the household: from 09:00 to about 12:30 (14:00 at
    the latest), no app that uses storage or a login, and no SMB share; every
    app is down for about 30 minutes early in the window. Has the USB-SATA
    adapter, a screwdriver and a microSD card at hand.
@@ -537,7 +552,12 @@ restored anyway and `up` can run again. Then the acceptance checks:
 kubectl -n argo get applications -o json \
   | jq -r '.items[] | select(.status.sync.status != "Synced" or .status.health.status != "Healthy") | .metadata.name'
 kubectl get clusters.postgresql.cnpg.io -A
-scripts/smoke.sh
+S=~/homelab-smoke; out="$S/S-$(date -u +%Y%m%dT%H%M%SZ).json"
+prev=$(ls -1t "$S"/S-*.json 2>/dev/null | head -1)
+bash scripts/smoke.sh --node-macs "$S/node-macs.txt" --immich-sql "$S/immich-sql.txt" \
+  --argo-gate "$S/argo-gate.txt" --entry-ip 192.168.1.254 ${prev:+--previous "$prev"} \
+  > "$out"; echo "exit=$?" | tee -a "$LOG"
+jq -c '{green, failing: [.items[] | select(.pass | not) | {id, name, failures}]}' "$out" | tee -a "$LOG"
 kubectl -n monitoring port-forward pod/prometheus-nas-watch-0 9091:9090 >/dev/null 2>&1 &
 PF1=$!
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090 >/dev/null 2>&1 &
@@ -551,7 +571,8 @@ kill "$PF1" "$PF2"
 ```
 
 Expected: no Application name printed; eight clusters `Cluster in healthy
-state`; `smoke.sh` green; `1` for `192.168.1.228:443`, `:2049` and `:3260`;
+state`; `exit=0` and `{"green":true,"failing":[]}` from `smoke.sh` (the
+Immich asset counts must not drop below the day-before run); `1` for `192.168.1.228:443`, `:2049` and `:3260`;
 `truenas_up 1`; `probe_success{device="bmc"} 1` (after the step 5.7 PR, if
 the address changed).
 
