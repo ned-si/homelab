@@ -1,0 +1,90 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/truenas-exporter
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/truenas-exporter and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  labels:
+    app.kubernetes.io/name: nas-iscsi-guard
+  name: nas-iscsi-guard
+  namespace: democratic-csi
+spec:
+  concurrencyPolicy: Forbid
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 540
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: nas-iscsi-guard
+        spec:
+          automountServiceAccountToken: false
+          containers:
+          - command:
+            - python3
+            - -u
+            - /app/iscsi_guard.py
+            env:
+            - name: TRUENAS_URL
+              value: https://192.168.1.228
+            - name: TRUENAS_CONFIG
+              value: /secret/driver-config-file.yaml
+            - name: ISCSI_AUTH_NETWORKS
+              valueFrom:
+                configMapKeyRef:
+                  key: ISCSI_AUTH_NETWORKS
+                  name: nas-iscsi-auth-networks-6tgh8g4fh9
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            image: docker.io/library/python:3.15.2-alpine3.24@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
+            name: guard
+            resources:
+              limits:
+                memory: 64Mi
+              requests:
+                cpu: 10m
+                memory: 32Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+            volumeMounts:
+            - mountPath: /app
+              name: script
+              readOnly: true
+            - mountPath: /secret
+              name: driver-config
+              readOnly: true
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            runAsGroup: 65534
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+          - configMap:
+              name: nas-iscsi-guard-2mb5f45gt9
+            name: script
+          - name: driver-config
+            secret:
+              items:
+              - key: driver-config-file.yaml
+                path: driver-config-file.yaml
+              secretName: iscsi-democratic-csi-driver-config
+  schedule: '*/10 * * * *'
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  suspend: false

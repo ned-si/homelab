@@ -65,6 +65,7 @@ that application's failing conditions and resources.
 - [PodSecurityEnforceDenied](PodSecurityEnforceDenied.md): Pod Security admission rejected more than 5 Pods in 30 minutes
 - [KyvernoDenied](KyvernoDenied.md): one Kyverno policy in Deny rejected more than 5 requests in 30 minutes
 - [TalosConfigDrift](TalosConfigDrift.md): a node runs a machine config main does not render
+- [NASiSCSITargetOpen](NASiSCSITargetOpen.md): a NAS iSCSI target open to more than the four nodes for an hour
 
 ## Backups
 

@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/truenas-exporter
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/truenas-exporter and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: nas-iscsi-guard
+  namespace: democratic-csi
+spec:
+  description: nas-iscsi-guard reaches the TrueNAS API and nothing else.
+  egress:
+  - toCIDR:
+    - 192.168.1.228/32
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+  enableDefaultDeny:
+    egress: true
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: nas-iscsi-guard

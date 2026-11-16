@@ -36,6 +36,11 @@ spec:
               value: /secret/driver-config-file.yaml
             - name: LISTEN_PORT
               value: "9814"
+            - name: ISCSI_AUTH_NETWORKS
+              valueFrom:
+                configMapKeyRef:
+                  name: nas-iscsi-auth-networks
+                  key: ISCSI_AUTH_NETWORKS
             - name: PYTHONDONTWRITEBYTECODE
               value: "1"
           ports:
@@ -110,4 +115,4 @@ spec:
     - port: metrics
       path: /metrics
       interval: 60s
-      scrapeTimeout: 50s
+      scrapeTimeout: 58s
