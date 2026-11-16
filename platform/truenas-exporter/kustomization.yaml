@@ -2,14 +2,24 @@
 # `democratic-csi`, to reuse the CSI driver's API key Secret (CORE 13 keys
 # cannot be scoped; the exporter only reads). The ConfigMap's name hash rolls
 # the pod. Tests: tests/test_truenas_exporter.py.
+# nas-iscsi-guard (iscsi-guard.yaml) uses the same key and the same node list.
+# Tests: tests/test_iscsi_guard.py.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: democratic-csi
 
 resources:
   - deployment.yaml
+  - iscsi-guard.yaml
 
 configMapGenerator:
   - name: truenas-exporter
     files:
       - exporter.py
+  - name: nas-iscsi-guard
+    files:
+      - iscsi_guard.py
+  # The four nodes (talos/talconfig.yaml), /32 each.
+  - name: nas-iscsi-auth-networks
+    literals:
+      - ISCSI_AUTH_NETWORKS=192.168.1.247/32 192.168.1.238/32 192.168.1.239/32 192.168.1.240/32

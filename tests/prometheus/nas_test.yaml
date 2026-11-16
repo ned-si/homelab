@@ -129,3 +129,30 @@ tests:
               description: >-
                 TrueNAS scrubs every 35 days by default. Check the scrub task under
                 Tasks -> Scrub Tasks.
+
+  # iSCSI: two targets open from minute 10; quiet before the hour.
+  - interval: 1m
+    input_series:
+      - series: 'truenas_iscsi_targets_unrestricted{job="truenas-exporter"}'
+        values: '0x9 2x80'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: NASiSCSITargetOpen
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: NASiSCSITargetOpen
+        exp_alerts: []
+      - eval_time: 71m
+        alertname: NASiSCSITargetOpen
+        exp_alerts:
+          - exp_labels:
+              job: truenas-exporter
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASiSCSITargetOpen.md
+              summary: 2 NAS iSCSI targets are not limited to the four nodes
+              description: >-
+                Any host on the LAN can log in to these targets and read or write
+                their volumes. Read the last Job of
+                `kubectl -n democratic-csi get cronjob nas-iscsi-guard`.

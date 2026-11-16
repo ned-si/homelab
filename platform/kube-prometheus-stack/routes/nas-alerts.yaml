@@ -1,5 +1,5 @@
 # NAS health from platform/truenas-exporter: pool, devices, SMART, temperature,
-# capacity, scrubs. The NAS's own alert list is on the Storage dashboard, not
+# capacity, scrubs, iSCSI target limits. The NAS's own alert list is on the Storage dashboard, not
 # paged. nas:pool_days_until_full: days to full at the 7-day trend, absent
 # while usage shrinks.
 # Tests: tests/prometheus/nas_test.yaml, nas_capacity_test.yaml, nas_disk_test.yaml.
@@ -163,6 +163,21 @@ spec:
               `kubectl -n democratic-csi logs deploy/truenas-exporter`: an
               `HTTPError` 401 means the API key in the democratic-csi Secret was
               rotated or revoked.
+
+        - alert: NASiSCSITargetOpen
+          # nas-iscsi-guard runs every 10 minutes: 1h is six failed runs.
+          expr: truenas_iscsi_targets_unrestricted > 0
+          for: 1h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASiSCSITargetOpen.md
+            summary: "{{ $value }} NAS iSCSI targets are not limited to the four nodes"
+            description: >-
+              Any host on the LAN can log in to these targets and read or write
+              their volumes. Read the last Job of
+              `kubectl -n democratic-csi get cronjob nas-iscsi-guard`.
 
         - alert: NASExporterAbsent
           expr: absent(truenas_up)

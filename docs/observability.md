@@ -139,6 +139,7 @@ sends GETs, plus the `disk/temperatures` query, which the API exposes as POST.
 | `truenas_disk_smart_tests`, `truenas_disk_smart_last_test_success` | `smart/test/results`, optional (absent for a disk with no self-test, or all absent when the call fails) |
 | `truenas_alerts` (`level`, `klass`) | the NAS's own alert list, not dismissed |
 | `truenas_up` | 1 when every required call of the last scrape succeeded |
+| `truenas_iscsi_targets_unrestricted` | `iscsi/target`, `iscsi/initiator`: targets not limited to exactly `ISCSI_AUTH_NETWORKS` (CORE: their initiator group's `auth_network`; SCALE: their own `auth_networks`) |
 
 `smart/test/results` is optional because TrueNAS SCALE 25.10 no longer
 schedules SMART self-tests: its failure is logged once at `info` and leaves
@@ -160,6 +161,13 @@ linear trend) and the alerts are in PrometheusRule `homelab-nas`
 | `NASScrubOverdue` | no finished scrub for 40 days | `warning` |
 | `NASExporterFailing` | API calls failing for 15m while the NAS ports answer | `warning` |
 | `NASExporterAbsent` | no `truenas_up` for 15m | `warning` |
+| `NASiSCSITargetOpen` | an iSCSI target open to more than the four nodes for 1h | `warning` |
+
+On SCALE, CronJob `democratic-csi/nas-iscsi-guard`
+(`platform/truenas-exporter/iscsi_guard.py`, every 10 minutes, same key)
+sets `auth_networks` on every target that differs from the four nodes;
+on CORE it logs `core, nothing to do`. The node list is the ConfigMap
+`nas-iscsi-auth-networks`, read by both. Tests: `tests/test_iscsi_guard.py`.
 
 The NAS's own alerts are shown, not paged: they include conditions already
 known, such as its expired self-signed certificate. Tests:

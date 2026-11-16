@@ -1,0 +1,102 @@
+# nas-iscsi-guard: limits every iSCSI target to the four nodes on TrueNAS
+# SCALE (iscsi_guard.py); a no-op on CORE. nas-maintenance.sh `down` suspends
+# it for the window. Alert: NASiSCSITargetOpen.
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nas-iscsi-guard
+  labels:
+    app.kubernetes.io/name: nas-iscsi-guard
+spec:
+  schedule: "*/10 * * * *"
+  suspend: false
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      # One try per run; the next run is 10 minutes later.
+      backoffLimit: 0
+      activeDeadlineSeconds: 540
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: nas-iscsi-guard
+        spec:
+          automountServiceAccountToken: false
+          enableServiceLinks: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: guard
+              # renovate: datasource=docker depName=python
+              image: docker.io/library/python:3.15.2-alpine3.24@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
+              command: ["python3", "-u", "/app/iscsi_guard.py"]
+              env:
+                - name: TRUENAS_URL
+                  value: https://192.168.1.228
+                - name: TRUENAS_CONFIG
+                  value: /secret/driver-config-file.yaml
+                - name: ISCSI_AUTH_NETWORKS
+                  valueFrom:
+                    configMapKeyRef:
+                      name: nas-iscsi-auth-networks
+                      key: ISCSI_AUTH_NETWORKS
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: driver-config
+                  mountPath: /secret
+                  readOnly: true
+          volumes:
+            - name: script
+              configMap:
+                name: nas-iscsi-guard
+            - name: driver-config
+              secret:
+                secretName: iscsi-democratic-csi-driver-config
+                items:
+                  - key: driver-config-file.yaml
+                    path: driver-config-file.yaml
+---
+# Enforced from the start: the guard only talks to the TrueNAS API, by IP.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: nas-iscsi-guard
+spec:
+  description: nas-iscsi-guard reaches the TrueNAS API and nothing else.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: nas-iscsi-guard
+  enableDefaultDeny:
+    ingress: false
+    egress: true
+  egress:
+    - toCIDR:
+        - 192.168.1.228/32
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

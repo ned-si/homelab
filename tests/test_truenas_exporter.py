@@ -48,6 +48,8 @@ DATA = {
         {"level": "CRITICAL", "klass": "SMART", "dismissed": False},
         {"level": "WARNING", "klass": "UnscheduledReboot", "dismissed": True},
     ],
+    "iscsi/target": [],
+    "iscsi/initiator": [],
 }
 
 
@@ -136,3 +138,43 @@ def test_read_api_key(tmp_path):
     cfg = tmp_path / "c.yaml"
     cfg.write_text("driver: freenas-iscsi\nhttpConnection:\n  host: nas\n  apiKey: \"1-abc\"\n")
     assert exporter.read_api_key(str(cfg)) == "1-abc"
+
+
+NODES = exporter.networks("192.168.1.247/32 192.168.1.238/32 192.168.1.239/32 192.168.1.240/32".split())
+
+
+def iscsi_gauge(targets, initiators=None, nets=NODES):
+    data = {"iscsi/target": targets, "iscsi/initiator": initiators or []}
+    return [l for l in exporter.build(data, nets).render().splitlines()
+            if l.startswith("truenas_iscsi_targets_unrestricted")]
+
+
+def test_iscsi_unrestricted_core():
+    initiators = [
+        {"id": 1, "initiators": [], "auth_network": ["192.168.1.247", "192.168.1.238/32",
+                                                     "192.168.1.239/32", "192.168.1.240/32"]},
+        {"id": 2, "initiators": [], "auth_network": []},
+    ]
+    targets = [
+        {"id": 1, "name": "a", "groups": [{"portal": 1, "initiator": 1}]},
+        {"id": 2, "name": "b", "groups": [{"portal": 1, "initiator": 2}]},
+        {"id": 3, "name": "c", "groups": [{"portal": 1, "initiator": None}]},
+        {"id": 4, "name": "d", "groups": []},
+        {"id": 5, "name": "e", "groups": [{"portal": 1, "initiator": 1}, {"portal": 1, "initiator": 2}]},
+    ]
+    assert iscsi_gauge(targets, initiators) == ["truenas_iscsi_targets_unrestricted 4"]
+    assert iscsi_gauge(targets[:1], initiators) == ["truenas_iscsi_targets_unrestricted 0"]
+
+
+def test_iscsi_unrestricted_scale():
+    targets = [
+        {"id": 1, "name": "a", "groups": [{"initiator": None}], "auth_networks": sorted(NODES)},
+        {"id": 2, "name": "b", "groups": [{"initiator": 1}], "auth_networks": []},
+        {"id": 3, "name": "c", "groups": [], "auth_networks": sorted(NODES)[:3]},
+    ]
+    assert iscsi_gauge(targets) == ["truenas_iscsi_targets_unrestricted 2"]
+
+
+def test_iscsi_gauge_absent_without_networks_or_targets():
+    assert iscsi_gauge([], nets=frozenset()) == []
+    assert not any(l.startswith("truenas_iscsi") for l in lines())
