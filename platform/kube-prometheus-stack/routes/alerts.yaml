@@ -142,12 +142,16 @@ spec:
         - alert: PersistentVolumeNearlyFull
           # kubelet_volume_stats_*: the kubelet is the only source of PVC usage.
           # The series exist only while a pod mounts the volume, so there is no
-          # absent() companion: unmounted is not a fault.
+          # absent() companion: unmounted is not a fault. The Prometheus volume
+          # sits near 15% free while retentionSize holds it, so it is left to
+          # PrometheusTsdbVolumeNearlyFull and PrometheusRetentionCutBySize.
           expr: |
             (
               kubelet_volume_stats_available_bytes
               / kubelet_volume_stats_capacity_bytes
             ) < 0.15
+            unless on (namespace, persistentvolumeclaim)
+              kubelet_volume_stats_capacity_bytes{namespace="monitoring", persistentvolumeclaim=~"prometheus-.*"}
           for: 30m
           labels:
             severity: warning

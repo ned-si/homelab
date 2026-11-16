@@ -181,7 +181,8 @@ tests:
 
   # ----------------------------------------------------------------- storage
   # data-a 10% free (warning), data-b 3% free (warning + critical), the
-  # Prometheus volume 10% free, data-ok 50% free and flat.
+  # Prometheus volume 8% free (its own alert, not NearlyFull), data-ok 50%
+  # free and flat.
   - interval: 1m
     input_series:
       - series: 'kubelet_volume_stats_available_bytes{namespace="cook", persistentvolumeclaim="data-a"}'
@@ -226,20 +227,6 @@ tests:
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeNearlyFull.md
               summary: "PVC cook/data-b is over 85% full"
-              description: >-
-                The `iscsi` StorageClass sets allowVolumeExpansion: true, so this
-                is fixable by editing spec.resources.requests.storage on the PVC
-                and letting the filesystem grow -- no data movement. Do it before
-                it becomes critical: a full volume under a database is an outage,
-                and under an iSCSI zvol with xfs it is not always a clean one.
-          - exp_labels:
-              namespace: monitoring
-              persistentvolumeclaim: prometheus-db-0
-              severity: warning
-              action: human
-            exp_annotations:
-              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeNearlyFull.md
-              summary: "PVC monitoring/prometheus-db-0 is over 85% full"
               description: >-
                 The `iscsi` StorageClass sets allowVolumeExpansion: true, so this
                 is fixable by editing spec.resources.requests.storage on the PVC
