@@ -30,9 +30,7 @@ numbers in brackets.
       4.2, 5.6]
       ([#1062 comment](https://github.com/ned-si/homelab/issues/1062#issuecomment-6687160085))
 
-## Open
-
-- [ ] 3. `feat(keycloak): drop the family and media groups`: after the task
+- [x] 3. `feat(keycloak): drop the family and media groups`: after the task
       2 comment, remove `family` and `media` from every line; the full
       group block in the header of `access.conf`; `DEFAULT_HOUSEHOLD` set
       to the guests household in `apps/mealie/deployment.yaml`, after a
@@ -47,6 +45,10 @@ numbers in brackets.
       the two greps of design.md, Testing, in the pull request; tick task
       2. Settle items 2 and 3 of design.md, To settle at implementation.
       [1.1, 1.2, 2, 3, 6, 7, 8]
+      (#1416)
+
+## Open
+
 - [ ] 4. App accounts and the empty groups: step D of design.md on a
       weekday during the day. The agent settles item 1 of design.md, To
       settle at implementation, and prepares the checklist in chat; the
