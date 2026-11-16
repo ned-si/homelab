@@ -42,3 +42,81 @@ spec:
         kinds:
           - group: gateway.networking.k8s.io
             kind: HTTPRoute
+
+    # nedsi.io, www.nedsi.io and blog.nedsi.io (spec public-website). One
+    # hostname per listener; all serve certificate-nedsi.yaml. The port-80
+    # ones carry apps/website's redirect route, not https-redirect.
+    - name: http-nedsi
+      protocol: HTTP
+      port: 80
+      hostname: nedsi.io
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: http-nedsi-www
+      protocol: HTTP
+      port: 80
+      hostname: www.nedsi.io
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: http-nedsi-blog
+      protocol: HTTP
+      port: 80
+      hostname: blog.nedsi.io
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: https-nedsi
+      protocol: HTTPS
+      port: 443
+      hostname: nedsi.io
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: nedsi-io-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+
+    - name: https-nedsi-www
+      protocol: HTTPS
+      port: 443
+      hostname: www.nedsi.io
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: nedsi-io-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute
+
+    - name: https-nedsi-blog
+      protocol: HTTPS
+      port: 443
+      hostname: blog.nedsi.io
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: nedsi-io-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute

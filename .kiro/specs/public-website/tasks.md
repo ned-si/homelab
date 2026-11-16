@@ -1,8 +1,9 @@
 # Tasks: public-website
 
 One PR per task, in order within a phase. Phase 1 (tasks 0-5) puts the
-blog live on `nedsi.io` with the intro article; phase 2 (tasks 6-9) adds
-statistics, the dashboard, solar and the republished articles.
+landing page live on `nedsi.io` and the blog on `blog.nedsi.io` with the
+intro article; phase 2 (tasks 6-9) adds statistics, the dashboard, solar
+and the republished articles.
 No task writes to the cluster outside Argo CD. The defaults are in
 [requirements.md](requirements.md#decided-defaults).
 
@@ -32,27 +33,43 @@ No task writes to the cluster outside Argo CD. The defaults are in
       a `<script>` and a GPS-tagged JPEG each fail the job in a throwaway
       commit; the clean tree passes. [1.2, 1.4-1.7, 2.1-2.3, 3.1, 4.2-4.4, 6.4]
       #1393
-- [ ] 2. Image and publishing: `site/Dockerfile`, `site/nginx.conf` (method
-      limit, log format, cache headers), `.github/workflows/site-publish.yaml`
-      with its ntfy failure step, the Renovate package rule. Check: the
+- [x] 2. Image and publishing: `site/Dockerfile`, `site/nginx.conf` (method
+      limit, log format, cache headers; moved to `apps/website/` in task
+      3), `.github/workflows/site-publish.yaml` with its ntfy failure step, the Renovate package rule. Check: the
       workflow pushes `ghcr.io/ned-si/homelab-site:main` with a
       `linux/arm64` manifest; the GHCR package is public; `docker run` of
       the image answers `200` on `/` and `405` on `POST`. [2.4, 3.3, 3.6, 6.3]
       #1398
-- [ ] 3. Domain and app (after task 0): `nedsi.io` in the ClusterIssuers'
-      `dnsZones`, the `nedsi-io` Certificate, the Gateway listeners, the
-      HTTP redirect and `www` routes; `apps/website/`,
-      `clusters/homelab/apps/website.yaml`, the AppProject destination,
-      the HTTPRoute with the headers, the enforced network policies, the
-      PostSync smoke, `ci/` lists, the blackbox probe, the pentest scope
-      and `dast` targets; `task render`. Check: acceptance criteria 1, 2,
-      4, 9, 10; Kyverno reports no violation. [1.1, 3.2-3.5, 3.7]
+- [ ] 3. Domain, landing page and app (after task 0). First attempt #1399,
+      reverted in #1401 (`www` over HTTPS answered `404`, the HTTP
+      redirects sent `:443`); redone as designed in
+      [Redirects](design.md#redirects):
+      `nedsi.io` in the ClusterIssuers' `dnsZones`; the `nedsi-io`
+      Certificate for `nedsi.io`, `www.nedsi.io`, `blog.nedsi.io`; the six
+      Gateway listeners; `apps/website/` with `nginx.conf` and `landing/`
+      as ConfigMaps, the HTTPRoutes `website` (headers) and
+      `website-http`, Service ports 8080 and 8081; `site/` base URL
+      `https://blog.nedsi.io/`, `site/nginx.conf` removed from the image;
+      `scripts/ci/site-serve-check.sh` in the `site` job; the existing
+      `website` Application and namespace re-adopted, the AppProject
+      destination; the enforced network policies; the PostSync smoke; the
+      blackbox probes `nedsi` and `blog` with their SLO rules; the pentest
+      scope (and so the `dast` targets); `task render`. Operator first:
+      delete the proxied `nedsi.io` and `www` records already in the zone
+      (not external-dns's), so external-dns can create its own. Check:
+      acceptance criteria 1, 2, 4, 9, 10; Kyverno reports no violation.
+      [1.1, 1.8, 3.2-3.5, 3.7]
+      Second attempt #1421, reverted in #1430: the proxied records were
+      still in the zone, and the smoke's plain-HTTP checks got `403` from
+      Cilium's Envoy, which also enforces the smoke pod's egress on the
+      upstream leg (website `:8081` was not allowed).
 - [ ] 4. Docs: `docs/website.md` (write, preview, publish with article PRs
       as drafts that only the operator marks ready, privacy rules, Why it
       is like this), the draft rule in the run-conventions skill, the
       README services table, the `site/` row in
-      `.kiro/steering/structure.md`, `nedsi.io` in `docs/networking.md`,
-      the SLO app table in `docs/sre.md`. Check: a newcomer can publish an
+      `.kiro/steering/structure.md`, the three `nedsi.io` names and the
+      nginx redirects in `docs/networking.md`, the SLO app table (`nedsi`,
+      `blog`) in `docs/sre.md`. Check: a newcomer can publish an
       article from the doc alone; links resolve. [2, 4.1]
 - [ ] 5. Intro article: drafted with the `operator-voice` skill, a draft
       PR for the operator to edit and mark ready. Check: acceptance
@@ -62,7 +79,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
 
 - [ ] 6. Statistics: `apps/umami/` (Deployment, `umami-postgresql`, the
       oauth2-proxy route on `umami.lilalala.com`, retention CronJob,
-      network policies), the `/stats/` routes on `nedsi.io`, the tracker
+      network policies), the `/stats/` routes on `blog.nedsi.io`, the tracker
       in `baseof`, `script-src`/`connect-src 'self'` in the CSP, the
       privacy page's statistics section. Check: acceptance criteria 5,
       13, 14; a visit shows in Umami with country, browser and device.
@@ -70,8 +87,9 @@ No task writes to the cluster outside Argo CD. The defaults are in
 - [ ] 7. Dashboard: `apps/website/publisher/` (CronJob, `publisher.py`
       with the renderer, `schema.json`, `config.json` with the shown apps,
       Role), the `website-data` placeholder and its `ignoreDifferences`,
-      the read-only mount, `location /homelab/ { ssi on; }`,
-      `site/content/homelab.md` and its `homelab` layout, the publisher's
+      the read-only mount, `location /homelab/ { ssi on; }` in the blog's
+      server block, `site/content/homelab.md` and its `homelab` layout, the
+      dashboard button on the landing page, the publisher's
       egress policy, `tests/website/test_publisher.py`, the CronJob lists.
       Check: acceptance criteria 11 and 12; one manual Job run on a
       weekday. [5.1-5.4]

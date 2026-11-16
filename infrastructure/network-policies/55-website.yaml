@@ -1,0 +1,81 @@
+# website: the nginx of nedsi.io and blog.nedsi.io and its PostSync smoke Job
+# (spec public-website).
+# The site pod talks to nothing: ingress from the Gateway only, no egress.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: website
+  namespace: website
+spec:
+  description: >-
+    The landing page and the blog: HTTP from the Gateway and the smoke Job,
+    no egress.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: website
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # *nedsi.io -> website :8080 (HTTPS) and :8081 (plain HTTP, redirects),
+    # apps/website/httproute.yaml.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+            - port: "8081"
+              protocol: TCP
+    # apps/website/kustomization.yaml -- postsync-smoke, http://website:8080/,
+    # and :8081 behind the Gateway (see the smoke's egress below).
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+            - port: "8081"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postsync-smoke
+  namespace: website
+spec:
+  description: >-
+    The PostSync smoke Job calls website:8080 and the nedsi.io names through the shared
+    Gateway after every sync.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postsync-smoke
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # Cilium's Envoy also checks this pod's egress for the Gateway's upstream
+    # leg (GHSA-24qp-4xx8-3jvj) and answers 403 when it is denied: the HTTPS
+    # names go to :8080, the plain-HTTP redirects to :8081.
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: website
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+            - port: "8081"
+              protocol: TCP
+    # https://nedsi.io and the redirects, --connect-to the Gateway Service.
+    - toEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
+            - port: "443"
+              protocol: TCP
