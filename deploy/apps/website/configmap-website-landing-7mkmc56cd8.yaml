@@ -1,0 +1,199 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/website
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/website and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en-GB">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>nedsi</title>
+    <meta name="description" content="nedsi: projects, writing and how to reach me.">
+    <meta name="author" content="nedsi">
+    <link rel="canonical" href="https://nedsi.io/">
+    <link rel="stylesheet" href="/landing.css">
+    </head>
+    <body>
+    <header>
+    <h1>nedsi</h1>
+    <p class="lead">TODO(operator): one line about you.</p>
+    </header>
+    <main>
+    <section class="blocks" aria-label="About this site">
+    <div>
+    <h2>What this is</h2>
+    <p>My corner of the web: the projects I work on and what I write about them.</p>
+    </div>
+    <div>
+    <h2>What you can expect</h2>
+    <p>TODO(operator): the topics you write about and how often.</p>
+    </div>
+    <div>
+    <h2>Start here</h2>
+    <p>New here? Start with the <a href="#work">homelab</a>, the biggest project on this page, then the <a href="https://blog.nedsi.io/">blog</a>, which explains how it is built.</p>
+    </div>
+    </section>
+
+    <section aria-labelledby="work">
+    <h2 id="work">Selected work</h2>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Project</p>
+    <h3>Homelab</h3>
+    <p>An over-engineered homelab, run like a small production platform: GitOps, SLOs, tested backups, and a bot that merges its own pull requests.</p>
+    <a href="https://github.com/ned-si/homelab">Source on GitHub</a>
+    </article>
+    <article class="card">
+    <p class="label">Project</p>
+    <h3>Homelab dashboard</h3>
+    <p>Availability of the homelab's apps and live solar production, delayed and aggregated.</p>
+    <span class="soon">Coming soon</span>
+    </article>
+    <article class="card todo">
+    <p class="label">Project</p>
+    <h3>TODO(operator): another project</h3>
+    <p>TODO(operator): one or two sentences.</p>
+    <span>TODO(operator): link</span>
+    </article>
+    </div>
+    </section>
+
+    <section aria-labelledby="writing">
+    <h2 id="writing">Writing</h2>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Blog</p>
+    <h3>blog.nedsi.io</h3>
+    <p>How the homelab is built and run, and what I learn on the way.</p>
+    <a href="https://blog.nedsi.io/">Read the blog</a>
+    </article>
+    <article class="card todo">
+    <p class="label">Article</p>
+    <h3>TODO(operator): article title</h3>
+    <p>TODO(operator): one or two sentences.</p>
+    <span>TODO(operator): link</span>
+    </article>
+    </div>
+    </section>
+
+    <section aria-labelledby="resume">
+    <h2 id="resume">Resume</h2>
+    <div class="cards">
+    <article class="card todo">
+    <p class="label">Resume</p>
+    <h3>TODO(operator): title</h3>
+    <p>TODO(operator): one or two sentences.</p>
+    <span>TODO(operator): link</span>
+    </article>
+    </div>
+    </section>
+
+    <section aria-labelledby="contact">
+    <h2 id="contact">Contact</h2>
+    <div class="cards">
+    <article class="card todo">
+    <p class="label">Contact</p>
+    <h3>TODO(operator): channel</h3>
+    <p>TODO(operator): one sentence.</p>
+    <span>TODO(operator): link</span>
+    </article>
+    </div>
+    </section>
+    </main>
+    <footer>
+    <p><a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
+    </footer>
+    </body>
+    </html>
+  landing.css: |
+    :root {
+      --fg: #1d1f21;
+      --muted: #5c6166;
+      --bg: #fdfdfc;
+      --card-bg: #f3f4f5;
+      --link: #0b5cad;
+      --rule: #d8dadc;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e5e7;
+        --muted: #a0a6ab;
+        --bg: #17191b;
+        --card-bg: #212427;
+        --link: #79b8ff;
+        --rule: #34383c;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0 auto;
+      max-width: 60rem;
+      padding: 3rem 1.25rem;
+      color: var(--fg);
+      background: var(--bg);
+      font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--link); }
+
+    h1 { margin: 0; font-size: 2.5rem; }
+    h2 { margin: 3rem 0 1rem; font-size: 1.375rem; }
+    h3 { margin: 0.25rem 0 0.5rem; font-size: 1.125rem; }
+
+    .lead { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.25rem; }
+
+    .blocks, .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+      gap: 1rem 1.5rem;
+    }
+
+    .blocks h2 { margin: 2.5rem 0 0.25rem; font-size: 1.125rem; }
+    .blocks p { margin: 0; }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      padding: 1rem 1.25rem;
+      border: 1px solid var(--rule);
+      border-radius: 0.4rem;
+      background: var(--card-bg);
+    }
+
+    .card p { margin: 0 0 0.75rem; }
+    .card > :last-child { margin-top: auto; font-weight: 600; }
+
+    .label {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .soon { color: var(--muted); }
+
+    .todo { border-style: dashed; }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+kind: ConfigMap
+metadata:
+  name: website-landing-7mkmc56cd8
+  namespace: website

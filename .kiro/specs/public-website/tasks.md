@@ -64,6 +64,12 @@ No task writes to the cluster outside Argo CD. The defaults are in
       Cilium's Envoy, which also enforces the smoke pod's egress on the
       upstream leg (website `:8081` was not allowed). Re-landed with both
       fixed. #1434
+- [ ] 3a. Landing page as the operator's homepage (operator, 2026-11-16):
+      `apps/website/landing/` with the intro, the three blocks and the
+      card sections, the blog description without the family wording;
+      a draft PR, the operator fills in the facts and marks it ready.
+      Check: acceptance criteria 1 and 5 hold for the landing page; no
+      `TODO(operator)` left in `apps/website/landing/`. [1.8, 3.1]
 - [ ] 4. Docs: `docs/website.md` (write, preview, publish with article PRs
       as drafts that only the operator marks ready, privacy rules, Why it
       is like this), the draft rule in the run-conventions skill, the
@@ -90,7 +96,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       Role), the `website-data` placeholder and its `ignoreDifferences`,
       the read-only mount, `location /homelab/ { ssi on; }` in the blog's
       server block, `site/content/homelab.md` and its `homelab` layout, the
-      dashboard button on the landing page, the publisher's
+      link on the landing page's dashboard card, the publisher's
       egress policy, `tests/website/test_publisher.py`, the CronJob lists.
       Check: acceptance criteria 11 and 12; one manual Job run on a
       weekday. [5.1-5.4]

@@ -34,7 +34,7 @@ and its dashboard on `blog.nedsi.io`, and anything else public later.
 
 | Name | Serves |
 | --- | --- |
-| `nedsi.io` | The landing page: buttons to the blog, the source repository and, from phase 2, the dashboard |
+| `nedsi.io` | The landing page, the operator's homepage: cards to his projects (the source repository and, from phase 2, the dashboard), the blog, his resume and contact links |
 | `blog.nedsi.io` | The blog (Hugo), its RSS feed, the dashboard at `/homelab/` (phase 2), the statistics script under `/stats/` (phase 2) |
 | `www.nedsi.io` | `301` to `https://nedsi.io`, path and query kept |
 | `http://` on all three | `301` to the `https://` URL, `www` folded into the apex |

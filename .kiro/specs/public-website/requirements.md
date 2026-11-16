@@ -10,8 +10,8 @@ issue: 971
 
 The repository is public as an implementation example, but there is no
 place to explain it. This spec builds a public website on a new public
-domain, `nedsi.io`: a simple landing page at the apex with buttons to the
-other pages; a blog at `blog.nedsi.io` about how the homelab is built and
+domain, `nedsi.io`: the operator's personal homepage at the apex, with
+cards to his projects, writing and contact links; a blog at `blog.nedsi.io` about how the homelab is built and
 run, written by the operator in Markdown; and a home-made dashboard at
 `https://blog.nedsi.io/homelab/` with aggregated, delayed figures and live
 solar production. It covers #971 and the public part of #817.
@@ -31,8 +31,9 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 - **Site**: the static files Hugo builds from `site/`, served at
   `https://blog.nedsi.io`.
 - **Landing page**: the one static page at `https://nedsi.io`, from
-  `apps/website/landing/`, with buttons to the blog, the source repository
-  and, from phase 2, the dashboard.
+  `apps/website/landing/`: the operator's personal homepage, with cards
+  linking to his projects (the homelab repository and, from phase 2, the
+  dashboard among them), the blog, his resume and his contact links.
 - **Article**: one Markdown file under `site/content/posts/`, with front
   matter `title`, `date`, `summary`, `tags`, `draft`, and optionally
   `canonical` (the original URL of a republished article).
@@ -78,9 +79,13 @@ writing articles.
    page may come later.
 7. A republished article SHALL carry `<link rel="canonical">` to its
    original and a visible line naming where it first appeared.
-8. THE landing page SHALL be one HTML page and one stylesheet, with
-   buttons to the blog and the source repository, a dashboard button from
-   phase 2, and the privacy link in its footer.
+8. THE landing page SHALL be one HTML page and one stylesheet: a one-line
+   intro, three short blocks (What this is, What you can expect, Start
+   here), then card sections Selected work, Writing, Resume and Contact.
+   Each card has a category, a title, one or two sentences and one link;
+   contact is direct links, no form. It links the blog and the source
+   repository; the dashboard card links from phase 2 and says "Coming
+   soon" until then. The footer has the privacy link.
 
 ## Requirement 2: Writing and publishing is a pull request
 
@@ -265,7 +270,7 @@ Each default holds until the operator says otherwise. Rows marked
 | Hosting | In the cluster, behind the shared Gateway (operator) | Free, full control of headers, same checks as every app |
 | Domain | `nedsi.io` (operator) | Public identity apart from the household domain |
 | Names | Landing page at the apex, blog at `blog.nedsi.io`, `www` redirects to the apex (operator, 2026-11-16) | The apex can point at more than the blog later |
-| Dashboard location | `https://blog.nedsi.io/homelab/`, a button on the landing page | A Hugo page of the site, so the publisher design stays as it is; see [design.md](design.md#dashboard-location) |
+| Dashboard location | `https://blog.nedsi.io/homelab/`, a card on the landing page | A Hugo page of the site, so the publisher design stays as it is; see [design.md](design.md#dashboard-location) |
 | DNS and TLS | Free Cloudflare zone in the same account; DNS-01; external-dns upsert only | Same tooling as `lilalala.com` |
 | Blog generator | Hugo, home-made layouts, no theme (operator) | One pinned binary, built-in RSS, no npm tree to keep patched |
 | Dashboard | Home-made: the publisher renders HTML and SVG from the figures (operator) | Shows the project's own work; no JavaScript |
@@ -275,6 +280,7 @@ Each default holds until the operator says otherwise. Rows marked
 | Dashboard apps | Household and platform apps by name; no *arr, qBittorrent or indexers (operator) | Nothing about the download stack |
 | Solar | Near real time, production only (operator) | Production says nothing about who is home |
 | Author | `nedsi`; the About page is his (operator) | Public commit identity |
+| Landing page | A personal homepage about the operator: intro, three short blocks, card sections; the homelab is one project, "an over-engineered homelab, run like a small production platform"; nothing about the family (operator, 2026-11-16) | `nedsi.io` is about him, not only the homelab; his facts and words, nothing an agent invents |
 | About page | Short, a link to his LinkedIn only, written by him | His words, nothing an agent invents |
 | Language | English, British spelling (operator) | Same as the repository |
 | Content plan | Intro article first; then two republished articles with canonical links (operator) | Texts and reuse permission from the operator |
