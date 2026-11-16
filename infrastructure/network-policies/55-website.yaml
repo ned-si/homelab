@@ -30,13 +30,16 @@ spec:
               protocol: TCP
             - port: "8081"
               protocol: TCP
-    # apps/website/kustomization.yaml -- postsync-smoke, http://website:8080/.
+    # apps/website/kustomization.yaml -- postsync-smoke, http://website:8080/,
+    # and :8081 behind the Gateway (see the smoke's egress below).
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/name: postsync-smoke
       toPorts:
         - ports:
             - port: "8080"
+              protocol: TCP
+            - port: "8081"
               protocol: TCP
 ---
 apiVersion: cilium.io/v2
@@ -55,12 +58,17 @@ spec:
     ingress: false
     egress: false
   egress:
+    # Cilium's Envoy also checks this pod's egress for the Gateway's upstream
+    # leg (GHSA-24qp-4xx8-3jvj) and answers 403 when it is denied: the HTTPS
+    # names go to :8080, the plain-HTTP redirects to :8081.
     - toEndpoints:
         - matchLabels:
             app.kubernetes.io/name: website
       toPorts:
         - ports:
             - port: "8080"
+              protocol: TCP
+            - port: "8081"
               protocol: TCP
     # https://nedsi.io and the redirects, --connect-to the Gateway Service.
     - toEntities:

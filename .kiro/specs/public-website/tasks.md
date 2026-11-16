@@ -59,6 +59,10 @@ No task writes to the cluster outside Argo CD. The defaults are in
       (not external-dns's), so external-dns can create its own. Check:
       acceptance criteria 1, 2, 4, 9, 10; Kyverno reports no violation.
       [1.1, 1.8, 3.2-3.5, 3.7]
+      Second attempt #1421, reverted in #1430: the proxied records were
+      still in the zone, and the smoke's plain-HTTP checks got `403` from
+      Cilium's Envoy, which also enforces the smoke pod's egress on the
+      upstream leg (website `:8081` was not allowed).
 - [ ] 4. Docs: `docs/website.md` (write, preview, publish with article PRs
       as drafts that only the operator marks ready, privacy rules, Why it
       is like this), the draft rule in the run-conventions skill, the

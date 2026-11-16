@@ -24,6 +24,8 @@ spec:
     - ports:
       - port: "8080"
         protocol: TCP
+      - port: "8081"
+        protocol: TCP
   - toEntities:
     - ingress
     toPorts:
