@@ -60,7 +60,7 @@ def main():
     if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
     public = pathlib.Path(sys.argv[1])
-    host = sys.argv[2] if len(sys.argv) == 3 else "blog.nedsi.io"
+    host = sys.argv[2] if len(sys.argv) == 3 else "nedsi.io"
     pages = sorted(public.rglob("*.html"))
     if not pages:
         sys.exit(f"site_markup: no HTML under {public}")
