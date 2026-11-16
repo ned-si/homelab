@@ -21,6 +21,11 @@ hardware and the same pool, with the cluster kept consistent and a tested way
 back to CORE. The operator chose to migrate directly, without updating CORE
 to 13.0-U6.8 first (2026-11-16).
 
+The same window flashes the Turing Pi 2 BMC from firmware 2.0.5 to v2.1.0
+(pentest finding L5, #1307). On 2.0.5 a BMC reboot cuts power to all four
+nodes, so the flash needs a full cluster stop; done in this window, it
+costs one outage instead of two.
+
 Research, with sources, is in [design.md, Research](design.md#research).
 The parts that drive the requirements:
 
@@ -63,6 +68,12 @@ The parts that drive the requirements:
   `scripts/nas-check.py --record` on CORE before the window and again after
   quiescing.
 - **Four nodes**: `192.168.1.247`, `.238`, `.239`, `.240`.
+- **BMC**: the Turing Pi 2 board controller (`turingpi.local`, DHCP
+  `192.168.1.194` today) that powers the four node slots.
+- **BMC image**: `~/homelab-backups/bmc-firmware/tp2-ota-v2.1.0.tpu`, the
+  official v2.1.0 OTA package, SHA-256
+  `2c726062ba535c0a1d6b655bc1e668a712e0e8eb252474089c07ff2c5da1fe3e`
+  (computed on download; the release publishes no checksum).
 - **Rollback window**: the 48 hours after the window during which a return
   to CORE stays planned.
 
@@ -199,6 +210,29 @@ checks and stop rules, so I know when to continue and when to roll back.
    started by 14:00 Zurich, THEN the rollback SHALL start.
 4. THE household SHALL be told the day before.
 
+## Requirement 8: BMC firmware in the same stop
+
+**User story:** As the operator, I want the BMC on firmware v2.1.0 during
+the same planned stop, so its power cut does not cost a second outage.
+
+1. THE BMC SHALL be flashed with the BMC image only after its SHA-256 on
+   the Mac matches the recorded value, and the same value SHALL be passed
+   to `tpi firmware --sha256`.
+2. THE flash SHALL run after `scripts/nas-maintenance.sh down` and before
+   any change on the NAS (the pool snapshot).
+3. BEFORE the BMC reboots, a Talos etcd snapshot SHALL be taken and the
+   nodes SHALL be shut down with `talosctl shutdown`, `homelab-w-1` first,
+   then the three control planes.
+4. AFTER the BMC reboot, every node slot SHALL be powered on, the four
+   nodes SHALL be Ready with etcd at three members and one leader, and the
+   quiesced check SHALL pass again.
+5. IF the BMC or a node is not back within 30 minutes, THEN the window
+   SHALL stop before any NAS change: the cluster is recovered, `up` runs
+   on CORE and the NAS migration moves to another weekday.
+6. IF the BMC's DHCP address changes, THEN
+   `platform/blackbox-exporter/probes/lan.yaml` and `docs/networking.md`
+   SHALL carry the new one before the maintenance silence expires.
+
 ## Non-functional requirements
 
 - No secret in git, in a log or in command output: the API key, the SSH
@@ -207,8 +241,10 @@ checks and stop rules, so I know when to continue and when to roll back.
 - The new scripts are deterministic, read-only by default where possible,
   and unit tested; `nas-maintenance.sh` acts only after printing its whole
   plan.
-- Household downtime: one window of about three hours, with every app
-  that has a NAS volume or needs Keycloak unavailable.
+- Household downtime: one window of about three and a half hours, with
+  every app that has a NAS volume or needs Keycloak unavailable; every
+  other app, the website included, is down for about 30 minutes while the
+  nodes are off for the BMC flash.
 
 ## Acceptance criteria
 
@@ -248,8 +284,12 @@ checks and stop rules, so I know when to continue and when to roll back.
    it enabled, no maintenance silence is active and the healthchecks.io
    check is running again; `renovate-next.yaml` is enabled again in
    task 10.
-10. No file in git or in CI logs contains the API key, the SSH key or a
-    certificate key (`scripts/leak-check.sh`, gitleaks).
+10. No file in git or in CI logs contains the API key, the SSH key, a
+    certificate key or the BMC login (`scripts/leak-check.sh`, gitleaks).
+11. After the BMC step: `tpi info` shows daemon 2.1.0, `nmap -sV -p 22`
+    on the BMC shows OpenSSH 9.8 or later, `kubectl get nodes` shows four
+    nodes Ready, `talosctl etcd status` shows three members and one
+    leader, and `probe_success{device="bmc"}` is 1 after `up`.
 
 ## Out of scope
 
@@ -271,7 +311,8 @@ Each becomes its own issue when it is picked up:
 ## Decided defaults
 
 Each default holds until the operator says otherwise. Rows marked
-"operator" are his answers of 2026-11-16.
+"operator" are his answers of 2026-11-16; rows marked "open" are the
+questions below.
 
 | Topic | Default | Reason |
 | --- | --- | --- |
@@ -284,9 +325,22 @@ Each default holds until the operator says otherwise. Rows marked
 | democratic-csi | Driver `freenas-iscsi`, `zfs.cli.paths` removed (auto-detection) | Same driver as the existing volumes; one config for CORE and SCALE |
 | iSCSI limit | Per-target `auth_networks` = the four nodes, kept by CronJob `nas-iscsi-guard` | SCALE has no per-group network limit; democratic-csi does not set it |
 | Window | A weekday, 09:00-14:00 Zurich | Operator present; evening service guaranteed by the 14:00 stop rule |
-| Window date | The first weekday after tasks 1 to 6 merge (operator to confirm) | Nothing else waits on it |
-| Household notice | The operator tells the household the day before: about 3 h without any app that uses storage or login, the SMB share included (operator) | Req 7.4 |
-| Boot-image adapter | The operator has or buys a USB-SATA adapter, about CHF 10 (operator to confirm) | The only console-free way back to CORE; without it, the rollback needs a graphics card in place of the network card |
-| Heartbeat | healthchecks.io check paused for the window | The main Prometheus, source of `Watchdog`, is scaled to 0 |
-| Renovate | `renovate-next` disabled from the window until task 10 | No new PVC in the rollback window |
+| Window date | Tuesday 2026-11-17 from 09:00 Zurich (operator) | The operator approved the migration and the date |
+| Household notice | The operator tells the household the day before: about 3.5 h without any app that uses storage or login, the SMB share included, and about 30 min without any app at all (operator) | Req 7.4 |
+| Boot-image adapter | The operator has or buys a USB-SATA adapter, about CHF 10 (open) | The only console-free way back to CORE; without it, the rollback needs a graphics card in place of the network card |
+| Heartbeat | healthchecks.io check paused for the window by the operator (open) | The main Prometheus, source of `Watchdog`, is scaled to 0 |
+| Renovate | `renovate-next` disabled from the window until task 10 (open) | No new PVC in the rollback window |
+| BMC firmware | v2.1.0 flashed in the window, after `down` and before the pool snapshot | On 2.0.5 its reboot cuts power to all four nodes; while the NAS is still untouched CORE, a failure there stops the window with nothing on the NAS changed |
 | Snapshot retention | `homelab@pre-scale-<yyyymmdd>` deleted when the rollback window closes | Space; the backups remain |
+
+## Operator questions
+
+1. Window date: answered, Tuesday 2026-11-17 from 09:00 Zurich.
+2. USB-SATA adapter for the boot image: open. Without one, the only way
+   back to CORE needs a graphics card in place of the network card.
+3. healthchecks.io pause: open. The operator presses Pause on the
+   heartbeat check at the freeze and Resume at the unfreeze; otherwise an
+   expected "cluster dead" page arrives about 20 minutes in.
+4. Renovate frozen for the 48 h rollback window: open. `renovate-next`
+   stays disabled until task 10, and no PR that adds a PVC merges in that
+   time.

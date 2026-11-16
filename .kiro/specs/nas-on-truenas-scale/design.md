@@ -15,6 +15,9 @@ updates run. Two scripts make the window deterministic:
 `scripts/nas-check.py` (read-only checks of the NAS against a recorded
 baseline) and `scripts/nas-maintenance.sh` (stop, canary, start). The way
 back to CORE is the boot image, valid while no pool feature is enabled.
+The same window flashes the BMC to v2.1.0 (#1307) with every node shut
+down, right after the stateful workloads stop and before the NAS changes
+([BMC firmware in the same stop](#bmc-firmware-in-the-same-stop)).
 
 Technology, locked by this design: TrueNAS REST API v2.0 (still served by
 25.10), Python 3 standard library for `nas-check.py` and the guard, bash
@@ -36,6 +39,7 @@ Read on 2026-11-16.
 | [25.10 version notes](https://www.truenas.com/docs/scale/25.10/gettingstarted/versionnotes/) | REST API deprecated since 25.04, "full removal is planned for TrueNAS 27", with a daily alert when deprecated endpoints are called. The built-in SMART test scheduling and SMART UI are removed (smartmontools stays). SMB shares without a preset move to the "Legacy Share" preset, which keeps guest access. 25.10.8: kernel 6.12.113, OpenZFS 2.3.9, Samba 4.22.10. |
 | [Hardware guide](https://www.truenas.com/docs/scale/25.10/gettingstarted/scalehardwareguide/) | Minimum: 2-core x86-64, 8 GB RAM, 16 GB SSD boot device; USB sticks and spinning boot disks discouraged. |
 | [API v25.10](https://api.truenas.com/v25.10/) | `iscsi.initiator` has only `initiators` and `comment`; `iscsi.target` has `auth_networks`, "network addresses allowed to access this target". `sharing.nfs` keeps `hosts`, `networks`, `maproot_*`, `mapall_*` (no `alldirs`). `api_key.create` requires a `username`. |
+| [BMC-Firmware releases](https://github.com/turing-machines/BMC-Firmware/releases), [v2.x to v2.x upgrade](https://docs.turingpi.com/docs/turing-pi2-bmc-v2x-to-v2x), [v2.1 network migration](https://docs.turingpi.com/docs/v20-to-v21-migration) | v2.1.0 (2025-02-05) is the latest release; OTA `.tpu` and SD-card image, no published checksum. The OTA is verified on the BMC and reverted if verification fails; a reboot applies it. `tpi reboot`: the nodes lose power until the BMC has booted. The 2.1 network change only affects a BMC whose `/etc/network/interfaces` was edited; the page gives a shell test that prints `Not affected` otherwise. v2.1.0 switches to OUI-assigned MAC addresses, so the BMC's DHCP lease is expected to change. |
 | [democratic-csi](https://github.com/democratic-csi/democratic-csi) README, [CHANGELOG](https://github.com/democratic-csi/democratic-csi/blob/master/CHANGELOG.md), [examples/freenas-iscsi.yaml](https://github.com/democratic-csi/democratic-csi/blob/master/examples/freenas-iscsi.yaml) | v1.9.5 (2026-01-07) "support SCALE-25.04", "support SCALE-25.10". `freenas-iscsi` works on CORE and SCALE; `freenas-api-*` are "EXPERIMENTAL". The example config: "leave paths unset for auto-detection". |
 
 What this means here:
@@ -113,6 +117,61 @@ stateful workloads first unmounts every volume cleanly, shuts the
 databases down cleanly, logs every iSCSI session out, and lets the
 migration start from a quiet pool, which also makes the snapshot
 consistent. The cost is a script and its tests.
+
+### BMC firmware in the same stop
+
+The BMC runs firmware 2.0.5 (OpenSSH 9.3, L5). Applying the v2.1.0 OTA
+needs a BMC reboot, and on 2.0.5 that reboot cuts power to the four node
+slots until the BMC is back. v2.1.0 keeps the nodes powered across BMC
+reboots (BMC-Firmware PR #207), but the reboot out of 2.0.5 still runs
+the old code. So the
+flash needs every node shut down first, and the NAS window already has
+the cluster stopped.
+
+Its place is window step 5: after `down` and the quiesced check (step
+4), before the pool snapshot (step 6).
+
+- The stateful workloads are already stopped, so the shutdown only stops
+  stateless pods. `down`'s state survives the reboot: Argo CD sync stays
+  paused, replicas at 0, CNPG hibernated, CronJobs suspended.
+- The NAS is still untouched CORE. A BMC or node failure stops the window
+  with nothing on the NAS changed: recover the cluster, `up` on CORE, and
+  move the migration to another weekday. The migration never runs on a
+  cluster whose cold boot just failed.
+- The cold boot of all four nodes is proven before the canary and `up`
+  depend on the cluster.
+
+Overlapping the flash with the boot-image read (step 9) would save about
+20 minutes, but it puts two failure domains and two hands-on tasks in
+the same half hour. After `up` would need a second stop of every app.
+
+The step takes about 30 minutes: node shutdown 5, OTA transfer and
+verification 5, BMC reboot 2, power-on to four nodes Ready and etcd
+healthy 10 to 15, checks 5. The window grows from about 3 h to about
+3.5 h (09:00 to about 12:30 Zurich); the 14:00 stop rule stays. For those
+30 minutes every app is down, the website and the apps without storage
+included.
+
+The control planes shut down in one `talosctl` call so etcd stops on all
+three together, and no member waits on a quorum the others already
+left. `homelab-w-1` goes first, while the control planes still serve the
+API for its drain.
+
+Risks:
+
+- The 2.1 network migration rewrites only an edited
+  `/etc/network/interfaces`; the day-before test confirms it is not.
+- The on-board switch gains DSA support: the node links may drop for a
+  moment while the BMC boots. The nodes are off then.
+- The new MAC gives the BMC a new DHCP lease. The `blackbox-lan` probe
+  pings `192.168.1.194` and `LANDeviceUnreachable` pages, so the new
+  address goes into `lan.yaml` and `docs/networking.md` in a PR merged
+  before `up` (Argo CD sync is paused until then); `up` deploys it before
+  the unfreeze. That PR closes #1307.
+- The BMC does not boot: the nodes stay unpowered. The recovery is the
+  v2.1.0 SD-card image (`tp2-firmware-sdcard-v2.1.0.img`), downloaded the
+  day before, written to a microSD card and booted per the Turing Pi
+  firmware-upgrade guide (operator).
 
 ## Scripts and cluster changes
 
@@ -239,7 +298,7 @@ the ClickHouseInstallation of SigNoz, the eight CNPG clusters and the
 backup CronJobs. The `nas-watch` Prometheus, Alertmanager and democratic-csi
 have no NAS volume and stay. Added by name, without a NAS volume:
 CronJob `democratic-csi/nas-iscsi-guard` (suspended, so the guard makes
-no write on 24.04 to 25.04; step 11 runs it once by hand).
+no write on 24.04 to 25.04; step 12 runs it once by hand).
 
 `prometheus-operator` scaling the StatefulSet to 0 on `spec.replicas: 0`
 is checked live once in task 2 (`down` then `up` of that object only, on
@@ -291,7 +350,7 @@ exceptions and network policies allow it). It creates PVC
 namespace's `baseline` Pod Security level, that writes 64 MiB of random
 data, `sync`s, reads it back and compares the SHA-256; expands the PVC to
 2 GiB and checks the filesystem grew. With `--hold-guard` (on SCALE, in
-step 12) it then keeps the PVC and polls the canary target's
+step 13) it then keeps the PVC and polls the canary target's
 `auth_networks` through the API (key read from the driver Secret in
 memory, as `nas-check.py` does) every 30 s for up to 15 minutes; it
 passes when the target carries exactly the four `/32` addresses. Then it
@@ -524,9 +583,15 @@ for the window.
    and `--expect core --baseline` the same directory: all PASS.
 3. The four update files downloaded to `~/homelab-backups/nas/updates/`,
    each matching its SHA-256 from the runbook.
-4. **Operator**: tells the household (from 09:00 to about 12:00, 14:00 at
+4. BMC: `shasum -a 256
+   ~/homelab-backups/bmc-firmware/tp2-ota-v2.1.0.tpu` prints the recorded
+   SHA-256; the v2.1 network test from the migration page, run in a BMC
+   shell, prints `Not affected`; `tp2-firmware-sdcard-v2.1.0.img`
+   downloaded next to the OTA file as the recovery image.
+5. **Operator**: tells the household (from 09:00 to about 12:30, 14:00 at
    the latest, every app with storage or login unavailable, the SMB share
-   too); has the USB-SATA adapter and a screwdriver at hand.
+   too, and every app for about 30 minutes early in the window); has the
+   USB-SATA adapter, a screwdriver and a microSD card at hand.
 
 ### The window (Monday to Friday, from 09:00 Zurich)
 
@@ -546,29 +611,58 @@ Every step's outcome (PASS lines, IDs, hashes) goes into the window log,
    talos:etcd-snapshot -- 192.168.1.239`.
 4. `scripts/nas-maintenance.sh down` (keep the state file path).
    `scripts/nas-check.py --expect core --baseline <pre> --quiesced`: PASS.
-5. Snapshot, **operator**, CORE UI: Storage > Snapshots > Add, dataset
+5. BMC firmware ([BMC firmware in the same stop](#bmc-firmware-in-the-same-stop)).
+   The BMC login comes from the operator's records through
+   `TPI_USERNAME`/`TPI_PASSWORD`, never printed.
+   1. `task talos:etcd-snapshot -- 192.168.1.239` (after `down`);
+      `shasum -a 256` of the BMC image: the recorded value.
+   2. `talosctl -n 192.168.1.240 shutdown`; wait until `.240` stops
+      answering ping. Then
+      `talosctl -n 192.168.1.247,192.168.1.238,192.168.1.239 shutdown`;
+      wait until none of the three answers.
+   3. `tpi firmware --file ~/homelab-backups/bmc-firmware/tp2-ota-v2.1.0.tpu
+      --sha256 2c726062ba535c0a1d6b655bc1e668a712e0e8eb252474089c07ff2c5da1fe3e`:
+      transfer and verification succeed.
+   4. `tpi reboot`. Within 10 minutes `tpi info` answers with daemon
+      2.1.0; record its address (`turingpi.local`, or the router's DHCP
+      list) and MAC in the window log.
+   5. `tpi power status`; `tpi power on -n 1`, `-n 2`, `-n 3`, then
+      `-n 4` for the slots that are off.
+   6. Checks: within 15 minutes four nodes Ready, `talosctl -n
+      192.168.1.239 etcd status` three members and one leader, `talosctl
+      -n 192.168.1.239 health` passes; `nas-check.py --expect core
+      --baseline <pre> --quiesced`: PASS; `nmap -sV -p 22 <bmc>` OpenSSH
+      9.8 or later; the step 2 silence still active (Alertmanager has no
+      persistent storage: if the reboot dropped it, create it again and
+      note the new ID).
+   7. If the BMC address changed: a PR with the new address in
+      `platform/blackbox-exporter/probes/lan.yaml` and
+      `docs/networking.md`, `Closes #1307`, merged with
+      `scripts/pr-merge.sh` before step 14. If it did not, #1307 is
+      closed with the `tpi info` and `nmap` lines.
+6. Snapshot, **operator**, CORE UI: Storage > Snapshots > Add, dataset
    `homelab`, name `pre-scale-<yyyymmdd>`, Recursive on. Check:
    `nas-check.py --expect core --baseline <pre> --snapshot
    pre-scale-<yyyymmdd> --only snapshot`: PASS.
-6. Record again: `scripts/nas-check.py --record
+7. Record again: `scripts/nas-check.py --record
    ~/homelab-backups/nas/<yyyymmdd>-quiesced/`.
-7. **Operator**, CORE UI: System > General > Save Config with "Export
+8. **Operator**, CORE UI: System > General > Save Config with "Export
    Password Secret Seed"; System > Advanced > Save Debug; System >
    Certificates: download `homelab-nas-ca` and `nas` certificate and key.
    All into `~/homelab-backups/nas/<yyyymmdd>/`.
-8. **Operator**: System > Shutdown. Takes the boot SSD out, connects it to
+9. **Operator**: System > Shutdown. Takes the boot SSD out, connects it to
    the Mac with the adapter; macOS says the disk is not readable: click
    **Ignore**. `diskutil list` to find it (120 GB Kingston, external,
    never the Mac's own disk), then
    `sudo scripts/nas-boot-image.sh read disk<N> ~/homelab-backups/nas/<yyyymmdd>/`
    and `sudo scripts/nas-boot-image.sh verify disk<N> …`: same SHA-256.
    `diskutil eject`. SSD back in its port, NAS on.
-9. CORE back: ping, ports 443/2049/3260, `nas-check.py --expect core`:
-   PASS.
-10. U1 to U4 as in [The update chain](#the-update-chain). After each,
+10. CORE back: ping, ports 443/2049/3260, `nas-check.py --expect core`:
+    PASS.
+11. U1 to U4 as in [The update chain](#the-update-chain). After each,
     `nas-check.py --only version,pools,features` (and the whole
     `--expect scale` after U4).
-11. Fixes, only those decided here:
+12. Fixes, only those decided here:
     - guard run by hand (`kubectl -n democratic-csi create job
       --from=cronjob/nas-iscsi-guard nas-iscsi-guard-manual`);
     - NFS `maproot_group` `root`;
@@ -586,12 +680,13 @@ Every step's outcome (PASS lines, IDs, hashes) goes into the window log,
       on its own 45-minute budget.
 
     Then `nas-check.py --expect scale --baseline <quiesced>`: all PASS.
-12. `scripts/nas-maintenance.sh canary --hold-guard`: PASS (the guard
+13. `scripts/nas-maintenance.sh canary --hold-guard`: PASS (the guard
     limited the canary's new target within 15 minutes).
-13. `scripts/nas-maintenance.sh up <state-file>`; then the acceptance
-    criteria 3 checks and `scripts/smoke.sh`.
-14. SMB from the Mac; **operator** on both Windows machines.
-15. Unfreeze: `maintenance-silence.sh --expire <id>`; **operator** resumes
+14. `scripts/nas-maintenance.sh up <state-file>`; then the acceptance
+    criteria 3 checks, `scripts/smoke.sh` and `probe_success{device="bmc"}`
+    1.
+15. SMB from the Mac; **operator** on both Windows machines.
+16. Unfreeze: `maintenance-silence.sh --expire <id>`; **operator** resumes
     the healthchecks.io check; `gh workflow enable auto-rollback.yaml`
     and `gh workflow view auto-rollback.yaml` shows it active.
     `renovate-next.yaml` stays disabled until task 10 closes the rollback
@@ -599,9 +694,16 @@ Every step's outcome (PASS lines, IDs, hashes) goes into the window log,
 
 ### Stop rules
 
-- A check that fails and is not fixed by step 11's list within 30 minutes
+- BMC step: the BMC not answering 10 minutes after `tpi reboot`, or the
+  nodes or etcd not healthy 30 minutes after power-on: stop the window
+  before step 6, nothing on the NAS has changed. Recover with
+  [A node won't come back](../../../docs/talos-cheatsheet.md#a-node-wont-come-back)
+  (UART through `tpi uart`, slot power-cycle) or, if the BMC does not
+  boot, the SD-card image (operator). Then `nas-maintenance.sh up` on
+  CORE, the unfreeze, and the migration on another weekday.
+- A check that fails and is not fixed by step 12's list within 30 minutes
   (45 for the API key replacement): rollback.
-- At 14:00 Zurich, if step 13 has not started: rollback, so the household
+- At 14:00 Zurich, if step 14 has not started: rollback, so the household
   has its services in the evening.
 - No ping on `.228` after U1's reboot: look at the router's DHCP list. A
   new lease whose MAC ends `B8:28` (or the onboard port's MAC): open
@@ -719,7 +821,9 @@ CORE 13.0-U6.7 from ISO and upload the saved configuration.
 - Live, on CORE before the window: `nas-check.py --expect core`, the
   canary, the guard's no-op log. On SCALE: the window's checks.
 - Not testable before the window: the update chain itself and the
-  rollback; the boot image is the safety for both.
+  rollback; the boot image is the safety for both. The BMC flash and the
+  cold boot of all four nodes; the etcd snapshot and the SD-card image
+  are their safety.
 
 ## Edge cases
 

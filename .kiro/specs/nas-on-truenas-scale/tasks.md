@@ -55,13 +55,16 @@ task 10 sets the spec `done` and closes #1305.
 - [ ] 6. `docs/runbooks/nas-scale-migration.md` from
       [design.md, Runbook](design.md#runbook) and
       [Rollback](design.md#rollback), with each update file's URL and
-      SHA-256, linked from `docs/runbooks/README.md`. [1.1, 1.2, 2.1-2.5,
-      3.3, 6.1-6.3, 7.1-7.4]
-- [ ] 7. The window (no PR; operator present, weekday from 09:00 Zurich,
-      date chosen by the operator): the runbook from "The day before" to
-      "Unfreeze". Check: acceptance criteria 1-3 and 5-9 (Renovate
-      excepted until task 10); the next morning, criterion 4. The run's report lists every fix applied
-      from the runbook's list. [1-7]
+      SHA-256, the BMC step with the BMC image's SHA-256, linked from
+      `docs/runbooks/README.md`. [1.1, 1.2, 2.1-2.5, 3.3, 6.1-6.3,
+      7.1-7.4, 8.1-8.5]
+- [ ] 7. The window (no PR; operator present, Tuesday 2026-11-17 from
+      09:00 Zurich): the runbook from "The day before" to "Unfreeze",
+      with the BMC flash as window step 5. If the BMC address changed,
+      one PR updates `lan.yaml` and `docs/networking.md` and closes
+      #1307 before `up`. Check: acceptance criteria 1-3, 5-9 (Renovate
+      excepted until task 10) and 11; the next morning, criterion 4. The
+      run's report lists every fix applied from the runbook's list. [1-8]
 - [ ] 8. After the window: `truenas-exporter` drops `smart/test/results`
       and `truenas_disk_smart_*`; `NASSmartTestFailed` removed with its
       runbook, rule test and table rows; any endpoint that failed on
