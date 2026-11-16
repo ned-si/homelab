@@ -222,11 +222,21 @@ settles each one before it starts.
    role `access` only when the `roles` scope is a default scope of
    `paperless`; if it is not, the check reads the token of a real login
    instead.
+   Settled in task 3: `apply.sh` sets no default client scopes on
+   `paperless` (it only adds `groups` and `kc-admin-api` to other
+   clients), so the client keeps the realm defaults, `roles` among them;
+   Evaluate applies. If the tab shows no `access` role, the token of a
+   real login decides.
 3. Task 3: a Mealie admin can move an existing user to another Mealie
    household (the one-time move of step D and the runbook's step for a new
    household member depend on it), and a first Keycloak login lands in
    `DEFAULT_HOUSEHOLD` (checked with a test login after the variable is
    set).
+   Settled in task 3: Mealie v3 (v3.31.0 here) has a Household field on
+   Admin settings, Users, the user, so the move is one page. The
+   household `Guests` is created by a Mealie admin before the merge
+   (Admin settings, Households); the test login after the merge is part of
+   task 3's verification.
 4. Task 1: whether pentest-programme task 1 has merged with its test user
    defined in git, which decides the Migration case for that user.
    Settled in task 1: it has not merged, and no Keycloak user is defined

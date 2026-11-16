@@ -205,7 +205,7 @@ the reader read them, with the same login as every other app.
 
 #### Acceptance criteria
 
-1. Login SHALL stay Keycloak only (groups `admins` and `family`, as in
+1. Login SHALL stay Keycloak only (groups `admins` and `household`, as in
    `platform/keycloak/realm/access.conf`); the local admin account is
    break-glass only.
 2. THE Paperless group `editors` SHALL hold the editor's account and SHALL

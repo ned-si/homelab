@@ -33,6 +33,8 @@ spec:
       - env:
         - name: ALLOW_SIGNUP
           value: "false"
+        - name: DEFAULT_HOUSEHOLD
+          value: Guests
         - name: TZ
           value: Europe/Zurich
         - name: PUID

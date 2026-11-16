@@ -5,7 +5,7 @@
 | What | Value |
 | --- | --- |
 | Image | `ghcr.io/paperless-ngx/paperless-ngx:3.4.1`, one replica, SQLite (journal mode `wal`), Valkey queue |
-| URL, login | `archive.lilalala.com`, Keycloak only (`PAPERLESS_REDIRECT_LOGIN_TO_SSO`, auto signup), groups `admins` and `family` (`access.conf`, PR #468) |
+| URL, login | `archive.lilalala.com`, Keycloak only (`PAPERLESS_REDIRECT_LOGIN_TO_SSO`, auto signup), groups `admins` and `household` (`access.conf`, PR #468, #1062) |
 | Volumes | `paperless-data` 4Gi (27M used), `paperless-media` 100Gi (1 MiB used), `paperless-consume` 10Gi (empty), all iSCSI |
 | Content | 1 document, 0 correspondents, document types, tags, storage paths, workflows; 5 user accounts |
 | OCR | `eng` only; the image ships `deu eng fra ita osd spa` |
@@ -299,7 +299,7 @@ setting nothing checks.
 
 ## Access
 
-Login stays as it is: Keycloak, groups `admins` and `family`. Inside
+Login stays as it is: Keycloak, groups `admins` and `household`. Inside
 Paperless there are two roles:
 
 | Who | Paperless account | Rights | Sees |

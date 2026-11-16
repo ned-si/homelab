@@ -66,7 +66,7 @@ reviews what lands in the `inbox` tag and fixes what matching missed.
 ## Access
 
 Logging in goes through Keycloak only. The Keycloak groups `admins` and
-`family` may log in (`platform/keycloak/realm/access.conf`). Paperless
+`household` may log in (`platform/keycloak/realm/access.conf`). Paperless
 creates an account on the first login, with no group, so a new login sees
 an empty dashboard and its profile, nothing else.
 
@@ -112,7 +112,7 @@ login yet)`. Paperless refuses nothing because of it.
 ### Add a person
 
 1. In the Keycloak admin console, realm `homelab`, put the user in the group
-   `family`.
+   `household`.
 2. The person logs in once at `https://archive.lilalala.com`. They see an
    empty dashboard: that is expected.
 3. Add their email (or Paperless username) to `editors` or `readers`:
