@@ -48,6 +48,8 @@ DATA = {
         {"level": "CRITICAL", "klass": "SMART", "dismissed": False},
         {"level": "WARNING", "klass": "UnscheduledReboot", "dismissed": True},
     ],
+    "iscsi/target": [],
+    "iscsi/initiator": [],
 }
 
 
