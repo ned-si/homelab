@@ -241,22 +241,26 @@ for hhmm, want in [("22:59", False), ("23:00", True), ("02:00", True), ("07:59",
 sys.exit(rc)
 ' || rc=1
 
-# b) A real Alertmanager with the interval at 00:00 UTC until the next minute
-# boundary at least 20 s away, and every group_interval 5s so the first flush
-# after the end comes at once.
+# b) A real Alertmanager with the interval from the current UTC minute until
+# the next minute boundary at least 20 s away, and every group_interval 5s so
+# the first flush after the end comes at once. The interval and the check
+# after it stay inside one UTC day, so the interval never applies again
+# after midnight and the result does not depend on the time of day.
 while :; do
   read -r h m sec <<<"$(date -u '+%H %M %S')"
   now=$((10#$h * 3600 + 10#$m * 60 + 10#$sec))
-  end_min=$((now / 60 + 1))
+  start_min=$((now / 60))
+  end_min=$((start_min + 1))
   [ $((now % 60)) -gt 40 ] && end_min=$((end_min + 1))
-  [ "$end_min" -le 1440 ] && break
-  sleep 30 # a range cannot cross midnight UTC
+  [ "$end_min" -lt 1440 ] && break
+  sleep 30
 done
+start=$(printf '%02d:%02d' $((start_min / 60)) $((start_min % 60)))
 end=$(printf '%02d:%02d' $((end_min / 60)) $((end_min % 60)))
 deadline=$(($(date +%s) + end_min * 60 - now))
 # shellcheck disable=SC2016 # strenv, not a shell variable
-END=$end yq '(.time_intervals[] | select(.name == "quiet-hours") | .time_intervals) =
-    [{"times": [{"start_time": "00:00", "end_time": strenv(END)}], "location": "UTC"}]
+START=$start END=$end yq '(.time_intervals[] | select(.name == "quiet-hours") | .time_intervals) =
+    [{"times": [{"start_time": strenv(START), "end_time": strenv(END)}], "location": "UTC"}]
   | (.route | .. | select(tag == "!!map" and has("group_interval")) | .group_interval) = "5s"' \
   "$work/am.yaml" > "$work/am-quiet.yaml"
 if start_am "$work/am-quiet.yaml"; then
