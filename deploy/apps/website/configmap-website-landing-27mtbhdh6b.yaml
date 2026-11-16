@@ -32,7 +32,7 @@ data:
     </nav>
     </main>
     <footer>
-    <p>Text by nedsi, licensed under <a href="https://blog.nedsi.io/LICENSE.txt">CC BY 4.0</a>. <a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
+    <p><a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
     </footer>
     </body>
     </html>
@@ -95,5 +95,5 @@ data:
     footer { color: var(--muted); font-size: 0.875rem; }
 kind: ConfigMap
 metadata:
-  name: website-landing-hfd2cg996f
+  name: website-landing-27mtbhdh6b
   namespace: website
