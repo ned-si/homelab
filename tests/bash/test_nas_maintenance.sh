@@ -211,6 +211,10 @@ jq --argjson p "$(pod app app-backup-222-bbb Running "$(owner Job app-backup-222
   '.items += [$p]' "$FK/pods.json" > "$FK/x" && mv "$FK/x" "$FK/pods.json"
 jq --argjson j "{\"metadata\":{\"namespace\":\"app\",\"name\":\"app-backup-222\",\"ownerReferences\":$(owner CronJob app-backup batch/v1)},\"spec\":{\"template\":{\"spec\":{\"volumes\":$(pvcvol data)}}},\"status\":{\"active\":1}}" \
   '.items += [$j]' "$FK/jobs.json" > "$FK/x" && mv "$FK/x" "$FK/jobs.json"
+out=$(run plan)
+expect_contains "active job: plan exits 3" "rc=3" "$out"
+expect_contains "active job: plan names it" "ACTIVE NAS JOB: app/app-backup-222" "$out"
+expect_eq "active job: plan writes nothing" 0 "$(nwrites)"
 out=$(run down)
 expect_contains "active job: exit 3" "rc=3" "$out"
 expect_contains "active job: named" "ACTIVE NAS JOB: app/app-backup-222" "$out"

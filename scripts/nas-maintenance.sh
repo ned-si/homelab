@@ -187,6 +187,9 @@ cmd_plan() {
   if [ "$(jq '.unknown | length' "$tmp/plan.json")" -gt 0 ]; then
     die 3 "plan: unknown owner; extend the table in design.md before a window"
   fi
+  if [ "$(jq '.active_jobs | length' "$tmp/plan.json")" -gt 0 ]; then
+    die 3 "plan: a Job on a NAS volume is active; wait for it"
+  fi
 }
 
 # --- state file -------------------------------------------------------------
@@ -406,7 +409,7 @@ cmd_up() {
   while :; do
     left=$(not_ready "$st") || { log "up: kubectl error while waiting"; left="?"; }
     [ -z "$left" ] && break
-    if [ -z "$healthy_at" ] && ! grep -q '^Cluster ' <<<"$left"; then
+    if [ -z "$healthy_at" ] && [ "$left" != "?" ] && ! grep -q '^Cluster ' <<<"$left"; then
       healthy_at=$(now); log "up: every CNPG cluster healthy"
     fi
     if [ -n "$healthy_at" ] && [ "$restarted" = 0 ] && [ "$(now)" -ge $((healthy_at + RESTART_AFTER)) ]; then
