@@ -865,7 +865,8 @@ CORE 13.0-U6.7 from ISO and upload the saved configuration.
 1. The download URL and SHA-256 of each update file (task 6), from the
    release pages linked in the Software Status page.
 2. `sshConnection.username` and whether the config enables sudo (task 3),
-   read from the decrypted Secret in memory.
+   read from the decrypted Secret in memory. Settled 2026-11-16: `root`,
+   no `zfs.cli.sudoEnabled`, so no sudoers change on the NAS.
 3. The exact Deployment and CronJob list `plan` prints on the day; the
    design fixes the rules, not the list.
 4. The network policy of `nas-iscsi-guard` (task 5): an egress rule to
