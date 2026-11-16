@@ -44,9 +44,8 @@ its workloads from `ci/ha-inventory.yaml`.
       4.3]
 - [ ] 8. Weekday. Keycloak: HPA 2 to 3, spread, PDB, `spec.replicas` out
       of git; CPU and memory requests from the 7-day peak (the Deployment
-      has none); the headless Service `keycloak-discovery` with
-      `publishNotReadyAddresses: true` and `-Djgroups.dns.query` pointed at
-      it. Recorded checks: a cluster view of 2 members in the Keycloak log,
+      has none); clustering on the default `jdbc-ping` stack, members on
+      TCP 7800 and 57800 as `85-keycloak.yaml` allows. Recorded checks: a cluster view of 2 members in the Keycloak log,
       after one pod is deleted and after both are deleted together; a pod
       deleted, a session opened before still valid and a new login through
       the other pod; no failed probe of `auth`. [2.1, 2.2, 2.3, 3.1, 3.2,
