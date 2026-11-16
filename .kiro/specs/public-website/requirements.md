@@ -10,17 +10,15 @@ issue: 971
 
 The repository is public as an implementation example, but there is no
 place to explain it. This spec builds a public website on a new public
-domain, `nedsi.io`: a simple landing page at the apex with buttons to the
-other pages; a blog at `blog.nedsi.io` about how the homelab is built and
-run, written by the operator in Markdown; and a home-made dashboard at
-`https://blog.nedsi.io/homelab/` with aggregated, delayed figures and live
-solar production. It covers #971 and the public part of #817.
+domain, `nedsi.io`: a blog at the apex about how the homelab is built and
+run, written by the operator in Markdown, and a home-made dashboard at
+`https://nedsi.io/homelab/` with aggregated, delayed figures and live solar
+production. It covers #971 and the public part of #817.
 
 `nedsi.io` is the public identity; `lilalala.com` stays the household's
 domain for private and semi-private services.
 
-Phase 1 puts the landing page and the blog live with an intro article, RSS
-and a privacy page.
+Phase 1 puts the blog live with an intro article, RSS and a privacy page.
 Phase 2 adds statistics, the dashboard and the republished
 articles. Each phase is useful on its own.
 
@@ -29,16 +27,12 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 ## Glossary
 
 - **Site**: the static files Hugo builds from `site/`, served at
-  `https://blog.nedsi.io`.
-- **Landing page**: the one static page at `https://nedsi.io`, from
-  `apps/website/landing/`, with buttons to the blog, the source repository
-  and, from phase 2, the dashboard.
+  `https://nedsi.io`.
 - **Article**: one Markdown file under `site/content/posts/`, with front
   matter `title`, `date`, `summary`, `tags`, `draft`, and optionally
   `canonical` (the original URL of a republished article).
 - **Published**: the article is in the image the `website` Deployment runs.
-- **Dashboard**: `/homelab/` on the site (`https://blog.nedsi.io/homelab/`),
-  showing the public figures.
+- **Dashboard**: `/homelab/` on the site, showing the public figures.
 - **Public figures**: the allow-listed values in
   [design.md, Public figures](design.md#public-figures).
 - **Shown apps**: the allow-list of household and platform apps whose
@@ -58,12 +52,9 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 **User story:** As the operator, I want a working blog soon, so I can start
 writing articles.
 
-1. THE site SHALL be served at `https://blog.nedsi.io` and the landing page
-   at `https://nedsi.io`, with one Let's Encrypt certificate through the
-   shared Gateway. `https://www.nedsi.io` and `http://www.nedsi.io` SHALL
-   redirect permanently to `https://nedsi.io`, and `http://` on the other
-   two names to their `https://` URL, keeping the path and query. No
-   `Location` SHALL carry a port.
+1. THE site SHALL be served at `https://nedsi.io` with a Let's Encrypt
+   certificate through the shared Gateway; `https://www.nedsi.io` and
+   `http://` SHALL redirect permanently to `https://nedsi.io`.
 2. THE site SHALL have a home page listing articles newest first, one page
    per article, an About page, a privacy page, a tag list and a 404 page.
 3. THE first release SHALL contain an intro article explaining the
@@ -77,9 +68,6 @@ writing articles.
    page and in `site/LICENSE`; the code keeps the repository licence.
 7. A republished article SHALL carry `<link rel="canonical">` to its
    original and a visible line naming where it first appeared.
-8. THE landing page SHALL be one HTML page and one stylesheet, with
-   buttons to the blog and the source repository, a dashboard button from
-   phase 2, and the licence and privacy links in its footer.
 
 ## Requirement 2: Writing and publishing is a pull request
 
@@ -108,9 +96,9 @@ attack surface to the homelab as possible.
 
 1. THE site SHALL load no third-party resource (fonts, scripts, images,
    embeds) and set no cookie. Its only JavaScript SHALL be the self-hosted
-   statistics script, served from `blog.nedsi.io`; the landing page, the
-   dashboard and every other page work without JavaScript.
-2. EVERY HTTPS response on the three names SHALL carry: `Content-Security-Policy` with
+   statistics script, served from `nedsi.io`; the dashboard
+   and every other page work without JavaScript.
+2. EVERY response SHALL carry: `Content-Security-Policy` with
    `default-src 'none'`, only `'self'` for scripts, styles, images, fonts
    and connections, no `'unsafe-inline'` or `'unsafe-eval'`,
    `frame-ancestors 'none'`, `base-uri 'none'`, `form-action 'none'`;
@@ -130,10 +118,10 @@ attack surface to the homelab as possible.
 6. THE site image SHALL be built in this repository's CI, pushed to
    `ghcr.io/ned-si/homelab-site`, and run by digest; every image SHALL
    publish `linux/arm64`.
-7. `nedsi.io`, `www.nedsi.io` and `blog.nedsi.io` SHALL be in the pentest
-   scope and the `dast` workflow's targets.
-8. THE statistics UI SHALL NOT be reachable on any `nedsi.io` name; it is
-   on `lilalala.com` behind Keycloak, group `admins`.
+7. `nedsi.io` SHALL be in the pentest scope and the `dast` workflow's
+   targets.
+8. THE statistics UI SHALL NOT be reachable on `nedsi.io`; it is on `lilalala.com` behind Keycloak, group
+   `admins`.
 
 ## Requirement 4: No household data, ever
 
@@ -207,19 +195,15 @@ banner.
 
 ## Acceptance criteria
 
-1. `curl -sI https://nedsi.io/` and `curl -sI https://blog.nedsi.io/`
-   return `200` and every header of Requirement 3.2; the landing page links
-   to `https://blog.nedsi.io/`. `curl -sI https://www.nedsi.io/` and
-   `curl -sI http://www.nedsi.io/` return `301` with `Location:
-   https://nedsi.io/`; `curl -sI http://nedsi.io/` and
-   `curl -sI http://blog.nedsi.io/` return `301` to the same URL on
-   `https://`, with no port. [1.1, 1.8, 3.2]
-2. `curl -sI https://blog.nedsi.io/does-not-exist` returns `404` with every
+1. `curl -sI https://nedsi.io/` returns `200` and every header of
+   Requirement 3.2; `curl -sI https://www.nedsi.io/` returns `301` to
+   `https://nedsi.io/`. [1.1, 3.2]
+2. `curl -sI https://nedsi.io/does-not-exist` returns `404` with every
    header of Requirement 3.2. [3.2]
-3. `curl -s https://blog.nedsi.io/index.xml` is a valid RSS document
-   containing the intro article. [1.3, 1.4]
-4. `curl -s -X POST -o /dev/null -w '%{http_code}'` prints `405` on
-   `https://nedsi.io/` and `https://blog.nedsi.io/`. [3.3]
+3. `curl -s https://nedsi.io/index.xml` is a valid RSS document containing
+   the intro article. [1.3, 1.4]
+4. `curl -s -X POST -o /dev/null -w '%{http_code}' https://nedsi.io/`
+   prints `405`. [3.3]
 5. The built site contains no `<form`, `<iframe`, inline `<script>` or
    `style=`, no `<script src=` other than the statistics script, and
    no `src=` or `href=` to another origin outside `<article>`, checked in
@@ -231,7 +215,7 @@ banner.
    reports no violation. [3.4]
 10. From a debug pod in `website` with the site's labels, a request to the
     Prometheus Service times out. [3.5, 5.3]
-11. `https://blog.nedsi.io/data/figures.json` holds only the allow-listed keys,
+11. `https://nedsi.io/data/figures.json` holds only the allow-listed keys,
     `covers` equal to yesterday's date, and no app outside the shown
     apps. [5.1, 5.2]
 12. A publisher run against an unreachable Prometheus leaves the figures
@@ -239,8 +223,7 @@ banner.
 13. The site's log lines in SigNoz contain no client address or user
     agent; the statistics database has no column holding a full IP
     address. [6.1, 6.3]
-14. The statistics UI paths return `404` on `nedsi.io` and
-    `blog.nedsi.io`. [3.8]
+14. The statistics UI paths return `404` on `nedsi.io`. [3.8]
 
 ## Out of scope
 
@@ -257,14 +240,12 @@ banner.
 ## Decided defaults
 
 Each default holds until the operator says otherwise. Rows marked
-"operator" are his answers of 2026-11-13, or of 2026-11-16 where dated.
+"operator" are his answers of 2026-11-13.
 
 | Topic | Default | Reason |
 | --- | --- | --- |
 | Hosting | In the cluster, behind the shared Gateway (operator) | Free, full control of headers, same checks as every app |
-| Domain | `nedsi.io` (operator) | Public identity apart from the household domain |
-| Names | Landing page at the apex, blog at `blog.nedsi.io`, `www` redirects to the apex (operator, 2026-11-16) | The apex can point at more than the blog later |
-| Dashboard location | `https://blog.nedsi.io/homelab/`, a button on the landing page | A Hugo page of the site, so the publisher design stays as it is; see [design.md](design.md#dashboard-location) |
+| Domain | `nedsi.io` apex, `www` redirects (operator) | Public identity apart from the household domain |
 | DNS and TLS | Free Cloudflare zone in the same account; DNS-01; external-dns upsert only | Same tooling as `lilalala.com` |
 | Blog generator | Hugo, home-made layouts, no theme (operator) | One pinned binary, built-in RSS, no npm tree to keep patched |
 | Dashboard | Home-made: the publisher renders HTML and SVG from the figures (operator) | Shows the project's own work; no JavaScript |

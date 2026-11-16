@@ -47,15 +47,12 @@ jobs:
         run: hugo --source site --destination "$GITHUB_WORKSPACE/site/public" --minify --panicOnWarning --gc
 
       # The same Dockerfile for the runner's platform, run as the cluster runs
-      # it (read-only root, /tmp writable, apps/website/nginx.conf), before
-      # anything is pushed.
+      # it (read-only root, /tmp writable), before anything is pushed.
       - name: Smoke-test the image
         run: |
           set -euo pipefail
           docker buildx build --platform linux/amd64 --load -t site:smoke site
-          docker run -d --name site --read-only --tmpfs /tmp -p 127.0.0.1:8080:8080 \
-            -v "$GITHUB_WORKSPACE/apps/website/nginx.conf:/etc/nginx-site/nginx.conf:ro" \
-            site:smoke nginx -c /etc/nginx-site/nginx.conf -g 'daemon off;'
+          docker run -d --name site --read-only --tmpfs /tmp -p 127.0.0.1:8080:8080 site:smoke
           code() { curl -s -m 5 -o /dev/null -w '%{http_code}' "$@" http://127.0.0.1:8080/; }
           for _ in $(seq 1 20); do [ "$(code)" = 200 ] && break; sleep 1; done
           rc=0

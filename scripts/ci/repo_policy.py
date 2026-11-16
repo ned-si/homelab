@@ -319,7 +319,7 @@ RESTIC_LOCKING = {"backup", "check", "forget", "prune", "ls"}
 RESTIC_EXCLUSIVE = {"check", "forget", "prune"}
 # pod-hardening (spec per-app-hardening): checks 1 to 5 run in these namespaces,
 # check 6 (token) in every namespace the Kyverno webhooks do not exclude.
-APP_NAMESPACES = ("books", "home", "immich", "keycloak", "mealie", "paperless", "syncthing", "theater", "website")
+APP_NAMESPACES = ("books", "home", "immich", "keycloak", "mealie", "paperless", "syncthing", "theater")
 APPS_DIR = "clusters/homelab/apps"
 POD_GAPS = "ci/pod-hardening-gaps.txt"
 KYVERNO_SH = "scripts/ci/kyverno.sh"

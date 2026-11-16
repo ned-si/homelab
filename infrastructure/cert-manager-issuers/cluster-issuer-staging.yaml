@@ -22,4 +22,3 @@ spec:
         selector:
           dnsZones:
             - lilalala.com
-            - nedsi.io

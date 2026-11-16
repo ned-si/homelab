@@ -25,7 +25,6 @@ resources:
   - 30-paperless.yaml
   - 40-books.yaml
   - 50-mealie.yaml
-  - 55-website.yaml
   - 60-syncthing.yaml
   - 70-home.yaml
   - 80-backup-verify.yaml

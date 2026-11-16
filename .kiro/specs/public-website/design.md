@@ -5,17 +5,12 @@
 Hugo builds `site/` into static files. A COPY-only Dockerfile puts them on
 an unprivileged nginx image, pushed to GHCR by a workflow on `main`.
 Renovate sees the new digest and opens the usual digest PR, which merges on
-green CI; Argo CD rolls out the `website` app. One nginx pod serves three
-names: the blog at `https://blog.nedsi.io`, the landing page at
-`https://nedsi.io`, and the redirects of `www.nedsi.io` and plain HTTP.
-The nginx config and the landing page are ConfigMaps from
-`apps/website/`, so they change without a new image.
+green CI; Argo CD rolls out the `website` app at `https://nedsi.io`.
 
 Phase 2 adds two things next to the static site:
 
 - `umami`: cookieless statistics, its tracker and collect endpoint proxied
-  under `blog.nedsi.io/stats/`, its UI on `umami.lilalala.com` behind
-  Keycloak.
+  under `nedsi.io/stats/`, its UI on `umami.lilalala.com` behind Keycloak.
 - The publisher CronJobs in `website`: they read Prometheus, validate a
   fixed set of figures, render the dashboard's HTML and SVG and write them
   to ConfigMaps the site pod mounts read-only. nginx includes them in
@@ -29,17 +24,9 @@ Argo CD, Kustomize, CloudNativePG for Umami's database.
 
 ## Domains
 
-`nedsi.io` is the public identity: the landing page at the apex, the blog
-and its dashboard on `blog.nedsi.io`, and anything else public later.
-
-| Name | Serves |
-| --- | --- |
-| `nedsi.io` | The landing page: buttons to the blog, the source repository and, from phase 2, the dashboard |
-| `blog.nedsi.io` | The blog (Hugo), its RSS feed, the dashboard at `/homelab/` (phase 2), the statistics script under `/stats/` (phase 2) |
-| `www.nedsi.io` | `301` to `https://nedsi.io`, path and query kept |
-| `http://` on all three | `301` to the `https://` URL, `www` folded into the apex |
-
-`lilalala.com` stays the household's domain for private and semi-private services, including the admin UIs of this
+`nedsi.io` is the public identity: the blog and its dashboard, and
+anything else public later. `lilalala.com` stays the household's domain
+for private and semi-private services, including the admin UIs of this
 spec. The naming rule in `.kiro/steering/structure.md` says so.
 
 DNS and TLS for `nedsi.io`:
@@ -52,74 +39,33 @@ DNS and TLS for `nedsi.io`:
   Read, DNS Edit). Edited in place, so the SOPS secrets do not change.
 - cert-manager: the `letsencrypt` and staging ClusterIssuers add `nedsi.io`
   to the solver's `dnsZones`. A Certificate `nedsi-io` in the Gateway's
-  namespace covers `nedsi.io`, `www.nedsi.io` and `blog.nedsi.io`: three
-  SANs, three TXT names, no wildcard.
-- Gateway: six listeners next to the `*.lilalala.com` ones, one hostname
-  each: `https-nedsi`, `https-nedsi-www`, `https-nedsi-blog` (443,
-  certificate `nedsi-io`) and `http-nedsi`, `http-nedsi-www`,
-  `http-nedsi-blog` (80). The `*.lilalala.com` redirect route
-  (`infrastructure/gateway/http-redirect.yaml`) does not cover them.
-- Two HTTPRoutes in `website`, both on the three names: `website` on the
-  443 listeners to Service port 8080 with the response headers, and
-  `website-http` on the 80 listeners to port 8081, where nginx answers
-  every request with the redirect. No route uses `RequestRedirect`, see
-  [Redirects](#redirects).
-- external-dns (upsert only, TXT registry, no domain filter today) creates
-  the three A records from the HTTPRoutes, to the WAN address like the
-  other names. It does not take over records it does not own: the
-  proxied apex and `www` records that were in the zone before task 3 must
-  be deleted in the console first.
+  namespace covers `nedsi.io` and `www.nedsi.io`.
+- Gateway: two listeners, `https-nedsi` (443, hostnames `nedsi.io` and
+  `www.nedsi.io`, certificate `nedsi-io`) and `http-nedsi` (80), next to
+  the `*.lilalala.com` ones. The HTTP-to-HTTPS redirect route gets the two
+  names; an HTTPRoute on `www.nedsi.io` redirects to `https://nedsi.io`
+  with `301`.
+- external-dns (upsert only, no domain filter today) creates the apex and
+  `www` records from the HTTPRoutes once the token covers the zone; the
+  apex is an A record to the WAN address like the other names.
 - CAA records `0 issue "letsencrypt.org"` on `nedsi.io`, created in the
   console with the zone (external-dns does not manage CAA).
-
-### Dashboard location
-
-Decided 2026-11-16: the dashboard stays a page of the blog,
-`https://blog.nedsi.io/homelab/`, and the landing page gets a button to
-it in task 7.
-
-- For: it is a Hugo page with the blog's layout, header and footer; the
-  publisher's ConfigMaps are mounted where the blog's files are, and the
-  server-side include runs in the blog's `server` block. Nothing in
-  [Public figures](#public-figures) changes.
-- Rejected, `nedsi.io/homelab/`: the landing page is not a Hugo build,
-  so the dashboard would need its own layout and stylesheet there, or the
-  apex would have to serve part of the Hugo output under a second host.
-
-### Redirects
-
-The redirects are answered by nginx, not by the Gateway. Task 3's first
-attempt (#1399, reverted in #1401) used Gateway API `RequestRedirect`
-filters and failed its PostSync smoke on two points, both Cilium 1.20
-behaviour:
-
-- `scheme: https` without a port gives `Location: https://nedsi.io:443/`
-  (the existing `*.lilalala.com` redirect does the same).
-- The `RequestRedirect` route on the `https-nedsi-www` listener was
-  accepted but answered `404`, while the same route on `http-nedsi-www`
-  answered `301`.
-
-nginx returns `301 https://<name>$request_uri` with no port, the
-behaviour is tested in CI before a merge (`scripts/ci/site-serve-check.sh`),
-and the routes are plain backend routes like every other app's.
 
 ## Layout
 
 | Path | Holds |
 | --- | --- |
-| `site/hugo.toml` | Base URL `https://blog.nedsi.io/`, RSS, markup settings, `buildDrafts=false`, `buildFuture=false`, `[minify.tdewolff.html] keepComments = true` |
+| `site/hugo.toml` | Base URL `https://nedsi.io/`, RSS, markup settings, `buildDrafts=false`, `buildFuture=false`, `[minify.tdewolff.html] keepComments = true` |
 | `site/layouts/` | Home-made templates: `baseof`, `list`, `single`, `index`, `404`, `rss` (full content), `homelab` |
 | `site/assets/css/main.css` | The only stylesheet, fingerprinted by Hugo Pipes |
 | `site/content/` | `about.md`, `privacy.md`, `homelab.md` (phase 2), `posts/<yyyy-mm-dd>-<slug>/index.md` |
 | `site/LICENSE` | CC BY 4.0 for the content under `site/content/` |
-| `site/Dockerfile` | The image: the nginx base and the Hugo output |
-| `apps/website/` | Deployment, Service, HTTPRoutes, PostSync smoke, publisher (phase 2) |
-| `apps/website/nginx.conf` | The nginx config, a ConfigMap: the three names, the redirects, the method limit, the log format |
-| `apps/website/landing/` | The landing page (`index.html`, `landing.css`), a ConfigMap |
+| `site/Dockerfile`, `site/nginx.conf` | The image |
+| `apps/website/` | Namespace, Deployment, Service, HTTPRoutes, NetworkPolicy, PostSync smoke, publisher (phase 2) |
 | `apps/umami/` | Phase 2 statistics |
 | `clusters/homelab/apps/{website,umami}.yaml` | The Applications |
 | `.github/workflows/site-publish.yaml` | Build and push on `main` |
-| `scripts/ci/site-check.sh`, `scripts/ci/site-serve-check.sh` | The `site` job's checks |
+| `scripts/ci/site-check.sh` | The `site` job's checks |
 | `docs/website.md` | How to write, preview and publish; the privacy rules; statistics operations; Why it is like this |
 
 `structure.md` gets the `site/` row. The name `website` is the app
@@ -208,7 +154,6 @@ required check, so the job always runs and exits 0 early when
 | Deny patterns | An e-mail address other than `nedsi@pm.me`; gitleaks already scans the tree |
 | Local files | `git ls-files site \| grep -E '\.local\.'` is non-empty |
 | Drafts | A `draft: true` or future-dated page in `public/` |
-| `site-serve-check.sh`: the base image with `public/`, `apps/website/nginx.conf` and the landing page mounted | A wrong status or `Location` for a name, a missing `405`, no blog link on the landing page |
 
 `htmltest` and `exiftool` are pinned with checksums like the other tools.
 The built `public/` is uploaded as the artefact `site-preview` (7 days).
@@ -221,24 +166,12 @@ cannot know the terms without publishing them).
 
 ## Serving
 
-`apps/website/nginx.conf`, a ConfigMap mounted at `/etc/nginx-site/` and
-started with `nginx -c`. The landing page is a second ConfigMap mounted at
-`/usr/share/nginx/landing/`; the image holds only the blog. A change to
-either rolls the Deployment through the name hash, with no new image.
+`site/nginx.conf`, listening on 8080:
 
-| Port, `server_name` | Answers |
-| --- | --- |
-| 8080 `blog.nedsi.io` (default server, so the kubelet probes land here) | The blog from `/usr/share/nginx/html` |
-| 8080 `nedsi.io` | The landing page |
-| 8080 `www.nedsi.io` | `301 https://nedsi.io$request_uri` |
-| 8081, any name | `301 https://<blog.nedsi.io or nedsi.io>$request_uri`, from a `map` on `$host` |
-
-Every server block:
-
-- `if ($request_method !~ ^(GET|HEAD)$) { return 405; }`, so no other
-  error can turn into a `405`.
-- `server_tokens off`; `autoindex off`; `absolute_redirect off`;
-  `try_files $uri $uri/ =404`; `error_page 404 /404.html` on the blog.
+- `location / { limit_except GET HEAD { deny all; } error_page 403 =405; }`,
+  so only the method refusal becomes a `405`.
+- `server_tokens off`; `autoindex off`; `try_files $uri $uri/ =404`;
+  `error_page 404 /404.html`.
 - `Cache-Control: public, max-age=31536000, immutable` for fingerprinted
   assets under `/css/`, `max-age=300` for HTML and `/index.xml`,
   `no-cache` for `/data/`.
@@ -248,14 +181,12 @@ Every server block:
 - Phase 2: `location /homelab/ { ssi on; }` (a prefix match, so it still
   applies after `try_files` serves `/homelab/index.html`).
 
-Routes (HTTPRoute `website` on the three 443 listeners, `website-http` on
-the three 80 listeners):
+Routes on `nedsi.io` (HTTPRoute `website`, listener `https-nedsi`):
 
-| Route, path | Backend |
+| Path | Backend |
 | --- | --- |
-| `website` `/` | `website` Service, 8080 |
-| `website-http` `/` | `website` Service, 8081 |
-| `/stats/s.js`, `/stats/api/send` (exact) on `blog.nedsi.io` | `umami` Service, rewritten to its tracker and collect paths (phase 2) |
+| `/` | `website` Service, 8080 |
+| `/stats/s.js`, `/stats/api/send` (exact) | `umami` Service, rewritten to its tracker and collect paths (phase 2) |
 
 Exact matches only, so no other Umami path is public.
 
@@ -276,10 +207,10 @@ Phase 1 ships without `script-src` and `connect-src` (both fall back to
 `'none'`); phase 2 adds them with the statistics script.
 
 The PostSync smoke Job (`components/postsync-smoke`) asserts each header
-on both `/` and on a blog 404, the `405`, and the status and `Location`
-of every redirect, so a header lost in a refactor rolls the change back.
-Cilium applies `ResponseHeaderModifier` to the `404` (checked live in
-#1399).
+on `/` and on a 404, the `405`, and the `www` redirect, so a header lost in
+a refactor rolls the change back. Whether Cilium applies
+`ResponseHeaderModifier` to error responses is checked in task 3; if it
+does not, nginx sets the same headers with `add_header ... always`.
 
 ## The `website` app
 
@@ -288,25 +219,18 @@ Cilium applies `ResponseHeaderModifier` to the `404` (checked live in
   `automountServiceAccountToken: false`, `runAsNonRoot`, `runAsUser: 101`,
   `readOnlyRootFilesystem`, capabilities drop `ALL`, `seccompProfile:
   RuntimeDefault`, `allowPrivilegeEscalation: false`; `emptyDir` for
-  `/tmp` (nginx temp and pid paths point there); the ConfigMaps
-  `website-nginx` and `website-landing` read-only; requests `10m`/`32Mi`,
+  `/tmp` (nginx temp and pid paths point there); requests `10m`/`32Mi`,
   limit `64Mi`; readiness and liveness `GET /` on 8080.
-- Service `website` on 8080 (`http`) and 8081 (`http-redirect`);
-  HTTPRoutes `website` and `website-http` as above.
+- Service `website` on 8080; HTTPRoutes `website` and `website-www` as
+  above.
 - Network policies, enforced from the start in the format of
   `infrastructure/network-policies/`: ingress to the site pod from the
-  Gateway only on 8080 and 8081; no egress. Phase 2 adds the publishers' egress to
+  Gateway only on 8080; no egress. Phase 2 adds the publishers' egress to
   the Prometheus Service in `monitoring` and to the API server.
-- Lists: the blackbox probe list with `https://nedsi.io/` (app `nedsi`)
-  and `https://blog.nedsi.io/` (app `blog`), both with the 99.5% SLO and
-  in the user-facing app table in `docs/sre.md`; the pentest scope file
-  (the `dast` targets come from it). Not in `ci/kind-workloads.txt`: the
-  image is `linux/arm64` only and the kind runner is amd64; the `site`
-  job's serve check covers the nginx config instead. No entry in
-  `ci/expected-ingresses.txt`, which lists Ingresses, not HTTPRoutes.
-- The namespace and the Application survived the revert of #1399 (the
-  namespace has `Prune=false`, the Application lost its project
-  destination); task 3 re-adopts both under the same names.
+- Lists: `ci/expected-ingresses.txt`, `ci/kind-workloads.txt` (it boots
+  without data), the blackbox probe list with the public URL (99.5% SLO,
+  the user-facing app table in `docs/sre.md`), the pentest scope file,
+  the `dast` targets.
 
 ## Statistics: Umami
 
@@ -479,10 +403,10 @@ The privacy page (`site/content/privacy.md`) lists:
 | What | How |
 | --- | --- |
 | Templates, links, markup, metadata, drafts | `site` job on every PR (unit level) |
-| Image and nginx config | `site-serve-check.sh` in the `site` job: names, `405`, redirects (and the SSI from phase 2); the `site-publish` smoke before a push |
-| Headers, method, redirects live | PostSync smoke, blackbox probes, `dast` |
+| Image and nginx config | kind boot in pre-production (`ci/kind-workloads.txt`), `curl` checks of method, headers and the SSI in the kind job |
+| Headers, method, redirect live | PostSync smoke, blackbox probe, `dast` |
 | Publisher | pytest with a fake Prometheus; one manual Job run in task 7 |
-| Umami | PostSync smoke: tracker and collect answer on `blog.nedsi.io/stats/`, UI paths `404` on `nedsi.io` and `blog.nedsi.io` |
+| Umami | PostSync smoke: tracker and collect answer on `nedsi.io/stats/`, UI paths `404` on `nedsi.io` |
 | Network policy | Hubble shows no denied flow from the Gateway; acceptance criterion 10 |
 
 ## Edge cases
@@ -494,11 +418,6 @@ The privacy page (`site/content/privacy.md`) lists:
   placeholder; the page shows no figures until the next run.
 - First deploy before the first image exists: task 2 pushes the image
   before task 3 references it.
-- The task 3 merge changes `site/` (base URL `https://blog.nedsi.io/`)
-  and deploys the image of task 2 at the same time: until the Renovate
-  digest PR lands (6 hours at most), the blog's canonical and feed links
-  still name `https://nedsi.io/`. Phase 1 has no published article, so
-  nothing links there yet.
 - The zone not active yet: task 3 waits for task 0; cert-manager retries
   DNS-01 until the zone answers.
 - DNS: external-dns is upsert only; removing the site later needs the
@@ -507,13 +426,7 @@ The privacy page (`site/content/privacy.md`) lists:
 ## Why it is like this
 
 - `nedsi.io`: the public identity apart from the household's domain, so
-  a reader of the blog is not pointed at the family's services. The blog
-  on `blog.nedsi.io` and a landing page at the apex (operator): the apex
-  can link to more than the blog later.
-- Redirects in nginx: Cilium's `RequestRedirect` adds `:443` and did not
-  serve the HTTPS `www` redirect; nginx's are tested before a merge.
-- nginx config and landing page as ConfigMaps: a change to either needs
-  no image build, so a routing fix and its smoke land in one PR.
+  a reader of the blog is not pointed at the family's services.
 - In the cluster: free and fully under the same checks; GitHub Pages
   cannot set the CSP header.
 - Hugo with no theme; the dashboard rendered by the project's own code:
