@@ -136,9 +136,13 @@ sends GETs, plus the `disk/temperatures` query, which the API exposes as POST.
 | `truenas_pool_scrub_end_timestamp_seconds`, `truenas_pool_scrub_errors` | the last scrub |
 | `truenas_dataset_used_bytes`, `truenas_dataset_available_bytes` | each pool's root dataset and its direct children |
 | `truenas_disk_temperature_celsius`, `truenas_disk_info`, `truenas_disk_size_bytes` | `disk`, `disk/temperatures` |
-| `truenas_disk_smart_tests`, `truenas_disk_smart_last_test_success` | `smart/test/results` (absent for a disk with no self-test) |
+| `truenas_disk_smart_tests`, `truenas_disk_smart_last_test_success` | `smart/test/results`, optional (absent for a disk with no self-test, or all absent when the call fails) |
 | `truenas_alerts` (`level`, `klass`) | the NAS's own alert list, not dismissed |
-| `truenas_up` | 1 when every call of the last scrape succeeded |
+| `truenas_up` | 1 when every required call of the last scrape succeeded |
+
+`smart/test/results` is optional because TrueNAS SCALE 25.10 no longer
+schedules SMART self-tests: its failure is logged once at `info` and leaves
+`truenas_up` at 1. Every other call is required.
 
 Recording rules `nas:pool_used:ratio` and `nas:pool_days_until_full` (7-day
 linear trend) and the alerts are in PrometheusRule `homelab-nas`
