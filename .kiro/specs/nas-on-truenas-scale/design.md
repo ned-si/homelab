@@ -27,7 +27,11 @@ image, pytest and the bash test harness in `tests/`.
 
 ## Research
 
-Read on 2026-11-16.
+Read on 2026-11-16; every source re-read on 2026-11-16 for task 1.
+Unchanged, except two additions: the preparation page now also names
+13.3-U1.2 for community users and says init/shutdown scripts transfer but
+can break; the 25.10.0 release notes say only shares with "No Preset"
+move to the Legacy Share preset (see [Shares](#shares)).
 
 | Source | What it says |
 | --- | --- |
@@ -71,7 +75,7 @@ What this means here:
 | Memory | 32 GB, non-ECC | Above the 8 GB minimum; non-ECC as today |
 | Boot device | Kingston A400 120 GB SATA SSD (`ada1`, boot pool on `ada1p2`) | SSD above the 16 GB minimum; kept |
 | Pool `homelab` | RAIDZ1 of five Micron 5210 7.68 TB SATA SSDs (`ada0`, `ada2`-`ada5`) | AHCI; disks renamed `sd*` |
-| L2ARC | Transcend TS128GMTE110S NVMe (`nvd0`), failing | Imports; renamed `nvme0n1`; removal is out of scope |
+| L2ARC | Transcend TS128GMTE110S NVMe (`nvd0`), failing; not in the pool's `cache` vdevs on 2026-11-16 (task 1 record) | Renamed `nvme0n1`; removal is out of scope |
 | Network | Digitus PCIe card, Intel `igb` family, port `igb0` (MAC `…B8:28`) static `192.168.1.228`; second port `igb1` unused; onboard Intel 2.5 GbE has no CORE driver | Linux `igb`; `igb0` renamed to an `en*` name and keeps its address. The onboard port gains a Linux driver (`igc`) and stays unconfigured |
 
 Task 1 confirms the table from the CORE debug file (`pciconf -lv`): every
@@ -206,13 +210,15 @@ Inputs and validation:
 What it reads: REST v2.0 over HTTPS with the CA verified and a 10 s
 timeout per call (`system/info`, `pool`, `boot/get_state`, `service`,
 `sharing/nfs`, `sharing/smb`, `iscsi/target`, `iscsi/initiator`,
-`iscsi/global`, `iscsi/global/sessions`, `network/interface`,
+`iscsi/portal`, `iscsi/global`, `iscsi/global/sessions`, `interface`,
 `network/configuration`, `system/general`, `certificate`, `user`,
 `tunable`, `pool/dataset`, `nfs` (the service config), `cronjob`,
 `initshutdownscript`, `plugin` and `jail` on CORE, where a 404 is
 recorded as "absent"; `zfs/snapshot` only with `--snapshot`). Over SSH,
-with the key in a throwaway `ssh-agent` killed on exit: `sudo zpool get
--H -o property,value all homelab` (feature flags). The TLS certificate's
+with the key in a throwaway `ssh-agent` killed on exit: `zpool get
+-H -o property,value all homelab` (feature flags), through `sudo -n`
+unless the user is `root`; the host key goes into the record's
+`known_hosts` and `--expect` accepts only that key. The TLS certificate's
 SHA-256 fingerprint from the handshake. TLS verifies the chain against
 the CA and the IP SAN `192.168.1.228`, as democratic-csi does; no
 hostname is used. One plain `http://192.168.1.228/` request (no
@@ -251,7 +257,7 @@ as false or empty. The pytest fixtures carry each shape.
 | smb | Share `bits_and_pieces`: path unchanged, `hostsallow` `["192.168.1.0/24"]`, `guest` true |
 | iscsi | Target names equal to the baseline; each target limited to the four nodes (CORE: through initiator group 1; scale: its `auth_networks`, `/32` each); portal on `0.0.0.0:3260` |
 | tls | Fingerprint equal to the baseline; chain and IP SAN verify against the CA |
-| ui | `ui_httpsredirect` true; `http://192.168.1.228/` answers 301 or 302 to `https://`; `GET /` over HTTPS has a `Strict-Transport-Security` header |
+| ui | `ui_httpsredirect` true; `http://192.168.1.228/` answers 301, 302, 307 or 308 to `https://` (CORE answers 307); `GET /` over HTTPS has a `Strict-Transport-Security` header |
 | quiesced (`--quiesced`) | Zero iSCSI sessions |
 | snapshot (`--snapshot <name>`) | Every dataset and zvol of `homelab` in `pool/dataset` has `<dataset>@<name>` in `zfs/snapshot` |
 
@@ -538,10 +544,19 @@ exported dataset mount as before. Two fixes are decided in advance:
   (`media`, `torrents` under `/mnt/homelab/k8s/nfs` in particular) and
   writes the decision (the extra exports, or none needed) into the
   runbook; the canary's non-empty checks catch what the record misses.
+  Recorded 2026-11-16: no dataset sits under either exported path
+  (`homelab/k8s/nfs` and `homelab/k8s/backups` have no children;
+  `media` and `torrents` are directories), so no extra export is
+  needed.
 
 SMB (L3): share `bits_and_pieces` keeps `hostsallow` `192.168.1.0/24` and
-guest access; 25.10 files it under the Legacy Share preset, which keeps
-guest access. The two Windows machines and the Macs connect as guests by
+guest access. The 25.10.0 release notes move only "No Preset" shares to
+the Legacy Share preset, the only 25.10 preset with a guest option. The
+task 1 record shows this share with purpose `DEFAULT_SHARE`, so it may
+stay on the Default preset after U4 and lose guest access; the `smb`
+check then fails with `field sharing/smb guestok missing`. Changing the
+purpose to "No presets" before U4 avoids this. That is a NAS change and
+an operator decision (open, task 1). The two Windows machines and the Macs connect as guests by
 address or name; nothing changes for them if the share opens after the
 migration. Checks: `smbutil view -g //192.168.1.228` and a guest mount
 with a write from the Mac; the operator opens the share on both Windows
