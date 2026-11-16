@@ -163,10 +163,10 @@ able to log in, while one Keycloak pod restarts.
 1. THE Keycloak Deployment SHALL run 2 replicas at least, through an HPA
    with `minReplicas: 2` and `maxReplicas: 3`. (repo-policy `ha-replicas`,
    `autoscale-floor`)
-2. THE Keycloak pods SHALL form one Infinispan cluster through the JGroups
-   `kubernetes` stack, with DNS discovery on a headless Service
-   `keycloak-discovery` that sets `publishNotReadyAddresses: true`, so two
-   pods starting at once find each other. (recorded check: the Keycloak
+2. THE Keycloak pods SHALL form one Infinispan cluster through the default
+   `jdbc-ping` stack, discovering each other through the `jgroups_ping`
+   table in keycloak-db, so two pods starting at once find each other.
+   (recorded check: the Keycloak
    log shows a cluster view of 2 members, after one pod is deleted and
    after both are deleted together)
 3. WHEN one Keycloak pod is deleted, a session opened before SHALL stay

@@ -192,7 +192,7 @@ HPA candidate; as a DaemonSet it is not one.
 | `ci/ha-inventory.yaml` | one entry per workload: kind, namespace, name, class, reason, `enabler` for `none`, `excluded`, `pending`, `hpa` |
 | `scripts/ci/repo_policy.py` | rules `ha-inventory`, `ha-replicas`, `autoscale-floor`, `autoscale-targets`, `vpa-recommend-only`, `vpa-coverage`, `container-requests`, over the rendered objects; tests in `tests/` |
 | PodDisruptionBudgets, topology spread | next to each HA workload's manifests, or the chart's values (`podDisruptionBudget`, `topologySpreadConstraints`, `replicas`) |
-| `platform/keycloak/` | HPA, PDB, spread, `spec.replicas` out of git, CPU and memory requests (the Deployment has no `resources` today); a headless Service `keycloak-discovery` with `publishNotReadyAddresses: true` and `-Djgroups.dns.query=keycloak-discovery.keycloak.svc.cluster.local`; `KC_CACHE` and `KC_CACHE_STACK` unchanged |
+| `platform/keycloak/` | HPA, PDB, spread, `spec.replicas` out of git, CPU and memory requests (the Deployment has no `resources` today); clustering stays on the default `jdbc-ping` stack (no discovery Service, no `jgroups.dns.query`), members talk pod to pod on TCP 7800 and 57800, which `infrastructure/network-policies/85-keycloak.yaml` allows |
 | `platform/blackbox-exporter/probes/probes.yaml` | a public target `https://headlamp.lilalala.com/ping` (oauth2-proxy, as for `hubble`) |
 | `platform/kube-prometheus-stack/values.yaml` (Grafana) | 2 replicas, `database` settings for `grafana-postgresql`, no persistence; a CloudNativePG cluster `grafana-postgresql` in `monitoring` with the Barman Cloud plugin like the others; the `grafana-backup` CronJob and its references removed (task 13); `agent-readonly` re-created through the Grafana API (answered question 11) |
 | CloudNativePG clusters | `instances: 2`, `affinity.podAntiAffinityType: required` |
@@ -245,8 +245,7 @@ dropped and machine learning stays at a fixed 2.
 | HA where the app supports it; `none` documented with its enabler | shared volumes to force HA on every app | the operator's direction; a standby sharing a `ReadWriteOnce` iSCSI volume cannot run on another node, and SQLite apps are single-writer |
 | `whenUnsatisfiable: DoNotSchedule`, `nodeTaintsPolicy: Honor` | `ScheduleAnyway`; the default `nodeTaintsPolicy: Ignore` | two replicas on one node do not survive that node. With `Ignore`, a cordoned node stays a domain with zero pods, so at 3 replicas a rollout's surge pod would stay Pending until tuppr uncordons it; with `Honor` the three schedulable nodes are the domains and the surge fits |
 | PDB `maxUnavailable: 1` on HA workloads only | `minAvailable: 1` everywhere | on a one-replica workload it blocks tuppr's drain |
-| Keycloak on the JGroups `kubernetes` stack, already configured | `jdbc-ping`, Keycloak's default since 26.1 | the operator's direction; Keycloak 26.x deprecates the `kubernetes` stack, so the move is #968, and a release that removes it fails the 2-member check of task 8 |
-| A discovery Service `keycloak-discovery` with `publishNotReadyAddresses: true` | DNS discovery on the HTTP Service `keycloak` | `keycloak` lists ready pods only, so two pods starting together (a full restart, or a node loss with the other pod Pending) each see an empty list and form two clusters until MERGE3 joins them; the Keycloak operator creates the same kind of Service |
+| Keycloak on the default `jdbc-ping` stack (#1005) | the JGroups `kubernetes` stack with a headless discovery Service | Keycloak 26.x deprecates the `kubernetes` stack; `jdbc-ping` discovers members through the `jgroups_ping` table in keycloak-db, so pods that start together find each other without a Service that lists not-ready pods |
 | CloudNativePG asynchronous replication | synchronous (`synchronous.number: 1`) | with one replica, a synchronous commit waits on it; failover loses at most the replica's lag, and WAL is archived to S3 |
 | Prometheus excluded | two replicas | the reasons in the recommendation; answered question 8 |
 | `immich-db` at `instances: 2` | excluded at one instance | the same case as the app databases; its volume is relabelled, and the new instance's volume gets the label from the StorageClass; answered question 10 |
@@ -284,7 +283,7 @@ dropped and machine learning stays at a fixed 2.
 - Valkey unreachable from `keda` (restart, or the `immich` policy): the
   trigger fails and the fallback holds 2 replicas.
 - Keycloak pods split into two clusters after a start together: MERGE3
-  joins them; the `keycloak-discovery` Service makes it rare, and the
+  joins them; discovery through `jgroups_ping` makes it rare, and the
   task 8 check deletes both pods together to prove it.
 - `grafana-postgresql` restored from S3 or rebuilt empty: `agent-readonly`
   comes back with the database when restored; on an empty database it is
