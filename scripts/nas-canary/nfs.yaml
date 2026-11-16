@@ -1,0 +1,65 @@
+# The NFS canary of scripts/nas-maintenance.sh: the four exported paths the
+# cluster mounts, read-only, each non-empty, and media/ and torrents/
+# non-empty through the parent mount too (a child dataset the export does
+# not cross shows as an empty directory there). Prints NFS_OK.
+# backup-verify is `baseline` with egress denied: the pod needs no network
+# (the kubelet mounts the shares). Kyverno checks this file in CI.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nas-canary-nfs
+  namespace: backup-verify
+  labels:
+    app.kubernetes.io/name: nas-canary
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 300
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: canary
+      # renovate: datasource=docker depName=busybox
+      image: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+      command: ["/bin/sh", "-uc"]
+      args:
+        - |
+          fail=0
+          for d in /nas/nfs /nas/media /nas/torrents /nas/backups /nas/nfs/media /nas/nfs/torrents; do
+            if [ -n "$(ls -A "$d" 2>/dev/null | head -n 1)" ]; then echo "ok $d"
+            else echo "EMPTY $d"; fail=1; fi
+          done
+          [ "$fail" = 0 ] && echo NFS_OK
+          exit "$fail"
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+          ephemeral-storage: 1Mi
+        limits:
+          memory: 64Mi
+          ephemeral-storage: 16Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - { name: nfs, mountPath: /nas/nfs, readOnly: true }
+        - { name: media, mountPath: /nas/media, readOnly: true }
+        - { name: torrents, mountPath: /nas/torrents, readOnly: true }
+        - { name: backups, mountPath: /nas/backups, readOnly: true }
+  volumes:
+    - name: nfs
+      nfs: { server: 192.168.1.228, path: /mnt/homelab/k8s/nfs, readOnly: true } # SITE-SPECIFIC
+    - name: media
+      nfs: { server: 192.168.1.228, path: /mnt/homelab/k8s/nfs/media, readOnly: true } # SITE-SPECIFIC
+    - name: torrents
+      nfs: { server: 192.168.1.228, path: /mnt/homelab/k8s/nfs/torrents, readOnly: true } # SITE-SPECIFIC
+    - name: backups
+      nfs: { server: 192.168.1.228, path: /mnt/homelab/k8s/backups, readOnly: true } # SITE-SPECIFIC

@@ -1,0 +1,87 @@
+# The iSCSI canary of scripts/nas-maintenance.sh: a new 1 GiB volume, 64 MiB
+# written and read back with O_DIRECT, then the online expansion to 2 GiB.
+# The pod prints WRITE_OK, waits for the filesystem to grow and prints GREW.
+# backup-verify is `baseline` with egress denied: the pod needs no network
+# (the kubelet mounts the volume). Kyverno checks this file in CI.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nas-canary
+  namespace: backup-verify
+  labels:
+    app.kubernetes.io/name: nas-canary
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: iscsi
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nas-canary-iscsi
+  namespace: backup-verify
+  labels:
+    app.kubernetes.io/name: nas-canary
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 900
+  automountServiceAccountToken: false
+  enableServiceLinks: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: canary
+      # renovate: datasource=docker depName=busybox
+      image: busybox:1.38.0@sha256:a46257e06c82ad85242d0d38077d0a52d9896389ca60a1a59d3463db586e5fa4
+      command: ["/bin/sh", "-euc"]
+      args:
+        - |
+          size() { df -Pk /data | awk 'NR == 2 { print $2 }'; }
+          head -c 67108864 /dev/urandom > /tmp/src.bin
+          want=$(sha256sum /tmp/src.bin | cut -d' ' -f1)
+          dd if=/tmp/src.bin of=/data/canary.bin bs=1M oflag=direct conv=fsync 2>/dev/null
+          sync
+          got=$(dd if=/data/canary.bin bs=1M iflag=direct 2>/dev/null | sha256sum | cut -d' ' -f1)
+          if [ "$want" != "$got" ]; then echo "MISMATCH wrote $want read $got"; exit 1; fi
+          before=$(size)
+          echo "WRITE_OK sha256=$got size_kib=$before"
+          i=0
+          while [ "$i" -lt 600 ]; do
+            now=$(size)
+            if [ "$now" -gt $((before * 3 / 2)) ]; then echo "GREW size_kib=$now"; exit 0; fi
+            i=$((i + 2)); sleep 2
+          done
+          echo "NOT_GROWN size_kib=$(size)"; exit 1
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+          ephemeral-storage: 16Mi
+        limits:
+          memory: 256Mi
+          ephemeral-storage: 64Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: nas-canary
+    - name: tmp
+      emptyDir:
+        medium: Memory
+        sizeLimit: 80Mi
