@@ -819,7 +819,9 @@ jobs:
         run: scripts/ci/kind-preprod.sh boot
 
   # The blog under site/ (scripts/ci/site-check.sh): build, links, markup,
-  # image metadata, content. Exits early when the change does not touch it.
+  # image metadata, content, then nginx with apps/website's config
+  # (scripts/ci/site-serve-check.sh). Exits early when the change does not
+  # touch it.
   # fetch-depth 2: HEAD^1 is the base (main for a pull request's merge commit).
   site:
     runs-on: ubuntu-26.04
@@ -858,6 +860,10 @@ jobs:
         env:
           SITE_OUT: ${{ runner.temp }}/site-public
         run: scripts/ci/site-check.sh
+
+      - name: Serve check (hosts, 405, redirects)
+        if: ${{ steps.check.outputs.built == 'true' }}
+        run: scripts/ci/site-serve-check.sh "$RUNNER_TEMP/site-public"
 
       - name: Upload the site preview
         if: ${{ !cancelled() && steps.check.outputs.built == 'true' }}

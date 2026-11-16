@@ -288,7 +288,7 @@ tasks:
       - ./scripts/render-deploy.sh --check
 
   # -------------------------------------------------------------------------
-  # Site (site/, the blog at nedsi.io; pinned Hugo, scripts/site.sh)
+  # Site (site/, the blog at blog.nedsi.io; pinned Hugo, scripts/site.sh)
   # -------------------------------------------------------------------------
   site:serve:
     desc: Serve site/ with drafts on http://localhost:1313
