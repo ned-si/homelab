@@ -115,17 +115,21 @@ point, a credential or an admission path is added or removed.
 - Control: the Talos and Kubernetes APIs require client certificates; the router
   forwards only the three ports above. Kubernetes Secrets are encrypted at
   rest and the apiserver audit log is on.
+- Control (NAS): both NFS exports and iSCSI initiator group 1 accept only the
+  four node addresses; the web UI redirects HTTP to HTTPS and sends HSTS; the
+  SMB share accepts `192.168.1.0/24` only
+  ([runbooks/nfs-hardening.md](runbooks/nfs-hardening.md)).
 - Residual: one flat network with consumer devices on it; the BMC and the NAS
-  web UI are reachable by anything on the LAN; the media NFS export is open to
-  the whole LAN and the backups export (the NAS copy of the photo library) to
-  the whole subnet ([runbooks/nfs-hardening.md](runbooks/nfs-hardening.md));
-  the audit log stays on each control plane's eMMC.
+  web UI are reachable by anything on the LAN; the SMB share stays on for the
+  household's Windows and macOS machines; NFS and iSCSI trust the client's
+  address, which any LAN device can spoof; the audit log stays on each
+  control plane's eMMC.
 - Control (pods): no pod reaches the NAS except the CSI controller, the
   TrueNAS exporter and the blackbox probes
   (`infrastructure/network-policies/95-nas-egress.yaml`): pod traffic leaves
   with the node's address, so the export allow-lists alone would admit any
   pod (pentest 2026-11-10, P1).
-- Planned: NFS exports scoped to the node addresses; Kubernetes API login
+- Planned: the NAS on TrueNAS SCALE (#1305); Kubernetes API login
   through Keycloak OIDC with the admin certificate kept as break-glass;
   central logs including the audit log; SELinux enforcing on Talos, which
   needs every CSI volume labelled first

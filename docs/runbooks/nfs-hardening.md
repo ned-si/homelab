@@ -1,7 +1,8 @@
-# NFS hardening (outstanding)
+# NFS hardening
 
-An open gap, not a completed task: the media share is exported without
-authentication. The steps below are the plan, in order.
+Both NFS exports accept only the four node addresses (step 1, done
+2026-11-16). They still have no authentication beyond the client's address;
+steps 2-5 are the remaining options, in order.
 
 ## The problem
 
@@ -10,31 +11,30 @@ volumes (`apps/theater/*.yaml`), without authentication.
 
 NFS without Kerberos authenticates by **IP address and UID**, nothing else. So:
 
-- any host that can reach the NAS on port 2049 can mount the media library
+- any host that reaches the NAS on port 2049 from an allowed address can mount
+  the media library
 - it presents whatever UID it likes, and the server believes it
 - everything runs as UID 1000, so a single compromised container on the LAN reads
   and writes the whole library
 
-The library is also the largest single thing in the homelab, and it is the one
-volume not protected by iSCSI's implicit initiator-group scoping.
+The library is also the largest single thing in the homelab.
 
 ### Two datasets, two positions
 
-There are two NFS exports and only one of them is scoped.
+There are two NFS exports, both limited to the node addresses.
 
 | Dataset | Export | Consumers |
 |---|---|---|
-| `homelab/k8s/nfs` → `/mnt/homelab/k8s/nfs` | **open to the whole LAN.** This is the open item | the media library, `theater` |
-| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | scoped to `192.168.1.0/24`, owned uid/gid 1000, mode 0770 | the CronJob `immich/immich-library-backup-local`, which mounts it inline (`apps/immich/resources/backup-files.yaml`) and writes the NAS restic repository of the photo library; the `nfs-storage` leaf declares its PV/PVC pairs (`infrastructure/nfs-storage/backup-volume.yaml`), not mounted by anything yet |
+| `homelab/k8s/nfs` → `/mnt/homelab/k8s/nfs` | hosts `192.168.1.247`, `.238`, `.239`, `.240`; maproot `nobody:nogroup` | the media library, `theater` |
+| `homelab/k8s/backups` → `/mnt/homelab/k8s/backups` | the same four hosts; maproot `root:wheel`; owned uid/gid 1000, mode 0770 | the CronJob `immich/immich-library-backup-local`, which mounts it inline (`apps/immich/resources/backup-files.yaml`) and writes the NAS restic repository of the photo library; the `nfs-storage` leaf declares its PV/PVC pairs (`infrastructure/nfs-storage/backup-volume.yaml`), not mounted by anything yet |
 
 `infrastructure/nfs-storage/backup-volume.yaml` explains why they are separate
 datasets: separate snapshot schedules and compression, separate fill-up risk,
 and a scoped export for the copy you fall back to when the library is gone.
 
-The work below is mostly about the media dataset. `192.168.1.0/24` is also only
-a subnet, not the four node addresses, and the backups export now holds the
-NAS copy of the photo library: any device in the house can mount it and, as
-uid 1000, delete it. Tightening both exports to the node list is step 1.
+The address list is the only control: a LAN device that takes a node's
+address can still mount either export and, as uid 1000, delete the NAS copy
+of the photo library.
 
 ### What network policy does not cover
 
@@ -56,29 +56,38 @@ allow-list stops a *node* or any other host on the LAN.
 Narrowing these mounts limits what a compromised container can reach. It does
 not constrain any host outside the cluster.
 
-## What still needs doing, on the TrueNAS side
+## The TrueNAS side
 
 Ordered by effort-to-benefit.
 
-### 1. Scope the export to the node IPs (do this first)
+### 1. Scope the exports to the node IPs (done 2026-11-16)
 
-In TrueNAS: **Shares → Unix (NFS) Shares →** the `k8s/nfs` share → **Advanced**.
-Then the same for the `k8s/backups` share.
+In TrueNAS: **Shares → Unix (NFS) Shares →** the `k8s/nfs` share → **Advanced**,
+then the same for the `k8s/backups` share. The four node addresses
+(`192.168.1.247`, `.238`, `.239`, `.240`) are listed under **Hosts**, and
+**Networks** is empty: a subnet would include every laptop and phone in the
+house.
 
-List the four node addresses (`192.168.1.247`, `.238`, `.239`, `.240`)
-explicitly under **Hosts** rather than putting the subnet in **Networks**: the
-subnet still includes every laptop and phone in the house.
+The node addresses are site-specific
+([architecture.md](../architecture.md#site-specific-values)). A node with a
+new address gets "permission denied" on mount until its address is added
+here, so redo it if they change.
 
-This alone removes "any device on the LAN" from the threat model. The node
-addresses are site-specific
-([architecture.md](../architecture.md#site-specific-values)), so redo it if they
-change.
+Check from the Mac:
 
-### 2. Turn off `maproot`
+```sh
+showmount -e 192.168.1.228
+```
 
-Confirm the export is **not** configured with `Maproot User: root`. If it is,
-every client is root on the share, and the read-only mounts above are the only
-thing standing between a container and the library.
+Expected: both exports, each with `192.168.1.240 192.168.1.239 192.168.1.238
+192.168.1.247` and nothing else.
+
+### 2. `maproot`
+
+The media export maps root to `nobody:nogroup`. The backups export maps root
+to `root:wheel`: `immich-library-backup-local` writes as root, and clearing it
+would map those writes to `nobody` and break the backup. A client with a node
+address is root on that share.
 
 ### 3. Squash to a dedicated UID
 
