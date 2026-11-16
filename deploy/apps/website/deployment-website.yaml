@@ -88,5 +88,5 @@ spec:
           name: website-nginx-f95fbctkbd
         name: nginx
       - configMap:
-          name: website-landing-hfd2cg996f
+          name: website-landing-27mtbhdh6b
         name: landing

@@ -73,13 +73,14 @@ writing articles.
    from every page with `<link rel="alternate" type="application/rss+xml">`.
 5. Articles with `draft: true` or a future `date` SHALL NOT be in the
    built site.
-6. Articles SHALL be licensed CC BY 4.0, stated in the footer of every
-   page and in `site/LICENSE`; the code keeps the repository licence.
+6. Articles SHALL be licensed CC BY 4.0 in `site/LICENSE`; the code
+   keeps the repository licence. No page states the licence; a copyright
+   page may come later.
 7. A republished article SHALL carry `<link rel="canonical">` to its
    original and a visible line naming where it first appeared.
 8. THE landing page SHALL be one HTML page and one stylesheet, with
    buttons to the blog and the source repository, a dashboard button from
-   phase 2, and the licence and privacy links in its footer.
+   phase 2, and the privacy link in its footer.
 
 ## Requirement 2: Writing and publishing is a pull request
 
@@ -277,5 +278,5 @@ Each default holds until the operator says otherwise. Rows marked
 | About page | Short, a link to his LinkedIn only, written by him | His words, nothing an agent invents |
 | Language | English, British spelling (operator) | Same as the repository |
 | Content plan | Intro article first; then two republished articles with canonical links (operator) | Texts and reuse permission from the operator |
-| Article licence | CC BY 4.0; code under the repository licence (operator) | Reuse with credit |
+| Article licence | CC BY 4.0 in `site/LICENSE`, not stated on the pages; code under the repository licence (operator, 2026-11-16) | Reuse with credit; nobody reads a licence footer |
 | Article merge | Draft PR until the operator marks it ready | His words, under his name |

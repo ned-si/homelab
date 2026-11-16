@@ -139,8 +139,8 @@ inline style is needed.
 
 The `single` layout adds `<link rel="canonical" href="{{ .Params.canonical }}">`
 and a "First published at ..." line when `canonical` is set, otherwise
-a canonical link to itself. The footer of `baseof` states CC BY 4.0 with a
-link to the licence.
+a canonical link to itself. The footer of `baseof` names the author and
+links the privacy page; it states no licence.
 
 ## Why in the cluster
 
