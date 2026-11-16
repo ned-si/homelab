@@ -18,6 +18,8 @@ resources:
   - alerts.yaml
   - argocd-alerts.yaml
   - outage-alerts.yaml
+  # HomelabNASDown from a Prometheus without a NAS volume.
+  - nas-watch.yaml
   - kyverno-alerts.yaml
   # Tetragon runtime detections (observe only) and the agent itself.
   - tetragon-alerts.yaml

@@ -1,0 +1,105 @@
+# HomelabNASDown from a Prometheus that does not depend on the NAS. The main
+# Prometheus keeps its TSDB on iSCSI, so it is down or stuck whenever the NAS
+# is (postmortem 2026-11-15). This one keeps a few hours in an emptyDir,
+# scrapes only the Probe below and sends to the same Alertmanager, which has
+# no volume either. Docs: docs/observability.md#nas-watch.
+#
+# The rule and the Probe carry `homelab.lilalala.com/prometheus: nas-watch`,
+# which the main Prometheus's selectors exclude (values.yaml), so the alert
+# fires once.
+# Tests: tests/prometheus/nas_watch_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: nas-watch
+  namespace: monitoring
+spec:
+  # renovate: datasource=docker depName=quay.io/prometheus/prometheus
+  image: quay.io/prometheus/prometheus:v3.16.0-distroless@sha256:9764044e09eb2c9e1abdb12d0f0188d4efb7384b0262d3c080f0fc59045c89ba
+  replicas: 1
+  serviceAccountName: kube-prometheus-stack-prometheus
+  retention: 6h
+  storage:
+    emptyDir:
+      sizeLimit: 512Mi
+  scrapeInterval: 30s
+  evaluationInterval: 30s
+  probeSelector:
+    matchLabels:
+      homelab.lilalala.com/prometheus: nas-watch
+  ruleSelector:
+    matchLabels:
+      homelab.lilalala.com/prometheus: nas-watch
+  alerting:
+    alertmanagers:
+      - name: kube-prometheus-stack-alertmanager
+        namespace: monitoring
+        port: http-web
+        apiVersion: v2
+  securityContext:
+    fsGroup: 2000
+    runAsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 256Mi
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: nas-watch
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+    homelab.lilalala.com/prometheus: nas-watch
+spec:
+  jobName: nas-watch
+  interval: 30s
+  scrapeTimeout: 10s
+  module: tcp_connect
+  prober:
+    url: blackbox-exporter.monitoring.svc:9115
+    path: /probe
+  targets:
+    staticConfig:
+      # TrueNAS API (democratic-csi), NFS (media, local backups), iSCSI
+      # (every PVC).
+      static:
+        - 192.168.1.228:443
+        - 192.168.1.228:2049
+        - 192.168.1.228:3260
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-nas-watch
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+    homelab.lilalala.com/prometheus: nas-watch
+spec:
+  groups:
+    - name: homelab.nas-watch
+      rules:
+        # 10m rides out a switch flap (postmortem 2026-10-15).
+        - alert: HomelabNASDown
+          expr: max by (instance) (probe_success{job="nas-watch"}) == 0
+          for: 10m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
+            summary: "NAS port {{ $labels.instance }} has been unreachable for 10 minutes"
+            description: >-
+              The NAS is off, hung or cut from the network. If it is dark,
+              press its power button; if it is on but does not answer, power
+              it off and on. Otherwise check the basement switch and the NAS
+              network link.

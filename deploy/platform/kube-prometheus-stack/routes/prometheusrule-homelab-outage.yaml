@@ -57,21 +57,6 @@ spec:
       labels:
         action: auto
         severity: critical
-    - alert: HomelabNASDown
-      annotations:
-        description: 'The NAS does not power on by itself after a power loss: press
-          its power button. Otherwise check the basement switch and the NAS network
-          link.'
-        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabNASDown.md
-        summary: NAS port {{ $labels.instance }} has been unreachable for 10 minutes
-      expr: |
-        max by (instance) (
-          probe_success{job="blackbox-internal", instance=~"192\\.168\\.1\\.228:(3260|2049)"}
-        ) == 0
-      for: 10m
-      labels:
-        action: human
-        severity: critical
     - alert: GatewayDown
       annotations:
         description: '{{ $value }} public hostnames have failed their probe for 5

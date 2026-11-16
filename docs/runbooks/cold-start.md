@@ -106,7 +106,9 @@ and NFS running.
 
 If the NAS does not answer at all: check the cable is in the `B8:28` port of the
 Digitus card, then check the router's DHCP client list in case the NAS lost its
-static configuration (it then appears with a pool address).
+static configuration (it then appears with a pool address). A NAS that is on,
+cabled and still silent is hung: hold its power button until it turns off,
+then press it again ([postmortem 2026-11-15](../postmortems/2026-11-15-nas-hung.md)).
 
 ### The NAS does not start by itself after a power loss
 
