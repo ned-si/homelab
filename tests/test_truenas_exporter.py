@@ -94,6 +94,44 @@ def test_every_metric_has_help_and_type():
         assert any(l.startswith(f"# HELP {n} ") for l in out)
 
 
+def collector(fail):
+    """A Collector whose API answers from DATA and raises for paths in `fail`."""
+    c = exporter.Collector("https://nas", "/nonexistent", cache=0)
+    def call(path, body=None):
+        if path in fail:
+            raise OSError("HTTP Error 404: Not Found")
+        if path.startswith("pool/dataset/id/"):
+            name = path.rsplit("/", 1)[1]
+            return {"name": name, "pool": name, "used": {"parsed": 1}, "available": {"parsed": 1}}
+        return DATA[path]
+
+    c.call = call
+    return c
+
+
+def test_optional_smart_endpoint(capsys):
+    fail = {"smart/test/results"}
+    c = collector(fail)
+    out = c.collect().splitlines()
+    assert "truenas_up 1" in out
+    assert not any(l.startswith("truenas_disk_smart_tests") for l in out)
+    assert not any(l.startswith("truenas_disk_smart_last_test_success") for l in out)
+    assert 'truenas_pool_healthy{pool="tank"} 0' in out
+    c.collect()
+    logs = capsys.readouterr().out
+    assert logs.count("optional api call failed") == 1
+    assert '"level": "error"' not in logs
+    fail.clear()
+    out = c.collect().splitlines()
+    assert 'truenas_disk_smart_tests{disk="ada1"} 0' in out
+    assert capsys.readouterr().out.count("optional api call recovered") == 1
+
+
+def test_required_endpoint_failure():
+    out = collector({"alert/list"}).collect().splitlines()
+    assert "truenas_up 0" in out
+
+
 def test_read_api_key(tmp_path):
     cfg = tmp_path / "c.yaml"
     cfg.write_text("driver: freenas-iscsi\nhttpConnection:\n  host: nas\n  apiKey: \"1-abc\"\n")

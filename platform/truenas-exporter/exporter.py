@@ -183,6 +183,9 @@ def build(data: dict) -> Metrics:
 
 class Collector:
     GETS = ("system/info", "pool", "boot/get_state", "disk", "smart/test/results", "alert/list")
+    # TrueNAS 25.10 removed SMART test scheduling; a failure here leaves
+    # truenas_up alone (docs/observability.md#nas-metrics).
+    OPTIONAL = ("smart/test/results",)
 
     def __init__(self, url: str, config: str, cache: float) -> None:
         self.url, self.config, self.cache = url.rstrip("/"), config, cache
@@ -193,6 +196,7 @@ class Collector:
         self.ctx.verify_mode = ssl.CERT_NONE
         self.lock = threading.Lock()
         self.last, self.at, self.ok = "", 0.0, None
+        self.optional_ok: dict[str, bool] = {}
 
     def call(self, path: str, body=None):
         req = urllib.request.Request(
@@ -214,8 +218,17 @@ class Collector:
                 try:
                     data[path] = self.call(path)
                 except Exception as e:  # noqa: BLE001 -- reported as a metric
-                    failed.append(path)
-                    log("error", "api call failed", path=path, error=type(e).__name__, detail=str(e)[:200])
+                    if path not in self.OPTIONAL:
+                        failed.append(path)
+                        log("error", "api call failed", path=path, error=type(e).__name__, detail=str(e)[:200])
+                    elif self.optional_ok.get(path, True):
+                        log("info", "optional api call failed", path=path, error=type(e).__name__,
+                            detail=str(e)[:200])
+                        self.optional_ok[path] = False
+                    continue
+                if self.optional_ok.get(path) is False:
+                    log("info", "optional api call recovered", path=path)
+                    self.optional_ok[path] = True
             try:
                 data["disk/temperatures"] = self.call("disk/temperatures", {"names": []})
             except Exception as e:  # noqa: BLE001
@@ -232,7 +245,8 @@ class Collector:
                     log("error", "api call failed", path="pool/dataset", error=type(e).__name__)
             m = build(data)
             ok = not failed
-            m.add("truenas_up", "gauge", "1 if every API call of the last scrape succeeded.", 1 if ok else 0)
+            m.add("truenas_up", "gauge", "1 if every required API call of the last scrape succeeded.",
+                  1 if ok else 0)
             m.add("truenas_scrape_duration_seconds", "gauge", "Time the API calls took.",
                   round(time.time() - start, 3))
             if ok != self.ok:
