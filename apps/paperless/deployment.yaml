@@ -75,6 +75,10 @@ spec:
                   key: PAPERLESS_SECRET_KEY
             - name: PAPERLESS_URL
               value: "https://archive.lilalala.com"
+            # Since 3.5.0 PAPERLESS_URL limits ALLOWED_HOSTS to its host and
+            # localhost. The in-cluster jobs call http://paperless:8000.
+            - name: PAPERLESS_ALLOWED_HOSTS
+              value: "archive.lilalala.com,paperless"
             - name: PAPERLESS_BIND_ADDR
               value: "0.0.0.0"
             - name: PAPERLESS_PORT
@@ -111,6 +115,10 @@ spec:
             httpGet:
               path: /accounts/login/
               port: http
+              # The kubelet sends the pod IP, which ALLOWED_HOSTS rejects.
+              httpHeaders:
+                - name: Host
+                  value: localhost
             periodSeconds: 10
             failureThreshold: 3
           # The login page reads the database, so liveness and startup only
