@@ -134,6 +134,21 @@ def test_required_endpoint_failure():
     assert "truenas_up 0" in out
 
 
+def test_temperatures_body_scale_and_core():
+    import urllib.error
+    for accepts in ({}, {"names": []}):
+        c = collector(set())
+        plain = c.call
+        def call(path, body=None, accepts=accepts, plain=plain):
+            if path == "disk/temperatures" and body != accepts:
+                raise urllib.error.HTTPError(path, 400, "Bad Request", {}, None)
+            return plain(path, body)
+        c.call = call
+        out = c.collect().splitlines()
+        assert "truenas_up 1" in out
+        assert 'truenas_disk_temperature_celsius{disk="ada0"} 37' in out
+
+
 def test_read_api_key(tmp_path):
     cfg = tmp_path / "c.yaml"
     cfg.write_text("driver: freenas-iscsi\nhttpConnection:\n  host: nas\n  apiKey: \"1-abc\"\n")

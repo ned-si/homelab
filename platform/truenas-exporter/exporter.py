@@ -25,6 +25,7 @@ import ssl
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -266,7 +267,11 @@ class Collector:
                     log("info", "optional api call recovered", path=path)
                     self.optional_ok[path] = True
             try:
-                data["disk/temperatures"] = self.call("disk/temperatures", {"names": []})
+                # 25.10 rejects `names` (400); CORE may require it.
+                try:
+                    data["disk/temperatures"] = self.call("disk/temperatures", {})
+                except urllib.error.HTTPError:
+                    data["disk/temperatures"] = self.call("disk/temperatures", {"names": []})
             except Exception as e:  # noqa: BLE001
                 failed.append("disk/temperatures")
                 log("error", "api call failed", path="disk/temperatures", error=type(e).__name__)
