@@ -74,8 +74,8 @@ The parts that drive the requirements:
   official v2.1.0 OTA package, SHA-256
   `2c726062ba535c0a1d6b655bc1e668a712e0e8eb252474089c07ff2c5da1fe3e`
   (computed on download; the release publishes no checksum).
-- **Rollback window**: the 48 hours after the window during which a return
-  to CORE stays planned.
+- **Rollback window**: the hour after `nas-maintenance.sh up` during which
+  the freeze holds (operator, 2026-11-17; was 48 hours).
 
 ## Requirement 1: Supported path to the target version
 
@@ -319,28 +319,25 @@ questions below.
 | Target | TrueNAS Community Edition 25.10.8 | TrueNAS's "General" recommendation on 2026-11-16; 27 is a release candidate |
 | Start version | 13.0-U6.7, no CORE update first (operator) | Deal with the main risk directly; U6.8 only if the updater refuses |
 | Path | UI manual updates 24.04.2.5, 24.10.2.4, 25.04.2.6, 25.10.8 | The only documented path without a console |
-| Way back | Boot image of the CORE SSD on the Mac, restored with `dd` | Works without a console; a CORE boot environment is not a valid rollback after the migration |
-| Rollback window | 48 hours | Two nightly backup cycles; keeps the freeze on new PVCs short |
+| Way back | Forward only: a clean install of 25.10.8 from the ISO plus the saved configuration; CORE only as a temporary emergency step if the NAS cannot boot (operator, 2026-11-17). No boot image taken | Staying on CORE is not an option; the ISO path is TrueNAS's documented route to 24.10 and later |
+| Rollback window | 1 hour of clean running on SCALE after `up` (operator, 2026-11-17) | The operator's bar: working for an hour after SCALE is up is enough; a short freeze lets Renovate resume |
 | Cluster during the window | Stateful workloads stopped by `nas-maintenance.sh` | Five NAS reboots; clean unmounts beat waiting on hard NFS mounts and iSCSI timeouts |
 | democratic-csi | Driver `freenas-iscsi`, `zfs.cli.paths` removed (auto-detection) | Same driver as the existing volumes; one config for CORE and SCALE |
 | iSCSI limit | Per-target `auth_networks` = the four nodes, kept by CronJob `nas-iscsi-guard` | SCALE has no per-group network limit; democratic-csi does not set it |
 | Window | A weekday, 09:00-14:00 Zurich | Operator present; evening service guaranteed by the 14:00 stop rule |
 | Window date | Tuesday 2026-11-17 from 09:00 Zurich (operator) | The operator approved the migration and the date |
 | Household notice | The operator tells the household the day before: about 3.5 h without any app that uses storage or login, the SMB share included, and about 30 min without any app at all (operator) | Req 7.4 |
-| Boot-image adapter | The operator has or buys a USB-SATA adapter, about CHF 10 (open) | The only console-free way back to CORE; without it, the rollback needs a graphics card in place of the network card |
-| Heartbeat | healthchecks.io check paused for the window by the operator (open) | The main Prometheus, source of `Watchdog`, is scaled to 0 |
-| Renovate | `renovate-next` disabled from the window until task 10 (open) | No new PVC in the rollback window |
+| Boot-image adapter | None; no boot image (operator, 2026-11-17) | The way back is forward, through the ISO |
+| Heartbeat | healthchecks.io check paused by the operator at the freeze, resumed at the unfreeze (operator) | The main Prometheus, source of `Watchdog`, is scaled to 0 |
+| Renovate | `renovate-next` and auto-rollback disabled from the start of the window until SCALE has run clean for 1 hour after `up` (operator, 2026-11-17) | No new PVC while a return is still planned; task 10 shrinks to that hour |
 | BMC firmware | v2.1.0 flashed in the window, after `down` and before the pool snapshot | On 2.0.5 its reboot cuts power to all four nodes; while the NAS is still untouched CORE, a failure there stops the window with nothing on the NAS changed |
 | Snapshot retention | `homelab@pre-scale-<yyyymmdd>` deleted when the rollback window closes | Space; the backups remain |
 
 ## Operator questions
 
 1. Window date: answered, Tuesday 2026-11-17 from 09:00 Zurich.
-2. USB-SATA adapter for the boot image: open. Without one, the only way
-   back to CORE needs a graphics card in place of the network card.
-3. healthchecks.io pause: open. The operator presses Pause on the
-   heartbeat check at the freeze and Resume at the unfreeze; otherwise an
-   expected "cluster dead" page arrives about 20 minutes in.
-4. Renovate frozen for the 48 h rollback window: open. `renovate-next`
-   stays disabled until task 10, and no PR that adds a PVC merges in that
-   time.
+2. USB-SATA adapter for the boot image: answered, none and no image; the
+   fallback is the ISO install plus the saved configuration.
+3. healthchecks.io pause: answered, yes.
+4. Renovate freeze: answered, until SCALE has run clean for 1 hour after
+   `up`, not 48 hours.
