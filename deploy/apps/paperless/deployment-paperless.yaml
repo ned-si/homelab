@@ -62,6 +62,8 @@ spec:
               name: paperless-secrets
         - name: PAPERLESS_URL
           value: https://archive.lilalala.com
+        - name: PAPERLESS_ALLOWED_HOSTS
+          value: archive.lilalala.com,paperless
         - name: PAPERLESS_BIND_ADDR
           value: 0.0.0.0
         - name: PAPERLESS_PORT
@@ -97,6 +99,9 @@ spec:
         readinessProbe:
           failureThreshold: 3
           httpGet:
+            httpHeaders:
+            - name: Host
+              value: localhost
             path: /accounts/login/
             port: http
           periodSeconds: 10
