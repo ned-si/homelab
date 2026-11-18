@@ -99,7 +99,12 @@ c_cilium=$(commit $((T0 + 200)) "feat(network): update Cilium to 1.18.0" \
   clusters/homelab/infrastructure/cilium.yaml infrastructure/cilium/values.yaml)
 git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=immich TRIGGER=on-health-degraded REVISION="$c_immich")
-expect_eq "not the newest commit on main: skip" skip "$(get action "$o")"
+expect_eq "a later merge of another app: still a revert" revert "$(get action "$o")"
+expect_eq "later merge: the revert is built on main" "$c_cilium" "$(get revert_parent "$o")"
+expect_contains "later merge: reason counts it" "1 later commit(s) on main do not" "$(get reason "$o")"
+t=$(get revert_tree "$o")
+check "later merge: the revert drops the immich change" [ -z "$(git ls-tree -r "$t" clusters/homelab/apps/immich.yaml)" ]
+check "later merge: the revert keeps the cilium change" [ -n "$(git ls-tree -r "$t" clusters/homelab/infrastructure/cilium.yaml)" ]
 o=$(run_decide APP=cilium TRIGGER=on-health-degraded REVISION="$c_cilium")
 expect_eq "cilium is never reverted" skip "$(get action "$o")"
 expect_contains "cilium reason" "never reverted automatically" "$(get reason "$o")"
@@ -189,6 +194,46 @@ git update-ref refs/remotes/origin/main HEAD
 o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_next")
 expect_eq "PostSync failure right after an automatic revert: skip" skip "$(get action "$o")"
 
+echo "decide: the Renovate train merged another app after the breaking one (#1467)"
+# 2026-11-17: paperless degraded after its update, prowlarr merged next.
+c_pl=$(commit $((T0 + 680)) "chore(deps): update paperless-ngx to v3.5.0 (#1464)" \
+  apps/paperless/deployment.yaml deploy/apps/paperless/deployment-paperless.yaml)
+c_pw=$(commit $((T0 + 685)) "chore(deps): update prowlarr to v2.1.0 (#1465)" \
+  apps/theater/prowlarr.yaml deploy/apps/theater/deployment-prowlarr.yaml)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=paperless TRIGGER=on-health-degraded REVISION="$c_pl")
+expect_eq "breaking merge, not the newest: revert" revert "$(get action "$o")"
+expect_eq "train: the reverted commit" "$c_pl" "$(get sha "$o")"
+expect_eq "train: built on main" "$c_pw" "$(get revert_parent "$o")"
+expect_eq "train: paperless is stateful" true "$(get stateful "$o")"
+t=$(get revert_tree "$o")
+expect_eq "train: the revert is git revert on main" \
+  "$(git merge-tree --write-tree --merge-base="$c_pl" "$c_pw" "$c_pl^")" "$t"
+check "train: paperless back to before the update" [ -z "$(git ls-tree -r "$t" apps/paperless/deployment.yaml)" ]
+expect_eq "train: prowlarr update kept" "$(git rev-parse "$c_pw:apps/theater/prowlarr.yaml")" \
+  "$(git rev-parse "$t:apps/theater/prowlarr.yaml")"
+o=$(run_decide APP=paperless TRIGGER=on-health-degraded REVISION="$c_pl" NOW=$((T0 + 680 + 3600)))
+expect_eq "train: the age limit still applies" skip "$(get action "$o")"
+c_plfix=$(commit $((T0 + 690)) "fix(paperless): allow the public host (#1466)" apps/paperless/deployment.yaml)
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=paperless TRIGGER=on-health-degraded REVISION="$c_pl")
+expect_eq "a later commit changes the app: skip" skip "$(get action "$o")"
+expect_contains "later change: reason" "a later commit on main changes paperless" "$(get reason "$o")"
+o=$(run_decide APP=paperless TRIGGER=on-health-degraded REVISION="$c_plfix")
+expect_eq "the later commit itself is reverted when it breaks" revert "$(get action "$o")"
+
+# A shared file (ci/helm-releases.yaml) changed next to the same line by the
+# next merge: the revert does not apply.
+c_ha=$(commit $((T0 + 695)) "chore(deps): update home-assistant to v2026.11.1 (#1470)" \
+  apps/home-assistant/deployment.yaml ci/helm-releases.yaml)
+commit $((T0 + 698)) "chore(deps): update chart signoz to v0.99.1 (#1471)" \
+  platform/signoz/values.yaml ci/helm-releases.yaml >/dev/null
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=home-assistant TRIGGER=on-health-degraded REVISION="$c_ha")
+expect_eq "revert conflicts with a later merge: skip" skip "$(get action "$o")"
+expect_contains "conflict: reason" "no longer applies" "$(get reason "$o")"
+expect_eq "conflict: no revert tree" "" "$(get revert_tree "$o")"
+
 echo "decide: outage guard"
 # OUTAGE_CHECK is a command; its first line is the outage reason.
 mkdir -p "$tmp/guards"
@@ -205,6 +250,8 @@ o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" MAIN_REF="$c
 expect_eq "no outage: revert" revert "$(get action "$o")"
 o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" MAIN_REF="$c_bump" OUTAGE_CHECK="$tmp/guards/broken")
 expect_eq "a failing guard holds nothing back" revert "$(get action "$o")"
+o=$(run_decide APP=paperless TRIGGER=on-health-degraded REVISION="$c_pl" MAIN_REF="$c_pw" OUTAGE_CHECK="$tmp/guards/outage")
+expect_eq "outage: a revert behind a later merge is skipped too" skip "$(get action "$o")"
 o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_auto" MAIN_REF="$c_auto" OUTAGE_CHECK="$tmp/guards/outage")
 expect_contains "the guard runs only for a revert" "itself a revert" "$(get reason "$o")"
 o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" GUARD_WAIT=soon)
@@ -315,6 +362,18 @@ expect_eq "label auto-rollback" auto-rollback "$(jq -r '.labels | join(",")' "$l
 m=$(call 'pr merge')
 expect_eq "auto-merge uses the owner token" owner-token "$(cat "$m.token")"
 check "revert: no issue is opened" [ -z "$(grep -lE 'repos/o/r/issues --input|issues\?state|/comments' "$tmp/log"/*.args 2>/dev/null)" ]
+
+reset_log
+out=$(env "${act_env[@]}" ACTION=revert REVERT_PARENT="$c_pw" "$ACT" 2>&1) || bad "revert on a later main failed: $out"
+expect_eq "later main: the revert commit sits on it" "$c_pw" "$(jq -r '.parents | join(",")' "$(call 'git/commits').stdin")"
+expect_eq "later main: branch still named after the reverted commit" "refs/heads/auto-revert/${c_immich:0:12}" \
+  "$(jq -r .ref "$(call 'git/refs').stdin")"
+reset_log
+if env "${act_env[@]}" ACTION=revert REVERT_PARENT=main "$ACT" >/dev/null 2>&1; then
+  bad "a REVERT_PARENT that is no SHA was accepted"
+else
+  ok "a REVERT_PARENT that is no SHA is refused"
+fi
 
 reset_log
 out=$(env "${act_env[@]}" ACTION=revert LABEL_FAIL=1 "$ACT" 2>&1) || bad "label failure stopped the revert: $out"
@@ -463,6 +522,22 @@ hook 3 'echo MERGED > "$KLOG/state"'
 out=$(keep) || bad "main still: keep failed: $out"
 check "main still: nothing rebuilt" [ -z "$(kcall 'git/')" ]
 expect_eq "main still: head untouched" "$k_act" "$(head_of)"
+
+# The revert act built on a later main (#1467): BASE is that main, so nothing
+# is rebuilt until main moves past it.
+keep_setup later
+(cd "$K/up" && echo later > other.txt && git add -A && git commit -qm "fix(other): later (#6)")
+k_main=$(git -C "$K/up" rev-parse main)
+k_act=$(git -C "$K/up" commit-tree \
+  "$(git -C "$K/up" merge-tree --write-tree --merge-base="$k_bad" "$k_main" "$k_bad^")" -p "$k_main" \
+  -m "revert: feat(app): break it (auto)" -m "This reverts commit $k_bad.")
+git -C "$K/up" update-ref "refs/heads/auto-revert/${k_bad:0:12}" "$k_act"
+git -C "$K/work" fetch -q origin
+hook 3 'echo MERGED > "$KLOG/state"'
+out=$(keep BASE="$k_main") || bad "built on a later main: keep failed: $out"
+check "built on a later main: nothing rebuilt" [ -z "$(kcall 'git/')" ]
+expect_eq "built on a later main: head untouched" "$k_act" "$(head_of)"
+if keep BASE=main >/dev/null; then bad "bad BASE accepted"; else ok "bad BASE refused"; fi
 
 keep_setup conflict
 hook 1 "$(on_main "$tmp/vals.conflict" "rm app/new.yaml" "fix(app): another fix (#6)")"

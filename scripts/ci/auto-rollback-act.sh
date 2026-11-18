@@ -2,9 +2,9 @@
 # auto-rollback-act.sh -- carry out a decision of auto-rollback-decide.sh.
 #
 # ACTION=revert:
-#   1. a commit on top of SHA whose tree is REVERT_TREE (SHA's parent's),
-#      created through the Git Data API with BOT_TOKEN and no author, so
-#      GitHub signs it;
+#   1. a commit on top of REVERT_PARENT (main when decided, default SHA)
+#      whose tree is REVERT_TREE (SHA reverted on it), created through the
+#      Git Data API with BOT_TOKEN and no author, so GitHub signs it;
 #   2. branch auto-revert/<sha12>; if it exists, another run handled it;
 #   3. a pull request titled PR_TITLE, label `auto-rollback`, opened with
 #      PR_TOKEN (a pull request opened by GITHUB_TOKEN would not start CI),
@@ -14,7 +14,7 @@
 # Any other ACTION is a no-op that prints the reason.
 #
 # Environment: ACTION, APP, TRIGGER, SHA, SUBJECT, PR_TITLE, REVERT_TREE,
-# REASON, STATEFUL, REPO (owner/name), BOT_TOKEN, PR_TOKEN, RUN_URL.
+# REVERT_PARENT, REASON, STATEFUL, REPO (owner/name), BOT_TOKEN, PR_TOKEN, RUN_URL.
 #
 # The backticks in the printf formats below are Markdown code spans.
 # shellcheck disable=SC2016
@@ -38,6 +38,8 @@ fi
 : "${BOT_TOKEN:?}" "${PR_TITLE:?}" "${REVERT_TREE:?}"
 [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || die "bad SHA"
 [[ "$REVERT_TREE" =~ ^[0-9a-f]{40}$ ]] || die "bad REVERT_TREE"
+REVERT_PARENT=${REVERT_PARENT:-$SHA}
+[[ "$REVERT_PARENT" =~ ^[0-9a-f]{40}$ ]] || die "bad REVERT_PARENT"
 
 bot() { GH_TOKEN=$BOT_TOKEN gh "$@"; }
 owner() { GH_TOKEN=$PR_TOKEN gh "$@"; }
@@ -46,7 +48,7 @@ branch="auto-revert/${SHA:0:12}"
 
 message=$(printf '%s\n\nThis reverts commit %s.\n\nArgo CD reported %s for %s after this commit was deployed.\n' \
   "$PR_TITLE" "$SHA" "$TRIGGER" "$APP")
-commit=$(jq -n --arg m "$message" --arg t "$REVERT_TREE" --arg p "$SHA" \
+commit=$(jq -n --arg m "$message" --arg t "$REVERT_TREE" --arg p "$REVERT_PARENT" \
     '{message: $m, tree: $t, parents: [$p]}' \
   | bot api "repos/$REPO/git/commits" --input - --jq '.sha')
 echo "auto-rollback-act: revert commit $commit"

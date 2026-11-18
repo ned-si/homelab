@@ -184,11 +184,19 @@ when any Application's sync fails or its health stays Degraded for 5 minutes
 revision of that Application's last sync. `.github/workflows/auto-rollback.yaml`
 then opens a revert pull request titled `revert: <title> (auto)`, label
 `auto-rollback`, with auto-merge on, but only when every guard rail in
-`scripts/ci/auto-rollback-decide.sh` holds: the commit is the newest on `main`,
-merged under an hour ago, it changed a file of that Application, the
-Application is not `cilium` or `democratic-csi`, it would not be a second
-automatic revert in a row, and there is no outage. Otherwise it does nothing
-and writes the reason to the run summary. For the apps with a database, the
+`scripts/ci/auto-rollback-decide.sh` holds: the commit is on `main` and no
+later commit changed a file of that Application, it was merged under an hour
+ago, it changed a file of that Application, the Application is not `cilium`
+or `democratic-csi`, it would not be a second automatic revert in a row, the
+revert applies on `main` without a conflict, and there is no outage.
+Otherwise it does nothing and writes the reason to the run summary.
+
+The commit does not have to be the newest one. The Renovate train merges the
+next update minutes after the previous one, so a broken app is often behind a
+later merge of another app (paperless on 2026-11-17, #1467). The revert is
+`git revert` of that commit on top of `main`, so the later merges stay.
+Rejected: making the train wait for each app to turn Healthy before the next
+merge, which slows every update to catch the rare broken one. For the apps with a database, the
 pull request says a revert does not undo a schema migration: restore from
 backup.
 
@@ -211,7 +219,7 @@ the NAS is unreachable (`HomelabNodeNotReady`, `HomelabNASUnreachable` in
 `platform/kube-prometheus-stack/routes/outage-alerts.yaml`, read from the
 ntfy.sh guard topic, the Actions secret `NTFY_TOPIC` plus `-guard`, which
 quiet hours do not mute). In an outage every app
-degrades at once and the newest merge is not the cause.
+degrades at once and the last merge is not the cause.
 
 No GitHub issues: the failure is an alert (`homelab-argocd`,
 [observability.md](observability.md#argo-cd-alerts)) that resolves on its own,
