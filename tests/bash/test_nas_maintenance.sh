@@ -58,8 +58,9 @@ case "$1" in
     fi ;;
   scale) touch "$FK/downed" ;;
   annotate|apply) ;;
+  create) if [ -f "$FK/create-fails" ]; then echo "forbidden" >&2; exit 1; fi ;;
   rollout) touch "$FK/restarted" ;;
-  delete) touch "$FK/deleted" ;;
+  delete) [ "$2" = job ] || touch "$FK/deleted" ;;
   logs) cat "$FK/log-$2" 2>/dev/null ;;
   *) echo "fake kubectl: unexpected: $*" >&2; exit 1 ;;
 esac
@@ -306,11 +307,26 @@ expect_contains "guard: target by name" "iscsi/target?name=csi-pvc-canary-cluste
 expect_contains "guard: CA verified" "--cacert" "$(calls)"
 expect_contains "guard: key on stdin" "Bearer SECRETKEY123" "$(cat "$FK/curl-stdin")"
 case "$out$(calls)" in *SECRETKEY123*) bad "guard: key never in arguments or output" ;; *) ok "guard: key never in arguments or output" ;; esac
+# `down` suspends the CronJob: the canary runs the guard once itself (#1472).
+expect_contains "guard: Job from the suspended CronJob" \
+  "-n democratic-csi create job --from=cronjob/nas-iscsi-guard nas-iscsi-guard-canary" "$(calls)"
+expect_contains "guard: Job deleted" "-n democratic-csi delete job nas-iscsi-guard-canary --ignore-not-found --wait=false" "$(calls)"
+case "$(grep -n 'create job\|iscsi/target' "$FK/calls.log" | head -n 1)" in
+  *"create job"*) ok "guard: Job created before the first poll" ;;
+  *) bad "guard: Job created before the first poll" ;;
+esac
 echo '[{"name":"csi-pvc-canary-cluster","auth_networks":[]}]' > "$FK/target.json"
 rm -f "$FK/deleted"
 out=$(NAS_MAINT_GUARD_TIMEOUT=0 run canary --hold-guard)
 expect_contains "guard open: exit 1" "rc=1" "$out"
 expect_contains "guard open: says why" "FAIL at guard" "$out"
+: > "$FK/calls.log"
+touch "$FK/create-fails"
+out=$(run canary --hold-guard)
+expect_contains "guard Job not created: exit 1" "rc=1" "$out"
+expect_contains "guard Job not created: says why" "FAIL at guard: forbidden" "$out"
+case "$(calls)" in *iscsi/target*) bad "guard Job not created: no poll" ;; *) ok "guard Job not created: no poll" ;; esac
+rm -f "$FK/create-fails"
 
 echo "canary: read-back mismatch"
 fixtures

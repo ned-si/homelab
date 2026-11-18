@@ -21,8 +21,9 @@
 #           restores Argo CD (apps, layers, root), in every case.
 #   canary  in namespace backup-verify: a new iSCSI volume written, read back
 #           and expanded, then the four NFS paths non-empty
-#           (scripts/nas-canary/). --hold-guard (SCALE) also waits until
-#           nas-iscsi-guard limits the new target to the four nodes.
+#           (scripts/nas-canary/). --hold-guard (SCALE) also runs a Job from
+#           CronJob nas-iscsi-guard (suspended by `down`) and waits until it
+#           limits the new target to the four nodes.
 #   status  the counts `down` waits on and the newest state file.
 #
 # Needs kubectl (operator kubeconfig), jq; curl for --hold-guard.
@@ -429,9 +430,12 @@ cmd_up() {
 # --- canary -----------------------------------------------------------------
 
 canary_pv=""
+guard_job=""
+GUARD_NS=democratic-csi
 canary_cleanup() {
   local deadline
   k -n "$CANARY_NS" delete pod,pvc -l "$CANARY_LABEL" --ignore-not-found --wait=false > /dev/null 2>&1
+  [ -z "$guard_job" ] || k -n "$GUARD_NS" delete job "$guard_job" --ignore-not-found --wait=false > /dev/null 2>&1
   [ -n "$canary_pv" ] || return 0
   deadline=$(( $(now) + STEP_TIMEOUT ))
   while k get pv "$canary_pv" > /dev/null 2>&1; do
@@ -445,6 +449,7 @@ canary_fail() { # <step> <detail>
   for p in nas-canary-iscsi nas-canary-nfs; do
     k -n "$CANARY_NS" logs "$p" --tail=20 2>/dev/null | sed "s/^/  $p: /" >&2
   done
+  [ -z "$guard_job" ] || k -n "$GUARD_NS" logs "job/$guard_job" --tail=20 2>/dev/null | sed "s/^/  $guard_job: /" >&2
   canary_cleanup
   die 1 "canary: FAIL at $1: $2"
 }
@@ -495,8 +500,13 @@ hold_guard() {
   [ -n "$target" ] || canary_fail guard "no iqn on PV $canary_pv"
   # shellcheck disable=SC2086 # one address per word
   want=$(printf '%s\n' $ISCSI_AUTH_NETWORKS | jq -R . | jq -sc 'sort')
+  # `down` suspends the CronJob, so its schedule never comes: run it once.
+  guard_job=nas-iscsi-guard-canary
+  k -n "$GUARD_NS" delete job "$guard_job" --ignore-not-found > /dev/null 2>&1
+  k -n "$GUARD_NS" create job --from=cronjob/nas-iscsi-guard "$guard_job" > /dev/null 2> "$tmp/err" \
+    || canary_fail guard "$(head -n 1 "$tmp/err")"
   deadline=$(( $(now) + GUARD_TIMEOUT ))
-  log "canary: waiting for nas-iscsi-guard to limit target $target to $want"
+  log "canary: waiting for Job $guard_job to limit target $target to $want"
   while :; do
     got=$(nas_api "iscsi/target?name=$target" | jq -c '[.[0].auth_networks[]?] | sort' 2>/dev/null)
     log "canary: target $target auth_networks ${got:-unreadable}"
