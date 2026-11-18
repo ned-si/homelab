@@ -1,0 +1,44 @@
+# Talos ingress firewall (pentest finding L6, #1308): the unauthenticated
+# metrics ports answer only the nodes and the pod network (Prometheus), not
+# the rest of the LAN. Default accept: every other port is untouched, and each
+# rule drops its ports from any source outside its subnets (IPv6 included).
+# https://docs.siderolabs.com/talos/v1.11/networking/ingress-firewall
+apiVersion: v1alpha1
+kind: NetworkDefaultActionConfig
+ingress: accept
+---
+# etcd metrics (control planes, patches/controlplane-metrics.yaml).
+apiVersion: v1alpha1
+kind: NetworkRuleConfig
+name: etcd-metrics
+portSelector:
+  ports:
+    - 2381
+  protocol: tcp
+ingress:
+  # Pod CIDR (talconfig.yaml clusterPodNets): Prometheus scrapes from a pod.
+  - subnet: 10.244.0.0/16
+  # The nodes: pod traffic leaving a node is masqueraded to its address.
+  - subnet: 192.168.1.247/32
+  - subnet: 192.168.1.238/32
+  - subnet: 192.168.1.239/32
+  - subnet: 192.168.1.240/32
+  # The API VIP, a second address on whichever control plane holds it.
+  - subnet: 192.168.1.11/32
+---
+# node-exporter 9100; Cilium agent 9962, operator 9963, Envoy 9964, Hubble 9965.
+apiVersion: v1alpha1
+kind: NetworkRuleConfig
+name: node-metrics
+portSelector:
+  ports:
+    - 9100
+    - 9962-9965
+  protocol: tcp
+ingress:
+  - subnet: 10.244.0.0/16
+  - subnet: 192.168.1.247/32
+  - subnet: 192.168.1.238/32
+  - subnet: 192.168.1.239/32
+  - subnet: 192.168.1.240/32
+  - subnet: 192.168.1.11/32

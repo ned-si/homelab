@@ -47,6 +47,8 @@ patches:
   - "@./patches/kubelet-serving-certs.yaml"
   # Service logs as JSON to the Vector pod on the node (docs/observability.md, "Logs").
   - "@./patches/logging.yaml"
+  # Metrics ports closed to the LAN outside the cluster (docs/talos.md, "Machine config").
+  - "@./patches/firewall-metrics.yaml"
 
 controlPlane:
   patches:
