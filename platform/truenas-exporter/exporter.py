@@ -1,5 +1,4 @@
-"""TrueNAS CORE exporter: pools, disks, SMART self-tests, temperatures,
-capacity and the NAS's own alerts, read from the REST API v2.0 as Prometheus
+"""TrueNAS exporter: pools, disks, temperatures, capacity and the NAS's own alerts, read from the REST API v2.0 as Prometheus
 metrics.
 
 Read-only: every call is a GET, except `disk/temperatures`, which is a query
@@ -156,22 +155,9 @@ def build(data: dict, iscsi_networks: frozenset[str] = frozenset()) -> Metrics:
         m.add("truenas_disk_info", "gauge", "Disk model and type.", 1, disk=name,
               model=d.get("model") or "", type=d.get("type") or "")
         m.add("truenas_disk_size_bytes", "gauge", "Disk size.", d.get("size"), disk=name)
-        m.add("truenas_disk_smart_enabled", "gauge", "1 if SMART monitoring is on for the disk.",
-              1 if d.get("togglesmart") else 0, disk=name)
 
     for name, temp in sorted((data.get("disk/temperatures") or {}).items()):
         m.add("truenas_disk_temperature_celsius", "gauge", "Disk temperature.", temp, disk=name)
-
-    for r in data.get("smart/test/results") or []:
-        name, tests = r["disk"], r.get("tests") or []
-        m.add("truenas_disk_smart_tests", "gauge", "SMART self-tests in the disk's log.",
-              len(tests), disk=name)
-        if tests:
-            last = tests[0]  # newest first
-            m.add("truenas_disk_smart_last_test_success", "gauge",
-                  "1 if the newest SMART self-test passed.",
-                  1 if last.get("status") == "SUCCESS" else 0, disk=name,
-                  test=last.get("description", ""))
 
     counts: dict[tuple[str, str], int] = {}
     for a in data.get("alert/list") or []:
@@ -217,10 +203,7 @@ def iscsi_unrestricted(targets, initiators, expected: frozenset[str]) -> int:
 
 
 class Collector:
-    GETS = ("system/info", "pool", "boot/get_state", "disk", "smart/test/results", "alert/list")
-    # TrueNAS 25.10 removed SMART test scheduling; a failure here leaves
-    # truenas_up alone (docs/observability.md#nas-metrics).
-    OPTIONAL = ("smart/test/results",)
+    GETS = ("system/info", "pool", "boot/get_state", "disk", "alert/list")
     ISCSI_GETS = ("iscsi/target", "iscsi/initiator")
 
     def __init__(self, url: str, config: str, cache: float, iscsi_networks: frozenset[str] = frozenset()) -> None:
@@ -233,7 +216,6 @@ class Collector:
         self.ctx.verify_mode = ssl.CERT_NONE
         self.lock = threading.Lock()
         self.last, self.at, self.ok = "", 0.0, None
-        self.optional_ok: dict[str, bool] = {}
 
     def call(self, path: str, body=None):
         req = urllib.request.Request(
@@ -255,17 +237,8 @@ class Collector:
                 try:
                     data[path] = self.call(path)
                 except Exception as e:  # noqa: BLE001 -- reported as a metric
-                    if path not in self.OPTIONAL:
-                        failed.append(path)
-                        log("error", "api call failed", path=path, error=type(e).__name__, detail=str(e)[:200])
-                    elif self.optional_ok.get(path, True):
-                        log("info", "optional api call failed", path=path, error=type(e).__name__,
-                            detail=str(e)[:200])
-                        self.optional_ok[path] = False
-                    continue
-                if self.optional_ok.get(path) is False:
-                    log("info", "optional api call recovered", path=path)
-                    self.optional_ok[path] = True
+                    failed.append(path)
+                    log("error", "api call failed", path=path, error=type(e).__name__, detail=str(e)[:200])
             try:
                 # 25.10 rejects `names` (400); CORE may require it.
                 try:

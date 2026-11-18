@@ -5,10 +5,10 @@
     {"alertname": "CertificateExpiringSoon", "severity": "warning", "namespace": "gateway", "name": "wildcard"},
     {"alertname": "BackupVerifyMissing", "severity": "warning", "check": "mariadb"},
     {"alertname": "LANNewDeviceSeen", "severity": "warning", "mac": "00:11:22:33:44:55"},
-    {"alertname": "NASSmartTestFailed", "severity": "warning", "disk": "ada3", "test": "SHORT"},
+    {"alertname": "NASPoolDeviceErrors", "severity": "warning", "pool": "homelab", "role": "data", "disk": "sdc", "type": "checksum"},
     {"alertname": "ArrIndexersFailing", "severity": "warning", "namespace": "theater", "source": "IndexerLongTermStatusCheck"},
     {"alertname": "TalosUpgradeStuck", "severity": "warning", "name": "cluster"}
   ],
-  "notifications": ["ntfy ArrIndexersFailing", "ntfy BackupVerifyMissing", "ntfy CertificateExpiringVerySoon", "ntfy LANNewDeviceSeen", "ntfy NASSmartTestFailed", "ntfy TalosUpgradeStuck"],
-  "uninhibited": ["ArrIndexersFailing", "BackupVerifyMissing", "CertificateExpiringVerySoon", "LANNewDeviceSeen", "NASSmartTestFailed", "TalosUpgradeStuck"]
+  "notifications": ["ntfy ArrIndexersFailing", "ntfy BackupVerifyMissing", "ntfy CertificateExpiringVerySoon", "ntfy LANNewDeviceSeen", "ntfy NASPoolDeviceErrors", "ntfy TalosUpgradeStuck"],
+  "uninhibited": ["ArrIndexersFailing", "BackupVerifyMissing", "CertificateExpiringVerySoon", "LANNewDeviceSeen", "NASPoolDeviceErrors", "TalosUpgradeStuck"]
 }

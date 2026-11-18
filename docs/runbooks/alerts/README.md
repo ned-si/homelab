@@ -96,7 +96,6 @@ that application's failing conditions and resources.
 - [NASPoolUnhealthy](NASPoolUnhealthy.md): a ZFS pool not healthy
 - [NASPoolDeviceNotOnline](NASPoolDeviceNotOnline.md): a pool device not ONLINE
 - [NASPoolDeviceErrors](NASPoolDeviceErrors.md): read, write or checksum errors on a pool device
-- [NASSmartTestFailed](NASSmartTestFailed.md): a disk failed its SMART self-test
 - [NASDiskHot](NASDiskHot.md): a disk above 65 °C
 - [LANDeviceUnreachable](LANDeviceUnreachable.md): the router or the BMC does not answer
 - [LANNewDeviceSeen](LANNewDeviceSeen.md): new hardware on the LAN

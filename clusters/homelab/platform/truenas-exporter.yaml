@@ -1,4 +1,4 @@
-# truenas-exporter: NAS pools, disks, SMART, temperatures and capacity as
+# truenas-exporter: NAS pools, disks, temperatures and capacity as
 # metrics (platform/truenas-exporter, docs/observability.md).
 #
 # Destination `democratic-csi`: the exporter reads the CSI driver's existing

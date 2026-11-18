@@ -38,11 +38,6 @@ DATA = {
     ],
     "disk": [{"name": "ada0", "model": "Model \"X\"", "type": "SSD", "size": 1000, "togglesmart": True}],
     "disk/temperatures": {"ada0": 37, "nvd0": None},
-    "smart/test/results": [
-        {"disk": "ada0", "tests": [{"description": "Short offline", "status": "FAILED"},
-                                   {"description": "Short offline", "status": "SUCCESS"}]},
-        {"disk": "ada1", "tests": []},
-    ],
     "alert/list": [
         {"level": "CRITICAL", "klass": "SMART", "dismissed": False},
         {"level": "CRITICAL", "klass": "SMART", "dismissed": False},
@@ -76,14 +71,12 @@ def test_capacity():
     assert 'truenas_dataset_available_bytes{dataset="boot-pool",pool="boot-pool"} 90' in out
 
 
-def test_disks_smart_and_alerts():
+def test_disks_and_alerts():
     out = lines()
     assert 'truenas_disk_info{disk="ada0",model="Model \\"X\\"",type="SSD"} 1' in out
     assert 'truenas_disk_temperature_celsius{disk="ada0"} 37' in out
     assert not any(l.startswith('truenas_disk_temperature_celsius{disk="nvd0"') for l in out)
-    assert 'truenas_disk_smart_last_test_success{disk="ada0",test="Short offline"} 0' in out
-    assert 'truenas_disk_smart_tests{disk="ada1"} 0' in out
-    assert not any(l.startswith('truenas_disk_smart_last_test_success{disk="ada1"') for l in out)
+    assert not any(l.startswith("truenas_disk_smart") for l in out)
     assert 'truenas_alerts{klass="SMART",level="CRITICAL"} 2' in out
     assert not any("UnscheduledReboot" in l for l in out)
 
@@ -109,24 +102,6 @@ def collector(fail):
 
     c.call = call
     return c
-
-
-def test_optional_smart_endpoint(capsys):
-    fail = {"smart/test/results"}
-    c = collector(fail)
-    out = c.collect().splitlines()
-    assert "truenas_up 1" in out
-    assert not any(l.startswith("truenas_disk_smart_tests") for l in out)
-    assert not any(l.startswith("truenas_disk_smart_last_test_success") for l in out)
-    assert 'truenas_pool_healthy{pool="tank"} 0' in out
-    c.collect()
-    logs = capsys.readouterr().out
-    assert logs.count("optional api call failed") == 1
-    assert '"level": "error"' not in logs
-    fail.clear()
-    out = c.collect().splitlines()
-    assert 'truenas_disk_smart_tests{disk="ada1"} 0' in out
-    assert capsys.readouterr().out.count("optional api call recovered") == 1
 
 
 def test_required_endpoint_failure():

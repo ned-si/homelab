@@ -60,7 +60,7 @@ JSON in `platform/kube-prometheus-stack/dashboards/`, one ConfigMap each
 | Homelab / CI-CD (`homelab-cicd`) | latest run on main and success rate per GitHub workflow, run durations, open pull requests by age, Renovate automerge rate and lead time, Dependency Dashboard sections, auto-rollback pull requests, Argo CD applications not Synced/Healthy, time since each application's last successful sync |
 | Homelab / Automation (`homelab-automation`) | what ran on its own in the last 7 days, newest first, one row per event with when, kind, app, what and result, and a link to the pull request, run, commit or dashboard: merged pull requests (Renovate, auto-rollback reverts, the rest), auto-rollback and tofu runs, Argo CD syncs with their revision, backup and restore-test Jobs, CNPG base backups, tuppr upgrades, maintenance silences (recording rule `automation:event:timestamp_seconds`, `routes/automation.yaml`); counts of merges, automerges, reverts and failures; syncs and alerts per hour with the INFO and PAGE alerts as annotations; INFO alerts firing now |
 | Homelab / Nodes (`homelab-nodes`) | per node: Talos, kernel, Kubernetes and containerd versions, Ready, uptime; saturation (CPU, memory, PSI, eMMC busy), latency (eMMC and iSCSI per operation), traffic (NIC, eMMC, iSCSI, eMMC bytes written per day), errors (NIC errors and drops, link flaps, OOM kills); SoC temperature, eMMC wear; etcd leader, database size, WAL fsync and commit p99, failed proposals, peer round trip |
-| Homelab / Storage (`homelab-storage`) | NAS pools healthy, exporter up, days since the last scrub and its errors; pool used, "full in N days" at the 7-day trend, free space, used with a 30-day projection, used per dataset; disk temperatures, pool devices ONLINE, device errors, newest SMART self-test, disk models and sizes, the NAS's own alerts; iSCSI PVC usage ([NAS metrics](#nas-metrics)) |
+| Homelab / Storage (`homelab-storage`) | NAS pools healthy, exporter up, days since the last scrub and its errors; pool used, "full in N days" at the 7-day trend, free space, used with a 30-day projection, used per dataset; disk temperatures, pool devices ONLINE, device errors, disk models and sizes, the NAS's own alerts; iSCSI PVC usage ([NAS metrics](#nas-metrics)) |
 | Homelab / LAN (`homelab-lan`) | ping status and round trip of the static devices; devices on the LAN now, randomised MACs, MACs first seen in the last 7 days, age of the last ARP scan, every MAC and IP that answered, device count over time ([LAN inventory](#lan-inventory)) |
 | Homelab / Network (`homelab-network`) | Gateway requests/s, 5xx share, p50/p95/p99 duration and active connections (Envoy), HTTP status and p95 per backend namespace (Hubble); flows by verdict, destination, node and from `world`; drops by reason (Hubble and datapath) and destination, unanswered SYNs and RSTs; CoreDNS responses by code, SERVFAIL/NXDOMAIN share, duration and upstream duration; BPF map pressure, endpoints not ready, unreachable nodes |
 | Homelab / Data protection (`homelab-data-protection`) | restore tests failing, stale and passing, rows compared; the last result per check and target (result, days since a pass, age of the tested backup, duration, rows, files); hours since each backup CronJob's last success, each Postgres base backup and each archived WAL; restore results over time ([backups.md](backups.md#reading-the-results)) |
@@ -136,14 +136,13 @@ sends GETs, plus the `disk/temperatures` query, which the API exposes as POST.
 | `truenas_pool_scrub_end_timestamp_seconds`, `truenas_pool_scrub_errors` | the last scrub |
 | `truenas_dataset_used_bytes`, `truenas_dataset_available_bytes` | each pool's root dataset and its direct children |
 | `truenas_disk_temperature_celsius`, `truenas_disk_info`, `truenas_disk_size_bytes` | `disk`, `disk/temperatures` |
-| `truenas_disk_smart_tests`, `truenas_disk_smart_last_test_success` | `smart/test/results`, optional (absent for a disk with no self-test, or all absent when the call fails) |
 | `truenas_alerts` (`level`, `klass`) | the NAS's own alert list, not dismissed |
-| `truenas_up` | 1 when every required call of the last scrape succeeded |
+| `truenas_up` | 1 when every call of the last scrape succeeded |
 | `truenas_iscsi_targets_unrestricted` | `iscsi/target`, `iscsi/initiator`: targets not limited to exactly `ISCSI_AUTH_NETWORKS` (CORE: their initiator group's `auth_network`; SCALE: their own `auth_networks`) |
 
-`smart/test/results` is optional because TrueNAS SCALE 25.10 no longer
-schedules SMART self-tests: its failure is logged once at `info` and leaves
-`truenas_up` at 1. Every other call is required.
+TrueNAS SCALE 25.10 no longer schedules SMART self-tests, so the exporter
+reads no SMART results; a failing disk shows in the NAS's own alerts
+(`truenas_alerts`, class `SMART`) on the Storage dashboard.
 
 Recording rules `nas:pool_used:ratio` and `nas:pool_days_until_full` (7-day
 linear trend) and the alerts are in PrometheusRule `homelab-nas`
@@ -154,7 +153,6 @@ linear trend) and the alerts are in PrometheusRule `homelab-nas`
 | `NASPoolUnhealthy` | ZFS reports a pool unhealthy for 5m | `critical` |
 | `NASPoolDeviceNotOnline` | a pool device is not ONLINE for 10m | `warning` |
 | `NASPoolDeviceErrors` | a pool device has read, write or checksum errors | `warning` |
-| `NASSmartTestFailed` | the newest SMART self-test of a disk failed | `warning` |
 | `NASDiskHot` | a disk above 65 °C for 30m | `warning` |
 | `NASPoolNearlyFull`, `NASPoolCriticallyFull` | a pool over 80% / 90% used | `warning` / `critical` |
 | `NASPoolFillingUp` | full within 30 days at the 7-day trend, for 6h | `warning` |

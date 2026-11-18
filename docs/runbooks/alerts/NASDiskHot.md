@@ -25,7 +25,7 @@ the case, one disk alone means its bay or the disk.
 2. Physical: check the case fans spin, the intake is not blocked or dusty,
    and nothing stands against the vents. Clean or replace a dead fan.
 3. One disk hot while the others are not: reseat it in another bay if one is
-   free, or plan its replacement ([NASSmartTestFailed](NASSmartTestFailed.md)).
+   free, or plan its replacement ([NASPoolUnhealthy](NASPoolUnhealthy.md#fix)).
 
 ## Resolved when
 

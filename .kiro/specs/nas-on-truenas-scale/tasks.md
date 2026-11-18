@@ -8,7 +8,7 @@ window, on a weekday with the operator at home. The defaults are in
 [requirements.md](requirements.md#decided-defaults). The PR or tick of
 task 10 sets the spec `done` and closes #1305.
 
-- [ ] 1. `scripts/nas-check.py` with `--record`, `--expect core|scale`,
+- [x] 1. `scripts/nas-check.py` with `--record`, `--expect core|scale`,
       `--baseline`, `--quiesced`, `--snapshot`, `--features-file`,
       `--only`, the redaction, the SMB and NFS-service normalisation, and
       pytest tests on CORE-, 24.04- and 25.10-shaped fixtures;
@@ -23,8 +23,8 @@ task 10 sets the spec `done` and closes #1305.
       the tunables, init/shutdown scripts, cron jobs and users (no name
       starting with a digit, no user account below UID 1000, root not
       locked), deprecated services stopped. A blocker found here stops
-      the spec until it is resolved. [1.3, 1.4, 1.5, 4.2-4.5]
-- [ ] 2. `scripts/nas-maintenance.sh` (`plan` with the daily backup set,
+      the spec until it is resolved. [1.3, 1.4, 1.5, 4.2-4.5] (#1452)
+- [x] 2. `scripts/nas-maintenance.sh` (`plan` with the daily backup set,
       `down` in the root, layers, leaves order with the guard suspended,
       `up` with the restart of non-Ready workloads, `canary
       [--hold-guard]` with the non-empty NFS checks, `status`) with the
@@ -34,43 +34,44 @@ task 10 sets the spec `done` and closes #1305.
       `plan` and `canary` live on CORE: both exit 0. Check once live, on
       CORE, that `spec.replicas: 0` on the `Prometheus` CR scales its
       StatefulSet to 0 (else the `spec.paused` fallback). [3.1, 3.2, 4.1,
-      4.3]
-- [ ] 3. democratic-csi config: `zfs.cli.paths` removed from
+      4.3] (#1453)
+- [x] 3. democratic-csi config: `zfs.cli.paths` removed from
       `infrastructure/secrets/democratic-csi-iscsi.sops.yaml` (re-sealed),
       the `.example` template updated (paths, `allowInsecure` comment);
       if the SSH user uses sudo, the Linux paths added to its allowed sudo
       commands on CORE. After the merge: controller and node restarted,
-      `canary` passes on CORE. [4.1]
-- [ ] 4. `truenas-exporter`: `smart/test/results` optional, its test
+      `canary` passes on CORE. [4.1] (#1447)
+- [x] 4. `truenas-exporter`: `smart/test/results` optional, its test
       cases, the observability table updated. Check: `truenas_up` 1 on
-      CORE. [5.2]
-- [ ] 5. iSCSI limit on SCALE: CronJob `nas-iscsi-guard`
+      CORE. [5.2] (#1446)
+- [x] 5. iSCSI limit on SCALE: CronJob `nas-iscsi-guard`
       (`platform/truenas-exporter/iscsi_guard.py`, env
       `ISCSI_AUTH_NETWORKS`, network policy), the gauge
       `truenas_iscsi_targets_unrestricted`, alert `NASiSCSITargetOpen`
       with its runbook, rule test and alerts README entry, the CronJob in
       `ci/active-cronjobs.txt` and `ci/non-backup-cronjobs.txt`, pytest
       tests. Check: on CORE the guard logs `core, nothing to do` and the
-      gauge reads 0. [4.2, 5.3]
-- [ ] 6. `docs/runbooks/nas-scale-migration.md` from
+      gauge reads 0. [4.2, 5.3] (#1450)
+- [x] 6. `docs/runbooks/nas-scale-migration.md` from
       [design.md, Runbook](design.md#runbook) and
       [Rollback](design.md#rollback), with each update file's URL and
       SHA-256, the BMC step with the BMC image's SHA-256, linked from
       `docs/runbooks/README.md`. [1.1, 1.2, 2.1-2.5, 3.3, 6.1-6.3,
-      7.1-7.4, 8.1-8.5]
-- [ ] 7. The window (no PR; operator present, Tuesday 2026-11-17 from
+      7.1-7.4, 8.1-8.5] (#1451)
+- [x] 7. The window (no PR; operator present, Tuesday 2026-11-17 from
       09:00 Zurich): the runbook from "The day before" to "Unfreeze",
       with the BMC flash as window step 5. If the BMC address changed,
       one PR updates `lan.yaml` and `docs/networking.md` and closes
       #1307 before `up`. Check: acceptance criteria 1-3, 5-9 (Renovate
       excepted until task 10) and 11; the next morning, criterion 4. The
       run's report lists every fix applied from the runbook's list. [1-8]
-- [ ] 8. After the window: `truenas-exporter` drops `smart/test/results`
+      (2026-11-17, fix #1473)
+- [x] 8. After the window: `truenas-exporter` drops `smart/test/results`
       and `truenas_disk_smart_*`; `NASSmartTestFailed` removed with its
       runbook, rule test and table rows; any endpoint that failed on
       25.10.8 fixed; on the NAS, the CORE paths removed from the SSH
       user's sudo commands (if task 3 added the Linux ones), then the
-      canary again. [5.2, 5.4]
+      canary again. [5.2, 5.4] (#1485)
 - [ ] 9. Docs for the new state: `README.md`, `docs/architecture.md`,
       `docs/runbooks/cold-start.md` (NAS facts: version, interface name,
       onboard NIC), `docs/runbooks/alerts/HomelabNASDown.md` (SCALE UI
