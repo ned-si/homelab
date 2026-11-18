@@ -16,6 +16,11 @@ retries).
 Exit 1 on any mismatch or error, 2 on a signer-list or manifest parse error,
 else 0. --offline makes no registry call and lists images with their entry.
 COSIGN_BIN and DOCKER_BIN override the binaries (tests use fakes).
+
+--gate-own --base <rev> (the ci `security` job): verifies only the
+ghcr.io/ned-si/ digests in deploy/ that are new against <rev>, with the
+signer-list identity, and exits 1 naming each one that fails. Reverts and
+auto-revert/* branches skip it (design.md#ci-gate-on-own-images-task-3).
 """
 from __future__ import annotations
 
@@ -295,6 +300,69 @@ def report(rows: list[dict], calls: int, offline: bool) -> str:
     return "\n".join(lines) + "\n"
 
 
+OWN_REF = re.compile(r"ghcr\.io/ned-si/[A-Za-z0-9._/-]+(:[A-Za-z0-9._-]+)?(@sha256:[0-9a-f]{64})?")
+
+
+def own_key(ref: str) -> str:
+    parsed = parse_image(ref)
+    digest = ref.split("@", 1)[1] if "@" in ref else ""
+    return f"{parsed[0]}@{digest}" if parsed and digest else ref
+
+
+def base_own_keys(deploy: Path, base: str) -> set[str]:
+    """repo@digest of every ghcr.io/ned-si/ reference in deploy/ at <base>."""
+    p = subprocess.run(["git", "-C", str(deploy), "grep", "-h", "-o", "-I", "-E", OWN_REF.pattern,
+                        base, "--", "."], capture_output=True, text=True)
+    if p.returncode not in (0, 1):
+        raise SchemaError(f"git grep at {base}: {(p.stderr or '').strip()[:200]}")
+    return {own_key(m.group(0)) for m in OWN_REF.finditer(p.stdout)}
+
+
+def gate_own(a, signers: dict[str, dict], images: dict[str, dict]) -> int:
+    print("### Own image signatures\n")
+    if a.pr_title.lower().startswith("revert") or a.head_ref.startswith("auto-revert/"):
+        print("Skipped: the pull request is a revert.")
+        return 0
+    if not a.base:
+        print("Skipped: no pull request base.")
+        return 0
+    try:
+        before = base_own_keys(Path(a.deploy), a.base)
+    except SchemaError as e:
+        print(f"image_provenance: {e}", file=sys.stderr)
+        return 2
+    new = sorted((k, r) for k, r in images.items()
+                 if r["repository"].startswith(OWN_PREFIX) and k not in before)
+    if not new:
+        print("No changed ghcr.io/ned-si/ digest in deploy/.")
+        return 0
+    cosign = os.environ.get("COSIGN_BIN") or shutil.which("cosign")
+    if not cosign:
+        print("image_provenance: cosign not found", file=sys.stderr)
+        return 2
+    runner = Runner(cosign, None)
+    failed = 0
+    for key, r in new:
+        entry = signers.get(r["repository"])
+        if r["note"]:
+            why = r["note"]
+        elif entry is None or "unsigned" in entry:
+            why = "no signer-list entry with an identity"
+        else:
+            try:
+                v = runner.run([cosign, "verify", *identity_args(entry), target(r["ref"], r["digest"])])
+                lines = (v.stderr or "").strip().splitlines()
+                why = "" if v.returncode == 0 else (lines[0] if lines else f"cosign exit {v.returncode}")
+            except Transient as e:
+                why = (str(e).splitlines() or ["registry error"])[0]
+        if why:
+            failed += 1
+            print(f"- FAIL {key}: {why[:300]}")
+        else:
+            print(f"- verified {key}")
+    return 1 if failed else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--deploy", default="deploy", help="rendered manifests (default deploy)")
@@ -302,14 +370,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--signers", default="ci/image-signers.yaml")
     ap.add_argument("--json", help="write the rows as JSON to this file")
     ap.add_argument("--offline", action="store_true", help="no registry call")
+    ap.add_argument("--gate-own", action="store_true", help="verify only own digests new against --base")
+    ap.add_argument("--base", default="", help="git revision of the PR base (--gate-own)")
+    ap.add_argument("--pr-title", default="", help="pull request title; a revert skips --gate-own")
+    ap.add_argument("--head-ref", default="", help="pull request head branch; auto-revert/* skips --gate-own")
     a = ap.parse_args(argv)
 
     try:
         signers = load_signers(Path(a.signers))
-        images = collect(manifest_files(Path(a.deploy) if a.deploy else None, Path(a.render) if a.render else None))
+        images = collect(manifest_files(Path(a.deploy) if a.deploy else None,
+                                        Path(a.render) if a.render and not a.gate_own else None))
     except SchemaError as e:
         print(f"image_provenance: {e}", file=sys.stderr)
         return 2
+    if a.gate_own:
+        return gate_own(a, signers, images)
 
     runner = None
     if not a.offline:

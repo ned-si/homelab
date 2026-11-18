@@ -536,14 +536,17 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/tool-cache
-          key: tools-security-${{ env.GITLEAKS_VERSION }}-${{ env.TRIVY_VERSION }}
+          key: tools-security-${{ env.GITLEAKS_VERSION }}-${{ env.TRIVY_VERSION }}-${{ env.COSIGN_VERSION }}
           restore-keys: tools-security-
 
       - name: Install pinned tools
         id: setup
         env:
           TOOL_CACHE: ${{ runner.temp }}/tool-cache
-        run: scripts/ci/install-tool.sh gitleaks trivy
+        run: |
+          set -euo pipefail
+          scripts/ci/install-tool.sh gitleaks trivy cosign
+          scripts/ci/setup-python-deps.sh
 
       - name: Save tool archives
         if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
@@ -591,6 +594,20 @@ jobs:
         env:
           SUMMARY: ${{ runner.temp }}/trivy-summary.md
         run: if [ -f "$SUMMARY" ]; then cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"; fi
+
+      # Own images only: a changed ghcr.io/ned-si/ digest must verify against
+      # ci/image-signers.yaml. Reverts skip it, so a rollback never waits on
+      # Sigstore (.kiro/specs/image-provenance/design.md#ci-gate-on-own-images-task-3).
+      - name: Own image signatures (changed ghcr.io/ned-si digests)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          scripts/ci/image_provenance.py --gate-own --deploy deploy --base "$PR_BASE" \
+            --pr-title "$PR_TITLE" --head-ref "$PR_BRANCH" | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Offline: throwaway secrets from `talhelper gensecret`, the schematic ID
   # computed locally (--offline-mode), no cluster. Generated configs stay in a
