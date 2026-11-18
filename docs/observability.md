@@ -126,8 +126,14 @@ serves `truenas_*` metrics on port 9814, scraped every 60 s by ServiceMonitor
 `democratic-csi/truenas-exporter`. It runs in `democratic-csi` and reads the
 API key from the CSI driver's Secret `iscsi-democratic-csi-driver-config`
 (key `driver-config-file.yaml`, field `httpConnection.apiKey`), so the key
-exists once. TrueNAS CORE 13 API keys cannot be scoped; the exporter only
-sends GETs, plus the `disk/temperatures` query, which the API exposes as POST.
+exists once. Since TrueNAS 25.04 an API key belongs to a user and carries
+that user's rights; it cannot be narrowed further. The exporter only sends
+GETs, plus the `disk/temperatures` query, which the API exposes as POST.
+
+The REST API v2.0 is deprecated since 25.04 and planned for removal in
+TrueNAS 27. While democratic-csi, the exporter, the iSCSI guard and
+`scripts/nas-check.py` call it, the NAS raises a daily `RESTAPIUsage` alert,
+which shows in `truenas_alerts` and does not page. Moving off REST: #1490.
 
 | Metric | From |
 | --- | --- |

@@ -62,7 +62,7 @@ Ordered by effort-to-benefit.
 
 ### 1. Scope the exports to the node IPs (done 2026-11-16)
 
-In TrueNAS: **Shares → Unix (NFS) Shares →** the `k8s/nfs` share → **Advanced**,
+In TrueNAS SCALE: **Shares → UNIX (NFS) Shares →** edit the `k8s/nfs` share,
 then the same for the `k8s/backups` share. The four node addresses
 (`192.168.1.247`, `.238`, `.239`, `.240`) are listed under **Hosts**, and
 **Networks** is empty: a subnet would include every laptop and phone in the
@@ -91,7 +91,7 @@ address is root on that share.
 
 ### 3. Squash to a dedicated UID
 
-Set **Mapall User / Mapall Group** to the `1000` account that owns the media,
+Under the share's **Advanced Options**, set **Mapall User / Mapall Group** to the `1000` account that owns the media,
 rather than trusting client-supplied UIDs. This makes the UID claim irrelevant.
 
 ### 4. NFSv4 with Kerberos (the real fix)
@@ -103,8 +103,8 @@ authenticates rather than approximating it with IP allow-lists.
 
 ### 5. Consider moving media to iSCSI
 
-iSCSI is already used for every other volume via democratic-csi, and TrueNAS
-scopes iSCSI targets by initiator group. The reason media is on NFS is
+iSCSI is already used for every other volume via democratic-csi, and each
+iSCSI target is limited to the node addresses (`nas-iscsi-guard`). The reason media is on NFS is
 `ReadWriteMany` — several pods mount it at once, and iSCSI block volumes are
 `ReadWriteOnce`.
 

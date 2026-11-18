@@ -36,8 +36,9 @@ Expected while it fires: no ping reply, or a port `CLOSED`.
    button until it turns off, press it again, and rerun the checks after
    about 5 minutes.
 3. Ping answers but a port is `CLOSED`: in the web UI
-   (`https://192.168.1.228`) start the NFS or iSCSI service and check pool
-   `homelab` is ONLINE.
+   (`https://192.168.1.228`, TrueNAS SCALE) start the NFS or iSCSI service
+   under **System → Services**, and check pool `homelab` is ONLINE under
+   **Storage**.
 4. Once the ports are open, the cluster recovers on its own within about 10
    minutes. Then clean up what does not retry:
    - delete pods still stuck in `ContainerCreating`, `Unknown` or

@@ -15,7 +15,7 @@ the shape of that tree and why it has that shape; addresses are in
 | Kubernetes | v1.37.1, etcd 3.7 on the three control planes, which also run workloads |
 | API endpoint | `192.168.1.11:6443`, a VIP that Talos holds on one control plane ([talos.md](talos.md#nodes)) |
 | CNI | Cilium 1.20.2: kube-proxy replacement, LB-IPAM with L2 announcements, Gateway API |
-| Storage | TrueNAS CORE at `192.168.1.228`: iSCSI block volumes through democratic-csi, an NFS share for media |
+| Storage | TrueNAS SCALE 25.10.8 at `192.168.1.228` (interface `enp7s0f0`): iSCSI block volumes through democratic-csi, an NFS share for media, and one SMB share for the household's Windows and macOS machines, which sign in as `nedsi` (guests can connect but the dataset's ACL gives them no access to its folders) |
 | GitOps | Argo CD v3.5.5 in namespace `argo` (Helm release `argocd`, chart argo-cd 10.10.3) |
 
 Everything runs single-replica. Most workloads hold a `ReadWriteOnce` volume,

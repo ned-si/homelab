@@ -15,7 +15,7 @@ two other forwarded ports. The address table is in the README's
   routes. Every infrastructure address is therefore set on the device itself:
   the four nodes in their Talos machine configs
   ([`talos/talconfig.yaml`](../talos/talconfig.yaml), `nodes[].networkInterfaces`),
-  the NAS on its `igb0` port. Everything static lives outside the DHCP pool.
+  the NAS on its `enp7s0f0` port. Everything static lives outside the DHCP pool.
 - The router's DNS forwarder answers NXDOMAIN for bare names such as
   `kubernetes`.
 - NAT loopback works: public names resolve to the WAN IP and answer from inside

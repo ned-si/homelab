@@ -72,13 +72,14 @@ task 10 sets the spec `done` and closes #1305.
       25.10.8 fixed; on the NAS, the CORE paths removed from the SSH
       user's sudo commands (if task 3 added the Linux ones), then the
       canary again. [5.2, 5.4] (#1485)
-- [ ] 9. Docs for the new state: `README.md`, `docs/architecture.md`,
+- [x] 9. Docs for the new state: `README.md`, `docs/architecture.md`,
       `docs/runbooks/cold-start.md` (NAS facts: version, interface name,
       onboard NIC), `docs/runbooks/alerts/HomelabNASDown.md` (SCALE UI
       paths), `docs/runbooks/nfs-hardening.md`, `docs/observability.md`
       (API keys bound to users, REST deprecation), `docs/threat-model.md`
       and `docs/decisions.md` where they name CORE, `.kiro/steering/tech.md`.
       The local `homelab-context` skill is updated outside git. [1.3]
+      (#1492)
 - [ ] 10. Close the rollback window, 1 hour of clean running after `up`
       (operator, 2026-11-17; was 48 h): destroy
       `homelab@pre-scale-<yyyymmdd>` recursively (operator confirms),
