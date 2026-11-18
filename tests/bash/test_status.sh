@@ -132,6 +132,7 @@ EOF
 {"items":[
  {"metadata":{"namespace":"mealie","name":"mealie-backup"},"spec":{"suspend":false},"status":{"lastSuccessfulTime":"2026-09-21T02:00:00Z","lastScheduleTime":"2026-09-21T02:00:00Z"}},
  {"metadata":{"namespace":"backup-verify","name":"backup-verify-files"},"spec":{"suspend":false},"status":{"lastSuccessfulTime":"2026-09-17T22:00:00Z","lastScheduleTime":"2026-09-17T22:00:00Z"}},
+ {"metadata":{"namespace":"backup-verify","name":"backup-verify-paperless"},"spec":{"suspend":false,"schedule":"0 19 3 * *"},"status":{"lastSuccessfulTime":"2026-09-03T19:00:00Z","lastScheduleTime":"2026-09-03T19:00:00Z"}},
  {"metadata":{"namespace":"theater","name":"recyclarr-sync"},"spec":{},"status":{}}]}
 EOF
   printf 'immich\timmich-config\tOpaque\t2026-09-01T00:00:00Z\nimmich\timmich-db-app\tkubernetes.io/basic-auth\t2026-01-01T00:00:00Z\n' > "$FIX/secrets.tsv"
@@ -153,7 +154,7 @@ expect_contains "CNPG" "CNPG 1 clusters healthy" "$out"
 expect_contains "cert days" "gateway/wildcard  59d" "$out"
 expect_contains "route" "1 HTTPRoutes Accepted: media" "$out"
 expect_contains "LB" "LB 192.0.2.201  syncthing/syncthing-protocol" "$out"
-expect_contains "backup age (the weekly restore test is not stale at 88h)" "2 backup CronJobs, oldest last success 88h ago" "$out"
+expect_contains "backup age (the monthly restore test is not stale at 427h)" "3 backup CronJobs, oldest last success 427h ago" "$out"
 expect_contains "NAS" "NAS 192.0.2.228:3260 open" "$out"
 expect_contains "WAN matches" "= --default-targets in infrastructure/external-dns/values.yaml" "$out"
 expect_contains "Immich counts" "Immich  image 100  video 10" "$out"
@@ -204,6 +205,14 @@ expect_contains "nas" "NAS 192.0.2.228:2049 CLOSED" "$out"
 expect_contains "wan" "WAN 198.51.100.99 != --default-targets $GIT_WAN" "$out"
 js=$("$STATUS" --json 2>/dev/null) || true
 expect_eq "nine problems" 9 "$(jq '.problems | length' <<<"$js")"
+
+echo "stale weekly restore test, monthly one in limits"
+mkfix
+jq '.items[1].status.lastSuccessfulTime = "2026-09-03T22:00:00Z"' "$FIX/cronjobs.json" > "$FIX/x" && mv "$FIX/x" "$FIX/cronjobs.json"
+rc=0; out=$("$STATUS" 2>&1) || rc=$?
+expect_eq "exit 1" 1 "$rc"
+expect_contains "weekly is stale after 8 days" "backup-verify/backup-verify-files  last success 424h ago" "$out"
+case "$out" in *"backup-verify-paperless  last success"*) bad "monthly is not stale at 427h" ;; *) ok "monthly is not stale at 427h" ;; esac
 
 echo "failed reads"
 mkfix

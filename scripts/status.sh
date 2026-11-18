@@ -56,6 +56,7 @@ NAS_PORTS=${STATUS_NAS_PORTS:-"3260 2049"}
 CERT_WARN_DAYS=${STATUS_CERT_WARN_DAYS:-21}
 BACKUP_MAX_H=${STATUS_BACKUP_MAX_H:-26}
 VERIFY_MAX_H=${STATUS_VERIFY_MAX_H:-192}
+MONTHLY_MAX_H=${STATUS_MONTHLY_MAX_H:-768}
 NOW=${STATUS_NOW:-$(date -u +%s)}
 
 command -v jq >/dev/null 2>&1 || die "jq not found"
@@ -147,13 +148,16 @@ jq -n -c --slurpfile g "$T/gw.raw" --slurpfile r "$T/routes.raw" --slurpfile s "
 
 getj cj.raw cronjobs -A
 # Backups run daily (BACKUP_MAX_H); the restore tests in backup-verify run
-# weekly (VERIFY_MAX_H, 8 days).
-jq -c --argjson now "$NOW" --argjson daily "$BACKUP_MAX_H" --argjson weekly "$VERIFY_MAX_H" '[.items[] | select(.metadata.name | test("backup"))
+# weekly (VERIFY_MAX_H, 8 days), or monthly when the schedule sets a day of
+# the month (MONTHLY_MAX_H, 32 days).
+jq -c --argjson now "$NOW" --argjson daily "$BACKUP_MAX_H" --argjson weekly "$VERIFY_MAX_H" --argjson monthly "$MONTHLY_MAX_H" '[.items[] | select(.metadata.name | test("backup"))
+    | ((.spec.schedule // "") | sub("^CRON_TZ=\\S+\\s+"; "") | split(" ")) as $cron
     | {ns: .metadata.namespace, name: .metadata.name, suspended: (.spec.suspend // false),
        last_success: (.status.lastSuccessfulTime // null), last_schedule: (.status.lastScheduleTime // null),
-       active: ((.status.active // []) | length)}
+       active: ((.status.active // []) | length),
+       monthly: ($cron[0] == "@monthly" or (($cron | length) == 5 and $cron[2] != "*"))}
     | . + {age_h: (if .last_success then (($now - (.last_success | fromdateiso8601)) / 3600 | floor) else null end)}
-    | (if .ns == "backup-verify" then $weekly else $daily end) as $max
+    | (if .monthly then $monthly elif .ns == "backup-verify" then $weekly else $daily end) as $max
     | . + {stale: ((.suspended | not) and (.age_h == null or .age_h > $max))}]
     | sort_by(.ns, .name)' "$T/cj.raw" > "$T/backups.json"
 
