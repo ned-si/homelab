@@ -1,7 +1,7 @@
 {
   "uid": "homelab-storage",
   "title": "Homelab / Storage",
-  "description": "NAS health (pools, devices, SMART, temperatures, scrubs), capacity with a 'full in N days' projection, and the iSCSI PVCs. Source: truenas-exporter and the kubelet.",
+  "description": "NAS health (pools, devices, temperatures, scrubs), capacity with a 'full in N days' projection, and the iSCSI PVCs. Source: truenas-exporter and the kubelet.",
   "tags": [
     "homelab",
     "storage"
@@ -878,84 +878,6 @@
       }
     },
     {
-      "type": "stat",
-      "title": "SMART: newest self-test",
-      "description": "truenas_disk_smart_last_test_success. Disks with no self-test in their log are missing here; schedule SMART tests on the NAS (Tasks -> S.M.A.R.T. Tests).",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "truenas_disk_smart_last_test_success",
-          "refId": "A",
-          "legendFormat": "{{disk}}",
-          "instant": true,
-          "range": false
-        }
-      ],
-      "id": 16,
-      "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 0,
-        "y": 28
-      },
-      "fieldConfig": {
-        "defaults": {
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "mappings": [
-            {
-              "type": "value",
-              "options": {
-                "0": {
-                  "text": "FAILED",
-                  "color": "red",
-                  "index": 0
-                },
-                "1": {
-                  "text": "PASSED",
-                  "color": "green",
-                  "index": 1
-                }
-              }
-            }
-          ]
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "colorMode": "background",
-        "graphMode": "none",
-        "textMode": "value_and_name",
-        "justifyMode": "auto",
-        "orientation": "auto"
-      }
-    },
-    {
       "type": "table",
       "title": "Disks",
       "description": "Model, type and size per disk.",
@@ -980,8 +902,8 @@
       "id": 17,
       "gridPos": {
         "h": 6,
-        "w": 8,
-        "x": 8,
+        "w": 12,
+        "x": 0,
         "y": 28
       },
       "fieldConfig": {
@@ -1041,8 +963,8 @@
       "id": 18,
       "gridPos": {
         "h": 6,
-        "w": 8,
-        "x": 16,
+        "w": 12,
+        "x": 12,
         "y": 28
       },
       "options": {

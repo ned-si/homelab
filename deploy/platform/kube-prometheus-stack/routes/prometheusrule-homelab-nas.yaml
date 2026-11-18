@@ -69,17 +69,6 @@ spec:
       labels:
         action: human
         severity: warning
-    - alert: NASSmartTestFailed
-      annotations:
-        description: The newest {{ $labels.test }} self-test on {{ $labels.disk }}
-          did not pass. Plan a replacement; read the SMART log in the TrueNAS UI.
-        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASSmartTestFailed.md
-        summary: NAS disk {{ $labels.disk }} failed its SMART self-test
-      expr: truenas_disk_smart_last_test_success == 0
-      for: 5m
-      labels:
-        action: human
-        severity: warning
     - alert: NASDiskHot
       annotations:
         description: Above 65 C for 30 minutes. Check the case airflow and fans.

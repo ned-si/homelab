@@ -776,7 +776,7 @@ unless named otherwise:
 | Rule file | Out | Would fire after |
 | --- | --- | --- |
 | `outage-alerts.yaml` | `HomelabNASUnreachable`, `HomelabNASDown`, patched out of `homelab-outage`; `HomelabNodeNotReady`, `HomelabNodeDown` and `GatewayDown` stay | 2 min (`HomelabNASUnreachable`, holds the outage guard) |
-| `nas-alerts.yaml` | the PrometheusRule `homelab-nas` whole: `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASSmartTestFailed`, `NASDiskHot`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue`, `NASExporterFailing`, `NASExporterAbsent` | 15 min (`NASExporterAbsent`) |
+| `nas-alerts.yaml` | the PrometheusRule `homelab-nas` whole: `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASDiskHot`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue`, `NASExporterFailing`, `NASExporterAbsent` | 15 min (`NASExporterAbsent`) |
 | `signoz-trial.yaml` | the PrometheusRule `homelab-signoz`: `LogPipelineDiscarding`, `SigNozCollectorAbsent` | 1 h |
 | `lan-alerts.yaml` | `LANDeviceUnreachable`, `LANNewDeviceSeen`, `LANInventoryFailing`, `LANInventoryAbsent` | 10 min (`LANDeviceUnreachable`) |
 | `slo.yaml` | the `SLOTargetProbeAbsent` rules of `cinema` and `theater` | 15 min |

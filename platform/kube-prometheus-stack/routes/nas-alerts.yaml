@@ -1,6 +1,6 @@
-# NAS health from platform/truenas-exporter: pool, devices, SMART, temperature,
-# capacity, scrubs, iSCSI target limits. The NAS's own alert list is on the Storage dashboard, not
-# paged. nas:pool_days_until_full: days to full at the 7-day trend, absent
+# NAS health from platform/truenas-exporter: pool, devices, temperature,
+# capacity, scrubs, iSCSI target limits. The NAS's own alert list (SMART
+# included) is on the Storage dashboard, not paged. nas:pool_days_until_full: days to full at the 7-day trend, absent
 # while usage shrinks.
 # Tests: tests/prometheus/nas_test.yaml, nas_capacity_test.yaml, nas_disk_test.yaml.
 ---
@@ -70,19 +70,6 @@ spec:
               pool {{ $labels.pool }}. A few after a cable or power event can be
               cleared with `zpool clear`; errors that come back mean a failing
               disk or cable.
-
-        - alert: NASSmartTestFailed
-          expr: truenas_disk_smart_last_test_success == 0
-          for: 5m
-          labels:
-            severity: warning
-            action: human
-          annotations:
-            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASSmartTestFailed.md
-            summary: "NAS disk {{ $labels.disk }} failed its SMART self-test"
-            description: >-
-              The newest {{ $labels.test }} self-test on {{ $labels.disk }} did
-              not pass. Plan a replacement; read the SMART log in the TrueNAS UI.
 
         - alert: NASDiskHot
           # The pool's SATA SSDs are rated to 70 C.

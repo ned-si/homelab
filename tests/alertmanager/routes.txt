@@ -35,7 +35,7 @@ ntfy alertname=HomelabNASDown severity=critical instance=192.168.1.228:3260
 ntfy alertname=etcdInsufficientMembers severity=critical job=kube-etcd
 ntfy alertname=etcdNoLeader severity=critical job=kube-etcd
 ntfy alertname=NASPoolUnhealthy severity=critical pool=homelab
-ntfy alertname=NASSmartTestFailed severity=warning disk=ada3 test=SHORT
+ntfy alertname=NASPoolDeviceErrors severity=warning pool=homelab role=data disk=sdc type=checksum
 ntfy alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9100
 ntfy alertname=NodeEmmcWearHigh severity=warning instance=192.168.1.240:9100 device=mmc0:0001
 ntfy alertname=PersistentVolumeNearlyFull severity=warning namespace=immich persistentvolumeclaim=immich-db-1
