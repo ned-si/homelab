@@ -1,6 +1,7 @@
 #!/bin/bash
 # test_renovate_next.sh -- scripts/ci/renovate-next.sh against a fake `gh`:
-# the pull request list comes from $FAKE/prs.json, `behind_by` from
+# the pull request list comes from $FAKE/prs.json (open `auto-rollback`
+# pull requests from $FAKE/rollback.json), `behind_by` from
 # $FAKE/behind/<sha>, and a PATCH writes its JSON input to $FAKE/patch-<n>.
 set -euo pipefail
 
@@ -17,7 +18,12 @@ cat >"$tmp/gh" <<'EOF'
 #!/bin/bash
 set -euo pipefail
 case "$1 $2" in
-  "pr list") cat "$FAKE/prs.json" ;;
+  "pr list")
+    case "$*" in
+      *"--label auto-rollback"*) jq -r "${@: -1}" "$FAKE/rollback.json" ;;
+      *) cat "$FAKE/prs.json" ;;
+    esac
+    ;;
   "api repos/o/r/compare/"*) sha=${2##*...}; cat "$FAKE/behind/$sha" ;;
   "pr merge") echo "$*" >"$FAKE/merge-$3" ;;
   "pr comment") echo "$*" >"$FAKE/comment-$3" ;;
@@ -57,6 +63,7 @@ outro" --argjson d "$draft" --argjson a "$am" --argjson k "$checks" --argjson l 
 setup() { # <pr json>...
   rm -f "$FAKE"/patch-* "$FAKE"/merge-* "$FAKE"/comment-*
   jq -s . <<<"$*" >"$FAKE/prs.json"
+  echo '[]' >"$FAKE/rollback.json"
 }
 behind() { echo "$2" >"$FAKE/behind/$1"; }
 run() { REPO=o/r GH="$tmp/gh" NOW="${NOW:-3 10}" "$NEXT" 2>&1; }
@@ -167,5 +174,19 @@ expect_eq "paused dry run: no call" "no" "$([ -e "$FAKE/merge-11" ] && echo yes 
 setup "$(pr 11 2026-10-01 a1 SUCCESS x x manual)"
 expect_eq "resumed (no variable): auto-merge back on" "#11: auto-merge turned on
 #11: rebase requested" "$(RENOVATE_TRAIN_PAUSED='' run)"
+
+# Open auto-rollback revert (#1003): no tick, no auto-merge, exit 0.
+setup "$(pr 11 2026-10-01 a1 SUCCESS)" "$(pr 12 2026-10-02 b2 SUCCESS x x manual)"
+echo '[{"number":990}]' >"$FAKE/rollback.json"
+expect_eq "open revert: held" "held by open auto-rollback revert #990; nothing rebased" "$(run)"
+rc=0
+run >/dev/null || rc=$?
+expect_eq "open revert: exits 0" 0 "$rc"
+expect_eq "open revert: no rebase requested" "no" "$([ -e "$FAKE/patch-11" ] && echo yes || echo no)"
+expect_eq "open revert: no auto-merge turned on" "no" "$([ -e "$FAKE/merge-12" ] && echo yes || echo no)"
+
+setup "$(pr 11 2026-10-01 a1 SUCCESS)"
+echo '[{"number":990},{"number":991}]' >"$FAKE/rollback.json"
+expect_eq "two open reverts: both named" "held by open auto-rollback revert #990 #991; nothing rebased" "$(run)"
 
 finish

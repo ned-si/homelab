@@ -19,7 +19,8 @@
 #
 # Paused while RENOVATE_TRAIN_PAUSED ("<pr> <utc time>", set by
 # scripts/pr-merge.sh during its merge lock) is younger than PAUSE_STALE_MIN
-# (90) minutes; GitHub auto-merge stays as it is (#960).
+# (90) minutes; GitHub auto-merge stays as it is (#960). Held the same way
+# while a pull request labelled `auto-rollback` is open (#1003).
 #
 # Prints one line per auto-merge turned on, then one line, what it did
 # and why. Environment: REPO (owner/name), GH (default gh), DRY_RUN (1:
@@ -55,6 +56,13 @@ if [ -n "$PAUSED" ]; then
     echo "paused by pr-merge ($PAUSED); nothing rebased"
     exit 0
   fi
+fi
+# An open revert waits for its ci on main; moving main restarts it (#1003).
+rollback=$($GH pr list --repo "$REPO" --label auto-rollback --state open --limit 10 \
+  --json number --jq '[.[].number | "#\(.)"] | join(" ")')
+if [ -n "$rollback" ]; then
+  echo "held by open auto-rollback revert $rollback; nothing rebased"
+  exit 0
 fi
 # Waiting for minimumReleaseAge: one comment, then left alone until it passes.
 WAIT_MARK='<!-- renovate-next:release-age -->'
