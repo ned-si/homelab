@@ -28,7 +28,7 @@ spec:
       valueFiles:
       - $values/platform/cloudnative-pg/values.yaml
     repoURL: https://cloudnative-pg.github.io/charts
-    targetRevision: 0.29.1
+    targetRevision: 0.29.2
   - ref: values
     repoURL: https://github.com/ned-si/homelab.git
     targetRevision: main
