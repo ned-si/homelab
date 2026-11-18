@@ -1,8 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-16
-issue: 1305
+closed: 2026-11-18
 ---
 # Requirements: nas-on-truenas-scale
 

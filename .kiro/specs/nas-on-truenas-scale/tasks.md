@@ -80,10 +80,11 @@ task 10 sets the spec `done` and closes #1305.
       and `docs/decisions.md` where they name CORE, `.kiro/steering/tech.md`.
       The local `homelab-context` skill is updated outside git. [1.3]
       (#1492)
-- [ ] 10. Close the rollback window, 1 hour of clean running after `up`
+- [x] 10. Close the rollback window, 1 hour of clean running after `up`
       (operator, 2026-11-17; was 48 h): destroy
       `homelab@pre-scale-<yyyymmdd>` recursively (operator confirms),
       delete the boot image (none taken), keep the configuration file and the baseline
       records, lift the freeze on new PVCs, `gh workflow enable
       renovate-next.yaml` (AC 9). A docs PR ticks it and sets the
       spec `done` with its `closed` date; #1305 closes. [6.1]
+      (2026-11-18; the snapshot kept 7 days, destroyed in #1497)
