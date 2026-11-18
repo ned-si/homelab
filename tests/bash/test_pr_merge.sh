@@ -61,6 +61,15 @@ expect_eq "all guards hold -> exit 0" 0 "$rc"
 expect_contains "all guards hold -> would merge (squash)" "would merge (squash) PR #7 at $HEAD_SHA" "$out"
 if grep -q '^pr merge' "$FAKE_GH_DIR/calls.log"; then bad "dry run must not merge"; else ok "dry run does not merge"; fi
 
+setup hint
+printf 'hint: use this instead of polling:\n    gh event listen --resource x\n' > "$FAKE_GH_DIR/stderr-hint"
+run_merge --dry-run 7
+expect_eq "gh stderr hint -> exit 0" 0 "$rc"
+expect_contains "gh stderr hint -> would merge (squash)" "would merge (squash) PR #7 at $HEAD_SHA" "$out"
+run_merge --dry-run --ff 7
+expect_eq "gh stderr hint, --ff with protection 403 -> exit 0" 0 "$rc"
+expect_contains "gh stderr hint -> would merge (ff)" "would merge (ff) PR #7" "$out"
+
 setup freeze
 api_resp 'repos/ned-si/homelab/actions/variables/MERGE_FREEZE' 200 '{"name":"MERGE_FREEZE","value":"history rewrite in progress"}'
 run_merge --dry-run 7

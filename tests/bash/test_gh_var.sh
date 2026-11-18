@@ -39,6 +39,12 @@ case_ "name exit 1 with no output -> error" 200 empty error
 case_ "control output without a status line -> error" nostatus 404 error
 case_ "name output without a status line -> error" 200 nostatus error
 
+export FAKE_GH_DIR="$tmp/hint"; mkdir -p "$FAKE_GH_DIR"
+echo "hint: use gh event listen" > "$FAKE_GH_DIR/stderr-hint"
+api_resp "$CTRL" 200 '{"total_count":0,"variables":[]}'
+api_resp "$NAME" 404
+expect_eq "stderr hint before the status line -> absent" absent "$(gh_var_state MERGE_FREEZE 2>/dev/null)"
+
 export FAKE_GH_DIR="$tmp/badname"; mkdir -p "$FAKE_GH_DIR"
 expect_eq "invalid variable name -> error" error "$(gh_var_state 'X;rm')"
 expect_eq "function returns 0 on error" 0 "$(gh_var_state '' >/dev/null; echo $?)"

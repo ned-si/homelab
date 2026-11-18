@@ -10,7 +10,8 @@
 #
 # The only way the scripts read a variable's existence, so every caller fails
 # closed the same way; never a (paginated) variables list. Only the HTTP
-# status line is read, since gh exits 1 on any non-2xx. Always returns 0.
+# status line is read, since gh exits 1 on any non-2xx. --include prints it on
+# stdout even then; stderr is dropped, gh prints hints there. Always returns 0.
 #
 # Repository: $GH_VAR_REPO, default ned-si/homelab.
 
@@ -30,14 +31,14 @@ gh_var_state() {
   fi
 
   # Positive control: this token can see the repository and read its variables.
-  out=$(gh api --include "repos/${repo}/actions/variables?per_page=1" 2>&1) || true
+  out=$(gh api --include "repos/${repo}/actions/variables?per_page=1" 2>/dev/null) || true
   status=$(_gh_var_status "$out")
   if [ "$status" != "200" ]; then
     echo error
     return 0
   fi
 
-  out=$(gh api --include "repos/${repo}/actions/variables/${name}" 2>&1) || true
+  out=$(gh api --include "repos/${repo}/actions/variables/${name}" 2>/dev/null) || true
   status=$(_gh_var_status "$out")
   case "$status" in
     404) echo absent ;;
