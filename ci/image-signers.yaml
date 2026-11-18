@@ -86,7 +86,8 @@
 - repository: ghcr.io/mealie-recipes/mealie
   unsigned: no signature published (inventory 2026-11-18)
 - repository: ghcr.io/ned-si/homelab-site
-  unsigned: signed from task 2
+  issuer: https://token.actions.githubusercontent.com
+  subject: https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main
 - repository: ghcr.io/onedr0p/exportarr
   unsigned: no signature published (inventory 2026-11-18)
 - repository: ghcr.io/paperless-ngx/paperless-ngx

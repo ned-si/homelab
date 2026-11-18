@@ -10,6 +10,8 @@ resources:
   - ../../policies/kyverno/exceptions
   # Cluster housekeeping, not an admission policy: not run by CI over deploy/.
   - delete-shutdown-pods.yaml
+  # Image signatures: needs the network, so not in the offline CI run either.
+  - verify-own-images.yaml
 
 patches:
   - target:

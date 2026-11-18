@@ -29,6 +29,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # keyless cosign signature
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -72,24 +73,61 @@ jobs:
           ACTOR: ${{ github.actor }}
         run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
 
+      # The default docker driver rejects --sbom/--provenance; the smoke test
+      # keeps it because a docker-container builder does not --load.
+      - name: Create the attestation builder
+        run: docker buildx create --name attest --driver docker-container
+
+      # Only :<sha> here: Renovate follows :main, which is tagged once the
+      # digest is signed and verified.
       - name: Build and push linux/arm64
         env:
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          docker buildx build --platform linux/arm64 --push \
+          docker buildx build --builder attest --platform linux/arm64 --push \
+            --sbom=true --provenance=mode=max \
             --label org.opencontainers.image.source=https://github.com/ned-si/homelab \
             --label "org.opencontainers.image.revision=$SHA" \
-            -t "$IMAGE:main" -t "$IMAGE:$SHA" site
+            -t "$IMAGE:$SHA" site
+          digest=$(docker buildx imagetools inspect "$IMAGE:$SHA" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "DIGEST=$digest" >> "$GITHUB_ENV"
 
       - name: Check the pushed image is linux/arm64
+        env:
+          SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          digest=$(docker buildx imagetools inspect "$IMAGE:main" --format '{{json .Manifest}}' | jq -r .digest)
-          docker pull -q --platform linux/arm64 "$IMAGE@$digest" >/dev/null
-          platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE@$digest")
-          echo "$IMAGE:main@$digest ($platform)" | tee -a "$GITHUB_STEP_SUMMARY"
+          docker pull -q --platform linux/arm64 "$IMAGE@$DIGEST" >/dev/null
+          platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$IMAGE@$DIGEST")
+          echo "$IMAGE:$SHA@$DIGEST ($platform)" | tee -a "$GITHUB_STEP_SUMMARY"
           [ "$platform" = linux/arm64 ]
+
+      # The cosign pin lives in ci.yaml's env, as the Hugo pin.
+      - name: Install the pinned cosign
+        run: |
+          set -euo pipefail
+          COSIGN_VERSION=$(sed -n 's/^  COSIGN_VERSION: *//p' .github/workflows/ci.yaml)
+          COSIGN_SHA256=$(sed -n 's/^  COSIGN_SHA256: *//p' .github/workflows/ci.yaml)
+          export COSIGN_VERSION COSIGN_SHA256
+          scripts/ci/install-tool.sh cosign
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # Keyless with the workflow's OIDC identity, classic .sig tag with the
+      # Rekor bundle: the format Kyverno and the inventory read
+      # (.kiro/specs/image-provenance/design.md#signing-the-site-image-task-2).
+      - name: Sign and verify the index digest
+        run: |
+          set -euo pipefail
+          cosign sign --yes --new-bundle-format=false --use-signing-config=false "$IMAGE@$DIGEST"
+          cosign verify \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity "https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main" \
+            "$IMAGE@$DIGEST" >/dev/null
+          echo "signed and verified $IMAGE@$DIGEST" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Tag the signed digest as main
+        run: docker buildx imagetools create -t "$IMAGE:main" "$IMAGE@$DIGEST"
 
       - name: Log out of GHCR
         if: ${{ always() }}
