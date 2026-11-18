@@ -225,6 +225,111 @@ def test_unparsable_manifest_exits_2(env):
     assert run(env, "--offline").returncode == 2
 
 
+OWN = "ghcr.io/ned-si/homelab-site"
+OWN_SIGNERS = f"""\
+    - repository: {OWN}
+      issuer: {ISSUER}
+      subject: {OWN_SUBJECT}
+    """
+
+
+@pytest.fixture
+def gate(env, monkeypatch):
+    """A git repo whose base commit runs the own image at D1."""
+    monkeypatch.setenv("FAKE_SUBJECT", OWN_SUBJECT)
+    signers(env, OWN_SIGNERS)
+    own(env, D1)
+    git = ["git", "-C", str(env), "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
+    subprocess.run(["git", "init", "-q", str(env)], check=True)
+    subprocess.run([*git, "add", "-A"], check=True)
+    subprocess.run([*git, "commit", "-qm", "base"], check=True)
+    base = subprocess.run([*git, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+    return env, base
+
+
+def own(root, digest):
+    write(root, "deploy/apps/website/deployment-website.yaml", f"""\
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata: {{name: website, namespace: website}}
+        spec:
+          template:
+            spec:
+              containers:
+                - name: site
+                  image: "{OWN}:main@{digest}"
+        """)
+
+
+def run_gate(root, base, *extra):
+    return subprocess.run([sys.executable, str(SCRIPTS / "image_provenance.py"), "--gate-own",
+                           "--deploy", str(root / "deploy"), "--signers", str(root / "ci/image-signers.yaml"),
+                           "--base", base, *extra], capture_output=True, text=True)
+
+
+def test_gate_changed_digest_verifies(gate, monkeypatch):
+    root, base = gate
+    own(root, D2)
+    monkeypatch.setenv("FAKE_SIGNED", f"{OWN}@{D2}")
+    r = run_gate(root, base)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert f"verified {OWN}@{D2}" in r.stdout
+    assert (root / "cosign.log").read_text().splitlines() == [
+        f"verify --certificate-oidc-issuer {ISSUER} --certificate-identity {OWN_SUBJECT} {OWN}@{D2}"]
+
+
+def test_gate_changed_digest_unsigned_fails(gate):
+    root, base = gate
+    own(root, D2)
+    r = run_gate(root, base)
+    assert r.returncode == 1
+    assert f"FAIL {OWN}@{D2}: no signatures found" in r.stdout
+
+
+def test_gate_wrong_identity_fails(gate, monkeypatch):
+    root, base = gate
+    own(root, D2)
+    monkeypatch.setenv("FAKE_SIGNED", f"{OWN}@{D2}")
+    monkeypatch.setenv("FAKE_SUBJECT", "https://github.com/evil/x/.github/workflows/x.yaml@refs/heads/main")
+    assert run_gate(root, base).returncode == 1
+
+
+def test_gate_unlisted_or_no_digest_fails(gate):
+    root, base = gate
+    signers(root, f"- repository: {OWN}\n  unsigned: x\n")
+    own(root, D2)
+    r = run_gate(root, base)
+    assert r.returncode == 1 and "no signer-list entry" in r.stdout
+    write(root, "deploy/apps/website/deployment-website.yaml",
+          f"kind: Pod\nmetadata: {{name: x, namespace: website}}\nspec: {{containers: [{{image: '{OWN}:main'}}]}}\n")
+    assert "no digest" in run_gate(root, base).stdout
+
+
+def test_gate_unchanged_digest_is_skipped(gate):
+    root, base = gate
+    r = run_gate(root, base)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "No changed" in r.stdout
+    assert not (root / "cosign.log").exists()
+
+
+@pytest.mark.parametrize("extra", [("--pr-title", "Revert \"chore(deps): update site\""),
+                                   ("--head-ref", "auto-revert/1234")])
+def test_gate_revert_is_skipped(gate, extra):
+    root, base = gate
+    own(root, D2)
+    r = run_gate(root, base, *extra)
+    assert r.returncode == 0
+    assert "Skipped" in r.stdout
+    assert not (root / "cosign.log").exists()
+
+
+def test_gate_without_base_is_skipped(gate):
+    root, _ = gate
+    own(root, D2)
+    assert run_gate(root, "").returncode == 0
+
+
 def test_repo_signer_list_is_valid_and_complete():
     entries = ip.load_signers(REPO / "ci" / "image-signers.yaml")
     assert all(("unsigned" in e) != ("issuer" in e) for e in entries.values())
