@@ -15,6 +15,11 @@ metadata:
   namespace: argo
   annotations:
     argocd.argoproj.io/sync-wave: "20"
+    # The migrator Job shares the collector image, so a collector bump changes
+    # its immutable spec.template and the server-side diff's dry run fails.
+    # A client-side diff lets the chart's `Force=true,Replace=true` recreate
+    # the Job (#1501).
+    argocd.argoproj.io/compare-options: ServerSideDiff=false
 spec:
   project: platform
   sources:
