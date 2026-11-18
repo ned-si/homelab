@@ -63,6 +63,7 @@ jobs:
       subject: ${{ steps.decide.outputs.subject }}
       pr_title: ${{ steps.decide.outputs.pr_title }}
       revert_tree: ${{ steps.decide.outputs.revert_tree }}
+      revert_parent: ${{ steps.decide.outputs.revert_parent }}
       stateful: ${{ steps.decide.outputs.stateful }}
       dry_run: ${{ steps.decide.outputs.dry_run }}
     steps:
@@ -122,6 +123,7 @@ jobs:
           SUBJECT: ${{ needs.decide.outputs.subject }}
           PR_TITLE: ${{ needs.decide.outputs.pr_title }}
           REVERT_TREE: ${{ needs.decide.outputs.revert_tree }}
+          REVERT_PARENT: ${{ needs.decide.outputs.revert_parent }}
           STATEFUL: ${{ needs.decide.outputs.stateful }}
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -137,6 +139,7 @@ jobs:
           PR: ${{ steps.revert.outputs.pr }}
           HEAD_SHA: ${{ steps.revert.outputs.commit }}
           SHA: ${{ needs.decide.outputs.sha }}
+          BASE: ${{ needs.decide.outputs.revert_parent }}
           REPO: ${{ github.repository }}
           BOT_TOKEN: ${{ github.token }}
           PR_TOKEN: ${{ secrets.AUTO_ROLLBACK_TOKEN }}

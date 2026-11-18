@@ -33,7 +33,8 @@
 # ArgoCDAppStillDegraded alert pages if it stays broken.
 #
 # Environment: REPO (owner/name), PR (number), SHA (the reverted commit),
-# HEAD_SHA (the revert commit auto-rollback-act.sh created), BOT_TOKEN,
+# HEAD_SHA (the revert commit auto-rollback-act.sh created), BASE (its
+# parent, the main it was built on; default SHA), BOT_TOKEN,
 # PR_TOKEN, POLL (default 60), MAX_POLLS (default 60), REMOTE (default
 # origin). Runs in a full clone of the repository (fetch-depth 0).
 #
@@ -53,6 +54,8 @@ die() { echo "::error::auto-rollback-keep: $*" >&2; exit 1; }
 [[ "$PR" =~ ^[0-9]+$ ]] || die "bad PR"
 [[ "${SHA:-}" =~ ^[0-9a-f]{40}$ ]] || die "bad SHA"
 [[ "${HEAD_SHA:-}" =~ ^[0-9a-f]{40}$ ]] || die "bad HEAD_SHA"
+BASE=${BASE:-$SHA}
+[[ "$BASE" =~ ^[0-9a-f]{40}$ ]] || die "bad BASE"
 [[ "$POLL" =~ ^[0-9]+$ ]] || die "bad POLL"
 [[ "$MAX_POLLS" =~ ^[0-9]+$ ]] || die "bad MAX_POLLS"
 
@@ -64,8 +67,8 @@ parent=$(git rev-parse --verify "$SHA^^{commit}") || die "$SHA has no parent her
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# The base the pull request's head is built on: the reverted commit itself.
-head=$HEAD_SHA base=$SHA message=""
+# The main the pull request's head is built on.
+head=$HEAD_SHA base=$BASE message=""
 
 # rebuild <main>: point the branch at the revert of SHA on top of <main>.
 # Sets closed=true when the pull request is closed instead; dies on a conflict.

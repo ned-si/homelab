@@ -12,9 +12,10 @@
 #           not a GitHub issue.
 #
 # A revert needs every guard rail to pass:
-#   1. REVISION names a commit on main, and it is the newest commit on main:
-#      a later merge may already have changed or fixed the app, and the revert
-#      is built as "main with the tree of that commit's parent";
+#   1. REVISION names a commit on main, and no later commit on main changed a
+#      file of the app (as in 5): such a merge may already have changed or
+#      fixed it. Later merges of other apps stay: the revert is `git revert`
+#      of that commit applied to main, and a conflict is a skip (#1467);
 #   2. that commit landed less than MAX_AGE seconds ago (default 1 h);
 #   3. the app is not in NO_REVERT_APPS (default: cilium democratic-csi
 #      tuppr). A revert of the CNI or the CSI driver is itself a risky deploy
@@ -126,7 +127,7 @@ for tok in $(tr ',' ' ' <<<"$REVISION"); do
   break
 done
 
-action=skip reason="" subject="" pr_title="" revert_tree=""
+action=skip reason="" subject="" pr_title="" revert_tree="" revert_parent=""
 stateful=false
 in_list "$APP" "$STATEFUL_APPS" && stateful=true
 
@@ -136,18 +137,20 @@ else
   subject=$(strip_pr "$(git log -1 --format=%s "$sha")")
   committed=$(git log -1 --format=%ct "$sha")
   age=$((NOW - committed))
-  prev_subject="" prev_age=""
+  prev_subject="" prev_age="" has_parent=false
   if git rev-parse --verify -q "$sha^" >/dev/null; then
+    has_parent=true
     prev_subject=$(strip_pr "$(git log -1 --format=%s "$sha^")")
     prev_age=$((NOW - $(git log -1 --format=%ct "$sha^")))
-    revert_tree=$(git rev-parse "$sha^^{tree}")
   fi
   lower=$(tr '[:upper:]' '[:lower:]' <<<"$subject")
+  # Captured first: touches_app returns early, a pipe would fail on SIGPIPE.
+  later_files=$(git log --format= --name-only --no-renames "$sha..$main")
 
-  if [ -z "$revert_tree" ]; then
+  if [ "$has_parent" = false ]; then
     reason="the commit has no parent to revert to"
-  elif [ "$sha" != "$main" ]; then
-    reason="not the newest commit on main (main is at ${main:0:12})"
+  elif touches_app "$APP" <<<"$later_files"; then
+    reason="a later commit on main changes $APP (main is at ${main:0:12})"
   elif [ "$age" -ge "$MAX_AGE" ]; then
     reason="merged ${age}s ago, the limit is ${MAX_AGE}s"
   elif in_list "$APP" "$NO_REVERT_APPS" && ! { [ "$APP" = cilium ] && cilium_patch_bump "$sha"; }; then
@@ -158,9 +161,20 @@ else
     reason="the previous commit is an automatic revert; never two in a row"
   elif ! git diff-tree --no-commit-id --name-only -r "$sha" | touches_app "$APP"; then
     reason="the commit changes no file of $APP"
+  elif ! out=$(git merge-tree --write-tree --no-messages --merge-base="$sha" "$main" "$sha^"); then
+    reason="the revert no longer applies on main ${main:0:12} (conflict)"
   else
+    # `git revert` of the commit applied to main; the parent's tree when it
+    # is the newest commit.
     action=revert
-    reason="newest commit on main, merged ${age}s ago, changes $APP"
+    revert_tree=${out%%$'\n'*}
+    revert_parent=$main
+    later=$(git rev-list --count "$sha..$main")
+    if [ "$later" -eq 0 ]; then
+      reason="newest commit on main, merged ${age}s ago, changes $APP"
+    else
+      reason="merged ${age}s ago, changes $APP; $later later commit(s) on main do not"
+    fi
     # `revert: <subject> (auto)`, the subject cut to 53 characters: the
     # longest title scripts/ci/check-title.sh accepts for type `revert`
     # is 68.
@@ -200,6 +214,7 @@ if [ -n "${GITHUB_OUTPUT:-}" ]; then
     echo "subject=$subject"
     echo "pr_title=$pr_title"
     echo "revert_tree=$revert_tree"
+    echo "revert_parent=$revert_parent"
     echo "stateful=$stateful"
     echo "dry_run=$DRY_RUN"
   } >> "$GITHUB_OUTPUT"
