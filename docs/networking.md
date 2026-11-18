@@ -194,6 +194,20 @@ record to the single `--default-targets` address. The wildcard redirect route
 opts out with `external-dns.alpha.kubernetes.io/controller: none`; CI requires
 that annotation on any wildcard route.
 
+The `nedsi.io` apex is the exception: a CNAME to `www.nedsi.io` (DNS only,
+flattened by Cloudflare), set once by hand in the Cloudflare dashboard.
+external-dns names its ownership TXT record `a-` plus the first label, which
+for the apex is `a-nedsi.io`, outside the zone, so it cannot own an apex record
+([external-dns#6125](https://github.com/kubernetes-sigs/external-dns/issues/6125)).
+It leaves the unowned CNAME alone, and the CNAME follows `www.nedsi.io`, which
+it owns, so a WAN change needs no extra step.
+
+```sh
+dig +short nedsi.io @1.1.1.1; dig +short www.nedsi.io @1.1.1.1
+```
+
+Expected: the same address twice, the one in `--default-targets`.
+
 Records for removed hostnames stay in Cloudflare until deleted by hand.
 
 ## Certificates
@@ -427,6 +441,11 @@ kubectl -n kube-system exec <cilium-pod-on-that-node> -c cilium-agent -- \
   keeps a second data plane beside Cilium.
 - The WAN IP in exactly one place: CI rule `wan-ip-single-source`. Two copies
   drift after the next ISP address change.
+- The `nedsi.io` apex as a hand-made CNAME to `www.nedsi.io`, not an
+  external-dns record: no external-dns setting lets it own an apex without
+  renaming its ownership records. Rejected: a `--txt-prefix` ending in a dot,
+  the upstream advice, which renames every ownership record and leaves all the
+  existing ones unowned, so external-dns would stop updating any of them.
 - Static addresses on the devices, not DHCP reservations: the router cannot
   reserve outside its pool.
 - The API VIP from Talos, not kube-vip: it is part of the machine config in

@@ -1,7 +1,7 @@
 # WAN IP change
 
 The ISP gives the house a dynamic public address. When it changes, every
-`*.lilalala.com` record still points at the old one and the public names stop
+`*.lilalala.com` and `*.nedsi.io` record still points at the old one and the public names stop
 answering. The fix is one line in git:
 `--default-targets` in
 [`infrastructure/external-dns/values.yaml`](../../infrastructure/external-dns/values.yaml),
@@ -79,16 +79,24 @@ for h in argo auth grafana theater cinema media archive cook syncthing; do
   printf '%-10s %-16s %s\n' "$h" "$(dig +short "$h.lilalala.com" @1.1.1.1 | tr '\n' ' ')" \
     "$(curl -s -o /dev/null -m 15 -w '%{http_code}' "https://$h.lilalala.com/")"
 done
+for h in nedsi.io www.nedsi.io blog.nedsi.io; do
+  printf '%-14s %-16s %s\n' "$h" "$(dig +short "$h" @1.1.1.1 | tr '\n' ' ')" \
+    "$(curl -s -o /dev/null -m 15 -w '%{http_code}' "https://$h/")"
+done
 ```
 
 Expected: the new address in the Deployment's arguments, `UPDATE` lines for
 the A records, the new address for every hostname, and `200`, `302` (login
-redirect) or `401` (`theater`, Plex) for every hostname. `000` is a failure.
+redirect) or `401` (`theater`, Plex) for every hostname, `200` or `301` for
+the `nedsi.io` names. `000` is a failure.
 Records are never deleted (`--policy=upsert-only`), so stale ones from removed
 hostnames keep the old address; that is harmless.
 
 - Old address still answered after 10 minutes: the cache in `1.1.1.1` holds it
   for the record's TTL; check the record in the Cloudflare dashboard.
+- Only `nedsi.io` keeps the old address: its record is an A, not the CNAME to
+  `www.nedsi.io` ([networking.md](../networking.md#dns)). Change it to that
+  CNAME, DNS only, in the Cloudflare dashboard.
 - External-dns logs an authentication error: the token in
   `cloudflare-api-token-secret` is no longer valid ([secrets.md](../secrets.md)).
 
