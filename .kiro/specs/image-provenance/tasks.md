@@ -4,7 +4,7 @@ One PR per task, in order. No task writes to the cluster outside Argo CD;
 the live checks are read-only. The defaults are in
 [requirements.md](requirements.md#decided-defaults).
 
-- [ ] 1. Inventory, read-only: `scripts/ci/image_provenance.py`,
+- [x] 1. Inventory, read-only: `scripts/ci/image_provenance.py`,
       `ci/image-signers.yaml` seeded from its first run (an entry for every
       repository, `ghcr.io/ned-si/homelab-site` as `unsigned: signed from
       task 2`), the cosign pin in the `ci.yaml` env and
@@ -12,7 +12,7 @@ the live checks are read-only. The defaults are in
       `.github/workflows/image-provenance.yaml`,
       `tests/test_image_provenance.py`. Check: the workflow run on the PR
       lists every image of the running image set with a status and exits 0;
-      a fixture with a `mismatch` exits 1. [1.1-1.6]
+      a fixture with a `mismatch` exits 1. [1.1-1.6] (#1515)
 - [ ] 2. Own image signed and verified in Audit: `site-publish` signs the
       index digest keyless with SBOM and provenance attestations and
       verifies it; `infrastructure/kyverno-policies/verify-own-images.yaml`

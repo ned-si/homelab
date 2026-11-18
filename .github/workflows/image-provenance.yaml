@@ -1,0 +1,95 @@
+---
+# image-provenance: which running images are signed, by whom, and with
+# attestations (.kiro/specs/image-provenance/design.md#inventory-task-1).
+# scripts/ci/image_provenance.py over deploy/ and the Helm renders, against
+# ci/image-signers.yaml. Read-only: it asks registries and Sigstore, never
+# writes to the repository. Not a required check; a scheduled failure posts
+# to ntfy at low priority.
+name: image-provenance
+
+on:
+  schedule:
+    # Monday 05:17 UTC.
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/ci/image_provenance.py
+      - ci/image-signers.yaml
+      - .github/workflows/image-provenance.yaml
+
+permissions: {}
+
+concurrency:
+  group: image-provenance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    name: Image provenance
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The pins live in ci.yaml's env, as for site-publish's Hugo.
+      - name: Install the pinned tools
+        run: |
+          set -euo pipefail
+          for v in HELM KUBECTL COSIGN; do
+            export "${v}_VERSION=$(sed -n "s/^  ${v}_VERSION: *//p" .github/workflows/ci.yaml)"
+            export "${v}_SHA256=$(sed -n "s/^  ${v}_SHA256: *//p" .github/workflows/ci.yaml)"
+          done
+          scripts/ci/install-tool.sh helm kubectl cosign
+          scripts/ci/setup-python-deps.sh
+
+      # The render job's chart cache (restore only; render saves it).
+      - name: Restore Helm chart archives
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/charts
+          key: charts-v1-${{ hashFiles('clusters/homelab/**', 'ci/helm-releases.yaml') }}
+          restore-keys: charts-v1-
+
+      - name: Render every Application in scope
+        env:
+          CHART_CACHE: ${{ runner.temp }}/charts
+        run: python3 scripts/ci/render_apps.py --out "$RUNNER_TEMP/render"
+
+      - name: Inventory
+        run: |
+          set -euo pipefail
+          rc=0
+          python3 scripts/ci/image_provenance.py --render "$RUNNER_TEMP/render" \
+            --json "$RUNNER_TEMP/image-provenance.json" > "$RUNNER_TEMP/image-provenance.md" || rc=$?
+          { echo "### image-provenance"; cat "$RUNNER_TEMP/image-provenance.md"; } >> "$GITHUB_STEP_SUMMARY"
+          cat "$RUNNER_TEMP/image-provenance.md"
+          exit "$rc"
+
+      - name: Upload the inventory
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-provenance
+          path: ${{ runner.temp }}/image-provenance.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # A copy of the site-publish step: priority low, held in quiet hours
+      # (docs/sre.md). A mismatch is something to look at, not a page.
+      - name: Notify ntfy on failure
+        if: ${{ failure() && github.event_name == 'schedule' }}
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          delay=$(scripts/ci/ntfy-quiet-delay.sh)
+          curl -fsS -m 10 -o /dev/null ${delay:+-H "Delay: ${delay}m"} \
+            -H "Title: image-provenance failed" -H "Priority: low" -H "Tags: warning" \
+            -H "Click: $RUN_URL" \
+            -d "An image signature does not match ci/image-signers.yaml, or a registry failed; see $RUN_URL" \
+            "https://ntfy.sh/$NTFY_TOPIC"

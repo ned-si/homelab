@@ -1,0 +1,202 @@
+# Who signs each image repository the cluster runs, or why it is unsigned
+# (.kiro/specs/image-provenance/design.md#the-signer-list). Read by
+# scripts/ci/image_provenance.py; seeded from its first run.
+- repository: alpine/kubectl
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: alpine/socat
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: altinity/clickhouse-operator
+  issuer: https://token.actions.githubusercontent.com
+  subject: https://github.com/Altinity/clickhouse-operator/.github/workflows/cosign_sign.yaml@refs/heads/master
+- repository: altinity/metrics-exporter
+  issuer: https://token.actions.githubusercontent.com
+  subject: https://github.com/Altinity/clickhouse-operator/.github/workflows/cosign_sign.yaml@refs/heads/master
+- repository: amazon/aws-cli
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: bash
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: bats/bats
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: busybox
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: clickhouse/clickhouse-server
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: crocodilestick/calibre-web-automated
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: curlimages/curl
+  unsigned: key-based signature (inventory 2026-11-18)
+- repository: democraticcsi/democratic-csi
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: eclipse-mosquitto
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ecr-public.aws.com/docker/library/redis
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: ghcr.io/advplyr/audiobookshelf
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/alex1989hu/kubelet-serving-cert-approver
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/alex1989hu/kubelet-serving-cert-approver/\.github/workflows/.+$'
+- repository: ghcr.io/cloudnative-pg/cloudnative-pg
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: ghcr.io/cloudnative-pg/plugin-barman-cloud
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/cloudnative-pg/postgresql
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/cloudnative-pg/postgres-containers/\.github/workflows/.+$'
+- repository: ghcr.io/democratic-csi/csi-grpc-proxy
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: ghcr.io/headlamp-k8s/headlamp
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/(kubernetes-sigs|headlamp-k8s)/headlamp/\.github/workflows/.+$'
+- repository: ghcr.io/home-assistant/home-assistant
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/home-assistant/(core|docker|builder)/\.github/workflows/.+$'
+- repository: ghcr.io/home-operations/tuppr
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: ghcr.io/hotio/bazarr
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/hotio/lidarr
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/hotio/prowlarr
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/hotio/qbittorrent
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/hotio/radarr
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/hotio/sonarr
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/immich-app/immich-machine-learning
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: ghcr.io/immich-app/immich-server
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: ghcr.io/jellyfin/jellyfin
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/koenkk/zigbee2mqtt
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/kyverno/cleanup-controller
+  unsigned: signatures in ghcr.io/kyverno/signatures, not read (inventory 2026-11-18)
+- repository: ghcr.io/kyverno/kyverno
+  unsigned: signatures in ghcr.io/kyverno/signatures, not read (inventory 2026-11-18)
+- repository: ghcr.io/kyverno/kyvernopre
+  unsigned: signatures in ghcr.io/kyverno/signatures, not read (inventory 2026-11-18)
+- repository: ghcr.io/kyverno/readiness-checker
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: ghcr.io/kyverno/reports-controller
+  unsigned: signatures in ghcr.io/kyverno/signatures, not read (inventory 2026-11-18)
+- repository: ghcr.io/mealie-recipes/mealie
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/ned-si/homelab-site
+  unsigned: signed from task 2
+- repository: ghcr.io/onedr0p/exportarr
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/paperless-ngx/paperless-ngx
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/recyclarr/recyclarr
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/tensorchord/cloudnative-vectorchord
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: grafana/grafana
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: lscr.io/linuxserver/lazylibrarian
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: mirror.gcr.io/aquasec/trivy
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: mirror.gcr.io/aquasec/trivy-operator
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: plexinc/pms-docker
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: prom/pushgateway
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: python
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/argoproj/argocd
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/cilium/certgen
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/cilium/cilium
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/cilium/cilium/\.github/workflows/.+@refs/(tags|heads)/.+$'
+- repository: quay.io/cilium/cilium-envoy
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/cilium/(proxy|cilium)/\.github/workflows/.+$'
+- repository: quay.io/cilium/hubble-export-stdout
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/cilium/hubble-relay
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/cilium/cilium/\.github/workflows/.+@refs/(tags|heads)/.+$'
+- repository: quay.io/cilium/hubble-ui
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/cilium/hubble-ui-backend
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/cilium/operator-generic
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/cilium/cilium/\.github/workflows/.+@refs/(tags|heads)/.+$'
+- repository: quay.io/cilium/tetragon
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/cilium/tetragon/\.github/workflows/build-images-releases\.yml@refs/tags/v.+$'
+- repository: quay.io/cilium/tetragon-operator
+  issuer: https://token.actions.githubusercontent.com
+  subjectRegExp: '^https://github\.com/cilium/tetragon/\.github/workflows/build-images-releases\.yml@refs/tags/v.+$'
+- repository: quay.io/jetstack/cert-manager-cainjector
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/jetstack/cert-manager-controller
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/jetstack/cert-manager-startupapicheck
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/jetstack/cert-manager-webhook
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/keycloak/keycloak
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/kiwigrid/k8s-sidecar
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/oauth2-proxy/oauth2-proxy
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/prometheus-operator/prometheus-operator
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/prometheus/alertmanager
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/prometheus/blackbox-exporter
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/prometheus/node-exporter
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: quay.io/prometheus/prometheus
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: quay.io/prometheuscommunity/yet-another-cloudwatch-exporter
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: reg.kyverno.io/kyverno/kyverno-cli
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: registry.k8s.io/external-dns/external-dns
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: registry.k8s.io/kube-state-metrics/kube-state-metrics
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: registry.k8s.io/metrics-server/metrics-server
+  issuer: https://accounts.google.com
+  subject: krel-trust@k8s-releng-prod.iam.gserviceaccount.com
+- repository: registry.k8s.io/sig-storage/csi-attacher
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: registry.k8s.io/sig-storage/csi-node-driver-registrar
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: registry.k8s.io/sig-storage/csi-provisioner
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: registry.k8s.io/sig-storage/csi-resizer
+  unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
+- repository: restic/restic
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: signoz/signoz
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: signoz/signoz-otel-collector
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: signoz/zookeeper
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: syncthing/syncthing
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: tailscale/k8s-operator
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: tailscale/tailscale
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: timberio/vector
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: valkey/valkey
+  unsigned: no signature published (inventory 2026-11-18)
+- repository: viaductoss/ksops
+  unsigned: no signature published (inventory 2026-11-18)

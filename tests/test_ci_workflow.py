@@ -100,6 +100,21 @@ def test_one_job_saves_each_tool_cache():
     assert len(savers) == 9
 
 
+def test_image_provenance_workflow_is_read_only_and_triggered():
+    wf = yaml_json(REPO / ".github" / "workflows" / "image-provenance.yaml")
+    on = wf["on"]
+    assert set(on) == {"schedule", "workflow_dispatch", "pull_request"}
+    assert set(on["pull_request"]["paths"]) == {
+        "scripts/ci/image_provenance.py", "ci/image-signers.yaml", ".github/workflows/image-provenance.yaml"}
+    assert wf["permissions"] == {}
+    (job,) = wf["jobs"].values()
+    assert job["permissions"] == {"contents": "read"}
+    run = "\n".join(s.get("run", "") for s in job["steps"])
+    assert "GITHUB_STEP_SUMMARY" in run and "--json" in run
+    uploads = [s for s in job["steps"] if "actions/upload-artifact@" in s.get("uses", "")]
+    assert uploads and uploads[0]["with"]["name"] == "image-provenance"
+
+
 def test_each_cache_key_has_one_saving_job():
     """A save names its job's restore step; no two jobs save the same key."""
     savers = {}
