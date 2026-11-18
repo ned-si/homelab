@@ -10,10 +10,12 @@
 #            version and values, the Gateway API CRDs first
 #   smoke    the workload in ci/talos-rehearsal/smoke.yaml, then check it;
 #            then a Gateway and HTTPRoute (ci/talos-rehearsal/gateway.yaml)
-#            and a request through the Gateway's Service
+#            and a request through the Gateway's Service; then the metrics
+#            firewall (talos/patches/firewall-metrics.yaml)
 #   upgrade  `talosctl upgrade` node by node to TO_TALOS (if it differs, or
 #            FORCE_TALOS=true), then `talosctl upgrade-k8s --to TO_KUBERNETES`
-#   verify   nodes Ready on the target versions, Cilium OK, smoke answers
+#   verify   nodes Ready on the target versions, Cilium OK, smoke answers,
+#            the metrics firewall still holds
 #   destroy  remove the cluster
 #   logs     print node and Cilium state (for a failed run)
 #
@@ -127,6 +129,11 @@ create() {
   need FROM_TALOS; need FROM_KUBERNETES
   mkdir -p "$WORK"
   local args=() p
+  # The metrics firewall with this cluster's node addresses for the LAN ones.
+  CP_IP=$CP WORKER_IP=$WORKER yq '(select(.kind == "NetworkRuleConfig") | .ingress) |=
+    ([.[] | select(.subnet | test("^192\\.168\\.") | not)] + [{"subnet": strenv(CP_IP) + "/32"}, {"subnet": strenv(WORKER_IP) + "/32"}])' \
+    talos/patches/firewall-metrics.yaml > "$WORK/firewall-metrics.yaml"
+  args+=(--config-patch "@$WORK/firewall-metrics.yaml")
   for p in "${PATCHES_ALL[@]}"; do args+=(--config-patch "@$p"); done
   for p in "${PATCHES_CP[@]}"; do args+=(--config-patch-controlplanes "@$p"); done
 
@@ -199,6 +206,36 @@ smoke() {
     || die "smoke: the Gateway is not Programmed"
   retry 120 gateway_check || die "smoke: the Gateway does not answer (no Envoy listener?)"
   log "smoke: the Gateway answers"
+  firewall_check || die "smoke: the metrics firewall is wrong"
+}
+
+# The probe pod GETs http://$1:$2/metrics and finds the metric name $3.
+pod_metrics() {
+  local pod out
+  pod=$(kubectl -n smoke get pod -l app=probe -o jsonpath='{.items[0].metadata.name}' 2>/dev/null) || return 1
+  out=$(kubectl get --raw "/api/v1/namespaces/smoke/pods/$pod:8080/proxy/dial?request=metrics&host=$1&port=$2&protocol=http&tries=1" 2>/dev/null) || return 1
+  grep -q "$3" <<<"$out"
+}
+
+# talos/patches/firewall-metrics.yaml: the runner stands in for a LAN device
+# outside the cluster. It reaches the Kubernetes API (control) but not the
+# metrics ports; a pod reads them on both nodes.
+firewall_check() {
+  local ok=0
+  curl -sk -m 5 -o /dev/null "https://$CP:6443/healthz" \
+    || { echo "::error::firewall: the runner cannot reach $CP:6443 (control)"; ok=1; }
+  if curl -s -m 5 -o /dev/null "http://$CP:2381/metrics"; then
+    echo "::error::firewall: etcd metrics on $CP:2381 answer the runner"; ok=1
+  fi
+  if curl -s -m 5 -o /dev/null "http://$WORKER:9962/metrics"; then
+    echo "::error::firewall: Cilium metrics on $WORKER:9962 answer the runner"; ok=1
+  fi
+  retry 60 pod_metrics "$CP" 2381 etcd_server_has_leader \
+    || { echo "::error::firewall: a pod cannot read etcd metrics on $CP:2381"; ok=1; }
+  retry 60 pod_metrics "$WORKER" 9962 cilium_ \
+    || { echo "::error::firewall: a pod cannot read Cilium metrics on $WORKER:9962"; ok=1; }
+  [ "$ok" -eq 0 ] && log "firewall: metrics closed to the runner, open to pods"
+  return "$ok"
 }
 
 # The probe pod dials the Gateway's Service: Envoy must have a listener and
@@ -249,6 +286,7 @@ verify() {
     echo "::error::cilium status is not OK"; fail=1
   fi
   if retry 300 smoke_check; then log "ok  smoke Service answers"; else echo "::error::smoke Service does not answer"; fail=1; fi
+  firewall_check || fail=1
   [ "$fail" -eq 0 ] || die "verify failed"
 }
 

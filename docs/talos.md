@@ -80,6 +80,11 @@ A fresh node boots into maintenance mode on a DHCP address, printed on the UART.
   `10.96.0.0/12`, workloads scheduled on the control planes.
 - Metrics: controller-manager and scheduler bind `0.0.0.0`, etcd serves metrics
   on `http://0.0.0.0:2381`, so kube-prometheus-stack can scrape them.
+- Ingress firewall (`patches/firewall-metrics.yaml`): default accept; the
+  plain-HTTP metrics ports (etcd 2381, node-exporter 9100, Cilium 9962 to
+  9965) answer only the pod CIDR, the four node addresses and the VIP. Any
+  other LAN device gets no answer. Inspect a node's rules with
+  `talosctl -n <ip> get nftableschain -o yaml`.
 - Sysctls: `kernel.panic=10`, `kernel.panic_on_oops=1`. A kernel oops reboots
   the node instead of hanging it.
 - Workload isolation: `SecurityProfileConfig workloadIsolation: false`. Talos
