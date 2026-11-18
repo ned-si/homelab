@@ -30,12 +30,12 @@ the live checks are read-only. The defaults are in
       policy report shows `pass` and no `fail` for `verify-own-images`,
       and no other namespace has a `fail` or `error` for it. [2.1-2.5]
       (#1519)
-- [ ] 3. CI gate on own images: `scripts/ci/image_provenance.py
+- [x] 3. CI gate on own images: `scripts/ci/image_provenance.py
       --gate-own` in the `security` job (changed own digests against the
       PR base only, reverts and `auto-revert/*` skipped), its cases in
       `tests/test_image_provenance.py`. Check: a throwaway commit pointing
       `deploy/` at an unsigned digest fails `ci`; the clean tree passes.
-      [3.1-3.3]
+      [3.1-3.3] (#1520)
 - [ ] 4. Repo-policy rule `image-signers` and its tests. Check: a fixture
       repository without an entry fails the rule. [4.1-4.2]
 - [ ] 5. Upstream signatures in Audit:
