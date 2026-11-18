@@ -66,12 +66,12 @@ task 10 sets the spec `done` and closes #1305.
       excepted until task 10) and 11; the next morning, criterion 4. The
       run's report lists every fix applied from the runbook's list. [1-8]
       (2026-11-17, fix #1473)
-- [ ] 8. After the window: `truenas-exporter` drops `smart/test/results`
+- [x] 8. After the window: `truenas-exporter` drops `smart/test/results`
       and `truenas_disk_smart_*`; `NASSmartTestFailed` removed with its
       runbook, rule test and table rows; any endpoint that failed on
       25.10.8 fixed; on the NAS, the CORE paths removed from the SSH
       user's sudo commands (if task 3 added the Linux ones), then the
-      canary again. [5.2, 5.4]
+      canary again. [5.2, 5.4] (#1485)
 - [ ] 9. Docs for the new state: `README.md`, `docs/architecture.md`,
       `docs/runbooks/cold-start.md` (NAS facts: version, interface name,
       onboard NIC), `docs/runbooks/alerts/HomelabNASDown.md` (SCALE UI
