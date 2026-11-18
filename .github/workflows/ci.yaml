@@ -101,6 +101,10 @@ env:
   # exiftool from its tag archive; perl comes with the runner.
   EXIFTOOL_VERSION: "13.63"
   EXIFTOOL_SHA256: a306420abf76dbfc5b4ca1a9de7bb2523bc93500a075c4fc9ce543b15f09195f
+  # cosign for image signatures; read by the image-provenance workflow
+  # (.kiro/specs/image-provenance/design.md).
+  COSIGN_VERSION: v3.1.4
+  COSIGN_SHA256: 424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa
   # One checkout serves every step of a job: keep it free of bytecode and
   # pytest caches so no check sees another check's leftovers.
   PYTHONDONTWRITEBYTECODE: "1"

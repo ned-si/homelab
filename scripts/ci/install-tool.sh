@@ -6,7 +6,7 @@
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
 # Tools: kubeconform actionlint shellcheck gitleaks trivy kyverno kube-linter helm
 #        kubectl kind tofu promtool alertmanager talhelper talosctl hugo htmltest
-#        exiftool
+#        exiftool cosign
 #
 # TOOL_CACHE=<dir> (restored in CI by actions/cache): downloads are kept there
 # as <sha256>. A cached file goes through the same sha256 check as a download;
@@ -101,6 +101,9 @@ for tool in "$@"; do
     htmltest)
       v=$(need HTMLTEST_VERSION); fetch "https://github.com/wjdp/htmltest/releases/download/v$v/htmltest_${v}_linux_amd64.tar.gz" "$(need HTMLTEST_SHA256)"
       tar -xzf "$work/dl" -C "$bin" htmltest ;;
+    cosign)
+      v=$(need COSIGN_VERSION); fetch "https://github.com/sigstore/cosign/releases/download/$v/cosign-linux-amd64" "$(need COSIGN_SHA256)"
+      install -m 0755 "$work/dl" "$bin/cosign" ;;
     exiftool) # a Perl script that loads lib/ from its own directory
       v=$(need EXIFTOOL_VERSION); fetch "https://github.com/exiftool/exiftool/archive/refs/tags/$v.tar.gz" "$(need EXIFTOOL_SHA256)"
       rm -rf "$bin/exiftool-dist" && mkdir -p "$bin/exiftool-dist"
