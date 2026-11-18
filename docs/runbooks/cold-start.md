@@ -22,9 +22,9 @@ For a planned power-off, see [Planned shutdown](#planned-shutdown) first.
 | Router | Sunrise Connect Box 3 Fiber, `192.168.1.1`: gateway, DHCP (pool `.50`-`.199`, set as start `192.168.1.50`, 150 addresses), DNS forwarder. It cannot reserve addresses outside the pool and has no static routes. TP-Link Decos are access points only. |
 | Static devices | Set on the device, outside the DHCP pool: nodes `.247` `.238` `.239` `.240` (their Talos machine configs, from [`talos/talconfig.yaml`](../../talos/talconfig.yaml)), NAS `.228`. |
 | Cluster addresses | API VIP `.11`; LoadBalancer IPs `.254` (Gateway), `.200` (qBittorrent seeding), `.201` (Syncthing); pool `.200`-`.227`. |
-| NAS | TrueNAS CORE, static `192.168.1.228` on `igb0`, a port of the Digitus PCIe network card (MAC ends `B8:28`). The card's second port (`igb1`) is unconfigured and the onboard NIC has no driver in TrueNAS CORE: plug the cable into the `B8:28` port only. |
+| NAS | TrueNAS SCALE 25.10.8, static `192.168.1.228` on `enp7s0f0`, a port of the Digitus PCIe network card (MAC ends `B8:28`). The card's second port (`enp7s0f1`) and the onboard NIC (`eno1`) are unconfigured: plug the cable into the `B8:28` port only. Gateway and DNS `192.168.1.1`, hostname `truenas`, domain `local`, announced over mDNS and WS-Discovery. |
 | NAS console | None: the CPU (Ryzen 5 3600) has no integrated GPU, and a graphics card needs the only PCIe slot, which holds the network card. Diagnose over the network (web UI on `:443`, SSH). |
-| NAS disks | The 2.5" SATA SSD is the boot drive. The M.2 NVMe (`nvd0`) is the L2ARC cache of pool `homelab` (RAIDZ1, 5 disks). The pool imports without its cache device; it does not boot without the SSD. |
+| NAS disks | The 2.5" SATA SSD is the boot drive. The M.2 NVMe (`nvme0n1`) is the L2ARC cache of pool `homelab` (RAIDZ1, 5 disks). The pool imports without its cache device; it does not boot without the SSD. |
 | Nodes | 4x Turing RK1 in a Turing Pi 2. All four slots power on with the board. Each boots from a 29 GB eMMC. The board's BMC gives per-slot power and a serial console per slot, from its web UI or the `tpi` CLI (`tpi power`, `tpi uart`; `tpi --help` for the flags of the installed version). |
 | Clocks | The RK1 modules have no RTC battery: the clock is wrong until NTP syncs, a minute or so after boot. Talos holds etcd until the time is synced; TLS errors in the first minute are this. |
 | API VIP | Talos holds `.11` on one control plane, elected through etcd: without etcd quorum there is no VIP. `talosctl` talks to the node IPs, never the VIP. |
@@ -101,8 +101,8 @@ Expected: `0.0% packet loss`, `open` on 443 (web UI), 2049 (NFS) and 3260
 no timeout on macOS: more than 20 seconds means NFS is not answering (Ctrl-C).
 
 In the web UI (`https://192.168.1.228`) confirm: pool `homelab` ONLINE (a
-DEGRADED cache device is tolerable, a DEGRADED data vdev is not), services iSCSI
-and NFS running.
+DEGRADED cache device is tolerable, a DEGRADED data vdev is not) under
+**Storage**, services iSCSI and NFS running under **System → Services**.
 
 If the NAS does not answer at all: check the cable is in the `B8:28` port of the
 Digitus card, then check the router's DHCP client list in case the NAS lost its
@@ -422,7 +422,8 @@ Before a move or planned power work:
 
    Expected: each command returns once that node is down.
 
-3. Shut the NAS down from its web UI (System, Shutdown), last.
+3. Shut the NAS down from its web UI (the power icon at the top right, Shut
+   Down), last.
 
 Nothing needs scaling down or suspending: Argo CD resumes from `main` and the
 databases recover on start, as above.

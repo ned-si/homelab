@@ -57,7 +57,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
   API on the VIP `192.168.1.11`, held by Talos on the control planes.
 - GitOps: Argo CD. CNI: Cilium, which also serves the shared
   Gateway on `192.168.1.254`.
-- Storage: TrueNAS CORE NAS at `192.168.1.228`. iSCSI block volumes through
+- Storage: TrueNAS SCALE NAS at `192.168.1.228`. iSCSI block volumes through
   democratic-csi (StorageClasses `iscsi`, default, and `iscsi-retain`) and an
   NFS share for media. Data volumes use reclaim policy `Retain`.
 - Public names: `<name>.lilalala.com`, TLS from Let's Encrypt, DNS records
@@ -145,7 +145,7 @@ flowchart LR
 | `192.168.1.238` | `homelab-cp-2` |
 | `192.168.1.239` | `homelab-cp-3` |
 | `192.168.1.240` | `homelab-w-1` (worker) |
-| `192.168.1.228` | TrueNAS CORE (iSCSI, NFS) |
+| `192.168.1.228` | TrueNAS SCALE (iSCSI, NFS, SMB) |
 | `192.168.1.20` | Raspberry Pi, Zigbee coordinator over ser2net, static on the Pi ([docs/home-automation.md](docs/home-automation.md#zigbee)) |
 | `192.168.1.200`-`.227` | Cilium pool `pool-2` (LoadBalancer Services) |
 | `192.168.1.200` | `theater/qbittorrent-seed`, pinned |

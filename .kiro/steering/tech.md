@@ -16,7 +16,7 @@ Application in `clusters/homelab/`, images by digest in the manifests.
 | Upgrades | Renovate pull requests, rehearsed in CI, rolled out node by node by tuppr | [talos](../../docs/talos.md#upgrades) |
 | Network | Cilium (kube-proxy replacement, LB-IPAM, L2 announcements), one shared Gateway API `Gateway` | [networking](../../docs/networking.md) |
 | GitOps | Argo CD: `root` -> three layers (infrastructure, platform, apps) -> one Application per app, tracking `main` | [architecture](../../docs/architecture.md#the-tree) |
-| Storage | TrueNAS CORE: democratic-csi iSCSI (`iscsi`, `iscsi-retain`) and an NFS share for media | [architecture](../../docs/architecture.md) |
+| Storage | TrueNAS SCALE: democratic-csi iSCSI (`iscsi`, `iscsi-retain`) and an NFS share for media | [architecture](../../docs/architecture.md) |
 | Databases | CloudNativePG; WAL and daily base backups to S3 through the Barman Cloud plugin | [backups](../../docs/backups.md) |
 | File backups | restic to S3 (the photo library also to the NAS); weekly restore tests; old object versions locked | [backups](../../docs/backups.md) |
 | TLS and DNS | cert-manager (Let's Encrypt, DNS-01 on Cloudflare); external-dns, upsert only | [networking](../../docs/networking.md) |
