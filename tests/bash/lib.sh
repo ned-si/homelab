@@ -34,6 +34,7 @@ finish() {
 #       nostatus (body without a status line, exit 0)
 #   api/<...>.body                                  JSON body
 #   pr-view.json, pr-checks.json                    for `gh pr view|checks`
+#   stderr-hint                                     printed on stderr first
 # Non-2xx responses print the status line, headers and body on stdout, an
 # error on stderr, and exit 1, as gh does. Every call is logged to calls.log.
 install_fake_gh() {
@@ -43,6 +44,8 @@ install_fake_gh() {
 #!/bin/bash
 d=${FAKE_GH_DIR:?}
 echo "$*" >> "$d/calls.log"
+# gh 2.105 prints agent hints on stderr before the output.
+if [ -f "$d/stderr-hint" ]; then cat "$d/stderr-hint" >&2; fi
 case "$1 $2" in
   "pr view") cat "$d/pr-view.json"; exit 0 ;;
   "pr checks") cat "$d/pr-checks.json"; exit "$(cat "$d/pr-checks.exit" 2>/dev/null || echo 0)" ;;

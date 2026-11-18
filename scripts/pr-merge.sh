@@ -375,8 +375,9 @@ lock_release() {
 load_pr() {
   local tries=0
   while :; do
+    # stderr stays out of the JSON: gh prints hints there (gh 2.105, #1480).
     if ! view=$(gh pr view "$pr" --repo "$REPO" \
-          --json number,title,state,isDraft,baseRefName,headRefName,headRefOid,mergeable,isCrossRepository,author 2>&1); then
+          --json number,title,state,isDraft,baseRefName,headRefName,headRefOid,mergeable,isCrossRepository,author); then
       echo "pr-merge: cannot read PR #$pr" >&2
       exit 1
     fi
@@ -478,7 +479,7 @@ run_guards() {
 
   # ff-protected
   if [ "$mode" = "ff" ]; then
-    out=$(gh api --include "repos/$REPO/branches/main/protection" 2>&1) || true
+    out=$(gh api --include "repos/$REPO/branches/main/protection" 2>/dev/null) || true
     st=$(status_of "$out")
     case "$st" in
       200) refuse ff-protected "main is protected; a direct fast-forward push would be rejected (use squash)" ;;
