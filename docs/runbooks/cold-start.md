@@ -24,7 +24,7 @@ For a planned power-off, see [Planned shutdown](#planned-shutdown) first.
 | Cluster addresses | API VIP `.11`; LoadBalancer IPs `.254` (Gateway), `.200` (qBittorrent seeding), `.201` (Syncthing); pool `.200`-`.227`. |
 | NAS | TrueNAS SCALE 25.10.8, static `192.168.1.228` on `enp7s0f0`, a port of the Digitus PCIe network card (MAC ends `B8:28`). The card's second port (`enp7s0f1`) and the onboard NIC (`eno1`) are unconfigured: plug the cable into the `B8:28` port only. Gateway and DNS `192.168.1.1`, hostname `truenas`, domain `local`, announced over mDNS and WS-Discovery. |
 | NAS console | None: the CPU (Ryzen 5 3600) has no integrated GPU, and a graphics card needs the only PCIe slot, which holds the network card. Diagnose over the network (web UI on `:443`, SSH). |
-| NAS disks | The 2.5" SATA SSD is the boot drive. The M.2 NVMe (`nvme0n1`) is the L2ARC cache of pool `homelab` (RAIDZ1, 5 disks). The pool imports without its cache device; it does not boot without the SSD. |
+| NAS disks | The 2.5" SATA SSD (`sdb`) holds `boot-pool`: the NAS does not boot without it. Pool `homelab` is one RAIDZ1 vdev of five 7.68 TB SATA SSDs (`sda`, `sdc`-`sdf`), with no cache, log or spare device. The M.2 NVMe (`nvme0n1`) is failing and in no pool. |
 | Nodes | 4x Turing RK1 in a Turing Pi 2. All four slots power on with the board. Each boots from a 29 GB eMMC. The board's BMC gives per-slot power and a serial console per slot, from its web UI or the `tpi` CLI (`tpi power`, `tpi uart`; `tpi --help` for the flags of the installed version). |
 | Clocks | The RK1 modules have no RTC battery: the clock is wrong until NTP syncs, a minute or so after boot. Talos holds etcd until the time is synced; TLS errors in the first minute are this. |
 | API VIP | Talos holds `.11` on one control plane, elected through etcd: without etcd quorum there is no VIP. `talosctl` talks to the node IPs, never the VIP. |
@@ -100,9 +100,9 @@ Expected: `0.0% packet loss`, `open` on 443 (web UI), 2049 (NFS) and 3260
 (iSCSI), and an export list containing `/mnt/homelab/k8s/nfs`. `showmount` has
 no timeout on macOS: more than 20 seconds means NFS is not answering (Ctrl-C).
 
-In the web UI (`https://192.168.1.228`) confirm: pool `homelab` ONLINE (a
-DEGRADED cache device is tolerable, a DEGRADED data vdev is not) under
-**Storage**, services iSCSI and NFS running under **System → Services**.
+In the web UI (`https://192.168.1.228`) confirm: pool `homelab` ONLINE under
+**Storage** (DEGRADED means a data disk is out: see
+[NASPoolUnhealthy](alerts/NASPoolUnhealthy.md)), services iSCSI and NFS running under **System → Services**.
 
 If the NAS does not answer at all: check the cable is in the `B8:28` port of the
 Digitus card, then check the router's DHCP client list in case the NAS lost its
