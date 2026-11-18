@@ -1,5 +1,7 @@
 # external-dns, `gateway-httproute` as the only source. Chart defaults kept:
-# TXT registry, default owner id, no prefix, no domain filter.
+# TXT registry, default owner id, no prefix, no domain filter. Adding a prefix
+# would orphan every ownership record; the nedsi.io apex is a CNAME instead
+# (docs/networking.md#dns).
 provider:
   name: cloudflare
 
