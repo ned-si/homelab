@@ -97,6 +97,23 @@ def test_kyverno_ids(name):
         assert entry.get("reliability_only"), f"{name}: needs a CIS, NIST SP 800-190 or NSA/CISA control"
 
 
+def test_verify_own_images_audit_and_identity():
+    """verify-own-images: synced, Audit and fail-open, ghcr.io/ned-si only, signer-list identity."""
+    root = REPO / "infrastructure" / "kyverno-policies"
+    assert "verify-own-images.yaml" in docs(root / "kustomization.yaml")[0]["resources"]
+    (policy,) = docs(root / "verify-own-images.yaml")
+    assert policy["kind"] == "ImageValidatingPolicy"
+    spec = policy["spec"]
+    assert spec["validationActions"] == ["Audit"]
+    assert spec["failurePolicy"] == "Ignore"
+    assert spec["validationConfigurations"]["mutateDigest"] is False
+    assert spec["matchImageReferences"] == [{"glob": "ghcr.io/ned-si/*"}]
+    identities = [i for a in spec["attestors"] for i in a["cosign"]["keyless"]["identities"]]
+    out = subprocess.run(["yq", "-o=json", ".", str(REPO / "ci" / "image-signers.yaml")], check=True, capture_output=True, text=True)
+    (own,) = [e for e in json.loads(out.stdout) if e["repository"] == "ghcr.io/ned-si/homelab-site"]
+    assert identities == [{"issuer": own["issuer"], "subject": own["subject"]}]
+
+
 def tracing_policies() -> dict[str, dict]:
     out = {}
     for f in sorted(TETRAGON.rglob("*.yaml")) if TETRAGON.is_dir() else []:

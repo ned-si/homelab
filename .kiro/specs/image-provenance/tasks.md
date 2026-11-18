@@ -13,7 +13,7 @@ the live checks are read-only. The defaults are in
       `tests/test_image_provenance.py`. Check: the workflow run on the PR
       lists every image of the running image set with a status and exits 0;
       a fixture with a `mismatch` exits 1. [1.1-1.6] (#1515)
-- [ ] 2. Own image signed and verified in Audit: `site-publish` signs the
+- [x] 2. Own image signed and verified in Audit: `site-publish` signs the
       index digest keyless with SBOM and provenance attestations and
       verifies it; `infrastructure/kyverno-policies/verify-own-images.yaml`
       in that kustomization; `ImageValidatingPolicy` in the
@@ -29,6 +29,7 @@ the live checks are read-only. The defaults are in
       run and Renovate's digest PR, the policy is Ready, the `website`
       policy report shows `pass` and no `fail` for `verify-own-images`,
       and no other namespace has a `fail` or `error` for it. [2.1-2.5]
+      (#1519)
 - [ ] 3. CI gate on own images: `scripts/ci/image_provenance.py
       --gate-own` in the `security` job (changed own digests against the
       PR base only, reverts and `auto-revert/*` skipped), its cases in

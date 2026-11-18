@@ -18,6 +18,7 @@ D2 = "sha256:" + "2" * 64
 D3 = "sha256:" + "3" * 64
 ISSUER = "https://token.actions.githubusercontent.com"
 SUBJECT = "https://github.com/acme/app/.github/workflows/release.yaml@refs/tags/v1.0.0"
+OWN_SUBJECT = "https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main"
 
 # Fake cosign: FAKE_SIGNED lists repo@digest targets with a signature,
 # FAKE_ATT those with attestations, FAKE_SUBJECT is the signing identity,
@@ -231,5 +232,5 @@ def test_repo_signer_list_is_valid_and_complete():
     images = ip.collect(ip.manifest_files(REPO / "deploy", None))
     missing = {r["repository"] for r in images.values()} - set(entries)
     assert missing == set()
-    assert entries["ghcr.io/ned-si/homelab-site"]["unsigned"].startswith("signed from task 2")
+    assert entries["ghcr.io/ned-si/homelab-site"]["subject"] == OWN_SUBJECT
     assert os.access(SCRIPTS / "image_provenance.py", os.X_OK)

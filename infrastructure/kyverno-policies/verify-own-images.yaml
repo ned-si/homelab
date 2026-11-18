@@ -1,0 +1,44 @@
+# Our own images are signed keyless by site-publish on main
+# (.kiro/specs/image-provenance/design.md#the-own-image-policy-task-2).
+# Audit only, fail-open; the identity equals the ghcr.io/ned-si/homelab-site
+# entry of ci/image-signers.yaml. Not in policies/kyverno: verification needs
+# the network, which the offline CI run does not have.
+apiVersion: policies.kyverno.io/v1
+kind: ImageValidatingPolicy
+metadata:
+  name: verify-own-images
+spec:
+  validationActions: [Audit]
+  failurePolicy: Ignore
+  webhookConfiguration:
+    # GHCR and Sigstore round trips; a slow answer admits, the background scan reports.
+    timeoutSeconds: 10
+  evaluation:
+    background:
+      enabled: true
+  validationConfigurations:
+    # Images are already pinned by digest; mutation would only add Argo CD diffs.
+    mutateDigest: false
+    verifyDigest: false
+    required: false
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: [v1]
+        operations: [CREATE, UPDATE]
+        resources: [pods]
+  matchImageReferences:
+    - glob: "ghcr.io/ned-si/*"
+  attestors:
+    - name: homelab
+      cosign:
+        keyless:
+          identities:
+            - issuer: https://token.actions.githubusercontent.com
+              subject: https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main
+        ctlog:
+          url: https://rekor.sigstore.dev
+  validations:
+    - expression: >-
+        images.containers.map(image, verifyImageSignatures(image, [attestors.homelab])).all(e, e > 0)
+      message: ghcr.io/ned-si images must be signed by site-publish on main.
