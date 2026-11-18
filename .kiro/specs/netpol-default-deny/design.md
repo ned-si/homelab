@@ -194,14 +194,15 @@ changing one is an edit here in its own pull request.
   tracks of the overnight run of 2026-11-04 do) may flip outside it, with the
   same checks. `paperless` flips may run at any time while it holds no
   household documents.
-- **D8. No automatic rollback for a flip; a watched window instead.**
-  `scripts/ci/auto-rollback-decide.sh` reverts only a commit that changed a
-  file of the Degraded Application. A flip changes the `network-policies`
-  Application, which never degrades (CiliumNetworkPolicies have no health),
-  and the app it breaks had no file changed. Teaching auto-rollback the
-  mapping is its own change (#1012). Until then the runner watches each flip
-  for 30 minutes and the 24-hour soak catches the nightly jobs; a broken
-  backup pages through the backup alerts.
+- **D8. A watched window for each flip, and auto-rollback for an app that
+  degrades.** A flip changes the `network-policies` Application, which never
+  degrades (CiliumNetworkPolicies have no health), and the app it breaks had
+  no file changed. Since #1012, `scripts/ci/auto-rollback-decide.sh` also
+  pins a Degraded app on a commit that changed the switch of its
+  Application's destination namespace. A flip that breaks traffic without a
+  Degraded app (a nightly job, a probe that still passes) is not caught that
+  way: the runner still watches each flip for 30 minutes and the 24-hour soak
+  catches the nightly jobs; a broken backup pages through the backup alerts.
 - **D9. `kube-system`, `argo` and the Cilium agents are not enforced, now or
   later in this spec.** The agents, the API server and etcd run in the host
   network, which pod policy does not select, so there is nothing to gain for

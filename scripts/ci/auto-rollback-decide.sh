@@ -13,7 +13,7 @@
 #
 # A revert needs every guard rail to pass:
 #   1. REVISION names a commit on main, and no later commit on main changed a
-#      file of the app (as in 5): such a merge may already have changed or
+#      file of the app or its namespace switch (as in 5): such a merge may already have changed or
 #      fixed it. Later merges of other apps stay: the revert is `git revert`
 #      of that commit applied to main, and a conflict is a skip (#1467);
 #   2. that commit landed less than MAX_AGE seconds ago (default 1 h);
@@ -31,7 +31,10 @@
 #   5. the commit changed a file of that app: a path segment `<app>/`, a file
 #      `<app>.yaml` or `application-<app>.yaml`, and `<layer>/secrets/` for
 #      `secrets-<layer>`. So the failure is pinned on the merge that deployed
-#      it, not on whatever merged last;
+#      it, not on whatever merged last. A change to the `enforce-default-deny`
+#      switch of the app's namespace (its Application's destination) counts
+#      too: the flip belongs to `network-policies`, which never degrades, and
+#      breaks the app (#1012);
 #   6. the outage guard: after GUARD_WAIT seconds (so the outage alerts have
 #      time to fire), OUTAGE_CHECK (scripts/ci/auto-rollback-guard.sh in the
 #      workflow) prints nothing. It prints a reason when several apps fail at
@@ -118,6 +121,26 @@ touches_app() {
   return 1
 }
 
+# The destination namespace of the app's Application at the commit, or nothing.
+app_namespace() {
+  local sha=$1 app=$2 files f
+  files=$(git ls-tree -r --name-only "$sha" clusters/homelab)
+  f=$(grep -E "/$app\.yaml\$" <<<"$files" | head -n1) || true
+  [ -n "$f" ] || return 0
+  awk <<<"$(git show "$sha:$f")" '
+    /^  destination:/ { d = 1; next }
+    d && /^  [^ ]/ { exit }
+    d && /^    namespace:/ { print $2; exit }'
+}
+
+# Did the commit change the enforcement switch of the namespace? The rendered
+# file is one per namespace, and CI keeps it in step with its source.
+flips_namespace() {
+  local ns=$1
+  [ -n "$ns" ] || return 1
+  grep -qxF "deploy/infrastructure/network-policies/ciliumnetworkpolicy-enforce-default-deny-$ns.yaml"
+}
+
 sha=""
 for tok in $(tr ',' ' ' <<<"$REVISION"); do
   [[ "$tok" =~ ^[0-9a-f]{40}$ ]] || continue
@@ -146,11 +169,21 @@ else
   lower=$(tr '[:upper:]' '[:lower:]' <<<"$subject")
   # Captured first: touches_app returns early, a pipe would fail on SIGPIPE.
   later_files=$(git log --format= --name-only --no-renames "$sha..$main")
+  commit_files=$(git diff-tree --no-commit-id --name-only -r "$sha")
+  ns=$(app_namespace "$sha" "$APP")
+  why=""
+  if touches_app "$APP" <<<"$commit_files"; then
+    why="changes $APP"
+  elif flips_namespace "$ns" <<<"$commit_files"; then
+    why="changes the enforce-default-deny switch of namespace $ns"
+  fi
 
   if [ "$has_parent" = false ]; then
     reason="the commit has no parent to revert to"
   elif touches_app "$APP" <<<"$later_files"; then
     reason="a later commit on main changes $APP (main is at ${main:0:12})"
+  elif flips_namespace "$ns" <<<"$later_files"; then
+    reason="a later commit on main changes the switch of namespace $ns (main is at ${main:0:12})"
   elif [ "$age" -ge "$MAX_AGE" ]; then
     reason="merged ${age}s ago, the limit is ${MAX_AGE}s"
   elif in_list "$APP" "$NO_REVERT_APPS" && ! { [ "$APP" = cilium ] && cilium_patch_bump "$sha"; }; then
@@ -159,7 +192,7 @@ else
     reason="the commit is itself a revert"
   elif [[ "$prev_subject" == *"(auto)" ]] && [ "$prev_age" -lt "$LOOP_WINDOW" ]; then
     reason="the previous commit is an automatic revert; never two in a row"
-  elif ! git diff-tree --no-commit-id --name-only -r "$sha" | touches_app "$APP"; then
+  elif [ -z "$why" ]; then
     reason="the commit changes no file of $APP"
   elif ! out=$(git merge-tree --write-tree --no-messages --merge-base="$sha" "$main" "$sha^"); then
     reason="the revert no longer applies on main ${main:0:12} (conflict)"
@@ -171,9 +204,9 @@ else
     revert_parent=$main
     later=$(git rev-list --count "$sha..$main")
     if [ "$later" -eq 0 ]; then
-      reason="newest commit on main, merged ${age}s ago, changes $APP"
+      reason="newest commit on main, merged ${age}s ago, $why"
     else
-      reason="merged ${age}s ago, changes $APP; $later later commit(s) on main do not"
+      reason="merged ${age}s ago, $why; $later later commit(s) on main do not"
     fi
     # `revert: <subject> (auto)`, the subject cut to 53 characters: the
     # longest title scripts/ci/check-title.sh accepts for type `revert`

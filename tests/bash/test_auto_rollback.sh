@@ -257,6 +257,40 @@ expect_contains "the guard runs only for a revert" "itself a revert" "$(get reas
 o=$(run_decide APP=mealie TRIGGER=on-sync-failed REVISION="$c_bump" GUARD_WAIT=soon)
 expect_contains "invalid GUARD_WAIT is refused" "rc=1" "$o"
 
+echo "decide: a network-policy flip of the app's namespace (#1012)"
+# application <file> <namespace>: an Application with that destination.
+application() {
+  mkdir -p "$(dirname "$1")"
+  printf 'spec:\n  destination:\n    server: https://kubernetes.default.svc\n    namespace: %s\n  project: x\n' "$2" > "$1"
+}
+application clusters/homelab/apps/mealie.yaml mealie
+application clusters/homelab/platform/kube-prometheus-stack.yaml monitoring
+git add -A
+GIT_AUTHOR_DATE="@$((T0 + 800)) +0000" GIT_COMMITTER_DATE="@$((T0 + 800)) +0000" git commit -qm "chore: applications"
+NP=infrastructure/network-policies/90-enforcement.yaml
+SW=deploy/infrastructure/network-policies/ciliumnetworkpolicy-enforce-default-deny
+c_flip=$(commit $((T0 + 810)) "feat(network): enforce default-deny in mealie (#1500)" "$NP" "$SW-mealie.yaml")
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=mealie TRIGGER=on-health-degraded REVISION="$c_flip" NOW=$((T0 + 900)))
+expect_eq "flip of the app's namespace: revert" revert "$(get action "$o")"
+expect_contains "flip: reason" "enforce-default-deny switch of namespace mealie" "$(get reason "$o")"
+o=$(run_decide APP=immich TRIGGER=on-health-degraded REVISION="$c_flip" NOW=$((T0 + 900)))
+expect_eq "flip of another namespace: skip" skip "$(get action "$o")"
+expect_contains "other namespace: reason" "changes no file of immich" "$(get reason "$o")"
+o=$(run_decide APP=mealie TRIGGER=on-health-degraded REVISION="$c_flip" NOW=$((T0 + 810 + 3600)))
+expect_eq "flip: the age limit still applies" skip "$(get action "$o")"
+c_mon=$(commit $((T0 + 820)) "feat(network): enforce default-deny in monitoring (#1501)" "$SW-monitoring.yaml")
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=kube-prometheus-stack TRIGGER=on-health-degraded REVISION="$c_mon" NOW=$((T0 + 900)))
+expect_eq "flip: the namespace is the Application's destination" revert "$(get action "$o")"
+o=$(run_decide APP=mealie TRIGGER=on-health-degraded REVISION="$c_flip" NOW=$((T0 + 900)))
+expect_eq "flip: a later flip of another namespace is kept" revert "$(get action "$o")"
+commit $((T0 + 830)) "fix(network): allow mealie egress to S3 (#1502)" "$SW-mealie.yaml" >/dev/null
+git update-ref refs/remotes/origin/main HEAD
+o=$(run_decide APP=mealie TRIGGER=on-health-degraded REVISION="$c_flip" NOW=$((T0 + 900)))
+expect_eq "flip: a later change of the same switch: skip" skip "$(get action "$o")"
+expect_contains "later switch change: reason" "switch of namespace mealie" "$(get reason "$o")"
+
 echo "guard"
 # Fake gh (the run list) and curl (the ntfy topic) for auto-rollback-guard.sh.
 GUARD="$REPO_ROOT/scripts/ci/auto-rollback-guard.sh"

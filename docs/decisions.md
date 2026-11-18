@@ -186,7 +186,8 @@ then opens a revert pull request titled `revert: <title> (auto)`, label
 `auto-rollback`, with auto-merge on, but only when every guard rail in
 `scripts/ci/auto-rollback-decide.sh` holds: the commit is on `main` and no
 later commit changed a file of that Application, it was merged under an hour
-ago, it changed a file of that Application, the Application is not `cilium`
+ago, it changed a file of that Application or the `enforce-default-deny`
+switch of its destination namespace (a network-policy flip, #1012), the Application is not `cilium`
 or `democratic-csi`, it would not be a second automatic revert in a row, the
 revert applies on `main` without a conflict, and there is no outage.
 Otherwise it does nothing and writes the reason to the run summary.
