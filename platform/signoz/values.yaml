@@ -155,6 +155,13 @@ otelCollector:
                     port: 8888
 
 telemetryStoreMigrator:
+  # An Argo CD hook, recreated on each sync. As a plain resource its pod
+  # template is immutable: an image bump fails the server-side diff and the
+  # app stays Unknown (ComparisonError). The chart's own pre-upgrade hook
+  # never renders under Argo CD (`helm template` is never an upgrade).
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
   resources:
     requests:
       cpu: 50m
