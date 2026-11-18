@@ -22,8 +22,11 @@ Expected while it fires: the device `FAULTED`, `REMOVED`, `UNAVAIL` or
 
 ## Fix
 
-- `cache` device (`nvd0`, known to be failing): remove it,
-  `zpool remove homelab nvd0`. Nothing else depends on it.
+- `cache` or `log` device: pool `homelab` has none (the failing NVMe
+  `nvme0n1` is in no pool), so one showing up was added since. Remove it with
+  `zpool remove <pool> <device>`, the device written exactly as
+  `zpool status -v <pool>` lists it (on SCALE a partition UUID, not
+  `nvme0n1`). Nothing else depends on it.
 - `data` device: follow [NASPoolUnhealthy](NASPoolUnhealthy.md#fix).
 - `REMOVED` after a cable or power event: reseat the disk's cable, then
   `zpool online <pool> <disk>` and watch the resilver in `zpool status`.

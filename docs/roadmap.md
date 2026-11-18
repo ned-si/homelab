@@ -78,7 +78,7 @@ and later put home automation fourth.
      PR #965); automatic Postgres majors (#745); consistent SQLite backups
      (#746); no stale restic lock can fail a backup (#919).
    - The NAS as a hardened dependency: scoped NFS exports and read-only
-     media (#721), the failing cache device and the pending update (#719,
+     media (#721), the failing NVMe and the pending update (#719,
      #720, #722).
    - Chaos experiments tied to the SLOs (#733).
    - One push per problem (#915).
