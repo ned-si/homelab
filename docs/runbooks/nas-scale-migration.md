@@ -532,11 +532,11 @@ scripts/nas-maintenance.sh canary --hold-guard 2>&1 | tee -a "$LOG"
 ```
 
 Expected: exit 0: the 1 GiB `iscsi` volume is written, read back, expanded
-to 2 GiB and deleted; the guard limited its new target to the four nodes
-within 15 minutes; the four NFS paths are non-empty, and `media/` and
-`torrents/` are non-empty through the parent mount. Exit 1 names the
-failing step: fix it from step 12's list, or the guard Job's log for the
-guard poll.
+to 2 GiB and deleted; a one-off Job `nas-iscsi-guard-canary` from the
+suspended guard CronJob limited its new target to the four nodes within 15
+minutes; the four NFS paths are non-empty, and `media/` and `torrents/` are
+non-empty through the parent mount. Exit 1 names the failing step: fix it
+from step 12's list; at the guard step the output ends with that Job's log.
 
 ### 14. Start the workloads
 
