@@ -98,7 +98,7 @@ def test_kyverno_ids(name):
 
 
 def test_verify_own_images_audit_and_identity():
-    """verify-own-images: synced, Audit and fail-open, ghcr.io/ned-si only, signer-list identity."""
+    """verify-own-images: synced, Audit and fail-open, ghcr.io/ned-si only, one attestor per image."""
     root = REPO / "infrastructure" / "kyverno-policies"
     assert "verify-own-images.yaml" in docs(root / "kustomization.yaml")[0]["resources"]
     (policy,) = docs(root / "verify-own-images.yaml")
@@ -108,10 +108,19 @@ def test_verify_own_images_audit_and_identity():
     assert spec["failurePolicy"] == "Ignore"
     assert spec["validationConfigurations"]["mutateDigest"] is False
     assert spec["matchImageReferences"] == [{"glob": "ghcr.io/ned-si/*"}]
-    identities = [i for a in spec["attestors"] for i in a["cosign"]["keyless"]["identities"]]
     out = subprocess.run(["yq", "-o=json", ".", str(REPO / "ci" / "image-signers.yaml")], check=True, capture_output=True, text=True)
-    (own,) = [e for e in json.loads(out.stdout) if e["repository"] == "ghcr.io/ned-si/homelab-site"]
-    assert identities == [{"issuer": own["issuer"], "subject": own["subject"]}]
+    own = [e for e in json.loads(out.stdout) if e["repository"].startswith("ghcr.io/ned-si/")]
+    assert own, "no ghcr.io/ned-si entry in ci/image-signers.yaml"
+    attestors = {a["name"]: a["cosign"]["keyless"]["identities"] for a in spec["attestors"]}
+    # Each image: exactly one attestor with its identity alone, and exactly
+    # one validation for its prefix that verifies against that attestor.
+    for e in own:
+        identity = [{"issuer": e["issuer"], "subject": e["subject"]}]
+        (name,) = [n for n, ids in attestors.items() if ids == identity]
+        prefix = f"startsWith('{e['repository']}')"
+        (v,) = [v for v in spec["validations"] if prefix in v["expression"]]
+        assert f"[attestors.{name}]" in v["expression"], f"{e['repository']}: validation uses another attestor"
+    assert len(attestors) == len(own) == len(spec["validations"])
 
 
 def tracing_policies() -> dict[str, dict]:

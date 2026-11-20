@@ -1,7 +1,9 @@
-# Our own images are signed keyless by site-publish on main
-# (.kiro/specs/image-provenance/design.md#the-own-image-policy-task-2).
-# Audit only, fail-open; the identity equals the ghcr.io/ned-si/homelab-site
-# entry of ci/image-signers.yaml. Not in policies/kyverno: verification needs
+# Our own images are signed keyless on main by site-publish and
+# dashboard-publish
+# (.kiro/specs/image-provenance/design.md#the-own-image-policy-task-2,
+# .kiro/specs/homelab-dashboard/design.md#signature-verification-in-the-cluster).
+# Audit only, fail-open; each identity equals the ghcr.io/ned-si entry of
+# ci/image-signers.yaml for that image. Not in policies/kyverno: verification needs
 # the network, which the offline CI run does not have.
 apiVersion: policies.kyverno.io/v1
 kind: ImageValidatingPolicy
@@ -29,8 +31,11 @@ spec:
         resources: [pods]
   matchImageReferences:
     - glob: "ghcr.io/ned-si/*"
+  # One attestor and one validation per image, so each image is bound to its
+  # own workflow: one attestor with both identities would accept a dashboard
+  # image signed by site-publish.
   attestors:
-    - name: homelab
+    - name: site
       cosign:
         keyless:
           identities:
@@ -38,7 +43,18 @@ spec:
               subject: https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main
         ctlog:
           url: https://rekor.sigstore.dev
+    - name: dashboard
+      cosign:
+        keyless:
+          identities:
+            - issuer: https://token.actions.githubusercontent.com
+              subject: https://github.com/ned-si/homelab/.github/workflows/dashboard-publish.yaml@refs/heads/main
+        ctlog:
+          url: https://rekor.sigstore.dev
   validations:
     - expression: >-
-        images.containers.map(image, verifyImageSignatures(image, [attestors.homelab])).all(e, e > 0)
-      message: ghcr.io/ned-si images must be signed by site-publish on main.
+        images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-site')).all(i, verifyImageSignatures(i, [attestors.site]) > 0)
+      message: ghcr.io/ned-si/homelab-site must be signed by site-publish on main.
+    - expression: >-
+        images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-dashboard')).all(i, verifyImageSignatures(i, [attestors.dashboard]) > 0)
+      message: ghcr.io/ned-si/homelab-dashboard must be signed by dashboard-publish on main.

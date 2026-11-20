@@ -108,6 +108,10 @@ env:
   # golangci-lint v2 for the dashboard job (dashboard/.golangci.yaml).
   GOLANGCI_LINT_VERSION: 2.15.0
   GOLANGCI_LINT_SHA256: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
+  # Chrome for Testing's headless shell (linux64) for the dashboard's
+  # screenshot step (scripts/ci/dashboard-screenshots.sh).
+  CHROME_HEADLESS_SHELL_VERSION: 158.0.8127.36
+  CHROME_HEADLESS_SHELL_SHA256: 2d3a23017323c54fd457a678e4351f895c4076d8050e39d5aa6247f93448b73a
   # One checkout serves every step of a job: keep it free of bytecode and
   # pytest caches so no check sees another check's leftovers.
   PYTHONDONTWRITEBYTECODE: "1"
@@ -900,7 +904,9 @@ jobs:
 
   # The Go module under dashboard/ (scripts/ci/dashboard-check.sh): mod
   # verify and tidy, golangci-lint, vet, govulncheck, tests with the race
-  # detector, build. Exits early when the change does not touch it.
+  # detector, build; then the page in a pinned browser, its PNGs as the
+  # dashboard-screenshots artefact. Exits early when the change does not
+  # touch it.
   # fetch-depth 2: HEAD^1 is the base (main for a pull request's merge commit).
   dashboard:
     runs-on: ubuntu-26.04
@@ -918,14 +924,14 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/tool-cache
-          key: tools-dashboard-${{ env.GOLANGCI_LINT_VERSION }}
+          key: tools-dashboard-${{ env.GOLANGCI_LINT_VERSION }}-${{ env.CHROME_HEADLESS_SHELL_VERSION }}
           restore-keys: tools-dashboard-
 
       - name: Install pinned tools
         id: setup
         env:
           TOOL_CACHE: ${{ runner.temp }}/tool-cache
-        run: scripts/ci/install-tool.sh golangci-lint
+        run: scripts/ci/install-tool.sh golangci-lint chrome-headless-shell
 
       - name: Save tool archives
         if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
@@ -941,9 +947,24 @@ jobs:
           cache-dependency-path: dashboard/go.sum
 
       - name: Dashboard checks
+        id: check
         env:
           GOTOOLCHAIN: local
         run: scripts/ci/dashboard-check.sh
+
+      - name: Dashboard screenshots
+        if: ${{ steps.check.outputs.checked == 'true' }}
+        env:
+          GOTOOLCHAIN: local
+        run: scripts/ci/dashboard-screenshots.sh "$RUNNER_TEMP/dashboard-screenshots"
+
+      - name: Upload the screenshots
+        if: ${{ !cancelled() && steps.check.outputs.checked == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dashboard-screenshots
+          path: ${{ runner.temp }}/dashboard-screenshots/
+          if-no-files-found: warn
 
   # The one required check. `always()` so it reports even when a job above
   # failed; it fails unless every job succeeded, except pr-metadata, which may

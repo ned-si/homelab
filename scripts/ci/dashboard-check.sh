@@ -7,19 +7,22 @@
 # files, go build, and the builder image's Go version against go.mod.
 #
 # Without --all it exits 0 when DASHBOARD_BASE..HEAD (default HEAD^1, main for
-# a pull request's merge commit) touches neither dashboard/, this script nor
-# the publishing workflow. Needs go and golangci-lint on PATH.
+# a pull request's merge commit) touches none of dashboard/, the two
+# dashboard scripts and the publishing workflow. Otherwise it writes
+# checked=true to $GITHUB_OUTPUT, which gates the screenshot step. Needs go
+# and golangci-lint on PATH.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 cd "$root"
 
 if [ "${1:-}" != "--all" ]; then
   changed=$(git diff --name-only "${DASHBOARD_BASE:-HEAD^1}" HEAD)
-  if ! grep -qE '^(dashboard/|scripts/ci/dashboard-check\.sh$|\.github/workflows/dashboard-publish\.yaml$)' <<<"$changed"; then
+  if ! grep -qE '^(dashboard/|scripts/ci/dashboard-(check|screenshots)\.sh$|\.github/workflows/dashboard-publish\.yaml$)' <<<"$changed"; then
     echo "dashboard: nothing under dashboard/ changed; skipped"
     exit 0
   fi
 fi
+if [ -n "${GITHUB_OUTPUT:-}" ]; then echo "checked=true" >>"$GITHUB_OUTPUT"; fi
 
 for t in go golangci-lint; do
   command -v "$t" >/dev/null || { echo "dashboard-check: $t is not on PATH" >&2; exit 1; }

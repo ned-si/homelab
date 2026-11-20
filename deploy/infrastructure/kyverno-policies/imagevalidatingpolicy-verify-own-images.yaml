@@ -21,7 +21,15 @@ spec:
         identities:
         - issuer: https://token.actions.githubusercontent.com
           subject: https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main
-    name: homelab
+    name: site
+  - cosign:
+      ctlog:
+        url: https://rekor.sigstore.dev
+      keyless:
+        identities:
+        - issuer: https://token.actions.githubusercontent.com
+          subject: https://github.com/ned-si/homelab/.github/workflows/dashboard-publish.yaml@refs/heads/main
+    name: dashboard
   evaluation:
     background:
       enabled: true
@@ -46,8 +54,12 @@ spec:
     required: false
     verifyDigest: false
   validations:
-  - expression: images.containers.map(image, verifyImageSignatures(image, [attestors.homelab])).all(e,
-      e > 0)
-    message: ghcr.io/ned-si images must be signed by site-publish on main.
+  - expression: images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-site')).all(i,
+      verifyImageSignatures(i, [attestors.site]) > 0)
+    message: ghcr.io/ned-si/homelab-site must be signed by site-publish on main.
+  - expression: images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-dashboard')).all(i,
+      verifyImageSignatures(i, [attestors.dashboard]) > 0)
+    message: ghcr.io/ned-si/homelab-dashboard must be signed by dashboard-publish
+      on main.
   webhookConfiguration:
     timeoutSeconds: 10
