@@ -31,8 +31,10 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 - **Site**: the static files Hugo builds from `site/`, served at
   `https://blog.nedsi.io`.
 - **Landing page**: the one static page at `https://nedsi.io`, from
-  `apps/website/landing/`, with buttons to the blog, the source repository
-  and, from phase 2, the dashboard.
+  `apps/website/landing/`: the operator's homepage, with cards to his
+  projects, the blog, the About page, his contact links and, from phase 2,
+  the dashboard. The homelab is one project, "an over-engineered homelab
+  run like a small production platform"; nothing about the household.
 - **Article**: one Markdown file under `site/content/posts/`, with front
   matter `title`, `date`, `summary`, `tags`, `draft`, and optionally
   `canonical` (the original URL of a republished article).
@@ -84,10 +86,11 @@ writing articles.
    page may come later.
 7. A republished article SHALL carry `<link rel="canonical">` to its
    original and a visible line naming where it first appeared.
-8. THE landing page SHALL be one HTML page and one stylesheet, with
-   buttons to the blog and the source repository, a card linking to the
-   About page, a dashboard button from phase 2, and the privacy link in
-   its footer.
+8. THE landing page SHALL be one HTML page and one stylesheet: a headline
+   and intro line, three short blocks (What this is, What you can expect,
+   Start here), then cards for his projects (the source repository among
+   them), the blog, the About page and his contact links (no form); a
+   dashboard card from phase 2; the privacy link in its footer.
 
 ## Requirement 2: Writing and publishing is a pull request
 
