@@ -1,0 +1,14 @@
+{
+  "repo": "ned-si/homelab",
+  "ci_workflow": "ci.yaml",
+  "apps": [
+    {"id": "immich", "name": "Immich", "slo_app": "media"},
+    {"id": "mealie", "name": "Mealie", "slo_app": "cook"},
+    {"id": "paperless", "name": "Paperless-ngx", "slo_app": "archive"},
+    {"id": "jellyfin", "name": "Jellyfin", "slo_app": "cinema"},
+    {"id": "syncthing", "name": "Syncthing", "slo_app": "syncthing"},
+    {"id": "keycloak", "name": "Keycloak", "slo_app": "auth"},
+    {"id": "landing", "name": "Landing page", "slo_app": "nedsi"},
+    {"id": "blog", "name": "Blog", "slo_app": "blog"}
+  ]
+}
