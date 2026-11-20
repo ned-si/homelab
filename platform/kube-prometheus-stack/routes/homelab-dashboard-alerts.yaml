@@ -1,0 +1,25 @@
+# The public dashboard (apps/homelab-dashboard): no accepted push for 48 h.
+# Shorter stalls, failing blocks and the GitHub token are INFO on the
+# Automation dashboard (.kiro/specs/homelab-dashboard/design.md#metrics).
+# Tests: tests/prometheus/homelab_dashboard_test.yaml.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-dashboard-alerts
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab-dashboard
+      rules:
+        - alert: HomelabDashboardSnapshotStale
+          # Without a snapshot the web pod counts from its start, so a fresh
+          # pod does not page at once and one that never gets a push does.
+          expr: max(homelab_dashboard_snapshot_age_seconds) > 48 * 3600
+          for: 30m
+          labels:
+            action: human
+            severity: warning
+          annotations:
+            summary: The public dashboard has served the same figures for over 48 h.
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabDashboardSnapshotStale.md

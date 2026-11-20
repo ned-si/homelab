@@ -38,3 +38,5 @@ resources:
   - signoz-trial.yaml
   # Talos audit records (Vector's counter): AuditAVCRateHigh.
   - audit-records.yaml
+  # The public dashboard: HomelabDashboardSnapshotStale.
+  - homelab-dashboard-alerts.yaml

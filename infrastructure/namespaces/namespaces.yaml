@@ -10,7 +10,8 @@
 #
 # restricted: gateway, argo, cert-manager, external-dns,
 #   kubelet-serving-cert-approver, metrics-server, trivy-system, kyverno,
-#   headlamp, hubble, home, system-upgrade, pentest, website.
+#   headlamp, hubble, home, system-upgrade, pentest, website,
+#   homelab-dashboard.
 # Below restricted, and why:
 #   democratic-csi  privileged: the node plugin needs host namespaces,
 #                   hostPath and privileged containers to attach iSCSI disks.
@@ -82,6 +83,18 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: website
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+# apps/homelab-dashboard, the public dashboard's collector and web roles.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: homelab-dashboard
   annotations:
     argocd.argoproj.io/sync-options: Delete=false,Prune=false
   labels:
