@@ -3,6 +3,7 @@ package snapshot
 import (
 	"regexp"
 	"slices"
+	"strings"
 )
 
 // ShownApp is an app whose availability the public page shows.
@@ -28,10 +29,11 @@ var shown = []ShownApp{
 	{ID: "blog", Name: "Blog", SLOApp: "blog"},
 }
 
-// hidden matches the download and indexer tooling: its uptime says when the
-// downloads run, so it is never queried, written or rendered.
+// hidden and the "arr" suffix match the download and indexer tooling, as the
+// publisher's pattern does: its uptime says when the downloads run, so it is
+// never queried, written or rendered.
 var hidden = regexp.MustCompile(`sonarr|radarr|lidarr|readarr|prowlarr|bazarr|recyclarr|lazylibrarian|` +
-	`qbittorrent|torrent|jackett|flaresolverr|theater|arr$`)
+	`qbittorrent|torrent|jackett|flaresolverr|theater`)
 
 // Shown returns the shown apps, in page order.
 func Shown() []ShownApp {
@@ -40,5 +42,5 @@ func Shown() []ShownApp {
 
 // Hidden reports whether s names download or indexer tooling.
 func Hidden(s string) bool {
-	return hidden.MatchString(s)
+	return hidden.MatchString(s) || strings.HasSuffix(s, "arr")
 }
