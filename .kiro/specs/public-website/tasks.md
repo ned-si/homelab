@@ -1,6 +1,6 @@
 # Tasks: public-website
 
-One PR per task, in order within a phase. Phase 1 (tasks 0-5) puts the
+One PR per task, in order within a phase. Phase 1 (tasks 0-5 and 10) puts the
 landing page live on `nedsi.io` and the blog on `blog.nedsi.io` with the
 intro article; phase 2 (tasks 6-9) adds statistics, the dashboard, solar
 and the republished articles.
@@ -75,6 +75,15 @@ No task writes to the cluster outside Argo CD. The defaults are in
 - [ ] 5. Intro article: drafted with the `operator-voice` skill, a draft
       PR for the operator to edit and mark ready. Check: acceptance
       criteria 3 and 8. [1.3]
+- [ ] 10. About page and contact: `site/content/about.md`
+      becomes the bundle `site/content/about/index.md` with the intro and
+      the résumé (optional `photo.jpg`, stripped by `task site:strip`);
+      the privacy page's e-mail section and contact `julien@nedsi.io`;
+      `julien@nedsi.io` added to the allowed addresses in
+      `scripts/ci/site-check.sh`; the landing page's About card. Texts
+      validated by the operator in chat first; draft PR he marks ready.
+      Starts once `julien@nedsi.io` receives mail. Check: the `site` job
+      passes; a test mail to `julien@nedsi.io` arrives. [1.2, 1.8, 4.1-4.3, 6.4]
 
 ## Phase 2: statistics and the dashboard
 

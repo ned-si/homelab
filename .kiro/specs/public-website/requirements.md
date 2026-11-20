@@ -50,8 +50,12 @@ Non-goals are listed under [Out of scope](#out-of-scope).
   its members other than the operator: their names, faces, voices, the
   address, the town, photos of the house or its surroundings, image
   metadata (EXIF, GPS), account names, routines, absences, household
-  consumption and other live house data. The operator's own name is not
-  secret.
+  consumption and other live house data. The operator's own name, his
+  photo on the About page and his professional history are not secret.
+- **Résumé**: the operator's professional history on the About page: his
+  IT roles only, with employers, titles and periods; certifications
+  ordered by the year earned, with that year only; talks and articles. No
+  skills list, education, languages, phone, address or birth date.
 
 ## Requirement 1: The blog is live
 
@@ -65,7 +69,9 @@ writing articles.
    two names to their `https://` URL, keeping the path and query. No
    `Location` SHALL carry a port.
 2. THE site SHALL have a home page listing articles newest first, one page
-   per article, an About page, a privacy page, a tag list and a 404 page.
+   per article, an About page holding the short intro and the résumé
+   below it, a privacy page, a tag list and a 404 page. There SHALL be no
+   separate résumé page and no résumé PDF.
 3. THE first release SHALL contain an intro article explaining the
    concept of the homelab and the blog, drafted in the operator's voice
    for him to edit.
@@ -79,8 +85,9 @@ writing articles.
 7. A republished article SHALL carry `<link rel="canonical">` to its
    original and a visible line naming where it first appeared.
 8. THE landing page SHALL be one HTML page and one stylesheet, with
-   buttons to the blog and the source repository, a dashboard button from
-   phase 2, and the privacy link in its footer.
+   buttons to the blog and the source repository, a card linking to the
+   About page, a dashboard button from phase 2, and the privacy link in
+   its footer.
 
 ## Requirement 2: Writing and publishing is a pull request
 
@@ -142,15 +149,20 @@ attack surface to the homelab as possible.
 the household or help anyone target the house.
 
 1. THE site SHALL NOT show personal data (glossary), secrets, the WAN
-   address, any employer, or anything about security devices (cameras,
-   locks, alarm) and their placement.
+   address, any employer outside the About page, or anything about
+   security devices (cameras, locks, alarm) and their placement.
 2. THE author SHALL be shown as `nedsi`. The About page MAY show the
-   operator's name and a link to his LinkedIn; he writes that page himself.
-   Agents never write an employer's name anywhere on the site.
+   operator's name, an optional small photo of him, his résumé (glossary;
+   employers and titles included, the current one too), links to his
+   GitHub and LinkedIn, and `julien@nedsi.io`. Employers appear only on
+   the About page.
+   Agents MAY draft the page from his CV; no About or landing text is
+   merged before the operator has validated it.
 3. CI SHALL fail when an image under `site/` carries EXIF, XMP, IPTC or
-   GPS metadata, or when a file under `site/` matches the public deny
-   patterns (e-mail addresses other than the repository's public one,
-   secret patterns through gitleaks, tracked `*.local.*` files).
+   GPS metadata (the About photo included), or when a file under `site/`
+   matches the public deny patterns (e-mail addresses other than
+   `nedsi@pm.me` and `julien@nedsi.io`, secret patterns through gitleaks,
+   tracked `*.local.*` files).
 4. A local pre-commit hook SHALL check `site/` against the operator's
    git-ignored deny list `site/denylist.local.txt` (household names,
    address terms); the hook passes when the file is absent.
@@ -275,7 +287,10 @@ Each default holds until the operator says otherwise. Rows marked
 | Dashboard apps | Household and platform apps by name; no *arr, qBittorrent or indexers (operator) | Nothing about the download stack |
 | Solar | Near real time, production only (operator) | Production says nothing about who is home |
 | Author | `nedsi`; the About page is his (operator) | Public commit identity |
-| About page | Short, a link to his LinkedIn only, written by him | His words, nothing an agent invents |
+| About page | Short intro, optional photo, then the full résumé; drafted from his CV, validated by him before merge (operator, 2026-11-19) | One page instead of a résumé page or PDF; his words, nothing an agent invents |
+| Contact | GitHub, LinkedIn and `julien@nedsi.io`, a Proton custom-domain address; no form (operator, 2026-11-19) | A readable address on the public domain, in a mailbox he already has |
+| Résumé content | IT roles only, no skills, education or languages; employers named, the current one included (operator, 2026-11-19) | The About page stays short; the photography years are in the intro |
+| Certifications | Name and year earned, ordered by year, never whether one is valid or lapsed (operator, 2026-11-19) | Nothing to keep up to date |
 | Language | English, British spelling (operator) | Same as the repository |
 | Content plan | Intro article first; then two republished articles with canonical links (operator) | Texts and reuse permission from the operator |
 | Article licence | CC BY 4.0 in `site/LICENSE`, not stated on the pages; code under the repository licence (operator, 2026-11-16) | Reuse with credit; nobody reads a licence footer |

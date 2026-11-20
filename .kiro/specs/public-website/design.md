@@ -110,7 +110,7 @@ and the routes are plain backend routes like every other app's.
 | `site/hugo.toml` | Base URL `https://blog.nedsi.io/`, RSS, markup settings, `buildDrafts=false`, `buildFuture=false`, `[minify.tdewolff.html] keepComments = true` |
 | `site/layouts/` | Home-made templates: `baseof`, `list`, `single`, `index`, `404`, `rss` (full content), `homelab` |
 | `site/assets/css/main.css` | The only stylesheet, fingerprinted by Hugo Pipes |
-| `site/content/` | `about.md`, `privacy.md`, `homelab.md` (phase 2), `posts/<yyyy-mm-dd>-<slug>/index.md` |
+| `site/content/` | `about/index.md` (and its optional photo), `privacy.md`, `homelab.md` (phase 2), `posts/<yyyy-mm-dd>-<slug>/index.md` |
 | `site/LICENSE` | CC BY 4.0 for the content under `site/content/` |
 | `site/Dockerfile` | The image: the nginx base and the Hugo output |
 | `apps/website/` | Deployment, Service, HTTPRoutes, PostSync smoke, publisher (phase 2) |
@@ -205,7 +205,7 @@ required check, so the job always runs and exits 0 early when
 | `htmltest` offline on `public/` | A broken internal link, anchor or image |
 | Markup check (grep on `public/`) | `<form`, `<iframe`, `style=`, an inline `<script>`, a `<script src=` other than `/stats/s.js`, or a `src=`/`href=` to another origin outside `<article>` |
 | `exiftool -if '$EXIF:all or $XMP:all or $IPTC:all or $GPS:all'` over `site/**/*.{jpg,jpeg,png,webp,heic}` | Any image carries metadata; the fix is `task site:strip` (`exiftool -all= -overwrite_original`) |
-| Deny patterns | An e-mail address other than `nedsi@pm.me`; gitleaks already scans the tree |
+| Deny patterns | An e-mail address other than `nedsi@pm.me` and `julien@nedsi.io`; gitleaks already scans the tree |
 | Local files | `git ls-files site \| grep -E '\.local\.'` is non-empty |
 | Drafts | A `draft: true` or future-dated page in `public/` |
 | `site-serve-check.sh`: the base image with `public/`, `apps/website/nginx.conf` and the landing page mounted | A wrong status or `Location` for a name, a missing `405`, no blog link on the landing page |
@@ -438,8 +438,14 @@ mid-upgrade version split, missing solar; the HTML contains no `<script`.
    like production, public as an example) and what the blog will cover.
    Drafted by an agent with the `operator-voice` skill, opened as a draft
    PR for the operator to edit.
-2. The About page: short, written by the operator; the default is one
-   line and a link to his LinkedIn. Agents leave it as a stub for him.
+2. The About page (`site/content/about/index.md`, a page bundle): a short
+   intro in the operator's voice, then the résumé (glossary) as plain
+   Markdown sections, and links to GitHub, LinkedIn and
+   `julien@nedsi.io`. An optional small photo of the operator,
+   `about/photo.jpg`, goes through `task site:strip` and the image-metadata
+   check like any image. An agent drafts it from his CV; the operator
+   validates the text in chat before the PR. The landing page's About card
+   links to it. No separate résumé page and no résumé PDF.
 3. Two articles the operator wrote for another company's blog,
    republished with `canonical` set to the original URL. Before the PR,
    the operator checks that he may reuse them; he supplies the texts.
@@ -460,8 +466,9 @@ ready, and the deterministic part by CI (Requirement 4.3, 4.4):
 - No routines, holidays, absences or dates of power cuts while they matter.
 - No security devices: brands, models, counts or placement of cameras,
   locks, the alarm.
-- No WAN address, no secrets, no employer written by an agent. LAN
-  addresses are fine (the repository already shows them).
+- No WAN address, no secrets. Employers, the current one included, only
+  on the About page, as the operator validated it. LAN addresses are fine
+  (the repository already shows them).
 
 The privacy page (`site/content/privacy.md`) lists:
 
@@ -472,7 +479,10 @@ The privacy page (`site/content/privacy.md`) lists:
   monthly rotating hash; kept 13 months; `Do Not Track` respected.
 - Legal basis: legitimate interest (GDPR art. 6(1)(f); nFADP), no
   transfer to third parties, data stored in Switzerland on the operator's
-  hardware; off-site backups in AWS eu-central-1. Contact `nedsi@pm.me`.
+  hardware; off-site backups in AWS eu-central-1.
+- E-mail: a message to `julien@nedsi.io` stays in the operator's Proton
+  mailbox (Switzerland), is not passed on, and is deleted on request.
+- Contact `julien@nedsi.io`.
 
 ## Testability
 
