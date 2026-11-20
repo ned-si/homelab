@@ -32,18 +32,12 @@ body {
 a { color: var(--link); }
 
 header.site {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 0.5rem 1.5rem;
   padding-bottom: 0.75rem;
   border-bottom: 1px solid var(--rule);
 }
 
-header.site .home { font-weight: 700; font-size: 1.25rem; text-decoration: none; color: var(--fg); }
-header.site nav a { margin-left: 1rem; }
-header.site nav a:first-child { margin-left: 0; }
+nav.site { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; text-decoration: none; }
 
 main { padding-top: 1.5rem; }
 

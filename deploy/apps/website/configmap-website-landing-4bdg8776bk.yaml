@@ -23,6 +23,12 @@ data:
     <link rel="stylesheet" href="/landing.css">
     </head>
     <body>
+    <nav class="site" aria-label="Site">
+    <a href="https://nedsi.io/" aria-current="page">Home</a>
+    <a href="https://blog.nedsi.io/">Blog</a>
+    <a href="https://blog.nedsi.io/homelab/">Homelab</a>
+    <a href="https://blog.nedsi.io/about/">About</a>
+    </nav>
     <header>
     <h1>Security and reliability engineer</h1>
     <p class="lead">I like my infrastructure secure, reliable and automated. Boring, in the best possible way.</p>
@@ -149,6 +155,17 @@ data:
 
     a { color: var(--link); }
 
+    nav.site {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+      margin: -1.5rem 0 2.5rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; text-decoration: none; }
+
     h1 { margin: 0; font-size: 2.5rem; }
     h2 { margin: 3rem 0 1rem; font-size: 1.375rem; }
     h3 { margin: 0.25rem 0 0.5rem; font-size: 1.125rem; }
@@ -192,5 +209,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-landing-877fggtf8g
+  name: website-landing-4bdg8776bk
   namespace: website

@@ -2,36 +2,60 @@
 """site_markup.py <public dir> [host] -- markup check of the built site.
 
 Fails on <form>, <iframe>, <style>, style= and on* attributes, an inline
-<script>, a <script src> other than /stats/s.js, and a src= or href= to
-another origin outside <article> (the canonical <link> excepted). The CSP of
-the site would block most of these; this catches them before the browser does.
+<script>, a <script src> other than /stats/s.js, and a src= or href= outside
+<article> to an origin other than nedsi.io and blog.nedsi.io (the canonical
+<link> excepted). The CSP of the site would block most of these; this catches
+them before the browser does.
+
+Every page also needs the site navigation: one <nav class="site"> with the
+NAV links in order, at most one of them aria-current="page", and that one on
+the page itself or on a parent path of it. A page whose own URL is in NAV
+marks it.
 """
 import pathlib
 import sys
 from html.parser import HTMLParser
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 STATS_SCRIPT = "/stats/s.js"
+SITE_HOSTS = ("nedsi.io", "blog.nedsi.io")
+NAV = [
+    ("Home", "https://nedsi.io/"),
+    ("Blog", "https://blog.nedsi.io/"),
+    ("Homelab", "https://blog.nedsi.io/homelab/"),
+    ("About", "https://blog.nedsi.io/about/"),
+]
 
 
 class Checker(HTMLParser):
-    def __init__(self, host):
+    def __init__(self, host, url):
         super().__init__(convert_charrefs=True)
         self.host = host
+        self.url = url
         self.article = 0
+        self.navs = 0
+        self.in_nav = False
+        self.link = None
+        self.links = []
         self.problems = []
 
     def bad(self, msg):
         self.problems.append((self.getpos()[0], msg))
 
-    def foreign(self, url):
+    def foreign(self, url, allowed):
         parts = urlsplit(url.strip())
-        return bool(parts.netloc) and parts.hostname != self.host
+        return bool(parts.netloc) and parts.hostname not in allowed
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag == "article":
             self.article += 1
+        if tag == "nav" and "site" in (a.get("class") or "").split():
+            self.navs += 1
+            self.in_nav = True
+        if tag == "a" and self.in_nav:
+            href = urljoin(self.url, a.get("href") or "")
+            self.link = [href, "", a.get("aria-current") == "page"]
         if tag in ("form", "iframe", "style"):
             self.bad(f"<{tag}>")
         for name in a:
@@ -41,19 +65,51 @@ class Checker(HTMLParser):
             src = a.get("src")
             if not src:
                 self.bad("inline <script>")
-            elif self.foreign(src) or urlsplit(src).path != STATS_SCRIPT:
+            elif self.foreign(src, (self.host,)) or urlsplit(src).path != STATS_SCRIPT:
                 self.bad(f"<script src={src}>")
         if self.article:
             return
         canonical = tag == "link" and "canonical" in (a.get("rel") or "").split()
         for name in ("src", "href"):
             url = a.get(name)
-            if url and self.foreign(url) and not canonical:
+            if url and self.foreign(url, SITE_HOSTS) and not canonical:
                 self.bad(f"{name}={url} outside <article>")
+
+    def handle_data(self, data):
+        if self.link is not None:
+            self.link[1] += data
 
     def handle_endtag(self, tag):
         if tag == "article" and self.article:
             self.article -= 1
+        if tag == "a" and self.link is not None:
+            self.links.append((self.link[1].strip(), self.link[0], self.link[2]))
+            self.link = None
+        if tag == "nav":
+            self.in_nav = False
+
+    def check_nav(self):
+        if self.navs != 1:
+            self.problems.append((0, f'{self.navs} <nav class="site">, want 1'))
+            return
+        got = [(text, href) for text, href, _ in self.links]
+        if got != NAV:
+            self.problems.append((0, f"site nav {got}, want {NAV}"))
+            return
+        current = [href for _, href, cur in self.links if cur]
+        if len(current) > 1:
+            self.problems.append((0, f"aria-current on {current}, want at most one"))
+        elif current and not self.url.startswith(current[0]):
+            self.problems.append((0, f"aria-current on {current[0]}, not this page or a parent"))
+        elif not current and self.url in dict(NAV).values():
+            self.problems.append((0, "no aria-current on the link to this page"))
+
+
+def page_url(host, rel):
+    path = "/" + rel.as_posix()
+    if path.endswith("/index.html"):
+        path = path[: -len("index.html")]
+    return f"https://{host}{path}"
 
 
 def main():
@@ -66,11 +122,13 @@ def main():
         sys.exit(f"site_markup: no HTML under {public}")
     failed = False
     for page in pages:
-        checker = Checker(host)
+        rel = page.relative_to(public)
+        checker = Checker(host, page_url(host, rel))
         checker.feed(page.read_text(encoding="utf-8"))
         checker.close()
+        checker.check_nav()
         for line, msg in checker.problems:
-            print(f"{page.relative_to(public)}:{line}: {msg}")
+            print(f"{rel}:{line}: {msg}")
             failed = True
     print(f"site_markup: {len(pages)} pages checked")
     sys.exit(1 if failed else 0)

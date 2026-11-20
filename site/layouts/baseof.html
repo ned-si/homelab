@@ -14,21 +14,29 @@
 <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}">
 </head>
 <body>
-<header class="site">
-<a class="home" href="{{ site.Home.RelPermalink }}">{{ site.Title }}</a>
-<nav>
-{{- with site.Taxonomies.tags }}
-<a href="{{ "tags/" | relURL }}">Tags</a>
+{{- /* The same four links as apps/website/landing/index.html; scripts/ci/site_markup.py checks both. */}}
+{{- $path := .RelPermalink }}
+{{- $current := "" }}
+{{- if or .IsHome (eq .Section "posts") (eq .Kind "taxonomy") (eq .Kind "term") }}{{ $current = "blog" }}
+{{- else if eq $path "/homelab/" }}{{ $current = "homelab" }}
+{{- else if eq $path "/about/" }}{{ $current = "about" }}
 {{- end }}
-<a href="{{ "about/" | relURL }}">About</a>
-<a href="{{ "index.xml" | relURL }}">RSS</a>
+<header class="site">
+<nav class="site" aria-label="Site">
+<a href="https://nedsi.io/">Home</a>
+<a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>Blog</a>
+{{- /* Absolute until the dashboard page lands: htmltest fails a relative link to a missing page. */}}
+<a href="https://blog.nedsi.io/homelab/"{{ if eq $current "homelab" }} aria-current="page"{{ end }}>Homelab</a>
+<a href="{{ "about/" | relURL }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>About</a>
 </nav>
 </header>
 <main>
 {{ block "main" . }}{{ end }}
 </main>
 <footer class="site">
-<p>Articles by {{ site.Params.author }}. <a href="{{ "privacy/" | relURL }}">Privacy</a>.</p>
+<p>Articles by {{ site.Params.author }}.
+{{- with site.Taxonomies.tags }} <a href="{{ "tags/" | relURL }}">Tags</a>.{{ end }}
+<a href="{{ "index.xml" | relURL }}">RSS</a>. <a href="{{ "privacy/" | relURL }}">Privacy</a>.</p>
 </footer>
 </body>
 </html>
