@@ -77,9 +77,9 @@ echo "== content"
 files=$(git ls-files -co --exclude-standard site)
 mails=$(printf '%s\n' "$files" | tr '\n' '\0' \
   | xargs -0 grep -nIoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' -- \
-  | grep -v ':nedsi@pm\.me$' || true)
+  | grep -vE ':(nedsi@pm\.me|julien@nedsi\.io)$' || true)
 if [ -n "$mails" ]; then
-  fail "e-mail addresses other than nedsi@pm.me:"
+  fail "e-mail addresses other than nedsi@pm.me and julien@nedsi.io:"
   printf '%s\n' "$mails" | cut -d: -f1,2 >&2
 fi
 locals=$(git ls-files site | grep -E '\.local\.' || true)
