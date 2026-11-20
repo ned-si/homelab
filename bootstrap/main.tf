@@ -27,7 +27,7 @@ resource "helm_release" "cilium" {
   # Must match ci/helm-releases.yaml (the bootstrap version) and
   # clusters/homelab/infrastructure/cilium.yaml; CI checks both.
   # renovate: datasource=helm depName=cilium registryUrl=https://helm.cilium.io
-  version   = "1.20.4"
+  version   = "1.20.5"
   namespace = "kube-system"
 
   # No overrides: the values file reaches the API through Talos KubePrism
