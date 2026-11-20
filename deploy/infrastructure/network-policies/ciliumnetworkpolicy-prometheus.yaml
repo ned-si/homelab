@@ -14,7 +14,8 @@ metadata:
   name: prometheus
   namespace: monitoring
 spec:
-  description: Prometheus scrapes every namespace, the nodes and the control plane.
+  description: Prometheus scrapes every namespace, the nodes and the control plane;
+    the website publisher queries it.
   egress:
   - toEntities:
     - cluster
@@ -24,3 +25,12 @@ spec:
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: prometheus
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: website-publisher
+        io.kubernetes.pod.namespace: website
+    toPorts:
+    - ports:
+      - port: "9090"
+        protocol: TCP

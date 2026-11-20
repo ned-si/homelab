@@ -64,13 +64,24 @@ metadata:
   namespace: monitoring
 spec:
   description: >-
-    Prometheus scrapes every namespace, the nodes and the control plane.
+    Prometheus scrapes every namespace, the nodes and the control plane;
+    the website publisher queries it.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: prometheus
   enableDefaultDeny:
     ingress: false
     egress: false
+  ingress:
+    # apps/website/publisher/publisher.py -- PROM_URL, the dashboard figures.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: website
+            app.kubernetes.io/name: website-publisher
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
   egress:
     # ServiceMonitors and PodMonitors in every namespace, kubelet and
     # node-exporter on the nodes (`host`, `remote-node`), etcd and the

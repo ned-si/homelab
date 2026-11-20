@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "figures.json, the public dashboard's data (blog.nedsi.io/homelab/)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["covers", "computed_at", "apps", "cluster", "project"],
+  "properties": {
+    "covers": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "computed_at": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:00(Z|[+-]\\d{2}:\\d{2})$"},
+    "apps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "availability_30d", "error_budget_remaining_30d", "availability_daily"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,30}$"},
+          "name": {"type": "string", "pattern": "^[A-Za-z0-9 .-]{1,40}$"},
+          "availability_30d": {"type": "number", "minimum": 0, "maximum": 100},
+          "error_budget_remaining_30d": {"type": "integer", "minimum": -100, "maximum": 100},
+          "availability_daily": {
+            "type": "array",
+            "minItems": 30,
+            "maxItems": 30,
+            "items": {"type": ["number", "null"], "minimum": 0, "maximum": 100}
+          }
+        }
+      }
+    },
+    "cluster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "apps", "talos_version", "kubernetes_version"],
+      "properties": {
+        "nodes": {"type": "integer", "minimum": 1, "maximum": 10},
+        "apps": {"type": "integer", "minimum": 1, "maximum": 200},
+        "talos_version": {"type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+$"},
+        "kubernetes_version": {"type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+$"}
+      }
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prs_merged_30d", "renovate_share_30d", "ci_median_seconds_30d"],
+      "properties": {
+        "prs_merged_30d": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "renovate_share_30d": {"type": "integer", "minimum": 0, "maximum": 100},
+        "ci_median_seconds_30d": {"type": "integer", "minimum": 1, "maximum": 21600}
+      }
+    }
+  }
+}

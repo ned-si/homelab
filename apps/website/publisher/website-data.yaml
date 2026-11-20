@@ -1,0 +1,12 @@
+# The dashboard's data, written by the website-publisher CronJob. In git as
+# an empty placeholder so Argo CD creates it; the Application ignores /data,
+# so a sync never resets the published figures.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: website-data
+  labels:
+    app.kubernetes.io/name: website-publisher
+data:
+  figures.json: "{}"

@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/website
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/website and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/name: website-publisher
+  name: website-publisher
+  namespace: website
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: website-publisher
+subjects:
+- kind: ServiceAccount
+  name: website-publisher
+  namespace: website

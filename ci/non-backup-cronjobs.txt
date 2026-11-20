@@ -2,3 +2,4 @@
 # They must still be suspended (repo-policy cronjob-suspended).
 theater/recyclarr-sync
 democratic-csi/nas-iscsi-guard
+website/website-publisher
