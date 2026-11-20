@@ -21,7 +21,7 @@ spec:
       memory: 512Mi
   instances: 1
   # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.7-minimal-trixie@sha256:452a15584e2aa1ce658c4ae8538b5dc157eb031d41b82fd19882e0c03bcec01d
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.7-minimal-trixie@sha256:635bfde0a4ce2a04daad754e1ad37fb95ae096c8153b37fe1a4561b5ea417e38
   storage:
     size: 5Gi
   # Created from its Barman Cloud backup; archives under a new server name
@@ -87,7 +87,7 @@ spec:
       initContainers:
         - name: wait-for-db
           # renovate: datasource=docker depName=ghcr.io/cloudnative-pg/postgresql
-          image: ghcr.io/cloudnative-pg/postgresql:18.7-minimal-trixie@sha256:452a15584e2aa1ce658c4ae8538b5dc157eb031d41b82fd19882e0c03bcec01d
+          image: ghcr.io/cloudnative-pg/postgresql:18.7-minimal-trixie@sha256:635bfde0a4ce2a04daad754e1ad37fb95ae096c8153b37fe1a4561b5ea417e38
           command:
             - sh
             - -c
