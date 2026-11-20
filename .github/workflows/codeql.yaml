@@ -1,7 +1,9 @@
 ---
-# CodeQL: SAST of the Python scripts and tests and of the workflows. Alerts go
-# to the Security tab; not a required check. Advanced setup: the default setup
-# is off, and the two cannot run together.
+# CodeQL: SAST of the Python scripts and tests, the workflows and the Go module
+# in dashboard/. Alerts go to the Security tab; not a required check. Advanced
+# setup: the default setup is off, and the two cannot run together. Go is a
+# compiled language: its build mode is manual, and dashboard/ is built between
+# init and analyze, with Go set up before init.
 name: codeql
 
 on:
@@ -34,18 +36,40 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [python, actions]
+        include:
+          # Interpreted languages: nothing to build.
+          - language: python
+            build-mode: none
+          - language: actions
+            build-mode: none
+          - language: go
+            build-mode: manual
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      # Before init, so CodeQL wraps this Go; no build cache, so the build
+      # below compiles every package and CodeQL sees the sources.
+      - name: Set up Go
+        if: ${{ matrix.language == 'go' }}
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: dashboard/go.mod
+          cache: false
+
       - name: Initialise CodeQL
         uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
         with:
           languages: ${{ matrix.language }}
-          # Interpreted languages: nothing to build.
-          build-mode: none
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Build dashboard/
+        if: ${{ matrix.language == 'go' }}
+        working-directory: dashboard
+        env:
+          GOTOOLCHAIN: local
+        run: go build ./...
 
       - name: Analyse
         uses: github/codeql-action/analyze@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4

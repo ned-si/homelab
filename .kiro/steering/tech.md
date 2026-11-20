@@ -27,6 +27,7 @@ Application in `clusters/homelab/`, images by digest in the manifests.
 | Cloud resources | OpenTofu under `bootstrap/`, applied by the `tofu` workflow through GitHub OIDC | [bootstrap](../../docs/bootstrap.md) |
 | Secrets | SOPS with one age key, decrypted by KSOPS in Argo CD | [secrets](../../docs/secrets.md) |
 | Policy | Kyverno in CI over `deploy/` and in the cluster (baseline policies in Deny, PolicyExceptions per workload); Tetragon runtime detection in observe mode; Cilium network policies (app allow-lists in audit); kube-linter; Trivy | [testing](../../docs/testing.md) |
+| First-party code | `site/` (the Hugo blog, image `homelab-site`); `dashboard/` (the Go app `homelab-dashboard`, collector and web roles in one binary) | [homelab-dashboard design](../specs/homelab-dashboard/design.md) |
 
 ## Checks
 
@@ -35,13 +36,16 @@ Four layers ([docs/testing.md](../../docs/testing.md)):
 1. Local hooks: `pre-commit` on commit and push.
 2. Static CI (`ci` workflow): `lint`, `render` (render, kubeconform,
    Kyverno, repo policy), `tests` (unit tests, Vector config), `promtool`,
-   `alertmanager`, `security` (gitleaks, Trivy gate), `talos`, `pr-metadata`.
+   `alertmanager`, `security` (gitleaks, Trivy gate), `talos`, `pr-metadata`,
+   `dashboard` (golangci-lint, vet, govulncheck, Go tests).
 3. Pre-production: an ephemeral kind cluster, server-side dry run of
    `deploy/` and a real boot of the stateless workloads.
 4. Deploy time: PostSync smoke hooks; a failure triggers the rollback.
 
 `ci` is the only required check. Every action is pinned to a SHA, every tool
 to a version and checksum, every image to a digest.
+
+Go code: Google Go Style Guide, enforced by `dashboard/.golangci.yaml`.
 
 ## Constraints
 

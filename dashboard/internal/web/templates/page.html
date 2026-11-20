@@ -1,0 +1,77 @@
+{{template "top" .}}
+<header class="page">
+<h1>Homelab</h1>
+<p class="intro">This is the homelab in numbers. Not every app is here: the download tooling is left out on purpose (sorry, nothing to see there).</p>
+<p class="meta">Target: 99.5% availability over 30 days per app.</p>
+{{- with .Figures}}
+<p class="meta">Updated <time datetime="{{.Generated.Datetime}}">{{.Generated.Text}}</time> (Zurich time).</p>
+{{- end}}
+{{- with .LiveStale}}
+<p class="meta stale">Live figures from <time datetime="{{.Datetime}}">{{.Text}}</time> (Zurich time): the collector has stopped pushing.</p>
+{{- end}}
+{{- with .Figures}}{{if .DailyStale}}
+<p class="meta stale">Availability figures are from <time datetime="{{.Covers.Datetime}}">{{.Covers.Text}}</time>: the daily update is failing.</p>
+{{- end}}{{end}}
+</header>
+{{- if not .Figures}}
+<p class="meta">No figures yet: the collector has not pushed any.</p>
+{{- else}}
+{{- with .Figures}}
+<section aria-labelledby="availability">
+<h2 id="availability">Availability</h2>
+<p class="meta">The 30 days to <time datetime="{{.Covers.Datetime}}">{{.Covers.Text}}</time>, per finished day, measured from outside by probes on the public names.</p>
+<div class="cards">
+{{- range .Apps}}
+<div class="card">
+<h3>{{.Name}}</h3>
+{{- if .NoData}}
+<p class="stat"><span class="status none">No data</span></p>
+{{- else}}
+<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span> <span class="status {{.Status}}">{{.Word}}</span></p>
+{{- end}}
+{{- if .Since}}
+<p class="meta">Since {{.Since}}</p>
+{{- else if .Meter}}
+<div class="meter">{{.Meter}}</div>
+<p class="meta">{{if .Exhausted}}Exhausted{{else}}{{.BudgetLeft}}% of the error budget left{{end}}</p>
+{{- end}}
+<div class="bars">{{.Bars}}</div>
+</div>
+{{- end}}
+</div>
+</section>
+<div class="cards">
+<section class="panel" aria-labelledby="cluster">
+<h2 id="cluster">Cluster</h2>
+<div class="tiles">
+<p class="tile"><span class="big">{{.Cluster.Nodes}}<span class="unit">nodes</span></span></p>
+<p class="tile"><span class="big">{{.Cluster.Apps}}<span class="unit">apps</span></span> <span class="label">Argo CD</span></p>
+<p class="tile"><span class="big">{{.Cluster.TalosVersion}}</span> <span class="label">Talos</span></p>
+<p class="tile"><span class="big">{{.Cluster.KubernetesVersion}}</span> <span class="label">Kubernetes</span></p>
+</div>
+<p class="meta">As of <time datetime="{{.ClusterAsOf.Datetime}}">{{.ClusterAsOf.Text}}</time>.</p>
+</section>
+<section class="panel" aria-labelledby="project">
+<h2 id="project">Project, last 30 days</h2>
+<div class="tiles">
+<p class="tile"><span class="big">{{.Project.PRsMerged30d}}<span class="unit">PRs</span></span> <span class="label">Merged</span></p>
+<div class="tile"><p><span class="big">{{.Project.RenovateShare30d}}<span class="unit">%</span></span> <span class="label">Opened by Renovate</span></p><div class="meter">{{.RenovateShare}}</div></div>
+<p class="tile"><span class="big">{{with .CIMedian}}{{if .Minutes}}{{.Minutes}}<span class="unit">min</span> {{end}}{{.Seconds}}<span class="unit">s</span>{{end}}</span> <span class="label">Median CI run</span></p>
+</div>
+<p class="meta">As of <time datetime="{{.ProjectAsOf.Datetime}}">{{.ProjectAsOf.Text}}</time>.</p>
+</section>
+</div>
+{{- end}}
+{{- end}}
+<h2>Coming later</h2>
+<div class="cards">
+<section class="panel later" aria-labelledby="solar">
+<h3 id="solar">Solar production</h3>
+<p>What the solar panels produce over the day. Production only: what the house consumes stays private, as it says far too much about when we are home.</p>
+</section>
+<section class="panel later" aria-labelledby="home">
+<h3 id="home">Home automation</h3>
+<p>A few figures from Home Assistant, once I have worked out which ones are both interesting and safe to share. Nothing that tells you whether anybody is in.</p>
+</section>
+</div>
+{{template "bottom" . -}}

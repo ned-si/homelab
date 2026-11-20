@@ -11,6 +11,7 @@ inclusion: always
 | `infrastructure/` | Layer 1: namespaces, Cilium config, Gateway, network policies, cert-manager, external-dns, democratic-csi, Kyverno and its policies |
 | `platform/` | Layer 2: CloudNativePG, Keycloak, monitoring, exporters, tuppr, backup-verify, Tailscale, Headlamp, Hubble, Tetragon, Vector, SigNoz, alert-triage |
 | `apps/` | Layer 3: one directory per app (manifests and Helm values) |
+| `dashboard/` | The Go module of `homelab-dashboard`, the public dashboard: both roles, tests and golden files, `Dockerfile` |
 | `*/secrets/` | SOPS-encrypted Secrets for that layer, with a `.example` template each |
 | `components/` | Kustomize Components shared by apps (`postsync-smoke`, `presync-backup`) |
 | `deploy/` | Rendered manifests Argo CD reads. Build output |

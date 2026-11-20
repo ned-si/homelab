@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-20T17:00:00+01:00",
+  "daily": {
+    "covers": "2026-11-19",
+    "computed_at": "2026-11-20T03:45:12+01:00",
+    "apps": [
+      {"id": "immich", "name": "Immich", "availability_30d": 99.5, "error_budget_remaining_30d": 11, "availability_daily": [99.9, 97.0, 96.1, 95.7, 100.0, 100.0, 99.8, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0]},
+      {"id": "mealie", "name": "Mealie", "availability_30d": 99.5, "error_budget_remaining_30d": 15, "availability_daily": [100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 85.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]},
+      {"id": "paperless", "name": "Paperless-ngx", "availability_30d": 99.1, "error_budget_remaining_30d": -62, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 83.9, 99.7, 99.9]},
+      {"id": "jellyfin", "name": "Jellyfin", "availability_30d": 99.6, "error_budget_remaining_30d": 22, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 88.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]},
+      {"id": "syncthing", "name": "Syncthing", "availability_30d": 99.5, "error_budget_remaining_30d": 11, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 85.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0]},
+      {"id": "keycloak", "name": "Keycloak", "availability_30d": 99.5, "error_budget_remaining_30d": 9, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 85.0, 100.0, 100.0, 100.0]},
+      {"id": "landing", "name": "Landing page", "availability_30d": 98.1, "error_budget_remaining_30d": -100, "availability_daily": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 90.5, 100.0, 100.0, 100.0]},
+      {"id": "blog", "name": "Blog", "availability_30d": 99.9, "error_budget_remaining_30d": 90, "availability_daily": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 99.6, 100.0, 100.0, 100.0]}
+    ]
+  },
+  "cluster": {"as_of": "2026-11-20T17:00:00+01:00", "nodes": 4, "apps": 55, "talos_version": "v1.14.6", "kubernetes_version": "v1.37.2"},
+  "project": {"as_of": "2026-11-20T16:52:00+01:00", "prs_merged_30d": 709, "renovate_share_30d": 50, "ci_median_seconds_30d": 305}
+}
