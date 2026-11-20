@@ -1,8 +1,9 @@
 #!/bin/bash
 # site-serve-check.sh <public dir> -- serve the built blog and the landing page
 # with apps/website/nginx.conf on the image's nginx, as the cluster mounts them,
-# and check the host split, the 405 and every redirect's Location
-# (.kiro/specs/public-website/design.md#serving). Needs docker and curl.
+# and check the host split, the 405, every redirect's Location and the
+# dashboard's server-side include (.kiro/specs/public-website/design.md#serving).
+# Needs docker, curl and python3.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -11,11 +12,28 @@ public=${1:?usage: site-serve-check.sh <public dir>}
 # The base image of site/Dockerfile, by digest: the same nginx as the cluster.
 image=$(sed -n 's/^FROM //p' site/Dockerfile | head -n 1)
 name=site-serve-check
-trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+html=$(mktemp -d)
+trap 'docker rm -f "$name" >/dev/null 2>&1 || true; rm -rf "$html"' EXIT
+
+# A copy of the blog with the publisher's fragment under data/, where the
+# Deployment mounts the website-data ConfigMap.
+cp -R "$public/." "$html/"
+mkdir -p "$html/data"
+python3 - "$html/data/figures.html" <<'EOF'
+import json, sys
+sys.path.insert(0, "apps/website/publisher")
+import publisher
+with open("tests/website/figures.json") as f:
+    doc = json.load(f)
+with open(sys.argv[1], "w") as f:
+    f.write(publisher.render(doc))
+EOF
+chmod -R a+rX "$html"
+
 docker run -d --name "$name" --read-only --tmpfs /tmp \
   -v "$root/apps/website/nginx.conf:/etc/nginx-site/nginx.conf:ro" \
   -v "$root/apps/website/landing:/usr/share/nginx/landing:ro" \
-  -v "$public:/usr/share/nginx/html:ro" \
+  -v "$html:/usr/share/nginx/html:ro" \
   -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:8081 \
   "$image" nginx -c /etc/nginx-site/nginx.conf -g 'daemon off;' >/dev/null
 
@@ -54,6 +72,18 @@ check 405 - 8081 nedsi.io / -X POST
 # The landing page links to the blog.
 curl -s -m 5 -H 'Host: nedsi.io' http://127.0.0.1:8080/ | grep -q 'href="https://blog.nedsi.io/"' \
   || { echo "FAIL nedsi.io: no link to https://blog.nedsi.io/"; rc=1; }
+
+# The dashboard: nginx includes the figures, and the stub while they are empty.
+# page <want text>: /homelab/ has it and no SSI directive left over.
+page() {
+  body=$(curl -s -m 5 -H 'Host: blog.nedsi.io' http://127.0.0.1:8080/homelab/) || body=""
+  if grep -qF -- '<!--#' <<<"$body"; then echo "FAIL /homelab/: an SSI directive is left in the page"; rc=1; fi
+  if grep -qF -- "$1" <<<"$body"; then echo "ok   /homelab/ has '$1'"; else echo "FAIL /homelab/: no '$1'"; rc=1; fi
+}
+check 200 - 8080 blog.nedsi.io /homelab/
+page 'id="availability"'
+: > "$html/data/figures.html"
+page 'No figures yet'
 
 [ "$rc" -eq 0 ] || docker logs "$name"
 [ "$rc" -eq 0 ] && echo "site-serve-check: all checks passed"

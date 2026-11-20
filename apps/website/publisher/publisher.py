@@ -3,13 +3,15 @@
 
 Computes the previous day (Europe/Zurich) from Prometheus and the public
 GitHub API, validates the document against schema.json and the shown apps of
-config.json, then writes it as figures.json into the ConfigMap website-data,
-which the site pod mounts read-only. Any failure exits 1 before the write, so
+config.json, then writes it as figures.json and the rendered figures.html into
+the ConfigMap website-data, which the site pod mounts read-only and nginx
+includes in /homelab/. Any failure exits 1 before the write, so
 the ConfigMap keeps the last good figures. Only the apps of config.json are
 ever queried. Design: .kiro/specs/public-website/design.md, "Public figures".
 """
 from __future__ import annotations
 
+import html
 import json
 import math
 import os
@@ -31,6 +33,7 @@ SA_DIR = os.environ.get("SA_DIR", "/var/run/secrets/kubernetes.io/serviceaccount
 NAMESPACE = os.environ.get("NAMESPACE", "website")
 CONFIGMAP = os.environ.get("CONFIGMAP", "website-data")
 KEY = "figures.json"
+HTML_KEY = "figures.html"
 TZ = ZoneInfo("Europe/Zurich")
 TIMEOUT = 10
 DAYS = 30
@@ -265,12 +268,106 @@ def build(now: datetime, cfg: dict) -> dict:
     }
 
 
+def esc(v) -> str:
+    return html.escape(str(v), quote=True)
+
+
+def day(iso: str) -> str:
+    d = datetime.fromisoformat(iso)
+    return f"{d.day} {d:%B %Y}"
+
+
+def duration(s: int) -> str:
+    return f"{s // 60} min {s % 60:02d} s" if s >= 60 else f"{s} s"
+
+
+def sparkline(values: list) -> str:
+    """Inline SVG of the daily values, 90 % at the bottom; a gap for a null day.
+    Only numbers go in: the coordinates are formatted floats."""
+    w, h, floor = 120, 24, 90.0
+    step = w / (DAYS - 1)
+
+    def y(v: float) -> str:
+        return f"{h - (max(v, floor) - floor) / (100 - floor) * h:.1f}"
+    marks, run = [], []
+    for i, v in enumerate(values + [None]):
+        if v is not None:
+            run.append((f"{i * step:.1f}", y(v)))
+            continue
+        if len(run) == 1:
+            marks.append(f'<circle cx="{run[0][0]}" cy="{run[0][1]}" r="1.5"/>')
+        elif run:
+            marks.append('<polyline points="' + " ".join(f"{a},{b}" for a, b in run) + '"/>')
+        run = []
+    shown = [v for v in values if v is not None]
+    label = f"Daily availability, lowest {min(shown):.1f}%" if shown else "No daily values yet"
+    target = y(99.5)
+    return (f'<svg class="spark" viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img" '
+            f'aria-label="{esc(label)}"><line class="target" x1="0" y1="{target}" x2="{w}" y2="{target}"/>'
+            + "".join(marks) + "</svg>")
+
+
+def render(doc: dict) -> str:
+    """figures.html, the fragment nginx includes in /homelab/. Built from the
+    validated document: numbers and fixed strings, every value escaped."""
+    rows = []
+    covers = datetime.fromisoformat(doc["covers"]).date()
+    for a in doc["apps"]:
+        daily = a["availability_daily"]
+        first = next((i for i, v in enumerate(daily) if v is not None), len(daily))
+        since = ""
+        if first > 0:
+            # Under 30 days of data: a 30-day budget would mean nothing yet.
+            d = covers - timedelta(days=len(daily) - 1 - first)
+            since, budget = f", since {d.day} {d:%B}", ""
+        else:
+            b = a["error_budget_remaining_30d"]
+            budget = "exhausted" if b <= -100 else f"{esc(b)}%"
+        rows.append(f'<tr><th scope="row">{esc(a["name"])}</th>'
+                    f'<td>{a["availability_30d"]:.1f}%{since}</td>'
+                    f"<td>{budget}</td>"
+                    f'<td>{sparkline(a["availability_daily"])}</td></tr>')
+    c, p = doc["cluster"], doc["project"]
+    computed = datetime.fromisoformat(doc["computed_at"])
+    return "\n".join([
+        '<section class="figures" aria-labelledby="availability">',
+        '<h2 id="availability">Availability</h2>',
+        f'<p class="meta">The 30 days to <time datetime="{esc(doc["covers"])}">{esc(day(doc["covers"]))}</time>, '
+        "measured from outside by probes on the public names. The target is 99.5%.</p>",
+        '<table class="availability">',
+        '<thead><tr><th scope="col">App</th><th scope="col">30 days</th>'
+        '<th scope="col">Error budget left</th><th scope="col">Daily</th></tr></thead>',
+        "<tbody>", *rows, "</tbody>", "</table>",
+        "</section>",
+        '<section class="figures" aria-labelledby="cluster">',
+        '<h2 id="cluster">Cluster</h2>',
+        '<dl class="facts">',
+        f'<dt>Nodes</dt><dd>{esc(c["nodes"])}</dd>',
+        f'<dt>Argo CD applications</dt><dd>{esc(c["apps"])}</dd>',
+        f'<dt>Talos</dt><dd>{esc(c["talos_version"])}</dd>',
+        f'<dt>Kubernetes</dt><dd>{esc(c["kubernetes_version"])}</dd>',
+        "</dl>",
+        "</section>",
+        '<section class="figures" aria-labelledby="project">',
+        '<h2 id="project">Project, last 30 days</h2>',
+        '<dl class="facts">',
+        f'<dt>Pull requests merged</dt><dd>{esc(p["prs_merged_30d"])}</dd>',
+        f'<dt>Opened by Renovate</dt><dd>{esc(p["renovate_share_30d"])}%</dd>',
+        f'<dt>Median CI run</dt><dd>{esc(duration(p["ci_median_seconds_30d"]))}</dd>',
+        "</dl>",
+        f'<p class="meta">Last updated <time datetime="{esc(doc["computed_at"])}">'
+        f'{esc(day(doc["computed_at"]))}, {computed:%H:%M}</time> (Zurich time).</p>',
+        "</section>",
+    ]) + "\n"
+
+
 def write(doc: dict) -> None:
     with open(os.path.join(SA_DIR, "token")) as f:
         token = f.read().strip()
     ctx = ssl.create_default_context(cafile=os.path.join(SA_DIR, "ca.crt")) if KUBE_API.startswith("https") else None
-    # A merge patch of the one key: other keys of the ConfigMap stay.
-    body = json.dumps({"data": {KEY: json.dumps(doc, separators=(",", ":"))}}).encode()
+    # A merge patch of the two keys: other keys of the ConfigMap stay.
+    body = json.dumps({"data": {KEY: json.dumps(doc, separators=(",", ":")),
+                                HTML_KEY: render(doc)}}).encode()
     try:
         http_json(f"{KUBE_API}/api/v1/namespaces/{NAMESPACE}/configmaps/{CONFIGMAP}", method="PATCH",
                   body=body, headers={"Authorization": f"Bearer {token}",
@@ -300,7 +397,7 @@ def main(now: datetime | None = None) -> int:
     except Fail as e:
         print(f"ERROR {e}", file=sys.stderr)
         return 1
-    print(f"OK {CONFIGMAP}/{KEY} covers {doc['covers']}")
+    print(f"OK {CONFIGMAP}/{KEY},{HTML_KEY} covers {doc['covers']}")
     return 0
 
 

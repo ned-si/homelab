@@ -10,3 +10,4 @@ metadata:
     app.kubernetes.io/name: website-publisher
 data:
   figures.json: "{}"
+  figures.html: ""

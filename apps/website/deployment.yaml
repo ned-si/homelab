@@ -70,6 +70,11 @@ spec:
             - name: landing
               mountPath: /usr/share/nginx/landing
               readOnly: true
+            # The dashboard's figures, written by the website-publisher
+            # CronJob and included in /homelab/ by nginx.
+            - name: data
+              mountPath: /usr/share/nginx/html/data
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
@@ -80,3 +85,7 @@ spec:
         - name: landing
           configMap:
             name: website-landing
+        - name: data
+          configMap:
+            name: website-data
+            optional: true

@@ -57,7 +57,7 @@ data:
     <p class="label">Project</p>
     <h3>Homelab</h3>
     <p>An over-engineered homelab run like a small production platform: GitOps, SLOs, restore-tested backups, policy checks, and agents that merge their own pull requests (nothing has burnt down yet, touch wood).</p>
-    <a href="https://github.com/ned-si/homelab">Source on GitHub</a>
+    <p class="links"><a class="button" href="https://blog.nedsi.io/homelab/">See the dashboard</a> · <a href="https://github.com/ned-si/homelab">Source on GitHub</a></p>
     </article>
     <article class="card">
     <p class="label">Project</p>
@@ -193,6 +193,14 @@ data:
     .card p { margin: 0 0 0.75rem; }
     .card > :last-child { margin-top: auto; font-weight: 600; }
 
+    .button {
+      display: inline-block;
+      padding: 0.2rem 0.75rem;
+      border: 1px solid var(--link);
+      border-radius: 0.3rem;
+      text-decoration: none;
+    }
+
     .label {
       color: var(--muted);
       font-size: 0.8125rem;
@@ -209,5 +217,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-landing-4bdg8776bk
+  name: website-landing-h927c76tk2
   namespace: website

@@ -74,9 +74,17 @@ data:
                 add_header Cache-Control "public, max-age=31536000, immutable";
             }
 
-            # Dashboard figures (phase 2), rewritten by the publisher.
+            # Dashboard figures, rewritten nightly by the publisher.
             location /data/ {
                 add_header Cache-Control "no-cache";
+            }
+
+            # The dashboard includes /data/figures.html (site/layouts/homelab.html);
+            # a missing or empty file shows the layout's stub instead.
+            location /homelab/ {
+                ssi on;
+                try_files $uri $uri/ =404;
+                add_header Cache-Control "public, max-age=300";
             }
         }
 
@@ -118,5 +126,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-nginx-f95fbctkbd
+  name: website-nginx-mmf8g5tt26
   namespace: website
