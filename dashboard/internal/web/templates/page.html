@@ -1,0 +1,64 @@
+{{template "top" .}}
+<article class="dashboard">
+<h1>Homelab</h1>
+{{- with .LiveStale}}
+<p class="meta stale">Live figures from <time datetime="{{.Datetime}}">{{.Text}}</time> (Zurich time): the collector has stopped pushing.</p>
+{{- end}}
+<p>This is the homelab in numbers. A small collector reads the cluster's own
+monitoring and the repository, signs what it found and hands it to this page
+every minute. The page itself has no access to anything, which is rather the
+point.</p>
+<p>Why is the availability always for yesterday? A live status page would tell
+anyone watching when the house is down, and a power cut is precisely when
+you'd rather nobody knew. A finished day says nothing of the sort.</p>
+<p>Not every app is here. The download tooling is left out on purpose (sorry,
+nothing to see there).</p>
+{{- if not .Figures}}
+<p class="meta">No figures yet: the collector has not pushed any.</p>
+{{- else}}
+{{- with .Figures}}
+<section class="figures" aria-labelledby="availability">
+<h2 id="availability">Availability</h2>
+<p class="meta">The 30 days to <time datetime="{{.Covers.Datetime}}">{{.Covers.Text}}</time>, measured from outside by probes on the public names. The target is 99.5%.</p>
+{{- if .DailyStale}}
+<p class="meta stale">Availability figures are from <time datetime="{{.Covers.Datetime}}">{{.Covers.Text}}</time>: the daily update is failing.</p>
+{{- end}}
+<table class="availability">
+<thead><tr><th scope="col">App</th><th scope="col">30 days</th><th scope="col">Error budget left</th><th scope="col">Daily</th></tr></thead>
+<tbody>
+{{- range .Apps}}
+<tr><th scope="row">{{.Name}}</th><td>{{.Availability}}{{with .Since}}, since {{.}}{{end}}</td><td>{{.Budget}}</td><td>{{.Spark}}</td></tr>
+{{- end}}
+</tbody>
+</table>
+</section>
+<section class="figures" aria-labelledby="cluster">
+<h2 id="cluster">Cluster</h2>
+<dl class="facts">
+<dt>Nodes</dt><dd>{{.Cluster.Nodes}}</dd>
+<dt>Argo CD applications</dt><dd>{{.Cluster.Apps}}</dd>
+<dt>Talos</dt><dd>{{.Cluster.TalosVersion}}</dd>
+<dt>Kubernetes</dt><dd>{{.Cluster.KubernetesVersion}}</dd>
+</dl>
+</section>
+<section class="figures" aria-labelledby="project">
+<h2 id="project">Project, last 30 days</h2>
+<dl class="facts">
+<dt>Pull requests merged</dt><dd>{{.Project.PRsMerged30d}}</dd>
+<dt>Opened by Renovate</dt><dd>{{.Project.RenovateShare30d}}%</dd>
+<dt>Median CI run</dt><dd>{{.CIMedian}}</dd>
+</dl>
+<p class="meta">Last updated <time datetime="{{.Generated.Datetime}}">{{.Generated.Text}}</time> (Zurich time).</p>
+</section>
+{{- end}}
+{{- end}}
+<section class="later">
+<h2>Solar production <span class="label">Coming later</span></h2>
+<p>What the solar panels produce over the day. Production only: what the house consumes stays private, as it says far too much about when we are home.</p>
+</section>
+<section class="later">
+<h2>Home automation <span class="label">Coming later</span></h2>
+<p>A few figures from Home Assistant, once I have worked out which ones are both interesting and safe to share. Nothing that tells you whether anybody is in.</p>
+</section>
+</article>
+{{template "bottom" . -}}

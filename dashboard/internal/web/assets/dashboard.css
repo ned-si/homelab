@@ -1,0 +1,79 @@
+/* The blog's site/assets/css/main.css (colours, fonts, widths), cut to what
+   the dashboard uses. Classes only: the CSP allows no inline style. */
+:root {
+  --fg: #1d1f21;
+  --muted: #5c6166;
+  --bg: #fdfdfc;
+  --link: #0b5cad;
+  --rule: #d8dadc;
+  --warn: #9a4d00;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e3e5e7;
+    --muted: #a0a6ab;
+    --bg: #17191b;
+    --link: #79b8ff;
+    --rule: #34383c;
+    --warn: #f0a35e;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0 auto;
+  max-width: 44rem;
+  padding: 1.5rem 1.25rem 3rem;
+  color: var(--fg);
+  background: var(--bg);
+  font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+a { color: var(--link); }
+
+header.site {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+nav.site { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
+nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; text-decoration: none; }
+
+main { padding-top: 1.5rem; }
+
+h1, h2, h3 { line-height: 1.25; }
+h1 { font-size: 2rem; margin-top: 0; }
+
+.meta { color: var(--muted); font-size: 0.9375rem; }
+.meta.stale { color: var(--warn); }
+
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 0.35rem 0.75rem 0.35rem 0; border-bottom: 1px solid var(--rule); }
+
+table.availability td:nth-child(2), table.availability td:nth-child(3) { white-space: nowrap; }
+svg.spark { display: block; overflow: visible; }
+svg.spark polyline { fill: none; stroke: var(--link); stroke-width: 1.5; }
+svg.spark circle { fill: var(--link); }
+svg.spark line.target { stroke: var(--rule); stroke-dasharray: 2 2; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 1.5rem; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; }
+.label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+section.later p { color: var(--muted); }
+
+footer.site {
+  margin-top: 3rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 0.875rem;
+}

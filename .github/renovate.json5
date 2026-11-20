@@ -90,8 +90,10 @@
     // `enabledManagers` is an allow-list -- omitting it here meant nothing
     // updated those revs and the claim in that file was false.
     'pre-commit',
-    // The FROM line of site/Dockerfile (repo:tag@digest).
+    // The FROM lines of site/Dockerfile and dashboard/Dockerfile (repo:tag@digest).
     'dockerfile',
+    // dashboard/go.mod: the modules, the govulncheck tool and the go line.
+    'gomod',
   ],
 
   // The pre-commit manager is opt-in even when listed above, so both settings
@@ -406,6 +408,32 @@
       groupName: 'homelab-site',
       automerge: true,
       minimumReleaseAge: '0 days',
+    },
+    {
+      // dashboard/: minor and patch updates of the Go modules in one pull
+      // request, tidied, automerged on green CI (spec homelab-dashboard).
+      description: 'Group the Go modules of dashboard/',
+      matchManagers: ['gomod'],
+      matchDatasources: ['go'],
+      matchUpdateTypes: ['minor', 'patch', 'digest'],
+      groupName: 'dashboard Go modules',
+      postUpdateOptions: ['gomodTidy'],
+    },
+    {
+      // scripts/ci/dashboard-check.sh fails when the builder image and
+      // go.mod disagree, so the Go toolchain and the golang image move in
+      // one pull request (this rule and the next share the group).
+      description: 'Go toolchain of dashboard/ and the builder image move together',
+      matchManagers: ['gomod'],
+      matchDatasources: ['golang-version'],
+      groupName: 'dashboard Go toolchain',
+      postUpdateOptions: ['gomodTidy'],
+    },
+    {
+      description: 'The golang builder image joins the Go toolchain group',
+      matchFileNames: ['dashboard/Dockerfile'],
+      matchDepNames: ['golang'],
+      groupName: 'dashboard Go toolchain',
     },
     {
       // The *arr apps and qBittorrent share a download-client credential

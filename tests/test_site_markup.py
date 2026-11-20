@@ -69,6 +69,25 @@ def test_sibling_site_links_allowed_outside_article(tmp_path):
     assert run(tmp_path, {"index.html": body}).returncode == 0
 
 
+DASHBOARD_GOLDEN = sorted((REPO / "dashboard/internal/web/testdata").glob("*.golden.html"))
+
+
+@pytest.mark.parametrize("page", DASHBOARD_GOLDEN, ids=lambda p: p.name)
+def test_dashboard_golden_pages_pass(page):
+    """The app's pages carry the blog's navigation and the same markup rules."""
+    import site_markup
+
+    checker = site_markup.Checker("blog.nedsi.io", "https://blog.nedsi.io/homelab/")
+    checker.feed(page.read_text(encoding="utf-8"))
+    checker.close()
+    checker.check_nav()
+    assert checker.problems == []
+
+
+def test_dashboard_golden_pages_exist():
+    assert {p.name for p in DASHBOARD_GOLDEN} >= {"full.golden.html", "empty.golden.html", "notfound.golden.html"}
+
+
 def test_landing_page_passes():
     res = subprocess.run(
         [sys.executable, CHECK, str(REPO / "apps/website/landing"), "nedsi.io"],

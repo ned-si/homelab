@@ -1,0 +1,5 @@
+Dockerfile
+.dockerignore
+.golangci.yaml
+**/testdata
+**/*_test.go

@@ -1,0 +1,65 @@
+---
+# golangci-lint v2: the Google Go Style Guide as far as a linter can check it
+# (.kiro/specs/homelab-dashboard/design.md, "Code style"). Any finding fails
+# the `dashboard` job.
+version: "2"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/ned-si/homelab/dashboard
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - gosec
+    - govet
+    - misspell
+    - noctx
+    - nolintlint
+    - revive
+    - staticcheck
+    # staticcheck's U1000, which golangci-lint runs as its own linter.
+    - unused
+  settings:
+    staticcheck:
+      checks: ["all"]
+    misspell:
+      locale: UK
+      # The namespace of the download tooling.
+      ignore-rules:
+        - theater
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: receiver-naming
+        - name: error-strings
+        - name: error-naming
+        - name: error-return
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: indent-error-flow
+        - name: unexported-return
+        - name: blank-imports
+        - name: dot-imports
+        - name: time-naming
+  exclusions:
+    # No generated code and no preset exclusions: every finding counts.
+    generated: strict
+    presets: []
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

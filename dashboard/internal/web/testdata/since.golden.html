@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homelab | nedsi</title>
+<meta name="description" content="The homelab in numbers: live cluster figures, availability per finished day.">
+<meta name="author" content="nedsi">
+<link rel="canonical" href="https://blog.nedsi.io/homelab/">
+<link rel="alternate" type="application/rss+xml" href="/index.xml" title="nedsi">
+<link rel="stylesheet" href="/homelab/assets/dashboard.7590cdef.css" integrity="sha256-dZDN75qT2UELA8xidFRCImcO1h8FxPIVjjMm9tjJlNM=">
+</head>
+<body>
+<header class="site">
+<nav class="site" aria-label="Site">
+<a href="https://nedsi.io/">Home</a>
+<a href="/">Blog</a>
+<a href="/homelab/" aria-current="page">Homelab</a>
+<a href="/about/">About</a>
+</nav>
+</header>
+<main>
+
+<article class="dashboard">
+<h1>Homelab</h1>
+<p>This is the homelab in numbers. A small collector reads the cluster's own
+monitoring and the repository, signs what it found and hands it to this page
+every minute. The page itself has no access to anything, which is rather the
+point.</p>
+<p>Why is the availability always for yesterday? A live status page would tell
+anyone watching when the house is down, and a power cut is precisely when
+you'd rather nobody knew. A finished day says nothing of the sort.</p>
+<p>Not every app is here. The download tooling is left out on purpose (sorry,
+nothing to see there).</p>
+<section class="figures" aria-labelledby="availability">
+<h2 id="availability">Availability</h2>
+<p class="meta">The 30 days to <time datetime="2026-11-19">19 November 2026</time>, measured from outside by probes on the public names. The target is 99.5%.</p>
+<table class="availability">
+<thead><tr><th scope="col">App</th><th scope="col">30 days</th><th scope="col">Error budget left</th><th scope="col">Daily</th></tr></thead>
+<tbody>
+<tr><th scope="row">Immich</th><td>99.5%</td><td>11%</td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 95.7%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="0.0,0.2 4.1,7.2 8.3,9.4 12.4,10.3 16.6,0.0 20.7,0.0 24.8,0.5 29.0,0.0 33.1,0.0 37.2,0.2 41.4,0.0 45.5,0.0 49.7,0.0 53.8,0.2 57.9,0.0 62.1,0.0 66.2,0.0 70.3,0.2 74.5,0.0 78.6,0.0 82.8,0.0 86.9,0.0 91.0,0.2 95.2,0.0 99.3,0.0 103.4,0.0 107.6,0.0 111.7,0.0 115.9,0.2 120.0,0.0"/></svg></td></tr>
+<tr><th scope="row">Mealie</th><td>99.5%</td><td>15%</td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 85.0%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="0.0,0.0 4.1,0.0 8.3,0.2 12.4,0.0 16.6,0.0 20.7,0.0 24.8,0.0 29.0,0.0 33.1,0.0 37.2,0.0 41.4,0.0 45.5,0.0 49.7,0.0 53.8,24.0 57.9,0.0 62.1,0.0 66.2,0.0 70.3,0.0 74.5,0.0 78.6,0.0 82.8,0.0 86.9,0.0 91.0,0.0 95.2,0.0 99.3,0.0 103.4,0.0 107.6,0.0 111.7,0.0 115.9,0.0 120.0,0.0"/></svg></td></tr>
+<tr><th scope="row">Paperless-ngx</th><td>99.1%</td><td>-62%</td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 83.9%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="0.0,0.0 4.1,0.0 8.3,0.0 12.4,0.0 16.6,0.0 20.7,0.0 24.8,0.0 29.0,0.0 33.1,0.0 37.2,0.0 41.4,0.0 45.5,0.0 49.7,0.0 53.8,0.0 57.9,0.0 62.1,0.0 66.2,0.0 70.3,0.0 74.5,0.0 78.6,0.0 82.8,0.0 86.9,0.0 91.0,0.0 95.2,0.0 99.3,0.0 103.4,0.0 107.6,0.0 111.7,24.0 115.9,0.7 120.0,0.2"/></svg></td></tr>
+<tr><th scope="row">Jellyfin</th><td>99.6%</td><td>22%</td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 88.0%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="0.0,0.0 4.1,0.0 8.3,0.0 12.4,0.0 16.6,0.0 20.7,0.0 24.8,0.0 29.0,0.0 33.1,0.0 37.2,0.0 41.4,0.0 45.5,0.0 49.7,0.0 53.8,0.0 57.9,0.0 62.1,0.0 66.2,0.0 70.3,0.0 74.5,0.0 78.6,0.0 82.8,0.0 86.9,0.0 91.0,24.0 95.2,0.0 99.3,0.0 103.4,0.0 107.6,0.0 111.7,0.0 115.9,0.0 120.0,0.0"/></svg></td></tr>
+<tr><th scope="row">Syncthing</th><td>99.5%</td><td>11%</td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 85.0%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="0.0,0.0 4.1,0.0 8.3,0.0 12.4,0.0 16.6,0.0 20.7,0.0 24.8,0.0 29.0,0.0 33.1,0.0 37.2,0.0 41.4,0.0 45.5,0.0 49.7,0.0 53.8,0.0 57.9,0.0 62.1,0.0 66.2,0.0 70.3,0.0 74.5,0.0 78.6,24.0 82.8,0.0 86.9,0.0 91.0,0.0 95.2,0.0 99.3,0.0 103.4,0.0 107.6,0.0 111.7,0.0 115.9,0.0 120.0,0.0"/></svg></td></tr>
+<tr><th scope="row">Keycloak</th><td>99.5%</td><td>9%</td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 85.0%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="0.0,0.0 4.1,0.0 8.3,0.0 12.4,0.0 16.6,0.0 20.7,0.0 24.8,0.0 29.0,0.0 33.1,0.0 37.2,0.0 41.4,0.0 45.5,0.0 49.7,0.0 53.8,0.0 57.9,0.0 62.1,0.0 66.2,0.0 70.3,0.0 74.5,0.0 78.6,0.0 82.8,0.0 86.9,0.0 91.0,0.0 95.2,0.0 99.3,0.0 103.4,0.0 107.6,24.0 111.7,0.0 115.9,0.0 120.0,0.0"/></svg></td></tr>
+<tr><th scope="row">Landing page</th><td>98.1%, since 16 November</td><td></td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 90.5%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="107.6,22.8 111.7,0.0 115.9,0.0 120.0,0.0"/></svg></td></tr>
+<tr><th scope="row">Blog</th><td>99.9%, since 16 November</td><td></td><td><svg class="spark" viewBox="0 0 120 24" width="120" height="24" role="img" aria-label="Daily availability, lowest 99.6%"><line class="target" x1="0" y1="1.2" x2="120" y2="1.2"/><polyline points="107.6,1.0 111.7,0.0 115.9,0.0 120.0,0.0"/></svg></td></tr>
+</tbody>
+</table>
+</section>
+<section class="figures" aria-labelledby="cluster">
+<h2 id="cluster">Cluster</h2>
+<dl class="facts">
+<dt>Nodes</dt><dd>4</dd>
+<dt>Argo CD applications</dt><dd>55</dd>
+<dt>Talos</dt><dd>v1.14.6</dd>
+<dt>Kubernetes</dt><dd>v1.37.2</dd>
+</dl>
+</section>
+<section class="figures" aria-labelledby="project">
+<h2 id="project">Project, last 30 days</h2>
+<dl class="facts">
+<dt>Pull requests merged</dt><dd>709</dd>
+<dt>Opened by Renovate</dt><dd>50%</dd>
+<dt>Median CI run</dt><dd>5 min 05 s</dd>
+</dl>
+<p class="meta">Last updated <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time> (Zurich time).</p>
+</section>
+<section class="later">
+<h2>Solar production <span class="label">Coming later</span></h2>
+<p>What the solar panels produce over the day. Production only: what the house consumes stays private, as it says far too much about when we are home.</p>
+</section>
+<section class="later">
+<h2>Home automation <span class="label">Coming later</span></h2>
+<p>A few figures from Home Assistant, once I have worked out which ones are both interesting and safe to share. Nothing that tells you whether anybody is in.</p>
+</section>
+</article>
+</main>
+<footer class="site">
+<p>Articles by nedsi. <a href="/tags/">Tags</a>.
+<a href="/index.xml">RSS</a>. <a href="/privacy/">Privacy</a>.</p>
+</footer>
+</body>
+</html>
