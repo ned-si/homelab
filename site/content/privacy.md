@@ -25,6 +25,12 @@ came from or the query string.
 - Why: to find errors and broken links and to keep the server running.
 - How long: 15 days, then the lines are deleted.
 
+## E-mail
+
+If you write to me, your message and your address are kept in my mailbox at
+Proton, in Switzerland, for as long as the conversation is useful, and are
+never passed on. Ask and I delete them.
+
 ## Where the data is
 
 The server is the author's own hardware in Switzerland. Its off-site
@@ -38,6 +44,7 @@ Legitimate interest in running a working and secure website: article
 
 ## Contact and deletion
 
-Write to [nedsi@pm.me](mailto:nedsi@pm.me) to ask what is held about you or
-to have it deleted. The logs hold no address, so a line can only be found by
-its time and path; every line is deleted after 15 days in any case.
+Write to [julien@nedsi.io](mailto:julien@nedsi.io) to ask what is held
+about you or to have it deleted. The logs hold no address, so a line can
+only be found by its time and path; every line is deleted after 15 days in
+any case.

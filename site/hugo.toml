@@ -11,7 +11,7 @@ disableKinds = ["section"]
 
 [params]
 author = "nedsi"
-description = "How a family homelab is built and run."
+description = "How an over-engineered homelab is built and run."
 
 [taxonomies]
 tag = "tags"

@@ -1,0 +1,196 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/website
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/website and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en-GB">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>nedsi</title>
+    <meta name="description" content="nedsi: security and reliability engineering, a homelab run like production, and writing about both.">
+    <meta name="author" content="nedsi">
+    <link rel="canonical" href="https://nedsi.io/">
+    <link rel="stylesheet" href="/landing.css">
+    </head>
+    <body>
+    <header>
+    <h1>Security and reliability engineer</h1>
+    <p class="lead">I like my infrastructure secure, reliable and automated. Boring, in the best possible way.</p>
+    </header>
+    <main>
+    <section class="blocks" aria-label="About this site">
+    <div>
+    <h2>What this is</h2>
+    <p>My corner of the web: the projects I work on and what I write about them. No newsletter, no cookies, no tracking (I checked).</p>
+    </div>
+    <div>
+    <h2>What you can expect</h2>
+    <p>Mostly security, reliability and platform engineering, with a soft spot for developer experience: the friction we often overlook, from a permission prompt to the keyboard under your fingers. I write when I have something worth saying, which is to say: not every week.</p>
+    </div>
+    <div>
+    <h2>Start here</h2>
+    <p>New here? Start with the <a href="#work">homelab</a>. I built it to solve my own problems and to test things properly, but also to share, in the open, how I think infrastructure should be run: from the first commit to production, with security and SRE built in rather than bolted on. And to show that, done this way, a fairly complex platform can be run by very few people. Here, one (and a handful of agents).</p>
+    </div>
+    </section>
+
+    <section aria-labelledby="work">
+    <h2 id="work">Selected work</h2>
+    <p>All public on GitHub.</p>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Project</p>
+    <h3>Homelab</h3>
+    <p>An over-engineered homelab run like a small production platform: GitOps, SLOs, restore-tested backups, policy checks, and agents that merge their own pull requests (nothing has burnt down yet, touch wood).</p>
+    <a href="https://github.com/ned-si/homelab">Source on GitHub</a>
+    </article>
+    <article class="card">
+    <p class="label">Project</p>
+    <h3>Keyboards</h3>
+    <p>Ergonomic mechanical keyboards and their firmware: QMK, with one shared userspace, and ZMK for the wireless-only boards. Built and released by CI. The one under my fingers right now is a Scylla.</p>
+    <p class="links"><a href="https://github.com/ned-si/scylla">Scylla</a> · <a href="https://github.com/ned-si/qmk-userspace">QMK userspace</a> · <a href="https://github.com/ned-si/zmk-config">ZMK config</a></p>
+    </article>
+    <article class="card">
+    <p class="label">Project</p>
+    <h3>Drum charts</h3>
+    <p>Drum charts as code: songs written in LilyPond, split by section, with my own notation and a legend. Built to learn a song's structure rather than every note.</p>
+    <a href="https://github.com/ned-si/drum-charts">Source on GitHub</a>
+    </article>
+    </div>
+    </section>
+
+    <section aria-labelledby="writing">
+    <h2 id="writing">Writing</h2>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Blog</p>
+    <h3>blog.nedsi.io</h3>
+    <p>How the homelab is built and run, the trade-offs behind it, and what I learn on the way.</p>
+    <a href="https://blog.nedsi.io/">Read the blog</a>
+    </article>
+    <article class="card">
+    <p class="label">About</p>
+    <h3>About me</h3>
+    <p>Who I am, what I have done so far (from the luxury watch industry to security and SRE), the certifications and the talks.</p>
+    <a href="https://blog.nedsi.io/about/">Read more</a>
+    </article>
+    </div>
+    </section>
+
+    <section aria-labelledby="contact">
+    <h2 id="contact">Contact</h2>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Contact</p>
+    <h3>GitHub</h3>
+    <p>Code, issues and the occasional pull request.</p>
+    <a href="https://github.com/ned-si">github.com/ned-si</a>
+    </article>
+    <article class="card">
+    <p class="label">Contact</p>
+    <h3>LinkedIn</h3>
+    <p>The professional side.</p>
+    <a href="https://www.linkedin.com/in/juliensudan">linkedin.com/in/juliensudan</a>
+    </article>
+    <article class="card">
+    <p class="label">Contact</p>
+    <h3>E-mail</h3>
+    <p>For anything else. I answer, eventually.</p>
+    <a href="mailto:julien@nedsi.io">julien@nedsi.io</a>
+    </article>
+    </div>
+    </section>
+    </main>
+    <footer>
+    <p><a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
+    </footer>
+    </body>
+    </html>
+  landing.css: |
+    :root {
+      --fg: #1d1f21;
+      --muted: #5c6166;
+      --bg: #fdfdfc;
+      --card-bg: #f3f4f5;
+      --link: #0b5cad;
+      --rule: #d8dadc;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e5e7;
+        --muted: #a0a6ab;
+        --bg: #17191b;
+        --card-bg: #212427;
+        --link: #79b8ff;
+        --rule: #34383c;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0 auto;
+      max-width: 60rem;
+      padding: 3rem 1.25rem;
+      color: var(--fg);
+      background: var(--bg);
+      font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--link); }
+
+    h1 { margin: 0; font-size: 2.5rem; }
+    h2 { margin: 3rem 0 1rem; font-size: 1.375rem; }
+    h3 { margin: 0.25rem 0 0.5rem; font-size: 1.125rem; }
+
+    .lead { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.25rem; }
+
+    .blocks, .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+      gap: 1rem 1.5rem;
+    }
+
+    .blocks h2 { margin: 2.5rem 0 0.25rem; font-size: 1.125rem; }
+    .blocks p { margin: 0; }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      padding: 1rem 1.25rem;
+      border: 1px solid var(--rule);
+      border-radius: 0.4rem;
+      background: var(--card-bg);
+    }
+
+    .card p { margin: 0 0 0.75rem; }
+    .card > :last-child { margin-top: auto; font-weight: 600; }
+
+    .label {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 0.875rem;
+    }
+kind: ConfigMap
+metadata:
+  name: website-landing-877fggtf8g
+  namespace: website
