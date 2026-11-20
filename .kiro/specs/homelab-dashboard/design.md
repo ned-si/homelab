@@ -13,8 +13,8 @@ two roles:
 - `homelab-dashboard web`: the frontend, a second Deployment in the same
   namespace. It verifies each push (signature, freshness, schema,
   allow-list), keeps the last good snapshot in memory and renders
-  `blog.nedsi.io/homelab/` on every request with `html/template`, plus the
-  snapshot as JSON and its embedded assets.
+  `https://homelab.nedsi.io/` on every request with `html/template`, plus
+  the snapshot as JSON and its embedded assets.
 
 ```text
 Prometheus ──┐                                      ┌──> web :8080 ──> Gateway ──> reader
@@ -65,11 +65,12 @@ Renovate, Argo CD, Kustomize.
 | `dashboard/cmd/homelab-dashboard/main.go` | Flags, the subcommands, signal handling |
 | `dashboard/internal/snapshot/` | The snapshot types, `snapshot.schema.json` (embedded), `Validate`, the shown apps (`shown.go`), the hidden-tooling pattern, the rounding helpers |
 | `dashboard/internal/collector/` | Prometheus queries, the GitHub client, the cadences, the signer and the pusher |
-| `dashboard/internal/web/` | The public server, the push receiver, headers, the renderer |
-| `dashboard/internal/web/templates/` | `page.html`, `notfound.html` (embedded) |
+| `dashboard/internal/web/` | The public server, the push receiver, headers, the renderer, the status rules and the SVG chart builders (`chart.go`) |
+| `dashboard/internal/web/templates/` | `layout.html`, `page.html`, `notfound.html` (embedded) |
 | `dashboard/internal/web/assets/` | `dashboard.css` (embedded, served with its content hash in the name) |
 | `dashboard/internal/web/testdata/` | Snapshot fixtures, test keys, the golden HTML files and `headers.golden` |
 | `dashboard/internal/metrics/` | The metric definitions and the metrics server |
+| `dashboard/internal/tools/pushfixture/` | A test-only `main` that signs a fixture with the test key and pushes it to a web role; used by the screenshot step and the publish smoke, never in the image |
 | `dashboard/Dockerfile` | Builder and runtime stages |
 
 Neither role talks to the Kubernetes API, so there is no `client-go`.
@@ -251,10 +252,13 @@ HEAD`.
 
 | Path | Answer | `Cache-Control` |
 | --- | --- | --- |
-| `/homelab` | `301`, `Location: /homelab/` | none |
-| `/homelab/` | The page | `no-cache` |
-| `/homelab/snapshot.json` | The snapshot as held, `application/json` | `no-cache` |
-| `/homelab/assets/dashboard.<sha256-8>.css` | The stylesheet | `public, max-age=31536000, immutable` |
+| `/` | The page | `no-cache` |
+| `/snapshot.json` | The snapshot as held, `application/json` | `no-cache` |
+| `/assets/dashboard.<sha256-8>.css` | The stylesheet | `public, max-age=31536000, immutable` |
+
+The app owns its host, so it serves from the root and answers no
+redirect itself: `http://` and `blog.nedsi.io/homelab/` are redirected by
+nginx ([Address](#address)).
 
 The page is rendered on every request from the snapshot in memory (a few
 microseconds for a page this size); `ETag` is the hash of the rendered
@@ -291,35 +295,102 @@ Cross-Origin-Opener-Policy: same-origin
 The HTTPRoute of task 4 sets the same values with
 `ResponseHeaderModifier`: the route is the public contract every app
 follows and the PostSync smoke checks; the server's copy is unit-tested
-and holds when the route's filter is lost. When public-website task 6 adds
-`script-src` and `connect-src` for the statistics script, both copies
-change in the same PR (a test compares them, see [Tests](#tests)).
+and holds when the route's filter is lost. The app is its own origin, so
+the blog's CSP changes (the statistics script of public-website task 6)
+do not apply to it; if the dashboard ever gets that script, both of its
+copies change in the same PR (a test compares them, see [Tests](#tests)).
 
 ### The page
 
-`page.html` reproduces the blog's `baseof` (`site/layouts/baseof.html`):
-the same header, the navigation bar (Home `https://nedsi.io/`, Blog `/`,
-Homelab `/homelab/` with `aria-current="page"`, About `/about/`) and the
-footer (author, RSS, privacy). Then the content of today's
-`site/content/homelab.md` (intro, the figures, "Coming later" for solar and
-home automation), carried over as template text. The figure sections are
-those of `publisher.py`'s `render`:
+`layout.html` reproduces the blog's `baseof` (`site/layouts/baseof.html`):
+the same header, the navigation bar and the footer (author, RSS, privacy),
+with absolute links because the app is its own origin:
 
-- Availability, per finished day: one row per shown app, the 30-day
-  figure, the error budget left (or "exhausted" at -100), the sparkline;
-  "since <date>" and no budget when the first daily value is `null`.
-- Cluster: nodes, Argo CD applications, Talos, Kubernetes.
-- Project, last 30 days: pull requests merged, Renovate's share, median
-  `ci` run.
-- "Updated <time> (Zurich time)", from `generated_at`.
+| Link | `href` |
+| --- | --- |
+| Home | `https://nedsi.io/` |
+| Blog | `https://blog.nedsi.io/` |
+| Homelab | `/`, with `aria-current="page"` (resolves to `https://homelab.nedsi.io/`) |
+| About | `https://blog.nedsi.io/about/` |
 
-The sparkline is inline SVG, built by a Go function from numbers only
-(coordinates formatted with `strconv`), passed to the template as
-`template.HTML` after a test proves it contains only `svg`, `line`,
-`polyline` and `circle` elements with numeric attributes. Everything else
-goes through `html/template`'s contextual escaping. Styling is by class
-only; the stylesheet is `dashboard.css`, written from the blog's
-`main.css` variables (colours, fonts, widths).
+`page.html` is an observability dashboard, not a page of text. From top
+to bottom:
+
+1. The title, a two-sentence intro carried over from today's
+   `site/content/homelab.md`, the target ("Target: 99.5% availability
+   over 30 days per app") and "Updated <time> (Zurich time)" from
+   `generated_at`, with the staleness notices below.
+2. **Availability**, per finished day: a grid of cards
+   (`section.cards`), one per shown app in the allow-list order. Each
+   card (`article.card`):
+   - the app's name;
+   - the 30-day availability as the big number, `99.9` with the unit
+     `%` in a smaller `span.unit`, coloured by the 30-day status, and the
+     status word next to it ("Met", "At risk", "Missed");
+   - the error budget meter: an SVG bar of the budget left (0-100%; empty
+     and "Exhausted" at or below 0), with the text "62% of the error
+     budget left"; "Since <date>" and no meter when the first daily
+     value is `null`;
+   - the 30-day bar chart: 30 SVG bars, oldest left, each bar's height
+     from that day's availability on a 95-100% scale (a day below 95%
+     is a full-height bar), each coloured by that day's status, a
+     dashed line at 99.5%, `none` bars at a fixed small height for
+     days without probes.
+3. **Cluster** (live): a panel of stat tiles, each a big number with its
+   unit and a small label: nodes ("4 nodes"), Argo CD applications
+   ("42 apps"), Talos ("v1.14.5"), Kubernetes ("v1.37.2"), and "as of
+   <time>" from `cluster.as_of`.
+4. **Project, last 30 days** (live): tiles for pull requests merged
+   ("128 PRs"), Renovate's share ("61%", with a share bar), the median
+   `ci` run ("4 min 12 s"), and "as of <time>" from `project.as_of`.
+5. **Coming later**: two muted placeholder panels, solar production and
+   home automation, with today's text.
+
+Layout, in `dashboard.css`:
+
+- CSS grid, `grid-template-columns: repeat(auto-fill, minmax(17rem,
+  1fr))`, gap `1rem`; the page is at most `72rem` wide, wider than the
+  blog's `44rem` column. Below `40rem` every grid has one column, so the
+  page reads from 320 px without horizontal scrolling. Charts use a
+  `viewBox` with `width: 100%`, so they scale with their card.
+- Big numbers `2.5rem`, tabular figures (`font-variant-numeric:
+  tabular-nums`), labels in the muted colour. The font is the site's
+  `system-ui` stack: no web font, so `font-src` stays unused.
+- Always dark (`color-scheme: dark`): the dark values of
+  `site/assets/css/main.css` (`--bg #17191b`, `--fg #e3e5e7`, `--muted
+  #a0a6ab`, `--link #79b8ff`, `--rule #34383c`), cards on `--panel
+  #212427` (the site's `--code-bg`) with a `1px` `--rule` border and
+  rounded corners. Status colours `--ok #3fb950`, `--warn #d29922`,
+  `--bad #f85149`, `--none` the muted colour.
+- Styling is by class only, in the SVG too (`fill` from the class); no
+  `style=` attribute, no `<style>` element.
+
+Every chart is built by a Go function in `chart.go` from numbers only
+(coordinates formatted with `strconv`) and passed to the template as
+`template.HTML`. A test proves each builder's output contains only the
+elements `svg`, `g`, `rect`, `line` and `title`; attributes that are
+numbers, `class` from the fixed set (`ok`, `warn`, `bad`, `none`,
+`track`, `target`), `role="img"`, `focusable="false"` and an
+`aria-label` built from numbers and dates; and text only inside `title`
+("2026-11-19: 100.0%"). Everything else goes through `html/template`'s
+contextual escaping.
+
+Accessibility: each chart has `role="img"` and an `aria-label` that
+states its figures ("30 days: 28 met, 1 at risk, 1 without data"); every
+status has its word next to its colour; every text and status colour has
+a contrast of at least 4.5:1 against `--panel`, which a unit test
+computes from the custom properties of `dashboard.css`.
+
+### Status colours
+
+| Figure | `ok` | `warn` | `bad` | `none` |
+| --- | --- | --- | --- | --- |
+| 30 days, with a budget | Budget left above 25% ("Met") | 0% to 25% ("At risk") | Below 0%, the target missed ("Missed") | — |
+| 30 days, "since <date>" | 99.5% or more ("Met") | — | Below 99.5% ("Missed") | — |
+| One day | 99.5% or more | 96.25% to 99.5% | Below 96.25%: that day alone spent a quarter of the month's budget (54 min), the postmortem trigger of `docs/sre.md` | No probes that day ("No data") |
+
+The rules are in `internal/web`, applied to the rounded figures of the
+snapshot, and table-tested on each boundary.
 
 Staleness, from the injected clock:
 
@@ -424,7 +495,8 @@ gets a snapshot pages after 48 h. A promtool unit test in
 A `dashboard` job in `ci.yaml`, through `scripts/ci/dashboard-check.sh`,
 in the `needs` of the final `ci` job. Like the `site` job it always runs
 and exits 0 early when `git diff --name-only origin/main...HEAD` touches
-none of `dashboard/`, `scripts/ci/dashboard-check.sh` and
+none of `dashboard/`, `scripts/ci/dashboard-check.sh`,
+`scripts/ci/dashboard-screenshots.sh` (from task 2) and
 `.github/workflows/dashboard-publish.yaml`.
 
 | Step | Fails when |
@@ -457,16 +529,46 @@ running images (#1507).
 | --- | --- |
 | `snapshot` | Schema and `Validate`: a valid fixture; a missing key, an extra key at each level, an out-of-range value, a bad version string, an app outside the allow-list, apps out of order, an `as_of` after `generated_at`; the allow-list against the hidden pattern; the rounding helpers on `.5` cases; a fuzz target `FuzzValidate` with the fixtures as seed corpus |
 | `collector` | A fake Prometheus and a fake GitHub (`httptest`): the full snapshot; each source failing (the last block kept); an empty result; a budget below -100; the version split mid-upgrade; a day without probes (`null`, "since"); DST: `covers` on the last Sunday of March and of October; the cadences and the 03:45 rule with an injected clock, start-up before and after 03:45; the rate-limit reset moving the refresh; a `401` (no anonymous fallback, `github_token_valid` 0); `--dry-run` and `--as-of` against a recorded publisher `figures.json`; the pusher against two fake web pods, one refusing |
-| `web` | Push: `204`, and `400`, `401`, `409`, `413`, `404` for each failing check, a body signed by another key, a replayed and a future `generated_at`, a key rotation with two public keys; golden HTML of the page for a full snapshot, a snapshot with a new app ("since"), stale live figures, a stale daily block and no snapshot (`-update` rewrites them); every header on `200`, `301`, `304`, `404` and `405`; `/homelab` redirect with a relative `Location`; `/readyz` before and after the first snapshot and after 120 s; the access log line has no address, user agent or query |
+| `web` | Push: `204`, and `400`, `401`, `409`, `413`, `404` for each failing check, a body signed by another key, a replayed and a future `generated_at`, a key rotation with two public keys; golden HTML of the page for a full snapshot (its apps cover `ok`, `warn`, `bad` and a day of `none`), a snapshot with a new app ("since"), an exhausted budget, stale live figures, a stale daily block and no snapshot (`-update` rewrites them); the status rules on each boundary of [Status colours](#status-colours); each chart builder's elements, attributes and text; the contrast of every status and text colour of `dashboard.css` against `--panel` (at least 4.5:1); every header on `200`, `304`, `404` and `405`; `/readyz` before and after the first snapshot and after 120 s; the access log line has no address, user agent or query |
 | `metrics` | The names and labels, and that no label value comes from the request path |
 
 The markup rules (navigation, no `<form>`, `<iframe>`, `<style>`,
 `style=`, `on*`, inline `<script>`, foreign origins) are not repeated in
 Go: `tests/test_site_markup.py`, in the `tests` job that always runs,
 feeds every `dashboard/internal/web/testdata/*.golden.html` to
-`site_markup.Checker("blog.nedsi.io", "https://blog.nedsi.io/homelab/")`
+`site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")`
 and asserts no problems, `check_nav()` included. A navigation change in
-the blog that the app does not follow fails there.
+the blog that the app does not follow fails there. Task 1 adds
+`homelab.nedsi.io` to `SITE_HOSTS` in `scripts/ci/site_markup.py` and
+makes the expected Homelab link depend on the page's host:
+`https://homelab.nedsi.io/` on `homelab.nedsi.io`,
+`https://blog.nedsi.io/homelab/` elsewhere. Task 5 switches the blog and
+the landing page to `https://homelab.nedsi.io/` and drops the
+difference, so from then on one navigation bar is expected everywhere.
+
+### Screenshot check
+
+Task 2 adds a step to the `dashboard` job, `scripts/ci/dashboard-screenshots.sh`:
+
+1. Build the binary, start `web` with the test public key of
+   `internal/web/testdata/` on `127.0.0.1`, and push the full fixture
+   with `go run ./internal/tools/pushfixture`.
+2. Render `http://127.0.0.1:8080/` with `chrome-headless-shell` (Chrome
+   for Testing, version and sha256 in the `ci.yaml` env, installed by
+   `scripts/ci/install-tool.sh`) at `390x1800` and `1280x1400`, with
+   `--screenshot` and Chrome's log on stderr.
+3. Fail when Chrome exits non-zero, a PNG is missing or empty, Chrome's
+   log has a CSP violation (`Refused to`) or a failed load, or the web
+   role's access log has a status other than `200` for the page or the
+   stylesheet.
+4. Upload both PNGs as the `dashboard-screenshots` artefact, so the look
+   can be checked in the pull request.
+
+No pixel comparison: the rendering changes with every browser update,
+and a golden image would fail for reasons that are not regressions. The
+golden HTML and the markup checks are the regression tests; the
+screenshots prove the page renders under the real CSP and show what it
+looks like.
 
 The web tests write the response headers they assert to
 `internal/web/testdata/headers.golden`. From task 4, a test in
@@ -508,9 +610,9 @@ with these changes:
   `id-token: write` (cosign and the attestation), `attestations: write`.
 - Smoke before any push: build for `linux/amd64` with `--load`, run `web`
   read-only with a test public key mounted, push a fixture snapshot signed
-  with the test key to 9465 (`204`), then check `200` on `/homelab/` with
-  every header, `405` on `POST`, `404`, the `301`, `/readyz`, and `401` on
-  an unsigned push; run `version` and check it prints the commit.
+  with the test key to 9465 with `pushfixture` (`204`), then check `200`
+  on `/` with every header, `405` on `POST`, `404`, `/readyz`, and `401`
+  on an unsigned push; run `version` and check it prints the commit.
 - `docker buildx build --builder attest --platform
   linux/arm64,linux/amd64 --sbom=true --provenance=mode=max --build-arg
   VERSION=$SHA --push -t $IMAGE:$SHA dashboard`, then read the index
@@ -617,9 +719,8 @@ operator sets it once in the package settings after the first push.
   the runbook `docs/runbooks/alerts/HomelabDashboardSnapshotStale.md`.
 - PostSync smoke (`components/postsync-smoke`, own script like
   `apps/website`): through the Service before task 4, through the Gateway
-  from task 4: `200` and every header on `/homelab/`, `404` with the
-  headers, `405`, the `301` and its `Location`, `/homelab/snapshot.json`
-  parses. With `maxSurge: 1` and the readiness rule, the new web pod has a
+  on `homelab.nedsi.io` from task 4: `200` and every header on `/`, `404`
+  with the headers, `405`, `/snapshot.json` parses. With `maxSurge: 1` and the readiness rule, the new web pod has a
   snapshot (or has waited 120 s) before the smoke reaches it.
 - Network policies, `infrastructure/network-policies/56-homelab-dashboard.yaml`,
   enforced from the start (`enforce-default-deny` in the namespace, kubelet
@@ -634,7 +735,7 @@ operator sets it once in the package settings after the first push.
   The `monitoring` namespace enforces ingress, so the `prometheus` policy
   in `infrastructure/network-policies/88-monitoring.yaml` gains a 9090
   rule from `homelab-dashboard` pods with
-  `app.kubernetes.io/component: collector` (task 3); task 5 removes its
+  `app.kubernetes.io/component: collector` (task 3); task 6 removes its
   `website-publisher` rule.
 - `ci/kind-workloads.txt`: the web Deployment and its Services
   (stateless, no Secret; the image has an amd64 variant, so the `preprod`
@@ -642,14 +743,66 @@ operator sets it once in the package settings after the first push.
   stays out: it needs Prometheus and its Secret.
 - Kyverno: every baseline policy passes with no PolicyException.
 
+## Address
+
+The dashboard is its own origin, `homelab.nedsi.io`, set up by task 4
+with the automation that serves the other `nedsi.io` names:
+
+- Certificate `homelab-nedsi-io` in namespace `gateway`
+  (`infrastructure/gateway/certificate-homelab-nedsi.yaml`), one SAN
+  `homelab.nedsi.io`, the `letsencrypt` ClusterIssuer (its DNS-01 solver
+  already covers the `nedsi.io` zone), the key and duration settings of
+  `nedsi-io`. A Certificate of its own, so the `nedsi-io` certificate of
+  the three live names is not reissued.
+- Gateway listeners `https-nedsi-homelab` (443, `homelab-nedsi-io-tls`)
+  and `http-nedsi-homelab` (80), one hostname each, `allowedRoutes` as
+  the other `nedsi.io` listeners.
+- HTTPRoute `homelab-dashboard` in namespace `homelab-dashboard` on
+  `https-nedsi-homelab`, hostname `homelab.nedsi.io`, `PathPrefix /` to
+  `homelab-dashboard-web:8080`, with the response headers of
+  [Headers](#headers).
+- `http://`: the `website-http` route gains the hostname
+  `homelab.nedsi.io`, and nginx's `$https_host` map in
+  `apps/website/nginx.conf` the entry `homelab.nedsi.io
+  homelab.nedsi.io`, so port 8081 answers `301
+  https://homelab.nedsi.io$request_uri` like the other names (no
+  `RequestRedirect`, see the public-website design, Redirects).
+- DNS: external-dns creates the A record from the HTTPRoute, to the WAN
+  address, DNS only, like the other names. Operator first: check the
+  `nedsi.io` zone has no `homelab` record that external-dns does not own.
+- Lists: `homelab.nedsi.io` in `docs/pentest/scope.yaml`
+  (`public_hostnames`, which `scripts/pentest-scope-check.sh` compares
+  with `scripts/published-hostnames.sh`, and so the `dast` targets);
+  `https://homelab.nedsi.io/` in the static list of
+  `platform/blackbox-exporter/probes/probes.yaml` (app `homelab` from the
+  relabeling), its SLO rules like `nedsi` and `blog`, and its row in the
+  user-facing app table of `docs/sre.md`.
+
+Task 5 moves the readers:
+
+- `apps/website/nginx.conf`, the blog's server block: the `/homelab/`
+  SSI location becomes `location ~ ^/homelab(/.*)?$`, which answers `301`
+  to `https://homelab.nedsi.io/` for `/homelab` and `/homelab/`, and to
+  `https://homelab.nedsi.io/<rest>` for `/homelab/<rest>` (no port, query
+  dropped: the app ignores it). `scripts/ci/site-serve-check.sh` checks
+  the three forms instead of the SSI page.
+- The Homelab link: `site/layouts/baseof.html` (an absolute link to
+  `https://homelab.nedsi.io/`), the landing page's navigation
+  and its "See the dashboard" button in `apps/website/landing/index.html`,
+  and `NAV` in `scripts/ci/site_markup.py`. The landing page and the
+  redirect are ConfigMaps and change with the merge; the blog's
+  navigation changes with the next site image, so the PR is followed by
+  the `homelab-site` digest bump (Renovate or by hand, as in #1549).
+
 ## Migration
 
 | Step | State | Rollback |
 | --- | --- | --- |
 | Task 3, alongside | Both run. The publisher at 03:30 writes `website-data`; the collector pushes to the web pod every minute. Only nginx serves `/homelab/`. | Revert: the app's objects go (the namespace stays, `Prune=false`) |
 | Comparison | `scripts/dashboard-compare.sh` after each night (below). The operator looks at the page through `kubectl -n homelab-dashboard port-forward svc/homelab-dashboard-web 8080` | — |
-| Task 4, switch-over | HTTPRoute `homelab-dashboard` on `https-nedsi-blog`, hostname `blog.nedsi.io`, `PathPrefix /homelab` to the web Service. Gateway API picks the longest prefix, so `/homelab` and `/homelab/...` leave the `website` route and everything else stays. The publisher still runs. | Revert: the route goes, nginx serves `/homelab/` again with the last `website-data` |
-| Task 5, deletion | After one daily block served by the app: the publisher and the SSI path deleted | Revert: the publisher comes back; its next run (or one manual Job) fills `website-data` |
+| Task 4, the host | `homelab.nedsi.io` live ([Address](#address)). nginx still serves `blog.nedsi.io/homelab/` from the publisher, and no link points at the new host yet. | Revert: the route, listeners and certificate go. external-dns is upsert only, so the A record stays and answers nothing; delete it in the console if the move is abandoned |
+| Task 5, redirect and links | Once acceptance criteria 5 and 13 pass on the public name, in the same run if they do: `blog.nedsi.io/homelab/` answers `301`, every Homelab link points at `homelab.nedsi.io`. The publisher still runs. | Revert: nginx serves `/homelab/` again with the last `website-data`. Browsers that saw the `301` keep it cached and still land on the working app |
+| Task 6, deletion | After one daily block served with the redirect live: the publisher and the SSI page deleted | Revert: the publisher comes back; its next run (or one manual Job) fills `website-data` |
 
 Live figures cannot match the publisher's end-of-day figures, so the
 comparison uses the dry run: `scripts/dashboard-compare.sh` reads
@@ -669,11 +822,11 @@ exits 1. The comparison passes when three consecutive `covers` dates are
 equal. A difference is a bug in one of the two, fixed before the
 switch-over; the count restarts.
 
-With the Hugo page gone (task 5), the blog's navigation still links
-`/homelab/`, which is no longer in Hugo's output: `site/.htmltest.yml`
-keeps `IgnoreURLs: ["^/homelab/"]`, and the golden-page test in
-`tests/test_site_markup.py` ([Tests](#tests)) keeps the two navigation
-bars equal.
+From task 5 the blog's navigation links `https://homelab.nedsi.io/`, so
+task 6 also drops `^/homelab/` from `IgnoreURLs` in `site/.htmltest.yml`
+once the Hugo page is gone; the golden-page test in
+`tests/test_site_markup.py` ([Tests](#tests)) keeps the navigation bars
+of the blog, the landing page and the app equal.
 
 ## Error handling
 
@@ -723,6 +876,21 @@ bars equal.
   The freshness window stops a replayed or rolled-back snapshot.
 - **Availability per finished day, the rest live.** See
   [Freshness](#freshness).
+- **Its own host, `homelab.nedsi.io`.** A separate origin gets its own
+  HTTPRoute, certificate and CSP, serves from `/`, and shares no path
+  space with nginx: the route is a plain backend route and the app never
+  depends on the blog's build. Rejected: `blog.nedsi.io/homelab/` (a
+  path-prefix split of the blog's host between nginx and the app, and an
+  app tied to the blog's layout); `nedsi.io/homelab/` (the same split on
+  the landing page's host, with the app's assets under a prefix).
+- **A dashboard, not a text page.** The page is the project's showcase,
+  so it reads like an observability tool: cards, big numbers, status
+  colours tied to the SLO and the error-budget policy, charts built
+  server-side as SVG so the CSP needs no script and no exception.
+  Rejected: a client-side chart library (JavaScript, `script-src`, a
+  dependency to patch); colour thresholds by taste.
+- **Screenshots without a pixel diff.** See
+  [Screenshot check](#screenshot-check).
 - **The collector as a Deployment.** A long-running process with a
   `/metrics` endpoint, so durations and errors by block are real metrics,
   and it waits for GitHub's rate-limit reset instead of failing within a

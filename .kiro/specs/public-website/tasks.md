@@ -108,6 +108,9 @@ No task writes to the cluster outside Argo CD. The defaults are in
       Publisher and data #1550, page #1552, site image #1555; apps with
       under 30 days of data show availability since their first day.
       Shared navigation bar on both sites: #1548, image #1549.
+      Being replaced by the Go app of spec homelab-dashboard, which
+      moves the dashboard to `https://homelab.nedsi.io/` (its tasks 4
+      and 5) and deletes the publisher (its task 6).
 - [ ] 8. Solar: the `website-solar` CronJob every 5 minutes and its
       ConfigMap, from the Home Assistant production sensors in Prometheus;
       production only. Starts once the home-automation spec records solar

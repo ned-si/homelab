@@ -467,8 +467,9 @@ it, and a script that parses lock files would duplicate restic's own rule).
 
 ## The public dashboard is a first-party Go app
 
-The dashboard at `https://blog.nedsi.io/homelab/` is `homelab-dashboard`,
-the repository's own app: one Go module in `dashboard/`, one signed,
+The public dashboard is `homelab-dashboard`, served at
+`https://homelab.nedsi.io/`, its own host (`blog.nedsi.io/homelab/`
+redirects there permanently). It is the repository's own app: one Go module in `dashboard/`, one signed,
 multi-arch distroless image `ghcr.io/ned-si/homelab-dashboard`, two roles.
 The `collector` reads Prometheus and the public GitHub API in the cluster
 and, every minute, pushes a schema-validated snapshot signed with Ed25519
@@ -481,8 +482,11 @@ only the public key. Neither role has a Kubernetes right. It replaces
 
 Cluster facts and project figures are live. Availability and error budget
 cover finished days only: a live availability figure would show outages
-and power cuts as they happen. The Go code follows the Google Go Style
-Guide, enforced by golangci-lint.
+and power cuts as they happen. The page is a dashboard of panels with
+status colours against the 99.5% target and charts rendered on the
+server as SVG, so it needs no JavaScript. Its own host gives it its own
+route, certificate and CSP, with no path shared with the blog's nginx.
+The Go code follows the Google Go Style Guide, enforced by golangci-lint.
 
 Why: the page is public, so the code that answers it gets the same
 treatment as any production service: a build in CI, tests including

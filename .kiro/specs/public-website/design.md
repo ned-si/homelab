@@ -35,7 +35,8 @@ and its dashboard on `blog.nedsi.io`, and anything else public later.
 | Name | Serves |
 | --- | --- |
 | `nedsi.io` | The landing page, the operator's homepage: cards to his projects (the source repository among them), the blog, the About page, his contact links and, from phase 2, the dashboard |
-| `blog.nedsi.io` | The blog (Hugo), its RSS feed, the dashboard at `/homelab/` (phase 2), the statistics script under `/stats/` (phase 2) |
+| `blog.nedsi.io` | The blog (Hugo), its RSS feed, the dashboard at `/homelab/` (phase 2) until it moves, then a `301` to `homelab.nedsi.io`, the statistics script under `/stats/` (phase 2) |
+| `homelab.nedsi.io` | The dashboard, app `homelab-dashboard` ([spec homelab-dashboard](../homelab-dashboard/design.md#address), from its task 4) |
 | `www.nedsi.io` | `301` to `https://nedsi.io`, path and query kept |
 | `http://` on all three | `301` to the `https://` URL, `www` folded into the apex |
 
@@ -74,17 +75,21 @@ DNS and TLS for `nedsi.io`:
 
 ### Dashboard location
 
-Decided 2026-11-16: the dashboard stays a page of the blog,
-`https://blog.nedsi.io/homelab/`, and the landing page gets a button to
-it in task 7.
+Decided 2026-11-20, with the dashboard's move to its own Go app
+(spec homelab-dashboard): the dashboard gets its own host,
+`https://homelab.nedsi.io/`. `blog.nedsi.io/homelab/` answers a
+permanent redirect there, and the Homelab link of the navigation bar
+and the landing page's dashboard button point there. The certificate,
+listeners, route, DNS record, redirect, pentest scope and probe are
+[that spec's Address section](../homelab-dashboard/design.md#address).
 
-- For: it is a Hugo page with the blog's layout, header and footer; the
-  publisher's ConfigMaps are mounted where the blog's files are, and the
-  server-side include runs in the blog's `server` block. Nothing in
-  [Public figures](#public-figures) changes.
-- Rejected, `nedsi.io/homelab/`: the landing page is not a Hugo build,
-  so the dashboard would need its own layout and stylesheet there, or the
-  apex would have to serve part of the Hugo output under a second host.
+- For: the app is its own origin with its own route, certificate and
+  CSP, serves from `/`, and shares no path space with nginx or the Hugo
+  build. Nothing in [Public figures](#public-figures) changes.
+- Rejected, the blog page of 2026-11-16 (`blog.nedsi.io/homelab/`): a
+  path-prefix split of the blog's host between nginx and the app.
+- Rejected, `nedsi.io/homelab/`: the same split on the landing page's
+  host, with the app's assets under a prefix.
 
 ### Redirects
 
