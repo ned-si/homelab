@@ -3,7 +3,7 @@
 # in dashboard/. Alerts go to the Security tab; not a required check. Advanced
 # setup: the default setup is off, and the two cannot run together. Go is a
 # compiled language: its build mode is manual, and dashboard/ is built between
-# init and analyze.
+# init and analyze, with Go set up before init.
 name: codeql
 
 on:
@@ -49,18 +49,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Initialise CodeQL
-        uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-
+      # Before init, so CodeQL wraps this Go; no build cache, so the build
+      # below compiles every package and CodeQL sees the sources.
       - name: Set up Go
         if: ${{ matrix.language == 'go' }}
         uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: dashboard/go.mod
-          cache-dependency-path: dashboard/go.sum
+          cache: false
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
       - name: Build dashboard/
         if: ${{ matrix.language == 'go' }}
