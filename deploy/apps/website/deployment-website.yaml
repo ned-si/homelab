@@ -91,7 +91,7 @@ spec:
           name: website-nginx-mmf8g5tt26
         name: nginx
       - configMap:
-          name: website-landing-h927c76tk2
+          name: website-landing-5dk68f9mf6
         name: landing
       - configMap:
           name: website-data

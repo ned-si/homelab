@@ -164,7 +164,10 @@ data:
       border-bottom: 1px solid var(--rule);
     }
 
-    nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; text-decoration: none; }
+    nav.site a { text-decoration: none; }
+    nav.site a:hover { color: var(--fg); }
+    nav.site a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 2px; }
+    nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; }
 
     h1 { margin: 0; font-size: 2.5rem; }
     h2 { margin: 3rem 0 1rem; font-size: 1.375rem; }
@@ -217,5 +220,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-landing-h927c76tk2
+  name: website-landing-5dk68f9mf6
   namespace: website
