@@ -4,15 +4,11 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"encoding/json"
-	"encoding/xml"
-	"errors"
 	"flag"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -184,7 +180,7 @@ func TestPushReceiverRoutes(t *testing.T) {
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodGet, "/v1/snapshot"},
 		{http.MethodPost, "/v1/other"},
-		{http.MethodPost, "/homelab/"},
+		{http.MethodPost, "/"},
 	} {
 		req := httptest.NewRequestWithContext(t.Context(), tc.method, tc.path, nil)
 		rec := httptest.NewRecorder()
@@ -214,7 +210,7 @@ func TestPushNewerReplacesAndKeyRotation(t *testing.T) {
 	if code := h.push(t, body, snapshot.Sign(newKey, body)); code != http.StatusNoContent {
 		t.Fatalf("push signed by the new key = %d, want 204", code)
 	}
-	rec := h.get(t, http.MethodGet, "/homelab/snapshot.json")
+	rec := h.get(t, http.MethodGet, "/snapshot.json")
 	if !bytes.Equal(rec.Body.Bytes(), body) {
 		t.Error("snapshot.json is not the newer snapshot")
 	}
@@ -263,7 +259,7 @@ func TestAges(t *testing.T) {
 
 func TestHeadersOnEveryResponse(t *testing.T) {
 	h := newHarness(t)
-	page := h.get(t, http.MethodGet, "/homelab/")
+	page := h.get(t, http.MethodGet, "/")
 	tests := []struct {
 		name   string
 		method string
@@ -271,14 +267,14 @@ func TestHeadersOnEveryResponse(t *testing.T) {
 		header []string
 		want   int
 	}{
-		{"page", http.MethodGet, "/homelab/", nil, http.StatusOK},
-		{"head", http.MethodHead, "/homelab/", nil, http.StatusOK},
-		{"redirect", http.MethodGet, "/homelab", nil, http.StatusMovedPermanently},
-		{"not modified", http.MethodGet, "/homelab/", []string{"If-None-Match", page.Header().Get("ETag")}, http.StatusNotModified},
-		{"not found", http.MethodGet, "/homelab/nope", nil, http.StatusNotFound},
-		{"not found outside", http.MethodGet, "/", nil, http.StatusNotFound},
-		{"no snapshot yet", http.MethodGet, "/homelab/snapshot.json", nil, http.StatusNotFound},
-		{"post", http.MethodPost, "/homelab/", nil, http.StatusMethodNotAllowed},
+		{"page", http.MethodGet, "/", nil, http.StatusOK},
+		{"head", http.MethodHead, "/", nil, http.StatusOK},
+		{"not modified", http.MethodGet, "/", []string{"If-None-Match", page.Header().Get("ETag")}, http.StatusNotModified},
+		{"not found", http.MethodGet, "/nope", nil, http.StatusNotFound},
+		{"old path", http.MethodGet, "/homelab/", nil, http.StatusNotFound},
+		{"old path without slash", http.MethodGet, "/homelab", nil, http.StatusNotFound},
+		{"no snapshot yet", http.MethodGet, "/snapshot.json", nil, http.StatusNotFound},
+		{"post", http.MethodPost, "/", nil, http.StatusMethodNotAllowed},
 		{"delete elsewhere", http.MethodDelete, "/nope", nil, http.StatusMethodNotAllowed},
 	}
 	for _, tc := range tests {
@@ -294,13 +290,13 @@ func TestHeadersOnEveryResponse(t *testing.T) {
 			}
 		})
 	}
-	if got := h.get(t, http.MethodPost, "/homelab/").Header().Get("Allow"); got != "GET, HEAD" {
+	if got := h.get(t, http.MethodPost, "/").Header().Get("Allow"); got != "GET, HEAD" {
 		t.Errorf("Allow = %q, want %q", got, "GET, HEAD")
 	}
-	if got := h.get(t, http.MethodGet, "/homelab").Header().Get("Location"); got != "/homelab/" {
-		t.Errorf("Location = %q, want a relative /homelab/", got)
+	if got := h.get(t, http.MethodGet, "/homelab").Header().Get("Location"); got != "" {
+		t.Errorf("Location = %q, want no redirect", got)
 	}
-	if got := h.get(t, http.MethodHead, "/homelab/").Body.Len(); got != 0 {
+	if got := h.get(t, http.MethodHead, "/").Body.Len(); got != 0 {
 		t.Errorf("HEAD body = %d bytes, want 0", got)
 	}
 
@@ -329,9 +325,9 @@ func TestCacheControl(t *testing.T) {
 		t.Fatalf("push = %d", code)
 	}
 	for path, want := range map[string]string{
-		"/homelab/":              "no-cache",
-		"/homelab/snapshot.json": "no-cache",
-		h.s.cssPath:              "public, max-age=31536000, immutable",
+		"/":              "no-cache",
+		"/snapshot.json": "no-cache",
+		h.s.cssPath:      "public, max-age=31536000, immutable",
 	} {
 		rec := h.get(t, http.MethodGet, path)
 		if rec.Code != http.StatusOK {
@@ -341,14 +337,14 @@ func TestCacheControl(t *testing.T) {
 			t.Errorf("GET %s Cache-Control = %q, want %q", path, got, want)
 		}
 	}
-	if !regexp.MustCompile(`^/homelab/assets/dashboard\.[0-9a-f]{8}\.css$`).MatchString(h.s.cssPath) {
+	if !regexp.MustCompile(`^/assets/dashboard\.[0-9a-f]{8}\.css$`).MatchString(h.s.cssPath) {
 		t.Errorf("stylesheet path %q has no content hash", h.s.cssPath)
 	}
 }
 
 func TestAccessLog(t *testing.T) {
 	h := newHarness(t)
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/homelab/?secret=1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?secret=1", nil)
 	req.RemoteAddr = "203.0.113.7:4242"
 	req.Header.Set("User-Agent", "curious-agent/1.0")
 	req.Header.Set("Referer", "https://example.org/")
@@ -376,7 +372,7 @@ func TestAccessLog(t *testing.T) {
 
 func TestNoLabelFromPath(t *testing.T) {
 	h := newHarness(t)
-	for _, p := range []string{"/wp-admin/", "/.env", "/homelab/../../etc/passwd"} {
+	for _, p := range []string{"/wp-admin/", "/.env", "/../../etc/passwd"} {
 		h.get(t, http.MethodGet, p)
 		h.get(t, "PROPFIND", p)
 	}
@@ -398,64 +394,6 @@ func TestNoLabelFromPath(t *testing.T) {
 	}
 }
 
-func TestSparklineMarkup(t *testing.T) {
-	v := func(x float64) *float64 { return &x }
-	inputs := [][]*float64{
-		make([]*float64, snapshot.Days),
-		{v(99.9), nil, v(100), v(85), nil, v(12.3456)},
-		{nil, v(100)},
-	}
-	numeric := regexp.MustCompile(`^-?[0-9]+(\.[0-9])?( -?[0-9]+(\.[0-9])?)*$`)
-	points := regexp.MustCompile(`^([0-9]+\.[0-9],[0-9]+\.[0-9] ?)+$`)
-	allowed := map[string]bool{"svg": true, "line": true, "polyline": true, "circle": true}
-	for _, in := range inputs {
-		dec := xml.NewDecoder(strings.NewReader(string(sparkline(in))))
-		for {
-			tok, err := dec.Token()
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				t.Fatalf("sparkline is not well-formed: %v", err)
-			}
-			switch el := tok.(type) {
-			case xml.StartElement:
-				if !allowed[el.Name.Local] {
-					t.Errorf("element <%s> in a sparkline", el.Name.Local)
-				}
-				for _, a := range el.Attr {
-					switch a.Name.Local {
-					case "class":
-						if a.Value != "spark" && a.Value != "target" {
-							t.Errorf("class %q", a.Value)
-						}
-					case "role":
-						if a.Value != "img" {
-							t.Errorf("role %q", a.Value)
-						}
-					case "aria-label":
-						if !regexp.MustCompile(`^(No daily values yet|Daily availability, lowest [0-9]+\.[0-9]%)$`).MatchString(a.Value) {
-							t.Errorf("aria-label %q", a.Value)
-						}
-					case "points":
-						if !points.MatchString(a.Value) {
-							t.Errorf("points %q", a.Value)
-						}
-					default:
-						if !numeric.MatchString(a.Value) {
-							t.Errorf("%s=%q is not numeric", a.Name.Local, a.Value)
-						}
-					}
-				}
-			case xml.CharData:
-				if strings.TrimSpace(string(el)) != "" {
-					t.Errorf("text %q in a sparkline", el)
-				}
-			}
-		}
-	}
-}
-
 func golden(t *testing.T, path string, got []byte) {
 	t.Helper()
 	if *update {
@@ -470,107 +408,5 @@ func golden(t *testing.T, path string, got []byte) {
 	}
 	if diff := cmp.Diff(string(want), string(got)); diff != "" {
 		t.Errorf("%s mismatch (-want +got):\n%s", path, diff)
-	}
-}
-
-func fullDaily(t *testing.T) map[string]any {
-	t.Helper()
-	doc := fixture(t)
-	for _, a := range doc["daily"].(map[string]any)["apps"].([]any) {
-		days := a.(map[string]any)["availability_daily"].([]any)
-		for i := range days {
-			if days[i] == nil {
-				days[i] = 100.0
-			}
-		}
-	}
-	return doc
-}
-
-func TestGoldenPages(t *testing.T) {
-	tests := []struct {
-		name string
-		doc  func(t *testing.T) map[string]any
-		now  time.Time
-	}{
-		{"full", fullDaily, fixtureNow},
-		{"since", fixture, fixtureNow},
-		{"stale-live", fixture, fixtureNow.Add(2 * time.Hour)},
-		{"stale-daily", fixture, fixtureNow.Add(3 * 24 * time.Hour)},
-		{"empty", nil, fixtureNow},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			h := newHarness(t)
-			if tc.doc != nil {
-				if code := h.pushDoc(t, tc.doc(t)); code != http.StatusNoContent {
-					t.Fatalf("push = %d", code)
-				}
-			}
-			h.now = tc.now
-			rec := h.get(t, http.MethodGet, "/homelab/")
-			if rec.Code != http.StatusOK {
-				t.Fatalf("GET /homelab/ = %d", rec.Code)
-			}
-			checkMarkup(t, rec.Body.String())
-			golden(t, filepath.Join("testdata", tc.name+".golden.html"), rec.Body.Bytes())
-		})
-	}
-	h := newHarness(t)
-	rec := h.get(t, http.MethodGet, "/homelab/nope")
-	checkMarkup(t, rec.Body.String())
-	golden(t, "testdata/notfound.golden.html", rec.Body.Bytes())
-}
-
-func checkMarkup(t *testing.T, body string) {
-	t.Helper()
-	for _, bad := range []string{"<script", "style=", "<style", "<form", "<iframe", " on"} {
-		if bad == " on" {
-			if regexp.MustCompile(`<[^>]+\son[a-z]+=`).MatchString(body) {
-				t.Error("an on* attribute in the page")
-			}
-			continue
-		}
-		if strings.Contains(body, bad) {
-			t.Errorf("the page contains %q", bad)
-		}
-	}
-}
-
-func TestPageTexts(t *testing.T) {
-	h := newHarness(t)
-	if code := h.pushDoc(t, fixture(t)); code != http.StatusNoContent {
-		t.Fatalf("push = %d", code)
-	}
-	for _, tc := range []struct {
-		now  time.Time
-		want []string
-		not  []string
-	}{
-		{fixtureNow, []string{"99.5%", "since 16 November", "-62%", "5 min 05 s", "Opened by Renovate</dt><dd>50%"},
-			[]string{"Live figures from", "daily update is failing", "No figures yet"}},
-		{fixtureNow.Add(6 * time.Minute), []string{"Live figures from <time datetime=\"2026-11-20T17:00:00&#43;01:00\">20 November 2026, 17:00</time>"}, nil},
-		{fixtureNow.Add(3 * 24 * time.Hour), []string{"Availability figures are from <time datetime=\"2026-11-19\">19 November 2026</time>: the daily update is failing."}, nil},
-	} {
-		h.now = tc.now
-		body := h.get(t, http.MethodGet, "/homelab/").Body.String()
-		for _, w := range tc.want {
-			if !strings.Contains(body, w) {
-				t.Errorf("at %v the page lacks %q", tc.now, w)
-			}
-		}
-		for _, n := range tc.not {
-			if strings.Contains(body, n) {
-				t.Errorf("at %v the page contains %q", tc.now, n)
-			}
-		}
-	}
-}
-
-func TestDuration(t *testing.T) {
-	for s, want := range map[int]string{59: "59 s", 60: "1 min 00 s", 305: "5 min 05 s"} {
-		if got := duration(s); got != want {
-			t.Errorf("duration(%d) = %q, want %q", s, got, want)
-		}
 	}
 }

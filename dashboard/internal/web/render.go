@@ -1,12 +1,8 @@
 package web
 
 import (
-	"bytes"
-	"fmt"
-	"html"
 	"html/template"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
@@ -24,22 +20,35 @@ type when struct {
 	Text     string
 }
 
-type appRow struct {
+type appCard struct {
 	Name         string
 	Availability string
+	Status       status
+	Word         string
+	NoData       bool
 	Since        string
-	Budget       string
-	Spark        template.HTML
+	Exhausted    bool
+	BudgetLeft   int
+	Meter        template.HTML
+	Bars         template.HTML
+}
+
+type ciMedian struct {
+	Minutes int
+	Seconds string
 }
 
 type figures struct {
-	Covers     when
-	DailyStale bool
-	Apps       []appRow
-	Cluster    snapshot.Cluster
-	Project    snapshot.Project
-	CIMedian   string
-	Generated  when
+	Covers        when
+	DailyStale    bool
+	Apps          []appCard
+	Cluster       snapshot.Cluster
+	ClusterAsOf   when
+	Project       snapshot.Project
+	ProjectAsOf   when
+	RenovateShare template.HTML
+	CIMedian      ciMedian
+	Generated     when
 }
 
 type pageData struct {
@@ -58,11 +67,52 @@ func timeText(t time.Time) string {
 	return t.In(snapshot.Zurich).Format("2 January 2006, 15:04")
 }
 
-func duration(s int) string {
-	if s >= 60 {
-		return fmt.Sprintf("%d min %02d s", s/60, s%60)
+// at formats an RFC 3339 timestamp of the snapshot for a <time> element.
+func at(s string) (when, error) {
+	t, err := snapshot.ParseTime(s)
+	if err != nil {
+		return when{}, err
 	}
-	return fmt.Sprintf("%d s", s)
+	return when{s, timeText(t)}, nil
+}
+
+func median(s int) ciMedian {
+	sec := strconv.Itoa(s % 60)
+	if s >= 60 && len(sec) == 1 {
+		sec = "0" + sec
+	}
+	return ciMedian{Minutes: s / 60, Seconds: sec}
+}
+
+// card builds one app's card from its 30-day figures and daily values.
+func card(a snapshot.App, covers time.Time) appCard {
+	c := appCard{
+		Name:         a.Name,
+		Availability: strconv.FormatFloat(a.Availability30d, 'f', 1, 64),
+		Bars:         dailyBars(covers, a.AvailabilityDaily),
+	}
+	first := -1
+	for i, v := range a.AvailabilityDaily {
+		if v != nil {
+			first = i
+			break
+		}
+	}
+	switch {
+	case first < 0:
+		c.Status, c.NoData = statusNone, true
+	case first > 0:
+		// Under 30 days of data: a 30-day budget would mean nothing yet.
+		c.Status = sinceStatus(a.Availability30d)
+		c.Since = snapshot.AddDays(covers, -(len(a.AvailabilityDaily) - 1 - first)).Format("2 January")
+	default:
+		c.Status = monthStatus(a.ErrorBudgetRemaining30d)
+		c.BudgetLeft = max(a.ErrorBudgetRemaining30d, 0)
+		c.Exhausted = a.ErrorBudgetRemaining30d <= 0
+		c.Meter = budgetMeter(a.ErrorBudgetRemaining30d)
+	}
+	c.Word = monthWord(c.Status)
+	return c
 }
 
 // view turns a validated snapshot into the page's data at now.
@@ -71,7 +121,15 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 	if s == nil {
 		return d, nil
 	}
-	generated, err := snapshot.ParseTime(s.GeneratedAt)
+	generated, err := at(s.GeneratedAt)
+	if err != nil {
+		return nil, err
+	}
+	clusterAsOf, err := at(s.Cluster.AsOf)
+	if err != nil {
+		return nil, err
+	}
+	projectAsOf, err := at(s.Project.AsOf)
 	if err != nil {
 		return nil, err
 	}
@@ -79,95 +137,27 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 	if err != nil {
 		return nil, err
 	}
-	if now.Sub(generated) > liveStaleAfter {
-		d.LiveStale = &when{s.GeneratedAt, timeText(generated)}
+	g, err := snapshot.ParseTime(s.GeneratedAt)
+	if err != nil {
+		return nil, err
+	}
+	if now.Sub(g) > liveStaleAfter {
+		d.LiveStale = &generated
 	}
 	f := &figures{
-		Covers:     when{s.Daily.Covers, dayText(covers)},
-		DailyStale: covers.Before(snapshot.AddDays(snapshot.Day(now), -dailyStaleDays)),
-		Cluster:    s.Cluster,
-		Project:    s.Project,
-		CIMedian:   duration(s.Project.CIMedianSeconds30d),
-		Generated:  when{s.GeneratedAt, timeText(generated)},
+		Covers:        when{s.Daily.Covers, dayText(covers)},
+		DailyStale:    covers.Before(snapshot.AddDays(snapshot.Day(now), -dailyStaleDays)),
+		Cluster:       s.Cluster,
+		ClusterAsOf:   clusterAsOf,
+		Project:       s.Project,
+		ProjectAsOf:   projectAsOf,
+		RenovateShare: shareBar("Opened by Renovate", s.Project.RenovateShare30d),
+		CIMedian:      median(s.Project.CIMedianSeconds30d),
+		Generated:     generated,
 	}
 	for _, a := range s.Daily.Apps {
-		row := appRow{
-			Name:         a.Name,
-			Availability: strconv.FormatFloat(a.Availability30d, 'f', 1, 64) + "%",
-			Spark:        sparkline(a.AvailabilityDaily),
-		}
-		first := len(a.AvailabilityDaily)
-		for i, v := range a.AvailabilityDaily {
-			if v != nil {
-				first = i
-				break
-			}
-		}
-		switch {
-		case first > 0:
-			// Under 30 days of data: a 30-day budget would mean nothing yet.
-			since := snapshot.AddDays(covers, -(len(a.AvailabilityDaily) - 1 - first))
-			row.Since = since.Format("2 January")
-		case a.ErrorBudgetRemaining30d <= -100:
-			row.Budget = "exhausted"
-		default:
-			row.Budget = strconv.Itoa(a.ErrorBudgetRemaining30d) + "%"
-		}
-		f.Apps = append(f.Apps, row)
+		f.Apps = append(f.Apps, card(a, covers))
 	}
 	d.Figures = f
 	return d, nil
-}
-
-func coord(v float64) string {
-	return strconv.FormatFloat(v, 'f', 1, 64)
-}
-
-// sparkline draws the daily values as inline SVG, 90 % at the bottom, with
-// a gap for a day without probes. Only numbers go in: every attribute is a
-// formatted float, and the label is escaped.
-func sparkline(values []*float64) template.HTML {
-	const w, h, floor = 120, 24, 90.0
-	step := float64(w) / float64(snapshot.Days-1)
-	y := func(v float64) string {
-		return coord(h - (max(v, floor)-floor)/(100-floor)*h)
-	}
-	var marks strings.Builder
-	var run [][2]string
-	flush := func() {
-		switch {
-		case len(run) == 1:
-			fmt.Fprintf(&marks, `<circle cx="%s" cy="%s" r="1.5"/>`, run[0][0], run[0][1])
-		case len(run) > 1:
-			pts := make([]string, len(run))
-			for i, p := range run {
-				pts[i] = p[0] + "," + p[1]
-			}
-			fmt.Fprintf(&marks, `<polyline points="%s"/>`, strings.Join(pts, " "))
-		}
-		run = run[:0]
-	}
-	lowest, seen := 100.0, false
-	for i, v := range values {
-		if v == nil {
-			flush()
-			continue
-		}
-		run = append(run, [2]string{coord(float64(i) * step), y(*v)})
-		lowest, seen = min(lowest, *v), true
-	}
-	flush()
-	label := "No daily values yet"
-	if seen {
-		label = "Daily availability, lowest " + coord(lowest) + "%"
-	}
-	target := y(99.5)
-	var b bytes.Buffer
-	fmt.Fprintf(&b, `<svg class="spark" viewBox="0 0 %d %d" width="%d" height="%d" role="img" aria-label="%s">`,
-		w, h, w, h, html.EscapeString(label))
-	fmt.Fprintf(&b, `<line class="target" x1="0" y1="%s" x2="%d" y2="%s"/>`, target, w, target)
-	b.WriteString(marks.String())
-	b.WriteString("</svg>")
-	//nolint:gosec // G203: built from formatted numbers and an escaped label only; TestSparklineMarkup checks it.
-	return template.HTML(b.String())
 }

@@ -1,24 +1,25 @@
-{{- /* The blog's baseof (site/layouts/baseof.html): the same head, navigation and footer. tests/test_site_markup.py checks the rendered pages. */ -}}
+{{- /* The blog's baseof (site/layouts/baseof.html), with absolute links: the app is its own origin. tests/test_site_markup.py checks the rendered pages. */ -}}
 {{define "top" -}}
 <!doctype html>
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
 <title>{{.Title}} | nedsi</title>
 <meta name="description" content="The homelab in numbers: live cluster figures, availability per finished day.">
 <meta name="author" content="nedsi">
-<link rel="canonical" href="https://blog.nedsi.io/homelab/">
-<link rel="alternate" type="application/rss+xml" href="/index.xml" title="nedsi">
+<link rel="canonical" href="https://homelab.nedsi.io/">
+<link rel="alternate" type="application/rss+xml" href="https://blog.nedsi.io/index.xml" title="nedsi">
 <link rel="stylesheet" href="{{.CSS}}" integrity="{{.CSSIntegrity}}">
 </head>
 <body>
 <header class="site">
 <nav class="site" aria-label="Site">
 <a href="https://nedsi.io/">Home</a>
-<a href="/">Blog</a>
-<a href="/homelab/" aria-current="page">Homelab</a>
-<a href="/about/">About</a>
+<a href="https://blog.nedsi.io/">Blog</a>
+<a href="/" aria-current="page">Homelab</a>
+<a href="https://blog.nedsi.io/about/">About</a>
 </nav>
 </header>
 <main>
@@ -26,8 +27,8 @@
 {{define "bottom" -}}
 </main>
 <footer class="site">
-<p>Articles by nedsi. <a href="/tags/">Tags</a>.
-<a href="/index.xml">RSS</a>. <a href="/privacy/">Privacy</a>.</p>
+<p>Articles by nedsi. <a href="https://blog.nedsi.io/tags/">Tags</a>.
+<a href="https://blog.nedsi.io/index.xml">RSS</a>. <a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
 </footer>
 </body>
 </html>

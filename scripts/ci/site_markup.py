@@ -3,14 +3,15 @@
 
 Fails on <form>, <iframe>, <style>, style= and on* attributes, an inline
 <script>, a <script src> other than /stats/s.js, and a src= or href= outside
-<article> to an origin other than nedsi.io and blog.nedsi.io (the canonical
-<link> excepted). The CSP of the site would block most of these; this catches
+<article> to an origin other than the SITE_HOSTS (the canonical <link>
+excepted). The CSP of the site would block most of these; this catches
 them before the browser does.
 
 Every page also needs the site navigation: one <nav class="site"> with the
-NAV links in order, at most one of them aria-current="page", and that one on
-the page itself or on a parent path of it. A page whose own URL is in NAV
-marks it.
+NAV links in order (the dashboard's host links its own Homelab page until
+the blog and the landing page move there too), at most one of them
+aria-current="page", and that one on the page itself or on a parent path of
+it. A page whose own URL is in NAV marks it.
 """
 import pathlib
 import sys
@@ -18,13 +19,20 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
 STATS_SCRIPT = "/stats/s.js"
-SITE_HOSTS = ("nedsi.io", "blog.nedsi.io")
+SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io")
+DASHBOARD_HOST = "homelab.nedsi.io"
 NAV = [
     ("Home", "https://nedsi.io/"),
     ("Blog", "https://blog.nedsi.io/"),
     ("Homelab", "https://blog.nedsi.io/homelab/"),
     ("About", "https://blog.nedsi.io/about/"),
 ]
+
+
+def nav_for(host):
+    if host != DASHBOARD_HOST:
+        return NAV
+    return [(t, f"https://{DASHBOARD_HOST}/" if t == "Homelab" else h) for t, h in NAV]
 
 
 class Checker(HTMLParser):
@@ -92,16 +100,17 @@ class Checker(HTMLParser):
         if self.navs != 1:
             self.problems.append((0, f'{self.navs} <nav class="site">, want 1'))
             return
+        nav = nav_for(self.host)
         got = [(text, href) for text, href, _ in self.links]
-        if got != NAV:
-            self.problems.append((0, f"site nav {got}, want {NAV}"))
+        if got != nav:
+            self.problems.append((0, f"site nav {got}, want {nav}"))
             return
         current = [href for _, href, cur in self.links if cur]
         if len(current) > 1:
             self.problems.append((0, f"aria-current on {current}, want at most one"))
         elif current and not self.url.startswith(current[0]):
             self.problems.append((0, f"aria-current on {current[0]}, not this page or a parent"))
-        elif not current and self.url in dict(NAV).values():
+        elif not current and self.url in dict(nav).values():
             self.problems.append((0, "no aria-current on the link to this page"))
 
 

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/ned-si/homelab/dashboard/snapshot.schema.json",
-  "title": "snapshot.json, the public figures of https://blog.nedsi.io/homelab/",
+  "title": "snapshot.json, the public figures of https://homelab.nedsi.io/",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "generated_at", "daily", "cluster", "project"],

@@ -74,18 +74,35 @@ DASHBOARD_GOLDEN = sorted((REPO / "dashboard/internal/web/testdata").glob("*.gol
 
 @pytest.mark.parametrize("page", DASHBOARD_GOLDEN, ids=lambda p: p.name)
 def test_dashboard_golden_pages_pass(page):
-    """The app's pages carry the blog's navigation and the same markup rules."""
+    """The app's pages carry the site navigation for their host and the same markup rules."""
     import site_markup
 
-    checker = site_markup.Checker("blog.nedsi.io", "https://blog.nedsi.io/homelab/")
+    checker = site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")
     checker.feed(page.read_text(encoding="utf-8"))
     checker.close()
     checker.check_nav()
     assert checker.problems == []
 
 
+def test_dashboard_host_links_its_own_homelab_page():
+    import site_markup
+
+    blog_nav = "".join(f'<a href="{h}">{t}</a>' for t, h in site_markup.NAV)
+    checker = site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")
+    checker.feed(f'<nav class="site">{blog_nav}</nav>')
+    checker.close()
+    checker.check_nav()
+    assert any("site nav" in msg for _, msg in checker.problems)
+
+
 def test_dashboard_golden_pages_exist():
-    assert {p.name for p in DASHBOARD_GOLDEN} >= {"full.golden.html", "empty.golden.html", "notfound.golden.html"}
+    assert {p.name for p in DASHBOARD_GOLDEN} >= {
+        "full.golden.html",
+        "since.golden.html",
+        "exhausted.golden.html",
+        "empty.golden.html",
+        "notfound.golden.html",
+    }
 
 
 def test_landing_page_passes():

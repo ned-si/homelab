@@ -1,6 +1,6 @@
 // Package web is the public role: it accepts signed snapshots on the
 // internal push port, keeps the last good one in memory and renders
-// blog.nedsi.io/homelab/ on every request. It holds no credential and makes
+// https://homelab.nedsi.io/ on every request. It holds no credential and makes
 // no outbound connection (.kiro/specs/homelab-dashboard/design.md, "Web").
 package web
 
@@ -88,7 +88,7 @@ func New(o Options) (*Server, error) {
 		return nil, fmt.Errorf("not found template: %w", err)
 	}
 	sum := sha256.Sum256(css)
-	s.cssPath = "/homelab/assets/dashboard." + hex.EncodeToString(sum[:])[:8] + ".css"
+	s.cssPath = "/assets/dashboard." + hex.EncodeToString(sum[:])[:8] + ".css"
 	s.cssIntegrity = "sha256-" + base64.StdEncoding.EncodeToString(sum[:])
 	s.metrics = metrics.NewWeb(o.Registry, s.SnapshotAge, s.DailyAge)
 	return s, nil

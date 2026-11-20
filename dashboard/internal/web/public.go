@@ -81,13 +81,9 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
-	case "/homelab":
-		// Relative: no host, no port.
-		w.Header().Set("Location", "/homelab/")
-		w.WriteHeader(http.StatusMovedPermanently)
-	case "/homelab/":
+	case "/":
 		s.servePage(w, r)
-	case "/homelab/snapshot.json":
+	case "/snapshot.json":
 		h := s.current.Load()
 		if h == nil {
 			s.serveNotFound(w)
