@@ -193,12 +193,23 @@ customConfig:
           namespace: vector
           tags:
             type: '{{ "{{" }} audit_type {{ "}}" }}'
+    # ClickHouse's own log lines below Warning stay out of SigNoz: they are
+    # written into the ClickHouse they describe, so a ClickHouse in a loop
+    # fills its own volume (57M lines a day on 2026-11-18, a stuck
+    # replication queue). A route, as audit_route above.
+    pods_route:
+      type: route
+      inputs: [parsed]
+      route:
+        kept: |
+          ch = (string(.kubernetes.pod_namespace) ?? "") == "signoz" && (string(.kubernetes.container_name) ?? "") == "clickhouse"
+          !ch || includes(["warning", "error", "critical", "fatal"], downcase(string(.attributes.level) ?? ""))
     # One OTLP log record per event: resource attributes (service.name,
     # k8s.*, host.name, log.source), the parsed fields as record attributes,
     # severity from the `level` field.
     otlp_pods:
       type: remap
-      inputs: [parsed]
+      inputs: [pods_route.kept]
       source: |
         # One OTLP log record per event (codec otlp of the opentelemetry sink).
         ts, _err = to_unix_timestamp(timestamp(.timestamp) ?? now(), unit: "nanoseconds")
