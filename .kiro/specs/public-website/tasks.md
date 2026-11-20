@@ -96,7 +96,7 @@ No task writes to the cluster outside Argo CD. The defaults are in
       privacy page's statistics section. Check: acceptance criteria 5,
       13, 14; a visit shows in Umami with country, browser and device.
       [3.1, 3.8, 6.1, 6.2, 6.4]
-- [ ] 7. Dashboard: `apps/website/publisher/` (CronJob, `publisher.py`
+- [x] 7. Dashboard: `apps/website/publisher/` (CronJob, `publisher.py`
       with the renderer, `schema.json`, `config.json` with the shown apps,
       Role), the `website-data` placeholder and its `ignoreDifferences`,
       the read-only mount, `location /homelab/ { ssi on; }` in the blog's
@@ -105,6 +105,9 @@ No task writes to the cluster outside Argo CD. The defaults are in
       egress policy, `tests/website/test_publisher.py`, the CronJob lists.
       Check: acceptance criteria 11 and 12; one manual Job run on a
       weekday. [5.1-5.4]
+      Publisher and data #1550, page #1552, site image #1555; apps with
+      under 30 days of data show availability since their first day.
+      Shared navigation bar on both sites: #1548, image #1549.
 - [ ] 8. Solar: the `website-solar` CronJob every 5 minutes and its
       ConfigMap, from the Home Assistant production sensors in Prometheus;
       production only. Starts once the home-automation spec records solar
