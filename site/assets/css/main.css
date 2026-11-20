@@ -37,7 +37,10 @@ header.site {
 }
 
 nav.site { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
-nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; text-decoration: none; }
+nav.site a { text-decoration: none; }
+nav.site a:hover { color: var(--fg); }
+nav.site a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 2px; }
+nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; }
 
 main { padding-top: 1.5rem; }
 
