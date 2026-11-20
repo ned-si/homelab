@@ -375,7 +375,13 @@ kubectl -n signoz exec chi-signoz-clickhouse-cluster-0-0-0 -c clickhouse -- clic
 kubectl -n signoz exec chi-signoz-clickhouse-cluster-0-0-0 -c clickhouse -- sh -c 'for t in $(clickhouse-client -q "SELECT name FROM system.tables WHERE database='"'system'"' AND match(name, '"'_log_[0-9]+\$'"')"); do clickhouse-client -q "DROP TABLE system.$t SYNC"; done'
 ```
 
-Space comes back at once. The alert for this volume is
+Space comes back at once.
+
+ClickHouse's container log goes to SigNoz from Warning up only (`pods_route`
+in `platform/vector/values.yaml`): its info lines are written into the same
+volume, so a ClickHouse stuck in a retry loop would fill it.
+
+The alert for this volume is
 `PersistentVolumeNearlyFull` on `data-volumeclaim-template-chi-signoz-clickhouse-cluster-0-0-0`.
 
 ### SigNoz trial
