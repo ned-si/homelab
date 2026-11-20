@@ -2,6 +2,8 @@
 # site-check.sh [--all] -- the `site` job: build site/ and check the result
 # (.kiro/specs/public-website/design.md, "The site job").
 #
+# The markup check also covers the landing page (apps/website/landing/).
+#
 # Without --all it exits 0 when SITE_BASE..HEAD (default HEAD^1, main for a
 # pull request's merge commit) touches neither site/, apps/website/ nor these
 # checks. SITE_OUT: build directory (default a temp dir, removed on exit).
@@ -42,6 +44,7 @@ if hugo --source site --destination "$out" --cleanDestinationDir --minify \
 
   echo "== markup"
   python3 scripts/ci/site_markup.py "$out" || fail "markup: see the lines above"
+  python3 scripts/ci/site_markup.py apps/website/landing nedsi.io || fail "landing markup: see the lines above"
 else
   fail "hugo build (warnings fail it too)"
 fi
