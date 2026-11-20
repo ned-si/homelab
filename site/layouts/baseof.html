@@ -25,8 +25,7 @@
 <nav class="site" aria-label="Site">
 <a href="https://nedsi.io/">Home</a>
 <a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>Blog</a>
-{{- /* Absolute until the dashboard page lands: htmltest fails a relative link to a missing page. */}}
-<a href="https://blog.nedsi.io/homelab/"{{ if eq $current "homelab" }} aria-current="page"{{ end }}>Homelab</a>
+<a href="{{ "homelab/" | relURL }}"{{ if eq $current "homelab" }} aria-current="page"{{ end }}>Homelab</a>
 <a href="{{ "about/" | relURL }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>About</a>
 </nav>
 </header>

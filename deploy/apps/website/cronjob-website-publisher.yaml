@@ -62,7 +62,7 @@ spec:
           serviceAccountName: website-publisher
           volumes:
           - configMap:
-              name: website-publisher-dtb5ck2dfc
+              name: website-publisher-gfdhd76bh7
             name: app
   schedule: 30 3 * * *
   startingDeadlineSeconds: 3600

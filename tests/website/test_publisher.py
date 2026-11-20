@@ -141,7 +141,7 @@ def published(fake) -> dict:
     assert len(fake.patches) == 1
     p = fake.patches[0]
     assert p["path"] == "/api/v1/namespaces/website/configmaps/website-data"
-    assert list(p["body"]["data"]) == ["figures.json"]
+    assert list(p["body"]["data"]) == ["figures.json", "figures.html"]
     return json.loads(p["body"]["data"]["figures.json"])
 
 
@@ -326,6 +326,70 @@ def test_window_across_dst(monkeypatch, tmp_path, fake):
     covers, start, end = mod.window(datetime(2026, 3, 30, 3, 30, tzinfo=TZ))
     assert covers == "2026-03-29"
     assert (start.isoformat(), end.isoformat()) == ("2026-02-28T00:00:00+01:00", "2026-03-30T00:00:00+02:00")
+
+
+FIXTURE = Path(__file__).with_name("figures.json")
+
+
+def test_published_html_is_the_render_of_the_figures(monkeypatch, tmp_path, fake):
+    mod, rc = run(monkeypatch, tmp_path, fake)
+    assert rc == 0
+    doc = published(fake)
+    assert fake.patches[0]["body"]["data"]["figures.html"] == mod.render(doc)
+
+
+def test_fixture_is_valid(monkeypatch, tmp_path, fake):
+    """site-serve-check.sh renders this fixture into the page."""
+    mod = load(monkeypatch, tmp_path, fake)
+    assert mod.check(json.loads(FIXTURE.read_text()), mod.load_config()) == []
+
+
+def test_render(monkeypatch, tmp_path, fake):
+    mod = load(monkeypatch, tmp_path, fake)
+    out = mod.render(json.loads(FIXTURE.read_text()))
+    assert '<time datetime="2026-11-19">19 November 2026</time>' in out
+    assert '<time datetime="2026-11-20T03:30:00+01:00">20 November 2026, 03:30</time>' in out
+    assert '<th scope="row">Paperless-ngx</th><td>99.1%</td><td>-62%</td>' in out
+    assert '<th scope="row">Landing page</th><td>98.1%</td><td>exhausted</td>' in out
+    assert "<dt>Talos</dt><dd>v1.14.6</dd>" in out and "<dt>Kubernetes</dt><dd>v1.37.2</dd>" in out
+    assert "<dt>Pull requests merged</dt><dd>709</dd>" in out
+    assert "<dt>Opened by Renovate</dt><dd>50%</dd>" in out
+    assert "<dt>Median CI run</dt><dd>5 min 05 s</dd>" in out
+    assert out.count('<svg class="spark"') == 8
+    assert 'aria-label="Daily availability, lowest 83.9%"' in out
+
+
+def test_render_is_safe_markup(monkeypatch, tmp_path, fake):
+    """No script, style or event handler, nothing from another origin, no
+    address, and no hidden app (the CSP and site_markup.py rules)."""
+    mod = load(monkeypatch, tmp_path, fake)
+    out = mod.render(json.loads(FIXTURE.read_text()))
+    low = out.lower()
+    for bad in ("<script", "style=", "<!--", "http:", "https:", "//"):
+        assert bad not in low, bad
+    assert not re.search(r"<[^>]*\son\w+=", low)
+    assert not re.search(r"\d+\.\d+\.\d+\.\d+", out)
+    assert not mod.HIDDEN.search(re.sub(r"<[^>]+>", " ", low))
+
+
+def test_render_escapes_strings(monkeypatch, tmp_path, fake):
+    mod = load(monkeypatch, tmp_path, fake)
+    doc = json.loads(FIXTURE.read_text())
+    doc["apps"][0]["name"] = '<img src=x onerror="a">'
+    out = mod.render(doc)
+    assert "<img" not in out and "&lt;img src=x onerror=&quot;a&quot;&gt;" in out
+
+
+def test_sparkline_gaps_and_floor(monkeypatch, tmp_path, fake):
+    mod = load(monkeypatch, tmp_path, fake)
+    # A null day splits the line; a lone day is a dot; 90 % and below sit on the bottom.
+    svg = mod.sparkline([100.0, 50.0] + [None] * 26 + [95.0, None])
+    assert svg.count("<polyline") == 1 and svg.count("<circle") == 1
+    assert 'points="0.0,0.0 4.1,24.0"' in svg
+    assert '<circle cx="115.9" cy="12.0" r="1.5"/>' in svg
+    assert 'aria-label="Daily availability, lowest 50.0%"' in svg
+    empty = mod.sparkline([None] * 30)
+    assert "<polyline" not in empty and 'aria-label="No daily values yet"' in empty
 
 
 def test_schema_uses_only_supported_keywords():

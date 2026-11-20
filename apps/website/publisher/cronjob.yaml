@@ -1,6 +1,6 @@
 # Nightly figures for blog.nedsi.io/homelab/ (publisher.py): reads Prometheus
-# and the public GitHub API, writes figures.json into the ConfigMap
-# website-data. The site pod only mounts the result; it holds no token and
+# and the public GitHub API, writes figures.json and figures.html into the
+# ConfigMap website-data. The site pod only mounts the result; it holds no token and
 # reaches nothing (.kiro/specs/public-website/design.md, "Public figures").
 ---
 apiVersion: v1

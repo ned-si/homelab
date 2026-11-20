@@ -69,6 +69,14 @@ h3 { margin: 0.25rem 0 0.5rem; font-size: 1.125rem; }
 .card p { margin: 0 0 0.75rem; }
 .card > :last-child { margin-top: auto; font-weight: 600; }
 
+.button {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--link);
+  border-radius: 0.3rem;
+  text-decoration: none;
+}
+
 .label {
   color: var(--muted);
   font-size: 0.8125rem;
