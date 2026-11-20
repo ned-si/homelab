@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/kube-prometheus-stack/routes
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/kube-prometheus-stack/routes and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    release: kube-prometheus-stack
+  name: homelab-dashboard-alerts
+  namespace: monitoring
+spec:
+  groups:
+  - name: homelab-dashboard
+    rules:
+    - alert: HomelabDashboardSnapshotStale
+      annotations:
+        runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabDashboardSnapshotStale.md
+        summary: The public dashboard has served the same figures for over 48 h.
+      expr: max(homelab_dashboard_snapshot_age_seconds) > 48 * 3600
+      for: 30m
+      labels:
+        action: human
+        severity: warning

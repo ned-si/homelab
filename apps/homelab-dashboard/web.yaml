@@ -1,0 +1,126 @@
+# The web role: verifies each signed push on 9465 and serves the dashboard
+# on 8080. No Secret, no token, no egress
+# (.kiro/specs/homelab-dashboard/design.md#web).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homelab-dashboard-web
+  labels:
+    app.kubernetes.io/name: homelab-dashboard
+    app.kubernetes.io/component: web
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homelab-dashboard
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: homelab-dashboard
+        app.kubernetes.io/component: web
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          # Built and signed by .github/workflows/dashboard-publish.yaml;
+          # Renovate bumps the digest of both Deployments together.
+          # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-dashboard
+          image: ghcr.io/ned-si/homelab-dashboard:main@sha256:21fd132939abc8568756441b7092551a2151c1bd5d34ccf65dd1229e40abe857
+          args: ["web"]
+          env:
+            # 80 % of the memory limit.
+            - name: GOMEMLIMIT
+              value: 51MiB
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: push
+              containerPort: 9465
+              protocol: TCP
+            - name: metrics
+              containerPort: 9464
+              protocol: TCP
+          # Ready once it holds a snapshot, or 120 s after start.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: push-pubkey
+              mountPath: /etc/homelab-dashboard
+              readOnly: true
+      volumes:
+        - name: push-pubkey
+          configMap:
+            name: homelab-dashboard-push-pubkey
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: homelab-dashboard-web
+  labels:
+    app.kubernetes.io/name: homelab-dashboard
+    app.kubernetes.io/component: web
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: homelab-dashboard
+    app.kubernetes.io/component: web
+---
+# The collector pushes to every web pod, ready or not, so a new pod gets its
+# first snapshot before it takes traffic.
+apiVersion: v1
+kind: Service
+metadata:
+  name: homelab-dashboard-web-push
+  labels:
+    app.kubernetes.io/name: homelab-dashboard
+    app.kubernetes.io/component: web
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  ports:
+    - name: push
+      port: 9465
+      targetPort: push
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: homelab-dashboard
+    app.kubernetes.io/component: web

@@ -11,3 +11,4 @@ resources:
   - books.yaml
   - home.yaml
   - website.yaml
+  - homelab-dashboard.yaml
