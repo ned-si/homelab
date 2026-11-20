@@ -27,7 +27,6 @@ var shown = []ShownApp{
 	{ID: "keycloak", Name: "Keycloak", SLOApp: "auth"},
 	{ID: "landing", Name: "Landing page", SLOApp: "nedsi"},
 	{ID: "blog", Name: "Blog", SLOApp: "blog"},
-	{ID: "sonarr", Name: "Sonarr", SLOApp: "sonarr"},
 }
 
 // hidden and the "arr" suffix match the download and indexer tooling, as the

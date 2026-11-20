@@ -12,7 +12,7 @@ const (
 )
 
 // target is the availability SLO, in percent.
-const target =  99.5
+const target = 99.5
 
 // dayWarnFloor is the lowest daily availability that is still "warn": below
 // it one day spent a quarter of the month's error budget, the postmortem
@@ -72,5 +72,3 @@ func monthWord(s status) string {
 		return "No data"
 	}
 }
-
-func Throwaway() {}
