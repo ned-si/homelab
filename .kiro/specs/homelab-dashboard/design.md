@@ -322,7 +322,7 @@ to bottom:
    `generated_at`, with the staleness notices below.
 2. **Availability**, per finished day: a grid of cards
    (`section.cards`), one per shown app in the allow-list order. Each
-   card (`article.card`):
+   card (`div.card`):
    - the app's name;
    - the 30-day availability as the big number, `99.9` with the unit
      `%` in a smaller `span.unit`, coloured by the 30-day status, and the
@@ -332,8 +332,8 @@ to bottom:
      budget left"; "Since <date>" and no meter when the first daily
      value is `null`;
    - the 30-day bar chart: 30 SVG bars, oldest left, each bar's height
-     from that day's availability on a 95-100% scale (a day below 95%
-     is a full-height bar), each coloured by that day's status, a
+     from that day's availability on a 95-100% scale (a day at or below
+     95% gets the minimum height), each coloured by that day's status, a
      dashed line at 99.5%, `none` bars at a fixed small height for
      days without probes.
 3. **Cluster** (live): a panel of stat tiles, each a big number with its
