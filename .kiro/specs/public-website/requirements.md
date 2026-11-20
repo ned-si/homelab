@@ -39,8 +39,12 @@ Non-goals are listed under [Out of scope](#out-of-scope).
   matter `title`, `date`, `summary`, `tags`, `draft`, and optionally
   `canonical` (the original URL of a republished article).
 - **Published**: the article is in the image the `website` Deployment runs.
-- **Dashboard**: `/homelab/` on the site (`https://blog.nedsi.io/homelab/`),
-  showing the public figures.
+- **Dashboard**: the page showing the public figures. Today
+  `/homelab/` on the site (`https://blog.nedsi.io/homelab/`); it moves to
+  `https://homelab.nedsi.io/`, served by the `homelab-dashboard` app, and
+  the old address redirects there
+  ([spec homelab-dashboard](../homelab-dashboard/requirements.md), tasks 4
+  and 5).
 - **Public figures**: the allow-listed values in
   [design.md, Public figures](design.md#public-figures).
 - **Shown apps**: the allow-list of household and platform apps whose
@@ -280,10 +284,10 @@ Each default holds until the operator says otherwise. Rows marked
 | Hosting | In the cluster, behind the shared Gateway (operator) | Free, full control of headers, same checks as every app |
 | Domain | `nedsi.io` (operator) | Public identity apart from the household domain |
 | Names | Landing page at the apex, blog at `blog.nedsi.io`, `www` redirects to the apex (operator, 2026-11-16) | The apex can point at more than the blog later |
-| Dashboard location | `https://blog.nedsi.io/homelab/`, a button on the landing page | A Hugo page of the site, so the publisher design stays as it is; see [design.md](design.md#dashboard-location) |
+| Dashboard location | `https://homelab.nedsi.io/`, its own host; `blog.nedsi.io/homelab/` a `301` to it; the Homelab link and the landing page's button point there (orchestrator, on the operator's suggestion, 2026-11-20) | The dashboard became its own app (spec homelab-dashboard), so it gets its own origin; see [design.md](design.md#dashboard-location) |
 | DNS and TLS | Free Cloudflare zone in the same account; DNS-01; external-dns upsert only | Same tooling as `lilalala.com` |
 | Blog generator | Hugo, home-made layouts, no theme (operator) | One pinned binary, built-in RSS, no npm tree to keep patched |
-| Dashboard | Home-made: the publisher renders HTML and SVG from the figures (operator) | Shows the project's own work; no JavaScript |
+| Dashboard | Home-made, no JavaScript: the publisher renders HTML and SVG from the figures, replaced by the Go app of spec homelab-dashboard with a panel-and-chart design (operator, 2026-11-20) | Shows the project's own work |
 | Sources | `site/` in this repository (operator) | One CI, articles link to the code they describe |
 | Comments | None; readers can open a GitHub issue (operator) | No moderation, no extra service, no personal data to hold |
 | Statistics | Umami, self-hosted, cookieless, phase 2 (operator) | Every wanted dimension without cookies or stored IPs |
