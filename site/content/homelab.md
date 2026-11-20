@@ -5,7 +5,7 @@ layout: homelab
 later:
   - title: Solar production
     text: >-
-      What the solar panels produce, right now and over the day. Production
+      What the solar panels produce over the day. Production
       only: what the house consumes stays private, as it says far too much
       about when we are home.
   - title: Home automation

@@ -339,11 +339,20 @@ data:
         """figures.html, the fragment nginx includes in /homelab/. Built from the
         validated document: numbers and fixed strings, every value escaped."""
         rows = []
+        covers = datetime.fromisoformat(doc["covers"]).date()
         for a in doc["apps"]:
-            b = a["error_budget_remaining_30d"]
-            budget = "exhausted" if b <= -100 else f"{esc(b)}%"
+            daily = a["availability_daily"]
+            first = next((i for i, v in enumerate(daily) if v is not None), len(daily))
+            since = ""
+            if first > 0:
+                # Under 30 days of data: a 30-day budget would mean nothing yet.
+                d = covers - timedelta(days=len(daily) - 1 - first)
+                since, budget = f", since {d.day} {d:%B}", ""
+            else:
+                b = a["error_budget_remaining_30d"]
+                budget = "exhausted" if b <= -100 else f"{esc(b)}%"
             rows.append(f'<tr><th scope="row">{esc(a["name"])}</th>'
-                        f'<td>{a["availability_30d"]:.1f}%</td>'
+                        f'<td>{a["availability_30d"]:.1f}%{since}</td>'
                         f"<td>{budget}</td>"
                         f'<td>{sparkline(a["availability_daily"])}</td></tr>')
         c, p = doc["cluster"], doc["project"]
@@ -479,5 +488,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-publisher-gfdhd76bh7
+  name: website-publisher-529bff8d4k
   namespace: website

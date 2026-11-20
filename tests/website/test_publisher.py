@@ -350,7 +350,7 @@ def test_render(monkeypatch, tmp_path, fake):
     assert '<time datetime="2026-11-19">19 November 2026</time>' in out
     assert '<time datetime="2026-11-20T03:30:00+01:00">20 November 2026, 03:30</time>' in out
     assert '<th scope="row">Paperless-ngx</th><td>99.1%</td><td>-62%</td>' in out
-    assert '<th scope="row">Landing page</th><td>98.1%</td><td>exhausted</td>' in out
+    assert '<th scope="row">Landing page</th><td>98.1%, since 16 November</td><td></td>' in out
     assert "<dt>Talos</dt><dd>v1.14.6</dd>" in out and "<dt>Kubernetes</dt><dd>v1.37.2</dd>" in out
     assert "<dt>Pull requests merged</dt><dd>709</dd>" in out
     assert "<dt>Opened by Renovate</dt><dd>50%</dd>" in out
