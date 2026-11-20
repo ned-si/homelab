@@ -464,3 +464,50 @@ something a fixed rule can clear, and the backup still fails that night),
 `unlock --remove-all` (removes live locks too and can corrupt a running
 prune), and a custom age threshold such as 6 hours (restic has no flag for
 it, and a script that parses lock files would duplicate restic's own rule).
+
+## The public dashboard is a first-party Go app
+
+The dashboard at `https://blog.nedsi.io/homelab/` is `homelab-dashboard`,
+the repository's own app: one Go module in `dashboard/`, one signed,
+multi-arch distroless image `ghcr.io/ned-si/homelab-dashboard`, two roles.
+The `collector` reads Prometheus and the public GitHub API in the cluster
+and, every minute, pushes a schema-validated snapshot signed with Ed25519
+to the `web` role's internal port. The `web` role checks the signature
+and the snapshot's age, keeps it in memory and renders the page on every
+request, with no ServiceAccount token, no Secret and no egress; it holds
+only the public key. Neither role has a Kubernetes right. It replaces
+`apps/website/publisher/publisher.py` and the nginx server-side include
+([spec homelab-dashboard](../.kiro/specs/homelab-dashboard/design.md)).
+
+Cluster facts and project figures are live. Availability and error budget
+cover finished days only: a live availability figure would show outages
+and power cuts as they happen. The Go code follows the Google Go Style
+Guide, enforced by golangci-lint.
+
+Why: the page is public, so the code that answers it gets the same
+treatment as any production service: a build in CI, tests including
+golden HTML, golangci-lint, `go vet` and `govulncheck`, an SBOM, SLSA
+provenance and a keyless cosign signature that Kyverno verifies, Renovate
+for every dependency, metrics and an alert. Splitting the roles keeps the
+point of the page: the part the internet reaches knows nothing and reaches
+nothing, and a reader can shape no query. A signature, not a shared
+secret, protects the push, so the web pod holds nothing that can forge
+one. Go gives one static binary with no interpreter in the image, and
+`html/template` escapes by context.
+
+Home Assistant control and day-to-day home dashboards stay in Home
+Assistant's own UI and companion app (spec home-automation). The collector
+may later read a few safe values for the public page, solar production
+first; an internal view behind Keycloak would need its own spec.
+
+Rejected: keeping the Python publisher in a ConfigMap (no build, version
+or signature, and HTML built from strings); one process that reads
+Prometheus and serves the internet (the boundary is gone); two images for
+the two roles (twice the signing and digest bumps, and no extra isolation,
+since the web pod's configuration already denies credentials and egress);
+the snapshot in a ConfigMap (an API write every minute, a kubelet sync
+delay and a Role for the collector); the web role pulling from the
+collector (the public pod would need egress); HMAC or mTLS on the push (a
+forging secret on the public pod, or certificates for one in-cluster
+hop); a dashboard product such as a public Grafana (JavaScript, a login
+surface, and live availability).
