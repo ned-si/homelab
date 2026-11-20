@@ -28,18 +28,20 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 
 - **App**: `homelab-dashboard`, one Go module in `dashboard/`, one binary,
   one image `ghcr.io/ned-si/homelab-dashboard`, two roles.
-- **Collector**: the role that runs in the cluster with read-only access to
-  Prometheus and the public GitHub API, computes the public figures and
-  writes the snapshot.
-- **Web**: the role that answers `https://blog.nedsi.io/homelab/`. It reads
-  the snapshot from a read-only mount and serves the page, the snapshot
-  and its static assets.
+- **Collector**: the backend role. It runs in the cluster with read-only
+  access to Prometheus and the public GitHub API, computes the public
+  figures and pushes a signed snapshot to the web role every minute.
+- **Web**: the frontend role that answers `https://blog.nedsi.io/homelab/`.
+  It accepts signed snapshots on an internal port, keeps the last good one
+  in memory and renders the page, the snapshot and its static assets.
 - **Snapshot**: `snapshot.json`, the public figures as one JSON document
-  that validates against the app's JSON Schema, stored in the ConfigMap
-  `homelab-dashboard-snapshot`.
+  that validates against the app's JSON Schema.
 - **Public figures**, **shown apps**, **personal data**: as defined in the
   public-website spec ([requirements](../public-website/requirements.md#glossary),
   [design, Public figures](../public-website/design.md#public-figures)).
+  Live figures are the cluster facts, the project figures and, later,
+  solar production; availability and error budget are per finished day
+  ([design, Freshness](design.md#freshness)).
 - **Publisher**: today's implementation, `apps/website/publisher/` and the
   `/homelab/` server-side include in `apps/website/nginx.conf`.
 - **Switch-over**: the merge after which the Gateway sends
@@ -53,18 +55,26 @@ service or credential.
 
 1. THE web role SHALL run with no ServiceAccount token, no Secret, no
    egress (enforced Cilium policy) and ingress only from the shared
-   Gateway on its public port and from Prometheus and the kubelet on its
-   metrics port.
+   Gateway and the PostSync smoke Job on its public port 8080, from the
+   collector on its push port 9465, and from Prometheus and the kubelet on
+   its metrics port.
 2. THE web role SHALL serve only the page, the snapshot and the assets
-   compiled into the binary; it SHALL make no outbound connection and
-   accept no input other than the request method and path.
+   compiled into the binary and SHALL make no outbound connection. On its
+   public port it SHALL accept no input other than the method, the path
+   and `If-None-Match`; on its push port only a snapshot signed by the
+   collector.
 3. THE collector SHALL have no route from the Gateway and no listener other
-   than its metrics port; egress only to the Prometheus Service, the
-   Kubernetes API and `api.github.com:443`.
-4. THE collector's Kubernetes rights SHALL be `get` and `patch` on the one
-   ConfigMap `homelab-dashboard-snapshot`, nothing else.
+   than its metrics port; egress only to the Prometheus Service, the web
+   role's push port and TCP 443 outside the cluster (`world`, for
+   `api.github.com`; Cilium FQDN rules would route all DNS through its
+   proxy).
+4. NEITHER role SHALL hold a ServiceAccount token or any Kubernetes right.
 5. THE only thing passed from the collector to the web role SHALL be the
-   snapshot, through the ConfigMap the web pod mounts read-only.
+   snapshot, pushed to the push port and signed with Ed25519. THE web role
+   SHALL hold only the public key and SHALL accept a push only when the
+   signature verifies, `generated_at` is newer than the current
+   snapshot's, at most 5 minutes old and at most 1 minute in the future,
+   and the document passes 2.6.
 
 ## Requirement 2: Same figures, same privacy rules
 
@@ -76,8 +86,12 @@ learning anything that helps an attacker or shows who is home.
    values, nodes, Argo CD applications, Talos and Kubernetes versions,
    pull requests merged, Renovate's share, the median `ci` run), plus a
    `schema_version`.
-2. EVERY figure SHALL cover yesterday (Europe/Zurich) or the 30 days ending
-   with it, read at the end of that day; never the current day.
+2. Cluster facts (nodes, Argo CD applications, Talos and Kubernetes
+   versions), project figures and, later, solar production MAY be near
+   real time (refreshed at most every minute). Availability and error
+   budget SHALL cover finished days only (up to yesterday, Europe/Zurich),
+   because a live availability figure shows outages and power cuts as
+   they happen.
 3. THE shown apps SHALL be an allow-list compiled into the binary; the
    *arr apps, qBittorrent, the indexers and the rest of the download
    tooling SHALL never be queried, written or rendered, and a unit test
@@ -109,9 +123,11 @@ the rest of the blog.
 4. THE web role SHALL answer only `GET` and `HEAD` (any other method `405`),
    `404` with the same headers for any other path, and `301` from
    `/homelab` to `/homelab/` with a relative `Location` (no host, no port).
-5. WHEN the snapshot is missing or invalid, THE page SHALL show "No figures
-   yet"; WHEN it covers a day more than two days ago, THE page SHALL say
-   the figures are stale and since when.
+5. WHEN the web role holds no valid snapshot, THE page SHALL show "No
+   figures yet"; WHEN the live figures are more than 5 minutes old, THE
+   page SHALL say from when; WHEN the daily block covers a day more than
+   two days ago, THE page SHALL say the availability figures are stale and
+   since when.
 6. THE web role's access log SHALL keep `time`, `method`, `path`, `status`,
    `bytes` and the duration, and SHALL NOT keep the client address, the
    user agent, the referrer or the query string.
@@ -122,9 +138,10 @@ the rest of the blog.
 a reviewed commit, so the cluster runs only what CI built and signed.
 
 1. EVERY pull request touching `dashboard/` SHALL run, inside the required
-   `ci` check: `gofmt`, `go vet`, `staticcheck`, `govulncheck`, `go mod
-   verify`, and `go test -race` with unit and golden HTML tests; any
-   finding fails `ci`.
+   `ci` check: `golangci-lint run` (the configuration of the design's
+   [Code style](design.md#code-style), Google Go Style Guide), `go vet`,
+   `govulncheck`, `go mod verify`, and `go test -race` with unit and
+   golden HTML tests; any finding fails `ci`.
 2. A merge to `main` touching `dashboard/` SHALL build one image for
    `linux/arm64` and `linux/amd64`, on a distroless base, running as
    non-root, and push it to `ghcr.io/ned-si/homelab-dashboard`.
@@ -146,9 +163,10 @@ a reviewed commit, so the cluster runs only what CI built and signed.
 updating, and nothing else.
 
 1. BOTH roles SHALL expose Prometheus metrics on an internal port:
-   collector runs by result, errors by source, run duration, the time of
-   the last snapshot written; web the age of the snapshot it serves, load
-   errors and requests by status.
+   collector runs by block and result, errors by source, run duration,
+   pushes by result, whether the GitHub token is accepted; web the age of
+   the snapshot it serves and of its daily block, refused pushes by
+   reason and requests by status.
 2. AN alert SHALL page (`action: human`) when the snapshot served is older
    than 48 hours, with a runbook.
 3. BOTH roles SHALL log JSON lines (`log/slog`) to stdout, which Vector
@@ -160,8 +178,8 @@ updating, and nothing else.
 shows the same figures, and to go back with a revert.
 
 1. THE app SHALL first run next to the publisher, with no public route,
-   and its snapshot SHALL be compared with the publisher's `figures.json`
-   by a script.
+   and a dry run of its collector at the end of the publisher's `covers`
+   day SHALL be compared with the publisher's `figures.json` by a script.
 2. THE switch-over SHALL happen only after the comparison has matched for
    three consecutive nights, on a weekday in daytime with the operator.
 3. Reverting the switch-over PR SHALL give the publisher's page back with
@@ -169,7 +187,7 @@ shows the same figures, and to go back with a revert.
 4. `publisher.py`, its CronJob, ConfigMaps, Role and network policy, the
    SSI location in `nginx.conf`, the Hugo `homelab` page and layout and the
    publisher tests SHALL be deleted only after the switch-over has served
-   one nightly update.
+   one daily block.
 
 ## Non-functional requirements
 
@@ -182,13 +200,25 @@ shows the same figures, and to go back with a revert.
 
 ## Acceptance criteria
 
-1. From a debug pod with the web pod's labels, a request to the Prometheus
-   Service and to `https://api.github.com` times out; the web pod has no
-   `/var/run/secrets/kubernetes.io` mount. [1.1, 1.2]
-2. `kubectl auth can-i --list` for the collector's ServiceAccount shows
-   only `get` and `patch` on `configmaps/homelab-dashboard-snapshot`. [1.4]
+1. From an ephemeral container in the web pod (it shares the pod's
+   network identity, so Cilium applies the same policy; the container
+   stays in the pod spec until the next rollout):
+
+   ```sh
+   pod=$(kubectl -n homelab-dashboard get pod -l app.kubernetes.io/component=web -o name)
+   kubectl -n homelab-dashboard debug "$pod" --profile=restricted \
+     --image=<the curlimages/curl pin of components/postsync-smoke/job.yaml> -it --quiet -- \
+     sh -c 'curl -sm 5 http://kube-prometheus-stack-prometheus.monitoring.svc:9090/-/ready; echo "prometheus exit $?"; curl -sm 5 https://api.github.com; echo "github exit $?"'
+   ```
+
+   prints `prometheus exit 28` and `github exit 28` (timeouts). [1.1, 1.2]
+2. `kubectl -n homelab-dashboard get "$pod" -o jsonpath='{.spec.automountServiceAccountToken}'`
+   prints `false` for the web and the collector pod, neither has a volume
+   under `/var/run/secrets/kubernetes.io`, and the namespace has no Role
+   or RoleBinding. [1.4]
 3. `curl -s https://blog.nedsi.io/homelab/snapshot.json` holds only the
-   schema's keys, `covers` equal to yesterday and only the shown apps.
+   schema's keys, `generated_at` less than 2 minutes old, `daily.covers`
+   equal to yesterday after 03:45 Zurich, and only the shown apps.
    [2.1-2.3]
 4. A unit test that adds `sonarr` to the allow-list fails; a snapshot with
    an app outside the allow-list is refused by the web role. [2.3, 2.6]
@@ -204,7 +234,8 @@ shows the same figures, and to go back with a revert.
    `pass`. [4.2-4.4]
 8. A PR that adds a module with a known vulnerability fails `ci`. [4.1]
 9. With the collector stopped, the stale alert fires 48 hours after the
-   last `computed_at` (promtool rule test). [5.2]
+   last accepted `generated_at` (promtool rule test); a push signed with
+   another key gets `401`, a replayed one `409` (unit tests). [1.5, 5.2]
 10. `scripts/dashboard-compare.sh` reports equal figures for three
     consecutive `covers` dates before the switch-over. [6.1, 6.2]
 11. The web role's log lines in SigNoz contain no client address or user
@@ -233,9 +264,12 @@ Each default holds until the operator says otherwise.
 | Sources | `dashboard/`, module `github.com/ned-si/homelab/dashboard` | Like `site/`: sources at the top, manifests in `apps/` |
 | Language | Go, standard library first | One static binary, `html/template` escaping, a small dependency tree |
 | Shape | One binary, `collect` and `web` subcommands, one image | One build, one signature, one digest to bump; the boundary is in the runtime configuration |
-| Hand-off | The snapshot in a ConfigMap the web pod mounts read-only | The web pod needs no token and no egress; the pattern the publisher proved |
-| Rendering | The web role renders from the snapshot | Templates live with the server; the ConfigMap holds data only |
-| Collector schedule | A Deployment that collects at 03:45 Zurich and retries until it succeeds | Real metrics and rate-limit-aware retries without a Pushgateway |
-| Cluster figures | From Prometheus at the end of `covers`, as the publisher does | Yesterday's figures from one source; no ClusterRole; an exact comparison |
-| GitHub | A fine-grained read-only token, optional; unauthenticated with reset-aware retries until it exists | #1551: the WAN address shares the anonymous quota |
+| Hand-off | The collector pushes the snapshot to the web role's internal port 9465 every 60 s, to every web pod through a headless Service | Live figures with no egress and no Kubernetes rights for either role; rejected: a ConfigMap (an API write per minute, a sync delay, a Role), the web role pulling (egress on the public pod) |
+| Push authentication | Ed25519 signature, private key only in the collector, public key in a ConfigMap; freshness window of 5 min back and 1 min ahead | Integrity is all a public document needs; the web pod holds nothing that can forge a push; rejected: HMAC, mTLS |
+| Freshness | Live: cluster, project, solar production. Per finished day: availability | A live availability figure reveals outages and power cuts as they happen; the operator can overrule it |
+| Cadence | Cluster every 60 s; GitHub every 15 min with the token, hourly without; the daily block once a day after 03:45 Zurich, in memory | The anonymous GitHub quota is shared by the WAN address (#1551); 03:45 lets the midnight rules and the search index settle |
+| Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |
+| Cluster figures | From Prometheus | One source; no ClusterRole; the same numbers as the publisher for the comparison |
+| GitHub | A fine-grained read-only token, expiry at most 180 days, created in task 3; on `401` no anonymous fallback | #1551, and an expired token stays visible |
+| Code style | Google Go Style Guide, golangci-lint v2 (`dashboard/.golangci.yaml`), `go-cmp` for test diffs | A published standard with a linter for most of it |
 | Versioning | The git commit; images `:<sha>` and `:main` | Trunk-based, `main` is production |
