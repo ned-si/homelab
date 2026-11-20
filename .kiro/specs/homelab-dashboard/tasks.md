@@ -14,7 +14,7 @@ Where the checks of the look live: task 1 carries the golden HTML tests
 test and the markup check in `tests/test_site_markup.py`); task 2 carries
 the rendered screenshot check.
 
-- [ ] 1. The Go module `dashboard/` with both roles: `cmd/homelab-dashboard`
+- [x] 1. The Go module `dashboard/` with both roles: `cmd/homelab-dashboard`
       (`collect`, `collect --once --dry-run [--as-of]`, `web`, `version`),
       the `snapshot` package (embedded schema, `Validate`, the compiled
       shown apps, the hidden pattern, the rounding helpers), the
@@ -49,6 +49,7 @@ the rendered screenshot check.
       `collect --once --dry-run` against Prometheus through a
       port-forward prints a snapshot that `Validate` accepts. [2.1-2.6,
       3.1-3.9, 4.1, 4.6, 5.1, 5.3]
+      #1560
 - [ ] 2. Publishing and the screenshot check:
       `.github/workflows/dashboard-publish.yaml` (smoke with a signed test
       push by `internal/tools/pushfixture`, multi-arch build with SBOM and
