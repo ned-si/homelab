@@ -6,7 +6,7 @@
 # Installs into $RUNNER_TEMP/bin and appends that directory to $GITHUB_PATH.
 # Tools: kubeconform actionlint shellcheck gitleaks trivy kyverno kube-linter helm
 #        kubectl kind tofu promtool alertmanager talhelper talosctl hugo htmltest
-#        exiftool cosign golangci-lint
+#        exiftool cosign golangci-lint chrome-headless-shell
 #
 # TOOL_CACHE=<dir> (restored in CI by actions/cache): downloads are kept there
 # as <sha256>. A cached file goes through the same sha256 check as a download;
@@ -104,6 +104,10 @@ for tool in "$@"; do
     golangci-lint)
       v=$(need GOLANGCI_LINT_VERSION); fetch "https://github.com/golangci/golangci-lint/releases/download/v$v/golangci-lint-$v-linux-amd64.tar.gz" "$(need GOLANGCI_LINT_SHA256)"
       tar -xzf "$work/dl" -C "$work" && install -m 0755 "$work/golangci-lint-$v-linux-amd64/golangci-lint" "$bin/golangci-lint" ;;
+    chrome-headless-shell) # its libraries and resources stay next to the binary
+      v=$(need CHROME_HEADLESS_SHELL_VERSION); fetch "https://storage.googleapis.com/chrome-for-testing-public/$v/linux64/chrome-headless-shell-linux64.zip" "$(need CHROME_HEADLESS_SHELL_SHA256)"
+      rm -rf "$bin/chrome-headless-shell-linux64" && unzip -q "$work/dl" -d "$bin"
+      ln -sf chrome-headless-shell-linux64/chrome-headless-shell "$bin/chrome-headless-shell" ;;
     cosign)
       v=$(need COSIGN_VERSION); fetch "https://github.com/sigstore/cosign/releases/download/$v/cosign-linux-amd64" "$(need COSIGN_SHA256)"
       install -m 0755 "$work/dl" "$bin/cosign" ;;

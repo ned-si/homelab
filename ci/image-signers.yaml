@@ -85,6 +85,9 @@
   unsigned: signatures in ghcr.io/kyverno/signatures, not read (inventory 2026-11-18)
 - repository: ghcr.io/mealie-recipes/mealie
   unsigned: no signature published (inventory 2026-11-18)
+- repository: ghcr.io/ned-si/homelab-dashboard
+  issuer: https://token.actions.githubusercontent.com
+  subject: https://github.com/ned-si/homelab/.github/workflows/dashboard-publish.yaml@refs/heads/main
 - repository: ghcr.io/ned-si/homelab-site
   issuer: https://token.actions.githubusercontent.com
   subject: https://github.com/ned-si/homelab/.github/workflows/site-publish.yaml@refs/heads/main

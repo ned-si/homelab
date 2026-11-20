@@ -410,6 +410,16 @@
       minimumReleaseAge: '0 days',
     },
     {
+      // The same for the dashboard: dashboard-publish.yaml pushes :main
+      // (spec homelab-dashboard, design "Renovate").
+      description: 'Deploy each new dashboard image at once',
+      matchPackageNames: ['ghcr.io/ned-si/homelab-dashboard'],
+      matchUpdateTypes: ['digest'],
+      groupName: 'homelab-dashboard',
+      automerge: true,
+      minimumReleaseAge: '0 days',
+    },
+    {
       // dashboard/: minor and patch updates of the Go modules in one pull
       // request, tidied, automerged on green CI (spec homelab-dashboard).
       description: 'Group the Go modules of dashboard/',
