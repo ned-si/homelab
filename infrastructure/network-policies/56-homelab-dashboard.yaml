@@ -1,0 +1,125 @@
+# homelab-dashboard: the collector, the web role and the PostSync smoke Job
+# (.kiro/specs/homelab-dashboard/design.md#kubernetes). Enforced from the
+# start (90-enforcement.yaml).
+# The web pod reaches nothing; the collector reaches Prometheus, the web
+# pods' push port and GitHub, and never the Kubernetes API.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: homelab-dashboard-web
+  namespace: homelab-dashboard
+spec:
+  description: >-
+    The web role: the page from the smoke Job, signed pushes from the
+    collector, scrapes from Prometheus; no egress.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: homelab-dashboard
+      app.kubernetes.io/component: web
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # apps/homelab-dashboard/kustomization.yaml -- postsync-smoke,
+    # http://homelab-dashboard-web:8080.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: postsync-smoke
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # The collector's push, through the headless homelab-dashboard-web-push.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: homelab-dashboard
+            app.kubernetes.io/component: collector
+      toPorts:
+        - ports:
+            - port: "9465"
+              protocol: TCP
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9464"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: homelab-dashboard-collector
+  namespace: homelab-dashboard
+spec:
+  description: >-
+    The collector: Prometheus queries, the push to the web pods and the
+    public GitHub API out; scrapes from Prometheus in.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: homelab-dashboard
+      app.kubernetes.io/component: collector
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9464"
+              protocol: TCP
+  egress:
+    # PROM_URL http://kube-prometheus-stack-prometheus.monitoring.svc:9090.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: prometheus
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: homelab-dashboard
+            app.kubernetes.io/component: web
+      toPorts:
+        - ports:
+            - port: "9465"
+              protocol: TCP
+    # https://api.github.com. `world`, not `toFQDNs`: FQDN policy routes all
+    # DNS through Cilium's L7 DNS proxy.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: postsync-smoke
+  namespace: homelab-dashboard
+spec:
+  description: >-
+    The PostSync smoke Job calls homelab-dashboard-web:8080 after every sync.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: postsync-smoke
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: homelab-dashboard
+            app.kubernetes.io/component: web
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP

@@ -1,0 +1,17 @@
+# Both roles on 9464 (design.md#metrics).
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: homelab-dashboard
+  labels:
+    app.kubernetes.io/name: homelab-dashboard
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homelab-dashboard
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 1m

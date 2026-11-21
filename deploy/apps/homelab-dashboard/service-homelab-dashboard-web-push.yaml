@@ -1,0 +1,29 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/homelab-dashboard
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/homelab-dashboard and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/component: web
+    app.kubernetes.io/name: homelab-dashboard
+  name: homelab-dashboard-web-push
+  namespace: homelab-dashboard
+spec:
+  clusterIP: None
+  ports:
+  - name: push
+    port: 9465
+    protocol: TCP
+    targetPort: push
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/component: web
+    app.kubernetes.io/name: homelab-dashboard
