@@ -39,6 +39,8 @@ class Fake:
         self.kubelets = ["v1.37.2"] * 4
         self.nodes = 4
         self.runs = [600, 700, 900]
+        # website-data as in git: the empty placeholder.
+        self.current = {"figures.json": "{}", "figures.html": ""}
 
     def prom(self, query: str, at: float) -> list:
         apps = re.search(r'app=~"([^"]+)"', query)
@@ -85,6 +87,9 @@ def fake():
                     return self.reply(state.prom_status, {"status": "error", "error": "boom"})
                 return self.reply(200, {"status": "success", "data": {
                     "resultType": "vector", "result": state.prom(qs["query"], float(qs["time"]))}})
+            if u.path == "/api/v1/namespaces/website/configmaps/website-data":
+                assert self.headers["Authorization"] == "Bearer test-token"
+                return self.reply(200, {"data": state.current})
             state.github.append(self.path)
             if state.github_status != 200:
                 return self.reply(state.github_status, {"message": "rate limited"})
@@ -242,6 +247,39 @@ def test_empty_cluster_figure(monkeypatch, tmp_path, fake, capsys):
 
 def test_github_failure(monkeypatch, tmp_path, fake, capsys):
     fake.github_status = 403
+    _, rc = run(monkeypatch, tmp_path, fake)
+    assert rc == 1 and fake.patches == []
+    assert "ERROR prs_merged_30d: HTTPError" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("status", [403, 429])
+def test_rate_limit_keeps_the_last_project_figures(monkeypatch, tmp_path, fake, capsys, status):
+    last = json.loads(FIXTURE.read_text())
+    fake.current = {"figures.json": json.dumps(last)}
+    fake.github_status = status
+    _, rc = run(monkeypatch, tmp_path, fake)
+    assert rc == 0
+    doc = published(fake)
+    assert doc["covers"] == "2026-11-19" and doc["cluster"]["nodes"] == 4
+    assert doc["project"] == last["project"]
+    assert doc["project_as_of"] == last["computed_at"]
+    assert "WARN prs_merged_30d: HTTPError" in capsys.readouterr().err
+    assert ('these figures are from <time datetime="2026-11-20T03:30:00+01:00">20 November 2026, 03:30</time>'
+            in fake.patches[0]["body"]["data"]["figures.html"])
+
+
+def test_rate_limit_again_keeps_the_first_date(monkeypatch, tmp_path, fake):
+    last = dict(json.loads(FIXTURE.read_text()), project_as_of="2026-11-18T03:30:00+01:00")
+    fake.current = {"figures.json": json.dumps(last)}
+    fake.github_status = 403
+    _, rc = run(monkeypatch, tmp_path, fake)
+    assert rc == 0
+    assert published(fake)["project_as_of"] == "2026-11-18T03:30:00+01:00"
+
+
+def test_github_server_error_keeps_nothing(monkeypatch, tmp_path, fake, capsys):
+    fake.current = {"figures.json": FIXTURE.read_text()}
+    fake.github_status = 500
     _, rc = run(monkeypatch, tmp_path, fake)
     assert rc == 1 and fake.patches == []
     assert "ERROR prs_merged_30d: HTTPError" in capsys.readouterr().err

@@ -6,7 +6,9 @@ GitHub API, validates the document against schema.json and the shown apps of
 config.json, then writes it as figures.json and the rendered figures.html into
 the ConfigMap website-data, which the site pod mounts read-only and nginx
 includes in /homelab/. Any failure exits 1 before the write, so
-the ConfigMap keeps the last good figures. Only the apps of config.json are
+the ConfigMap keeps the last good figures. When GitHub rate-limits, the
+project figures of the last good document are kept with `project_as_of`
+(#1551). Only the apps of config.json are
 ever queried. Design: .kiro/specs/public-website/design.md, "Public figures".
 """
 from __future__ import annotations
@@ -49,6 +51,10 @@ class Fail(Exception):
     def __init__(self, figure: str, reason: str):
         super().__init__(f"{figure}: {reason}")
         self.figure = figure
+
+
+class RateLimited(Fail):
+    """GitHub answered 403 or 429: the quota of the house's IP is used up."""
 
 
 def http_json(url: str, *, method: str = "GET", body: bytes | None = None,
@@ -163,6 +169,10 @@ def github(figure: str, path: str) -> dict:
                "X-GitHub-Api-Version": "2022-11-28"}
     try:
         return http_json(f"{GITHUB_API}{path}", headers=headers)
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 429):
+            raise RateLimited(figure, f"HTTPError: {e}") from e
+        raise Fail(figure, f"HTTPError: {e}") from e
     except (urllib.error.URLError, OSError, ValueError) as e:
         raise Fail(figure, f"{type(e).__name__}: {e}") from e
 
@@ -259,13 +269,22 @@ def check(doc: dict, cfg: dict) -> list[str]:
 
 def build(now: datetime, cfg: dict) -> dict:
     covers, start, end = window(now)
-    return {
+    doc = {
         "covers": covers,
         "computed_at": now.astimezone(TZ).replace(second=0, microsecond=0).isoformat(),
         "apps": availability(cfg, end),
         "cluster": cluster(end),
-        "project": project(cfg, start, end),
     }
+    try:
+        doc["project"] = project(cfg, start, end)
+    except RateLimited as e:
+        last = json.loads(kube("GET").get("data", {}).get(KEY) or "{}")
+        if "project" not in last:
+            raise
+        doc["project"] = last["project"]
+        doc["project_as_of"] = last.get("project_as_of", last.get("computed_at"))
+        print(f"WARN {e}; keeping the project figures of {doc['project_as_of']}", file=sys.stderr)
+    return doc
 
 
 def esc(v) -> str:
@@ -355,25 +374,36 @@ def render(doc: dict) -> str:
         f'<dt>Opened by Renovate</dt><dd>{esc(p["renovate_share_30d"])}%</dd>',
         f'<dt>Median CI run</dt><dd>{esc(duration(p["ci_median_seconds_30d"]))}</dd>',
         "</dl>",
+        *([f'<p class="meta">GitHub rate-limited the last update: these figures are from '
+           f'<time datetime="{esc(doc["project_as_of"])}">{esc(day(doc["project_as_of"]))}, '
+           f'{datetime.fromisoformat(doc["project_as_of"]):%H:%M}</time>.</p>']
+          if "project_as_of" in doc else []),
         f'<p class="meta">Last updated <time datetime="{esc(doc["computed_at"])}">'
         f'{esc(day(doc["computed_at"]))}, {computed:%H:%M}</time> (Zurich time).</p>',
         "</section>",
     ]) + "\n"
 
 
-def write(doc: dict) -> None:
+def kube(method: str, body: bytes | None = None) -> dict:
+    """GET or merge-PATCH the ConfigMap website-data."""
     with open(os.path.join(SA_DIR, "token")) as f:
         token = f.read().strip()
     ctx = ssl.create_default_context(cafile=os.path.join(SA_DIR, "ca.crt")) if KUBE_API.startswith("https") else None
+    headers = {"Authorization": f"Bearer {token}"}
+    if body is not None:
+        headers["Content-Type"] = "application/merge-patch+json"
+    try:
+        return http_json(f"{KUBE_API}/api/v1/namespaces/{NAMESPACE}/configmaps/{CONFIGMAP}", method=method,
+                         body=body, headers=headers, ctx=ctx)
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise Fail("configmap", f"{type(e).__name__}: {e}") from e
+
+
+def write(doc: dict) -> None:
     # A merge patch of the two keys: other keys of the ConfigMap stay.
     body = json.dumps({"data": {KEY: json.dumps(doc, separators=(",", ":")),
                                 HTML_KEY: render(doc)}}).encode()
-    try:
-        http_json(f"{KUBE_API}/api/v1/namespaces/{NAMESPACE}/configmaps/{CONFIGMAP}", method="PATCH",
-                  body=body, headers={"Authorization": f"Bearer {token}",
-                                      "Content-Type": "application/merge-patch+json"}, ctx=ctx)
-    except (urllib.error.URLError, OSError, ValueError) as e:
-        raise Fail("configmap", f"{type(e).__name__}: {e}") from e
+    kube("PATCH", body)
 
 
 def main(now: datetime | None = None) -> int:
