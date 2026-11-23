@@ -56,4 +56,4 @@ cabf42f219d7c3a8f82a3d4a2515b03a0ecab5957e3f74298071d5c353c30c2b  best-practices
 afbbb3dcd6c04774e3d9e8e1aa94633b6cf9bf11d6a24f3da71b188e1073c2b6  best-practices-vpol/require-pod-requests-limits/require-pod-requests-limits.yaml
 f55a343212e3ae130e95e1d18b99941feec8d51eacc85e03d7ab84e1e24bcd4d  best-practices-vpol/require-ro-rootfs/require-ro-rootfs.yaml
 dabef699f5559e91651e71a16c215b52d3886a9603db93bd75550287554f7290  best-practices-vpol/restrict-node-port/restrict-node-port.yaml
-b7404489e14219b6b30c9a12ee57943e2ef25e778a301bbc03f98836f9d202cd  best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml
+3468980427f962def655d047572079413823cd3ffde8f2ad5e6b6e6d43379eaf  best-practices-vpol/restrict-service-external-ips/restrict-service-external-ips.yaml
