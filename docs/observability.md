@@ -583,8 +583,8 @@ Tests: `tests/prometheus/argocd_test.yaml`.
 
 ## SLOs
 
-Each user-facing app (auth cinema theater media archive cook syncthing
-nedsi blog homelab)
+Each user-facing app (auth cinema theater watch media archive cook
+syncthing nedsi blog homelab grafana signoz)
 has one availability SLO: 99.5% of its public blackbox probes succeed over 30
 days, an error budget of about 3.6 hours a month. Plain recording rules, no
 SLO generator: `slo:probe_error:ratio_rate<window>`,
