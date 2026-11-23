@@ -102,16 +102,17 @@ func card(a snapshot.App, covers time.Time) appCard {
 	case first < 0:
 		c.Status, c.NoData = statusNone, true
 	case first > 0:
-		// Under 30 days of data: a 30-day budget would mean nothing yet.
-		c.Status = sinceStatus(a.Availability30d)
+		// Under 30 days of data the 30-day target cannot be judged yet: the
+		// figure stays neutral, with no word and no budget.
+		c.Status = statusNone
 		c.Since = snapshot.AddDays(covers, -(len(a.AvailabilityDaily) - 1 - first)).Format("2 January")
 	default:
 		c.Status = monthStatus(a.ErrorBudgetRemaining30d)
+		c.Word = monthWord(c.Status)
 		c.BudgetLeft = max(a.ErrorBudgetRemaining30d, 0)
 		c.Exhausted = a.ErrorBudgetRemaining30d <= 0
 		c.Meter = budgetMeter(a.ErrorBudgetRemaining30d)
 	}
-	c.Word = monthWord(c.Status)
 	return c
 }
 

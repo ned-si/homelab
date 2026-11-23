@@ -153,7 +153,7 @@ func TestPageTexts(t *testing.T) {
 		{fixtureNow, []string{
 			"Target: 99.5% availability over 30 days per app.",
 			`Updated <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time> (Zurich time).`,
-			"Since 16 November",
+			`<span class="label">since 16 November</span>`,
 			"11% of the error budget left",
 			"<p class=\"meta\">Exhausted</p>",
 			`5<span class="unit">min</span> 05<span class="unit">s</span>`,
@@ -161,7 +161,7 @@ func TestPageTexts(t *testing.T) {
 			`aria-label="Opened by Renovate: 50%"`,
 			`As of <time datetime="2026-11-20T16:52:00&#43;01:00">20 November 2026, 16:52</time>.`,
 			"Solar production", "Home automation",
-		}, []string{"Live figures from", "daily update is failing", "No figures yet"}},
+		}, []string{"Live figures from", "daily update is failing", "No figures yet", "/tags/"}},
 		{fixtureNow.Add(6 * time.Minute), []string{"Live figures from <time datetime=\"2026-11-20T17:00:00&#43;01:00\">20 November 2026, 17:00</time>"}, nil},
 		{fixtureNow.Add(3 * 24 * time.Hour), []string{"Availability figures are from <time datetime=\"2026-11-19\">19 November 2026</time>: the daily update is failing."}, nil},
 	} {
@@ -189,14 +189,6 @@ func TestStatusRules(t *testing.T) {
 			t.Errorf("monthStatus(%d) = %q, want %q", tc.left, got, tc.want)
 		}
 	}
-	for _, tc := range []struct {
-		v    float64
-		want status
-	}{{100, statusOK}, {99.5, statusOK}, {99.4, statusBad}, {0, statusBad}} {
-		if got := sinceStatus(tc.v); got != tc.want {
-			t.Errorf("sinceStatus(%v) = %q, want %q", tc.v, got, tc.want)
-		}
-	}
 	v := func(x float64) *float64 { return &x }
 	for _, tc := range []struct {
 		v    *float64
@@ -222,30 +214,63 @@ func TestCard(t *testing.T) {
 	}
 	since := make([]*float64, snapshot.Days)
 	since[27], since[28], since[29] = v(99), v(100), v(100)
+	oneDay := make([]*float64, snapshot.Days)
+	oneDay[29] = v(100)
 	for _, tc := range []struct {
 		name      string
 		app       snapshot.App
 		status    status
+		word      string
 		since     string
 		exhausted bool
 		meter     bool
 		noData    bool
 	}{
-		{"met", snapshot.App{Availability30d: 99.9, ErrorBudgetRemaining30d: 80, AvailabilityDaily: full}, statusOK, "", false, true, false},
-		{"budget at 0", snapshot.App{Availability30d: 99.5, ErrorBudgetRemaining30d: 0, AvailabilityDaily: full}, statusWarn, "", true, true, false},
-		{"missed", snapshot.App{Availability30d: 99.1, ErrorBudgetRemaining30d: -62, AvailabilityDaily: full}, statusBad, "", true, true, false},
-		{"since, met", snapshot.App{Availability30d: 99.6, ErrorBudgetRemaining30d: 20, AvailabilityDaily: since}, statusOK, "17 November", false, false, false},
-		{"since, missed", snapshot.App{Availability30d: 99.4, ErrorBudgetRemaining30d: 90, AvailabilityDaily: since}, statusBad, "17 November", false, false, false},
-		{"no data", snapshot.App{Availability30d: 100, AvailabilityDaily: make([]*float64, snapshot.Days)}, statusNone, "", false, false, true},
+		{"met", snapshot.App{Availability30d: 99.9, ErrorBudgetRemaining30d: 80, AvailabilityDaily: full}, statusOK, "Met", "", false, true, false},
+		{"budget at 0", snapshot.App{Availability30d: 99.5, ErrorBudgetRemaining30d: 0, AvailabilityDaily: full}, statusWarn, "At risk", "", true, true, false},
+		{"missed", snapshot.App{Availability30d: 99.1, ErrorBudgetRemaining30d: -62, AvailabilityDaily: full}, statusBad, "Missed", "", true, true, false},
+		// Under 30 days: neutral whatever the figure and the budget.
+		{"since, above the target", snapshot.App{Availability30d: 99.6, ErrorBudgetRemaining30d: 20, AvailabilityDaily: since}, statusNone, "", "17 November", false, false, false},
+		{"since, below the target", snapshot.App{Availability30d: 99.4, ErrorBudgetRemaining30d: -90, AvailabilityDaily: since}, statusNone, "", "17 November", false, false, false},
+		{"since, one day", snapshot.App{Availability30d: 100, ErrorBudgetRemaining30d: 100, AvailabilityDaily: oneDay}, statusNone, "", "19 November", false, false, false},
+		{"no data", snapshot.App{Availability30d: 100, AvailabilityDaily: make([]*float64, snapshot.Days)}, statusNone, "", "", false, false, true},
 	} {
 		c := card(tc.app, covers)
-		if c.Status != tc.status || c.Since != tc.since || c.Exhausted != tc.exhausted || (c.Meter != "") != tc.meter || c.NoData != tc.noData {
-			t.Errorf("%s: card = status %q since %q exhausted %v meter %v no data %v, want %q %q %v %v %v",
-				tc.name, c.Status, c.Since, c.Exhausted, c.Meter != "", c.NoData, tc.status, tc.since, tc.exhausted, tc.meter, tc.noData)
+		if c.Status != tc.status || c.Word != tc.word || c.Since != tc.since || c.Exhausted != tc.exhausted || (c.Meter != "") != tc.meter || c.NoData != tc.noData {
+			t.Errorf("%s: card = status %q word %q since %q exhausted %v meter %v no data %v, want %q %q %q %v %v %v",
+				tc.name, c.Status, c.Word, c.Since, c.Exhausted, c.Meter != "", c.NoData,
+				tc.status, tc.word, tc.since, tc.exhausted, tc.meter, tc.noData)
 		}
-		if c.Word != monthWord(tc.status) {
-			t.Errorf("%s: word %q, want %q", tc.name, c.Word, monthWord(tc.status))
+	}
+}
+
+// TestSinceCardsAreNeutral renders the page with apps under 30 days of data
+// and checks each such card: the figure in the neutral colour with "since
+// <date>", no status word, no error budget.
+func TestSinceCardsAreNeutral(t *testing.T) {
+	h := newHarness(t)
+	if code := h.pushDoc(t, fixture(t)); code != http.StatusNoContent {
+		t.Fatalf("push = %d", code)
+	}
+	body := h.get(t, http.MethodGet, "/").Body.String()
+	sinceCards := 0
+	for _, c := range strings.Split(body, `<div class="card">`)[1:] {
+		c, _, _ = strings.Cut(c, `<div class="bars">`)
+		if !strings.Contains(c, `<span class="label">since `) {
+			continue
 		}
+		sinceCards++
+		if !strings.Contains(c, `<span class="big none">`) {
+			t.Errorf("a since card's figure is not neutral:\n%s", c)
+		}
+		for _, bad := range []string{`class="status`, `class="meter"`, "error budget", "Exhausted"} {
+			if strings.Contains(c, bad) {
+				t.Errorf("a since card contains %q:\n%s", bad, c)
+			}
+		}
+	}
+	if sinceCards == 0 {
+		t.Fatal("the fixture has no app under 30 days of data")
 	}
 }
 
@@ -347,6 +372,10 @@ func checkChartAttr(t *testing.T, name string, a xml.Attr) {
 	case "focusable":
 		if a.Value != "false" {
 			t.Errorf("%s: focusable %q", name, a.Value)
+		}
+	case "preserveAspectRatio":
+		if a.Value != "none" {
+			t.Errorf("%s: preserveAspectRatio %q", name, a.Value)
 		}
 	case "aria-label":
 		if !chartLabel.MatchString(a.Value) {

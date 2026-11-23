@@ -20,6 +20,9 @@ import (
 // ciPages is how many pages of 100 workflow runs the CI median reads.
 const ciPages = 3
 
+// mergedBase is the branch a pull request counts for once merged into.
+const mergedBase = "main"
+
 // ErrTokenRejected is returned when GitHub answers 401 to the token.
 var ErrTokenRejected = errors.New("github token rejected")
 
@@ -117,7 +120,7 @@ func utc(t time.Time) string {
 
 func (g *GitHub) mergedCount(ctx context.Context, token, figure, span, extra string) (int, error) {
 	q := url.Values{
-		"q":        {fmt.Sprintf("repo:%s is:pr is:merged merged:%s%s", g.Repo, span, extra)},
+		"q":        {fmt.Sprintf("repo:%s is:pr is:merged base:%s merged:%s%s", g.Repo, mergedBase, span, extra)},
 		"per_page": {"1"},
 	}
 	var r struct {
@@ -133,9 +136,10 @@ func (g *GitHub) mergedCount(ctx context.Context, token, figure, span, extra str
 	return r.TotalCount, nil
 }
 
-// Project reads the figures of the 30 days from start to end: pull
-// requests merged, Renovate's share of them and the median wall time of
-// the successful CI runs.
+// Project reads the figures from start, inclusive, to end, exclusive: pull
+// requests merged into main, Renovate's share of them and the median wall
+// time of the successful CI runs. The search API's total_count is exact,
+// so no page limit applies to the counts.
 func (g *GitHub) Project(ctx context.Context, start, end time.Time) (snapshot.Project, error) {
 	var p snapshot.Project
 	token, err := g.token()

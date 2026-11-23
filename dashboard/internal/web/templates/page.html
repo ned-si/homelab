@@ -26,12 +26,10 @@
 <h3>{{.Name}}</h3>
 {{- if .NoData}}
 <p class="stat"><span class="status none">No data</span></p>
+{{- else if .Since}}
+<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span> <span class="label">since {{.Since}}</span></p>
 {{- else}}
 <p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span> <span class="status {{.Status}}">{{.Word}}</span></p>
-{{- end}}
-{{- if .Since}}
-<p class="meta">Since {{.Since}}</p>
-{{- else if .Meter}}
 <div class="meter">{{.Meter}}</div>
 <p class="meta">{{if .Exhausted}}Exhausted{{else}}{{.BudgetLeft}}% of the error budget left{{end}}</p>
 {{- end}}

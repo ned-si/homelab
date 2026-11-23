@@ -35,15 +35,6 @@ func monthStatus(budgetLeft int) status {
 	}
 }
 
-// sinceStatus is the 30-day status of an app with fewer than 30 days of
-// data, which has no meaningful budget yet.
-func sinceStatus(availability float64) status {
-	if availability >= target {
-		return statusOK
-	}
-	return statusBad
-}
-
 // dayStatus is the status of one day's availability; nil is a day without
 // probes.
 func dayStatus(v *float64) status {

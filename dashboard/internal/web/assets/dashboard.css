@@ -51,12 +51,15 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
 .meta.stale { color: var(--warn); }
 .label { font-size: 0.875rem; }
 
+/* Wrapping flex rather than a grid: the cards of the last row share its
+   width, so no row has a hole whatever the number of cards. */
 .cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 1rem;
   margin-top: 1rem;
 }
+.cards > * { flex: 1 1 17rem; }
 
 .card, .panel {
   background: var(--panel);
@@ -92,8 +95,12 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
 .tile p { margin: 0; }
 
 .meter, .bars { margin: 0.5rem 0 0.25rem; }
-.meter svg, .bars svg { display: block; width: 100%; height: auto; }
-.bars svg { max-height: 5rem; }
+/* Fixed heights: the charts stretch to their card's width (the SVGs have
+   preserveAspectRatio="none"), so a wider card gets wider bars, not
+   taller ones. */
+.meter svg, .bars svg { display: block; width: 100%; }
+.meter svg { height: 1.25rem; }
+.bars svg { height: 4rem; }
 
 svg rect { fill: var(--link); }
 svg rect.track { fill: var(--rule); }
@@ -101,7 +108,7 @@ svg rect.ok { fill: var(--ok); }
 svg rect.warn { fill: var(--warn); }
 svg rect.bad { fill: var(--bad); }
 svg rect.none { fill: var(--none); }
-svg line.target { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 4 3; }
+svg line.target { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 
 .later { color: var(--muted); }
 .later p { margin: 0; }
@@ -115,5 +122,6 @@ footer.site {
 }
 
 @media (max-width: 40rem) {
-  .cards, .tiles { grid-template-columns: 1fr; }
+  .cards > * { flex-basis: 100%; }
+  .tiles { grid-template-columns: 1fr; }
 }
