@@ -20,7 +20,7 @@ metadata:
   name: postsync-smoke
   namespace: homelab-dashboard
 spec:
-  activeDeadlineSeconds: 900
+  activeDeadlineSeconds: 1200
   backoffLimit: 0
   template:
     metadata:
@@ -80,8 +80,13 @@ spec:
           if [ "$code" = 200 ]; then echo "ok   $code $svc/"; else echo "FAIL $code $svc/"; fail=1; fi
 
           # The first sync waits for the homelab-nedsi-io certificate and the
-          # listener: up to 5 minutes.
-          expect 200 30 "$base/"
+          # listener from the gateway app: up to 5 minutes.
+          for try in $(seq 1 30); do
+            req "$base/"
+            [ "$code" = 200 ] && break
+            sleep 10
+          done
+          expect 200 3 "$base/"
           has_headers "$base/"
           expect 404 3 "$base/does-not-exist"
           has_headers "$base/does-not-exist"
