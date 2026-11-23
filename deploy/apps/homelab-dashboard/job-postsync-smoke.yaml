@@ -20,7 +20,7 @@ metadata:
   name: postsync-smoke
   namespace: homelab-dashboard
 spec:
-  activeDeadlineSeconds: 600
+  activeDeadlineSeconds: 900
   backoffLimit: 0
   template:
     metadata:
@@ -30,13 +30,16 @@ spec:
       automountServiceAccountToken: false
       containers:
       - args:
-        - http://homelab-dashboard-web:8080
+        - https://homelab.nedsi.io
         command:
         - /bin/sh
         - -c
         - |
           fail=0
           base=$1
+          # --connect-to the Gateway Service, as in apps/website, so a WAN
+          # outage does not fail the sync.
+          gw="--connect-to ::cilium-gateway-shared.gateway.svc.cluster.local:"
           headers="content-security-policy strict-transport-security x-content-type-options x-frame-options"
           headers="$headers referrer-policy permissions-policy cross-origin-opener-policy"
           # req <url> [curl options...]: sets $code, $resp (the headers) and
@@ -44,7 +47,8 @@ spec:
           req() {
             url=$1
             shift
-            resp=$(curl "$@" -s -D - -o /tmp/body -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
+            # shellcheck disable=SC2086 # $gw splits on purpose
+            resp=$(curl $gw "$@" -s -D - -o /tmp/body -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
             code=$(printf '%s\n' "$resp" | sed -n 's/^CODE //p')
             code=${code:-000}
           }
@@ -67,7 +71,9 @@ spec:
             done
           }
 
-          expect 200 6 "$base/"
+          # The first sync waits for the homelab-nedsi-io certificate and the
+          # listener: up to 5 minutes.
+          expect 200 30 "$base/"
           has_headers "$base/"
           expect 404 3 "$base/does-not-exist"
           has_headers "$base/does-not-exist"

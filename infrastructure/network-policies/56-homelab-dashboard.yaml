@@ -11,8 +11,8 @@ metadata:
   namespace: homelab-dashboard
 spec:
   description: >-
-    The web role: the page from the smoke Job, signed pushes from the
-    collector, scrapes from Prometheus; no egress.
+    The web role: the page from the Gateway and the smoke Job, signed pushes
+    from the collector, scrapes from Prometheus; no egress.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: homelab-dashboard
@@ -21,8 +21,18 @@ spec:
     ingress: false
     egress: false
   ingress:
-    # apps/homelab-dashboard/kustomization.yaml -- postsync-smoke,
-    # http://homelab-dashboard-web:8080.
+    # homelab.nedsi.io -> homelab-dashboard-web:8080,
+    # apps/homelab-dashboard/httproute.yaml.
+    - fromEntities:
+        - ingress
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    # apps/homelab-dashboard/kustomization.yaml -- postsync-smoke, behind the
+    # Gateway (see the smoke's egress below).
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/name: postsync-smoke
@@ -107,7 +117,8 @@ metadata:
   namespace: homelab-dashboard
 spec:
   description: >-
-    The PostSync smoke Job calls homelab-dashboard-web:8080 after every sync.
+    The PostSync smoke Job calls https://homelab.nedsi.io through the shared
+    Gateway after every sync.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: postsync-smoke
@@ -115,6 +126,8 @@ spec:
     ingress: false
     egress: false
   egress:
+    # Cilium's Envoy also checks this pod's egress for the Gateway's upstream
+    # leg (GHSA-24qp-4xx8-3jvj) and answers 403 when it is denied.
     - toEndpoints:
         - matchLabels:
             app.kubernetes.io/name: homelab-dashboard
@@ -122,4 +135,11 @@ spec:
       toPorts:
         - ports:
             - port: "8080"
+              protocol: TCP
+    # https://homelab.nedsi.io, --connect-to the Gateway Service.
+    - toEntities:
+        - ingress
+      toPorts:
+        - ports:
+            - port: "443"
               protocol: TCP

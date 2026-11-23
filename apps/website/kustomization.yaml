@@ -116,5 +116,8 @@ patches:
             location http://nedsi.io/ https://nedsi.io/
             expect 301 http://blog.nedsi.io/does-not-exist
             location http://blog.nedsi.io/does-not-exist https://blog.nedsi.io/does-not-exist
+            # The dashboard's plain HTTP (its HTTPS is apps/homelab-dashboard).
+            expect 301 http://homelab.nedsi.io/x
+            location http://homelab.nedsi.io/x https://homelab.nedsi.io/x
             exit "$fail"
           - postsync-smoke

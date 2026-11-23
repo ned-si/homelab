@@ -68,6 +68,7 @@ check 301 https://nedsi.io/a?b=1 8080 www.nedsi.io '/a?b=1'
 check 301 https://nedsi.io/ 8081 nedsi.io /
 check 301 https://nedsi.io/a?b=1 8081 www.nedsi.io '/a?b=1'
 check 301 https://blog.nedsi.io/posts/ 8081 blog.nedsi.io /posts/
+check 301 https://homelab.nedsi.io/x 8081 homelab.nedsi.io /x
 check 405 - 8081 nedsi.io / -X POST
 # The landing page links to the blog.
 curl -s -m 5 -H 'Host: nedsi.io' http://127.0.0.1:8080/ | grep -q 'href="https://blog.nedsi.io/"' \

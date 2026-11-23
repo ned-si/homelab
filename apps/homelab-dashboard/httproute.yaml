@@ -1,0 +1,51 @@
+# https://homelab.nedsi.io/ to the web role (spec homelab-dashboard, Address).
+# The headers are the server's too (dashboard/internal/web/testdata/headers.golden);
+# tests/test_security_controls.py keeps both CSPs equal. Plain HTTP is
+# apps/website's website-http route.
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: homelab-dashboard
+spec:
+  # group/kind/weight and the catch-all match are the API server's defaults,
+  # spelled out so that Argo CD's diff sees no drift.
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared
+      namespace: gateway
+      sectionName: https-nedsi-homelab
+  hostnames:
+    - homelab.nedsi.io
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
+        - type: ResponseHeaderModifier
+          responseHeaderModifier:
+            set:
+              - name: Content-Security-Policy
+                value: >-
+                  default-src 'none'; style-src 'self'; img-src 'self'; font-src 'self';
+                  base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+              - name: Strict-Transport-Security
+                value: "max-age=31536000; includeSubDomains"
+              - name: X-Content-Type-Options
+                value: "nosniff"
+              - name: X-Frame-Options
+                value: "DENY"
+              - name: Referrer-Policy
+                value: "strict-origin-when-cross-origin"
+              - name: Permissions-Policy
+                value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+              - name: Cross-Origin-Opener-Policy
+                value: "same-origin"
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: homelab-dashboard-web
+          port: 8080
+          weight: 1

@@ -18,6 +18,7 @@ spec:
   - nedsi.io
   - www.nedsi.io
   - blog.nedsi.io
+  - homelab.nedsi.io
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
@@ -34,6 +35,11 @@ spec:
     name: shared
     namespace: gateway
     sectionName: http-nedsi-blog
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: shared
+    namespace: gateway
+    sectionName: http-nedsi-homelab
   rules:
   - backendRefs:
     - group: ""
