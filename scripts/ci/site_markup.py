@@ -8,8 +8,7 @@ excepted). The CSP of the site would block most of these; this catches
 them before the browser does.
 
 Every page also needs the site navigation: one <nav class="site"> with the
-NAV links in order (the dashboard's host links its own Homelab page until
-the blog and the landing page move there too), at most one of them
+NAV links in order, at most one of them
 aria-current="page", and that one on the page itself or on a parent path of
 it. A page whose own URL is in NAV marks it.
 """
@@ -20,19 +19,12 @@ from urllib.parse import urljoin, urlsplit
 
 STATS_SCRIPT = "/stats/s.js"
 SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io")
-DASHBOARD_HOST = "homelab.nedsi.io"
 NAV = [
     ("Home", "https://nedsi.io/"),
     ("Blog", "https://blog.nedsi.io/"),
-    ("Homelab", "https://blog.nedsi.io/homelab/"),
+    ("Homelab", "https://homelab.nedsi.io/"),
     ("About", "https://blog.nedsi.io/about/"),
 ]
-
-
-def nav_for(host):
-    if host != DASHBOARD_HOST:
-        return NAV
-    return [(t, f"https://{DASHBOARD_HOST}/" if t == "Homelab" else h) for t, h in NAV]
 
 
 class Checker(HTMLParser):
@@ -100,7 +92,7 @@ class Checker(HTMLParser):
         if self.navs != 1:
             self.problems.append((0, f'{self.navs} <nav class="site">, want 1'))
             return
-        nav = nav_for(self.host)
+        nav = NAV
         got = [(text, href) for text, href, _ in self.links]
         if got != nav:
             self.problems.append((0, f"site nav {got}, want {nav}"))

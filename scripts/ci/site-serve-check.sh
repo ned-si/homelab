@@ -1,8 +1,8 @@
 #!/bin/bash
 # site-serve-check.sh <public dir> -- serve the built blog and the landing page
 # with apps/website/nginx.conf on the image's nginx, as the cluster mounts them,
-# and check the host split, the 405, every redirect's Location and the
-# dashboard's server-side include (.kiro/specs/public-website/design.md#serving).
+# and check the host split, the 405 and every redirect's Location
+# (.kiro/specs/public-website/design.md#serving).
 # Needs docker, curl and python3.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
@@ -74,17 +74,11 @@ check 405 - 8081 nedsi.io / -X POST
 curl -s -m 5 -H 'Host: nedsi.io' http://127.0.0.1:8080/ | grep -q 'href="https://blog.nedsi.io/"' \
   || { echo "FAIL nedsi.io: no link to https://blog.nedsi.io/"; rc=1; }
 
-# The dashboard: nginx includes the figures, and the stub while they are empty.
-# page <want text>: /homelab/ has it and no SSI directive left over.
-page() {
-  body=$(curl -s -m 5 -H 'Host: blog.nedsi.io' http://127.0.0.1:8080/homelab/) || body=""
-  if grep -qF -- '<!--#' <<<"$body"; then echo "FAIL /homelab/: an SSI directive is left in the page"; rc=1; fi
-  if grep -qF -- "$1" <<<"$body"; then echo "ok   /homelab/ has '$1'"; else echo "FAIL /homelab/: no '$1'"; rc=1; fi
-}
-check 200 - 8080 blog.nedsi.io /homelab/
-page 'id="availability"'
-: > "$html/data/figures.html"
-page 'No figures yet'
+# The old dashboard path goes to the dashboard's own host.
+check 301 https://homelab.nedsi.io/ 8080 blog.nedsi.io /homelab
+check 301 https://homelab.nedsi.io/ 8080 blog.nedsi.io /homelab/
+check 301 https://homelab.nedsi.io/snapshot.json 8080 blog.nedsi.io /homelab/snapshot.json
+check 404 - 8080 blog.nedsi.io /homelabx
 
 [ "$rc" -eq 0 ] || docker logs "$name"
 [ "$rc" -eq 0 ] && echo "site-serve-check: all checks passed"

@@ -18,14 +18,13 @@
 {{- $path := .RelPermalink }}
 {{- $current := "" }}
 {{- if or .IsHome (eq .Section "posts") (eq .Kind "taxonomy") (eq .Kind "term") }}{{ $current = "blog" }}
-{{- else if eq $path "/homelab/" }}{{ $current = "homelab" }}
 {{- else if eq $path "/about/" }}{{ $current = "about" }}
 {{- end }}
 <header class="site">
 <nav class="site" aria-label="Site">
 <a href="https://nedsi.io/">Home</a>
 <a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>Blog</a>
-<a href="{{ "homelab/" | relURL }}"{{ if eq $current "homelab" }} aria-current="page"{{ end }}>Homelab</a>
+<a href="https://homelab.nedsi.io/">Homelab</a>
 <a href="{{ "about/" | relURL }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>About</a>
 </nav>
 </header>
