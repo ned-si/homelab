@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -551,6 +552,38 @@ func TestProjectCadence(t *testing.T) {
 	}
 }
 
+// TestProjectWindow pins the definition of prs_merged_30d: pull requests
+// merged into main in the 30 Zurich days ending at the cycle, so the window
+// is an hour longer across the end of summer time.
+func TestProjectWindow(t *testing.T) {
+	tests := []struct {
+		now  time.Time
+		want string
+	}{
+		{zurich(2026, 12, 20, 17, 0), "merged:2026-11-20T16:00:00Z..2026-12-20T15:59:59Z"},
+		{zurich(2026, 11, 20, 17, 0), "merged:2026-10-21T15:00:00Z..2026-11-20T15:59:59Z"},
+	}
+	for _, tc := range tests {
+		e := newEnv(t, tc.now, http.StatusNoContent)
+		e.c.Cycle(t.Context())
+		var got []string
+		for _, call := range e.fake.github {
+			u, err := url.Parse(call)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u.Path == "/search/issues" {
+				got = append(got, u.Query().Get("q"))
+			}
+		}
+		prefix := "repo:ned-si/homelab is:pr is:merged base:main " + tc.want
+		want := []string{prefix, prefix + " author:app/renovate"}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("at %v search queries mismatch (-want +got):\n%s", tc.now, diff)
+		}
+	}
+}
+
 func TestRateLimitMovesRefresh(t *testing.T) {
 	start := zurich(2026, 11, 20, 17, 0)
 	e := newEnv(t, start, http.StatusNoContent)
@@ -643,8 +676,8 @@ func TestAsOfMatchesPublisher(t *testing.T) {
 		t.Errorf("--as-of mismatch with the publisher (-want +got):\n%s", diff)
 	}
 	wantCalls := []string{
-		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z",
-		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z+author%3Aapp%2Frenovate",
+		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+base%3Amain+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z",
+		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+base%3Amain+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z+author%3Aapp%2Frenovate",
 		"/repos/ned-si/homelab/actions/workflows/ci.yaml/runs?created=2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z&exclude_pull_requests=true&page=1&per_page=100&status=success",
 	}
 	if diff := cmp.Diff(wantCalls, e.fake.github); diff != "" {

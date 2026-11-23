@@ -4,10 +4,11 @@
 #
 # Starts the web role on 127.0.0.1 with a throwaway key, pushes the fixture
 # with internal/tools/pushfixture and renders the page with
-# chrome-headless-shell at 390x1800 and 1280x1400 into <out-dir>. Fails on a
+# chrome-headless-shell at 390x4200 and 1280x2000 into <out-dir>. Fails on a
 # Chrome error, a missing PNG, a CSP violation or failed load in Chrome's log,
-# or a status other than 200 for the page or the stylesheet. No pixel diff:
-# the PNGs are for looking at in the pull request.
+# a row of cards with a hole (internal/tools/gridcheck), or a status other
+# than 200 for the page or the stylesheet. No pixel diff: the PNGs are for
+# looking at in the pull request.
 #
 # CHROME (default chrome-headless-shell) is the browser; needs go on PATH.
 set -euo pipefail
@@ -24,6 +25,7 @@ trap 'if [ -n "$pid" ]; then kill "$pid" 2>/dev/null || true; fi; rm -rf "$work"
 
 go build -o "$work/homelab-dashboard" ./cmd/homelab-dashboard
 go build -o "$work/pushfixture" ./internal/tools/pushfixture
+go build -o "$work/gridcheck" ./internal/tools/gridcheck
 "$work/pushfixture" keygen "$work"
 "$work/homelab-dashboard" web --listen 127.0.0.1:8080 --push-listen 127.0.0.1:9465 \
   --metrics-addr 127.0.0.1:9464 --public-keys "$work/public-keys" >"$work/web.log" 2>&1 &
@@ -35,7 +37,7 @@ done
 "$work/pushfixture" push "$work/private-key" http://127.0.0.1:9465
 
 rc=0
-for size in 390x1800 1280x1400; do
+for size in 390x4200 1280x2000; do
   png="$out/dashboard-${size%%x*}.png"
   rm -f "$png"
   # --no-sandbox: the runner's AppArmor profile blocks Chrome's user
@@ -54,6 +56,10 @@ for size in 390x1800 1280x1400; do
   # Content Security Policy directive ...", depending on the version.
   if grep -E 'Refused to|Content Security Policy|Failed to load|net::ERR_' "$work/chrome-$size.log"; then
     echo "dashboard-screenshots: FAIL Chrome reported a blocked or failed load at $size" >&2
+    rc=1
+  fi
+  if [ -s "$png" ] && ! "$work/gridcheck" internal/web/assets/dashboard.css "$png"; then
+    echo "dashboard-screenshots: FAIL a row of cards has a hole at $size" >&2
     rc=1
   fi
 done

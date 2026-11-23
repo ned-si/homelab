@@ -71,6 +71,7 @@ Renovate, Argo CD, Kustomize.
 | `dashboard/internal/web/testdata/` | Snapshot fixtures, test keys, the golden HTML files and `headers.golden` |
 | `dashboard/internal/metrics/` | The metric definitions and the metrics server |
 | `dashboard/internal/tools/pushfixture/` | A test-only `main` that signs a fixture with the test key and pushes it to a web role; used by the screenshot step and the publish smoke, never in the image |
+| `dashboard/internal/tools/gridcheck/` | A test-only `main` that fails on a row of cards with a hole in a screenshot; used by the screenshot step, never in the image |
 | `dashboard/Dockerfile` | Builder and runtime stages |
 
 Neither role talks to the Kubernetes API, so there is no `client-go`.
@@ -187,11 +188,21 @@ The cluster figures come from Prometheus, not from the Kubernetes API: no
 ClusterRole on nodes, no read of Argo CD's Applications, and the same
 numbers as the publisher for the comparison.
 
-GitHub, `https://api.github.com`, repository `ned-si/homelab`, the calls of
-`publisher.py`: the search API for merged pull requests in the 30 days and
-those by `app/renovate`; the `ci.yaml` workflow runs (`status=success`,
-created in the window, up to 3 pages of 100) for the median wall time.
-`User-Agent: homelab-dashboard/<version>`.
+GitHub, `https://api.github.com`, repository `ned-si/homelab`: the search
+API for merged pull requests and those by `app/renovate`; the `ci.yaml`
+workflow runs (`status=success`, created in the window, up to 3 pages of
+100) for the median wall time. `User-Agent: homelab-dashboard/<version>`.
+
+`prs_merged_30d` is the pull requests merged into `main` in the rolling 30
+days ending at the collection: `is:pr is:merged base:main
+merged:<start>..<end - 1 s>`, with `start` the same Zurich wall time 30
+days earlier (720 h, or 721 h and 719 h across a change of summer time).
+The search answer's `total_count` is exact, so no page limit applies.
+The publisher used the same query from midnight 30 days before its 03:30
+run to the run: on 2026-11-23 it showed 729 against the collector's 678,
+which the two windows explain exactly (57 pull requests merged between
+2026-10-23 00:00 and 2026-10-24 16:31, 6 since 2026-11-22 03:30; none
+merged into another branch). `TestProjectWindow` pins the query.
 
 The token is a fine-grained GitHub token with read-only access to public
 repositories and no expiry (operator decision, 2026-11-20: it reads only
@@ -305,8 +316,9 @@ copies change in the same PR (a test compares them, see [Tests](#tests)).
 ### The page
 
 `layout.html` reproduces the blog's `baseof` (`site/layouts/baseof.html`):
-the same header, the navigation bar and the footer (author, RSS, privacy),
-with absolute links because the app is its own origin:
+the same header, the navigation bar and the footer (author, RSS, privacy;
+no tags link, the dashboard has no tags), with absolute links because the
+app is its own origin:
 
 | Link | `href` |
 | --- | --- |
@@ -318,12 +330,12 @@ with absolute links because the app is its own origin:
 `page.html` is an observability dashboard, not a page of text. From top
 to bottom:
 
-1. The title, a two-sentence intro carried over from today's
-   `site/content/homelab.md`, the target ("Target: 99.5% availability
+1. The title, the one-line intro "An over-engineered homelab, in
+   numbers." (no word on the apps left out: they are simply absent), the target ("Target: 99.5% availability
    over 30 days per app") and "Updated <time> (Zurich time)" from
    `generated_at`, with the staleness notices below.
 2. **Availability**, per finished day: a grid of cards
-   (`section.cards`), one per shown app in the allow-list order. Each
+   (`div.cards`), one per shown app in the allow-list order. Each
    card (`div.card`):
    - the app's name;
    - the 30-day availability as the big number, `99.9` with the unit
@@ -331,8 +343,10 @@ to bottom:
      status word next to it ("Met", "At risk", "Missed");
    - the error budget meter: an SVG bar of the budget left (0-100%; empty
      and "Exhausted" at or below 0), with the text "62% of the error
-     budget left"; "Since <date>" and no meter when the first daily
-     value is `null`;
+     budget left"; when the first daily value is `null` (under 30 days
+     of data), the figure is in the neutral `none` colour with "since
+     <first day>" next to it, no status word, no meter and no budget
+     text, whatever its value;
    - the 30-day bar chart: 30 SVG bars, oldest left, each bar's height
      from that day's availability on a 95-100% scale (a day at or below
      95% gets the minimum height), each coloured by that day's status, a
@@ -350,11 +364,22 @@ to bottom:
 
 Layout, in `dashboard.css`:
 
-- CSS grid, `grid-template-columns: repeat(auto-fill, minmax(17rem,
-  1fr))`, gap `1rem`; the page is at most `72rem` wide, wider than the
-  blog's `44rem` column. Below `40rem` every grid has one column, so the
-  page reads from 320 px without horizontal scrolling. Charts use a
-  `viewBox` with `width: 100%`, so they scale with their card.
+- Each grid (`div.cards`: the app cards, the cluster and project panels,
+  the "Coming later" panels) is a wrapping flexbox, cards `flex: 1 1
+  17rem`, gap `1rem`: the cards of the last row grow to share its width,
+  so no row has a hole whatever the number of cards (three app cards a
+  row on a desktop, so eight give 3, 3 and 2 wider ones). Rejected: a
+  CSS grid with `auto-fill` (the last row keeps empty cells) and
+  `grid-auto-flow: dense` (it fills holes only with smaller items, and
+  every card is the same size). A panel of stat tiles (Cluster,
+  Project, class `stats`) takes a whole row, so its tiles sit side by
+  side; tiles are a wrapping flexbox too (`flex: 1 1 10rem`), so tiles
+  that still wrap share the last row. The page is at most `72rem` wide, wider
+  than the blog's `44rem` column. Below `40rem` every card takes the full
+  width, so the page reads from 320 px without horizontal scrolling.
+  Charts have a `viewBox`, `preserveAspectRatio="none"`, `width: 100%`
+  and a fixed height (meters `1.25rem`, daily bars `4rem`), so a wider
+  card gets wider bars, not taller ones.
 - Big numbers `2.5rem`, tabular figures (`font-variant-numeric:
   tabular-nums`), labels in the muted colour. The font is the site's
   `system-ui` stack: no web font, so `font-src` stays unused.
@@ -388,7 +413,7 @@ computes from the custom properties of `dashboard.css`.
 | Figure | `ok` | `warn` | `bad` | `none` |
 | --- | --- | --- | --- | --- |
 | 30 days, with a budget | Budget left above 25% ("Met") | 0% to 25% ("At risk") | Below 0%, the target missed ("Missed") | — |
-| 30 days, "since <date>" | 99.5% or more ("Met") | — | Below 99.5% ("Missed") | — |
+| 30 days, "since <first day>" | — | — | — | Always: no word, no budget (fewer than 30 days cannot be judged against a 30-day target) |
 | One day | 99.5% or more | 96.25% to 99.5% | Below 96.25%: that day alone spent a quarter of the month's budget (54 min), the postmortem trigger of `docs/sre.md` | No probes that day ("No data") |
 
 The rules are in `internal/web`, applied to the rounded figures of the
@@ -530,8 +555,8 @@ running images (#1507).
 | Package | Covers |
 | --- | --- |
 | `snapshot` | Schema and `Validate`: a valid fixture; a missing key, an extra key at each level, an out-of-range value, a bad version string, an app outside the allow-list, apps out of order, an `as_of` after `generated_at`; the allow-list against the hidden pattern; the rounding helpers on `.5` cases; a fuzz target `FuzzValidate` with the fixtures as seed corpus |
-| `collector` | A fake Prometheus and a fake GitHub (`httptest`): the full snapshot; each source failing (the last block kept); an empty result; a budget below -100; the version split mid-upgrade; a day without probes (`null`, "since"); DST: `covers` on the last Sunday of March and of October; the cadences and the 03:45 rule with an injected clock, start-up before and after 03:45; the rate-limit reset moving the refresh; a `401` (no anonymous fallback, `github_token_valid` 0); `--dry-run` and `--as-of` against a recorded publisher `figures.json`; the pusher against two fake web pods, one refusing |
-| `web` | Push: `204`, and `400`, `401`, `409`, `413`, `404` for each failing check, a body signed by another key, a replayed and a future `generated_at`, a key rotation with two public keys; golden HTML of the page for a full snapshot (its apps cover `ok`, `warn`, `bad` and a day of `none`), a snapshot with a new app ("since"), an exhausted budget, stale live figures, a stale daily block and no snapshot (`-update` rewrites them); the status rules on each boundary of [Status colours](#status-colours); each chart builder's elements, attributes and text; the contrast of every status and text colour of `dashboard.css` against `--panel` (at least 4.5:1); every header on `200`, `304`, `404` and `405`; `/readyz` before and after the first snapshot and after 120 s; the access log line has no address, user agent or query |
+| `collector` | A fake Prometheus and a fake GitHub (`httptest`): the full snapshot; each source failing (the last block kept); an empty result; a budget below -100; the version split mid-upgrade; a day without probes (`null`, "since"); DST: `covers` on the last Sunday of March and of October; the cadences and the 03:45 rule with an injected clock, start-up before and after 03:45; the rate-limit reset moving the refresh; a `401` (no anonymous fallback, `github_token_valid` 0); `--dry-run` and `--as-of` against a recorded publisher `figures.json`; the search query and window of `prs_merged_30d`, across a change of summer time; the pusher against two fake web pods, one refusing |
+| `web` | Push: `204`, and `400`, `401`, `409`, `413`, `404` for each failing check, a body signed by another key, a replayed and a future `generated_at`, a key rotation with two public keys; golden HTML of the page for a full snapshot (its apps cover `ok`, `warn`, `bad` and a day of `none`), a snapshot with a new app ("since": neutral, no word, no budget, whatever its figure), an exhausted budget, stale live figures, a stale daily block and no snapshot (`-update` rewrites them); the status rules on each boundary of [Status colours](#status-colours); each chart builder's elements, attributes and text; the contrast of every status and text colour of `dashboard.css` against `--panel` (at least 4.5:1); every header on `200`, `304`, `404` and `405`; `/readyz` before and after the first snapshot and after 120 s; the access log line has no address, user agent or query |
 | `metrics` | The names and labels, and that no label value comes from the request path |
 
 The markup rules (navigation, no `<form>`, `<iframe>`, `<style>`,
@@ -557,12 +582,17 @@ Task 2 adds a step to the `dashboard` job, `scripts/ci/dashboard-screenshots.sh`
    with `go run ./internal/tools/pushfixture`.
 2. Render `http://127.0.0.1:8080/` with `chrome-headless-shell` (Chrome
    for Testing, version and sha256 in the `ci.yaml` env, installed by
-   `scripts/ci/install-tool.sh`) at `390x1800` and `1280x1400`, with
-   `--screenshot` and Chrome's log on stderr.
+   `scripts/ci/install-tool.sh`) at `390x4200` and `1280x2000` (taller
+   than the page, so the whole page is in the shot), with `--screenshot`
+   and Chrome's log on stderr.
 3. Fail when Chrome exits non-zero, a PNG is missing or empty, Chrome's
-   log has a CSP violation (`Refused to`) or a failed load, or the web
-   role's access log has a status other than `200` for the page or the
-   stylesheet.
+   log has a CSP violation (`Refused to`) or a failed load,
+   `internal/tools/gridcheck` finds a row of cards with a hole, or the
+   web role's access log has a status other than `200` for the page or
+   the stylesheet. `gridcheck` takes the `--panel` colour from
+   `dashboard.css`, finds the cards as runs of at least 12 px of it on
+   each pixel row, and fails a pixel row whose cards stop short of the
+   card area's left or right edge by more than a rounded corner (8 px).
 4. Upload both PNGs as the `dashboard-screenshots` artefact, so the look
    can be checked in the pull request.
 

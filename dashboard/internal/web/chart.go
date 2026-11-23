@@ -31,7 +31,7 @@ func percent(v float64) string {
 
 func openSVG(b *strings.Builder, w, h int, label string) {
 	b.WriteString(`<svg viewBox="0 0 ` + strconv.Itoa(w) + " " + strconv.Itoa(h) +
-		`" role="img" focusable="false" aria-label="` + label + `">`)
+		`" preserveAspectRatio="none" role="img" focusable="false" aria-label="` + label + `">`)
 }
 
 func rect(b *strings.Builder, class string, x, y, w, h float64) {

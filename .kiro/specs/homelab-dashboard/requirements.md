@@ -105,7 +105,8 @@ learning anything that helps an attacker or shows who is home.
    design (availability and error budget per shown app with 30 daily
    values, nodes, Argo CD applications, Talos and Kubernetes versions,
    pull requests merged, Renovate's share, the median `ci` run), plus a
-   `schema_version`.
+   `schema_version`. "Pull requests merged" SHALL count the pull requests
+   merged into `main` in the rolling 30 days ending at the collection.
 2. Cluster facts (nodes, Argo CD applications, Talos and Kubernetes
    versions), project figures and, later, solar production MAY be near
    real time (refreshed at most every minute). Availability and error
@@ -116,8 +117,9 @@ learning anything that helps an attacker or shows who is home.
    *arr apps, qBittorrent, the indexers and the rest of the download
    tooling SHALL never be queried, written or rendered, and a unit test
    SHALL fail if one is added.
-4. AN app with fewer than 30 days of data SHALL show "since <date>" and no
-   error budget.
+4. AN app with fewer than 30 days of data SHALL show its figure with
+   "since <first day>" in the neutral colour, with no status word ("Met",
+   "At risk", "Missed") and no error budget.
 5. Solar production MAY be added later (production only).
    Household consumption, grid import and export, battery, charging,
    presence and anything else that reveals whether someone is home SHALL
@@ -156,7 +158,8 @@ in the look of the rest of the site.
    user agent, the referrer or the query string.
 7. THE page SHALL be a grid of panels: one card per shown app, a cluster
    panel and a project panel with each figure as a large number and its
-   unit, and the "Coming later" panels.
+   unit, and the "Coming later" panels. EVERY row SHALL be filled,
+   whatever the number of cards, at a phone and a desktop width.
 8. EACH shown app's card SHALL show its 30-day availability with its
    status in colour and in words, its error budget left as a meter, and
    its 30 daily values as a bar chart, each bar coloured by that day's
@@ -192,8 +195,8 @@ a reviewed commit, so the cluster runs only what CI built and signed.
    its first log line and in a `build_info` metric.
 7. EVERY pull request touching `dashboard/` SHALL render the page in a
    pinned headless browser at a phone and a desktop width, inside `ci`;
-   a browser error, a blocked resource or a CSP violation fails `ci`, and
-   the screenshots are attached to the run.
+   a browser error, a blocked resource, a CSP violation or a row of cards
+   with a hole fails `ci`, and the screenshots are attached to the run.
 
 ## Requirement 5: Observable
 
