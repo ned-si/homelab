@@ -13,7 +13,7 @@ def nav(current=None, links=None):
     links = links or [
         ("Home", "https://nedsi.io/"),
         ("Blog", "/"),
-        ("Homelab", "https://blog.nedsi.io/homelab/"),
+        ("Homelab", "https://homelab.nedsi.io/"),
         ("About", "/about/"),
     ]
     out = []
@@ -38,7 +38,6 @@ def run(tmp_path, pages, host=None):
         {"index.html": nav("Blog")},
         {"posts/x/index.html": nav("Blog"), "tags/index.html": nav("Blog")},
         {"about/index.html": nav("About"), "privacy/index.html": nav(), "404.html": nav()},
-        {"homelab/index.html": nav("Homelab")},
     ],
 )
 def test_blog_pages_pass(tmp_path, pages):
@@ -82,17 +81,6 @@ def test_dashboard_golden_pages_pass(page):
     checker.close()
     checker.check_nav()
     assert checker.problems == []
-
-
-def test_dashboard_host_links_its_own_homelab_page():
-    import site_markup
-
-    blog_nav = "".join(f'<a href="{h}">{t}</a>' for t, h in site_markup.NAV)
-    checker = site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")
-    checker.feed(f'<nav class="site">{blog_nav}</nav>')
-    checker.close()
-    checker.check_nav()
-    assert any("site nav" in msg for _, msg in checker.problems)
 
 
 def test_dashboard_golden_pages_exist():

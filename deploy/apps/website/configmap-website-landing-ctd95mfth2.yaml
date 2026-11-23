@@ -26,7 +26,7 @@ data:
     <nav class="site" aria-label="Site">
     <a href="https://nedsi.io/" aria-current="page">Home</a>
     <a href="https://blog.nedsi.io/">Blog</a>
-    <a href="https://blog.nedsi.io/homelab/">Homelab</a>
+    <a href="https://homelab.nedsi.io/">Homelab</a>
     <a href="https://blog.nedsi.io/about/">About</a>
     </nav>
     <header>
@@ -57,7 +57,7 @@ data:
     <p class="label">Project</p>
     <h3>Homelab</h3>
     <p>An over-engineered homelab run like a small production platform: GitOps, SLOs, restore-tested backups, policy checks, and agents that merge their own pull requests (nothing has burnt down yet, touch wood).</p>
-    <p class="links"><a class="button" href="https://blog.nedsi.io/homelab/">See the dashboard</a> · <a href="https://github.com/ned-si/homelab">Source on GitHub</a></p>
+    <p class="links"><a class="button" href="https://homelab.nedsi.io/">See the dashboard</a> · <a href="https://github.com/ned-si/homelab">Source on GitHub</a></p>
     </article>
     <article class="card">
     <p class="label">Project</p>
@@ -220,5 +220,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-landing-5dk68f9mf6
+  name: website-landing-ctd95mfth2
   namespace: website

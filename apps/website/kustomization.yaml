@@ -108,6 +108,8 @@ patches:
             expect 200 https://nedsi.io/
             has_headers https://nedsi.io/
             expect 405 https://nedsi.io/ -X POST
+            expect 301 https://blog.nedsi.io/homelab/
+            location https://blog.nedsi.io/homelab/ https://homelab.nedsi.io/
             expect 301 https://www.nedsi.io/
             location https://www.nedsi.io/ https://nedsi.io/
             expect 301 http://www.nedsi.io/
