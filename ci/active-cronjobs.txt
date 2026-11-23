@@ -40,4 +40,3 @@ monitoring/grafana-backup
 system-upgrade/talos-drift
 signoz/signoz-backup
 democratic-csi/nas-iscsi-guard
-website/website-publisher

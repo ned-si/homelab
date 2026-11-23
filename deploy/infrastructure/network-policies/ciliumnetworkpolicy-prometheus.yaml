@@ -15,7 +15,7 @@ metadata:
   namespace: monitoring
 spec:
   description: Prometheus scrapes every namespace, the nodes and the control plane;
-    the website publisher and the homelab-dashboard collector query it.
+    the homelab-dashboard collector queries it.
   egress:
   - toEntities:
     - cluster
@@ -26,14 +26,6 @@ spec:
     matchLabels:
       app.kubernetes.io/name: prometheus
   ingress:
-  - fromEndpoints:
-    - matchLabels:
-        app.kubernetes.io/name: website-publisher
-        io.kubernetes.pod.namespace: website
-    toPorts:
-    - ports:
-      - port: "9090"
-        protocol: TCP
   - fromEndpoints:
     - matchLabels:
         app.kubernetes.io/component: collector

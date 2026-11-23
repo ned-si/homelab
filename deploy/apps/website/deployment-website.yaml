@@ -74,9 +74,6 @@ spec:
         - mountPath: /usr/share/nginx/landing
           name: landing
           readOnly: true
-        - mountPath: /usr/share/nginx/html/data
-          name: data
-          readOnly: true
       securityContext:
         runAsGroup: 101
         runAsNonRoot: true
@@ -88,12 +85,8 @@ spec:
           sizeLimit: 64Mi
         name: tmp
       - configMap:
-          name: website-nginx-6c2hftthct
+          name: website-nginx-6k299b5ddd
         name: nginx
       - configMap:
           name: website-landing-ctd95mfth2
         name: landing
-      - configMap:
-          name: website-data
-          optional: true
-        name: data

@@ -1,8 +1,6 @@
 # website: the nginx of nedsi.io and blog.nedsi.io and its PostSync smoke Job
 # (spec public-website).
 # The site pod talks to nothing: ingress from the Gateway only, no egress.
-# The website-publisher CronJob reads Prometheus and GitHub and writes its
-# ConfigMap through the API server; it has no ingress.
 ---
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
@@ -79,47 +77,5 @@ spec:
         - ports:
             - port: "80"
               protocol: TCP
-            - port: "443"
-              protocol: TCP
----
-apiVersion: cilium.io/v2
-kind: CiliumNetworkPolicy
-metadata:
-  name: website-publisher
-  namespace: website
-spec:
-  description: >-
-    The nightly dashboard publisher: Prometheus, the public GitHub API and
-    its ConfigMap through the Kubernetes API.
-  endpointSelector:
-    matchLabels:
-      app.kubernetes.io/name: website-publisher
-  enableDefaultDeny:
-    ingress: false
-    egress: false
-  egress:
-    # apps/website/publisher/publisher.py -- PROM_URL
-    # http://kube-prometheus-stack-prometheus.monitoring.svc:9090.
-    - toEndpoints:
-        - matchLabels:
-            io.kubernetes.pod.namespace: monitoring
-            app.kubernetes.io/name: prometheus
-      toPorts:
-        - ports:
-            - port: "9090"
-              protocol: TCP
-    # KUBE_API: the merge patch of website-data.
-    - toEntities:
-        - kube-apiserver
-      toPorts:
-        - ports:
-            - port: "6443"
-              protocol: TCP
-    # GITHUB_API https://api.github.com. `world`, not `toFQDNs`: FQDN policy
-    # routes all DNS through Cilium's L7 DNS proxy.
-    - toEntities:
-        - world
-      toPorts:
-        - ports:
             - port: "443"
               protocol: TCP
