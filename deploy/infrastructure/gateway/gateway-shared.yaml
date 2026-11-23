@@ -111,3 +111,26 @@ spec:
         kind: Secret
         name: nedsi-io-tls
       mode: Terminate
+  - allowedRoutes:
+      namespaces:
+        from: All
+    hostname: homelab.nedsi.io
+    name: http-nedsi-homelab
+    port: 80
+    protocol: HTTP
+  - allowedRoutes:
+      kinds:
+      - group: gateway.networking.k8s.io
+        kind: HTTPRoute
+      namespaces:
+        from: All
+    hostname: homelab.nedsi.io
+    name: https-nedsi-homelab
+    port: 443
+    protocol: HTTPS
+    tls:
+      certificateRefs:
+      - group: ""
+        kind: Secret
+        name: homelab-nedsi-io-tls
+      mode: Terminate

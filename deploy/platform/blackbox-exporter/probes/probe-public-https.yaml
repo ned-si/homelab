@@ -48,5 +48,6 @@ spec:
       - https://home.lilalala.com/manifest.json
       - https://nedsi.io/
       - https://blog.nedsi.io/
+      - https://homelab.nedsi.io/
       - https://hubble.lilalala.com/ping
       - https://signoz.lilalala.com/ping

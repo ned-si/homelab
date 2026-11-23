@@ -14,8 +14,8 @@ metadata:
   name: homelab-dashboard-web
   namespace: homelab-dashboard
 spec:
-  description: 'The web role: the page from the smoke Job, signed pushes from the
-    collector, scrapes from Prometheus; no egress.'
+  description: 'The web role: the page from the Gateway and the smoke Job, signed
+    pushes from the collector, scrapes from Prometheus; no egress.'
   enableDefaultDeny:
     egress: false
     ingress: false
@@ -24,6 +24,14 @@ spec:
       app.kubernetes.io/component: web
       app.kubernetes.io/name: homelab-dashboard
   ingress:
+  - fromEntities:
+    - ingress
+    - host
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "8080"
+        protocol: TCP
   - fromEndpoints:
     - matchLabels:
         app.kubernetes.io/name: postsync-smoke

@@ -14,8 +14,8 @@ metadata:
   name: postsync-smoke
   namespace: homelab-dashboard
 spec:
-  description: The PostSync smoke Job calls homelab-dashboard-web:8080 after every
-    sync.
+  description: The PostSync smoke Job calls homelab-dashboard-web:8080, then https://homelab.nedsi.io
+    through the shared Gateway, after every sync.
   egress:
   - toEndpoints:
     - matchLabels:
@@ -24,6 +24,12 @@ spec:
     toPorts:
     - ports:
       - port: "8080"
+        protocol: TCP
+  - toEntities:
+    - ingress
+    toPorts:
+    - ports:
+      - port: "443"
         protocol: TCP
   enableDefaultDeny:
     egress: false

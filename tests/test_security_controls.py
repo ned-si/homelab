@@ -123,6 +123,21 @@ def test_verify_own_images_audit_and_identity():
     assert len(attestors) == len(own) == len(spec["validations"])
 
 
+def test_dashboard_route_and_server_headers_match():
+    """The dashboard's HTTPRoute sets the headers its server sets, CSP included."""
+    golden = {}
+    for line in (REPO / "dashboard" / "internal" / "web" / "testdata" / "headers.golden").read_text().splitlines():
+        name, _, value = line.partition(": ")
+        golden[name.lower()] = value
+    (route,) = [d for d in docs(REPO / "apps" / "homelab-dashboard" / "httproute.yaml") if d["kind"] == "HTTPRoute"]
+    (rule,) = route["spec"]["rules"]
+    (f,) = [f for f in rule["filters"] if f["type"] == "ResponseHeaderModifier"]
+    route_headers = {h["name"].lower(): h["value"] for h in f["responseHeaderModifier"]["set"]}
+    assert "content-security-policy" in route_headers
+    for name, value in route_headers.items():
+        assert golden.get(name) == value, f"{name}: route {value!r}, server {golden.get(name)!r}"
+
+
 def tracing_policies() -> dict[str, dict]:
     out = {}
     for f in sorted(TETRAGON.rglob("*.yaml")) if TETRAGON.is_dir() else []:

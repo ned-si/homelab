@@ -36,14 +36,22 @@ point, a credential or an admission path is added or removed.
   `theater.lilalala.com/arr/<app>` sit behind an oauth2-proxy for groups
   `admins` or `TheaterAdmins` (`apps/theater/sso.yaml`), their only login;
   qBittorrent keeps its form login behind the same proxy. Plex and Jellyfin
-  keep their own login (their TV apps cannot use SSO). Every HTTPRoute sets
+  keep their own login (their TV apps cannot use SSO). The public dashboard
+  `homelab.nedsi.io` has no login: its web pod holds no Secret and no token,
+  answers only `GET` and `HEAD` and has no egress; it takes figures only on
+  its push port 9465, from the collector pod (enforced network policy), each
+  signed with the Ed25519 key in the Secret `homelab-dashboard-push` and
+  checked against the public keys in the ConfigMap
+  `homelab-dashboard-push-pubkey`. Every HTTPRoute sets
   security response headers. PSA `restricted` on the `gateway` namespace.
   Ingress and egress default-deny network policies in every application
   namespace ([networking.md](networking.md)). DAST (ZAP) runs against the
   public names.
 - Residual: any realm user reaches every Keycloak app except the proxied
   ones; Plex and Jellyfin logins are configured inside each app, not in git;
-  no rate limit at the Gateway.
+  no rate limit at the Gateway; a leaked push key lets a pod that can reach
+  port 9465 publish false figures until the key is rotated
+  ([homelab-dashboard design](../.kiro/specs/homelab-dashboard/design.md#push-receiver)).
 - Planned: per-app access groups enforced at Keycloak.
 
 ### Internet to Syncthing (22000 TCP and UDP on `192.168.1.201`)

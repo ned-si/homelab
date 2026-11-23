@@ -21,6 +21,7 @@ contractual figure; a second number would only be a second thing to watch.
 | `cook` | Mealie | 2 |
 | `cinema` | Jellyfin | 2 |
 | `theater` | Plex and the *arr apps | 2 |
+| `homelab` | The public dashboard, `homelab.nedsi.io` | 2 |
 
 Argo CD and Grafana are tools for the operator and carry no SLO.
 
@@ -84,7 +85,7 @@ Details, schedules and rehearsed restores: [backups.md](backups.md#rpo-and-rto).
 | --- | --- | --- | --- |
 | 0 | Nodes and etcd, Cilium and the Gateway, NAS storage, Argo CD, cert-manager | 4 h ([runbooks/cold-start.md](runbooks/cold-start.md)) | 24 h: rebuild from git ([bootstrap.md](bootstrap.md)), not rehearsed end to end |
 | 1 | `auth`, `media`, `archive`, `syncthing` | 4 h | 24 h, data back to the RPO |
-| 2 | `cook`, `cinema`, `theater` | 72 h | 72 h |
+| 2 | `cook`, `cinema`, `theater`, `homelab` | 72 h | 72 h |
 
 A service fault is anything fixed without restoring data: a revert, a pod or
 node restart, a configuration fix. Tier 1 waits for tier 0; tier 2 waits for
