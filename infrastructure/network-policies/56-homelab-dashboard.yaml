@@ -31,8 +31,9 @@ spec:
         - ports:
             - port: "8080"
               protocol: TCP
-    # apps/homelab-dashboard/kustomization.yaml -- postsync-smoke, behind the
-    # Gateway (see the smoke's egress below).
+    # apps/homelab-dashboard/kustomization.yaml -- postsync-smoke,
+    # http://homelab-dashboard-web:8080, and behind the Gateway (see the
+    # smoke's egress below).
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/name: postsync-smoke
@@ -117,8 +118,8 @@ metadata:
   namespace: homelab-dashboard
 spec:
   description: >-
-    The PostSync smoke Job calls https://homelab.nedsi.io through the shared
-    Gateway after every sync.
+    The PostSync smoke Job calls homelab-dashboard-web:8080, then
+    https://homelab.nedsi.io through the shared Gateway, after every sync.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: postsync-smoke

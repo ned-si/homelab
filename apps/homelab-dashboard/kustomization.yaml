@@ -12,8 +12,9 @@ resources:
   - push-pubkey.yaml
   - podmonitor.yaml
 
-# After every sync, through the shared Gateway: the page with every header, a
-# 404 with the headers, the 405, and a snapshot once the collector has pushed.
+# After every sync: the Service answers, then through the shared Gateway the
+# page with every header, a 404 with the headers, the 405, and a snapshot once
+# the collector has pushed.
 components:
   - ../../components/postsync-smoke
 patches:
@@ -25,7 +26,7 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/args
         value:
-          - https://homelab.nedsi.io
+          - http://homelab-dashboard-web:8080
       - op: replace
         path: /spec/template/spec/containers/0/command
         value:
@@ -33,7 +34,8 @@ patches:
           - -c
           - |
             fail=0
-            base=$1
+            svc=$1
+            base=https://homelab.nedsi.io
             # --connect-to the Gateway Service, as in apps/website, so a WAN
             # outage does not fail the sync.
             gw="--connect-to ::cilium-gateway-shared.gateway.svc.cluster.local:"
@@ -67,6 +69,13 @@ patches:
                 printf '%s\n' "$resp" | grep -qi "^$h:" || { echo "FAIL $1: no $h"; fail=1; }
               done
             }
+
+            for try in 1 2 3 4 5 6; do
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$svc/") || code=000
+              [ "$code" = 200 ] && break
+              [ "$try" -lt 6 ] && sleep 5
+            done
+            if [ "$code" = 200 ]; then echo "ok   $code $svc/"; else echo "FAIL $code $svc/"; fail=1; fi
 
             # The first sync waits for the homelab-nedsi-io certificate and the
             # listener: up to 5 minutes.
