@@ -989,16 +989,17 @@ operator sets it once in the package settings after the first push.
   `http://kube-prometheus-stack-prometheus.monitoring.svc:9090/-/ready`
   and `http://kube-prometheus-stack-alertmanager.monitoring.svc:9093/-/ready`,
   its relabeling setting `app` to `prometheus` and `alertmanager`.
-- `infrastructure/network-policies/88-monitoring.yaml`: the
-  `prometheus` and `alertmanager` policies admit the blackbox exporter
-  on 9090 and 9093, and the `blackbox-exporter` policy's egress reaches
-  them (the namespace enforces both directions).
+- `infrastructure/network-policies/88-monitoring.yaml`: no change. The
+  blackbox exporter, Prometheus and Alertmanager all run in
+  `monitoring`, whose namespace-wide `monitoring` policy admits every
+  pod there to every other, in both directions.
 - `platform/kube-prometheus-stack/routes/slo.yaml`: `watch`, `grafana`
   and `signoz` join the `app` matcher of every SLI rule; `watch` gets
   its `slo:app:info` (namespace `theater`), its `SLOTargetProbeAbsent`
   and its latency threshold (`scripts/slo-latency-thresholds.sh`), so
-  its burn alerts fire like the other user-facing apps'. A rule group
-  `homelab.slo.observability` records the same windows for app
+  its burn alerts fire like the other user-facing apps'. The rule groups
+  `homelab.slo.observability` (30 s) and `homelab.slo.observability-long`
+  (2 m, the windows of a day and more) record the same windows for app
   `observability` as `1 - avg(avg_over_time(probe_success{job=~"blackbox-public|blackbox-internal", app=~"grafana|signoz|prometheus|alertmanager"}[<w>]))`
   with the label `app="observability"`, plus its 30-day availability and
   budget. `grafana`, `signoz` and `observability` get no

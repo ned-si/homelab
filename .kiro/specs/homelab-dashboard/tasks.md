@@ -168,19 +168,21 @@ the rendered screenshot check.
       cards, their sources, the DORA definitions and bands and the
       `fix-forward` label. Check: a newcomer can build, test, release and
       verify the image from the doc alone; links resolve.
-- [ ] 8. Probes and SLO rules (**not visible**). As in
+- [x] 8. Probes and SLO rules (**not visible**). As in
       [design.md, Probes and SLO rules](design.md#probes-and-slo-rules-task-8):
       the probe `https://watch.lilalala.com/identity` in `public-https`
       (app `watch`); the Probe `internal-observability` on Prometheus
       `:9090/-/ready` and Alertmanager `:9093/-/ready` (apps
-      `prometheus`, `alertmanager`); the blackbox ingress and egress
-      rules in `88-monitoring.yaml`; in `slo.yaml` `watch`, `grafana`
-      and `signoz` in the SLI matchers, `slo:app:info`,
-      `SLOTargetProbeAbsent` and the latency threshold for `watch`, the
-      group `homelab.slo.observability`; the promtool tests; Plex in the
-      user-facing table of `docs/sre.md`; `task render`. Snapshot: no
+      `prometheus`, `alertmanager`); no rule in `88-monitoring.yaml`
+      (its `monitoring` policy already admits the namespace both ways);
+      in `slo.yaml` `watch`, `grafana` and `signoz` in the SLI
+      matchers, `slo:app:info`, `SLOTargetProbeAbsent` and the latency
+      threshold for `watch`, the groups `homelab.slo.observability` and
+      `-long`; the promtool tests; Plex in the user-facing table of
+      `docs/sre.md`; `task render`. Snapshot: no
       change. Check: acceptance criterion 15; `probe_success` is 1 for
       the three new targets an hour after the merge. [8.1-8.3]
+      #1586
 - [ ] 9. NAS CPU, memory and load (**not visible**):
       `truenas_cpu_cores`, `truenas_load1`, `truenas_memory_total_bytes`
       from `system/info`, `truenas_cpu_utilisation_ratio` and
