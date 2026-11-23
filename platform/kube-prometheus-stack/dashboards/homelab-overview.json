@@ -2216,7 +2216,7 @@
     {
       "type": "stat",
       "title": "Internal endpoints",
-      "description": "blackbox-internal: API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, router DNS, CoreDNS.",
+      "description": "blackbox-internal: API VIP, Gateway, NAS iSCSI/NFS, Keycloak, Argo CD, Prometheus, Alertmanager, router DNS, CoreDNS.",
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"

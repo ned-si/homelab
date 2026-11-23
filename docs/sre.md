@@ -21,9 +21,13 @@ contractual figure; a second number would only be a second thing to watch.
 | `cook` | Mealie | 2 |
 | `cinema` | Jellyfin | 2 |
 | `theater` | Plex and the *arr apps | 2 |
+| `watch` | Plex (`watch.lilalala.com/identity`) | 2 |
 | `homelab` | The public dashboard, `homelab.nedsi.io` | 2 |
 
-Argo CD and Grafana are tools for the operator and carry no SLO.
+Argo CD and Grafana are tools for the operator and carry no SLO. The
+Observability figure of the homelab dashboard (`app="observability"`, the
+mean of the Grafana, SigNoz, Prometheus and Alertmanager probes) is
+display-only: it has the same recording rules but no target and no alert.
 
 - Availability: the share of public blackbox probes (job `blackbox-public`)
   that succeed. The probes run inside the cluster against the public names
@@ -50,6 +54,7 @@ budget of 1% (about 7 hours a month). A failed probe counts as slow.
 | `cook` | 0.25 s | 0.106 s |
 | `cinema` | 0.25 s | 0.074 s |
 | `theater` | 0.25 s | 0.069 s |
+| `watch` | 0.25 s | 0.071 s (30 probes, 2026-11-23) |
 
 A threshold is the smallest of 0.25, 0.5, 1, 2 and 5 s that is at least twice
 the app's p95 probe duration, from `scripts/slo-latency-thresholds.sh`
@@ -85,7 +90,7 @@ Details, schedules and rehearsed restores: [backups.md](backups.md#rpo-and-rto).
 | --- | --- | --- | --- |
 | 0 | Nodes and etcd, Cilium and the Gateway, NAS storage, Argo CD, cert-manager | 4 h ([runbooks/cold-start.md](runbooks/cold-start.md)) | 24 h: rebuild from git ([bootstrap.md](bootstrap.md)), not rehearsed end to end |
 | 1 | `auth`, `media`, `archive`, `syncthing` | 4 h | 24 h, data back to the RPO |
-| 2 | `cook`, `cinema`, `theater`, `homelab` | 72 h | 72 h |
+| 2 | `cook`, `cinema`, `theater`, `watch`, `homelab` | 72 h | 72 h |
 
 A service fault is anything fixed without restoring data: a revert, a pod or
 node restart, a configuration fix. Tier 1 waits for tier 0; tier 2 waits for

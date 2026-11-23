@@ -39,6 +39,7 @@ spec:
       - https://auth.lilalala.com/realms/homelab
       - https://grafana.lilalala.com/api/health
       - https://cinema.lilalala.com/health
+      - https://watch.lilalala.com/identity
       - https://media.lilalala.com/api/server/ping
       - https://archive.lilalala.com/accounts/login/
       - https://cook.lilalala.com/api/app/about
