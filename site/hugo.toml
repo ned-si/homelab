@@ -32,9 +32,6 @@ unsafe = false
 [markup.highlight]
 noClasses = false
 
-# Keeps the server-side include directives of the dashboard (phase 2).
-[minify.tdewolff.html]
-keepComments = true
 
 [[module.mounts]]
 source = "static"

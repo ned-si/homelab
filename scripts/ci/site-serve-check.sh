@@ -3,7 +3,7 @@
 # with apps/website/nginx.conf on the image's nginx, as the cluster mounts them,
 # and check the host split, the 405 and every redirect's Location
 # (.kiro/specs/public-website/design.md#serving).
-# Needs docker, curl and python3.
+# Needs docker and curl.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -15,19 +15,7 @@ name=site-serve-check
 html=$(mktemp -d)
 trap 'docker rm -f "$name" >/dev/null 2>&1 || true; rm -rf "$html"' EXIT
 
-# A copy of the blog with the publisher's fragment under data/, where the
-# Deployment mounts the website-data ConfigMap.
 cp -R "$public/." "$html/"
-mkdir -p "$html/data"
-python3 - "$html/data/figures.html" <<'EOF'
-import json, sys
-sys.path.insert(0, "apps/website/publisher")
-import publisher
-with open("tests/website/figures.json") as f:
-    doc = json.load(f)
-with open(sys.argv[1], "w") as f:
-    f.write(publisher.render(doc))
-EOF
 chmod -R a+rX "$html"
 
 docker run -d --name "$name" --read-only --tmpfs /tmp \

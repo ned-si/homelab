@@ -251,11 +251,11 @@ banner.
    reports no violation. [3.4]
 10. From a debug pod in `website` with the site's labels, a request to the
     Prometheus Service times out. [3.5, 5.3]
-11. `https://blog.nedsi.io/data/figures.json` holds only the allow-listed keys,
-    `covers` equal to yesterday's date, and no app outside the shown
-    apps. [5.1, 5.2]
-12. A publisher run against an unreachable Prometheus leaves the figures
-    unchanged and the Job fails. [5.4]
+11. `https://homelab.nedsi.io/snapshot.json` holds only the allow-listed
+    keys and no app outside the shown apps (spec homelab-dashboard, which
+    replaced the publisher). [5.1, 5.2]
+12. With Prometheus unreachable, `https://homelab.nedsi.io/snapshot.json`
+    keeps the last figures (spec homelab-dashboard). [5.4]
 13. The site's log lines in SigNoz contain no client address or user
     agent; the statistics database has no column holding a full IP
     address. [6.1, 6.3]

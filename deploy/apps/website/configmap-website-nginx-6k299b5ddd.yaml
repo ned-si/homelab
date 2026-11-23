@@ -75,10 +75,6 @@ data:
                 add_header Cache-Control "public, max-age=31536000, immutable";
             }
 
-            # Dashboard figures, rewritten nightly by the publisher.
-            location /data/ {
-                add_header Cache-Control "no-cache";
-            }
 
             # The dashboard has its own host (spec homelab-dashboard, Address):
             # /homelab and /homelab/ go to its root, /homelab/<path> to <path>.
@@ -125,5 +121,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-nginx-6c2hftthct
+  name: website-nginx-6k299b5ddd
   namespace: website

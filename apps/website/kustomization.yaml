@@ -8,17 +8,9 @@ resources:
   - deployment.yaml
   - service.yaml
   - httproute.yaml
-  - publisher/cronjob.yaml
-  - publisher/website-data.yaml
 
-# The name hash rolls the Deployment when the config or the page changes,
-# and gives the next publisher run the new script.
+# The name hash rolls the Deployment when the config or the page changes.
 configMapGenerator:
-  - name: website-publisher
-    files:
-      - publisher/publisher.py
-      - publisher/schema.json
-      - publisher/config.json
   - name: website-nginx
     files:
       - nginx.conf
