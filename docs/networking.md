@@ -137,6 +137,23 @@ Household services get everyday-word hostnames (`media`, `theater`, `cook`,
   below); CI rule `route-security-headers` requires at least HSTS and
   `X-Content-Type-Options`.
 
+### nedsi.io
+
+The public sites have their own listeners on the same Gateway, one pair
+(`http-nedsi*` on 80, `https-nedsi*` on 443) per name:
+
+| Name | HTTPS backend | Certificate (Secret) | Redirects |
+| --- | --- | --- | --- |
+| `nedsi.io` | `website/website`, nginx, the landing page | `nedsi-io-tls` | - |
+| `www.nedsi.io` | `website/website` | `nedsi-io-tls` | `301` to `https://nedsi.io/<path>` |
+| `blog.nedsi.io` | `website/website`, nginx, the Hugo blog | `nedsi-io-tls` | `/homelab`, `/homelab/<path>`: `301` to `https://homelab.nedsi.io/<path>` |
+| `homelab.nedsi.io` | `homelab-dashboard/homelab-dashboard`, the web role ([homelab-dashboard.md](homelab-dashboard.md)) | `homelab-nedsi-io-tls` | - |
+
+Plain HTTP on all four goes to the `website-http` route, nginx port 8081,
+which answers `301` to `https://<name>/<path>` (`www` folds into the apex).
+The redirects live in `apps/website/nginx.conf`, not on the Gateway, because
+Cilium writes `:443` into a `RequestRedirect`'s `Location`.
+
 ### Security headers
 
 Each rule carries a `ResponseHeaderModifier` filter with `set`, which

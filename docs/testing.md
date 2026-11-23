@@ -7,7 +7,7 @@ deploy time, against production.
 | Layer | Where | Runs | Blocks |
 |---|---|---|---|
 | 1. Local hooks | the operator's Mac | `pre-commit` on commit, `pre-push` on push | the commit or push |
-| 2. Static CI | GitHub Actions `ci` (`lint`, `render`, `tests`, `promtool`, `alertmanager`, `security`, `pr-metadata`, `site`) | every pull request and push to `main` | the merge (`ci` is the required check) |
+| 2. Static CI | GitHub Actions `ci` (`lint`, `render`, `tests`, `promtool`, `alertmanager`, `security`, `pr-metadata`, `site`, `dashboard`) | every pull request and push to `main` | the merge (`ci` is the required check) |
 | 3. Pre-production | GitHub Actions `ci` / `preprod`, an ephemeral kind cluster | every pull request and push to `main` | the merge |
 | 4. Deploy-time smoke tests | Argo CD PostSync hooks in the live cluster | after every sync of a user-facing app | the sync, which triggers the automatic rollback |
 
@@ -92,6 +92,18 @@ their script runs, and the script fails when one is missing.
   presence, HIGH on delta against the merge-base).
 - `pr-metadata`: PR title and every commit subject (`scripts/ci/check-title.sh`),
   every commit verified.
+- `dashboard`: `scripts/ci/dashboard-check.sh` on the Go module in
+  `dashboard/` ([homelab-dashboard.md](homelab-dashboard.md)), skipped when
+  nothing under it changed: `go mod verify` and `tidy -diff`, golangci-lint
+  v2 with `dashboard/.golangci.yaml` (the Google Go Style Guide, formatting
+  included), `go vet`, `govulncheck`, `go test -race` with the golden pages,
+  `go build`, and the builder image's Go version against `go.mod`. Then
+  `scripts/ci/dashboard-screenshots.sh` renders the golden pages in a
+  pinned `chrome-headless-shell` with the CSP, fails on a CSP violation or a
+  layout break and uploads the `dashboard-screenshots` artefact. CodeQL
+  analyses the Go code too. A merge that touches `dashboard/` runs
+  `.github/workflows/dashboard-publish.yaml`: smoke test, multi-arch build
+  with SBOM and provenance, cosign signature, tag `main`.
 
 Downloads and caches:
 

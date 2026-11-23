@@ -60,4 +60,5 @@ The age is under 48 hours for 30 minutes; the alert clears.
 ## Links
 
 - [`apps/homelab-dashboard/`](../../../apps/homelab-dashboard/)
+- [docs/homelab-dashboard.md](../../homelab-dashboard.md)
 - [design: Pushing](../../../.kiro/specs/homelab-dashboard/design.md#pushing)
