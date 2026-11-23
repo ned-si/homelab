@@ -115,6 +115,65 @@ tests:
           - labels: 'slo:availability:ratio_rate30d{app="auth"}'
             value: 1
 
+  # Plex (watch) fails every probe from minute 60: its fast burn fires with
+  # the theater namespace, like any user-facing app.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="watch"}'
+        values: '1x59 0x40'
+    alert_rule_test:
+      - eval_time: 80m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts:
+          - exp_labels:
+              app: watch
+              namespace: theater
+              severity: critical
+              action: auto
+            exp_annotations:
+              summary: watch is burning its 30-day error budget fast
+              description: >-
+                At this rate the 99.5% availability budget of watch is gone
+                within days. Check https://watch.lilalala.com, then the Homelab
+                overview dashboard (probe status and duration).
+
+  # Observability is the mean of four probes: Grafana down, SigNoz,
+  # Prometheus and Alertmanager up gives 25% errors. Neither grafana nor
+  # observability has an slo:app:info, so no burn alert fires. watch, always
+  # up, has its 30-day availability.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-public", app="grafana"}'
+        values: '0x120'
+      - series: 'probe_success{job="blackbox-public", app="signoz"}'
+        values: '1x120'
+      - series: 'probe_success{job="blackbox-internal", app="prometheus"}'
+        values: '1x120'
+      - series: 'probe_success{job="blackbox-internal", app="alertmanager"}'
+        values: '1x120'
+      - series: 'probe_success{job="blackbox-public", app="watch"}'
+        values: '1x120'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: SLOErrorBudgetBurnFast
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: SLOErrorBudgetBurnSlow
+        exp_alerts: []
+    promql_expr_test:
+      - expr: slo:probe_error:ratio_rate5m{app="observability"}
+        eval_time: 60m
+        exp_samples:
+          - labels: 'slo:probe_error:ratio_rate5m{app="observability"}'
+            value: 0.25
+      - expr: slo:availability:ratio_rate30d{app=~"observability|watch"}
+        eval_time: 60m
+        exp_samples:
+          - labels: 'slo:availability:ratio_rate30d{app="observability"}'
+            value: 0.75
+          - labels: 'slo:availability:ratio_rate30d{app="watch"}'
+            value: 1
+
   # One day of probes every 30s: 1/30 of the window has data. theater has two
   # targets and the same coverage.
   - interval: 30s
@@ -142,6 +201,8 @@ tests:
       - series: 'probe_success{job="blackbox-public", app="cinema"}'
         values: '1x30'
       - series: 'probe_success{job="blackbox-public", app="theater"}'
+        values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="watch"}'
         values: '1x30'
       - series: 'probe_success{job="blackbox-public", app="archive"}'
         values: '1x30'
