@@ -9,6 +9,17 @@ outside Argo CD. Names and defaults:
 [design.md, Overview](design.md#overview) and
 [requirements.md](requirements.md#decided-defaults).
 
+Tasks 8-15 are the redesign of 2026-11-23 (live availability, the
+certificates, cluster and project cards). They run in order and do not
+wait for tasks 4-6; task 7 comes after task 15 and documents the
+result. Each says whether it is
+**visible**: whether it changes what the web role renders at `/`, which
+is what `https://homelab.nedsi.io/` shows once task 4 is live (until
+then the page is only reachable through a port-forward). A visible task
+merges only after the operator approves a preview: the page rendered
+from the branch with live data, `/tmp/dashboard-redesign-preview.png`
+and `.html`, with its figures listed in the request.
+
 Where the checks of the look live: task 1 carries the golden HTML tests
 (the page design, the status rules, the chart builders, the contrast
 test and the markup check in `tests/test_site_markup.py`); task 2 carries
@@ -50,7 +61,7 @@ the rendered screenshot check.
       port-forward prints a snapshot that `Validate` accepts. [2.1-2.6,
       3.1-3.9, 4.1, 4.6, 5.1, 5.3]
       #1560
-- [ ] 2. Publishing and the screenshot check:
+- [x] 2. Publishing and the screenshot check:
       `.github/workflows/dashboard-publish.yaml` (smoke with a signed test
       push by `internal/tools/pushfixture`, multi-arch build with SBOM and
       provenance, the arm64 `version` run under QEMU,
@@ -72,7 +83,8 @@ the rendered screenshot check.
       Pods; acceptance criterion 12, and a throwaway commit with a
       `style=` attribute in `page.html` fails the screenshot step on the
       CSP. [3.9, 4.2-4.5, 4.7]
-- [ ] 3. Alongside, no public route. Operator first: a fine-grained GitHub
+      #1563
+- [x] 3. Alongside, no public route. Operator first: a fine-grained GitHub
       token (public repositories, read-only, no expiry, reviewed yearly) and
       an Ed25519 key pair, in `secrets.local.env`. Then:
       `apps/homelab-dashboard/` (both Deployments with `maxSurge: 1`,
@@ -96,6 +108,7 @@ the rendered screenshot check.
       `verify-own-images` is `pass`; acceptance criteria 1 and 2; the
       stale alert's rule is loaded; after the next night
       `scripts/dashboard-compare.sh` exits 0. [1.1-1.5, 5.1, 5.2, 6.1]
+      #1566
 - [ ] 4. Switch-over, the host `homelab.nedsi.io` (weekday daytime, with
       the operator, after three equal comparisons). Operator first: no
       `homelab` record in the `nedsi.io` zone that external-dns does not
@@ -151,8 +164,97 @@ the rendered screenshot check.
       `docs/networking.md` (the fourth `nedsi.io` name and its redirects),
       `docs/testing.md` (the `dashboard` job with golangci-lint, the
       Google Go Style Guide and the screenshot step, `dashboard-publish`),
-      `docs/observability.md` (the metrics). Check: a newcomer can build,
-      test, release and verify the image from the doc alone; links
-      resolve.
+      `docs/observability.md` (the metrics), and from the redesign the
+      cards, their sources, the DORA definitions and bands and the
+      `fix-forward` label. Check: a newcomer can build, test, release and
+      verify the image from the doc alone; links resolve.
+- [ ] 8. Probes and SLO rules (**not visible**). As in
+      [design.md, Probes and SLO rules](design.md#probes-and-slo-rules-task-8):
+      the probe `https://watch.lilalala.com/identity` in `public-https`
+      (app `watch`); the Probe `internal-observability` on Prometheus
+      `:9090/-/ready` and Alertmanager `:9093/-/ready` (apps
+      `prometheus`, `alertmanager`); the blackbox ingress and egress
+      rules in `88-monitoring.yaml`; in `slo.yaml` `watch`, `grafana`
+      and `signoz` in the SLI matchers, `slo:app:info`,
+      `SLOTargetProbeAbsent` and the latency threshold for `watch`, the
+      group `homelab.slo.observability`; the promtool tests; Plex in the
+      user-facing table of `docs/sre.md`; `task render`. Snapshot: no
+      change. Check: acceptance criterion 15; `probe_success` is 1 for
+      the three new targets an hour after the merge. [8.1-8.3]
+- [ ] 9. NAS CPU, memory and load (**not visible**):
+      `truenas_cpu_cores`, `truenas_load1`, `truenas_memory_total_bytes`
+      from `system/info`, `truenas_cpu_utilisation_ratio` and
+      `truenas_memory_used_bytes` from `reporting/get_data`, in
+      `platform/truenas-exporter/exporter.py` with tests in
+      `tests/test_truenas_exporter.py`
+      ([design.md, NAS CPU, memory and load](design.md#nas-cpu-memory-and-load-task-9));
+      each call checked against the NAS first, a missing one left out
+      and named in the PR. Snapshot: no change. Check: the metrics in
+      Prometheus; `NASExporterFailing` stays quiet. [11.1]
+- [ ] 10. Sync statuses on GitHub (**not visible**). Operator first: the
+      token in `argocd-notifications-github` gets "Commit statuses:
+      write". Then the trigger `on-deployed`, the template
+      `argocd-commit-status` and the subscription in
+      `bootstrap/argocd-values.yaml`
+      ([design.md, Sync statuses on GitHub](design.md#sync-statuses-on-github-task-10)),
+      `tests/test_argocd_notifications.py`. Snapshot: no change. Check:
+      the next merge that changes `deploy/` gets an `argocd/<app>`
+      `success` status within 10 minutes; the two rollback triggers still
+      pass `tests/bash/test_auto_rollback.sh`. [10.2]
+- [ ] 11. Collector and snapshot version 2 (**not visible**: the page
+      renders as before from version 2; `/snapshot.json` gains the new
+      keys). Schema: every key of
+      [design.md, Versions 2 and 3](design.md#versions-2-and-3-the-redesign)
+      (`availability`, `certificates`, the new `cluster` keys, the new
+      `project` keys) next to version 1's, `Validate` with its new
+      checks, the shown certificates in `shown.go`. Collector: every
+      query of
+      [Cadence and sources of the redesign](design.md#cadence-and-sources-of-the-redesign),
+      the midnight read of the finished days, the GraphQL query of the
+      merged pull requests, the incidents (rollbacks and the `ALERTS`
+      range query in slices), the `ci` runs; `block_age_seconds`. The
+      label `fix-forward` and its rule in `docs/sre.md`;
+      `scripts/dashboard-dora-check.sh` (recounts the four DORA figures
+      with `gh` for a window). Check: `dashboard-check.sh` and the
+      golden files unchanged; acceptance criteria 18 and 19;
+      `collect --once --dry-run` through a port-forward prints a
+      version 2 snapshot that `Validate` accepts; the `--as-of` output
+      still equals the publisher's. [2.1-2.3, 2.6, 2.7, 10.1-10.4]
+- [ ] 12. Availability cards live (**visible**, preview and approval
+      first). Schema version 3: `daily` dropped, the page reads
+      `availability`; the 03:45 rule and `daily_age_seconds` removed;
+      the shown apps of task 12 in `shown.go` (Plex for Jellyfin,
+      Observability and Homelab dashboard added); the state word, the
+      rolling 30 days ending now, today's bar (class `today`), the
+      per-block staleness notices; golden pages updated. Snapshot keys
+      read: `availability.*`. Queries: those of task 11. Probes: task 8,
+      and task 4's for `homelab` ("No data" until then). Check:
+      acceptance criteria 3 (on the port-forward until task 4), 6, 12
+      and 16; the grid has no hole with ten cards at 390 and 1280 px.
+      [2.2, 2.4, 3.5, 3.7, 3.8, 8.4]
+- [ ] 13. Certificates card (**visible**, preview and approval first):
+      the tiles, the rule of
+      [design.md, Status colours](design.md#status-colours), golden
+      pages. Snapshot keys read: `certificates.*`. Query:
+      `probe_ssl_earliest_cert_expiry` per shown certificate. Probes:
+      the existing public probes; `homelab.nedsi.io` from task 4.
+      Check: acceptance criterion 17 for the certificate rule; the
+      figures equal the Homelab / Security dashboard's. [9.1-9.3]
+- [ ] 14. Cluster card, USE and RED (**visible**, preview and approval
+      first): node and NAS rows, the Gateway's RED, Argo CD, restarts,
+      volumes, versions; the rules of
+      [Status colours](design.md#status-colours), with the Gateway p95
+      thresholds checked against a day of live values first. Snapshot
+      keys read: `cluster.*`. Queries: the cluster rows of task 11.
+      Probes: none. Check: acceptance criteria 17 and 19; the figures
+      equal Grafana's for the same instant within rounding. [2.7,
+      11.1-11.4]
+- [ ] 15. Project card, DORA and CI (**visible**, preview and approval
+      first): the four DORA tiles with their bands, Renovate's share,
+      the median `ci` run, the last five `ci` runs on `main`. Snapshot
+      keys read: `project.*`. Queries: GitHub GraphQL and REST, the
+      `ALERTS` range query of task 11. Probes: none. Check: acceptance
+      criteria 17 and 18; each band word next to its colour in the
+      golden pages. [10.1-10.6]
 
 The last task ticked sets `status: done`, `closed:`, and closes #1554.

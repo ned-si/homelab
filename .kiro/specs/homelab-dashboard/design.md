@@ -79,20 +79,25 @@ GitHub is plain `net/http`.
 
 ## Freshness
 
-Two kinds of figures, refreshed differently:
+Every figure is live (operator, 2026-11-23; until the redesign,
+availability covered finished days only):
 
-- **Live**: cluster facts (nodes, Argo CD applications, Talos and
-  Kubernetes versions), project figures and, later, solar production.
-  Refreshed at most every minute, each block with its own `as_of`.
-- **Per finished day**: availability and error budget per shown app.
-  They cover up to yesterday (Europe/Zurich) and change once a day. A live
-  availability figure would show outages and power cuts as they happen,
-  which tells a reader when the house has no power. The operator can
-  overrule this default.
+| Block | Refreshed | Window |
+| --- | --- | --- |
+| `availability` | Every cycle (60 s) | State: the latest probes. 30-day figures: the rolling 30 days ending now. Daily bars: the 29 finished Zurich days before today, then today from midnight to now |
+| `certificates` | Every cycle | The latest probes |
+| `cluster` | Every cycle | Now, or the last 5 minutes for rates; restarts over 24 h |
+| `project` | Every 15 min with the GitHub token, hourly without | The rolling 30 days ending at the fetch |
+
+The page therefore shows an outage, or a power cut, while it happens.
+That was the reason for the finished-day rule; the operator chose the
+live page. Household energy consumption and every other Home Assistant
+value except solar production stay out (Requirement 2.5).
 
 ## The snapshot
 
-`snapshot.json`, schema version 1:
+`snapshot.json`, schema version 1 (tasks 1-3; the redesign's versions
+follow):
 
 | Key | Value |
 | --- | --- |
@@ -110,7 +115,59 @@ The figures and their meaning are those of today's `figures.json`
 ([public-website design, Public figures](../public-website/design.md#public-figures)
 and `apps/website/publisher/schema.json`), regrouped by freshness.
 Solar (public-website task 8) will be a new block with its own schema
-version; nothing in version 1 reserves it.
+version; nothing reserves it.
+
+### Versions 2 and 3 (the redesign)
+
+Version 2 (task 11) is version 1 plus the keys below, so the page of
+version 1 still renders from it. Version 3 (task 12) drops `daily`: the
+availability cards then read `availability`. The web role accepts only
+the version it embeds; during a rollout the pushes of the other version
+are refused (`push_rejected_total{reason="schema"}`) and the last good
+snapshot stays, for the minute or two until both Deployments run the
+same digest.
+
+| Key | Value |
+| --- | --- |
+| `availability.as_of` | RFC 3339, the Prometheus evaluation time |
+| `availability.days` | 30 Zurich dates `YYYY-MM-DD`, oldest first, consecutive, the last one today |
+| `availability.apps[]` | `id`, `name`; `state`: `up`, `down` or `none`; `availability_30d` (0-100, one decimal, rounded down) and `error_budget_remaining_30d` (-100 to 100, integer, clamped), each `null` without data; `availability_daily`: 30 values (0-100, one decimal, rounded down, `null` for a day without probes), aligned with `days`, the last one today so far |
+| `certificates.as_of` | RFC 3339 |
+| `certificates.certs[]` | `id`, `name`, `days_left` (integer, rounded down, -30 to 400, `null` without a probe result) |
+| `cluster.synced`, `cluster.healthy` | Argo CD applications `Synced` and `Healthy` (0 to `cluster.apps`) |
+| `cluster.node_use[]` | One per node, by name (`^[a-z0-9-]{1,63}$`), sorted: `ready` (boolean); `cpu`, `memory`, `disk` (utilisation, 0-100, one decimal); `cpu_pressure`, `memory_pressure`, `io_pressure` (share of time with a task waiting, 0-100, one decimal); `net_errors_per_second` (0 or more, two decimals) |
+| `cluster.nas` | `up`, `pool_healthy` (booleans); `pool` (utilisation, 0-100, one decimal); `cpu`, `memory` (0-100, one decimal, `null` when the exporter has no value); `load_per_core` (two decimals, `null` likewise); `device_errors`, `scrub_errors` (integers, 0 or more) |
+| `cluster.gateway` | `requests_per_second` (two decimals), `errors_5xx` (share of answers, 0-100, two decimals), `latency_p95_ms` (integer); the last two `null` without requests |
+| `cluster.restarts_24h` | Container restarts in the last 24 h, summed over the cluster (integer, 0 or more) |
+| `cluster.volumes` | `count`, `used_bytes`, `capacity_bytes` (integers), `fullest` (the highest used share of one PVC, 0-100, one decimal; no name) |
+| `project.deploys_30d` | Equal to `prs_merged_30d` (Requirement 10.1); the page shows both the count and the count over 30 |
+| `project.lead_time_seconds` | Median lead time (integer, `null` without a counted merge), and `project.lead_time_count`, the merges counted |
+| `project.failed_changes_30d` | Rollbacks and fix forwards merged in the window (integer) |
+| `project.change_failure_rate` | `failed_changes_30d` over `deploys_30d`, 0-100, one decimal, rounded half to even |
+| `project.incidents_30d`, `project.restore_seconds` | Incidents ended in the window, and their median duration (integer, `null` without one) |
+| `project.ci_runs[]` | Up to 5, newest first: `run` (run number), `result` (`success`, `failure`, `cancelled`, `other`), `commit` (7 hex digits), `pr` (integer or `null`), `started_at`, `duration_seconds` |
+
+`Validate` gains: `availability.apps` equals the shown apps and
+`certificates.certs` the shown certificates, in order, by `id` and
+`name`; `availability.days` is consecutive and ends on the Zurich date
+of `generated_at`; `node_use` has `cluster.nodes` entries and no name
+matches the hidden pattern; `synced` and `healthy` are at most `apps`;
+`ci_runs` is newest first. No key of version 2 or 3 holds free text
+from a source other than the compiled lists, the node names and the
+version strings.
+
+Shown apps from task 12 (`SLOApp` in brackets): Immich (`media`),
+Mealie (`cook`), Paperless-ngx (`archive`), Plex (`watch`), Syncthing
+(`syncthing`), Keycloak (`auth`), Observability (`observability`),
+Landing page (`nedsi`), Blog (`blog`), Homelab dashboard (`homelab`).
+Jellyfin's card goes; its probe and SLO stay. Shown certificates
+(`internal/snapshot/shown.go`), each with the probe targets it covers:
+
+| `id` | `name` | Probe targets |
+| --- | --- | --- |
+| `lilalala` | `*.lilalala.com` | `instance=~"https://[^/]+\\.lilalala\\.com/.*"` |
+| `nedsi` | `nedsi.io` | `instance=~"https://(blog\\.)?nedsi\\.io/.*"` |
+| `homelab` | `homelab.nedsi.io` | `instance=~"https://homelab\\.nedsi\\.io/.*"`, `null` until task 4's probe exists |
 
 `snapshot.schema.json` (JSON Schema 2020-12, `additionalProperties: false`
 at every level, body at most 64 KiB) is embedded in the binary.
@@ -130,7 +187,8 @@ for each.
 
 Shown apps, `internal/snapshot/shown.go`: the list of today's
 `config.json` (Immich, Mealie, Paperless-ngx, Jellyfin, Syncthing,
-Keycloak, the landing page, the blog), each with its `slo_app` label. The
+Keycloak, the landing page, the blog), each with its `slo_app` label;
+task 12 changes it ([Versions 2 and 3](#versions-2-and-3-the-redesign)). The
 hidden pattern is the one of `publisher.py`
 (`sonarr|radarr|lidarr|readarr|prowlarr|bazarr|recyclarr|lazylibrarian|qbittorrent|torrent|jackett|flaresolverr|theater|arr$`);
 a test fails when an entry of the list matches it. The list is compiled
@@ -215,6 +273,83 @@ without the file the collector falls back to hourly. On a `401` the
 collector logs `github token rejected`, counts `source="github"`, sets
 `github_token_valid` to 0, keeps the last project figures and does not
 fall back to anonymous calls (that would hide an expired token).
+
+### Cadence and sources of the redesign
+
+From task 11 the loop also builds `availability`, `certificates` and the
+new `cluster` keys every cycle, and the new `project` keys at each
+GitHub refresh. Task 12 drops the `daily` block and the 03:45 rule; the
+`--as-of` dry run keeps the publisher's `figures.json` shape and its
+queries until task 6, so the comparison of the migration still works.
+
+The 29 finished days of the daily bars are queried once, at the first
+cycle after each Zurich midnight (and at start-up), and held in memory;
+today's bar and everything else are queried every cycle. All queries are
+instant queries at the cycle's evaluation time `t`. `<shown>` is the
+`SLOApp` list, `<today>` the seconds since Zurich midnight (at least
+60), `<node>` the join `* on (instance) group_left (nodename)
+node_uname_info` that names each node.
+
+| Figure | Query |
+| --- | --- |
+| `state` | `min by (app) (probe_success{job=~"blackbox-public\|blackbox-internal", app=~"<shown>"})` at `t`: 1 `up`, 0 `down`, no series `none`; for `observability`, `down` when any of its four probes fails |
+| `availability_30d`, `error_budget_remaining_30d` | `slo:availability:ratio_rate30d` and `slo:error_budget_remaining:ratio_rate30d` (`app=~"<shown>"`) |
+| `availability_daily`, finished days | `1 - slo:probe_error:ratio_rate1d{app=~"<shown>"}` at each of the 29 Zurich midnights, the newest at today's 00:00 (as for version 1, so DST days stay right) |
+| `availability_daily`, today | `avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"<shown>"}[<today>s]))`, and for `observability` the mean over its four probes |
+| `days_left` | `floor((min(probe_ssl_earliest_cert_expiry{job="blackbox-public", instance=~"<cert>"}) - time()) / 86400)` per shown certificate |
+| `synced`, `healthy` | `count(argocd_app_info{sync_status="Synced"})`, `count(argocd_app_info{health_status="Healthy"})` |
+| `node_use.ready` | `kube_node_status_condition{condition="Ready", status="true"}` by `node` |
+| `node_use.cpu` | `1 - avg by (nodename) (rate(node_cpu_seconds_total{mode="idle"}[5m]) <node>)` |
+| `node_use.memory` | `1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes`, `<node>` |
+| `node_use.disk` | `1 - node_filesystem_avail_bytes{mountpoint="/var"} / node_filesystem_size_bytes{mountpoint="/var"}`, `<node>` (the EPHEMERAL partition on the eMMC) |
+| `node_use.*_pressure` | `rate(node_pressure_cpu_waiting_seconds_total[5m])`, `rate(node_pressure_memory_waiting_seconds_total[5m])`, `rate(node_pressure_io_waiting_seconds_total[5m])`, `<node>` |
+| `node_use.net_errors_per_second` | `sum by (nodename) ((rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m])) <node>)` |
+| `nas.up` | `truenas_up` |
+| `nas.pool`, `pool_healthy` | `nas:pool_used:ratio` (the rule of `routes/nas-alerts.yaml`), `truenas_pool_healthy{pool="homelab"}` |
+| `nas.device_errors`, `scrub_errors` | `sum(truenas_pool_device_errors{pool="homelab"})`, `truenas_pool_scrub_errors{pool="homelab"}` |
+| `nas.cpu`, `memory`, `load_per_core` | `truenas_cpu_utilisation_ratio`, `truenas_memory_used_bytes / truenas_memory_total_bytes`, `truenas_load1 / truenas_cpu_cores` (task 9) |
+| `gateway.requests_per_second` | `sum(rate(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~"listener-secure\|listener-insecure"}[5m]))` |
+| `gateway.errors_5xx` | `sum(rate(envoy_http_downstream_rq_xx{envoy_response_code_class="5", <listeners>}[5m]))` over the same sum for every class; `<listeners>` is the `envoy_http_conn_manager_prefix` matcher of the row above |
+| `gateway.latency_p95_ms` | `histogram_quantile(0.95, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{<listeners>}[5m])))` (Envoy's histogram is in milliseconds) |
+| `restarts_24h` | `sum(increase(kube_pod_container_status_restarts_total[24h]))`, rounded down |
+| `volumes` | `count(kubelet_volume_stats_capacity_bytes)`, `sum(kubelet_volume_stats_used_bytes)`, `sum(kubelet_volume_stats_capacity_bytes)`, `max(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes)` |
+
+The cluster queries aggregate in PromQL, so no namespace, pod or volume
+name reaches the collector's memory, let alone the snapshot.
+Envoy's request time runs to the end of the response, so long media
+downloads raise the p95; task 14 checks the live value before it
+settles the thresholds of [Status colours](#status-colours).
+
+GitHub, from task 11. One GraphQL query (`POST /graphql`, token only)
+pages through the merged pull requests of the window, 100 a page, and
+returns for each: `number`, `title`, `createdAt`, `mergedAt`, the
+`labels`, whether any file is under `deploy/` or `clusters/` (`files`,
+first 100 paths; a pull request with more is counted as deploying), the
+merge commit's `oid`, its message, and its commit status contexts
+`argocd/*` with their state and `createdAt`. The search caps at 1000
+results: above that the block fails (`source="github"`) rather than
+undercount. Without a token the DORA keys keep their last value, `null`
+at start-up. From these:
+
+- `lead_time_seconds`: Requirement 10.2, the median over the counted
+  merges; `createdAt` to the earliest `argocd/*` `success` after
+  `mergedAt`, or to `mergedAt` for a merge that deploys nothing.
+- `failed_changes_30d`: the merged pull requests with label
+  `auto-rollback` or `fix-forward`, or a title matching `(?i)^revert`.
+- Incidents (Requirement 10.4): the rollbacks, each from the merge of the
+  commit named by "This reverts commit <sha>" in its merge commit's
+  message (when the message names none, from the rollback's
+  `createdAt`) to its sync; and the firings of `action: human` alerts,
+  from a Prometheus range query of `max by (alertname, app, namespace,
+  instance) (ALERTS{alertstate="firing", action="human"})` over the 30
+  days at a 60 s step, in five 6-day slices (each under Prometheus's
+  11,000 points), a gap of more than 120 s ending a firing. Overlapping
+  intervals merge; the median duration of those ended in the window is
+  `restore_seconds`. The range query runs at each GitHub refresh, not
+  every cycle.
+- `ci_runs`: `GET /repos/ned-si/homelab/actions/workflows/ci.yaml/runs?branch=main&event=push&status=completed&per_page=5`;
+  `pr` from the last `(#<n>)` in the head commit's title; `result` is
+  the run's `conclusion` mapped to the four values.
 
 ### Pushing
 
@@ -334,10 +469,10 @@ to bottom:
    numbers." (no word on the apps left out: they are simply absent), the target ("Target: 99.5% availability
    over 30 days per app") and "Updated <time> (Zurich time)" from
    `generated_at`, with the staleness notices below.
-2. **Availability**, per finished day: a grid of cards
-   (`div.cards`), one per shown app in the allow-list order. Each
-   card (`div.card`):
-   - the app's name;
+2. **Availability**: a grid of cards (`div.cards`), one per shown app in
+   the allow-list order. Each card (`div.card`):
+   - the app's name and, from task 12, its state: "Up" (`ok`), "Down"
+     (`bad`) or "No data" (`none`), a word next to a dot of its colour;
    - the 30-day availability as the big number, `99.9` with the unit
      `%` in a smaller `span.unit`, coloured by the 30-day status, and the
      status word next to it ("Met", "At risk", "Missed");
@@ -351,15 +486,28 @@ to bottom:
      from that day's availability on a 95-100% scale (a day at or below
      95% gets the minimum height), each coloured by that day's status, a
      dashed line at 99.5%, `none` bars at a fixed small height for
-     days without probes.
-3. **Cluster** (live): a panel of stat tiles, each a big number with its
-   unit and a small label: nodes ("4 nodes"), Argo CD applications
-   ("42 apps"), Talos ("v1.14.5"), Kubernetes ("v1.37.2"), and "as of
-   <time>" from `cluster.as_of`.
-4. **Project, last 30 days** (live): tiles for pull requests merged
-   ("128 PRs"), Renovate's share ("61%", with a share bar), the median
-   `ci` run ("4 min 12 s"), and "as of <time>" from `project.as_of`.
-5. **Coming later**: two muted placeholder panels, solar production and
+     days without probes. From task 12 the last bar is today so far,
+     outlined (class `today`) and titled "<date> (today so far): <n>%".
+3. **Certificates** (task 13): one tile per shown certificate, the days
+   left as the big number ("40 days"), its status word and colour.
+4. **Cluster**: from task 14 three groups of tiles. USE: one row per
+   node and one for the NAS, each with CPU, memory and disk (pool for the
+   NAS) as meters with their percentage, the pressures (load per core for
+   the NAS) and errors; a node that is not Ready reads "Not ready"
+   (`bad`). RED: the Gateway's requests per second, `5xx` share and p95
+   in milliseconds. State: Argo CD ("56 apps, 56 Synced, 55 Healthy"),
+   restarts in 24 h, volumes ("31 PVCs, 412 GiB of 1.2 TiB, fullest
+   78%"), nodes, Talos and Kubernetes versions. "as of <time>" from
+   `cluster.as_of`.
+5. **Project, last 30 days**: from task 15, the four DORA tiles, each a
+   big number, its band word and colour: deployment frequency ("678
+   deploys, 22.6 a day"), lead time ("2 h 10 min"), change failure rate
+   ("1.3%"), time to restore ("38 min", or "None"); then Renovate's
+   share, the median `ci` run, and the last five `ci` runs on `main` as a
+   list (result word and colour, the run's pull request as a link to
+   `https://github.com/ned-si/homelab/pull/<n>`, the short commit, when,
+   how long). "as of <time>" from `project.as_of`.
+6. **Coming later**: two muted placeholder panels, solar production and
    home automation, with today's text.
 
 Layout, in `dashboard.css`:
@@ -397,7 +545,7 @@ Every chart is built by a Go function in `chart.go` from numbers only
 `template.HTML`. A test proves each builder's output contains only the
 elements `svg`, `g`, `rect`, `line` and `title`; attributes that are
 numbers, `class` from the fixed set (`ok`, `warn`, `bad`, `none`,
-`track`, `target`), `role="img"`, `focusable="false"` and an
+`track`, `target`, `today`), `role="img"`, `focusable="false"` and an
 `aria-label` built from numbers and dates; and text only inside `title`
 ("2026-11-19: 100.0%"). Everything else goes through `html/template`'s
 contextual escaping.
@@ -416,16 +564,66 @@ computes from the custom properties of `dashboard.css`.
 | 30 days, "since <first day>" | — | — | — | Always: no word, no budget (fewer than 30 days cannot be judged against a 30-day target) |
 | One day | 99.5% or more | 96.25% to 99.5% | Below 96.25%: that day alone spent a quarter of the month's budget (54 min), the postmortem trigger of `docs/sre.md` | No probes that day ("No data") |
 
-The rules are in `internal/web`, applied to the rounded figures of the
-snapshot, and table-tested on each boundary.
+The redesign's figures, one rule each (tasks 12-15). "From an alert"
+means the threshold is that alert's, so the page turns `warn` or `bad`
+when the alert would fire:
+
+| Figure | `ok` | `warn` | `bad` | Source of the thresholds |
+| --- | --- | --- | --- | --- |
+| App state | "Up" | — | "Down" | The probes |
+| Certificate days left | Above 21 ("Valid") | 7 to 21 ("Renewal late") | Below 7 ("Expiring") | `CertificateExpiringSoon` (21 d), `CertificateExpiringVerySoon` (7 d) |
+| Node CPU, memory | Below 80% | 80% to 95% | Above 95% | Dashboard default |
+| Node disk (`/var`) | Below 85% | 85% to 92% | Above 92% | `NodeFilesystemNearlyFull`, `-CriticallyFull` |
+| Node pressure (each) | Below 10% | 10% to 25% | Above 25% | Dashboard default |
+| Node network errors | 0 | — | Above 0 | Dashboard default |
+| Node ready | Ready | — | "Not ready" | `kube_node_status_condition` |
+| NAS pool | Below 80% | 80% to 90% | Above 90%, or the pool not healthy | `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolUnhealthy` |
+| NAS CPU, memory | Below 80% | 80% to 95% | Above 95% | Dashboard default |
+| NAS load per core | Below 1 | 1 to 2 | Above 2 | Dashboard default |
+| NAS errors | 0 | — | Above 0 | `NASPoolDeviceErrors` |
+| Gateway `5xx` share | Below 0.5% | 0.5% to 5% | Above 5% | 0.5% is the SLO's error rate |
+| Gateway p95 | Below 1 s | 1 s to 5 s | Above 5 s | Dashboard default, checked in task 14 |
+| Argo CD | All Synced and Healthy | Any not | — | Auto-rollback acts on Degraded after 5 min |
+| Restarts in 24 h | 0 to 5 | 6 to 20 | Above 20 | Dashboard default |
+| Fullest volume | Below 85% | 85% to 95% | Above 95% | `PersistentVolumeNearlyFull`, `-CriticallyFull` |
+| DORA metrics | `elite` and `high` | `medium` | `low` | [DORA bands](#dora-bands) |
+
+Each rule is a function of `internal/web/status.go` taking the figure
+and returning the class and the word, table-tested on each boundary; a
+`null` figure is `none` with "No data". "A to B" includes both ends, so a
+value on a boundary takes the middle class (CPU at exactly 80% is
+`warn`).
+
+### DORA bands
+
+The bands of the
+[2023 Accelerate State of DevOps report](https://dora.dev/research/2023/dora-report/)
+(its four performance clusters), as thresholds. Deployment frequency,
+lead time and time to restore use the report's ranges as boundaries;
+change failure rate uses each cluster's value (5%, 10%, 15%) as its
+upper bound:
+
+| Metric | `elite` | `high` | `medium` | `low` |
+| --- | --- | --- | --- | --- |
+| Deployment frequency (deploys over 30 days) | 30 or more (daily or on demand) | 4 to 29 (weekly to daily) | 1 to 3 (monthly to weekly) | 0 |
+| Lead time for changes | Under 1 day | 1 day to 1 week | 1 week to 1 month | Over 1 month |
+| Change failure rate | 5% or less | Over 5% to 10% | Over 10% to 15% | Over 15% |
+| Time to restore | Under 1 hour | 1 hour to 1 day | 1 day to 1 week | Over 1 week |
+
+A `null` lead time or time to restore is `none`; "None" (no incident in
+30 days) is `elite` with the word "No incident".
 
 Staleness, from the injected clock:
 
 - No snapshot: "No figures yet".
 - `generated_at` more than 5 min old: "Live figures from <time>" under the
   title.
-- `daily.covers` more than two days before today (Zurich): "Availability
-  figures are from <date>: the daily update is failing."
+- Until task 12: `daily.covers` more than two days before today
+  (Zurich): "Availability figures are from <date>: the daily update is
+  failing."
+- From task 12: a block whose `as_of` is more than 5 min before
+  `generated_at` (60 min for `project`): "Figures from <time>" on its
+  card.
 
 ### Logs and privacy
 
@@ -485,7 +683,8 @@ Prefix `homelab_dashboard_`, both roles on port 9464, scraped by one
 | `github_token_valid` | collector | gauge, 1 when the last authenticated call succeeded, 0 after a `401` or without a token | none |
 | `push_rejected_total` | web | counter | `reason` = `size`, `content_type`, `signature`, `replay`, `schema`, `allowlist` |
 | `snapshot_age_seconds` | web | gauge, computed at scrape: now minus `generated_at`; without a snapshot, now minus the process start | none |
-| `daily_age_seconds` | web | gauge: now minus the end of `daily.covers` | none |
+| `daily_age_seconds` | web | gauge: now minus the end of `daily.covers`; removed by task 12 | none |
+| `block_age_seconds` | web | gauge: now minus the block's `as_of` (task 11) | `block` = `availability`, `certificates`, `cluster`, `project` |
 | `http_requests_total` | web | counter | `code`, `method` (`GET`, `HEAD`, `other`) |
 | `http_request_duration_seconds` | web | histogram | none |
 
@@ -509,7 +708,8 @@ with the other alert rules:
 It is the only page: a person has to act when no push has been accepted
 for two days. It goes in the "Automation gave up or failed" row of
 `docs/sre.md`. A shorter stall, a failing block, `daily_age_seconds` over
-two days and `github_token_valid` at 0 are INFO on the Automation
+two days (from task 12, `block_age_seconds` over 15 minutes, 2 hours
+for `project`) and `github_token_valid` at 0 are INFO on the Automation
 dashboard. With no snapshot at all, the age counts from the web pod's
 start, so a fresh deployment does not page at once and one that never
 gets a snapshot pages after 48 h. A promtool unit test in
@@ -558,6 +758,9 @@ running images (#1507).
 | `collector` | A fake Prometheus and a fake GitHub (`httptest`): the full snapshot; each source failing (the last block kept); an empty result; a budget below -100; the version split mid-upgrade; a day without probes (`null`, "since"); DST: `covers` on the last Sunday of March and of October; the cadences and the 03:45 rule with an injected clock, start-up before and after 03:45; the rate-limit reset moving the refresh; a `401` (no anonymous fallback, `github_token_valid` 0); `--dry-run` and `--as-of` against a recorded publisher `figures.json`; the search query and window of `prs_merged_30d`, across a change of summer time; the pusher against two fake web pods, one refusing |
 | `web` | Push: `204`, and `400`, `401`, `409`, `413`, `404` for each failing check, a body signed by another key, a replayed and a future `generated_at`, a key rotation with two public keys; golden HTML of the page for a full snapshot (its apps cover `ok`, `warn`, `bad` and a day of `none`), a snapshot with a new app ("since": neutral, no word, no budget, whatever its figure), an exhausted budget, stale live figures, a stale daily block and no snapshot (`-update` rewrites them); the status rules on each boundary of [Status colours](#status-colours); each chart builder's elements, attributes and text; the contrast of every status and text colour of `dashboard.css` against `--panel` (at least 4.5:1); every header on `200`, `304`, `404` and `405`; `/readyz` before and after the first snapshot and after 120 s; the access log line has no address, user agent or query |
 | `metrics` | The names and labels, and that no label value comes from the request path |
+| Redesign, `snapshot` | Versions 2 and 3: every new key missing, extra and out of range; days not consecutive or not ending today; an unknown certificate; a node name matching the hidden pattern; `synced` above `apps`; `ci_runs` out of order; no free-text key outside the compiled lists |
+| Redesign, `collector` | The fake Prometheus answers every query of [Cadence and sources of the redesign](#cadence-and-sources-of-the-redesign): a probe failing turns `state` to `down` and lowers today's bar in the same cycle; the finished days read once after midnight, across both DST changes; `<today>` at 00:00:30 (60 s minimum); no node, NAS or Gateway series (`null`, block kept); the fake GitHub's GraphQL pages: lead time with a status, without one (left out, then dropped after 24 h), a non-deploying merge, more than 100 files, the 1000-result cap; failed changes by label and by title; incidents from alerts and rollbacks, overlapping and merged, a revert without "This reverts commit"; the alert range query sliced under 11,000 points; `ci_runs` mapping; no token (DORA keys kept) |
+| Redesign, `web` | Golden pages for each card with every class and word, a down app, today's bar, `null` figures, stale blocks; each rule of [Status colours](#status-colours) and [DORA bands](#dora-bands) on each boundary |
 
 The markup rules (navigation, no `<form>`, `<iframe>`, `<style>`,
 `style=`, `on*`, inline `<script>`, foreign origins) are not repeated in
@@ -774,6 +977,74 @@ operator sets it once in the package settings after the first push.
   stays out: it needs Prometheus and its Secret.
 - Kyverno: every baseline policy passes with no PolicyException.
 
+## Sources added by the redesign
+
+### Probes and SLO rules (task 8)
+
+- `platform/blackbox-exporter/probes/probes.yaml`: in `public-https`,
+  `https://watch.lilalala.com/identity` (Plex's identity endpoint,
+  `200` without a session; `app` `watch` from the relabeling). A new
+  Probe `internal-observability` (job `blackbox-internal`, module
+  `http_internal`, 30 s) with
+  `http://kube-prometheus-stack-prometheus.monitoring.svc:9090/-/ready`
+  and `http://kube-prometheus-stack-alertmanager.monitoring.svc:9093/-/ready`,
+  its relabeling setting `app` to `prometheus` and `alertmanager`.
+- `infrastructure/network-policies/88-monitoring.yaml`: the
+  `prometheus` and `alertmanager` policies admit the blackbox exporter
+  on 9090 and 9093, and the `blackbox-exporter` policy's egress reaches
+  them (the namespace enforces both directions).
+- `platform/kube-prometheus-stack/routes/slo.yaml`: `watch`, `grafana`
+  and `signoz` join the `app` matcher of every SLI rule; `watch` gets
+  its `slo:app:info` (namespace `theater`), its `SLOTargetProbeAbsent`
+  and its latency threshold (`scripts/slo-latency-thresholds.sh`), so
+  its burn alerts fire like the other user-facing apps'. A rule group
+  `homelab.slo.observability` records the same windows for app
+  `observability` as `1 - avg(avg_over_time(probe_success{job=~"blackbox-public|blackbox-internal", app=~"grafana|signoz|prometheus|alertmanager"}[<w>]))`
+  with the label `app="observability"`, plus its 30-day availability and
+  budget. `grafana`, `signoz` and `observability` get no
+  `slo:app:info`, and every burn alert joins on it, so none of them
+  alerts. The `homelab` app comes with task 4's probe.
+- `docs/sre.md`: Plex in the user-facing app table; the Observability
+  figure named as display-only.
+- `tests/prometheus/slo_test.yaml`: the `watch` burn alert fires; the
+  `observability` series exists and no burn alert fires for it.
+
+### NAS CPU, memory and load (task 9)
+
+`platform/truenas-exporter/exporter.py` reads `system/info` (already one
+call per scrape or added to `GETS`) for `truenas_cpu_cores` and
+`truenas_load1` (its `loadavg[0]`) and `truenas_memory_total_bytes`
+(`physmem`), and the last point of the `cpu` and `memory` graphs of
+`reporting/get_data` for `truenas_cpu_utilisation_ratio` and
+`truenas_memory_used_bytes`. The task checks both calls against the NAS
+(TrueNAS SCALE 25.10, REST v2.0) first; a call the API does not answer
+leaves its metric out, the snapshot key `null` and the tile "No data",
+and the move to the JSON-RPC API stays #1490. Tests in
+`tests/test_truenas_exporter.py` with recorded answers.
+
+### Sync statuses on GitHub (task 10)
+
+Argo CD Notifications (`bootstrap/argocd-values.yaml`) gains a trigger
+`on-deployed`: `app.status.operationState.phase == 'Succeeded' &&
+app.status.health.status == 'Healthy'`, `oncePer` the sync revision,
+sending the template `argocd-commit-status` through the existing
+`github-dispatch` webhook service: `POST
+/repos/ned-si/homelab/statuses/<revision>` with `state: success`,
+`context: argocd/<application>`, `description: Synced and Healthy`.
+Every Application is subscribed, as for the two rollback triggers. The
+token of `argocd-notifications-github` needs "Commit statuses: write"
+on the repository (operator first). The statuses are public and say
+which Application synced which commit, nothing more. A new
+`tests/test_argocd_notifications.py` asserts the trigger, the template
+and the subscription in `bootstrap/argocd-values.yaml`.
+
+### The `fix-forward` label (task 11)
+
+The repository gets the label `fix-forward` ("Repairs a merged change
+that broke production"), and `docs/sre.md` (incident handling) says
+when to set it. Pull requests from before the label have none: the
+change failure rate counts only what is labelled.
+
 ## Address
 
 The dashboard is its own origin, `homelab.nedsi.io`, set up by task 4
@@ -836,7 +1107,8 @@ Task 5 moves the readers:
 | Task 6, deletion | After one daily block served with the redirect live: the publisher and the SSI page deleted | Revert: the publisher comes back; its next run (or one manual Job) fills `website-data` |
 
 Live figures cannot match the publisher's end-of-day figures, so the
-comparison uses the dry run: `scripts/dashboard-compare.sh` reads
+comparison uses the dry run, whose `--as-of` output keeps the
+publisher's shape and queries through the redesign until task 6: `scripts/dashboard-compare.sh` reads
 `covers` from `website-data`'s `figures.json` (read-only `kubectl get`),
 runs `kubectl -n homelab-dashboard exec deploy/homelab-dashboard-collector
 -- /homelab-dashboard collect --once --dry-run --as-of <covers>`, and
@@ -905,8 +1177,21 @@ of the blog, the landing page and the app equal.
   secret that can also forge pushes); mTLS (certificate issuance and
   rotation for one in-cluster hop, and a TLS server on the public pod).
   The freshness window stops a replayed or rolled-back snapshot.
-- **Availability per finished day, the rest live.** See
+- **Everything live.** The operator's decision of 2026-11-23, which
+  replaced the finished-day availability of 2026-11-20; see
   [Freshness](#freshness).
+- **DORA from GitHub and Argo CD's commit statuses.** Each metric can be
+  recounted by a reader from public data: pull requests, labels, commit
+  statuses and the `ci` runs; the incidents add the `action: human`
+  alerts, the one source outside GitHub. Rejected: deriving the sync time
+  from Prometheus (`argocd_app_info` carries no revision) and the Argo
+  CD API (the collector would need Kubernetes or Argo CD rights).
+- **Thresholds from the alerts.** Where an alert exists, the card turns
+  the colour the alert would fire at, so the page and the pager never
+  disagree; the remaining defaults are listed as such.
+- **Cluster figures aggregated in PromQL.** The collector never receives
+  a namespace, pod or volume name, so no later change to the page can
+  leak one.
 - **Its own host, `homelab.nedsi.io`.** A separate origin gets its own
   HTTPRoute, certificate and CSP, serves from `/`, and shares no path
   space with nginx: the route is a plain backend route and the app never
