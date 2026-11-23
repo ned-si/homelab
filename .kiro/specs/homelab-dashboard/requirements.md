@@ -346,7 +346,7 @@ Each default holds until the operator says otherwise.
 | Cadence | Cluster every 60 s; GitHub every 15 min with the token, hourly without; the daily block once a day after 03:45 Zurich, in memory | The anonymous GitHub quota is shared by the WAN address (#1551); 03:45 lets the midnight rules and the search index settle |
 | Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |
 | Cluster figures | From Prometheus | One source; no ClusterRole; the same numbers as the publisher for the comparison |
-| GitHub | A fine-grained read-only token, expiry at most 180 days, created in task 3; on `401` no anonymous fallback | #1551, and an expired token stays visible |
+| GitHub | A fine-grained read-only token for public repositories, no expiry (operator, 2026-11-20), reviewed yearly, created in task 3; on `401` no anonymous fallback | #1551, and an expired token stays visible |
 | Code style | Google Go Style Guide, golangci-lint v2 (`dashboard/.golangci.yaml`), `go-cmp` for test diffs | A published standard with a linter for most of it |
 | Versioning | The git commit; images `:<sha>` and `:main` | Trunk-based, `main` is production |
 | Address | `https://homelab.nedsi.io/`, its own origin (orchestrator, on the operator's suggestion, 2026-11-20); `blog.nedsi.io/homelab/` a `301` to it | Its own route, certificate, CSP and app, with no path prefix shared with nginx; rejected: `nedsi.io/homelab/` and staying on the blog (see [design, Address](design.md#address)) |

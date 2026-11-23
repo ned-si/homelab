@@ -73,15 +73,15 @@ the rendered screenshot check.
       `style=` attribute in `page.html` fails the screenshot step on the
       CSP. [3.9, 4.2-4.5, 4.7]
 - [ ] 3. Alongside, no public route. Operator first: a fine-grained GitHub
-      token (public repositories, read-only, expiry at most 180 days) and
+      token (public repositories, read-only, no expiry, reviewed yearly) and
       an Ed25519 key pair, in `secrets.local.env`. Then:
       `apps/homelab-dashboard/` (both Deployments with `maxSurge: 1`,
       `maxUnavailable: 0`, the web Service, the headless push Service, the
       ConfigMap `homelab-dashboard-push-pubkey`, PodMonitor, the PostSync
       smoke through the Service); `apps/secrets/homelab-dashboard-push.sops.yaml`
       and `apps/secrets/homelab-dashboard-github.sops.yaml` with their
-      `.example`, their rows in `ci/secret-rotation.tsv` (`credential`,
-      `api-token`) and in the rotation table of `docs/secrets.md`; the
+      `.example`, their rows in `ci/secret-rotation.tsv` (both
+      `credential`) and in the rotation table of `docs/secrets.md`; the
       namespace, the AppProject destination and
       `clusters/homelab/apps/homelab-dashboard.yaml`;
       `infrastructure/network-policies/56-homelab-dashboard.yaml`,
