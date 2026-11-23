@@ -109,7 +109,7 @@ the rendered screenshot check.
       stale alert's rule is loaded; after the next night
       `scripts/dashboard-compare.sh` exits 0. [1.1-1.5, 5.1, 5.2, 6.1]
       #1566
-- [ ] 4. Switch-over, the host `homelab.nedsi.io` (weekday daytime, with
+- [x] 4. Switch-over, the host `homelab.nedsi.io` (weekday daytime, with
       the operator, after three equal comparisons). Operator first: no
       `homelab` record in the `nedsi.io` zone that external-dns does not
       own. Then, as in [design.md, Address](design.md#address): the
@@ -130,7 +130,8 @@ the rendered screenshot check.
       the public name; `blog.nedsi.io/homelab/` still served by nginx; the
       page matches the publisher's for the same `covers`. [3.3, 3.4, 6.2,
       7.1, 7.4]
-- [ ] 5. Switch-over, the redirect and the links (same run as task 4 once
+      #1584; the three comparisons waived (operator, 2026-11-23).
+- [x] 5. Switch-over, the redirect and the links (same run as task 4 once
       its checks pass): the `301` location for `/homelab` in the blog's
       server block of `apps/website/nginx.conf` replacing the SSI
       location, and its three forms in `scripts/ci/site-serve-check.sh`;
@@ -142,7 +143,8 @@ the rendered screenshot check.
       navigation follows. Check: acceptance criterion 14; the landing
       page and, after the bump, every blog page link the new host;
       `probe_success{app="blog"}` stays 1. [6.2, 6.3, 7.2, 7.3]
-- [ ] 6. Deletion (after one daily block served with the redirect live):
+      #1587.
+- [x] 6. Deletion (after one daily block served with the redirect live):
       `apps/website/publisher/`, its CronJob, ServiceAccount, Role,
       `website-data` and the Application's `ignoreDifferences`, the data
       mount in `apps/website/deployment.yaml`, the `/data/` location in
@@ -157,6 +159,7 @@ the rendered screenshot check.
       `https://homelab.nedsi.io/` still `200` with every header and
       `blog.nedsi.io/homelab/` still `301`; Argo CD `website` Synced and
       Healthy; no `website-publisher` object left. [6.4]
+      #1588; the one-day wait waived (operator, 2026-11-23).
 - [ ] 7. Docs: `docs/homelab-dashboard.md` (how it works, operate, rotate
       the push key, release and verify a signature, the privacy rules, the
       status colours, Why it is like this), the README services table

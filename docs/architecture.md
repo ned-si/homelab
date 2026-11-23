@@ -334,6 +334,20 @@ console (Users, the user, Sessions) and in the app itself (Immich: Account
 settings, Authorized devices; Jellyfin: Dashboard, Devices; Plex: Account,
 Authorized Devices).
 
+## First-party code
+
+Two images are built from this repository; everything else is upstream.
+
+| Sources | Image | Workflow | Deployed by |
+| --- | --- | --- | --- |
+| `site/` (Hugo blog on nginx) | `ghcr.io/ned-si/homelab-site` | `site-publish.yaml` | `apps/website/` |
+| `dashboard/` (Go, [homelab-dashboard.md](homelab-dashboard.md)) | `ghcr.io/ned-si/homelab-dashboard` | `dashboard-publish.yaml` | `apps/homelab-dashboard/` |
+
+Both are multi-arch, signed keyless with cosign by their own workflow on
+`main` (`ci/image-signers.yaml`), checked by Kyverno's `verify-own-images`,
+and reach the cluster by digest through a Renovate pull request. Go code
+follows the Google Go Style Guide, enforced by `dashboard/.golangci.yaml`.
+
 ## Site-specific values
 
 What changes if the house, the LAN or the NAS changes. Re-render after editing

@@ -96,9 +96,10 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Grafana, Prometheus, Alertmanager | Monitoring | `monitoring` | `grafana` | Yes (Grafana) |
 | Argo CD | GitOps controller | `argo` | `argo` | Yes |
 | Headlamp | Read-only Kubernetes web UI | `headlamp` | `headlamp` | Yes (group `admins`) |
+| Homelab dashboard | Public availability, cluster and project figures ([docs/homelab-dashboard.md](docs/homelab-dashboard.md)) | `homelab-dashboard` | `homelab.nedsi.io` | No (public, read-only) |
 
-Hostnames are prefixes of `lilalala.com`. Plex and Jellyfin stay off SSO so
-their TV apps can sign in.
+Hostnames are prefixes of `lilalala.com` unless written in full. Plex and
+Jellyfin stay off SSO so their TV apps can sign in.
 
 ## Platform
 
