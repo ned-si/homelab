@@ -21,7 +21,7 @@ clickhouse:
     registry: docker.io
     repository: clickhouse/clickhouse-server
     # renovate: datasource=docker depName=docker.io/clickhouse/clickhouse-server
-    tag: 26.10.8@sha256:cb030c0616aa80d8daf03033ba68d6297a1c86735b142a8e82b96f4cf119ec98
+    tag: 26.10.11@sha256:2a2381abe12f844a12ab33cc950095097f08e285eb2d321dd7be83b7a4c9356a
   persistence:
     storageClass: iscsi
     size: 50Gi
