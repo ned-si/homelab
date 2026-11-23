@@ -1,0 +1,16 @@
+# The public half of the collector's push key
+# (apps/secrets/homelab-dashboard-push.sops.yaml). One or two PKIX PEM blocks:
+# a rotation adds the new key here first (docs/secrets.md, Rotating a
+# credential). Not a credential: it verifies, it cannot sign.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homelab-dashboard-push-pubkey
+  labels:
+    app.kubernetes.io/name: homelab-dashboard
+data:
+  public-keys: |
+    -----BEGIN PUBLIC KEY-----
+    MCowBQYDK2VwAyEA6SPzHgz8/+2EcR8JdgUQQ6qG3FtXa/IIzv8jWnvzWjk=
+    -----END PUBLIC KEY-----

@@ -5,3 +5,8 @@ deploy/apps/paperless/deployment-valkey.yaml
 deploy/apps/paperless/service-valkey.yaml
 deploy/apps/immich/resources/deployment-valkey.yaml
 deploy/apps/immich/resources/service-valkey.yaml
+# The dashboard's web role turns ready 120 s after start without a push.
+deploy/apps/homelab-dashboard/configmap-homelab-dashboard-push-pubkey.yaml
+deploy/apps/homelab-dashboard/deployment-homelab-dashboard-web.yaml
+deploy/apps/homelab-dashboard/service-homelab-dashboard-web.yaml
+deploy/apps/homelab-dashboard/service-homelab-dashboard-web-push.yaml

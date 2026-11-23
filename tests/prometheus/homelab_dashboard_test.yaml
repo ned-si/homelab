@@ -1,0 +1,65 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/homelab-dashboard-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: render job).
+rule_files:
+  - homelab-dashboard-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Pushes stop at t=0: the age crosses 48 h at t=48h, the alert is pending
+  # from 48h01m and fires 30 min later.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_dashboard_snapshot_age_seconds{namespace="homelab-dashboard",pod="homelab-dashboard-web-0"}'
+        values: '0+60x3000'
+    alert_rule_test:
+      - eval_time: 48h
+        alertname: HomelabDashboardSnapshotStale
+        exp_alerts: []
+      - eval_time: 48h20m
+        alertname: HomelabDashboardSnapshotStale
+        exp_alerts: []
+      - eval_time: 48h40m
+        alertname: HomelabDashboardSnapshotStale
+        exp_alerts:
+          - exp_labels:
+              action: human
+              severity: warning
+            exp_annotations:
+              summary: The public dashboard has served the same figures for over 48 h.
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabDashboardSnapshotStale.md
+
+  # Pushes accepted every minute: the age stays under a minute, no alert.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_dashboard_snapshot_age_seconds{namespace="homelab-dashboard",pod="homelab-dashboard-web-0"}'
+        values: '30x3000'
+    alert_rule_test:
+      - eval_time: 49h
+        alertname: HomelabDashboardSnapshotStale
+        exp_alerts: []
+
+  # A new web pod that never gets a snapshot counts from its start, while
+  # the old pod's series ends at the rollout: quiet for 48 h, then it pages.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_dashboard_snapshot_age_seconds{namespace="homelab-dashboard",pod="homelab-dashboard-web-0"}'
+        values: '30x10'
+      - series: 'homelab_dashboard_snapshot_age_seconds{namespace="homelab-dashboard",pod="homelab-dashboard-web-1"}'
+        values: '_x10 0+60x3100'
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: HomelabDashboardSnapshotStale
+        exp_alerts: []
+      - eval_time: 48h
+        alertname: HomelabDashboardSnapshotStale
+        exp_alerts: []
+      - eval_time: 50h
+        alertname: HomelabDashboardSnapshotStale
+        exp_alerts:
+          - exp_labels:
+              action: human
+              severity: warning
+            exp_annotations:
+              summary: The public dashboard has served the same figures for over 48 h.
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HomelabDashboardSnapshotStale.md

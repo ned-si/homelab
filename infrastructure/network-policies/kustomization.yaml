@@ -26,6 +26,7 @@ resources:
   - 40-books.yaml
   - 50-mealie.yaml
   - 55-website.yaml
+  - 56-homelab-dashboard.yaml
   - 60-syncthing.yaml
   - 70-home.yaml
   - 80-backup-verify.yaml

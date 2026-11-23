@@ -1,0 +1,110 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/homelab-dashboard
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/homelab-dashboard and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "10"
+  labels:
+    app.kubernetes.io/name: postsync-smoke
+  name: postsync-smoke
+  namespace: homelab-dashboard
+spec:
+  activeDeadlineSeconds: 600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postsync-smoke
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - args:
+        - http://homelab-dashboard-web:8080
+        command:
+        - /bin/sh
+        - -c
+        - |
+          fail=0
+          base=$1
+          headers="content-security-policy strict-transport-security x-content-type-options x-frame-options"
+          headers="$headers referrer-policy permissions-policy cross-origin-opener-policy"
+          # req <url> [curl options...]: sets $code, $resp (the headers) and
+          # writes the body to /tmp/body.
+          req() {
+            url=$1
+            shift
+            resp=$(curl "$@" -s -D - -o /tmp/body -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
+            code=$(printf '%s\n' "$resp" | sed -n 's/^CODE //p')
+            code=${code:-000}
+          }
+          # expect <code> <tries> <url> [curl options...], 5 s apart.
+          expect() {
+            want=$1 tries=$2
+            shift 2
+            try=1
+            while :; do
+              req "$@"
+              [ "$code" = "$want" ] || [ "$try" -ge "$tries" ] && break
+              try=$((try + 1))
+              sleep 5
+            done
+            if [ "$code" = "$want" ]; then echo "ok   $code $1"; else echo "FAIL $code (want $want) $1"; fail=1; fi
+          }
+          has_headers() {
+            for h in $headers; do
+              printf '%s\n' "$resp" | grep -qi "^$h:" || { echo "FAIL $1: no $h"; fail=1; }
+            done
+          }
+
+          expect 200 6 "$base/"
+          has_headers "$base/"
+          expect 404 3 "$base/does-not-exist"
+          has_headers "$base/does-not-exist"
+          expect 405 3 "$base/" -X POST
+          # The first push follows the collector's first full cycle.
+          expect 200 60 "$base/snapshot.json"
+          printf '%s\n' "$resp" | grep -qi '^content-type: application/json' \
+            || { echo "FAIL $base/snapshot.json: not application/json"; fail=1; }
+          grep -q '"schema_version": *1' /tmp/body \
+            || { echo "FAIL $base/snapshot.json: no schema_version 1"; fail=1; }
+          exit "$fail"
+        - postsync-smoke
+        image: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93
+        name: smoke
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 10m
+            memory: 16Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      restartPolicy: Never
+      securityContext:
+        runAsGroup: 101
+        runAsNonRoot: true
+        runAsUser: 100
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+      - emptyDir:
+          sizeLimit: 1Mi
+        name: tmp

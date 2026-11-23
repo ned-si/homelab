@@ -194,7 +194,9 @@ created in the window, up to 3 pages of 100) for the median wall time.
 `User-Agent: homelab-dashboard/<version>`.
 
 The token is a fine-grained GitHub token with read-only access to public
-repositories and an expiry of at most 180 days (class `api-token`),
+repositories and no expiry (operator decision, 2026-11-20: it reads only
+public data), reviewed yearly: its row in `ci/secret-rotation.tsv` is
+`credential` (365 days), because `api-token` means 180 days there.
 Secret `homelab-dashboard-github`, mounted `optional: true` at
 `/var/run/secrets/github/token`. The anonymous quota is 60 calls an hour
 shared by the WAN address (#1551), so the 15-minute cadence needs it;
@@ -708,8 +710,7 @@ operator sets it once in the package settings after the first push.
   key, PKCS #8 PEM, made with `openssl genpkey -algorithm ed25519`; the
   public key with `openssl pkey -pubout`) and
   `apps/secrets/homelab-dashboard-github.sops.yaml`, each with an
-  `.example`; rows in `ci/secret-rotation.tsv` (`credential` and
-  `api-token`) and in the rotation table of `docs/secrets.md`.
+  `.example`; rows in `ci/secret-rotation.tsv` (both `credential`) and in the rotation table of `docs/secrets.md`.
 - ConfigMap `homelab-dashboard-push-pubkey` in git.
 - Services: `homelab-dashboard-web` (8080 `http` only; the PodMonitor
   scrapes Pods) and the headless `homelab-dashboard-web-push` (9465,

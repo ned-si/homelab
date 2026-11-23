@@ -65,7 +65,7 @@ metadata:
 spec:
   description: >-
     Prometheus scrapes every namespace, the nodes and the control plane;
-    the website publisher queries it.
+    the website publisher and the homelab-dashboard collector query it.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: prometheus
@@ -78,6 +78,16 @@ spec:
         - matchLabels:
             io.kubernetes.pod.namespace: website
             app.kubernetes.io/name: website-publisher
+      toPorts:
+        - ports:
+            - port: "9090"
+              protocol: TCP
+    # apps/homelab-dashboard/collector.yaml -- PROM_URL, every minute.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: homelab-dashboard
+            app.kubernetes.io/name: homelab-dashboard
+            app.kubernetes.io/component: collector
       toPorts:
         - ports:
             - port: "9090"

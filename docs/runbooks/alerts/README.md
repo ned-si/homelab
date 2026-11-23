@@ -66,6 +66,7 @@ that application's failing conditions and resources.
 - [KyvernoDenied](KyvernoDenied.md): one Kyverno policy in Deny rejected more than 5 requests in 30 minutes
 - [TalosConfigDrift](TalosConfigDrift.md): a node runs a machine config main does not render
 - [NASiSCSITargetOpen](NASiSCSITargetOpen.md): a NAS iSCSI target open to more than the four nodes for an hour
+- [HomelabDashboardSnapshotStale](HomelabDashboardSnapshotStale.md): the public dashboard has accepted no snapshot for 48 hours
 
 ## Backups
 

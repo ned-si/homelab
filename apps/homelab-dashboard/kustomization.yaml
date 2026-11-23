@@ -1,0 +1,90 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: homelab-dashboard
+
+# The public dashboard, not routed yet: the web role answers on its
+# in-cluster Service only (.kiro/specs/homelab-dashboard/design.md#kubernetes).
+# The push key Secret comes from apps/secrets/.
+resources:
+  - collector.yaml
+  - web.yaml
+  - push-pubkey.yaml
+  - podmonitor.yaml
+
+# After every sync, through the Service: the page with every header, a 404
+# with the headers, the 405, and a snapshot once the collector has pushed.
+components:
+  - ../../components/postsync-smoke
+patches:
+  - target: { kind: Job, name: postsync-smoke }
+    patch: |-
+      - op: replace
+        path: /spec/activeDeadlineSeconds
+        value: 600
+      - op: replace
+        path: /spec/template/spec/containers/0/args
+        value:
+          - http://homelab-dashboard-web:8080
+      - op: replace
+        path: /spec/template/spec/containers/0/command
+        value:
+          - /bin/sh
+          - -c
+          - |
+            fail=0
+            base=$1
+            headers="content-security-policy strict-transport-security x-content-type-options x-frame-options"
+            headers="$headers referrer-policy permissions-policy cross-origin-opener-policy"
+            # req <url> [curl options...]: sets $code, $resp (the headers) and
+            # writes the body to /tmp/body.
+            req() {
+              url=$1
+              shift
+              resp=$(curl "$@" -s -D - -o /tmp/body -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
+              code=$(printf '%s\n' "$resp" | sed -n 's/^CODE //p')
+              code=${code:-000}
+            }
+            # expect <code> <tries> <url> [curl options...], 5 s apart.
+            expect() {
+              want=$1 tries=$2
+              shift 2
+              try=1
+              while :; do
+                req "$@"
+                [ "$code" = "$want" ] || [ "$try" -ge "$tries" ] && break
+                try=$((try + 1))
+                sleep 5
+              done
+              if [ "$code" = "$want" ]; then echo "ok   $code $1"; else echo "FAIL $code (want $want) $1"; fail=1; fi
+            }
+            has_headers() {
+              for h in $headers; do
+                printf '%s\n' "$resp" | grep -qi "^$h:" || { echo "FAIL $1: no $h"; fail=1; }
+              done
+            }
+
+            expect 200 6 "$base/"
+            has_headers "$base/"
+            expect 404 3 "$base/does-not-exist"
+            has_headers "$base/does-not-exist"
+            expect 405 3 "$base/" -X POST
+            # The first push follows the collector's first full cycle.
+            expect 200 60 "$base/snapshot.json"
+            printf '%s\n' "$resp" | grep -qi '^content-type: application/json' \
+              || { echo "FAIL $base/snapshot.json: not application/json"; fail=1; }
+            grep -q '"schema_version": *1' /tmp/body \
+              || { echo "FAIL $base/snapshot.json: no schema_version 1"; fail=1; }
+            exit "$fail"
+          - postsync-smoke
+      # curl writes the body here; the root file system is read-only.
+      - op: add
+        path: /spec/template/spec/volumes
+        value:
+          - name: tmp
+            emptyDir:
+              sizeLimit: 1Mi
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts
+        value:
+          - name: tmp
+            mountPath: /tmp

@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/homelab-dashboard
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/homelab-dashboard and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  public-keys: |
+    -----BEGIN PUBLIC KEY-----
+    MCowBQYDK2VwAyEA6SPzHgz8/+2EcR8JdgUQQ6qG3FtXa/IIzv8jWnvzWjk=
+    -----END PUBLIC KEY-----
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/name: homelab-dashboard
+  name: homelab-dashboard-push-pubkey
+  namespace: homelab-dashboard
