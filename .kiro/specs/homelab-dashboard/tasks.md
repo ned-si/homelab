@@ -160,7 +160,7 @@ the rendered screenshot check.
       `blog.nedsi.io/homelab/` still `301`; Argo CD `website` Synced and
       Healthy; no `website-publisher` object left. [6.4]
       #1588; the one-day wait waived (operator, 2026-11-23).
-- [ ] 7. Docs: `docs/homelab-dashboard.md` (how it works, operate, rotate
+- [x] 7. Docs: `docs/homelab-dashboard.md` (how it works, operate, rotate
       the push key, release and verify a signature, the privacy rules, the
       status colours, Why it is like this), the README services table
       (`homelab.nedsi.io`), `docs/architecture.md` (first-party code),
@@ -171,6 +171,8 @@ the rendered screenshot check.
       cards, their sources, the DORA definitions and bands and the
       `fix-forward` label. Check: a newcomer can build, test, release and
       verify the image from the doc alone; links resolve.
+      #1591 for the app as it runs; the redesign's parts (cards, DORA,
+      `fix-forward`) are documented by tasks 11-15 as they merge.
 - [x] 8. Probes and SLO rules (**not visible**). As in
       [design.md, Probes and SLO rules](design.md#probes-and-slo-rules-task-8):
       the probe `https://watch.lilalala.com/identity` in `public-https`
