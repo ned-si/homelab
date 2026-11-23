@@ -352,6 +352,7 @@ Schema, `additionalProperties: false`):
 | --- | --- | --- |
 | `covers` | `YYYY-MM-DD`, yesterday in Europe/Zurich | Clock |
 | `computed_at` | RFC 3339, minute precision | Clock |
+| `project_as_of` | Optional, RFC 3339: when the kept project figures were computed (GitHub rate-limited) | The last good document |
 | `availability_30d` | Per shown app: percent, 0 to 100, one decimal | `slo:availability:ratio_rate30d` at `covers` 24:00 |
 | `availability_daily` | Per shown app: the last 30 daily values, for the sparklines | The same rule as a range query, step 1 d |
 | `error_budget_remaining_30d` | Per shown app: percent, -100 to 100, whole number; clamped at -100 before validation, -100 rendered as "exhausted" | `slo:error_budget_remaining:ratio_rate30d` |
@@ -423,6 +424,7 @@ Steps and failures:
 | Query each figure (`/api/v1/query`, 10 s timeout, `time=` the end of `covers`) | Connection error, non-200, empty result | Exit 1, log `ERROR <figure>: <reason>`; ConfigMap untouched |
 | Validate against the schema, the ranges and the shown apps | Missing key, extra key, extra app, out of range, bad version string | Exit 1, log the key and the rule, never write |
 | Render the HTML | (numbers and fixed strings only) | — |
+| Query GitHub | 403 or 429 (the IP's unauthenticated quota, #1551) | Keep `project` of the last good document and its date in `project_as_of`; the page says so. Exit 1 when there is none |
 | Update the ConfigMap | API error | Exit 1, retried by `backoffLimit` |
 
 A failed Job raises the existing `KubeJobFailed`, an INFO event, not a
