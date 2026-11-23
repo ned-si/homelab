@@ -87,11 +87,15 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
 .big.bad, .status.bad { color: var(--bad); }
 .big.none, .status.none { color: var(--none); }
 
+/* A panel of stat tiles takes a whole row, so its tiles sit side by side;
+   tiles that still wrap share the last row's width, as the cards do. */
+.cards > .stats { flex-basis: 100%; }
 .tiles {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem 1rem;
 }
+.tile { flex: 1 1 10rem; }
 .tile p { margin: 0; }
 
 .meter, .bars { margin: 0.5rem 0 0.25rem; }
@@ -122,6 +126,5 @@ footer.site {
 }
 
 @media (max-width: 40rem) {
-  .cards > * { flex-basis: 100%; }
-  .tiles { grid-template-columns: 1fr; }
+  .cards > *, .tile { flex-basis: 100%; }
 }

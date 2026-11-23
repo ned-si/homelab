@@ -1,7 +1,7 @@
 {{template "top" .}}
 <header class="page">
 <h1>Homelab</h1>
-<p class="intro">This is the homelab in numbers. Not every app is here: the download tooling is left out on purpose (sorry, nothing to see there).</p>
+<p class="intro">An over-engineered homelab, in numbers.</p>
 <p class="meta">Target: 99.5% availability over 30 days per app.</p>
 {{- with .Figures}}
 <p class="meta">Updated <time datetime="{{.Generated.Datetime}}">{{.Generated.Text}}</time> (Zurich time).</p>
@@ -39,7 +39,7 @@
 </div>
 </section>
 <div class="cards">
-<section class="panel" aria-labelledby="cluster">
+<section class="panel stats" aria-labelledby="cluster">
 <h2 id="cluster">Cluster</h2>
 <div class="tiles">
 <p class="tile"><span class="big">{{.Cluster.Nodes}}<span class="unit">nodes</span></span></p>
@@ -49,7 +49,7 @@
 </div>
 <p class="meta">As of <time datetime="{{.ClusterAsOf.Datetime}}">{{.ClusterAsOf.Text}}</time>.</p>
 </section>
-<section class="panel" aria-labelledby="project">
+<section class="panel stats" aria-labelledby="project">
 <h2 id="project">Project, last 30 days</h2>
 <div class="tiles">
 <p class="tile"><span class="big">{{.Project.PRsMerged30d}}<span class="unit">PRs</span></span> <span class="label">Merged</span></p>

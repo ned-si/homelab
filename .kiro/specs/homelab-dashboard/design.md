@@ -330,8 +330,8 @@ app is its own origin:
 `page.html` is an observability dashboard, not a page of text. From top
 to bottom:
 
-1. The title, a two-sentence intro carried over from today's
-   `site/content/homelab.md`, the target ("Target: 99.5% availability
+1. The title, the one-line intro "An over-engineered homelab, in
+   numbers." (no word on the apps left out: they are simply absent), the target ("Target: 99.5% availability
    over 30 days per app") and "Updated <time> (Zurich time)" from
    `generated_at`, with the staleness notices below.
 2. **Availability**, per finished day: a grid of cards
@@ -371,7 +371,10 @@ Layout, in `dashboard.css`:
   row on a desktop, so eight give 3, 3 and 2 wider ones). Rejected: a
   CSS grid with `auto-fill` (the last row keeps empty cells) and
   `grid-auto-flow: dense` (it fills holes only with smaller items, and
-  every card is the same size). The page is at most `72rem` wide, wider
+  every card is the same size). A panel of stat tiles (Cluster,
+  Project, class `stats`) takes a whole row, so its tiles sit side by
+  side; tiles are a wrapping flexbox too (`flex: 1 1 10rem`), so tiles
+  that still wrap share the last row. The page is at most `72rem` wide, wider
   than the blog's `44rem` column. Below `40rem` every card takes the full
   width, so the page reads from 320 px without horizontal scrolling.
   Charts have a `viewBox`, `preserveAspectRatio="none"`, `width: 100%`
