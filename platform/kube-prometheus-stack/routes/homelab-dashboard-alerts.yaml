@@ -14,11 +14,11 @@ spec:
       rules:
         - alert: HomelabDashboardSnapshotStale
           # Without a snapshot the web pod counts from its start, so a fresh
-          # pod does not page at once and one that never gets a push does.
+          # pod does not fire at once and one that never gets a push does.
           expr: max(homelab_dashboard_snapshot_age_seconds) > 48 * 3600
           for: 30m
           labels:
-            action: human
+            action: review
             severity: warning
           annotations:
             summary: The public dashboard has served the same figures for over 48 h.

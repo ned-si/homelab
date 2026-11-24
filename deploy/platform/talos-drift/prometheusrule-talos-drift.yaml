@@ -44,5 +44,5 @@ spec:
         or absent_over_time(talos_config_drift_last_success_timestamp_seconds{job="talos-drift"}[3d])
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning

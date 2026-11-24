@@ -60,7 +60,7 @@ spec:
           unless on (namespace, pod) barman_cloud_cloudnative_pg_io_last_available_backup_timestamp
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: CNPGWALArchivingFailing
       annotations:

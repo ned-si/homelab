@@ -23,7 +23,7 @@ tests:
         alertname: HomelabDashboardSnapshotStale
         exp_alerts:
           - exp_labels:
-              action: human
+              action: review
               severity: warning
             exp_annotations:
               summary: The public dashboard has served the same figures for over 48 h.
@@ -58,7 +58,7 @@ tests:
         alertname: HomelabDashboardSnapshotStale
         exp_alerts:
           - exp_labels:
-              action: human
+              action: review
               severity: warning
             exp_annotations:
               summary: The public dashboard has served the same figures for over 48 h.

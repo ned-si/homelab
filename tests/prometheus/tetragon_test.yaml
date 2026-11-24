@@ -290,7 +290,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
               node: homelab-w-1
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TetragonAgentMissing.md

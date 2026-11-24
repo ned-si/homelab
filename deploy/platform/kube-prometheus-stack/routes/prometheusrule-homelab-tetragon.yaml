@@ -110,5 +110,5 @@ spec:
         unless on (node) (up{job="tetragon"} == 1)
       for: 30m
       labels:
-        action: human
+        action: review
         severity: warning

@@ -34,5 +34,5 @@ spec:
         ) == 1
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning

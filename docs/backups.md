@@ -260,8 +260,9 @@ For Postgres, PrometheusRule `cnpg-backups` (group `cnpg.backups`, in
 `cnpg-instances`) fires `CNPGBackupFailed`, `CNPGBaseBackupTooOld` (no base backup
 in 26 h, or never), `CNPGBackupMetricsMissing` (an instance without the plugin
 sidecar), `CNPGWALArchivingFailing`, `CNPGWALArchiveLag` (more than 5 segments
-waiting for 30 min) and `CNPGMetricsAbsent`. All of them notify on ntfy
-(`action: human`), as does a failed `*-backup-*` Job (`KubeJobFailed`)
+waiting for 30 min) and `CNPGMetricsAbsent`. All of them page (`action:
+human`), as does a failed `*-backup-*` Job (`KubeJobFailed`), except
+`CNPGBackupMetricsMissing` (`action: review`, Alerts dashboard only)
 ([sre.md](sre.md#paging)).
 
 ```sh
@@ -1016,15 +1017,16 @@ scrapes. Labels: `check` (`restic`, `restic-data`, `postgres`,
 | `backup_verify_lock_ok` | lock test (`check="lock"`): 1 the version delete was refused by the bucket policy, 0 it succeeded or the deny is gone; not pushed by an inconclusive run |
 | `backup_verify_lock_last_success_timestamp_seconds`, `backup_verify_lock_last_run_timestamp_seconds` | end of the last passing and of the last lock test |
 
-Alerts (PrometheusRule `backup-verify`, group `backup.verify`, all `warning`
-and all notify on ntfy, [sre.md](sre.md#paging)):
-`BackupVerifyFailed` (a check's last run failed), `BackupVerifyStale` (no
-pass in 8 days), `BackupVerifyDataStale` (no monthly pack read in 36 days),
+Alerts (PrometheusRule `backup-verify`, group `backup.verify`, all `warning`,
+[sre.md](sre.md#paging)): `BackupVerifyFailed` (a check's last run failed)
+pages. The stale ones are `action: review`, on the Homelab / Alerts dashboard
+without a notification: `BackupVerifyStale` (no pass in 8 days),
+`BackupVerifyDataStale` (no monthly pack read in 36 days),
 `PaperlessRestoreStale` (no passing Paperless restore test in 35 days, or none
 on record) and `BackupVerifyMissing` (no passing result of a check at all). A Job that crashes
 before pushing also fires the stock `KubeJobFailed`. Group `backup.lock`:
-`BackupLockBroken` (`critical`, notifies) and `BackupLockCheckStale`
-(`warning`, no passing lock test in 8 days or none on record).
+`BackupLockBroken` (`critical`, pages) and `BackupLockCheckStale`
+(`warning`, `action: review`, no passing lock test in 8 days or none on record).
 
 ```sh
 kubectl -n backup-verify get cronjobs,jobs

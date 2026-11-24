@@ -1,12 +1,15 @@
 # Alert runbooks
 
-One page per paging alert (`action: human`, [sre.md](../../sre.md#paging)).
-Each rule links its page in the `runbook_url` annotation, and CI fails a
-paging rule without one, a missing page, a page that is not listed here, or a
-page for an alert that no longer pages (rule `alert-runbooks` in
+One page per alert a person acts on ([sre.md](../../sre.md#paging)): the
+pages (`action: human`) and the alerts that notify nobody and wait on the
+Homelab / Alerts dashboard (`action: review`, listed under
+[Not urgent](#not-urgent-the-alerts-dashboard)). Each rule links its page in
+the `runbook_url` annotation, and CI fails such a rule without one, a missing
+page, a page that is not listed here, or a page for an alert of neither class
+(rule `alert-runbooks` in
 [`scripts/ci/repo_policy.py`](../../../scripts/ci/repo_policy.py)).
 
-A new paging alert needs, in the same pull request: the rule with
+A new alert of either class needs, in the same pull request: the rule with
 `runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/<AlertName>.md`,
 the page (same sections as the others) and a line below.
 
@@ -61,13 +64,13 @@ that application's failing conditions and resources.
 ## Automation gave up
 
 - [ArgoCDAppStillDegraded](ArgoCDAppStillDegraded.md): an app Degraded for 30 minutes, not reverted
+- [ArgoCDAppStillProgressing](ArgoCDAppStillProgressing.md): a user-facing app Progressing for an hour
 - [ArgoCDSyncStuck](ArgoCDSyncStuck.md): a failed sync, still OutOfSync after 30 minutes
 - [PodStuckNotRunningLongTerm](PodStuckNotRunningLongTerm.md): a container unable to start for 6 hours
 - [PodSecurityEnforceDenied](PodSecurityEnforceDenied.md): Pod Security admission rejected more than 5 Pods in 30 minutes
 - [KyvernoDenied](KyvernoDenied.md): one Kyverno policy in Deny rejected more than 5 requests in 30 minutes
 - [TalosConfigDrift](TalosConfigDrift.md): a node runs a machine config main does not render
 - [NASiSCSITargetOpen](NASiSCSITargetOpen.md): a NAS iSCSI target open to more than the four nodes for an hour
-- [HomelabDashboardSnapshotStale](HomelabDashboardSnapshotStale.md): the public dashboard has accepted no snapshot for 48 hours
 - [TalosUpgradeStuck](TalosUpgradeStuck.md): a tuppr Talos upgrade broken partway (a node stuck mid-upgrade, a failed Job, a node back on the old version, a run hung)
 - [TalosUpgradeNodeFailed](TalosUpgradeNodeFailed.md): tuppr marked a node failed and stopped the run
 - [TalosUpgradeFailed](TalosUpgradeFailed.md): the TalosUpgrade is in phase Failed
@@ -78,16 +81,10 @@ that application's failing conditions and resources.
 ## Backups
 
 - [BackupLockBroken](BackupLockBroken.md): old backup versions can be deleted
-- [BackupLockCheckStale](BackupLockCheckStale.md): no passing lock test in 8 days
 - [BackupNotFresh](BackupNotFresh.md): a restic CronJob without a successful run in 26 hours
 - [BackupVerifyFailed](BackupVerifyFailed.md): a restore test failed
-- [BackupVerifyStale](BackupVerifyStale.md): no passing weekly restore test in 8 days
-- [BackupVerifyDataStale](BackupVerifyDataStale.md): no monthly pack read in 36 days
-- [BackupVerifyMissing](BackupVerifyMissing.md): no restore test result on record
-- [PaperlessRestoreStale](PaperlessRestoreStale.md): no passing Paperless restore test in 35 days
 - [CNPGBackupFailed](CNPGBackupFailed.md): the newest Postgres base backup failed
 - [CNPGBaseBackupTooOld](CNPGBaseBackupTooOld.md): no Postgres base backup in 26 hours
-- [CNPGBackupMetricsMissing](CNPGBackupMetricsMissing.md): a Postgres instance without the backup sidecar
 - [CNPGWALArchivingFailing](CNPGWALArchivingFailing.md): WAL archiving fails
 - [CNPGWALArchiveLag](CNPGWALArchiveLag.md): WAL segments pile up
 - [CNPGMetricsAbsent](CNPGMetricsAbsent.md): no Postgres instance is scraped
@@ -96,40 +93,29 @@ that application's failing conditions and resources.
 
 - [GatewayDown](GatewayDown.md): half or more of the public hostnames down for 5 minutes
 - [HomelabNodeDown](HomelabNodeDown.md): a node NotReady for 15 minutes
-- [KyvernoReportsStale](KyvernoReportsStale.md): no Kyverno background scan for 3 hours
 - [HomelabNASDown](HomelabNASDown.md): the NAS unreachable for 10 minutes
 - [NodeFilesystemReadOnly](NodeFilesystemReadOnly.md): a node filesystem remounted read-only
-- [NodeEmmcWearHigh](NodeEmmcWearHigh.md): an eMMC past 80% of its rated wear
 - [NodeEmmcEndOfLife](NodeEmmcEndOfLife.md): an eMMC at end of life
 - [NASPoolUnhealthy](NASPoolUnhealthy.md): a ZFS pool not healthy
 - [NASPoolDeviceNotOnline](NASPoolDeviceNotOnline.md): a pool device not ONLINE
 - [NASPoolDeviceErrors](NASPoolDeviceErrors.md): read, write or checksum errors on a pool device
 - [NASDiskHot](NASDiskHot.md): a disk above 65 °C
 - [LANDeviceUnreachable](LANDeviceUnreachable.md): the router or the BMC does not answer
-- [LANNewDeviceSeen](LANNewDeviceSeen.md): new hardware on the LAN
 
 ## Capacity
 
 - [PersistentVolumeNearlyFull](PersistentVolumeNearlyFull.md): a PVC over 85% full
 - [PersistentVolumeCriticallyFull](PersistentVolumeCriticallyFull.md): a PVC over 95% full
-- [PersistentVolumeFillingUp](PersistentVolumeFillingUp.md): a PVC full within 24 hours
 - [PrometheusTsdbVolumeNearlyFull](PrometheusTsdbVolumeNearlyFull.md): the Prometheus volume nearly full
-- [PrometheusRetentionCutBySize](PrometheusRetentionCutBySize.md): Prometheus keeps under 29 days, retentionSize deletes blocks
 - [NodeFilesystemNearlyFull](NodeFilesystemNearlyFull.md): a node filesystem over 85% full
 - [NodeFilesystemCriticallyFull](NodeFilesystemCriticallyFull.md): a node filesystem over 92% full
-- [NodeFilesystemInodesNearlyFull](NodeFilesystemInodesNearlyFull.md): a node filesystem under 10% free inodes
-- [NASPoolNearlyFull](NASPoolNearlyFull.md): a NAS pool over 80% used
 - [NASPoolCriticallyFull](NASPoolCriticallyFull.md): a NAS pool over 90% used
-- [NASPoolFillingUp](NASPoolFillingUp.md): a NAS pool full within 30 days
-- [NASScrubOverdue](NASScrubOverdue.md): no finished scrub in 40 days
 
 ## Expired credentials and accounts
 
 - [CertificateExpiringSoon](CertificateExpiringSoon.md): a certificate expires in under 21 days
 - [CertificateExpiringVerySoon](CertificateExpiringVerySoon.md): a certificate expires in under 7 days
 - [CertificateNotReady](CertificateNotReady.md): a certificate not Ready for an hour
-- [HubbleCertRenewalStale](HubbleCertRenewalStale.md): the Hubble certificates not renewed for 130 days
-- [ArrIndexersFailing](ArrIndexersFailing.md): Prowlarr indexers failing for 6 hours
 - [NASExporterFailing](NASExporterFailing.md): the TrueNAS API refuses the exporter
 
 ## A user-facing burn that outlasted remediation
@@ -138,7 +124,6 @@ that application's failing conditions and resources.
 - [SLOErrorBudgetBurnSlowPersistent](SLOErrorBudgetBurnSlowPersistent.md): an app burning its budget for a day
 - [SLOLatencyBudgetBurnSlowPersistent](SLOLatencyBudgetBurnSlowPersistent.md): an app up but slow for a day
 - [PaperlessIngestFailing](PaperlessIngestFailing.md): no Paperless upload findable by the canary in 13 hours
-- [PaperlessIngestSlow](PaperlessIngestSlow.md): two canary uploads in a row over 5 minutes to findable
 
 ## Monitoring went blind
 
@@ -149,18 +134,54 @@ that application's failing conditions and resources.
 - [CertManagerMetricsAbsent](CertManagerMetricsAbsent.md): cert-manager not scraped
 - [ArgoCDMetricsAbsent](ArgoCDMetricsAbsent.md): Argo CD not scraped
 - [NASExporterAbsent](NASExporterAbsent.md): truenas-exporter not scraped
+- [AlertmanagerNotificationsFailing](AlertmanagerNotificationsFailing.md): Alertmanager cannot deliver
+- [AlertmanagerHasNoReceiverConfigured](AlertmanagerHasNoReceiverConfigured.md): Alertmanager sent nothing in 6 hours
+
+## Not urgent: the Alerts dashboard
+
+These need a person within days, not now, and send no notification of any
+kind. The Homelab / Alerts dashboard (`/d/homelab-alerts`) lists them with
+a link to their page.
+
+### A check or a metric went stale
+
+- [BackupVerifyStale](BackupVerifyStale.md): no passing weekly restore test in 8 days
+- [BackupVerifyDataStale](BackupVerifyDataStale.md): no monthly pack read in 36 days
+- [PaperlessRestoreStale](PaperlessRestoreStale.md): no passing Paperless restore test in 35 days
+- [BackupVerifyMissing](BackupVerifyMissing.md): no restore test result on record
+- [BackupLockCheckStale](BackupLockCheckStale.md): no passing lock test in 8 days
+- [CNPGBackupMetricsMissing](CNPGBackupMetricsMissing.md): a Postgres instance without the backup sidecar
+- [TalosDriftCheckStale](TalosDriftCheckStale.md): no Talos drift check in 2 days
+- [VulnEnrichmentStale](VulnEnrichmentStale.md): no KEV/EPSS enrichment in 3 days
+- [KyvernoReportsStale](KyvernoReportsStale.md): no Kyverno background scan for 3 hours
 - [LANInventoryFailing](LANInventoryFailing.md): no ARP scan for 30 minutes
 - [LANInventoryAbsent](LANInventoryAbsent.md): lan-inventory not scraped
+- [HubbleCertRenewalStale](HubbleCertRenewalStale.md): the Hubble certificates not renewed for 130 days
+- [HomelabDashboardSnapshotStale](HomelabDashboardSnapshotStale.md): the public dashboard has accepted no snapshot for 48 hours
+
+### Slow capacity or wear
+
+- [PersistentVolumeFillingUp](PersistentVolumeFillingUp.md): a PVC full within 24 hours
+- [NodeFilesystemInodesNearlyFull](NodeFilesystemInodesNearlyFull.md): a node filesystem under 10% free inodes
+- [PrometheusRetentionCutBySize](PrometheusRetentionCutBySize.md): Prometheus keeps under 29 days, retentionSize deletes blocks
+- [NodeEmmcWearHigh](NodeEmmcWearHigh.md): an eMMC past 80% of its rated wear
+- [NASPoolNearlyFull](NASPoolNearlyFull.md): a NAS pool over 80% used
+- [NASPoolFillingUp](NASPoolFillingUp.md): a NAS pool full within 30 days
+- [NASScrubOverdue](NASScrubOverdue.md): no finished scrub in 40 days
+
+### Observability only
+
 - [HubbleRelayPeersNotReady](HubbleRelayPeersNotReady.md): the Hubble relay misses some nodes
 - [HubbleRelayAbsent](HubbleRelayAbsent.md): the Hubble relay not scraped
 - [LogPipelineDiscarding](LogPipelineDiscarding.md): Vector discards log events
 - [SigNozCollectorAbsent](SigNozCollectorAbsent.md): no SigNoz collector up
-- [TalosDriftCheckStale](TalosDriftCheckStale.md): no Talos drift check in 2 days
-- [VulnEnrichmentStale](VulnEnrichmentStale.md): no KEV/EPSS enrichment in 3 days
-- [AlertmanagerNotificationsFailing](AlertmanagerNotificationsFailing.md): Alertmanager cannot deliver
-- [AlertmanagerHasNoReceiverConfigured](AlertmanagerHasNoReceiverConfigured.md): Alertmanager sent nothing in 6 hours
 - [TetragonAgentMissing](TetragonAgentMissing.md): a node without a Tetragon agent for 30 minutes
 
+### Quality, not an outage
+
+- [PaperlessIngestSlow](PaperlessIngestSlow.md): two canary uploads in a row over 5 minutes to findable
+- [ArrIndexersFailing](ArrIndexersFailing.md): Prowlarr indexers failing for 6 hours
+- [LANNewDeviceSeen](LANNewDeviceSeen.md): new hardware on the LAN
 ## Chart rules that page
 
 These come from the kube-prometheus-stack and tuppr charts, carry no

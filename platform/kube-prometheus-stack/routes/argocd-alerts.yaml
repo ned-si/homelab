@@ -1,7 +1,8 @@
 # Argo CD alerts from the application controller's metrics. `action: auto`
 # (Degraded 5m, sync failed, OutOfSync 30m) is what auto-rollback and
 # self-heal handle: Grafana only. `action: human` pages (docs/sre.md
-# "Paging"): still Degraded after 30m, a stuck sync, absent metrics.
+# "Paging"): still Degraded after 30m, a user-facing app Progressing for 1h,
+# a stuck sync, absent metrics.
 # `namespace` is the destination namespace, so an app-level alert there
 # inhibits these. Tests: tests/prometheus/argocd_test.yaml.
 ---
@@ -100,6 +101,27 @@ spec:
             description: >-
               Nothing automatic has fixed {{ $labels.name }}: check the
               auto-rollback run on the Homelab / Automation dashboard, then
+              https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
+
+        # A user-facing app (project `apps`) that never becomes Healthy: an
+        # image that cannot be pulled, a pod that never gets Ready. No
+        # auto-rollback acts on Progressing, and it holds tuppr's health gate.
+        - alert: ArgoCDAppStillProgressing
+          expr: |
+            max by (name, namespace) (
+              label_replace(argocd_app_info{project="apps", health_status="Progressing"}, "namespace", "$1", "dest_namespace", "(.*)")
+            ) == 1
+          for: 1h
+          labels:
+            severity: warning
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDAppStillProgressing.md
+            summary: "{{ $labels.name }} has been Progressing for an hour"
+            description: >-
+              Argo CD has reported {{ $labels.name }} as Progressing for an
+              hour: a pod that cannot pull its image or never gets Ready.
+              Check
               https://argo.lilalala.com/applications/argo/{{ $labels.name }}.
 
         # OutOfSync for 30 minutes after a failed sync: the merge never

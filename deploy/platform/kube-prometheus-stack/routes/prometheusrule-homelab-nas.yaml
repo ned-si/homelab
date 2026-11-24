@@ -86,7 +86,7 @@ spec:
       expr: nas:pool_used:ratio > 0.80
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: NASPoolCriticallyFull
       annotations:
@@ -107,7 +107,7 @@ spec:
       expr: nas:pool_days_until_full < 30
       for: 6h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: NASScrubOverdue
       annotations:
@@ -118,7 +118,7 @@ spec:
       expr: time() - truenas_pool_scrub_end_timestamp_seconds > 40 * 86400
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: NASExporterFailing
       annotations:

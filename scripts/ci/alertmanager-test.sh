@@ -3,9 +3,9 @@
 # inhibition in platform/kube-prometheus-stack/values.yaml.
 #
 #   1. `amtool check-config` on `.alertmanager.config`; every alert of the
-#      PrometheusRules under platform/ and apps/ has `action: human` or
-#      `action: auto`, one per alert name. Steps 2 to 4 add that label to
-#      their alerts (unless they set one), as the rules do.
+#      PrometheusRules under platform/ and apps/ has `action: human`,
+#      `action: review` or `action: auto`, one per alert name. Steps 2 to 4
+#      add that label to their alerts (unless they set one), as the rules do.
 #   2. tests/alertmanager/routes.txt: one label set per line and the receiver
 #      it must reach (`amtool config routes test --verify.receivers`).
 #   3. tests/alertmanager/*.json: a scenario of firing alerts, the
@@ -64,8 +64,9 @@ if ! amtool check-config "$work/am.yaml" >/dev/null; then
 fi
 echo "ok    amtool check-config"
 
-# 1b. The class of every homelab alert: `action: human` (pages) or `action:
-# auto` (Grafana only), one per alert name, from the PrometheusRule sources.
+# 1b. The class of every homelab alert: `action: human` (pages), `action:
+# review` (Alerts dashboard, no notification) or `action: auto` (Grafana
+# only), one per alert name, from the PrometheusRule sources.
 # Routes and scenarios get the label from here, so they test what the rules
 # really send.
 grep -rl '^kind: PrometheusRule' platform apps | sort | while read -r f; do
@@ -76,12 +77,12 @@ if ! jq -s -e 'length > 0' "$work/classes.jsonl" >/dev/null; then
   echo "FAIL  alert classes: no PrometheusRule found under platform/ or apps/"; exit 1
 fi
 bad=$(jq -s -r '
-  (.[] | select(.action != "human" and .action != "auto") | "\(.file): \(.alert) has action \"\(.action)\", want human or auto"),
+  (.[] | select(.action != "human" and .action != "review" and .action != "auto") | "\(.file): \(.alert) has action \"\(.action)\", want human, review or auto"),
   (group_by(.alert)[] | select((map(.action) | unique | length) > 1) | "\(.[0].alert): more than one action")' "$work/classes.jsonl")
 if [ -n "$bad" ]; then
   printf 'FAIL  alert classes: %s\n' "$bad"; rc=1
 else
-  echo "ok    alert classes: $(jq -s 'map(.alert) | unique | length' "$work/classes.jsonl") alerts, each action human or auto"
+  echo "ok    alert classes: $(jq -s 'map(.alert) | unique | length' "$work/classes.jsonl") alerts, each action human, review or auto"
 fi
 jq -s 'map({(.alert): .action}) | add' "$work/classes.jsonl" > "$work/actions.json"
 

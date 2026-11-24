@@ -329,6 +329,11 @@ alertmanager:
             - alertname = "GatewayDown"
           group_by: [alertname]
           repeat_interval: 1h
+        # ALERT: a person acts, but not now (`action: review`). No
+        # notification of any kind; the Homelab / Alerts dashboard lists them.
+        - receiver: "null"
+          matchers:
+            - action = "review"
         # PAGE: every homelab rule labelled `action: human`.
         - receiver: ntfy
           matchers:

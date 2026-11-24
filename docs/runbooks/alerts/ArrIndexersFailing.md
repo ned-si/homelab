@@ -1,6 +1,6 @@
 # ArrIndexersFailing
 
-`warning`, pages. Rule: [`platform/kube-prometheus-stack/routes/arr-alerts.yaml`](../../../platform/kube-prometheus-stack/routes/arr-alerts.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/kube-prometheus-stack/routes/arr-alerts.yaml`](../../../platform/kube-prometheus-stack/routes/arr-alerts.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

@@ -24,7 +24,7 @@ tests:
               namespace: kube-system
               cronjob: hubble-generate-certs
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleCertRenewalStale.md
               summary: The Hubble certificates have not been renewed for 130 days
@@ -50,7 +50,7 @@ tests:
               namespace: kube-system
               cronjob: hubble-generate-certs
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleCertRenewalStale.md
               summary: The Hubble certificates have not been renewed for 130 days

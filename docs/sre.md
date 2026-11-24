@@ -145,19 +145,22 @@ a design change that removes the cause, or its target is lowered on purpose.
 
 ## Paging
 
-A notification (ntfy) means a person has to do something. What automation
-handles (a pod restart, an auto-rollback, a Talos upgrade, a corrected
-drift, a Renovate automerge, a burn that ends by itself) notifies nobody: it
-is visible in Grafana and on the Homelab / Automation dashboard. One root
-cause sends one notification.
+A notification (ntfy) means a person has to act now: a page is urgent and
+actionable. What a person must fix but not today waits on the Homelab /
+Alerts dashboard (`/d/homelab-alerts`) without any notification, digest
+included. What automation handles (a pod restart, an auto-rollback, a Talos
+upgrade, a corrected drift, a Renovate automerge, a burn that ends by itself)
+notifies nobody: it is visible on the Alerts dashboard and on the Homelab /
+Automation dashboard. One root cause sends one notification.
 
-Every alert of a homelab PrometheusRule carries one of two labels, and CI
+Every alert of a homelab PrometheusRule carries one of three labels, and CI
 fails a rule without it (`scripts/ci/alertmanager-test.sh`):
 
-| Class | Label | Goes to |
-| --- | --- | --- |
-| PAGE | `action: human` | ntfy |
-| INFO | `action: auto` | Grafana only |
+| Class | Label | Who acts, when | Goes to |
+| --- | --- | --- | --- |
+| PAGE | `action: human` | a person, now | ntfy |
+| ALERT | `action: review` | a person, within days | the Alerts dashboard only |
+| INFO | `action: auto` | automation | the Alerts and Automation dashboards only |
 
 The kube-prometheus-stack chart rules have no label: they are INFO unless
 named in the PAGE table. The tuppr chart's rules are off; ours carry the label. An alert that needs no person and that no
@@ -166,17 +169,33 @@ automation handles is deleted, not kept as INFO.
 PAGE, grouped by alert name (the persistent burns by app); repeated every
 4 h while critical, every 24 h otherwise:
 
-| Why a person | Alerts |
+| Why a person, now | Alerts |
 | --- | --- |
-| Automation gave up or failed | `ArgoCDAppStillDegraded` (Degraded for 30 min: auto-rollback refused, skipped by the outage guard, or its revert failed), `ArgoCDSyncStuck` (OutOfSync 30 min after a failed sync), `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck` (a node cordoned or NotReady off the target version for 30 min, a failed upgrade Job, a node rebooted on the old version, a node upgrade unfinished after 45 min; never a run waiting on its health checks), `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent` (30 min), `TalosConfigDrift` (nothing applies Talos config), `PodStuckNotRunningLongTerm` (6 h), `PodSecurityEnforceDenied` (Pod Security admission keeps rejecting a controller's or an operator's Pods), `KyvernoDenied` (a Kyverno policy in Deny keeps rejecting them; no namespace label, so a namespace silence does not mute it), `NASiSCSITargetOpen` (an iSCSI target open to the LAN for 1 h: `nas-iscsi-guard` failed), `HomelabDashboardSnapshotStale` (no snapshot accepted by the public dashboard for 48 h) |
-| Backups | `BackupLockBroken` (old versions deletable), `BackupLockCheckStale`, `BackupNotFresh` (a restic CronJob without a success in 26 h), `BackupVerifyFailed`, `BackupVerifyStale`, `BackupVerifyDataStale`, `BackupVerifyMissing`, `CNPGBackupFailed`, `CNPGBaseBackupTooOld`, `CNPGBackupMetricsMissing`, `CNPGWALArchivingFailing`, `CNPGWALArchiveLag`, `CNPGMetricsAbsent`, `KubeJobFailed` of a `*-backup-*` Job |
-| The physical world | `HomelabNodeDown` (NotReady 15 min), `HomelabNASDown` (unreachable 10 min: press the NAS power button), `etcdInsufficientMembers`, `etcdNoLeader`, `NodeFilesystemReadOnly`, `NodeEmmcWearHigh`, `NodeEmmcEndOfLife`, `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASDiskHot`, `LANDeviceUnreachable`, `LANNewDeviceSeen` |
-| Capacity (nothing grows a volume) | `PersistentVolumeNearlyFull`, `PersistentVolumeCriticallyFull`, `PersistentVolumeFillingUp`, `PrometheusTsdbVolumeNearlyFull`, `PrometheusRetentionCutBySize` (retentionSize keeps under 29 days), `NodeFilesystemNearlyFull`, `NodeFilesystemCriticallyFull`, `NodeFilesystemInodesNearlyFull`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue` |
-| Expired credentials and accounts | `CertificateExpiringSoon` (a renewal failed), `CertificateExpiringVerySoon`, `CertificateNotReady`, `ArrIndexersFailing` (Prowlarr indexers failing for 6 h: login, cookie, locked account), `NASExporterFailing` (an API key revoked) |
-| A user-facing burn that outlasted remediation | `SLOErrorBudgetBurnFastPersistent` (still failing after 30 min), `SLOErrorBudgetBurnSlowPersistent` (a slow burn for a day), `SLOLatencyBudgetBurnSlowPersistent` (up but slow for a day) |
-| Monitoring went blind | `SLOProbesAbsent`, `SLOTargetProbeAbsent`, `KubeStateMetricsAbsent`, `NodeExporterAbsent`, `CertManagerMetricsAbsent`, `ArgoCDMetricsAbsent`, `NASExporterAbsent`, `LANInventoryFailing`, `LANInventoryAbsent`, `TalosDriftCheckStale`, `VulnEnrichmentStale`, `KyvernoReportsStale`, `TetragonAgentMissing`, `AlertmanagerNotificationsFailing`, `AlertmanagerHasNoReceiverConfigured` |
+| Automation gave up or failed | `ArgoCDAppStillDegraded` (Degraded for 30 min: auto-rollback refused, skipped by the outage guard, or its revert failed), `ArgoCDAppStillProgressing` (a user-facing app, project `apps`, Progressing for 1 h: an image that cannot be pulled, a pod never Ready; it also holds tuppr's health gate), `ArgoCDSyncStuck` (OutOfSync 30 min after a failed sync), `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck` (a node cordoned or NotReady off the target version for 30 min, a failed upgrade Job, a node rebooted on the old version, a node upgrade unfinished after 45 min; never a run waiting on its health checks), `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent` (30 min), `TalosConfigDrift` (nothing applies Talos config), `PodStuckNotRunningLongTerm` (6 h), `PodSecurityEnforceDenied` (Pod Security admission keeps rejecting a controller's or an operator's Pods), `KyvernoDenied` (a Kyverno policy in Deny keeps rejecting them; no namespace label, so a namespace silence does not mute it), `NASiSCSITargetOpen` (an iSCSI target open to the LAN for 1 h: `nas-iscsi-guard` failed) |
+| Backups | `BackupLockBroken` (old versions deletable), `BackupNotFresh` (a restic CronJob without a success in 26 h), `BackupVerifyFailed`, `CNPGBackupFailed`, `CNPGBaseBackupTooOld`, `CNPGWALArchivingFailing`, `CNPGWALArchiveLag`, `CNPGMetricsAbsent`, `KubeJobFailed` of a `*-backup-*` Job |
+| The physical world | `HomelabNodeDown` (NotReady 15 min), `HomelabNASDown` (unreachable 10 min: press the NAS power button), `etcdInsufficientMembers`, `etcdNoLeader`, `NodeFilesystemReadOnly`, `NodeEmmcEndOfLife`, `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASDiskHot`, `LANDeviceUnreachable` |
+| Capacity about to run out (nothing grows a volume) | `PersistentVolumeNearlyFull`, `PersistentVolumeCriticallyFull`, `PrometheusTsdbVolumeNearlyFull`, `NodeFilesystemNearlyFull`, `NodeFilesystemCriticallyFull`, `NASPoolCriticallyFull` |
+| Expired credentials and accounts | `CertificateExpiringSoon` (a renewal failed), `CertificateExpiringVerySoon`, `CertificateNotReady`, `NASExporterFailing` (an API key revoked) |
+| A user-facing burn that outlasted remediation | `SLOErrorBudgetBurnFastPersistent` (still failing after 30 min), `SLOErrorBudgetBurnSlowPersistent` (a slow burn for a day), `SLOLatencyBudgetBurnSlowPersistent` (up but slow for a day), `PaperlessIngestFailing` (no upload findable for 13 h) |
+| Monitoring went blind | `SLOProbesAbsent`, `SLOTargetProbeAbsent`, `KubeStateMetricsAbsent`, `NodeExporterAbsent`, `CertManagerMetricsAbsent`, `ArgoCDMetricsAbsent`, `NASExporterAbsent`, `AlertmanagerNotificationsFailing`, `AlertmanagerHasNoReceiverConfigured` |
 | Security | any `critical` alert labelled `category: security`: the runtime detections `RuntimeEscapeToHost` (T1611), `RuntimePrivilegeEscalation` (T1068), `RuntimeKernelModuleLoad` (T1547.006), `RuntimeUnexpectedBPF` (T1014), each outside its allowlist in `platform/kube-prometheus-stack/routes/tetragon-alerts.yaml` |
 | Heartbeat | `Watchdog`, to healthchecks.io every 5 minutes; healthchecks.io notifies ntfy when it stops |
+
+ALERT (`action: review`): a person must act, but days of delay cost nothing
+a user sees. Alertmanager routes them to the `null` receiver; the Alerts
+dashboard lists them with their runbook:
+
+| Why it can wait | Alerts |
+| --- | --- |
+| A check or a metric went stale (the thing it checks still works) | `BackupVerifyStale` (8 d), `BackupVerifyDataStale` (36 d), `PaperlessRestoreStale` (35 d), `BackupVerifyMissing`, `BackupLockCheckStale`, `CNPGBackupMetricsMissing`, `TalosDriftCheckStale`, `VulnEnrichmentStale`, `KyvernoReportsStale`, `LANInventoryFailing`, `LANInventoryAbsent`, `HubbleCertRenewalStale` (130 d), `HomelabDashboardSnapshotStale` (48 h) |
+| Slow capacity or wear | `PersistentVolumeFillingUp`, `NodeFilesystemInodesNearlyFull`, `PrometheusRetentionCutBySize`, `NodeEmmcWearHigh`, `NASPoolNearlyFull`, `NASPoolFillingUp`, `NASScrubOverdue` |
+| Observability only, no user impact | `HubbleRelayPeersNotReady`, `HubbleRelayAbsent`, `LogPipelineDiscarding`, `SigNozCollectorAbsent`, `TetragonAgentMissing` |
+| Quality, not an outage | `PaperlessIngestSlow`, `ArrIndexersFailing` |
+| A new device on the LAN (urgent only if it is not a household device, which the alert cannot tell) | `LANNewDeviceSeen` |
+
+When a review alert's problem gets worse, the matching page takes over: a
+volume filling up becomes `PersistentVolumeNearlyFull`, a worn eMMC
+`NodeEmmcEndOfLife`, a failing restore test `BackupVerifyFailed`.
 
 INFO (`action: auto`): `SLOErrorBudgetBurnFast` and `SLOErrorBudgetBurnSlow`
 (most burns end with a restart or a revert), `HomelabNodeNotReady` (a node
@@ -185,7 +204,8 @@ also feed the outage guard; `ArgoCDAppDegraded`, `ArgoCDSyncFailed` and
 `ArgoCDAppOutOfSync` (auto-rollback and self-heal); `ServiceHasNoReadyBackend`,
 `StatefulSetHasNoReadyReplica`, `PodStuckNotRunning`, `PodPendingTooLong`,
 `PodNotReady`; and the chart's pod, workload and node alerts. The Homelab /
-Automation dashboard marks them as annotations.
+Automation dashboard marks them as annotations, and the Alerts dashboard
+lists them with the recent INFO events.
 
 GitHub Actions post to ntfy directly only for a person's action: a failed or
 refused `tofu` plan or apply (a destroy, a plan-only module with changes), a
@@ -235,15 +255,15 @@ none, one that fails sends one; a node reboot and a NAS flap reach only the
 guard topic, a node or the NAS down for good sends one; the Watchdog reaches
 the heartbeat. It also checks that every ntfy route mutes `quiet-hours`, and
 that a node down during quiet hours notifies once after they end.
-Adding a PAGE alert is a change to this page, to
+Adding a PAGE or an ALERT is a change to this page, to
 `tests/alertmanager/routes.txt` and to [runbooks/alerts/](runbooks/alerts/README.md)
 in the same pull request.
 
-Every `action: human` rule links its runbook in the `runbook_url`
-annotation: what it means, how to confirm, what to do, how to tell it is
-resolved. The CI rule `alert-runbooks` (`scripts/ci/repo_policy.py`) fails a
-paging rule without one, a missing page, a page with no rule, or a chart rule
-that pages by name without a row in the index. The CI rule `alert-tests`
+Every `action: human` and `action: review` rule links its runbook in the
+`runbook_url` annotation: what it means, how to confirm, what to do, how to
+tell it is resolved. The CI rule `alert-runbooks` (`scripts/ci/repo_policy.py`)
+fails such a rule without one, a missing page, a page with no rule, or a chart
+rule that pages by name without a row in the index. The CI rule `alert-tests`
 fails an alert without a promtool test (`tests/prometheus/`).
 
 ## Fix forward
@@ -315,3 +335,9 @@ exists.
   on every SLO burn, which woke the operator for outages auto-rollback had
   already ended; and per-alert tuning of `for:` durations, which still sends
   one notification per cause.
+- A page is urgent and actionable, the test of Google's SRE books: something
+  a person must fix that cannot wait for the next time they look. Actionable
+  but not urgent is an alert on the Alerts dashboard, with no notification,
+  digest or ticket: the operator looks there when he has time. Rejected: a
+  digest notification, which still interrupts once a day for nothing that
+  needs a person that day.

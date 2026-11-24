@@ -1,5 +1,6 @@
 # LAN devices, from the ICMP probes (platform/blackbox-exporter/probes/lan.yaml)
-# and the ARP inventory (platform/lan-inventory), all `action: human`. New
+# and the ARP inventory (platform/lan-inventory). LANDeviceUnreachable pages;
+# the inventory alerts are `action: review` (Alerts dashboard). New
 # randomised MACs do not alert (phones rotate them); the LAN dashboard counts
 # them. Nodes and the NAS: outage-alerts.yaml.
 # Tests: tests/prometheus/lan_test.yaml, tests/prometheus/lan_inventory_test.yaml.
@@ -52,7 +53,7 @@ spec:
           keep_firing_for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANNewDeviceSeen.md
             summary: "New device on the LAN: {{ $labels.mac }} at {{ $labels.ip }}"
@@ -69,7 +70,7 @@ spec:
           for: 30m
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryFailing.md
             summary: "lan-inventory has not completed an ARP scan for 30 minutes"
@@ -82,7 +83,7 @@ spec:
           for: 30m
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryAbsent.md
             summary: "lan-inventory is not being scraped"

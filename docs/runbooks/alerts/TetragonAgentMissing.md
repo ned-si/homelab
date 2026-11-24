@@ -1,6 +1,6 @@
 # TetragonAgentMissing
 
-`warning`, pages (not in quiet hours). Rule: [`platform/kube-prometheus-stack/routes/tetragon-alerts.yaml`](../../../platform/kube-prometheus-stack/routes/tetragon-alerts.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/kube-prometheus-stack/routes/tetragon-alerts.yaml`](../../../platform/kube-prometheus-stack/routes/tetragon-alerts.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

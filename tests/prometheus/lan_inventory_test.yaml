@@ -49,7 +49,7 @@ tests:
               ip: 192.168.1.62
               random_mac: "false"
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANNewDeviceSeen.md
               summary: "New device on the LAN: a8:00:00:00:00:04 at 192.168.1.62"
@@ -69,7 +69,7 @@ tests:
               ip: 192.168.1.62
               random_mac: "false"
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANNewDeviceSeen.md
               summary: "New device on the LAN: a8:00:00:00:00:04 at 192.168.1.62"
@@ -106,7 +106,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LANInventoryFailing.md
               summary: lan-inventory has not completed an ARP scan for 30 minutes

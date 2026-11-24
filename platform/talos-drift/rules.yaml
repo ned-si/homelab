@@ -1,5 +1,6 @@
-# Talos machine config drift (check.sh). Both page: nothing applies Talos
-# config automatically, and a check that stopped needs fixing by hand.
+# Talos machine config drift (check.sh). Drift pages: nothing applies Talos
+# config automatically. A check that stopped needs fixing by hand, but not
+# now: `action: review` (Alerts dashboard).
 # Tests: tests/prometheus/talos_drift_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -34,7 +35,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosDriftCheckStale.md
             summary: "No Talos drift check in 2 days"

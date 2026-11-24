@@ -50,7 +50,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosDriftCheckStale.md
               summary: "No Talos drift check in 2 days"

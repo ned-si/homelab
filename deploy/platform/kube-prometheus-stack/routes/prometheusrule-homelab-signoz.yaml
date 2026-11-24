@@ -76,7 +76,7 @@ spec:
       expr: sum(increase(vector_component_discarded_events_total[15m])) > 0
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: SigNozCollectorAbsent
       annotations:
@@ -87,5 +87,5 @@ spec:
       expr: absent(up{namespace="signoz", job=~".*otel-collector.*"} == 1)
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning

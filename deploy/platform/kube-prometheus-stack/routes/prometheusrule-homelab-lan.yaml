@@ -55,7 +55,7 @@ spec:
         and on () (count(lan_inventory_devices offset 1d) > 0)
       keep_firing_for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: LANInventoryFailing
       annotations:
@@ -68,7 +68,7 @@ spec:
         or time() - lan_inventory_scan_timestamp_seconds > 1800
       for: 30m
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: LANInventoryAbsent
       annotations:
@@ -79,5 +79,5 @@ spec:
       expr: absent(lan_inventory_devices)
       for: 30m
       labels:
-        action: human
+        action: review
         severity: warning

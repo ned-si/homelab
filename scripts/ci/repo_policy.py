@@ -126,8 +126,9 @@ objects and rule ids only; values are never printed.
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
                         is the alertname of an alert_rule_test in
                         tests/prometheus/*_test.yaml
-  alert-runbooks        every `action: human` alert of a PrometheusRule under
-                        platform/ or apps/ has annotation runbook_url
+  alert-runbooks        every `action: human` or `action: review` alert of a
+                        PrometheusRule under platform/ or apps/ has annotation
+                        runbook_url
                         https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/<alert>.md,
                         that file exists and docs/runbooks/alerts/README.md
                         links it; every other .md there names such an alert; an
@@ -1284,7 +1285,7 @@ class Policy:
         for rel, r in rules:
             alert, url = r["alert"], (r.get("annotations") or {}).get("runbook_url")
             want = f"{RUNBOOK_BASE}{alert}.md"
-            if (r.get("labels") or {}).get("action") == "human":
+            if (r.get("labels") or {}).get("action") in ("human", "review"):
                 names.add(alert)
                 if url != want:
                     self.fail(rule, f"{rel}: {alert} has {'runbook_url ' + url if url else 'no runbook_url'}, want {want}")
@@ -1294,12 +1295,12 @@ class Policy:
         index_text = index.read_text() if index.is_file() else ""
         for alert in sorted(names):
             if not (rb_dir / f"{alert}.md").is_file():
-                self.fail(rule, f"{RUNBOOK_DIR}/{alert}.md is missing (runbook of an action: human alert)")
+                self.fail(rule, f"{RUNBOOK_DIR}/{alert}.md is missing (runbook of an action: human or review alert)")
             if f"]({alert}.md)" not in index_text:
                 self.fail(rule, f"{RUNBOOK_DIR}/README.md does not link {alert}.md")
         for p in sorted(rb_dir.glob("*.md")) if rb_dir.is_dir() else []:
             if p.name != "README.md" and p.stem not in names:
-                self.fail(rule, f"{RUNBOOK_DIR}/{p.name} names no action: human alert")
+                self.fail(rule, f"{RUNBOOK_DIR}/{p.name} names no action: human or review alert")
         # The chart rules that page by name: a row in the index.
         routes = self.root / AM_ROUTES
         for ln in routes.read_text().splitlines() if routes.is_file() else []:

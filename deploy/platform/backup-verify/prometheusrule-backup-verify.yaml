@@ -47,7 +47,7 @@ spec:
         ) > 8 * 86400
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: BackupVerifyDataStale
       annotations:
@@ -61,7 +61,7 @@ spec:
         ) > 36 * 86400
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: PaperlessRestoreStale
       annotations:
@@ -76,7 +76,7 @@ spec:
         or absent_over_time(backup_verify_last_success_timestamp_seconds{check="paperless-restore"}[30d])
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: BackupVerifyMissing
       annotations:
@@ -92,7 +92,7 @@ spec:
         or absent_over_time(backup_verify_last_success_timestamp_seconds{check="restic-data"}[30d])
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
   - name: backup.lock
     rules:
@@ -120,5 +120,5 @@ spec:
         or absent_over_time(backup_verify_lock_last_success_timestamp_seconds[9d])
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning

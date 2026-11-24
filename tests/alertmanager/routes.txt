@@ -9,6 +9,7 @@ heartbeat alertname=Watchdog severity=none
 # Automation failed or gave up.
 ntfy alertname=ArgoCDAppStillDegraded severity=critical name=home namespace=home
 ntfy alertname=ArgoCDSyncStuck severity=warning name=books namespace=books
+ntfy alertname=ArgoCDAppStillProgressing severity=warning name=theater namespace=theater
 ntfy alertname=TalosUpgradeFailed severity=critical name=cluster
 ntfy alertname=TalosUpgradeNodeFailed severity=critical name=cluster node=homelab-w-1
 ntfy alertname=TalosUpgradeStuck severity=warning name=cluster
@@ -20,9 +21,7 @@ ntfy alertname=PodSecurityEnforceDenied severity=critical
 ntfy alertname=KyvernoDenied severity=critical name=vpol.validate.kyverno.svc-ignore-finegrained-require-probes
 # Backups and restore tests.
 ntfy alertname=BackupVerifyFailed severity=warning check=postgres target=immich-db
-ntfy alertname=BackupVerifyMissing severity=warning check=mariadb
 ntfy alertname=BackupLockBroken severity=critical check=lock target=ned-si-homelab-backups
-ntfy alertname=BackupLockCheckStale severity=warning
 ntfy alertname=BackupNotFresh severity=warning kind=restic namespace=paperless target=paperless-backup
 ntfy alertname=CNPGBackupFailed severity=critical namespace=immich pod=immich-db-1
 ntfy alertname=CNPGWALArchivingFailing severity=critical namespace=keycloak pod=keycloak-db-1
@@ -37,23 +36,14 @@ ntfy alertname=etcdNoLeader severity=critical job=kube-etcd
 ntfy alertname=NASPoolUnhealthy severity=critical pool=homelab
 ntfy alertname=NASPoolDeviceErrors severity=warning pool=homelab role=data disk=sdc type=checksum
 ntfy alertname=NodeFilesystemReadOnly severity=critical instance=192.168.1.240:9100
-ntfy alertname=NodeEmmcWearHigh severity=warning instance=192.168.1.240:9100 device=mmc0:0001
 ntfy alertname=PersistentVolumeNearlyFull severity=warning namespace=immich persistentvolumeclaim=immich-db-1
-ntfy alertname=PrometheusRetentionCutBySize severity=warning namespace=monitoring pod=prometheus-kube-prometheus-stack-prometheus-0
 ntfy alertname=LANDeviceUnreachable severity=warning device=bmc
-ntfy alertname=HubbleRelayPeersNotReady severity=warning
-ntfy alertname=HubbleRelayAbsent severity=warning
-ntfy alertname=LogPipelineDiscarding severity=warning
-ntfy alertname=SigNozCollectorAbsent severity=warning
 # Expired credentials and accounts.
 ntfy alertname=CertificateExpiringSoon severity=warning namespace=gateway name=wildcard
-ntfy alertname=HubbleCertRenewalStale severity=warning
 ntfy alertname=CertificateNotReady severity=warning namespace=gateway name=wildcard
-ntfy alertname=ArrIndexersFailing severity=warning namespace=theater source=IndexerLongTermStatusCheck
 ntfy alertname=NASExporterFailing severity=warning
 # A user-facing SLO burn that outlasted the remediation window.
 ntfy alertname=SLOErrorBudgetBurnFastPersistent severity=critical app=auth namespace=keycloak
-ntfy alertname=KyvernoReportsStale severity=warning
 # Every public hostname down: never muted (postmortem 2026-10-23).
 ntfy-urgent alertname=GatewayDown severity=critical
 ntfy alertname=SLOErrorBudgetBurnSlowPersistent severity=warning app=cook namespace=mealie
@@ -62,14 +52,35 @@ ntfy alertname=SLOLatencyBudgetBurnSlowPersistent severity=warning app=archive n
 ntfy alertname=SLOProbesAbsent severity=warning job=blackbox-public
 ntfy alertname=KubeStateMetricsAbsent severity=critical
 ntfy alertname=AlertmanagerNotificationsFailing severity=critical integration=webhook
-ntfy alertname=LANNewDeviceSeen severity=warning mac=00:11:22:33:44:55
-ntfy alertname=TetragonAgentMissing severity=warning node=homelab-w-1
 # Critical security findings.
 ntfy alertname=SecurityExample severity=critical category=security
 ntfy alertname=RuntimeEscapeToHost severity=critical category=security mitre_technique=T1611 namespace=theater workload=radarr
 ntfy alertname=RuntimePrivilegeEscalation severity=critical category=security mitre_technique=T1068 namespace=theater workload=radarr
 ntfy alertname=RuntimeKernelModuleLoad severity=critical category=security mitre_technique=T1547.006
 ntfy alertname=RuntimeUnexpectedBPF severity=critical category=security mitre_technique=T1014
+#
+# ALERT: a person acts, but not now (`action: review`): no notification,
+# the Homelab / Alerts dashboard only. A Backup* name does not reach the
+# backup route.
+null alertname=BackupVerifyMissing severity=warning check=mariadb
+null alertname=BackupLockCheckStale severity=warning
+null alertname=NodeEmmcWearHigh severity=warning instance=192.168.1.240:9100 device=mmc0:0001
+null alertname=PrometheusRetentionCutBySize severity=warning namespace=monitoring pod=prometheus-kube-prometheus-stack-prometheus-0
+null alertname=HubbleRelayPeersNotReady severity=warning
+null alertname=HubbleRelayAbsent severity=warning
+null alertname=LogPipelineDiscarding severity=warning
+null alertname=SigNozCollectorAbsent severity=warning
+null alertname=HubbleCertRenewalStale severity=warning
+null alertname=ArrIndexersFailing severity=warning namespace=theater source=IndexerLongTermStatusCheck
+null alertname=KyvernoReportsStale severity=warning
+null alertname=LANNewDeviceSeen severity=warning mac=00:11:22:33:44:55
+null alertname=TetragonAgentMissing severity=warning node=homelab-w-1
+null alertname=BackupVerifyStale severity=warning check=postgres
+null alertname=CNPGBackupMetricsMissing severity=warning
+null alertname=PersistentVolumeFillingUp severity=warning namespace=immich persistentvolumeclaim=immich-db-1
+null alertname=NASPoolNearlyFull severity=warning pool=homelab
+null alertname=NASScrubOverdue severity=warning pool=homelab
+null alertname=PaperlessIngestSlow severity=warning
 #
 # INFO: automation handles it (`action: auto`), Grafana only. The node and
 # NAS alerts also reach the outage guard's topic.

@@ -1,5 +1,5 @@
 # Hubble relay and its certificates (docs/networking.md, "Hubble"), all
-# `action: human`. Certificates last 365 days and are re-issued every four
+# `action: review`: flow visibility only, no user impact. Certificates last 365 days and are re-issued every four
 # months and on every `cilium` sync, so a stale renewal leaves months; a bad
 # certificate shows first as HubbleRelayPeersNotReady.
 # Tests: tests/prometheus/hubble_test.yaml.
@@ -24,7 +24,7 @@ spec:
           for: 30m
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayPeersNotReady.md
             summary: "Hubble relay reaches {{ $value }} agents, fewer than are Ready"
@@ -42,7 +42,7 @@ spec:
           for: 30m
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleRelayAbsent.md
             summary: "Hubble relay is not being scraped"
@@ -64,7 +64,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/HubbleCertRenewalStale.md
             summary: "The Hubble certificates have not been renewed for 130 days"

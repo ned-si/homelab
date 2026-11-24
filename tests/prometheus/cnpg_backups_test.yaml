@@ -92,7 +92,7 @@ tests:
               namespace: theater
               pod: sonarr-postgresql-1
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupMetricsMissing.md
               summary: theater/sonarr-postgresql-1 reports no Barman Cloud metrics

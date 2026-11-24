@@ -1,6 +1,6 @@
 # HubbleCertRenewalStale
 
-`warning`, pages. Rule: [`platform/kube-prometheus-stack/routes/hubble-alerts.yaml`](../../../platform/kube-prometheus-stack/routes/hubble-alerts.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/kube-prometheus-stack/routes/hubble-alerts.yaml`](../../../platform/kube-prometheus-stack/routes/hubble-alerts.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

@@ -77,7 +77,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessIngestSlow.md
               summary: "Paperless uploads take over 5 minutes to be findable"

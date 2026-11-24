@@ -67,7 +67,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/LogPipelineDiscarding.md
             summary: "Vector has been discarding log events for an hour"
@@ -80,7 +80,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/SigNozCollectorAbsent.md
             summary: "No SigNoz collector has been up for an hour"

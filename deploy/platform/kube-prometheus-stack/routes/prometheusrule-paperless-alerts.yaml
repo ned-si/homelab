@@ -46,5 +46,5 @@ spec:
         and on() max(paperless_canary_success) == 1
       for: 6h
       labels:
-        action: human
+        action: review
         severity: warning

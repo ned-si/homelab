@@ -1,7 +1,8 @@
 # What to fix first, from trivy-operator and the vuln-enrich push. Every
 # finding is fixable (ignoreUnfixed). vuln:act_now:epss feeds the Security
 # dashboard's "Act now" table: a KEV or EPSS > 0.1 CVE in an exposed
-# namespace. VulnEnrichmentStale pages after 3 days without a push.
+# namespace. VulnEnrichmentStale (`action: review`, Alerts dashboard)
+# fires after 3 days without a push.
 # Tests: tests/prometheus/vuln_enrich_test.yaml.
 ---
 apiVersion: monitoring.coreos.com/v1
@@ -44,7 +45,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/VulnEnrichmentStale.md
             summary: "No KEV/EPSS enrichment in 3 days"

@@ -412,9 +412,10 @@ over the window; if it passed and the phone check did, drop "trial" from this
 page; if not, remove SigNoz and point Vector's sink at Loki (the fallback in
 "Why it is like this").
 
-Two alerts page when the log pipeline goes blind (`action: human`, warning):
-`LogPipelineDiscarding` (Vector discards events for an hour) and
-`SigNozCollectorAbsent` (no collector up for an hour). Nothing else in SigNoz
+Two alerts fire when the log pipeline goes blind (`action: review`,
+warning: the Alerts dashboard, no notification, as logs are not a user-facing
+service): `LogPipelineDiscarding` (Vector discards events for an hour) and
+`SigNozCollectorAbsent` (no collector up for an hour). Nothing in SigNoz
 pages; its own alert rules are not used.
 
 ## Notifications
@@ -550,8 +551,8 @@ with the image, package, installed and fixed version, CVE and `kev` as labels
 and EPSS as the value: the "Act now" table. The headline counts (overview,
 "Fixable CVEs in running images") stay the full fixable set.
 
-The data refreshes once a day. `VulnEnrichmentStale` (warning, pages)
-fires when no push succeeded for 3 days. Run it now:
+The data refreshes once a day. `VulnEnrichmentStale` (warning, `action:
+review`: Alerts dashboard, no notification) fires when no push succeeded for 3 days. Run it now:
 
 ```sh
 kubectl -n monitoring create job --from=cronjob/vuln-enrich vuln-enrich-manual
@@ -575,7 +576,13 @@ in `bootstrap/argocd-values.yaml`):
 | `ArgoCDAppDegraded` | an Application is `Degraded` for 5m | `critical` |
 | `ArgoCDSyncFailed` | a sync ended `Failed` or `Error` in the last 10m | `warning` |
 | `ArgoCDAppOutOfSync` | an Application is `OutOfSync` for 30m | `warning` |
+| `ArgoCDAppStillProgressing` | an Application of project `apps` is `Progressing` for 1h (pages) | `warning` |
 | `ArgoCDMetricsAbsent` | no `argocd_app_info` for 15m | `warning` |
+
+A CronJob is always Healthy for Argo CD (`resource.customizations.health.batch_CronJob`
+in `bootstrap/argocd-values.yaml`): one failed run does not make its app
+Degraded, page `ArgoCDAppStillDegraded` or hold tuppr's health gate. A failed
+run has its own alert (`KubeJobFailed`, `BackupNotFresh`, a check's alert).
 
 They resolve on their own. An automatic rollback is recorded by its revert
 pull request (label `auto-rollback`). The Homelab / Overview dashboard has two

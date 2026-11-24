@@ -34,7 +34,7 @@ spec:
         < max(kube_daemonset_status_number_ready{namespace="kube-system", daemonset="cilium"})
       for: 30m
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: HubbleRelayAbsent
       annotations:
@@ -45,7 +45,7 @@ spec:
       expr: absent(hubble_relay_pool_peer_connection_status)
       for: 30m
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: HubbleCertRenewalStale
       annotations:
@@ -66,5 +66,5 @@ spec:
         )
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning

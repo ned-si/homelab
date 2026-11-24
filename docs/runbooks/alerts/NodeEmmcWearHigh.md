@@ -1,6 +1,6 @@
 # NodeEmmcWearHigh
 
-`warning`, pages. Rule: [`platform/kube-prometheus-stack/routes/alerts.yaml`](../../../platform/kube-prometheus-stack/routes/alerts.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/kube-prometheus-stack/routes/alerts.yaml`](../../../platform/kube-prometheus-stack/routes/alerts.yaml).
 Shell: [Before you start](README.md#before-you-start). Needs the LAN.
 
 ## What it means
