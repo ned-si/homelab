@@ -1285,10 +1285,11 @@ data:
 
     # Languages of the `homelab` realm's login pages and e-mails (two-letter
     # codes, space-separated): the login page shows a selector over `locales`.
-    # A user without a `locale` attribute gets `default_locale`; picking a
-    # language on the login page or in the account console stores one. Most of
-    # the household reads French. `master` stays in English.
-    locales=fr de it en
+    # Pages and e-mails follow the user's `locale` attribute (set per user, never
+    # by this Job); a user without one gets `default_locale`. Picking a language
+    # on the login page or in the account console stores one. `master` stays in
+    # English.
+    locales=fr es en
     default_locale=fr
 
     # The Keycloak admin (realm `master`). Its browser flow `browser-otp` asks
@@ -1424,5 +1425,5 @@ data:
     minimumQuickLoginWaitSeconds=60
 kind: ConfigMap
 metadata:
-  name: keycloak-realm-settings-f95c77ff5b
+  name: keycloak-realm-settings-9m57dhb9f6
   namespace: keycloak

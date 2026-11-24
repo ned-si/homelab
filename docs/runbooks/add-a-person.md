@@ -77,17 +77,17 @@ Expected: Users, the user, Groups lists the groups you picked; Details shows
 Enabled On and Email verified On.
 
 Language: the login pages and Keycloak's e-mails (reset password, execute
-actions, verify e-mail) are in French by default (`platform.conf`
-`default_locale=fr`; also German, Italian and English, `locales`). Leave the
-user's language unset: a user without one gets French, and e-mails sent from
-the admin console follow the user's language, not the admin's browser. To
-change it:
+actions, verify e-mail) follow the user's language (attribute `locale`).
+A user without one gets French (`platform.conf` `default_locale=fr`); the
+realm also offers Spanish and English (`locales`). Spanish is set per user
+for those who need it. E-mails sent from the admin console follow the
+user's language, not the admin's browser. To change it:
 
 - The person: the language selector on the login page, or the account
   console (`https://auth.lilalala.com/realms/homelab/account/`), Personal
   info, the language field. Either stores it on their user.
 - The admin: Users, the user, Details, the language field (user attribute
-  `locale`: `fr`, `de`, `it` or `en`), Save. Empty it to go back to the
+  `locale`: `fr`, `es` or `en`), Save. Empty it to go back to the
   default.
 
 Check with the person: they open
