@@ -139,9 +139,9 @@ dex:
 # dispatch per Application and revision.
 #
 # A sync that ends Healthy sets the commit status `argocd/<app>` on that
-# revision, which the homelab dashboard reads for deployment frequency and
-# lead time (.kiro/specs/homelab-dashboard/design.md). The token needs
-# "Commit statuses: write".
+# revision, which the homelab dashboard reads as the sync time for lead time
+# and time to restore (.kiro/specs/homelab-dashboard/design.md). The token
+# needs "Commit statuses: write".
 notifications:
   enabled: true
   secret:
@@ -252,7 +252,7 @@ notifications:
             {{- end }}
             {{- $rev }}
           body: |
-            {"state": "success", "context": "argocd/{{ .app.metadata.name }}", "description": "Synced and Healthy"}
+            {"state": "success", "context": "argocd/{{ .app.metadata.name }}", "description": "Synced"}
 
 # KSOPS on the repo-server: an init container copies the ksops binary onto
 # PATH, and the bundled kustomize runs it as a KRM exec function. The age

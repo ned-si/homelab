@@ -1,14 +1,16 @@
 """Argo CD Notifications in bootstrap/argocd-values.yaml.
 
 A sync that ends Healthy sets the commit status `argocd/<application>` on the
-deployed revision of this repository (the homelab dashboard's deployment
-frequency and lead time), next to the two rollback triggers. Every Application
+deployed revision of this repository (the homelab dashboard's lead time and
+time to restore), next to the two rollback triggers. Every Application
 gets all three through the default subscription.
 """
 from __future__ import annotations
+
 import json
 import subprocess
 from pathlib import Path
+
 REPO = Path(__file__).resolve().parent.parent
 VALUES = REPO / "bootstrap" / "argocd-values.yaml"
 REPO_URL = "https://github.com/ned-si/homelab.git"
@@ -64,13 +66,13 @@ def test_commit_status_goes_to_this_repository_revision():
 def test_commit_status_body():
     body = template()["body"].replace("{{ .app.metadata.name }}", "immich")
     assert json.loads(body) == {
-        "state": "success", "context": "argocd/immich", "description": "Synced and Healthy"}
+        "state": "success", "context": "argocd/immich", "description": "Synced"}
 
 
 def test_every_application_tracks_this_repository():
     # The path picks the revision of REPO_URL; an Application without it would
     # get no status.
-    for f in sorted((REPO / "clusters" / "homelab").glob("*/*.yaml")):
+    for f in sorted((REPO / "clusters" / "homelab").rglob("*.yaml")):
         if f.name == "kustomization.yaml":
             continue
         for doc in f.read_text().split("\n---\n"):
