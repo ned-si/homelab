@@ -159,7 +159,7 @@ spec:
       containers:
         - name: prowlarr
           # renovate: datasource=docker depName=ghcr.io/hotio/prowlarr
-          image: ghcr.io/hotio/prowlarr:release-3.1.0.5799@sha256:a05d74c63c00d6fda36fcdf63c1d31a67f94383f8da15ed969fc6f097566d94a
+          image: ghcr.io/hotio/prowlarr:release-3.1.0.5799@sha256:4cd7a70bd547dcf11bc85746a55ea80fbf37b0ef506552ff3b379146d6f46c79
           imagePullPolicy: Always
           # Root profile: UMASK=002 and a read-write NFS mount. s6 runs as
           # root and drops to hotio (1000) with s6-setuidgid, which needs
