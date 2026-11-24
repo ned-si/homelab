@@ -55,6 +55,8 @@ def test_blog_pages_pass(tmp_path, pages):
         (nav("About"), "not this page or a parent"),
         (nav("Blog").replace("<a", '<a aria-current="page"', 1), "at most one"),
         (nav("Blog") + '<a href="https://example.org/">x</a>', "outside <article>"),
+        (nav("Blog") + '<a href="https://github.com/ned-si/other/">x</a>', "outside <article>"),
+        (nav("Blog") + '<img src="https://github.com/ned-si/homelab/x.png">', "outside <article>"),
     ],
 )
 def test_blog_home_fails(tmp_path, body, msg):
@@ -65,6 +67,11 @@ def test_blog_home_fails(tmp_path, body, msg):
 
 def test_sibling_site_links_allowed_outside_article(tmp_path):
     body = nav("Blog") + '<footer><a href="https://nedsi.io/">x</a></footer>'
+    assert run(tmp_path, {"index.html": body}).returncode == 0
+
+
+def test_repository_links_allowed_outside_article(tmp_path):
+    body = nav("Blog") + '<a href="https://github.com/ned-si/homelab/pull/1">#1</a>'
     assert run(tmp_path, {"index.html": body}).returncode == 0
 
 

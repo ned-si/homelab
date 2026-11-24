@@ -1,7 +1,7 @@
 // Command homelab-dashboard is the public dashboard of the homelab, one
 // binary with two roles:
 //
-//	homelab-dashboard collect [--once] [--dry-run] [--as-of YYYY-MM-DD]
+//	homelab-dashboard collect [--once] [--dry-run]
 //	homelab-dashboard web
 //	homelab-dashboard version
 //
@@ -118,7 +118,6 @@ func collect(ctx context.Context, args []string, stdout, stderr io.Writer, logge
 	fs.SetOutput(stderr)
 	once := fs.Bool("once", false, "run one collection and exit")
 	dryRun := fs.Bool("dry-run", false, "print the snapshot instead of pushing it")
-	asOf := fs.String("as-of", "", "with --dry-run: query at the end of this Zurich day (YYYY-MM-DD) and print the publisher's figures.json shape")
 	promURL := fs.String("prometheus-url", env("PROM_URL", "http://kube-prometheus-stack-prometheus.monitoring.svc:9090"), "Prometheus base URL")
 	githubAPI := fs.String("github-api", env("GITHUB_API", "https://api.github.com"), "GitHub API base URL")
 	tokenFile := fs.String("github-token-file", "/var/run/secrets/github/token", "GitHub token; absent means anonymous calls")
@@ -128,9 +127,6 @@ func collect(ctx context.Context, args []string, stdout, stderr io.Writer, logge
 	metricsAddr := fs.String("metrics-addr", ":9464", "metrics, health and readiness")
 	if err := fs.Parse(args); err != nil {
 		return err
-	}
-	if *asOf != "" && !*dryRun {
-		return errors.New("--as-of needs --dry-run")
 	}
 	if *dryRun && !*once {
 		return errors.New("--dry-run needs --once")
@@ -166,7 +162,7 @@ func collect(ctx context.Context, args []string, stdout, stderr io.Writer, logge
 	if *dryRun {
 		// stdout carries the document only.
 		c.Logger = slog.New(slog.NewJSONHandler(stderr, nil))
-		return dryRunOnce(ctx, c, *asOf, stdout)
+		return dryRunOnce(ctx, c, stdout)
 	}
 	logger.Info("starting", "role", "collector", "version", version, "goversion", runtime.Version())
 	keyPEM, err := os.ReadFile(*keyFile)
@@ -177,8 +173,7 @@ func collect(ctx context.Context, args []string, stdout, stderr io.Writer, logge
 		return fmt.Errorf("push key: %w", err)
 	}
 	if *once {
-		at := time.Now()
-		_, body, err := c.Collect(ctx, at, collector.DailyCovers(at))
+		_, body, err := c.Collect(ctx, time.Now())
 		if err != nil {
 			return err
 		}
@@ -191,29 +186,14 @@ func collect(ctx context.Context, args []string, stdout, stderr io.Writer, logge
 	return serve(ctx, newServer(*metricsAddr, metrics.Handler(reg, c.Ready)))
 }
 
-func dryRunOnce(ctx context.Context, c *collector.Collector, asOf string, stdout io.Writer) error {
-	at := time.Now()
-	covers := collector.DailyCovers(at)
-	if asOf != "" {
-		day, err := snapshot.ParseDate(asOf)
-		if err != nil {
-			return fmt.Errorf("--as-of: %w", err)
-		}
-		covers, at = day, snapshot.AddDays(day, 1)
-	}
-	s, _, err := c.Collect(ctx, at, covers)
+func dryRunOnce(ctx context.Context, c *collector.Collector, stdout io.Writer) error {
+	s, _, err := c.Collect(ctx, time.Now())
 	if err != nil {
 		return err
 	}
-	var out any = s
-	if asOf != "" {
-		if out, err = collector.ToFigures(s); err != nil {
-			return err
-		}
-	}
 	enc := json.NewEncoder(stdout)
 	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return enc.Encode(s)
 }
 
 func serveWeb(ctx context.Context, args []string, stderr io.Writer, logger *slog.Logger) error {

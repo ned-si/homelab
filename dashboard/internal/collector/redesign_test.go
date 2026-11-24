@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,11 +10,13 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
+	"github.com/prometheus/common/model"
 
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
 
-// The tests of snapshot version 2 (design.md, "Tests", the redesign rows).
+// The tests of the redesign's blocks (design.md, "Tests", the redesign rows).
 
 func f64(x float64) *float64 { return &x }
 func i(x int) *int           { return &x }
@@ -31,10 +34,10 @@ func (e *env) push(t *testing.T) *snapshot.Snapshot {
 	return s
 }
 
-func TestVersion2Blocks(t *testing.T) {
+func TestLiveBlocks(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
 	s := e.push(t)
-	if got, want := s.SchemaVersion, 2; got != want {
+	if got, want := s.SchemaVersion, snapshot.Version; got != want {
 		t.Errorf("schema_version = %d, want %d", got, want)
 	}
 
@@ -54,7 +57,7 @@ func TestVersion2Blocks(t *testing.T) {
 		}
 	}
 	// The blog's probes start on 15 November: no value before.
-	blog := a.Apps[7].AvailabilityDaily
+	blog := a.Apps[8].AvailabilityDaily
 	if blog[23] != nil || blog[24] == nil {
 		t.Errorf("blog availability_daily[23], [24] = %v, %v, want null then a value", blog[23], blog[24])
 	}
@@ -163,7 +166,7 @@ func TestTodayWindow(t *testing.T) {
 	for _, tc := range tests {
 		e := newEnv(t, tc.now, http.StatusNoContent)
 		e.c.Cycle(t.Context())
-		if n := e.fake.count(`avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"media|cook|archive|cinema|syncthing|auth|nedsi|blog"}` + tc.want + "))"); n != 1 {
+		if n := e.fake.count(`avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"media|cook|archive|watch|syncthing|auth|nedsi|blog|homelab"}` + tc.want + "))"); n != 1 {
 			t.Errorf("at %v: %d queries of today's bar with %s, want 1: %v", tc.now, n, tc.want, e.fake.queries)
 		}
 	}
@@ -433,7 +436,7 @@ func TestNoNamesInSnapshot(t *testing.T) {
 		"run_started_at": "2026-11-20T15:00:00Z", "updated_at": "2026-11-20T15:05:00Z",
 		"head_commit": map[string]any{"message": "fix(theater): qbittorrent pod (#5)"}}}
 	e.push(t)
-	_, dry, err := e.c.Collect(t.Context(), e.now, DailyCovers(e.now))
+	_, dry, err := e.c.Collect(t.Context(), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,4 +447,87 @@ func TestNoNamesInSnapshot(t *testing.T) {
 			}
 		}
 	}
+}
+
+// The security block: each signal's two counts and 28 buckets, the 24 h
+// count never above the 7 d one, null without a series except the
+// expected-zero signals.
+func TestSecurityBlock(t *testing.T) {
+	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
+	s := e.push(t).Security
+	if s.AsOf != "2026-11-20T17:00:00+01:00" {
+		t.Errorf("security.as_of = %s, want the cycle's time", s.AsOf)
+	}
+	shown := snapshot.ShownSignals()
+	if len(s.Signals) != len(shown) {
+		t.Fatalf("%d signals, want %d", len(s.Signals), len(shown))
+	}
+	for n, sig := range s.Signals {
+		if sig.ID != shown[n].ID {
+			t.Errorf("signal %d is %s, want %s", n, sig.ID, shown[n].ID)
+		}
+		day, week, bucket := i(12), i(41), i(2)
+		if sig.ID == "runtime_detections" {
+			day, week, bucket = i(0), i(0), i(0)
+		}
+		if diff := cmp.Diff([2]*int{day, week}, [2]*int{sig.Count24h, sig.Count7d}); diff != "" {
+			t.Errorf("%s counts mismatch (-want +got):\n%s", sig.ID, diff)
+		}
+		if len(sig.Buckets) != snapshot.Buckets {
+			t.Fatalf("%s: %d buckets, want %d", sig.ID, len(sig.Buckets), snapshot.Buckets)
+		}
+		for b, v := range sig.Buckets {
+			if diff := cmp.Diff(bucket, v); diff != "" {
+				t.Errorf("%s bucket %d mismatch (-want +got):\n%s", sig.ID, b, diff)
+			}
+		}
+	}
+	want := strings.ReplaceAll(shown[0].Query, snapshot.Window, "24h")
+	if e.fake.count(want) != 1 {
+		t.Errorf("no query %s", want)
+	}
+
+	// Extrapolation: 24 h above 7 d is clamped, so the snapshot stays valid.
+	e.fake.secDay, e.fake.secWeek = 41.2, 40.6
+	e.now = e.now.Add(time.Minute)
+	if got := e.push(t).Security.Signals[0]; *got.Count24h != 41 || *got.Count7d != 41 {
+		t.Errorf("clamped counts = %d, %d, want 41, 41", *got.Count24h, *got.Count7d)
+	}
+
+	e.fake.noSecurity = true
+	e.now = e.now.Add(time.Minute)
+	for _, sig := range e.push(t).Security.Signals {
+		zero := sig.ID == "admission_denied" || sig.ID == "runtime_detections"
+		if got := sig.Count24h != nil && sig.Buckets[0] != nil; got != zero {
+			t.Errorf("%s without a series: counts set %v, want %v", sig.ID, got, zero)
+		}
+	}
+}
+
+// The buckets are a range query over the 7 days ending at the cycle, one
+// point every 6 hours.
+func TestSecurityBucketsRange(t *testing.T) {
+	e := newEnv(t, zurich(2026, 11, 20, 17, 0))
+	sig := snapshot.ShownSignals()[0]
+	var got promRange
+	q := &recordingQuerier{Querier: e.c.Prometheus, onRange: func(r promv1.Range) {
+		got = promRange{r.Start, r.End, r.Step}
+	}}
+	if _, err := buckets(t.Context(), q, "x", strings.ReplaceAll(sig.Query, snapshot.Window, "6h"), e.now); err != nil {
+		t.Fatal(err)
+	}
+	want := promRange{e.now.Add(-162 * time.Hour), e.now, 6 * time.Hour}
+	if diff := cmp.Diff(want, got, cmp.AllowUnexported(promRange{})); diff != "" {
+		t.Errorf("bucket range mismatch (-want +got):\n%s", diff)
+	}
+}
+
+type recordingQuerier struct {
+	Querier
+	onRange func(promv1.Range)
+}
+
+func (r *recordingQuerier) QueryRange(ctx context.Context, query string, rg promv1.Range) (model.Matrix, error) {
+	r.onRange(rg)
+	return r.Querier.QueryRange(ctx, query, rg)
 }

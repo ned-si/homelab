@@ -15,6 +15,9 @@ import (
 
 const (
 	meterWidth, meterHeight = 100, 6
+	sparkWidth, sparkHeight = 280, 40
+	sparkStep, sparkBar     = 10, 8
+	sparkMin                = 2.0
 	barsWidth, barsHeight   = 300, 60
 	barStep, barWidth       = 10, 8
 	barsFloor               = 95.0
@@ -61,6 +64,21 @@ func budgetMeter(left int) template.HTML {
 	return template.HTML(b.String()) //nolint:gosec // G203: numbers only, see TestChartMarkup.
 }
 
+// meter draws a utilisation (0-100%) as a track filled in its status
+// colour.
+func meter(label string, v float64, st status) template.HTML {
+	var b strings.Builder
+	openSVG(&b, meterWidth, meterHeight, label+": "+percent(v))
+	rect(&b, "track", 0, 0, meterWidth, meterHeight)
+	b.WriteString("/>")
+	if v > 0 {
+		rect(&b, string(st), 0, 0, min(v, 100), meterHeight)
+		b.WriteString("/>")
+	}
+	b.WriteString("</svg>")
+	return template.HTML(b.String()) //nolint:gosec // G203: numbers only, see TestChartMarkup.
+}
+
 // shareBar draws a share (0-100%) as a filled track.
 func shareBar(label string, share int) template.HTML {
 	var b strings.Builder
@@ -81,21 +99,28 @@ func barHeight(v float64) float64 {
 	return max(h, barMin)
 }
 
-// dailyBars draws one bar per day, oldest left, the last on covers; each bar
-// is coloured by that day's status and titled with its date and value. A
-// dashed line marks the target.
-func dailyBars(covers time.Time, values []*float64) template.HTML {
+// dailyBars draws one bar per day of days (snapshot dates, oldest first),
+// the last one today so far and outlined; each bar is coloured by that day's
+// status and titled with its date and value. A dashed line marks the target.
+func dailyBars(days []string, values []*float64) template.HTML {
 	counts := map[status]int{}
 	var bars strings.Builder
 	for i, v := range values {
 		st := dayStatus(v)
 		counts[st]++
-		day := snapshot.AddDays(covers, -(len(values) - 1 - i)).Format(snapshot.DateLayout)
-		h, text := barNone, "No data"
+		class, day := string(st), ""
+		if i < len(days) {
+			day = days[i]
+		}
+		if i == len(values)-1 {
+			class += " today"
+			day += " (today so far)"
+		}
+		h, text := barNone, noData
 		if v != nil {
 			h, text = barHeight(*v), percent(*v)
 		}
-		rect(&bars, string(st), float64(i*barStep+(barStep-barWidth)/2), barsHeight-h, barWidth, h)
+		rect(&bars, class, float64(i*barStep+(barStep-barWidth)/2), barsHeight-h, barWidth, h)
 		bars.WriteString("><title>" + day + ": " + text + "</title></rect>")
 	}
 	parts := []string{strconv.Itoa(counts[statusOK]) + " met"}
@@ -114,4 +139,35 @@ func dailyBars(covers time.Time, values []*float64) template.HTML {
 	b.WriteString(`<line class="target" x1="0" y1="` + y + `" x2="` + strconv.Itoa(barsWidth) + `" y2="` + y + `"/>`)
 	b.WriteString("</svg>")
 	return template.HTML(b.String()) //nolint:gosec // G203: numbers and dates only, see TestChartMarkup.
+}
+
+// sparkBars draws a signal's buckets, oldest left, the last ending at end,
+// on a linear scale from 0 to the largest; all at the minimum height when
+// every one is 0. Each bar is titled with its span in Zurich time and its
+// count.
+func sparkBars(end time.Time, buckets []*int) template.HTML {
+	top := 0
+	for _, v := range buckets {
+		if v != nil {
+			top = max(top, *v)
+		}
+	}
+	var bars strings.Builder
+	for i, v := range buckets {
+		to := end.Add(-time.Duration(len(buckets)-1-i) * snapshot.BucketWidth)
+		span := shortTime(to.Add(-snapshot.BucketWidth)) + " to " + shortTime(to)
+		class, h, text := "none", sparkMin, noData
+		if v != nil {
+			class, text = "spark", thousands(*v)
+			if top > 0 {
+				h = max(sparkMin, float64(*v)/float64(top)*sparkHeight)
+			}
+		}
+		rect(&bars, class, float64(i*sparkStep+(sparkStep-sparkBar)/2), sparkHeight-h, sparkBar, h)
+		bars.WriteString("><title>" + span + ": " + text + "</title></rect>")
+	}
+	var b strings.Builder
+	openSVG(&b, sparkWidth, sparkHeight, strconv.Itoa(len(buckets))+" counts of six hours, highest "+thousands(top))
+	b.WriteString("<g>" + bars.String() + "</g></svg>")
+	return template.HTML(b.String()) //nolint:gosec // G203: numbers and times only, see TestChartMarkup.
 }

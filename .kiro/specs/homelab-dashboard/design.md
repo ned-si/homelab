@@ -71,7 +71,7 @@ Renovate, Argo CD, Kustomize.
 | `dashboard/internal/web/testdata/` | Snapshot fixtures, test keys, the golden HTML files and `headers.golden` |
 | `dashboard/internal/metrics/` | The metric definitions and the metrics server |
 | `dashboard/internal/tools/pushfixture/` | A test-only `main` that signs a fixture with the test key and pushes it to a web role; used by the screenshot step and the publish smoke, never in the image |
-| `dashboard/internal/tools/gridcheck/` | A test-only `main` that fails on a row of cards with a hole in a screenshot; used by the screenshot step, never in the image |
+| `dashboard/internal/tools/gridcheck/` | A test-only `main` that fails on a card off the column grid, or a lone card stretched across its row, in a screenshot; used by the screenshot step, never in the image |
 | `dashboard/Dockerfile` | Builder and runtime stages |
 
 Neither role talks to the Kubernetes API, so there is no `client-go`.
@@ -538,19 +538,21 @@ to bottom:
 
 Layout, in `dashboard.css`:
 
-- Each grid (`div.cards`: the app cards, the cluster and project panels,
-  the "Coming later" panels) is a wrapping flexbox, cards `flex: 1 1
-  17rem`, gap `1rem`: the cards of the last row grow to share its width,
-  so no row has a hole whatever the number of cards (three app cards a
-  row on a desktop, so eight give 3, 3 and 2 wider ones). Rejected: a
-  CSS grid with `auto-fill` (the last row keeps empty cells) and
-  `grid-auto-flow: dense` (it fills holes only with smaller items, and
-  every card is the same size). A panel of stat tiles (Cluster,
-  Project, class `stats`) takes a whole row, so its tiles sit side by
-  side; tiles are a wrapping flexbox too (`flex: 1 1 10rem`), so tiles
-  that still wrap share the last row. The page is at most `72rem` wide, wider
-  than the blog's `44rem` column. Below `40rem` every card takes the full
-  width, so the page reads from 320 px without horizontal scrolling.
+- Each grid (`div.cards`: the app cards, the panels, the "Coming later"
+  panels) is a CSS grid of fixed column tracks, `repeat(auto-fill,
+  minmax(17rem, 1fr))`, gap `1rem`, left-aligned: `auto-fill` keeps the
+  empty tracks, so a card alone on the last row stays one track wide
+  (operator, 2026-11-24: no lone card or tile stretches across a row).
+  Three tracks on a desktop, so ten app cards give 3, 3, 3 and 1.
+  Rejected: a wrapping flexbox (the last row's cards grow to fill it, a
+  lone card across the whole row). A panel of stat tiles (class `stats`)
+  spans the row, `grid-column: 1 / -1`; its tiles sit on tracks of
+  `minmax(10rem, 1fr)`, the node and NAS tiles on `minmax(12rem, 1fr)`,
+  so a lone tile stays one track wide too. The page is at most `72rem`
+  wide, wider than the blog's `44rem` column, and centred on wider
+  screens. Below `40rem` every grid has one track, so the page reads
+  from 320 px without horizontal scrolling. The layout depends on the
+  width only: no viewport-height units.
   Charts have a `viewBox`, `preserveAspectRatio="none"`, `width: 100%`
   and a fixed height (meters `1.25rem`, daily bars `4rem`), so a wider
   card gets wider bars, not taller ones.
@@ -622,7 +624,8 @@ class, so the card never claims an incident the alerts have not paged.
 
 Each rule is a function of `internal/web/status.go` taking the figure
 and returning the class and the word, table-tested on each boundary; a
-`null` figure is `none` with "No data". "A to B" includes both ends, so a
+`null` figure is `none` with "No data". A figure whose rule names no word
+reads "OK", "Warning" or "Critical", the alerts' severities. "A to B" includes both ends, so a
 value on a boundary takes the middle class (CPU at exactly 80% is
 `warn`).
 
@@ -795,8 +798,9 @@ running images (#1507).
 | Redesign, `web` | Golden pages for each card with every class and word, a down app, today's bar, `null` figures, stale blocks; each rule of [Status colours](#status-colours) and [DORA bands](#dora-bands) on each boundary |
 
 The markup rules (navigation, no `<form>`, `<iframe>`, `<style>`,
-`style=`, `on*`, inline `<script>`, foreign origins) are not repeated in
-Go: `tests/test_site_markup.py`, in the `tests` job that always runs,
+`style=`, `on*`, inline `<script>`, foreign origins, except an `<a>` to
+`https://github.com/ned-si/homelab/` for the `ci` runs' pull requests) are
+not repeated in Go: `tests/test_site_markup.py`, in the `tests` job that always runs,
 feeds every `dashboard/internal/web/testdata/*.golden.html` to
 `site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")`
 and asserts no problems, `check_nav()` included. A navigation change in
@@ -817,18 +821,24 @@ Task 2 adds a step to the `dashboard` job, `scripts/ci/dashboard-screenshots.sh`
    with `go run ./internal/tools/pushfixture`.
 2. Render `http://127.0.0.1:8080/` with `chrome-headless-shell` (Chrome
    for Testing, version and sha256 in the `ci.yaml` env, installed by
-   `scripts/ci/install-tool.sh`) at `390x4200` and `1280x2000` (taller
-   than the page, so the whole page is in the shot), with `--screenshot`
-   and Chrome's log on stderr.
+   `scripts/ci/install-tool.sh`) at the widths of a phone (390), a 4:3
+   screen (1024), 16:10 (1440) and 16:9 (1920, 2560), each taller than
+   the page so the whole page is in the shot, with `--screenshot` and
+   Chrome's log on stderr.
 3. Fail when Chrome exits non-zero, a PNG is missing or empty, Chrome's
    log has a CSP violation (`Refused to`) or a failed load,
-   `internal/tools/gridcheck` finds a row of cards with a hole, or the
-   web role's access log has a status other than `200` for the page or
-   the stylesheet. `gridcheck` takes the `--panel` colour from
-   `dashboard.css`, finds the cards as runs of at least 12 px of it on
-   each pixel row, and fails a pixel row whose cards stop short of the
-   card area's left or right edge by more than a rounded corner (8 px).
-4. Upload both PNGs as the `dashboard-screenshots` artefact, so the look
+   `internal/tools/gridcheck` finds a card off the grid, or the web
+   role's access log has a status other than `200` for the page or the
+   stylesheet. `gridcheck` takes `--panel` and `--bg` from
+   `dashboard.css` and finds the cards on each pixel row as the runs
+   between page-background pixels that hold at least 12 px of the panel
+   colour. It fails a pixel row whose cards neither span the whole card
+   area nor sit one track wide on the tracks from its left edge (the
+   track is the most common card width, 8 px of slack for corners and
+   rounding), and, when there are tracks, a count of whole-area blocks
+   other than `--wide`, the `panel stats` sections of the page: one
+   more is a lone card stretched across its row.
+4. Upload the PNGs as the `dashboard-screenshots` artefact, so the look
    can be checked in the pull request.
 
 No pixel comparison: the rendering changes with every browser update,
@@ -1083,7 +1093,7 @@ change failure rate counts only what is labelled.
 The `security` block, built every cycle. Each signal is one PromQL
 expression with a window `<w>`: an instant query with `24h` and one with
 `7d` at the cycle's evaluation time `t`, and a range query with `6h`
-from `t - 162h` to `t` at a 6 h step for the 28 buckets. That is 24
+from `t - 162h` to `t` at a 6 h step for the 28 buckets. That is 21
 queries a cycle, each returning one series.
 
 The signals, `internal/snapshot/shown.go`, in this order:
@@ -1094,17 +1104,18 @@ The signals, `internal/snapshot/shown.go`, in this order:
 | `gateway_forbidden` | Access refused (403) | background | `sum(increase(envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code="403"}[<w>]))` |
 | `gateway_method` | Method not allowed (405) | background | The same with `envoy_response_code="405"` |
 | `signin_failed` | Failed sign-ins | background | `sum(increase(keycloak_user_events_total{event="login", error!=""}[<w>]))` |
-| `signin_lockouts` | Brute-force lockouts | expected zero | `sum(increase(keycloak_user_events_total{event=~"user_disabled_by_(temporary\|permanent)_lockout"}[<w>])) or vector(0)` |
 | `admission_denied` | Admission denials | expected zero | `sum(increase(apiserver_admission_webhook_rejection_count{name=~"i?vpol\\.validate\\.kyverno\\.svc.*", error_type="no_error"}[<w>])) or vector(0)` |
 | `ingress_dropped` | Ingress packets dropped by network policy | background | `sum(increase(cilium_drop_count_total{reason="Policy denied", direction="INGRESS"}[<w>]))` |
 | `runtime_detections` | Runtime detections (observe mode) | expected zero | `count(max_over_time(ALERTS{alertname=~"Runtime.+", alertstate="firing"}[<w>])) or vector(0)` |
 
 - `or vector(0)` only where the series is born with the first event (a
-  lockout, a denial, a detection); every other signal without a series
-  is `null` ("No data"). A counter born inside the window counts from
-  its first sample, which `increase()` alone misses, as
-  `tetragon:policy_events:increase5m` does; a collector test with a fake
-  Prometheus covers it.
+  denial, a detection); every other signal without a series is `null`
+  ("No data"). A counter born inside the window counts from its first
+  sample, which `increase()` alone misses, as
+  `tetragon:policy_events:increase5m` does: for a counter selector `S`
+  the collector queries `sum((S unless S offset <w>) or increase(S[<w>]))`,
+  so a series absent at `t - <w>` counts its whole value; a collector
+  test with a fake Prometheus pins the expression.
 - The Gateway signals are every request on the public listeners, the
   household's included (NAT loopback goes through the same Gateway).
   `4xx` comes from Envoy's downstream counter, so it includes the `404`s
@@ -1132,7 +1143,6 @@ datasource, read-only), 24 h and 7 d:
 | `gateway_forbidden` | Found: Envoy upstream counters by code | 0 | 661 |
 | `gateway_method` | Found: the same | 29 | 114 |
 | `signin_failed` | Found: `keycloak_user_events_total` (feature `user-event-metrics`) | 2 | 16 |
-| `signin_lockouts` | Found: both lockout events are in `KC_EVENT_METRICS_USER_EVENTS`; no lockout in 30 days, so no series yet. Task 16 checks the event names against the running Keycloak first | 0 | 0 |
 | `admission_denied` | Found: the API server's webhook counter (3 denials in 30 days) | 0 | 0 |
 | `ingress_dropped` | Found: Cilium agent's drop counter | 1 | 1 |
 | `runtime_detections` | Found: `ALERTS` of the `Runtime*` alerts (fired in the last 30 days) | 0 | 0 |
@@ -1146,6 +1156,7 @@ Deferred or not used:
 | Kyverno PolicyReport `fail` results (`kyverno_policyreport_summary`) | Not used: background-scan results on objects already admitted, a posture level and not a denial |
 | Hubble's ingress drop verdicts (`hubble_policy_verdicts_total{action="dropped", direction="ingress"}`) | Not used: 0 in 24 h where the Cilium agent counted 1; `hubble_drop_total` has no direction |
 | Raw Tetragon events (`tetragon_policy_events_total`, `tetragon_events_total`) | Not used: about 750,000 policy events a day, nearly all from allow-listed actors (runc, mounts, the agent); the detections are what the alerts leave |
+| Brute-force lockouts (`keycloak_user_events_total{event=~"user_disabled_by_.+_lockout"}`) | Not shown (2026-11-24): Keycloak locks existing accounts only, so a public count that moves after ten failed sign-ins tells a stranger the username exists. Failed sign-ins stay, as a count and a sparkline |
 | Canary tokens | Their own spec, #1618 (operator: next month) |
 
 ## Address

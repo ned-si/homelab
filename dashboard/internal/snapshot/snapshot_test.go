@@ -47,7 +47,7 @@ func obj(doc map[string]any, path ...string) map[string]any {
 }
 
 func apps(doc map[string]any) []any {
-	return obj(doc, "daily")["apps"].([]any)
+	return obj(doc, "availability")["apps"].([]any)
 }
 
 func item(doc map[string]any, block, list string, i int) map[string]any {
@@ -59,10 +59,7 @@ func TestValidateAcceptsFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Validate(valid.json) = %v, want nil", err)
 	}
-	if got, want := s.Daily.Covers, "2026-11-19"; got != want {
-		t.Errorf("Daily.Covers = %q, want %q", got, want)
-	}
-	if got := s.Daily.Apps[6].AvailabilityDaily[0]; got != nil {
+	if got := s.Availability.Apps[7].AvailabilityDaily[0]; got != nil {
 		t.Errorf("landing availability_daily[0] = %v, want nil", *got)
 	}
 	if got := s.Certificates.Certs[2].DaysLeft; got != nil {
@@ -73,7 +70,7 @@ func TestValidateAcceptsFixture(t *testing.T) {
 	}
 }
 
-// TestNoFreeText pins the version 2 keys that hold text: each is either
+// TestNoFreeText pins the keys that hold text: each is either
 // from a compiled list or bounded by a pattern a sentence cannot match.
 func TestNoFreeText(t *testing.T) {
 	s, err := Validate(readValid(t))
@@ -85,7 +82,8 @@ func TestNoFreeText(t *testing.T) {
 		C Certificates
 		N []NodeUse
 		R []CIRun
-	}{s.Availability, s.Certificates, s.Cluster.NodeUse, s.Project.CIRuns})
+		S Security
+	}{s.Availability, s.Certificates, s.Cluster.NodeUse, s.Project.CIRuns, s.Security})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +99,7 @@ func TestNoFreeText(t *testing.T) {
 				walk(path, x)
 			}
 		case string:
-			if strings.ContainsAny(v, " _/") && !strings.HasSuffix(path, ".name") {
+			if strings.ContainsAny(v, " _/") && !strings.HasSuffix(path, ".name") && !strings.HasSuffix(path, ".id") {
 				t.Errorf("%s = %q: free text", path, v)
 			}
 		}
@@ -118,9 +116,17 @@ func TestNoFreeText(t *testing.T) {
 	for _, c := range ShownCerts() {
 		names[c.Name] = true
 	}
+	for _, sig := range ShownSignals() {
+		names[sig.ID], names[sig.Name] = true, true
+	}
 	for _, a := range s.Availability.Apps {
 		if !names[a.Name] {
 			t.Errorf("availability app name %q is not compiled in", a.Name)
+		}
+	}
+	for _, sig := range s.Security.Signals {
+		if !names[sig.ID] || !names[sig.Name] {
+			t.Errorf("security signal %q (%q) is not compiled in", sig.ID, sig.Name)
 		}
 	}
 }
@@ -133,11 +139,11 @@ func TestValidateRefuses(t *testing.T) {
 	}{
 		{"missing key", func(d map[string]any) { delete(d, "project") }, false},
 		{"extra key at the top", func(d map[string]any) { d["extra"] = 1 }, false},
-		{"extra key in daily", func(d map[string]any) { obj(d, "daily")["extra"] = 1 }, false},
+		{"a daily block", func(d map[string]any) { d["daily"] = map[string]any{"covers": "2026-11-19"} }, false},
 		{"extra key in an app", func(d map[string]any) { apps(d)[0].(map[string]any)["extra"] = 1 }, false},
 		{"extra key in cluster", func(d map[string]any) { obj(d, "cluster")["consumption"] = 1 }, false},
 		{"extra key in project", func(d map[string]any) { obj(d, "project")["extra"] = 1 }, false},
-		{"version 1", func(d map[string]any) { d["schema_version"] = 1 }, false},
+		{"version 3", func(d map[string]any) { d["schema_version"] = 3 }, false},
 		{"availability above 100", func(d map[string]any) { apps(d)[0].(map[string]any)["availability_30d"] = 100.1 }, false},
 		{"budget below -100", func(d map[string]any) { apps(d)[0].(map[string]any)["error_budget_remaining_30d"] = -101 }, false},
 		{"29 daily values", func(d map[string]any) {
@@ -159,19 +165,15 @@ func TestValidateRefuses(t *testing.T) {
 			as := apps(d)
 			as[0], as[1] = as[1], as[0]
 		}, true},
-		{"one app missing", func(d map[string]any) { obj(d, "daily")["apps"] = apps(d)[1:] }, true},
+		{"one app missing", func(d map[string]any) { obj(d, "availability")["apps"] = apps(d)[1:] }, true},
 		{"cluster as_of after generated_at", func(d map[string]any) {
 			obj(d, "cluster")["as_of"] = "2026-11-20T17:00:01+01:00"
 		}, false},
 		{"project as_of after generated_at", func(d map[string]any) {
 			obj(d, "project")["as_of"] = "2026-11-20T18:00:00+01:00"
 		}, false},
-		{"computed_at after generated_at", func(d map[string]any) {
-			obj(d, "daily")["computed_at"] = "2026-11-20T17:30:00+01:00"
-		}, false},
-		{"covers on the day it was computed", func(d map[string]any) { obj(d, "daily")["covers"] = "2026-11-20" }, false},
 
-		// Version 2.
+		// The redesign's blocks.
 		{"no availability", func(d map[string]any) { delete(d, "availability") }, false},
 		{"no certificates", func(d map[string]any) { delete(d, "certificates") }, false},
 		{"no node_use", func(d map[string]any) { delete(obj(d, "cluster"), "node_use") }, false},
@@ -263,6 +265,36 @@ func TestValidateRefuses(t *testing.T) {
 		{"free text as a node name", func(d map[string]any) {
 			item(d, "cluster", "node_use", 0)["name"] = "Hello World"
 		}, false},
+
+		// Version 4, the security block.
+		{"no security", func(d map[string]any) { delete(d, "security") }, false},
+		{"extra key in security", func(d map[string]any) { obj(d, "security")["top_paths"] = []any{"/wp-admin"} }, false},
+		{"extra key in a signal", func(d map[string]any) { item(d, "security", "signals", 0)["rule"] = "x" }, false},
+		{"no buckets", func(d map[string]any) { delete(item(d, "security", "signals", 0), "buckets") }, false},
+		{"27 buckets", func(d map[string]any) {
+			sig := item(d, "security", "signals", 0)
+			sig["buckets"] = sig["buckets"].([]any)[1:]
+		}, false},
+		{"negative count", func(d map[string]any) { item(d, "security", "signals", 0)["count_24h"] = -1 }, false},
+		{"24 h above 7 days", func(d map[string]any) {
+			sig := item(d, "security", "signals", 0)
+			sig["count_24h"], sig["count_7d"] = 10, 9
+		}, false},
+		{"security as_of after generated_at", func(d map[string]any) {
+			obj(d, "security")["as_of"] = "2026-11-20T17:00:01+01:00"
+		}, false},
+		{"unknown signal", func(d map[string]any) {
+			sig := item(d, "security", "signals", 0)
+			sig["id"], sig["name"] = "signin_lockouts", "Brute-force lockouts"
+		}, true},
+		{"signals out of order", func(d map[string]any) {
+			sigs := obj(d, "security")["signals"].([]any)
+			sigs[0], sigs[1] = sigs[1], sigs[0]
+		}, true},
+		{"one signal missing", func(d map[string]any) {
+			sec := obj(d, "security")
+			sec["signals"] = sec["signals"].([]any)[1:]
+		}, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -301,6 +333,35 @@ func TestShownCertsAreNotHidden(t *testing.T) {
 				t.Errorf("shown certificate %q: %q is download or indexer tooling, never shown", c.ID, v)
 			}
 		}
+	}
+}
+
+// The signals count events of a series born inside the window, and every
+// expression sums its selectors away.
+func TestSignalQueries(t *testing.T) {
+	want := `sum((keycloak_user_events_total{event="login", error!=""} unless keycloak_user_events_total{event="login", error!=""} offset <w>)` +
+		` or increase(keycloak_user_events_total{event="login", error!=""}[<w>]))`
+	got := map[string]ShownSignal{}
+	for _, sig := range ShownSignals() {
+		got[sig.ID] = sig
+		if !strings.HasPrefix(sig.Query, "sum(") && !strings.HasPrefix(sig.Query, "count(") {
+			t.Errorf("%s: %q is not a sum over the cluster", sig.ID, sig.Query)
+		}
+		if strings.Contains(sig.Query, " by (") {
+			t.Errorf("%s: %q keeps a label", sig.ID, sig.Query)
+		}
+		if Hidden(sig.ID) || Hidden(strings.ToLower(sig.Name)) {
+			t.Errorf("%s: names download or indexer tooling", sig.ID)
+		}
+		if zero := strings.HasSuffix(sig.Query, " or vector(0)"); zero != sig.ExpectedZero {
+			t.Errorf("%s: or vector(0) is %v, want it only on expected-zero signals", sig.ID, zero)
+		}
+	}
+	if diff := cmp.Diff(want, got["signin_failed"].Query); diff != "" {
+		t.Errorf("signin_failed query mismatch (-want +got):\n%s", diff)
+	}
+	if _, ok := got["signin_lockouts"]; ok {
+		t.Error("a lockout count would show which usernames exist")
 	}
 }
 
@@ -511,7 +572,7 @@ func FuzzValidate(f *testing.F) {
 			return
 		}
 		// Anything accepted must name exactly the shown apps.
-		for i, a := range s.Daily.Apps {
+		for i, a := range s.Availability.Apps {
 			if a.ID != shown[i].ID || Hidden(a.ID) {
 				t.Errorf("Validate accepted app %q at %d", a.ID, i)
 			}

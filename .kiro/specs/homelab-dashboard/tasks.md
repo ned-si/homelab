@@ -241,7 +241,8 @@ the rendered screenshot check.
       read: `availability.*`. Queries: those of task 11. Probes: task 8,
       and task 4's for `homelab` ("No data" until then). Check:
       acceptance criteria 3 (on the port-forward until task 4), 6, 12
-      and 16; the grid has no hole with ten cards at 390 and 1280 px.
+      and 16; the ten cards are on the grid at every width of the
+      screenshot step.
       [2.2, 2.4, 3.5, 3.7, 3.8, 8.4]
 - [ ] 13. Certificates card (**visible**, preview and approval first):
       the tiles, the rule of
@@ -273,8 +274,8 @@ the rendered screenshot check.
       with its checks, the compiled signal list in `shown.go`. Collector:
       the queries of
       [Security signals](design.md#security-signals-task-16), with the
-      count of a series born inside the window and the lockout event
-      names checked against the running Keycloak first. Web: the tiles,
+      count of a series born inside the window (no lockout signal: it
+      would show which usernames exist). Web: the tiles,
       the sparkline builder in `chart.go` (class `spark`), the two rules
       in `status.go`, golden pages; the card in
       `docs/homelab-dashboard.md`. Snapshot keys read: `security.*`.

@@ -20,12 +20,12 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 2
+const Version = 4
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
 
-// DateLayout is the layout of daily.covers.
+// DateLayout is the layout of availability.days.
 const DateLayout = "2006-01-02"
 
 // Days is the number of daily availability values per app.
@@ -33,6 +33,13 @@ const Days = 30
 
 // MaxCIRuns is the number of ci runs on main the project block lists.
 const MaxCIRuns = 5
+
+// Buckets is the number of bars of a security signal's sparkline, each
+// BucketWidth long, the last one ending at security.as_of.
+const (
+	Buckets     = 28
+	BucketWidth = 6 * time.Hour
+)
 
 // The states of an app in the availability block.
 const (
@@ -63,27 +70,11 @@ func mustLoad(name string) *time.Location {
 type Snapshot struct {
 	SchemaVersion int          `json:"schema_version"`
 	GeneratedAt   string       `json:"generated_at"`
-	Daily         Daily        `json:"daily"`
 	Availability  Availability `json:"availability"`
 	Certificates  Certificates `json:"certificates"`
 	Cluster       Cluster      `json:"cluster"`
 	Project       Project      `json:"project"`
-}
-
-// Daily is the per-finished-day block: availability and error budget.
-type Daily struct {
-	Covers     string `json:"covers"`
-	ComputedAt string `json:"computed_at"`
-	Apps       []App  `json:"apps"`
-}
-
-// App is one shown app's availability over the 30 days to Daily.Covers.
-type App struct {
-	ID                      string     `json:"id"`
-	Name                    string     `json:"name"`
-	Availability30d         float64    `json:"availability_30d"`
-	ErrorBudgetRemaining30d int        `json:"error_budget_remaining_30d"`
-	AvailabilityDaily       []*float64 `json:"availability_daily"`
+	Security      Security     `json:"security"`
 }
 
 // Availability is the live availability block: each shown app's state, its
@@ -214,6 +205,22 @@ type CIRun struct {
 	DurationSeconds int    `json:"duration_seconds"`
 }
 
+// Security is the live block of the security signals.
+type Security struct {
+	AsOf    string   `json:"as_of"`
+	Signals []Signal `json:"signals"`
+}
+
+// Signal is one security signal: its counts over 24 hours and 7 days and
+// the 7 days in Buckets bars, oldest first. A nil count has no series.
+type Signal struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Count24h *int   `json:"count_24h"`
+	Count7d  *int   `json:"count_7d"`
+	Buckets  []*int `json:"buckets"`
+}
+
 // FormatTime formats t as the snapshot's timestamps: RFC 3339, second
 // precision, Zurich offset.
 func FormatTime(t time.Time) string {
@@ -225,7 +232,7 @@ func ParseTime(s string) (time.Time, error) {
 	return time.Parse(time.RFC3339, s)
 }
 
-// ParseDate parses daily.covers as midnight in Zurich.
+// ParseDate parses a date of availability.days as midnight in Zurich.
 func ParseDate(s string) (time.Time, error) {
 	return time.ParseInLocation(DateLayout, s, Zurich)
 }
@@ -256,7 +263,7 @@ var compiled = sync.OnceValues(func() (*jsonschema.Schema, error) {
 
 // Validate parses body and checks it: the size, the schema, then the rules
 // a schema cannot express (the shown apps and certificates in order, no
-// hidden app or node, covers before the day it was computed, the days ending
+// hidden app or node, the shown security signals in order, the days ending
 // today, no block newer than generated_at, the counts within their totals,
 // the ci runs newest first). An error about the shown names wraps
 // ErrNotShown.
@@ -290,9 +297,6 @@ func Validate(body []byte) (*Snapshot, error) {
 func (s *Snapshot) check() error {
 	var errs []error
 	want := Shown()
-	errs = append(errs, checkShown("daily.apps", len(s.Daily.Apps), len(want), func(i int) (string, string) {
-		return s.Daily.Apps[i].ID, s.Daily.Apps[i].Name
-	}, func(i int) (string, string) { return want[i].ID, want[i].Name })...)
 	errs = append(errs, checkShown("availability.apps", len(s.Availability.Apps), len(want), func(i int) (string, string) {
 		return s.Availability.Apps[i].ID, s.Availability.Apps[i].Name
 	}, func(i int) (string, string) { return want[i].ID, want[i].Name })...)
@@ -301,6 +305,16 @@ func (s *Snapshot) check() error {
 		return s.Certificates.Certs[i].ID, s.Certificates.Certs[i].Name
 	}, func(i int) (string, string) { return certs[i].ID, certs[i].Name })...)
 	errs = append(errs, s.Cluster.check()...)
+	signals := ShownSignals()
+	errs = append(errs, checkShown("security.signals", len(s.Security.Signals), len(signals), func(i int) (string, string) {
+		return s.Security.Signals[i].ID, s.Security.Signals[i].Name
+	}, func(i int) (string, string) { return signals[i].ID, signals[i].Name })...)
+	for i, sig := range s.Security.Signals {
+		if sig.Count24h != nil && sig.Count7d != nil && *sig.Count24h > *sig.Count7d {
+			errs = append(errs, fmt.Errorf("security.signals[%d] %s: count_24h %d above count_7d %d",
+				i, sig.ID, *sig.Count24h, *sig.Count7d))
+		}
+	}
 	for i := 1; i < len(s.Project.CIRuns); i++ {
 		if s.Project.CIRuns[i].Run >= s.Project.CIRuns[i-1].Run {
 			errs = append(errs, fmt.Errorf("project.ci_runs[%d] run %d is not older than run %d",
@@ -312,11 +326,11 @@ func (s *Snapshot) check() error {
 		return errors.Join(append(errs, fmt.Errorf("generated_at: %w", err))...)
 	}
 	times := []struct{ name, value string }{
-		{"daily.computed_at", s.Daily.ComputedAt},
 		{"availability.as_of", s.Availability.AsOf},
 		{"certificates.as_of", s.Certificates.AsOf},
 		{"cluster.as_of", s.Cluster.AsOf},
 		{"project.as_of", s.Project.AsOf},
+		{"security.as_of", s.Security.AsOf},
 	}
 	for _, t := range times {
 		v, err := ParseTime(t.value)
@@ -327,13 +341,6 @@ func (s *Snapshot) check() error {
 		if v.After(generated) {
 			errs = append(errs, fmt.Errorf("%s %s is after generated_at %s", t.name, t.value, s.GeneratedAt))
 		}
-	}
-	covers, err := ParseDate(s.Daily.Covers)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("daily.covers: %w", err))
-	} else if computed, err := ParseTime(s.Daily.ComputedAt); err == nil && !covers.Before(Day(computed)) {
-		errs = append(errs, fmt.Errorf("daily.covers %s is not before the day of daily.computed_at %s",
-			s.Daily.Covers, s.Daily.ComputedAt))
 	}
 	errs = append(errs, checkDays(s.Availability.Days, Day(generated))...)
 	return errors.Join(errs...)

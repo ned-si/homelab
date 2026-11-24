@@ -62,7 +62,10 @@ The operator's decision of 2026-11-24 (task 16): a Security card, with
 near-real-time counts and a 24 h / 7 d sparkline, generic rules and
 nothing that helps an attacker: no address, no path beyond the generic
 "scanner paths" category, no rule name. It uses only data that exists
-today; canary tokens are a separate spec, next month (#1618).
+today; canary tokens are a separate spec, next month (#1618). No
+brute-force lockout count: Keycloak locks existing accounts only, so it
+would tell a stranger which usernames exist; failed sign-ins are shown
+as a count and a sparkline instead (2026-11-24).
 
 Non-goals are listed under [Out of scope](#out-of-scope).
 
@@ -239,9 +242,11 @@ a reviewed commit, so the cluster runs only what CI built and signed.
 6. THE binary SHALL report its version (the git commit) with `version`, in
    its first log line and in a `build_info` metric.
 7. EVERY pull request touching `dashboard/` SHALL render the page in a
-   pinned headless browser at a phone and a desktop width, inside `ci`;
-   a browser error, a blocked resource, a CSP violation or a row of cards
-   with a hole fails `ci`, and the screenshots are attached to the run.
+   pinned headless browser at a phone width and the desktop widths of
+   4:3, 16:10 and 16:9 screens, inside `ci`; a browser error, a blocked
+   resource, a CSP violation, a card off the column grid or a lone card
+   stretched across its row fails `ci`, and the screenshots are attached
+   to the run.
 
 ## Requirement 5: Observable
 
@@ -475,8 +480,8 @@ turn things away, without learning anything that helps an attacker.
 11. The web role's log lines in SigNoz contain no client address or user
     agent. [3.6]
 12. The `dashboard` job's screenshot step passes and the run has the
-    `dashboard-screenshots` artefact with a 390 px and a 1280 px wide
-    rendering of the full fixture; the 390 px one shows every card in one
+    `dashboard-screenshots` artefact with a 390, 1024, 1440, 1920 and
+    2560 px wide rendering of the full fixture; the 390 px one shows every card in one
     column with no cut-off text (looked at in the PR). [3.9, 4.7]
 13. `curl -sI http://homelab.nedsi.io/x` returns `301` with
     `Location: https://homelab.nedsi.io/x`; `dig +short homelab.nedsi.io`
@@ -561,7 +566,7 @@ Each default holds until the operator says otherwise.
 | DORA | Definitions of [Requirement 10](#requirement-10-project-card-dora-and-ci); bands from the 2023 Accelerate State of DevOps report ([design, DORA bands](design.md#dora-bands)) | Recountable from git and GitHub; the published bands are what readers compare with |
 | Sync time | Argo CD Notifications sets the commit status `argocd/<application>` on each successful sync | The only record of when a merge reached the cluster that GitHub can return with the pull request |
 | Fix forward | Label `fix-forward`, set by whoever opens the fix | A rule a reader can check; titles alone cannot tell a fix forward from any other fix |
-| Security signals | Gateway `4xx`, `403` and `405`; failed sign-ins and brute-force lockouts (Keycloak's event metrics); Kyverno admission denials (the API server's webhook counter); ingress packets dropped by Cilium policy; Tetragon runtime detections (the `Runtime*` alerts); each a cluster-wide sum ([design, Security signals](design.md#security-signals-task-16)) | The data Prometheus holds today (checked 2026-11-24); a sum names nothing an attacker can use |
+| Security signals | Gateway `4xx`, `403` and `405`; failed sign-ins (Keycloak's event metrics; lockouts left out, they would show which usernames exist); Kyverno admission denials (the API server's webhook counter); ingress packets dropped by Cilium policy; Tetragon runtime detections (the `Runtime*` alerts); each a cluster-wide sum ([design, Security signals](design.md#security-signals-task-16)) | The data Prometheus holds today (checked 2026-11-24); a sum names nothing an attacker can use |
 | Security sparkline | 7 days in 28 six-hour bars, the last ending now; the 24 h and 7 d counts as figures | The last four bars are the 24 h; one chart per tile keeps eight tiles readable on a phone; rejected: 168 hourly bars (sub-pixel at 390 px), a 24 h chart and a 7 d chart per tile |
 | Security status | Two rules, expected-zero and background; no `bad` | Rejected requests are the internet's background noise, not an incident; paging is the alerts' job |
 | Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |

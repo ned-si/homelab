@@ -58,7 +58,7 @@ func TestCollectorMetrics(t *testing.T) {
 
 func TestWebMetrics(t *testing.T) {
 	reg := NewRegistry("web", "abc123")
-	m := NewWeb(reg, func() float64 { return 1 }, func() float64 { return 2 }, func(string) float64 { return 3 })
+	m := NewWeb(reg, func() float64 { return 1 }, func(string) float64 { return 3 })
 	m.Requests.WithLabelValues("200", Method("GET")).Inc()
 	m.Duration.Observe(0.001)
 	want := map[string][]string{
@@ -67,7 +67,6 @@ func TestWebMetrics(t *testing.T) {
 		"homelab_dashboard_http_requests_total":           {"code", "method"},
 		"homelab_dashboard_http_request_duration_seconds": nil,
 		"homelab_dashboard_snapshot_age_seconds":          nil,
-		"homelab_dashboard_daily_age_seconds":             nil,
 		"homelab_dashboard_block_age_seconds":             {"block"},
 	}
 	if diff := cmp.Diff(want, families(t, reg.Gather)); diff != "" {

@@ -150,12 +150,10 @@ func TestPushChecks(t *testing.T) {
 			doc["household"] = map[string]any{"consumption_kwh": 12}
 			return h.pushDoc(t, doc)
 		}, http.StatusBadRequest, "schema"},
-		{"version 1", func(t *testing.T, h *harness) int {
+		{"version 2", func(t *testing.T, h *harness) int {
 			doc := fixture(t)
-			doc["schema_version"] = 1
-			for _, k := range []string{"availability", "certificates"} {
-				delete(doc, k)
-			}
+			doc["schema_version"] = 2
+			doc["daily"] = map[string]any{"covers": "2026-11-19"}
 			return h.pushDoc(t, doc)
 		}, http.StatusBadRequest, "schema"},
 		{"certificate outside the allow-list", func(t *testing.T, h *harness) int {
@@ -166,7 +164,7 @@ func TestPushChecks(t *testing.T) {
 		}, http.StatusBadRequest, "allowlist"},
 		{"app outside the allow-list", func(t *testing.T, h *harness) int {
 			doc := fixture(t)
-			app := doc["daily"].(map[string]any)["apps"].([]any)[0].(map[string]any)
+			app := doc["availability"].(map[string]any)["apps"].([]any)[0].(map[string]any)
 			app["id"], app["name"] = "sonarr", "Sonarr"
 			return h.pushDoc(t, doc)
 		}, http.StatusBadRequest, "allowlist"},
@@ -265,11 +263,7 @@ func TestAges(t *testing.T) {
 	if got := h.s.SnapshotAge(); got != 30 {
 		t.Errorf("SnapshotAge() = %v, want 30", got)
 	}
-	// covers 2026-11-19 ends at 2026-11-20 00:00.
-	if got, want := h.s.DailyAge(), (17*time.Hour + 30*time.Second).Seconds(); got != want {
-		t.Errorf("DailyAge() = %v, want %v", got, want)
-	}
-	for block, want := range map[string]float64{"availability": 30, "certificates": 30, "cluster": 30, "project": 510} {
+	for block, want := range map[string]float64{"availability": 30, "certificates": 30, "cluster": 30, "project": 510, "security": 30} {
 		if got := h.s.BlockAge(block); got != want {
 			t.Errorf("BlockAge(%q) = %v, want %v", block, got, want)
 		}

@@ -30,6 +30,31 @@ type ShownCert struct {
 	Instance string
 }
 
+// ShownSignal is a security signal the public page counts.
+type ShownSignal struct {
+	// ID is the stable key in the snapshot.
+	ID string
+	// Name is the label on the page: a category, never a rule or a place.
+	Name string
+	// ExpectedZero marks a signal where one event is worth a look; the
+	// others are background noise judged against their usual level.
+	ExpectedZero bool
+	// Query is one PromQL sum over the whole cluster; Window replaces <w>
+	// in it.
+	Query string
+}
+
+// Window is the placeholder of a signal's query for its window.
+const Window = "<w>"
+
+// counter is the count of a counter's events in the window, summed over
+// every series: a series absent at the window's start counts its whole
+// value, which increase() alone would miss, as
+// tetragon:policy_events:increase5m does.
+func counter(selector string) string {
+	return "sum((" + selector + " unless " + selector + " offset " + Window + ") or increase(" + selector + "[" + Window + "]))"
+}
+
 // Probes returns the `app` labels of the probes behind a's card.
 func (a ShownApp) Probes() []string {
 	if len(a.ProbeApps) == 0 {
@@ -44,17 +69,42 @@ var shown = []ShownApp{
 	{ID: "immich", Name: "Immich", SLOApp: "media"},
 	{ID: "mealie", Name: "Mealie", SLOApp: "cook"},
 	{ID: "paperless", Name: "Paperless-ngx", SLOApp: "archive"},
-	{ID: "jellyfin", Name: "Jellyfin", SLOApp: "cinema"},
+	{ID: "plex", Name: "Plex", SLOApp: "watch"},
 	{ID: "syncthing", Name: "Syncthing", SLOApp: "syncthing"},
 	{ID: "keycloak", Name: "Keycloak", SLOApp: "auth"},
+	{ID: "observability", Name: "Observability", SLOApp: "observability",
+		ProbeApps: []string{"grafana", "signoz", "prometheus", "alertmanager"}},
 	{ID: "landing", Name: "Landing page", SLOApp: "nedsi"},
 	{ID: "blog", Name: "Blog", SLOApp: "blog"},
+	{ID: "homelab", Name: "Homelab dashboard", SLOApp: "homelab"},
 }
 
 var shownCerts = []ShownCert{
 	{ID: "lilalala", Name: "*.lilalala.com", Instance: `https://[^/]+\\.lilalala\\.com/.*`},
 	{ID: "nedsi", Name: "nedsi.io", Instance: `https://(blog\\.)?nedsi\\.io/.*`},
 	{ID: "homelab", Name: "homelab.nedsi.io", Instance: `https://homelab\\.nedsi\\.io/.*`},
+}
+
+// shownSignals are the signals of design.md, "Security signals", in page
+// order. Each sums its selectors away in PromQL, so no webhook, cluster,
+// route or alert name reaches the snapshot. No brute-force lockout count:
+// Keycloak locks existing accounts only, so it would name usernames.
+var shownSignals = []ShownSignal{
+	{ID: "gateway_rejected", Name: "Requests rejected (4xx)", Query: counter(
+		`envoy_http_downstream_rq_xx{envoy_response_code_class="4", envoy_http_conn_manager_prefix=~"listener-secure|listener-insecure"}`)},
+	{ID: "gateway_forbidden", Name: "Access refused (403)", Query: counter(
+		`envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code="403"}`)},
+	{ID: "gateway_method", Name: "Method not allowed (405)", Query: counter(
+		`envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code="405"}`)},
+	{ID: "signin_failed", Name: "Failed sign-ins", Query: counter(
+		`keycloak_user_events_total{event="login", error!=""}`)},
+	{ID: "admission_denied", Name: "Admission denials", ExpectedZero: true, Query: counter(
+		`apiserver_admission_webhook_rejection_count{name=~"i?vpol\\.validate\\.kyverno\\.svc.*", error_type="no_error"}`) +
+		" or vector(0)"},
+	{ID: "ingress_dropped", Name: "Ingress packets dropped by network policy", Query: counter(
+		`cilium_drop_count_total{reason="Policy denied", direction="INGRESS"}`)},
+	{ID: "runtime_detections", Name: "Runtime detections (observe mode)", ExpectedZero: true,
+		Query: `count(max_over_time(ALERTS{alertname=~"Runtime.+", alertstate="firing"}[` + Window + `])) or vector(0)`},
 }
 
 // hidden and the "arr" suffix match the download and indexer tooling, as the
@@ -71,6 +121,11 @@ func Shown() []ShownApp {
 // ShownCerts returns the shown certificates, in page order.
 func ShownCerts() []ShownCert {
 	return slices.Clone(shownCerts)
+}
+
+// ShownSignals returns the security signals, in page order.
+func ShownSignals() []ShownSignal {
+	return slices.Clone(shownSignals)
 }
 
 // Hidden reports whether s names download or indexer tooling.

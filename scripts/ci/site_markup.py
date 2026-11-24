@@ -3,8 +3,8 @@
 
 Fails on <form>, <iframe>, <style>, style= and on* attributes, an inline
 <script>, a <script src> other than /stats/s.js, and a src= or href= outside
-<article> to an origin other than the SITE_HOSTS (the canonical <link>
-excepted). The CSP of the site would block most of these; this catches
+<article> to an origin other than the SITE_HOSTS (the canonical <link> and
+an <a> to the project's repository, REPO, excepted). The CSP of the site would block most of these; this catches
 them before the browser does.
 
 Every page also needs the site navigation: one <nav class="site"> with the
@@ -18,6 +18,7 @@ from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
 
 STATS_SCRIPT = "/stats/s.js"
+REPO = "https://github.com/ned-si/homelab/"
 SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io")
 NAV = [
     ("Home", "https://nedsi.io/"),
@@ -72,7 +73,8 @@ class Checker(HTMLParser):
         canonical = tag == "link" and "canonical" in (a.get("rel") or "").split()
         for name in ("src", "href"):
             url = a.get(name)
-            if url and self.foreign(url, SITE_HOSTS) and not canonical:
+            repo = tag == "a" and name == "href" and (url or "").startswith(REPO)
+            if url and self.foreign(url, SITE_HOSTS) and not canonical and not repo:
                 self.bad(f"{name}={url} outside <article>")
 
     def handle_data(self, data):
