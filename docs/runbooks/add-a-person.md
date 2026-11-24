@@ -66,6 +66,11 @@ apps they have.
    Keycloak sends it from `homelab@nedsi.io` through Proton (`platform.conf`
    `smtp`); the person sets their password from the link. A missed link:
    send it again.
+
+   The homelab never sends verification e-mails (`verifyEmail` off and the
+   required action Verify Email disabled, applied by the
+   keycloak-realm-settings Job): the only automated mail is a password reset
+   the operator triggers on purpose.
 3. OTP: only members of `admins` need it. They get the realm role
    `mfa-required` and Keycloak asks them to set up an authenticator after the
    password (required action `CONFIGURE_TOTP`, `platform.conf`
@@ -77,7 +82,7 @@ Expected: Users, the user, Groups lists the groups you picked; Details shows
 Enabled On and Email verified On.
 
 Language: the login pages and Keycloak's e-mails (reset password, execute
-actions, verify e-mail) follow the user's language (attribute `locale`).
+actions) follow the user's language (attribute `locale`).
 A user without one gets French (`platform.conf` `default_locale=fr`); the
 realm also offers Spanish and English (`locales`). Spanish is set per user
 for those who need it. E-mails sent from the admin console follow the
