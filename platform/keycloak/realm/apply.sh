@@ -289,6 +289,19 @@ kc update "realms/$REALM" -s "passwordPolicy=$(conf password_policy)"
 check "$REALM passwordPolicy" "$(policy_norm "$(conf password_policy)")" \
   "$(policy_norm "$(realm_val "$(kc get "realms/$REALM")" passwordPolicy)")"
 
+# --- no e-mail verification in $REALM -------------------------------------------
+# The admin sets every address and users are told never to click mail links:
+# neither a login nor an execute-actions e-mail may ask to verify one
+# (docs/runbooks/add-a-person.md).
+kc update "realms/$REALM" -s verifyEmail=false
+check "$REALM verifyEmail" false "$(realm_val "$(kc get "realms/$REALM")" verifyEmail)"
+kc update authentication/required-actions/VERIFY_EMAIL -r "$REALM" -s enabled=false -s defaultAction=false
+live=$(kc get authentication/required-actions/VERIFY_EMAIL -r "$REALM" --fields enabled,defaultAction)
+for f in enabled defaultAction; do
+  check "$REALM required action VERIFY_EMAIL $f" false \
+    "$(printf '%s\n' "$live" | sed -n "s/^ *\"$f\" : \([a-z]*\).*\$/\1/p")"
+done
+
 # --- platform.conf: languages of $REALM ----------------------------------------
 # Keycloak keeps supportedLocales as a set: compare sorted.
 locales_json=""
