@@ -81,12 +81,49 @@ def test_disks_and_alerts():
     assert not any("UnscheduledReboot" in l for l in out)
 
 
-def test_every_metric_has_help_and_type():
+# Recorded from SCALE 25.10.8, trimmed: `system/info` and `reporting/get_data`
+# for the `cpu` and `memory` graphs (per-second rows, `cpu` in percent).
+SCALE = {
+    **DATA,
+    "system/info": {"version": "25.10.8", "uptime_seconds": 360337.6, "cores": 12, "physical_cores": 6,
+                    "physmem": 33580396544, "loadavg": [0.025390625, 0.564453125, 0.7578125]},
+    "reporting/get_data": [
+        {"name": "cpu", "identifier": "cpu", "legend": ["time", "cpu", "cpu0", "cpu1"],
+         "data": [[1795503462, 0, 0, 0], [1795503463, 25, 1, 0], [1795503464, None, None, None]]},
+        {"name": "memory", "identifier": "memory", "legend": ["time", "available"],
+         "data": [[1795503463, 4099068000], [1795503464, 4105572000]]},
+    ],
+}
+
+
+def test_cpu_memory_load():
+    out = exporter.build(SCALE).render().splitlines()
+    assert "truenas_cpu_cores 12" in out
+    assert "truenas_load1 0.025390625" in out
+    assert "truenas_memory_total_bytes 33580396544" in out
+    assert "truenas_cpu_utilisation_ratio 0.25" in out
+    assert "truenas_memory_used_bytes 29474824544" in out
+
+
+def test_cpu_memory_absent_without_answers():
     out = lines()
-    names = {l.split("{")[0].split(" ")[0] for l in out if not l.startswith("#")}
-    for n in names:
-        assert f"# TYPE {n} gauge" in out
-        assert any(l.startswith(f"# HELP {n} ") for l in out)
+    for name in ("truenas_cpu_cores", "truenas_load1", "truenas_memory_total_bytes",
+                 "truenas_cpu_utilisation_ratio", "truenas_memory_used_bytes"):
+        assert not any(l.startswith(name) for l in out)
+    graphs = [{"name": "cpu", "legend": ["time", "user"], "data": [[1, 5]]},
+              {"name": "memory", "legend": ["time", "available"], "data": [[1, None]]}]
+    out = exporter.build({**SCALE, "reporting/get_data": graphs}).render().splitlines()
+    assert not any(l.startswith(("truenas_cpu_utilisation", "truenas_memory_used")) for l in out)
+    assert "truenas_memory_total_bytes 33580396544" in out
+
+
+def test_every_metric_has_help_and_type():
+    for data in (DATA, SCALE):
+        out = exporter.build(data).render().splitlines()
+        names = {l.split("{")[0].split(" ")[0] for l in out if not l.startswith("#")}
+        for n in names:
+            assert f"# TYPE {n} gauge" in out
+            assert any(l.startswith(f"# HELP {n} ") for l in out)
 
 
 def collector(fail):
@@ -107,6 +144,27 @@ def collector(fail):
 def test_required_endpoint_failure():
     out = collector({"alert/list"}).collect().splitlines()
     assert "truenas_up 0" in out
+
+
+def test_reporting_optional():
+    out = collector({"reporting/get_data"}).collect().splitlines()
+    assert "truenas_up 1" in out
+    assert not any(l.startswith("truenas_cpu_utilisation_ratio") for l in out)
+
+
+def test_reporting_query():
+    c = collector(set())
+    plain, bodies = c.call, []
+    def call(path, body=None):
+        if path == "reporting/get_data":
+            bodies.append(body)
+            return SCALE[path]
+        return plain(path, body)
+    c.call = call
+    out = c.collect().splitlines()
+    assert [g["name"] for g in bodies[0]["graphs"]] == ["cpu", "memory"]
+    assert bodies[0]["query"]["end"] - bodies[0]["query"]["start"] == exporter.REPORT_WINDOW
+    assert "truenas_cpu_utilisation_ratio 0.25" in out
 
 
 def test_temperatures_body_scale_and_core():

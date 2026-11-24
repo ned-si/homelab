@@ -1,9 +1,9 @@
-"""TrueNAS exporter: pools, disks, temperatures, capacity and the NAS's own alerts, read from the REST API v2.0 as Prometheus
-metrics.
+"""TrueNAS exporter: pools, disks, temperatures, capacity, CPU, memory, load and the NAS's own alerts, read from the REST API
+v2.0 as Prometheus metrics.
 
-Read-only: every call is a GET, except `disk/temperatures`, which is a query
-the API only exposes as POST. Standard library only. Logs are JSON lines on
-stdout.
+Read-only: every call is a GET, except the `disk/temperatures` and
+`reporting/get_data` queries, which the API only exposes as POST. Standard
+library only. Logs are JSON lines on stdout.
 
 Environment:
   TRUENAS_URL      base URL, e.g. https://192.168.1.228
@@ -28,8 +28,10 @@ import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-TIMEOUT = 5  # per call; 11 calls stay under the 58 s scrape timeout
+TIMEOUT = 5  # per call; 12 calls stay under the 58 s scrape timeout
 POOL_ROLES = ("data", "log", "cache", "spare", "special", "dedup")
+# Seconds of per-second reporting points asked for; the last one is used.
+REPORT_WINDOW = 60
 
 
 def log(level: str, msg: str, **fields) -> None:
@@ -93,6 +95,23 @@ def parsed(prop) -> float | None:
     return None
 
 
+def number(v) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def last_point(graph, column: str) -> float | None:
+    """The newest numeric value of `column` in a `reporting/get_data` graph."""
+    legend = (graph or {}).get("legend") or []
+    if column not in legend:
+        return None
+    i = legend.index(column)
+    for row in reversed(graph.get("data") or []):
+        v = number(row[i]) if isinstance(row, list) and len(row) > i else None
+        if v is not None:
+            return v
+    return None
+
+
 def build(data: dict, iscsi_networks: frozenset[str] = frozenset()) -> Metrics:
     """Turn the API responses into metrics. `data` maps endpoint -> JSON."""
     m = Metrics()
@@ -101,6 +120,20 @@ def build(data: dict, iscsi_networks: frozenset[str] = frozenset()) -> Metrics:
     if info:
         m.add("truenas_info", "gauge", "TrueNAS version.", 1, version=info.get("version", ""))
         m.add("truenas_uptime_seconds", "gauge", "Seconds since boot.", info.get("uptime_seconds"))
+        m.add("truenas_cpu_cores", "gauge", "Logical CPUs.", number(info.get("cores")))
+        load = info.get("loadavg") or []
+        m.add("truenas_load1", "gauge", "Load average over 1 minute.", number(load[0]) if load else None)
+        m.add("truenas_memory_total_bytes", "gauge", "Physical memory.", number(info.get("physmem")))
+
+    graphs = {g.get("name"): g for g in data.get("reporting/get_data") or [] if isinstance(g, dict)}
+    cpu = last_point(graphs.get("cpu"), "cpu")
+    m.add("truenas_cpu_utilisation_ratio", "gauge", "Busy share of all CPUs, last reporting point.",
+          None if cpu is None else cpu / 100)
+    # The graph reports available memory; the ZFS ARC counts as used.
+    available = last_point(graphs.get("memory"), "available")
+    total = number((info or {}).get("physmem"))
+    m.add("truenas_memory_used_bytes", "gauge", "Physical memory not available, last reporting point.",
+          None if available is None or not total else total - available)
 
     pools = list(data.get("pool") or [])
     boot = data.get("boot/get_state")
@@ -248,6 +281,15 @@ class Collector:
             except Exception as e:  # noqa: BLE001
                 failed.append("disk/temperatures")
                 log("error", "api call failed", path="disk/temperatures", error=type(e).__name__)
+            # Optional: without it the CPU and memory-used metrics are absent, truenas_up stays 1.
+            try:
+                end = int(time.time())
+                data["reporting/get_data"] = self.call("reporting/get_data", {
+                    "graphs": [{"name": "cpu"}, {"name": "memory"}],
+                    "query": {"start": end - REPORT_WINDOW, "end": end},
+                })
+            except Exception as e:  # noqa: BLE001
+                log("error", "api call failed", path="reporting/get_data", error=type(e).__name__)
             data["datasets"] = []
             for p in data.get("pool") or []:
                 try:
