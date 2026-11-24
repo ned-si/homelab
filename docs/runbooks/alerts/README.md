@@ -45,7 +45,8 @@ that application's failing conditions and resources.
   `kubectl -n monitoring port-forward svc/kube-prometheus-stack-alertmanager 9093:9093`,
   then `http://localhost:9093`.
 - Grafana: `https://grafana.lilalala.com`. Dashboards named on the pages:
-  Homelab / Overview (`/d/homelab-overview`), Homelab / Automation
+  Homelab / Overview (`/d/homelab-overview`), Homelab / Alerts
+  (`/d/homelab-alerts`), Homelab / Automation
   (`/d/homelab-automation`), Homelab / Data protection
   (`/d/homelab-data-protection`), Homelab / Storage (`/d/homelab-storage`),
   Homelab / Nodes (`/d/homelab-nodes`), Homelab / LAN (`/d/homelab-lan`),
