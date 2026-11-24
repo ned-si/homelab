@@ -220,7 +220,9 @@ One loop, ticking every 60 s:
   on a `403`/`429` with `X-RateLimit-Remaining: 0`). The collector pushes
   only once it holds all three blocks.
 - Each cycle has a 50 s deadline (`context.WithTimeout`), each HTTP call
-  10 s.
+  10 s. A due `project` refresh runs first, outside that deadline, with
+  its own 3 min: its GraphQL pages and `ALERTS` range queries take longer
+  than a cycle.
 - `homelab-dashboard collect --once --dry-run [--as-of YYYY-MM-DD]` runs
   one collection, prints it and exits without pushing. `--as-of` sets
   every query time to the end of that Zurich day and prints the

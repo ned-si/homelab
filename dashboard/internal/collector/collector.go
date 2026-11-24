@@ -23,6 +23,9 @@ const HTTPTimeout = 10 * time.Second
 const (
 	cycleEvery    = 60 * time.Second
 	cycleDeadline = 50 * time.Second
+	// projectDeadline bounds a project refresh, which pages through every
+	// pull request merged in 30 days and does not fit in a cycle.
+	projectDeadline = 3 * time.Minute
 	// The anonymous GitHub quota is 60 calls an hour, shared by the WAN
 	// address; a refresh is about 5 calls.
 	projectWithToken    = 15 * time.Minute
@@ -89,6 +92,11 @@ func (c *Collector) Run(ctx context.Context) {
 // pushes a signed snapshot. It reports whether every web pod accepted it.
 func (c *Collector) Cycle(ctx context.Context) bool {
 	c.started.Store(true)
+	if now := c.Now().Truncate(time.Second); !now.Before(c.nextProject) {
+		pctx, cancel := context.WithTimeout(ctx, projectDeadline)
+		c.refreshProject(pctx, now)
+		cancel()
+	}
 	ctx, cancel := context.WithTimeout(ctx, cycleDeadline)
 	defer cancel()
 	now := c.Now().Truncate(time.Second)
@@ -96,9 +104,6 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 	c.refreshAvailability(ctx, now)
 	c.refreshCertificates(ctx, now)
 	c.refreshCluster(ctx, now)
-	if !now.Before(c.nextProject) {
-		c.refreshProject(ctx, now)
-	}
 	if covers := DailyCovers(now); c.daily == nil || c.daily.Covers != covers.Format(snapshot.DateLayout) {
 		c.refreshDaily(ctx, now, covers)
 	}
