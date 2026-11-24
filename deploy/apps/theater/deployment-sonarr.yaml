@@ -72,7 +72,7 @@ spec:
           value: /arr/sonarr
         - name: SONARR__AUTH__METHOD
           value: External
-        image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:0e0909e87f5d9ceb462b94590e44b1b0a645ed5c7414326bfee9624f44c266bb
+        image: ghcr.io/hotio/sonarr:release-4.0.20.3014@sha256:88aa99495462ceabe0b010f0cef8ef8f3181f78a501b6acf4deb1cfbcd16dd31
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 6
