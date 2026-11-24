@@ -22,7 +22,7 @@ spec:
   description: >-
     Keycloak: HTTP from the Gateway and the realm Job, the management port
     from monitoring and the smoke Job, JGroups between members; egress to its
-    Postgres and HTTPS.
+    Postgres, HTTPS and SMTP submission.
   endpointSelector:
     matchLabels:
       app.kubernetes.io/name: keycloak
@@ -114,13 +114,20 @@ spec:
               protocol: TCP
             - port: "57800"
               protocol: TCP
-    # Outbound HTTPS (identity provider metadata, update checks). Anything
-    # else, such as mail, shows up in the audit as a would-be drop.
+    # Outbound HTTPS (identity provider metadata, update checks).
     - toEntities:
         - world
       toPorts:
         - ports:
             - port: "443"
+              protocol: TCP
+    # Mail: SMTP submission with STARTTLS to smtp.protonmail.ch
+    # (realm/platform.conf `smtp`). `world`, as for HTTPS.
+    - toEntities:
+        - world
+      toPorts:
+        - ports:
+            - port: "587"
               protocol: TCP
 ---
 apiVersion: cilium.io/v2

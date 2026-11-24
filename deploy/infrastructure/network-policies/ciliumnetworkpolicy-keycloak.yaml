@@ -16,7 +16,7 @@ metadata:
 spec:
   description: 'Keycloak: HTTP from the Gateway and the realm Job, the management
     port from monitoring and the smoke Job, JGroups between members; egress to its
-    Postgres and HTTPS.'
+    Postgres, HTTPS and SMTP submission.'
   egress:
   - toEndpoints:
     - matchLabels:
@@ -49,6 +49,12 @@ spec:
     toPorts:
     - ports:
       - port: "443"
+        protocol: TCP
+  - toEntities:
+    - world
+    toPorts:
+    - ports:
+      - port: "587"
         protocol: TCP
   enableDefaultDeny:
     egress: false

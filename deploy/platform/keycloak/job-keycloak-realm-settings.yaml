@@ -78,6 +78,18 @@ spec:
               key: SIGNOZ_CLIENT_SECRET
               name: keycloak-signoz-client
               optional: true
+        - name: SMTP_USER
+          valueFrom:
+            secretKeyRef:
+              key: SMTP_USER
+              name: keycloak-smtp
+              optional: true
+        - name: SMTP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: SMTP_PASSWORD
+              name: keycloak-smtp
+              optional: true
         - name: SYNCTHING_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
@@ -113,7 +125,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-m2cb9g5966
+          name: keycloak-realm-settings-4fm87m6t99
         name: realm
       - emptyDir: {}
         name: tmp

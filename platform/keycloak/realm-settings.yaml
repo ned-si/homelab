@@ -95,6 +95,20 @@ spec:
                   name: keycloak-signoz-client
                   key: SIGNOZ_CLIENT_SECRET
                   optional: true
+            # The realm's SMTP login (platform.conf `smtp`),
+            # platform/secrets/keycloak-smtp.sops.yaml.
+            - name: SMTP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-smtp
+                  key: SMTP_USER
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-smtp
+                  key: SMTP_PASSWORD
+                  optional: true
             # platform/secrets/syncthing-sso.sops.yaml.
             - name: SYNCTHING_CLIENT_SECRET
               valueFrom:
