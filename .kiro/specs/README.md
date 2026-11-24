@@ -68,7 +68,6 @@ Change specs, active:
 | [autoscaling](autoscaling/) | 2026-11-03 | #917 | task 1: the HA inventory and its repo-policy rules |
 | [disaster-recovery-strategy](disaster-recovery-strategy/) | 2026-11-03 | #918 | task 1: the decision, the scenario table and the off-site inventory |
 | [home-automation](home-automation/) | 2026-11-04 | #1072 | task 1: the label photos, the inventory and the feasibility table, then phase 1 (tasks 2-12) |
-| [homelab-dashboard](homelab-dashboard/) | 2026-11-20 | #1554 | task 2: publishing and the screenshot check |
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 4: the app accounts and deleting `family` and `media` (operator) |
 | [image-provenance](image-provenance/) | 2026-11-18 | #725 | task 1: the image inventory and its read-only workflow |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
@@ -79,6 +78,7 @@ Change specs, done:
 | Spec | Created | Closed |
 | --- | --- | --- |
 | [cilium-upgrades](cilium-upgrades/) | 2026-10-24 | 2026-11-02 |
+| [homelab-dashboard](homelab-dashboard/) | 2026-11-20 | 2026-11-24 |
 | [immich-v3-migration](immich-v3-migration/) | 2026-10-16 | 2026-10-16 |
 | [nas-on-truenas-scale](nas-on-truenas-scale/) | 2026-11-16 | 2026-11-18, snapshot destroy in #1497 |
 | [paperless-documents](paperless-documents/) | 2026-11-03 | 2026-11-04 |

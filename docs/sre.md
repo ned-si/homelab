@@ -253,8 +253,7 @@ of reverting it, gets the label `fix-forward`, set by whoever opens it. A
 revert needs no label: the title `Revert ...` or the label `auto-rollback`
 already marks it. The homelab dashboard counts both as failed changes in
 its change failure rate
-([homelab-dashboard.md](homelab-dashboard.md#dora-figures)); pull requests
-merged before the label existed have none.
+([homelab-dashboard.md](homelab-dashboard.md#dora-figures)).
 
 ## Postmortems
 

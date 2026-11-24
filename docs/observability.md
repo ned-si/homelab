@@ -147,7 +147,7 @@ which shows in `truenas_alerts` and does not page. Moving off REST: #1490.
 | `truenas_alerts` (`level`, `klass`) | the NAS's own alert list, not dismissed |
 | `truenas_cpu_cores`, `truenas_load1`, `truenas_memory_total_bytes` | `system/info`: `cores`, `loadavg[0]`, `physmem` |
 | `truenas_cpu_utilisation_ratio`, `truenas_memory_used_bytes`, `truenas_memory_arc_bytes` | the last point of the `cpu`, `memory` and `arcsize` graphs of `reporting/get_data` (the last 60 s); used is `physmem` minus available minus the ZFS ARC, which is reclaimable cache and has its own gauge. Absent when the call fails; `truenas_up` does not count it |
-| `truenas_up` | 1 when every call of the last scrape succeeded |
+| `truenas_up` | 1 when every required call of the last scrape succeeded |
 | `truenas_iscsi_targets_unrestricted` | `iscsi/target`, `iscsi/initiator`: targets not limited to exactly `ISCSI_AUTH_NETWORKS` (CORE: their initiator group's `auth_network`; SCALE: their own `auth_networks`) |
 
 TrueNAS SCALE 25.10 no longer schedules SMART self-tests, so the exporter
