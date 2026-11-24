@@ -75,7 +75,7 @@ spec:
               type: RuntimeDefault
           volumes:
           - configMap:
-              name: paperless-canary-g948fm2c87
+              name: paperless-canary-88bcmmkgkc
             name: app
           - name: token
             secret:

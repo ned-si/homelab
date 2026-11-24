@@ -26,6 +26,7 @@ data:
       paperless_canary_last_success_timestamp_seconds  end of the last success; not
                                                        pushed on a failure (POST keeps it)
 
+    Before the upload it waits up to READY_TIMEOUT for a restarting Paperless.
     Exit 0 when found and cleaned up, 1 otherwise (after the push).
 
     Environment: PAPERLESS_API_URL (default http://paperless:8000), the `canary`
@@ -50,6 +51,10 @@ data:
 
     API_VERSION = "10"
     POLL_SECONDS = 5
+    # Waiting for a restarting Paperless, before the clock starts; with the
+    # 900 s search it stays inside the Job's activeDeadlineSeconds (1500).
+    READY_TIMEOUT = 300
+    READY_POLL_SECONDS = 10
     JOB = "paperless-canary"
 
     Transport = Callable[[str, str, dict, Optional[bytes]], "tuple[int, bytes]"]
@@ -89,10 +94,31 @@ data:
             self.token = token
             self.transport = transport
 
+        def headers(self) -> dict:
+            return {"Authorization": f"Token {self.token}",
+                    "Accept": f"application/json; version={API_VERSION}"}
+
+        def wait_ready(self, timeout: float, clock: Callable[[], float] = time.monotonic,
+                       sleep: Callable[[float], None] = time.sleep) -> None:
+            """While Paperless restarts its Service has no endpoint or answers 5xx:
+            wait up to `timeout` seconds for any other HTTP answer."""
+            deadline = clock() + timeout
+            while True:
+                try:
+                    status, _ = self.transport("GET", self.base + "/api/", self.headers(), None)
+                    if status < 500:
+                        return
+                    problem = f"HTTP {status}"
+                except (urllib.error.URLError, OSError) as exc:
+                    problem = str(exc)
+                if clock() >= deadline:
+                    raise CanaryError(f"Paperless unreachable for {int(timeout)} s: {problem}")
+                print(f"waiting for Paperless: {problem}", flush=True)
+                sleep(READY_POLL_SECONDS)
+
         def call(self, method: str, path: str, body: dict | None = None,
                  data: bytes | None = None, content_type: str | None = None) -> object:
-            headers = {"Authorization": f"Token {self.token}",
-                       "Accept": f"application/json; version={API_VERSION}"}
+            headers = self.headers()
             if body is not None:
                 data, content_type = json.dumps(body).encode(), "application/json"
             if content_type:
@@ -127,9 +153,14 @@ data:
 
     def run(api: Api, number: str, pdf: bytes, timeout: float,
             clock: Callable[[], float] = time.monotonic,
-            sleep: Callable[[float], None] = time.sleep) -> tuple[bool, float, str]:
+            sleep: Callable[[float], None] = time.sleep,
+            ready_timeout: float = READY_TIMEOUT) -> tuple[bool, float, str]:
         """(found, seconds, reason). Removes the document whether or not it was found."""
         title = f"canary {number}"
+        try:
+            api.wait_ready(ready_timeout, clock, sleep)
+        except CanaryError as exc:
+            return False, 0.0, str(exc)
         start = clock()
         found: list[int] = []
         reason = ""
@@ -199,5 +230,5 @@ data:
         sys.exit(main())
 kind: ConfigMap
 metadata:
-  name: paperless-canary-g948fm2c87
+  name: paperless-canary-88bcmmkgkc
   namespace: paperless
