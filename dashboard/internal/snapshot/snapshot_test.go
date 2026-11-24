@@ -47,7 +47,7 @@ func obj(doc map[string]any, path ...string) map[string]any {
 }
 
 func apps(doc map[string]any) []any {
-	return obj(doc, "daily")["apps"].([]any)
+	return obj(doc, "availability")["apps"].([]any)
 }
 
 func item(doc map[string]any, block, list string, i int) map[string]any {
@@ -59,10 +59,7 @@ func TestValidateAcceptsFixture(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Validate(valid.json) = %v, want nil", err)
 	}
-	if got, want := s.Daily.Covers, "2026-11-19"; got != want {
-		t.Errorf("Daily.Covers = %q, want %q", got, want)
-	}
-	if got := s.Daily.Apps[6].AvailabilityDaily[0]; got != nil {
+	if got := s.Availability.Apps[7].AvailabilityDaily[0]; got != nil {
 		t.Errorf("landing availability_daily[0] = %v, want nil", *got)
 	}
 	if got := s.Certificates.Certs[2].DaysLeft; got != nil {
@@ -73,7 +70,7 @@ func TestValidateAcceptsFixture(t *testing.T) {
 	}
 }
 
-// TestNoFreeText pins the version 2 keys that hold text: each is either
+// TestNoFreeText pins the keys that hold text: each is either
 // from a compiled list or bounded by a pattern a sentence cannot match.
 func TestNoFreeText(t *testing.T) {
 	s, err := Validate(readValid(t))
@@ -133,11 +130,11 @@ func TestValidateRefuses(t *testing.T) {
 	}{
 		{"missing key", func(d map[string]any) { delete(d, "project") }, false},
 		{"extra key at the top", func(d map[string]any) { d["extra"] = 1 }, false},
-		{"extra key in daily", func(d map[string]any) { obj(d, "daily")["extra"] = 1 }, false},
+		{"a daily block", func(d map[string]any) { d["daily"] = map[string]any{"covers": "2026-11-19"} }, false},
 		{"extra key in an app", func(d map[string]any) { apps(d)[0].(map[string]any)["extra"] = 1 }, false},
 		{"extra key in cluster", func(d map[string]any) { obj(d, "cluster")["consumption"] = 1 }, false},
 		{"extra key in project", func(d map[string]any) { obj(d, "project")["extra"] = 1 }, false},
-		{"version 1", func(d map[string]any) { d["schema_version"] = 1 }, false},
+		{"version 2", func(d map[string]any) { d["schema_version"] = 2 }, false},
 		{"availability above 100", func(d map[string]any) { apps(d)[0].(map[string]any)["availability_30d"] = 100.1 }, false},
 		{"budget below -100", func(d map[string]any) { apps(d)[0].(map[string]any)["error_budget_remaining_30d"] = -101 }, false},
 		{"29 daily values", func(d map[string]any) {
@@ -159,19 +156,15 @@ func TestValidateRefuses(t *testing.T) {
 			as := apps(d)
 			as[0], as[1] = as[1], as[0]
 		}, true},
-		{"one app missing", func(d map[string]any) { obj(d, "daily")["apps"] = apps(d)[1:] }, true},
+		{"one app missing", func(d map[string]any) { obj(d, "availability")["apps"] = apps(d)[1:] }, true},
 		{"cluster as_of after generated_at", func(d map[string]any) {
 			obj(d, "cluster")["as_of"] = "2026-11-20T17:00:01+01:00"
 		}, false},
 		{"project as_of after generated_at", func(d map[string]any) {
 			obj(d, "project")["as_of"] = "2026-11-20T18:00:00+01:00"
 		}, false},
-		{"computed_at after generated_at", func(d map[string]any) {
-			obj(d, "daily")["computed_at"] = "2026-11-20T17:30:00+01:00"
-		}, false},
-		{"covers on the day it was computed", func(d map[string]any) { obj(d, "daily")["covers"] = "2026-11-20" }, false},
 
-		// Version 2.
+		// The redesign's blocks.
 		{"no availability", func(d map[string]any) { delete(d, "availability") }, false},
 		{"no certificates", func(d map[string]any) { delete(d, "certificates") }, false},
 		{"no node_use", func(d map[string]any) { delete(obj(d, "cluster"), "node_use") }, false},
@@ -511,7 +504,7 @@ func FuzzValidate(f *testing.F) {
 			return
 		}
 		// Anything accepted must name exactly the shown apps.
-		for i, a := range s.Daily.Apps {
+		for i, a := range s.Availability.Apps {
 			if a.ID != shown[i].ID || Hidden(a.ID) {
 				t.Errorf("Validate accepted app %q at %d", a.ID, i)
 			}

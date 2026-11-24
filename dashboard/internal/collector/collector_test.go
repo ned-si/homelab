@@ -1,7 +1,6 @@
 package collector
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
@@ -29,9 +28,7 @@ import (
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
 
-// fake is a Prometheus and a GitHub API with the values of the publisher's
-// test fake (tests/website/test_publisher.py), so --as-of can be compared
-// with the publisher's recorded output.
+// fake is a Prometheus and a GitHub API.
 type fake struct {
 	mu          sync.Mutex
 	queries     []string
@@ -92,8 +89,8 @@ type fakePR struct {
 func newFake() *fake {
 	f := &fake{
 		queryTimes: map[string][]time.Time{},
-		avail: map[string]float64{"media": 0.99956, "cook": 0.9991, "archive": 0.9918, "cinema": 1.0,
-			"syncthing": 0.996, "auth": 0.9954, "nedsi": 0.9844, "blog": 0.9995},
+		avail: map[string]float64{"media": 0.99956, "cook": 0.9991, "archive": 0.9918, "watch": 1.0,
+			"syncthing": 0.996, "auth": 0.9954, "observability": 0.9990, "nedsi": 0.9844, "blog": 0.9995, "homelab": 0.9999},
 		osImages:  []string{"Talos (v1.14.6)"},
 		kubelets:  []string{"v1.37.2"},
 		nodes:     4,
@@ -446,29 +443,6 @@ func (f *fake) count(prefix string) int {
 	return n
 }
 
-// countAt counts the queries starting with prefix made at a time keep
-// accepts.
-func (f *fake) countAt(prefix string, keep func(time.Time) bool) int {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	n := 0
-	for q, ts := range f.queryTimes {
-		if !strings.HasPrefix(q, prefix) {
-			continue
-		}
-		for _, t := range ts {
-			if keep(t) {
-				n++
-			}
-		}
-	}
-	return n
-}
-
-func midnight(t time.Time) bool {
-	return snapshot.Day(t).Equal(t)
-}
-
 func (f *fake) githubCalls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -559,25 +533,6 @@ func zurich(y int, mo time.Month, d, h, mi int) time.Time {
 	return time.Date(y, mo, d, h, mi, 0, 0, snapshot.Zurich)
 }
 
-func TestDailyCovers(t *testing.T) {
-	tests := []struct {
-		now  time.Time
-		want string
-	}{
-		{zurich(2026, 11, 20, 3, 44), "2026-11-18"},
-		{zurich(2026, 11, 20, 3, 45), "2026-11-19"},
-		{zurich(2026, 11, 20, 23, 59), "2026-11-19"},
-		{zurich(2026, 11, 21, 0, 0), "2026-11-19"},
-		{zurich(2026, 3, 30, 4, 0), "2026-03-29"},
-		{zurich(2026, 10, 26, 4, 0), "2026-10-25"},
-	}
-	for _, tc := range tests {
-		if got := DailyCovers(tc.now).Format(snapshot.DateLayout); got != tc.want {
-			t.Errorf("DailyCovers(%v) = %s, want %s", tc.now, got, tc.want)
-		}
-	}
-}
-
 func TestCyclePushesFullSnapshot(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent, http.StatusNoContent)
 	e.withToken(t)
@@ -598,9 +553,6 @@ func TestCyclePushesFullSnapshot(t *testing.T) {
 	}
 	if got, want := s.GeneratedAt, "2026-11-20T17:00:00+01:00"; got != want {
 		t.Errorf("generated_at = %s, want %s", got, want)
-	}
-	if got, want := s.Daily.Covers, "2026-11-19"; got != want {
-		t.Errorf("daily.covers = %s, want %s", got, want)
 	}
 	cl := s.Cluster
 	cl.NodeUse, cl.NAS, cl.Gateway, cl.Volumes = nil, snapshot.NAS{}, snapshot.Gateway{}, snapshot.Volumes{}
@@ -678,14 +630,14 @@ func TestFailingSourceKeepsLastBlock(t *testing.T) {
 
 func TestNoPushUntilEveryBlock(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
-	e.fake.promEmpty = "slo:availability"
+	e.fake.promEmpty = "count(kube_node_info)"
 	if e.c.Cycle(t.Context()) {
-		t.Error("Cycle() without a daily block = true, want false")
+		t.Error("Cycle() without a cluster block = true, want false")
 	}
 	if len(e.pods[0].bodies) != 0 {
 		t.Errorf("got %d pushes, want none", len(e.pods[0].bodies))
 	}
-	// The daily block is retried at the next cycle.
+	// The cluster block is retried at the next cycle.
 	e.fake.promEmpty = ""
 	e.now = e.now.Add(time.Minute)
 	if !e.c.Cycle(t.Context()) {
@@ -705,14 +657,14 @@ func TestBudgetClampedAndNoProbeDay(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
 	e.fake.budget["nedsi"] = -3.2
 	e.fake.noProbe["cook"] = true
-	s, _, err := e.c.Collect(t.Context(), e.now, DailyCovers(e.now))
+	s, _, err := e.c.Collect(t.Context(), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := s.Daily.Apps[6].ErrorBudgetRemaining30d; got != -100 {
-		t.Errorf("landing budget = %d, want -100", got)
+	if got := s.Availability.Apps[7].ErrorBudgetRemaining30d; got == nil || *got != -100 {
+		t.Errorf("landing budget = %v, want -100", got)
 	}
-	for i, v := range s.Daily.Apps[1].AvailabilityDaily {
+	for i, v := range s.Availability.Apps[1].AvailabilityDaily {
 		if v != nil {
 			t.Errorf("mealie availability_daily[%d] = %v, want null", i, *v)
 		}
@@ -723,7 +675,7 @@ func TestVersionMidUpgrade(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
 	e.fake.osImages = []string{"Talos (v1.14.10)", "Talos (v1.14.9)"}
 	e.fake.kubelets = []string{"v1.38.0", "v1.37.2"}
-	s, _, err := e.c.Collect(t.Context(), e.now, DailyCovers(e.now))
+	s, _, err := e.c.Collect(t.Context(), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -734,65 +686,8 @@ func TestVersionMidUpgrade(t *testing.T) {
 		t.Errorf("kubernetes_version = %s, want %s", got, want)
 	}
 	e.fake.osImages = []string{"Talos (unknown)"}
-	if _, _, err := e.c.Collect(t.Context(), e.now, DailyCovers(e.now)); err == nil {
+	if _, _, err := e.c.Collect(t.Context(), e.now); err == nil {
 		t.Error("Collect() with no version in os_image = nil error, want an error")
-	}
-}
-
-func TestDailyQueriesAtZurichMidnights(t *testing.T) {
-	for _, covers := range []time.Time{zurich(2026, 3, 29, 0, 0), zurich(2026, 10, 25, 0, 0)} {
-		t.Run(covers.Format(snapshot.DateLayout), func(t *testing.T) {
-			e := newEnv(t, covers.AddDate(0, 0, 1).Add(5*time.Hour))
-			if _, err := daily(t.Context(), e.c.Prometheus, covers); err != nil {
-				t.Fatal(err)
-			}
-			var times []time.Time
-			for q, ts := range e.fake.queryTimes {
-				if strings.HasPrefix(q, "1 - slo:probe_error") {
-					times = ts
-				}
-			}
-			if len(times) != snapshot.Days {
-				t.Fatalf("%d daily queries, want %d", len(times), snapshot.Days)
-			}
-			for i, at := range times {
-				l := at.In(snapshot.Zurich)
-				if l.Hour() != 0 || l.Minute() != 0 {
-					t.Errorf("daily query %d at %v, want a Zurich midnight", i, l)
-				}
-			}
-			if got, want := times[len(times)-1], snapshot.AddDays(covers, 1); !got.Equal(want) {
-				t.Errorf("last daily query at %v, want %v", got, want)
-			}
-		})
-	}
-}
-
-func TestDailyCadence(t *testing.T) {
-	// Start-up before 03:45 serves the day before yesterday, then
-	// yesterday from the first cycle after 03:45; once a day only.
-	e := newEnv(t, zurich(2026, 11, 20, 3, 40), http.StatusNoContent)
-	e.c.Cycle(t.Context())
-	if got, want := e.c.daily.Covers, "2026-11-18"; got != want {
-		t.Errorf("covers at 03:40 = %s, want %s", got, want)
-	}
-	e.now = zurich(2026, 11, 20, 3, 44)
-	e.c.Cycle(t.Context())
-	if n := e.fake.countAt("slo:availability", midnight); n != 1 {
-		t.Errorf("daily computed %d times by 03:44, want 1", n)
-	}
-	e.now = zurich(2026, 11, 20, 3, 45)
-	e.c.Cycle(t.Context())
-	if got, want := e.c.daily.Covers, "2026-11-19"; got != want {
-		t.Errorf("covers at 03:45 = %s, want %s", got, want)
-	}
-	e.now = zurich(2026, 11, 20, 17, 0)
-	e.c.Cycle(t.Context())
-	if n := e.fake.countAt("slo:availability", midnight); n != 2 {
-		t.Errorf("daily computed %d times by 17:00, want 2", n)
-	}
-	if n := e.fake.count("count(kube_node_info)"); n != 4 {
-		t.Errorf("cluster refreshed %d times in 4 cycles, want 4", n)
 	}
 }
 
@@ -934,61 +829,4 @@ func TestValidationFailurePushesNothing(t *testing.T) {
 	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("validation")); got != 1 {
 		t.Errorf("collect_errors_total{validation} = %v, want 1", got)
 	}
-}
-
-// TestAsOfMatchesPublisher compares --as-of with the publisher's output
-// for the same fake, recorded in testdata/publisher-figures.json.
-func TestAsOfMatchesPublisher(t *testing.T) {
-	e := newEnv(t, zurich(2026, 11, 20, 17, 0))
-	covers := zurich(2026, 11, 19, 0, 0)
-	s, _, err := e.c.Collect(t.Context(), snapshot.AddDays(covers, 1), covers)
-	if err != nil {
-		t.Fatal(err)
-	}
-	f, err := ToFigures(s)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := normalise(t, f)
-	want := readJSON(t, "testdata/publisher-figures.json")
-	delete(got, "computed_at")
-	delete(want, "computed_at")
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("--as-of mismatch with the publisher (-want +got):\n%s", diff)
-	}
-	wantCalls := []string{
-		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+base%3Amain+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z",
-		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+base%3Amain+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z+author%3Aapp%2Frenovate",
-		"/repos/ned-si/homelab/actions/workflows/ci.yaml/runs?created=2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z&exclude_pull_requests=true&page=1&per_page=100&status=success",
-		"/repos/ned-si/homelab/actions/workflows/ci.yaml/runs?branch=main&event=push&exclude_pull_requests=true&per_page=5&status=completed",
-	}
-	if diff := cmp.Diff(wantCalls, e.fake.github); diff != "" {
-		t.Errorf("GitHub calls mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func normalise(t *testing.T, v any) map[string]any {
-	t.Helper()
-	b, err := json.Marshal(v)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]any
-	if err := json.Unmarshal(b, &m); err != nil {
-		t.Fatal(err)
-	}
-	return m
-}
-
-func readJSON(t *testing.T, path string) map[string]any {
-	t.Helper()
-	b, err := os.ReadFile(path) //nolint:gosec // G304: a fixture under testdata/.
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m map[string]any
-	if err := json.NewDecoder(bytes.NewReader(b)).Decode(&m); err != nil {
-		t.Fatal(err)
-	}
-	return m
 }

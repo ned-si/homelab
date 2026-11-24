@@ -15,31 +15,50 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
 
+func sub(doc map[string]any, name string) map[string]any {
+	return doc[name].(map[string]any)
+}
+
 func apps(doc map[string]any) []map[string]any {
 	var out []map[string]any
-	for _, a := range doc["daily"].(map[string]any)["apps"].([]any) {
+	for _, a := range sub(doc, "availability")["apps"].([]any) {
 		out = append(out, a.(map[string]any))
 	}
 	return out
 }
 
-// fullDaily has 30 days for every app, so every card has a budget, and one
-// day without probes, so the page has every status: Blog ok, Immich warn,
-// Paperless bad, a Jellyfin day none.
+func days(t *testing.T, doc map[string]any) []string {
+	t.Helper()
+	var out []string
+	for _, d := range sub(doc, "availability")["days"].([]any) {
+		out = append(out, d.(string))
+	}
+	return out
+}
+
+// fullDaily has 30 days for every app but the dashboard's own, so those
+// cards have a budget, and one day without probes, so the page has every
+// status: Observability ok, Immich warn, Paperless-ngx bad and down, a Plex
+// day none, the Homelab dashboard without data.
 func fullDaily(t *testing.T) map[string]any {
 	t.Helper()
 	doc := fixture(t)
 	for _, a := range apps(doc) {
+		if a["id"] == "homelab" {
+			continue
+		}
 		days := a["availability_daily"].([]any)
 		for i := range days {
 			if days[i] == nil {
 				days[i] = 100.0
 			}
 		}
-		if a["id"] == "jellyfin" {
+		if a["id"] == "plex" {
 			days[10] = nil
 		}
 	}
@@ -51,6 +70,9 @@ func exhausted(t *testing.T) map[string]any {
 	t.Helper()
 	doc := fullDaily(t)
 	for i, a := range apps(doc) {
+		if a["id"] == "homelab" {
+			continue
+		}
 		a["error_budget_remaining_30d"] = -100
 		a["availability_30d"] = 98.0
 		if i == 0 {
@@ -58,6 +80,37 @@ func exhausted(t *testing.T) map[string]any {
 			a["availability_30d"] = 99.5
 		}
 	}
+	return doc
+}
+
+// alarms turns the certificates, cluster and project figures to warn and
+// bad, and the Gateway to no data.
+func alarms(t *testing.T) map[string]any {
+	t.Helper()
+	doc := fullDaily(t)
+	certs := sub(doc, "certificates")["certs"].([]any)
+	certs[0].(map[string]any)["days_left"] = 14
+	certs[1].(map[string]any)["days_left"] = 3
+	c := sub(doc, "cluster")
+	c["synced"], c["restarts_24h"] = 50, 25
+	n := c["node_use"].([]any)[0].(map[string]any)
+	n["ready"], n["cpu"], n["disk"], n["cpu_pressure"], n["net_errors_per_second"] = false, 96.0, 90.0, 30.0, 1.5
+	nas := sub(c, "nas")
+	nas["up"], nas["pool_healthy"], nas["load_per_core"], nas["device_errors"], nas["cpu"] = false, false, 1.5, 2, nil
+	c["gateway"] = map[string]any{"requests_per_second": nil, "errors_5xx": nil, "latency_p95_ms": nil}
+	sub(c, "volumes")["fullest"] = 96.0
+	p := sub(doc, "project")
+	p["deploys_30d"], p["lead_time_seconds"], p["change_failure_rate"], p["incidents_30d"] = 2, 864000, 20.0, 0
+	return doc
+}
+
+// staleBlocks has a cluster block 10 minutes and a project block 2 hours
+// older than generated_at.
+func staleBlocks(t *testing.T) map[string]any {
+	t.Helper()
+	doc := fixture(t)
+	sub(doc, "cluster")["as_of"] = "2026-11-20T16:50:00+01:00"
+	sub(doc, "project")["as_of"] = "2026-11-20T15:00:00+01:00"
 	return doc
 }
 
@@ -70,8 +123,9 @@ func TestGoldenPages(t *testing.T) {
 		{"full", fullDaily, fixtureNow},
 		{"since", fixture, fixtureNow},
 		{"exhausted", exhausted, fixtureNow},
+		{"alarms", alarms, fixtureNow},
 		{"stale-live", fixture, fixtureNow.Add(2 * time.Hour)},
-		{"stale-daily", fixture, fixtureNow.Add(3 * 24 * time.Hour)},
+		{"stale-blocks", staleBlocks, fixtureNow},
 		{"empty", nil, fixtureNow},
 	}
 	for _, tc := range tests {
@@ -109,34 +163,111 @@ func checkMarkup(t *testing.T, body string) {
 	}
 }
 
+func page(t *testing.T, doc map[string]any) string {
+	t.Helper()
+	h := newHarness(t)
+	if code := h.pushDoc(t, doc); code != http.StatusNoContent {
+		t.Fatalf("push = %d", code)
+	}
+	return h.get(t, http.MethodGet, "/").Body.String()
+}
+
+func contains(t *testing.T, body string, want ...string) {
+	t.Helper()
+	for _, w := range want {
+		if !strings.Contains(body, w) {
+			t.Errorf("the page lacks %q", w)
+		}
+	}
+}
+
 // Acceptance criterion 6: one card per shown app, and every status class
 // next to its word.
 func TestFullPageCardsAndStatuses(t *testing.T) {
-	h := newHarness(t)
-	if code := h.pushDoc(t, fullDaily(t)); code != http.StatusNoContent {
-		t.Fatalf("push = %d", code)
-	}
-	body := h.get(t, http.MethodGet, "/").Body.String()
+	body := page(t, fullDaily(t))
 	if got, want := strings.Count(body, `<div class="card">`), len(snapshot.Shown()); got != want {
 		t.Errorf("%d cards, want %d (one per shown app)", got, want)
 	}
 	for _, s := range snapshot.Shown() {
-		if !strings.Contains(body, "<h3>"+template.HTMLEscapeString(s.Name)+"</h3>") {
+		if !strings.Contains(body, "<h3>"+template.HTMLEscapeString(s.Name)+" <span class=\"state") {
 			t.Errorf("no card for %s", s.Name)
 		}
 	}
-	for _, want := range []string{
+	contains(t, body,
 		`<span class="status ok">Met</span>`,
 		`<span class="status warn">At risk</span>`,
 		`<span class="status bad">Missed</span>`,
+		`<span class="state ok">Up</span>`,
+		`<span class="state bad">Down</span>`,
+		`<span class="state none">No data</span>`,
 		`class="none"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the page lacks %q", want)
-		}
-	}
-	if !regexp.MustCompile(`<rect class="none"[^>]*><title>2026-10-31: No data</title>`).MatchString(body) {
+	)
+	if !regexp.MustCompile(`<rect class="none"[^>]*><title>2026-11-01: No data</title>`).MatchString(body) {
 		t.Error("the day without probes has no none bar titled No data")
+	}
+	if !regexp.MustCompile(`<rect class="(ok|warn|bad) today"[^>]*><title>2026-11-20 \(today so far\): 99\.8%</title>`).MatchString(body) {
+		t.Error("no bar of today so far")
+	}
+}
+
+// Acceptance criterion 17: the certificates, cluster and project cards with
+// each status class next to its word.
+func TestCardsStatusWords(t *testing.T) {
+	full := page(t, fullDaily(t))
+	alarm := page(t, alarms(t))
+	for _, tc := range []struct {
+		body string
+		want []string
+	}{
+		{full, []string{
+			`<span class="big ok">39<span class="unit">days</span></span> <span class="status ok">Valid</span>`,
+			`<p class="label">homelab.nedsi.io</p>
+<p> <span class="status none">No data</span></p>`,
+			`<span class="value ok">31.2%</span> <span class="status ok">OK</span>`,
+			`<span class="value warn">80.4%</span> <span class="status warn">Warning</span>`,
+			`<span class="big warn">0.59<span class="unit">%</span></span> <span class="status warn">Warning</span>`,
+			`<span class="big ok">41<span class="unit">ms</span></span> <span class="status ok">OK</span>`,
+			`<span class="big">0.63<span class="unit">per second</span></span>`,
+			`<span class="big warn">55<span class="unit">apps</span></span> <span class="status warn">Warning</span>`,
+			`<p class="meta">54 Synced, 55 Healthy</p>`,
+			`<p class="meta">384 GiB of 1.0 TiB, fullest 80.8%</p>`,
+			`<span class="big ok">709<span class="unit">deploys</span></span> <span class="status ok">Elite</span>`,
+			`<p class="meta">23.6 a day</p>`,
+			`<span class="big ok">21<span class="unit">min</span></span> <span class="status ok">Elite</span>`,
+			`<p class="meta">Median of 640 changes</p>`,
+			`<span class="big ok">1.3<span class="unit">%</span></span> <span class="status ok">Elite</span>`,
+			`<span class="big ok">25<span class="unit">min</span></span> <span class="status ok">Elite</span>`,
+			`<p class="meta">Median of 4 incidents</p>`,
+			`<li><span class="status ok">Success</span> <a href="https://github.com/ned-si/homelab/pull/1602">#1602</a> <code>6d0407e</code> <time datetime="2026-11-20T16:40:12&#43;01:00">20 Nov 16:40</time>, 4<span class="unit">min</span> 58<span class="unit">s</span></li>`,
+			`<li><span class="status bad">Failure</span>`,
+			`<li><span class="status none">Cancelled</span>`,
+			`<li><span class="status warn">Other</span> <code>2ec595b</code>`,
+		}},
+		{alarm, []string{
+			`<span class="big warn">14<span class="unit">days</span></span> <span class="status warn">Renewal late</span>`,
+			`<span class="big bad">3<span class="unit">days</span></span> <span class="status bad">Expiring</span>`,
+			`homelab-cp-1 <span class="state bad">Not ready</span>`,
+			`<span class="value bad">96.0%</span> <span class="status bad">Critical</span>`,
+			`<span class="value warn">90.0%</span> <span class="status warn">Warning</span>`,
+			`<span class="value bad">1.50/s</span> <span class="status bad">Critical</span>`,
+			`NAS <span class="state bad">Down</span>`,
+			`<span class="value bad">47.9%, unhealthy</span> <span class="status bad">Critical</span>`,
+			`<span class="label">CPU</span> <span class="value none">No data</span> <span class="status none">No data</span>`,
+			`<span class="value warn">1.50</span> <span class="status warn">Warning</span>`,
+			`<span class="value bad">2</span> <span class="status bad">Critical</span>`,
+			`<p class="label">Requests</p>
+<p> <span class="status none">No data</span></p>`,
+			`<p class="label">p95 duration</p>
+<p> <span class="status none">No data</span></p>`,
+			`<span class="big bad">25</span> <span class="status bad">Critical</span>`,
+			`<span class="big bad">35<span class="unit">PVCs</span></span> <span class="status bad">Critical</span>`,
+			`<span class="big warn">2<span class="unit">deploys</span></span> <span class="status warn">Medium</span>`,
+			`<span class="big warn">10<span class="unit">d</span></span> <span class="status warn">Medium</span>`,
+			`<span class="big bad">20.0<span class="unit">%</span></span> <span class="status bad">Low</span>`,
+			`<span class="big ok">None</span> <span class="status ok">No incident</span>`,
+		}},
+	} {
+		contains(t, tc.body, tc.want...)
 	}
 }
 
@@ -153,17 +284,14 @@ func TestPageTexts(t *testing.T) {
 		{fixtureNow, []string{
 			"Target: 99.5% availability over 30 days per app.",
 			`Updated <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time> (Zurich time).`,
-			`<span class="label">since 16 November</span>`,
+			`<span class="label">since 17 November</span>`,
 			"11% of the error budget left",
-			"<p class=\"meta\">Exhausted</p>",
 			`5<span class="unit">min</span> 05<span class="unit">s</span>`,
-			`709<span class="unit">PRs</span>`,
 			`aria-label="Opened by Renovate: 50%"`,
 			`As of <time datetime="2026-11-20T16:52:00&#43;01:00">20 November 2026, 16:52</time>.`,
 			"Solar production", "Home automation",
-		}, []string{"Live figures from", "daily update is failing", "No figures yet", "/tags/"}},
+		}, []string{"Live figures from", "Figures from", "No figures yet", "/tags/", "finished day"}},
 		{fixtureNow.Add(6 * time.Minute), []string{"Live figures from <time datetime=\"2026-11-20T17:00:00&#43;01:00\">20 November 2026, 17:00</time>"}, nil},
-		{fixtureNow.Add(3 * 24 * time.Hour), []string{"Availability figures are from <time datetime=\"2026-11-19\">19 November 2026</time>: the daily update is failing."}, nil},
 	} {
 		h.now = tc.now
 		body := h.get(t, http.MethodGet, "/").Body.String()
@@ -177,6 +305,23 @@ func TestPageTexts(t *testing.T) {
 				t.Errorf("at %v the page contains %q", tc.now, n)
 			}
 		}
+	}
+}
+
+// A block older than generated_at says so on its own card: 5 minutes, an
+// hour for the project block.
+func TestBlockStaleness(t *testing.T) {
+	body := page(t, staleBlocks(t))
+	contains(t, body,
+		`Figures from <time datetime="2026-11-20T16:50:00&#43;01:00">20 November 2026, 16:50</time> (Zurich time): this card is not updating.`,
+		`Figures from <time datetime="2026-11-20T15:00:00&#43;01:00">20 November 2026, 15:00</time> (Zurich time): this card is not updating.`,
+	)
+	if n := strings.Count(body, "this card is not updating"); n != 2 {
+		t.Errorf("%d stale notices, want 2", n)
+	}
+	// The fixture's project block is 8 minutes old: under the hour.
+	if strings.Contains(page(t, fixture(t)), "this card is not updating") {
+		t.Error("the fixture has a stale notice")
 	}
 }
 
@@ -203,11 +348,136 @@ func TestStatusRules(t *testing.T) {
 			t.Errorf("monthWord(%q) = %q, want %q", s, got, want)
 		}
 	}
+	for state, want := range map[string][2]string{"up": {"ok", "Up"}, "down": {"bad", "Down"}, "none": {"none", "No data"}} {
+		if st, w := appState(state); string(st) != want[0] || w != want[1] {
+			t.Errorf("appState(%q) = %q %q, want %q %q", state, st, w, want[0], want[1])
+		}
+	}
+}
+
+func TestCertificateRule(t *testing.T) {
+	n := func(x int) *int { return &x }
+	for _, tc := range []struct {
+		days *int
+		st   status
+		word string
+	}{
+		{n(90), statusOK, "Valid"}, {n(22), statusOK, "Valid"}, {n(21), statusWarn, "Renewal late"},
+		{n(7), statusWarn, "Renewal late"}, {n(6), statusBad, "Expiring"}, {n(-3), statusBad, "Expiring"},
+		{nil, statusNone, "No data"},
+	} {
+		if st, w := certStatus(tc.days); st != tc.st || w != tc.word {
+			t.Errorf("certStatus(%v) = %q %q, want %q %q", tc.days, st, w, tc.st, tc.word)
+		}
+	}
+}
+
+// Each threshold of the cluster card on its boundaries: "A to B" includes
+// both ends.
+func TestClusterRules(t *testing.T) {
+	v := func(x float64) *float64 { return &x }
+	for _, tc := range []struct {
+		name string
+		l    limits
+		in   []float64
+		want []status
+	}{
+		{"cpu, memory", useLimits, []float64{79.9, 80, 95, 95.1}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"disk", diskLimits, []float64{84.9, 85, 92, 92.1}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"pressure", pressureLimits, []float64{9.9, 10, 25, 25.1}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"pool", poolLimits, []float64{79.9, 80, 90, 90.1}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"load per core", loadLimits, []float64{0.99, 1, 2, 2.01}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"5xx share", errorShareLimits, []float64{0.49, 0.5, 5, 5.01}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"p95", p95Limits, []float64{999, 1000, 5000, 5001}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"restarts", restartLimits, []float64{5, 6, 20, 21}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+		{"fullest volume", volumeLimits, []float64{84.9, 85, 95, 95.1}, []status{statusOK, statusWarn, statusWarn, statusBad}},
+	} {
+		for i, x := range tc.in {
+			if got := level(v(x), tc.l); got != tc.want[i] {
+				t.Errorf("%s: level(%v) = %q, want %q", tc.name, x, got, tc.want[i])
+			}
+		}
+		if got := level(nil, tc.l); got != statusNone {
+			t.Errorf("%s: level(nil) = %q, want none", tc.name, got)
+		}
+	}
+	for x, want := range map[float64]status{0: statusOK, 0.01: statusBad, 3: statusBad} {
+		if got := errorLevel(v(x)); got != want {
+			t.Errorf("errorLevel(%v) = %q, want %q", x, got, want)
+		}
+	}
+	if got := errorLevel(nil); got != statusNone {
+		t.Errorf("errorLevel(nil) = %q, want none", got)
+	}
+	for _, tc := range []struct {
+		apps, synced, healthy int
+		want                  status
+	}{{56, 56, 56, statusOK}, {56, 55, 56, statusWarn}, {56, 56, 55, statusWarn}} {
+		if got := argoStatus(tc.apps, tc.synced, tc.healthy); got != tc.want {
+			t.Errorf("argoStatus(%d, %d, %d) = %q, want %q", tc.apps, tc.synced, tc.healthy, got, tc.want)
+		}
+	}
+	for s, want := range map[status]string{statusOK: "OK", statusWarn: "Warning", statusBad: "Critical", statusNone: "No data"} {
+		if got := levelWord(s); got != want {
+			t.Errorf("levelWord(%q) = %q, want %q", s, got, want)
+		}
+	}
+}
+
+// Each DORA band on its boundaries (design.md, "DORA bands").
+func TestDORABands(t *testing.T) {
+	for deploys, want := range map[int]band{0: bandLow, 1: bandMedium, 3: bandMedium, 4: bandHigh, 29: bandHigh, 30: bandElite, 700: bandElite} {
+		if got := deployBand(deploys); got != want {
+			t.Errorf("deployBand(%d) = %s, want %s", deploys, got, want)
+		}
+	}
+	for _, tc := range []struct {
+		d    time.Duration
+		want band
+	}{
+		{day - time.Second, bandElite}, {day, bandHigh}, {week, bandHigh}, {week + time.Second, bandMedium},
+		{month, bandMedium}, {month + time.Second, bandLow},
+	} {
+		if got := leadBand(tc.d); got != tc.want {
+			t.Errorf("leadBand(%v) = %s, want %s", tc.d, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		d    time.Duration
+		want band
+	}{
+		{time.Hour - time.Second, bandElite}, {time.Hour, bandHigh}, {day, bandHigh}, {day + time.Second, bandMedium},
+		{week, bandMedium}, {week + time.Second, bandLow},
+	} {
+		if got := restoreBand(tc.d); got != tc.want {
+			t.Errorf("restoreBand(%v) = %s, want %s", tc.d, got, tc.want)
+		}
+	}
+	for rate, want := range map[float64]band{0: bandElite, 5: bandElite, 5.1: bandHigh, 10: bandHigh, 10.1: bandMedium, 15: bandMedium, 15.1: bandLow} {
+		if got := failureBand(rate); got != want {
+			t.Errorf("failureBand(%v) = %s, want %s", rate, got, want)
+		}
+	}
+	for b, want := range map[band]status{bandElite: statusOK, bandHigh: statusOK, bandMedium: statusWarn, bandLow: statusBad} {
+		if got := bandStatus(b); got != want {
+			t.Errorf("bandStatus(%s) = %q, want %q", b, got, want)
+		}
+	}
+	for result, want := range map[string][2]string{"success": {"ok", "Success"}, "failure": {"bad", "Failure"},
+		"cancelled": {"none", "Cancelled"}, "other": {"warn", "Other"}} {
+		if st, w := runStatus(result); string(st) != want[0] || w != want[1] {
+			t.Errorf("runStatus(%q) = %q %q, want %q %q", result, st, w, want[0], want[1])
+		}
+	}
 }
 
 func TestCard(t *testing.T) {
-	covers := time.Date(2026, 11, 19, 0, 0, 0, 0, snapshot.Zurich)
+	var ds []string
+	for i := range snapshot.Days {
+		ds = append(ds, snapshot.AddDays(time.Date(2026, 10, 22, 0, 0, 0, 0, snapshot.Zurich), i).Format(snapshot.DateLayout))
+	}
 	v := func(x float64) *float64 { return &x }
+	n := func(x int) *int { return &x }
 	full := make([]*float64, snapshot.Days)
 	for i := range full {
 		full[i] = v(100)
@@ -218,7 +488,7 @@ func TestCard(t *testing.T) {
 	oneDay[29] = v(100)
 	for _, tc := range []struct {
 		name      string
-		app       snapshot.App
+		app       snapshot.LiveApp
 		status    status
 		word      string
 		since     string
@@ -226,16 +496,18 @@ func TestCard(t *testing.T) {
 		meter     bool
 		noData    bool
 	}{
-		{"met", snapshot.App{Availability30d: 99.9, ErrorBudgetRemaining30d: 80, AvailabilityDaily: full}, statusOK, "Met", "", false, true, false},
-		{"budget at 0", snapshot.App{Availability30d: 99.5, ErrorBudgetRemaining30d: 0, AvailabilityDaily: full}, statusWarn, "At risk", "", true, true, false},
-		{"missed", snapshot.App{Availability30d: 99.1, ErrorBudgetRemaining30d: -62, AvailabilityDaily: full}, statusBad, "Missed", "", true, true, false},
+		{"met", snapshot.LiveApp{Availability30d: v(99.9), ErrorBudgetRemaining30d: n(80), AvailabilityDaily: full}, statusOK, "Met", "", false, true, false},
+		{"budget at 0", snapshot.LiveApp{Availability30d: v(99.5), ErrorBudgetRemaining30d: n(0), AvailabilityDaily: full}, statusWarn, "At risk", "", true, true, false},
+		{"missed", snapshot.LiveApp{Availability30d: v(99.1), ErrorBudgetRemaining30d: n(-62), AvailabilityDaily: full}, statusBad, "Missed", "", true, true, false},
 		// Under 30 days: neutral whatever the figure and the budget.
-		{"since, above the target", snapshot.App{Availability30d: 99.6, ErrorBudgetRemaining30d: 20, AvailabilityDaily: since}, statusNone, "", "17 November", false, false, false},
-		{"since, below the target", snapshot.App{Availability30d: 99.4, ErrorBudgetRemaining30d: -90, AvailabilityDaily: since}, statusNone, "", "17 November", false, false, false},
-		{"since, one day", snapshot.App{Availability30d: 100, ErrorBudgetRemaining30d: 100, AvailabilityDaily: oneDay}, statusNone, "", "19 November", false, false, false},
-		{"no data", snapshot.App{Availability30d: 100, AvailabilityDaily: make([]*float64, snapshot.Days)}, statusNone, "", "", false, false, true},
+		{"since, above the target", snapshot.LiveApp{Availability30d: v(99.6), ErrorBudgetRemaining30d: n(20), AvailabilityDaily: since}, statusNone, "", "18 November", false, false, false},
+		{"since, below the target", snapshot.LiveApp{Availability30d: v(99.4), ErrorBudgetRemaining30d: n(-90), AvailabilityDaily: since}, statusNone, "", "18 November", false, false, false},
+		{"since, today only", snapshot.LiveApp{Availability30d: v(100), ErrorBudgetRemaining30d: n(100), AvailabilityDaily: oneDay}, statusNone, "", "20 November", false, false, false},
+		{"no budget", snapshot.LiveApp{Availability30d: v(99.9), AvailabilityDaily: full}, statusNone, "", "", false, false, false},
+		{"no data", snapshot.LiveApp{AvailabilityDaily: full}, statusNone, "", "", false, false, true},
+		{"no daily value", snapshot.LiveApp{Availability30d: v(100), AvailabilityDaily: make([]*float64, snapshot.Days)}, statusNone, "", "", false, false, true},
 	} {
-		c := card(tc.app, covers)
+		c := card(tc.app, ds)
 		if c.Status != tc.status || c.Word != tc.word || c.Since != tc.since || c.Exhausted != tc.exhausted || (c.Meter != "") != tc.meter || c.NoData != tc.noData {
 			t.Errorf("%s: card = status %q word %q since %q exhausted %v meter %v no data %v, want %q %q %q %v %v %v",
 				tc.name, c.Status, c.Word, c.Since, c.Exhausted, c.Meter != "", c.NoData,
@@ -248,11 +520,7 @@ func TestCard(t *testing.T) {
 // and checks each such card: the figure in the neutral colour with "since
 // <date>", no status word, no error budget.
 func TestSinceCardsAreNeutral(t *testing.T) {
-	h := newHarness(t)
-	if code := h.pushDoc(t, fixture(t)); code != http.StatusNoContent {
-		t.Fatalf("push = %d", code)
-	}
-	body := h.get(t, http.MethodGet, "/").Body.String()
+	body := page(t, fixture(t))
 	sinceCards := 0
 	for _, c := range strings.Split(body, `<div class="card">`)[1:] {
 		c, _, _ = strings.Cut(c, `<div class="bars">`)
@@ -274,10 +542,30 @@ func TestSinceCardsAreNeutral(t *testing.T) {
 	}
 }
 
-func TestMedian(t *testing.T) {
-	for s, want := range map[int]ciMedian{59: {0, "59"}, 60: {1, "00"}, 305: {5, "05"}, 7: {0, "7"}} {
-		if got := median(s); got != want {
-			t.Errorf("median(%d) = %+v, want %+v", s, got, want)
+func TestFormats(t *testing.T) {
+	for s, want := range map[int][]part{
+		7:      {{"7", "s"}},
+		59:     {{"59", "s"}},
+		60:     {{"1", "min"}},
+		305:    {{"5", "min"}, {"05", "s"}},
+		2280:   {{"38", "min"}},
+		7800:   {{"2", "h"}, {"10", "min"}},
+		7230:   {{"2", "h"}},
+		864000: {{"10", "d"}},
+		97200:  {{"1", "d"}, {"3", "h"}},
+	} {
+		if diff := cmp.Diff(want, durationParts(s)); diff != "" {
+			t.Errorf("durationParts(%d) mismatch (-want +got):\n%s", s, diff)
+		}
+	}
+	for n, want := range map[int]string{0: "0", 999: "999", 1000: "1,000", 48127: "48,127", 1234567: "1,234,567", -1000: "-1,000"} {
+		if got := thousands(n); got != want {
+			t.Errorf("thousands(%d) = %q, want %q", n, got, want)
+		}
+	}
+	for n, want := range map[int64]string{412316860416: "384 GiB", 1099511627776: "1.0 TiB", 1 << 20: "1 MiB"} {
+		if got := bytesText(n); got != want {
+			t.Errorf("bytesText(%d) = %q, want %q", n, got, want)
 		}
 	}
 }
@@ -291,24 +579,24 @@ func TestBarHeight(t *testing.T) {
 }
 
 var (
-	chartClasses = map[string]bool{"ok": true, "warn": true, "bad": true, "none": true, "track": true, "target": true}
+	chartClasses = map[string]bool{"ok": true, "warn": true, "bad": true, "none": true, "track": true, "target": true, "today": true}
 	chartNumeric = regexp.MustCompile(`^-?[0-9]+(\.[0-9])?$`)
 	chartViewBox = regexp.MustCompile(`^0 0 [0-9]+ [0-9]+$`)
 	chartLabel   = regexp.MustCompile(`^[A-Za-z0-9 :%,.]+$`)
-	chartTitle   = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}: ([0-9]+\.[0-9]%|No data)$`)
+	chartTitle   = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}( \(today so far\))?: ([0-9]+\.[0-9]%|No data)$`)
 )
 
 func TestChartMarkup(t *testing.T) {
 	v := func(x float64) *float64 { return &x }
-	covers := time.Date(2026, 11, 19, 0, 0, 0, 0, snapshot.Zurich)
+	ds := days(t, fixture(t))
 	mixed := make([]*float64, snapshot.Days)
 	for i := range mixed {
 		mixed[i] = v(100 - float64(i)*0.5)
 	}
 	mixed[3] = nil
 	charts := map[string]template.HTML{
-		"bars, empty":       dailyBars(covers, make([]*float64, snapshot.Days)),
-		"bars, mixed":       dailyBars(covers, mixed),
+		"bars, empty":       dailyBars(ds, make([]*float64, snapshot.Days)),
+		"bars, mixed":       dailyBars(ds, mixed),
 		"meter -100":        budgetMeter(-100),
 		"meter 0":           budgetMeter(0),
 		"meter 25":          budgetMeter(25),
@@ -316,7 +604,10 @@ func TestChartMarkup(t *testing.T) {
 		"share 0":           shareBar("Opened by Renovate", 0),
 		"share 61":          shareBar("Opened by Renovate", 61),
 		"share 100":         shareBar("Opened by Renovate", 100),
-		"bars, partial day": dailyBars(covers, []*float64{nil, v(12.3456), v(99.95)}),
+		"use 0":             meter("CPU", 0, statusOK),
+		"use 80.4":          meter("Memory", 80.4, statusWarn),
+		"use 100":           meter("Disk", 100, statusBad),
+		"bars, partial day": dailyBars(ds[27:], []*float64{nil, v(12.3456), v(99.95)}),
 	}
 	allowed := map[string]bool{"svg": true, "g": true, "rect": true, "line": true, "title": true}
 	for name, chart := range charts {
@@ -353,7 +644,7 @@ func TestChartMarkup(t *testing.T) {
 			}
 		}
 	}
-	if got := string(dailyBars(covers, mixed)); !strings.Contains(got, `aria-label="30 days: 2 met, 5 at risk, 22 missed, 1 without data"`) {
+	if got := string(dailyBars(ds, mixed)); !strings.Contains(got, `aria-label="30 days: 2 met, 5 at risk, 22 missed, 1 without data"`) {
 		t.Errorf("dailyBars label: %s", got)
 	}
 }
@@ -362,8 +653,10 @@ func checkChartAttr(t *testing.T, name string, a xml.Attr) {
 	t.Helper()
 	switch a.Name.Local {
 	case "class":
-		if !chartClasses[a.Value] {
-			t.Errorf("%s: class %q", name, a.Value)
+		for _, c := range strings.Fields(a.Value) {
+			if !chartClasses[c] {
+				t.Errorf("%s: class %q", name, a.Value)
+			}
 		}
 	case "role":
 		if a.Value != "img" {

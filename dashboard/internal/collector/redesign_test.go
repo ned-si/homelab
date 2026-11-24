@@ -13,7 +13,7 @@ import (
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
 
-// The tests of snapshot version 2 (design.md, "Tests", the redesign rows).
+// The tests of the redesign's blocks (design.md, "Tests", the redesign rows).
 
 func f64(x float64) *float64 { return &x }
 func i(x int) *int           { return &x }
@@ -31,10 +31,10 @@ func (e *env) push(t *testing.T) *snapshot.Snapshot {
 	return s
 }
 
-func TestVersion2Blocks(t *testing.T) {
+func TestLiveBlocks(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
 	s := e.push(t)
-	if got, want := s.SchemaVersion, 2; got != want {
+	if got, want := s.SchemaVersion, snapshot.Version; got != want {
 		t.Errorf("schema_version = %d, want %d", got, want)
 	}
 
@@ -54,7 +54,7 @@ func TestVersion2Blocks(t *testing.T) {
 		}
 	}
 	// The blog's probes start on 15 November: no value before.
-	blog := a.Apps[7].AvailabilityDaily
+	blog := a.Apps[8].AvailabilityDaily
 	if blog[23] != nil || blog[24] == nil {
 		t.Errorf("blog availability_daily[23], [24] = %v, %v, want null then a value", blog[23], blog[24])
 	}
@@ -163,7 +163,7 @@ func TestTodayWindow(t *testing.T) {
 	for _, tc := range tests {
 		e := newEnv(t, tc.now, http.StatusNoContent)
 		e.c.Cycle(t.Context())
-		if n := e.fake.count(`avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"media|cook|archive|cinema|syncthing|auth|nedsi|blog"}` + tc.want + "))"); n != 1 {
+		if n := e.fake.count(`avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"media|cook|archive|watch|syncthing|auth|nedsi|blog|homelab"}` + tc.want + "))"); n != 1 {
 			t.Errorf("at %v: %d queries of today's bar with %s, want 1: %v", tc.now, n, tc.want, e.fake.queries)
 		}
 	}
@@ -433,7 +433,7 @@ func TestNoNamesInSnapshot(t *testing.T) {
 		"run_started_at": "2026-11-20T15:00:00Z", "updated_at": "2026-11-20T15:05:00Z",
 		"head_commit": map[string]any{"message": "fix(theater): qbittorrent pod (#5)"}}}
 	e.push(t)
-	_, dry, err := e.c.Collect(t.Context(), e.now, DailyCovers(e.now))
+	_, dry, err := e.c.Collect(t.Context(), e.now)
 	if err != nil {
 		t.Fatal(err)
 	}

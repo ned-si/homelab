@@ -622,7 +622,8 @@ class, so the card never claims an incident the alerts have not paged.
 
 Each rule is a function of `internal/web/status.go` taking the figure
 and returning the class and the word, table-tested on each boundary; a
-`null` figure is `none` with "No data". "A to B" includes both ends, so a
+`null` figure is `none` with "No data". A figure whose rule names no word
+reads "OK", "Warning" or "Critical", the alerts' severities. "A to B" includes both ends, so a
 value on a boundary takes the middle class (CPU at exactly 80% is
 `warn`).
 
@@ -795,8 +796,9 @@ running images (#1507).
 | Redesign, `web` | Golden pages for each card with every class and word, a down app, today's bar, `null` figures, stale blocks; each rule of [Status colours](#status-colours) and [DORA bands](#dora-bands) on each boundary |
 
 The markup rules (navigation, no `<form>`, `<iframe>`, `<style>`,
-`style=`, `on*`, inline `<script>`, foreign origins) are not repeated in
-Go: `tests/test_site_markup.py`, in the `tests` job that always runs,
+`style=`, `on*`, inline `<script>`, foreign origins, except an `<a>` to
+`https://github.com/ned-si/homelab/` for the `ci` runs' pull requests) are
+not repeated in Go: `tests/test_site_markup.py`, in the `tests` job that always runs,
 feeds every `dashboard/internal/web/testdata/*.golden.html` to
 `site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")`
 and asserts no problems, `check_nav()` included. A navigation change in

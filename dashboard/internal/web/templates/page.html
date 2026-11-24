@@ -1,4 +1,24 @@
-{{template "top" .}}
+{{define "value"}}{{range $i, $p := .}}{{if $i}} {{end}}{{$p.Num}}{{with $p.Unit}}<span class="unit">{{.}}</span>{{end}}{{end}}{{end}}
+{{- define "tile"}}
+<div class="tile">
+<p class="label">{{.Label}}</p>
+<p>{{if .Value}}<span class="big{{with .Status}} {{.}}{{end}}">{{template "value" .Value}}</span>{{end}}{{with .Word}} <span class="status {{$.Status}}">{{.}}</span>{{end}}</p>
+{{- with .Meter}}
+<div class="meter">{{.}}</div>
+{{- end}}
+{{- with .Detail}}
+<p class="meta">{{.}}</p>
+{{- end}}
+</div>
+{{- end}}
+{{- define "asof"}}
+{{- if .Stale}}
+<p class="meta stale">Figures from <time datetime="{{.AsOf.Datetime}}">{{.AsOf.Text}}</time> (Zurich time): this card is not updating.</p>
+{{- else}}
+<p class="meta">As of <time datetime="{{.AsOf.Datetime}}">{{.AsOf.Text}}</time>.</p>
+{{- end}}
+{{- end}}
+{{- template "top" .}}
 <header class="page">
 <h1>Homelab</h1>
 <p class="intro">An over-engineered homelab, in numbers.</p>
@@ -9,9 +29,6 @@
 {{- with .LiveStale}}
 <p class="meta stale">Live figures from <time datetime="{{.Datetime}}">{{.Text}}</time> (Zurich time): the collector has stopped pushing.</p>
 {{- end}}
-{{- with .Figures}}{{if .DailyStale}}
-<p class="meta stale">Availability figures are from <time datetime="{{.Covers.Datetime}}">{{.Covers.Text}}</time>: the daily update is failing.</p>
-{{- end}}{{end}}
 </header>
 {{- if not .Figures}}
 <p class="meta">No figures yet: the collector has not pushed any.</p>
@@ -19,19 +36,22 @@
 {{- with .Figures}}
 <section aria-labelledby="availability">
 <h2 id="availability">Availability</h2>
-<p class="meta">The 30 days to <time datetime="{{.Covers.Datetime}}">{{.Covers.Text}}</time>, per finished day, measured from outside by probes on the public names.</p>
+<p class="meta">The rolling 30 days to now, measured by probes. The last bar is today so far.</p>
+{{- if .Availability.Stale}}{{template "asof" .Availability}}{{end}}
 <div class="cards">
 {{- range .Apps}}
 <div class="card">
-<h3>{{.Name}}</h3>
+<h3>{{.Name}} <span class="state {{.State}}">{{.StateWord}}</span></h3>
 {{- if .NoData}}
 <p class="stat"><span class="status none">No data</span></p>
 {{- else if .Since}}
 <p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span> <span class="label">since {{.Since}}</span></p>
-{{- else}}
+{{- else if .Word}}
 <p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span> <span class="status {{.Status}}">{{.Word}}</span></p>
 <div class="meter">{{.Meter}}</div>
 <p class="meta">{{if .Exhausted}}Exhausted{{else}}{{.BudgetLeft}}% of the error budget left{{end}}</p>
+{{- else}}
+<p class="stat"><span class="big {{.Status}}">{{.Availability}}<span class="unit">%</span></span></p>
 {{- end}}
 <div class="bars">{{.Bars}}</div>
 </div>
@@ -39,24 +59,54 @@
 </div>
 </section>
 <div class="cards">
+<section class="panel stats" aria-labelledby="certificates">
+<h2 id="certificates">Certificates</h2>
+<p class="meta">Days until the certificate on the public names expires. cert-manager renews it 30 days before.</p>
+<div class="tiles">
+{{- range .Certs}}{{template "tile" .}}{{end}}
+</div>
+{{- template "asof" .Certificates}}
+</section>
 <section class="panel stats" aria-labelledby="cluster">
 <h2 id="cluster">Cluster</h2>
+<h3>Nodes and NAS: utilisation, saturation, errors</h3>
 <div class="tiles">
-<p class="tile"><span class="big">{{.Cluster.Nodes}}<span class="unit">nodes</span></span></p>
-<p class="tile"><span class="big">{{.Cluster.Apps}}<span class="unit">apps</span></span> <span class="label">Argo CD</span></p>
-<p class="tile"><span class="big">{{.Cluster.TalosVersion}}</span> <span class="label">Talos</span></p>
-<p class="tile"><span class="big">{{.Cluster.KubernetesVersion}}</span> <span class="label">Kubernetes</span></p>
+{{- range .Use}}
+<div class="tile use">
+<p class="label">{{.Name}} <span class="state {{.State}}">{{.StateWord}}</span></p>
+{{- range .Figures}}
+<p class="figure"><span class="label">{{.Label}}</span> <span class="value {{.Status}}">{{.Value}}</span> <span class="status {{.Status}}">{{.Word}}</span></p>
+{{- with .Meter}}
+<div class="meter">{{.}}</div>
+{{- end}}
+{{- end}}
 </div>
-<p class="meta">As of <time datetime="{{.ClusterAsOf.Datetime}}">{{.ClusterAsOf.Text}}</time>.</p>
+{{- end}}
+</div>
+<h3>Gateway, last 5 minutes: rate, errors, duration</h3>
+<div class="tiles">
+{{- range .RED}}{{template "tile" .}}{{end}}
+</div>
+<h3>State</h3>
+<div class="tiles">
+{{- range .State}}{{template "tile" .}}{{end}}
+</div>
+{{- template "asof" .Cluster}}
 </section>
 <section class="panel stats" aria-labelledby="project">
 <h2 id="project">Project, last 30 days</h2>
+<p class="meta">Every pull request merged into main is a deploy. The bands are the four clusters of the 2023 State of DevOps report.</p>
 <div class="tiles">
-<p class="tile"><span class="big">{{.Project.PRsMerged30d}}<span class="unit">PRs</span></span> <span class="label">Merged</span></p>
-<div class="tile"><p><span class="big">{{.Project.RenovateShare30d}}<span class="unit">%</span></span> <span class="label">Opened by Renovate</span></p><div class="meter">{{.RenovateShare}}</div></div>
-<p class="tile"><span class="big">{{with .CIMedian}}{{if .Minutes}}{{.Minutes}}<span class="unit">min</span> {{end}}{{.Seconds}}<span class="unit">s</span>{{end}}</span> <span class="label">Median CI run</span></p>
+{{- range .DORA}}{{template "tile" .}}{{end}}
+{{- range .Delivery}}{{template "tile" .}}{{end}}
 </div>
-<p class="meta">As of <time datetime="{{.ProjectAsOf.Datetime}}">{{.ProjectAsOf.Text}}</time>.</p>
+<h3>Last CI runs on main</h3>
+<ul class="runs">
+{{- range .Runs}}
+<li><span class="status {{.Status}}">{{.Word}}</span> {{with .PR}}<a href="https://github.com/ned-si/homelab/pull/{{.}}">#{{.}}</a> {{end}}<code>{{.Commit}}</code> <time datetime="{{.Started.Datetime}}">{{.Started.Text}}</time>, {{template "value" .Duration}}</li>
+{{- end}}
+</ul>
+{{- template "asof" .Project}}
 </section>
 </div>
 {{- end}}

@@ -82,10 +82,22 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
 .unit { font-size: 1rem; font-weight: 400; margin-left: 0.2em; color: var(--muted); }
 .status { font-weight: 700; white-space: nowrap; }
 
-.big.ok, .status.ok { color: var(--ok); }
-.big.warn, .status.warn { color: var(--warn); }
-.big.bad, .status.bad { color: var(--bad); }
-.big.none, .status.none { color: var(--none); }
+.big.ok, .status.ok, .value.ok, .state.ok { color: var(--ok); }
+.big.warn, .status.warn, .value.warn, .state.warn { color: var(--warn); }
+.big.bad, .status.bad, .value.bad, .state.bad { color: var(--bad); }
+.big.none, .status.none, .value.none, .state.none { color: var(--none); }
+
+/* A state is a word next to a dot of its colour. */
+.state { font-size: 0.875rem; font-weight: 400; margin-left: 0.5em; white-space: nowrap; }
+.state::before {
+  content: "";
+  display: inline-block;
+  width: 0.6em;
+  height: 0.6em;
+  margin-right: 0.35em;
+  border-radius: 50%;
+  background: currentColor;
+}
 
 /* A panel of stat tiles takes a whole row, so its tiles sit side by side;
    tiles that still wrap share the last row's width, as the cards do. */
@@ -95,8 +107,27 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
 }
-.tile { flex: 1 1 10rem; }
+.tile { flex: 1 1 10rem; min-width: 0; }
 .tile p { margin: 0; }
+.panel h3 { margin: 1rem 0 0.5rem; }
+
+/* A node or the NAS: one line per figure, label left, value and word right. */
+.tile.use {
+  flex-basis: 12rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+.tile.use > .label { color: var(--fg); font-weight: 700; margin-bottom: 0.25rem; }
+.figure { display: flex; gap: 0.5rem; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.figure .label { flex: 1; white-space: nowrap; font-size: inherit; }
+.figure .value { white-space: nowrap; }
+.tile.use .meter { margin: 0.125rem 0 0.375rem; }
+.tile.use .meter svg { height: 0.5rem; }
+
+.runs { list-style: none; margin: 0; padding: 0; font-variant-numeric: tabular-nums; }
+.runs li { margin: 0.25rem 0; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.875em; }
 
 .meter, .bars { margin: 0.5rem 0 0.25rem; }
 /* Fixed heights: the charts stretch to their card's width (the SVGs have
@@ -112,6 +143,7 @@ svg rect.ok { fill: var(--ok); }
 svg rect.warn { fill: var(--warn); }
 svg rect.bad { fill: var(--bad); }
 svg rect.none { fill: var(--none); }
+svg rect.today { stroke: var(--fg); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 svg line.target { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 
 .later { color: var(--muted); }

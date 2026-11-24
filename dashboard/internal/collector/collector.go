@@ -31,21 +31,7 @@ const (
 	projectWithToken    = 15 * time.Minute
 	projectWithoutToken = 60 * time.Minute
 	rateLimitMargin     = 30 * time.Second
-	// dailyAfter leaves time for the midnight recording rules and GitHub's
-	// search index to settle.
-	dailyAfter = 3*time.Hour + 45*time.Minute
 )
-
-// DailyCovers returns the Zurich day the daily block covers at now: the day
-// before the most recent 03:45. Before 03:45 that is the day before
-// yesterday, which the previous process was already serving.
-func DailyCovers(now time.Time) time.Time {
-	today := snapshot.Day(now)
-	if now.Before(today.Add(dailyAfter)) {
-		return snapshot.AddDays(today, -2)
-	}
-	return snapshot.AddDays(today, -1)
-}
 
 // Collector holds the last good value of each block between cycles.
 type Collector struct {
@@ -66,7 +52,6 @@ type Collector struct {
 	cluster      *snapshot.Cluster
 	project      *snapshot.Project
 	nextProject  time.Time
-	daily        *snapshot.Daily
 }
 
 // Ready reports whether the first cycle has started.
@@ -104,16 +89,12 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 	c.refreshAvailability(ctx, now)
 	c.refreshCertificates(ctx, now)
 	c.refreshCluster(ctx, now)
-	if covers := DailyCovers(now); c.daily == nil || c.daily.Covers != covers.Format(snapshot.DateLayout) {
-		c.refreshDaily(ctx, now, covers)
-	}
-	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil || c.daily == nil {
+	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil {
 		return false
 	}
 	s := &snapshot.Snapshot{
 		SchemaVersion: snapshot.Version,
 		GeneratedAt:   snapshot.FormatTime(now),
-		Daily:         *c.daily,
 		Availability:  *c.availability,
 		Certificates:  *c.certificates,
 		Cluster:       *c.cluster,
@@ -237,19 +218,6 @@ func (c *Collector) readProject(ctx context.Context, end time.Time) (snapshot.Pr
 	return p, "", nil
 }
 
-func (c *Collector) refreshDaily(ctx context.Context, now, covers time.Time) {
-	start := time.Now()
-	apps, err := daily(ctx, c.Prometheus, covers)
-	c.observe("daily", start, err, "prometheus")
-	if err == nil {
-		c.daily = &snapshot.Daily{
-			Covers:     covers.Format(snapshot.DateLayout),
-			ComputedAt: snapshot.FormatTime(now),
-			Apps:       apps,
-		}
-	}
-}
-
 // validate encodes s and runs snapshot.Validate on the exact bytes that
 // will be signed. A failure logs every error and pushes nothing.
 func (c *Collector) validate(s *snapshot.Snapshot) ([]byte, error) {
@@ -295,10 +263,9 @@ func (c *Collector) Push(ctx context.Context, body []byte) bool {
 	return ok
 }
 
-// Collect computes every block once with queries at at, the daily block for
-// the day covers, and returns the validated snapshot and its encoding; at is
-// also its generated_at, so a dry run of a past day is consistent.
-func (c *Collector) Collect(ctx context.Context, at, covers time.Time) (*snapshot.Snapshot, []byte, error) {
+// Collect computes every block once with queries at at and returns the
+// validated snapshot and its encoding; at is also its generated_at.
+func (c *Collector) Collect(ctx context.Context, at time.Time) (*snapshot.Snapshot, []byte, error) {
 	at = at.Truncate(time.Second)
 	a, err := c.readAvailability(ctx, at)
 	if err != nil {
@@ -316,66 +283,17 @@ func (c *Collector) Collect(ctx context.Context, at, covers time.Time) (*snapsho
 	if err != nil {
 		return nil, nil, fmt.Errorf("project: %w", err)
 	}
-	apps, err := daily(ctx, c.Prometheus, covers)
-	if err != nil {
-		return nil, nil, fmt.Errorf("daily: %w", err)
-	}
 	s := &snapshot.Snapshot{
 		SchemaVersion: snapshot.Version,
 		GeneratedAt:   snapshot.FormatTime(at),
-		Daily: snapshot.Daily{
-			Covers:     covers.Format(snapshot.DateLayout),
-			ComputedAt: snapshot.FormatTime(at),
-			Apps:       apps,
-		},
-		Availability: a,
-		Certificates: certs,
-		Cluster:      cl,
-		Project:      p,
+		Availability:  a,
+		Certificates:  certs,
+		Cluster:       cl,
+		Project:       p,
 	}
 	body, err := c.validate(s)
 	if err != nil {
 		return nil, nil, err
 	}
 	return s, body, nil
-}
-
-// Figures is the shape of the publisher's figures.json, printed by
-// `collect --once --dry-run --as-of` for scripts/dashboard-compare.sh.
-type Figures struct {
-	Covers     string         `json:"covers"`
-	ComputedAt string         `json:"computed_at"`
-	Apps       []snapshot.App `json:"apps"`
-	Cluster    struct {
-		Nodes             int    `json:"nodes"`
-		Apps              int    `json:"apps"`
-		TalosVersion      string `json:"talos_version"`
-		KubernetesVersion string `json:"kubernetes_version"`
-	} `json:"cluster"`
-	Project struct {
-		PRsMerged30d       int `json:"prs_merged_30d"`
-		RenovateShare30d   int `json:"renovate_share_30d"`
-		CIMedianSeconds30d int `json:"ci_median_seconds_30d"`
-	} `json:"project"`
-}
-
-// ToFigures converts s to the publisher's shape; computed_at keeps minute
-// precision, as the publisher's schema requires.
-func ToFigures(s *snapshot.Snapshot) (Figures, error) {
-	var f Figures
-	computed, err := snapshot.ParseTime(s.Daily.ComputedAt)
-	if err != nil {
-		return f, err
-	}
-	f.Covers = s.Daily.Covers
-	f.ComputedAt = snapshot.FormatTime(computed.Truncate(time.Minute))
-	f.Apps = s.Daily.Apps
-	f.Cluster.Nodes = s.Cluster.Nodes
-	f.Cluster.Apps = s.Cluster.Apps
-	f.Cluster.TalosVersion = s.Cluster.TalosVersion
-	f.Cluster.KubernetesVersion = s.Cluster.KubernetesVersion
-	f.Project.PRsMerged30d = s.Project.PRsMerged30d
-	f.Project.RenovateShare30d = s.Project.RenovateShare30d
-	f.Project.CIMedianSeconds30d = s.Project.CIMedianSeconds30d
-	return f, nil
 }

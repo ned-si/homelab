@@ -44,11 +44,14 @@ var shown = []ShownApp{
 	{ID: "immich", Name: "Immich", SLOApp: "media"},
 	{ID: "mealie", Name: "Mealie", SLOApp: "cook"},
 	{ID: "paperless", Name: "Paperless-ngx", SLOApp: "archive"},
-	{ID: "jellyfin", Name: "Jellyfin", SLOApp: "cinema"},
+	{ID: "plex", Name: "Plex", SLOApp: "watch"},
 	{ID: "syncthing", Name: "Syncthing", SLOApp: "syncthing"},
 	{ID: "keycloak", Name: "Keycloak", SLOApp: "auth"},
+	{ID: "observability", Name: "Observability", SLOApp: "observability",
+		ProbeApps: []string{"grafana", "signoz", "prometheus", "alertmanager"}},
 	{ID: "landing", Name: "Landing page", SLOApp: "nedsi"},
 	{ID: "blog", Name: "Blog", SLOApp: "blog"},
+	{ID: "homelab", Name: "Homelab dashboard", SLOApp: "homelab"},
 }
 
 var shownCerts = []ShownCert{

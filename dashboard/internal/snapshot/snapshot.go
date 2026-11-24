@@ -20,12 +20,12 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 2
+const Version = 3
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
 
-// DateLayout is the layout of daily.covers.
+// DateLayout is the layout of availability.days.
 const DateLayout = "2006-01-02"
 
 // Days is the number of daily availability values per app.
@@ -63,27 +63,10 @@ func mustLoad(name string) *time.Location {
 type Snapshot struct {
 	SchemaVersion int          `json:"schema_version"`
 	GeneratedAt   string       `json:"generated_at"`
-	Daily         Daily        `json:"daily"`
 	Availability  Availability `json:"availability"`
 	Certificates  Certificates `json:"certificates"`
 	Cluster       Cluster      `json:"cluster"`
 	Project       Project      `json:"project"`
-}
-
-// Daily is the per-finished-day block: availability and error budget.
-type Daily struct {
-	Covers     string `json:"covers"`
-	ComputedAt string `json:"computed_at"`
-	Apps       []App  `json:"apps"`
-}
-
-// App is one shown app's availability over the 30 days to Daily.Covers.
-type App struct {
-	ID                      string     `json:"id"`
-	Name                    string     `json:"name"`
-	Availability30d         float64    `json:"availability_30d"`
-	ErrorBudgetRemaining30d int        `json:"error_budget_remaining_30d"`
-	AvailabilityDaily       []*float64 `json:"availability_daily"`
 }
 
 // Availability is the live availability block: each shown app's state, its
@@ -225,7 +208,7 @@ func ParseTime(s string) (time.Time, error) {
 	return time.Parse(time.RFC3339, s)
 }
 
-// ParseDate parses daily.covers as midnight in Zurich.
+// ParseDate parses a date of availability.days as midnight in Zurich.
 func ParseDate(s string) (time.Time, error) {
 	return time.ParseInLocation(DateLayout, s, Zurich)
 }
@@ -256,9 +239,8 @@ var compiled = sync.OnceValues(func() (*jsonschema.Schema, error) {
 
 // Validate parses body and checks it: the size, the schema, then the rules
 // a schema cannot express (the shown apps and certificates in order, no
-// hidden app or node, covers before the day it was computed, the days ending
-// today, no block newer than generated_at, the counts within their totals,
-// the ci runs newest first). An error about the shown names wraps
+// hidden app or node, the days ending today, no block newer than
+// generated_at, the counts within their totals, the ci runs newest first). An error about the shown names wraps
 // ErrNotShown.
 func Validate(body []byte) (*Snapshot, error) {
 	if len(body) > MaxSize {
@@ -290,9 +272,6 @@ func Validate(body []byte) (*Snapshot, error) {
 func (s *Snapshot) check() error {
 	var errs []error
 	want := Shown()
-	errs = append(errs, checkShown("daily.apps", len(s.Daily.Apps), len(want), func(i int) (string, string) {
-		return s.Daily.Apps[i].ID, s.Daily.Apps[i].Name
-	}, func(i int) (string, string) { return want[i].ID, want[i].Name })...)
 	errs = append(errs, checkShown("availability.apps", len(s.Availability.Apps), len(want), func(i int) (string, string) {
 		return s.Availability.Apps[i].ID, s.Availability.Apps[i].Name
 	}, func(i int) (string, string) { return want[i].ID, want[i].Name })...)
@@ -312,7 +291,6 @@ func (s *Snapshot) check() error {
 		return errors.Join(append(errs, fmt.Errorf("generated_at: %w", err))...)
 	}
 	times := []struct{ name, value string }{
-		{"daily.computed_at", s.Daily.ComputedAt},
 		{"availability.as_of", s.Availability.AsOf},
 		{"certificates.as_of", s.Certificates.AsOf},
 		{"cluster.as_of", s.Cluster.AsOf},
@@ -327,13 +305,6 @@ func (s *Snapshot) check() error {
 		if v.After(generated) {
 			errs = append(errs, fmt.Errorf("%s %s is after generated_at %s", t.name, t.value, s.GeneratedAt))
 		}
-	}
-	covers, err := ParseDate(s.Daily.Covers)
-	if err != nil {
-		errs = append(errs, fmt.Errorf("daily.covers: %w", err))
-	} else if computed, err := ParseTime(s.Daily.ComputedAt); err == nil && !covers.Before(Day(computed)) {
-		errs = append(errs, fmt.Errorf("daily.covers %s is not before the day of daily.computed_at %s",
-			s.Daily.Covers, s.Daily.ComputedAt))
 	}
 	errs = append(errs, checkDays(s.Availability.Days, Day(generated))...)
 	return errors.Join(errs...)
