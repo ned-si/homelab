@@ -125,7 +125,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: keycloak-realm-settings-4fm87m6t99
+          name: keycloak-realm-settings-9m57dhb9f6
         name: realm
       - emptyDir: {}
         name: tmp

@@ -97,10 +97,11 @@ for e in 's/^pentest_user=.*/pentest_user=/' 's/^pentest_client=.*/pentest_clien
 done
 
 # master_fields: sessions.conf fields, brute-force detection among them;
-# events_expiration: seconds.
+# events_expiration: seconds; locales: two-letter codes, the default among them.
 for e in 's/^master_fields=.*/master_fields=bruteForceProtected/' \
   's/^master_fields=.*/master_fields=bruteForceProtected permanentLockout noSuchField/' \
-  's/^events_expiration=.*/events_expiration=7d/'; do
+  's/^events_expiration=.*/events_expiration=7d/' \
+  's/^locales=.*/locales=fr,de/' 's/^default_locale=.*/default_locale=xx/'; do
   sed "$e" "$REALM_DIR/platform.conf" > "$tmp/p6.conf"
   o=$(run "$tmp/p6.conf" "$REALM_DIR/clients.conf")
   expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf" "$o"

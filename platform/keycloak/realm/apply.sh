@@ -188,6 +188,11 @@ if ! [[ "$(conf password_policy)" =~ ^[A-Za-z]+\([A-Za-z0-9]+\)(\ and\ [A-Za-z]+
   echo "FAIL platform.conf: password_policy is not <id>(<arg>) and ..., with length(): $(conf password_policy)" >&2
   bad=1
 fi
+if ! [[ "$(conf locales)" =~ ^[a-z]{2}(\ [a-z]{2})*$ ]] || ! [[ " $(conf locales) " == *" $(conf default_locale) "* ]] ||
+  ! [[ "$(conf default_locale)" =~ ^[a-z]{2}$ ]]; then
+  echo "FAIL platform.conf: locales is not two-letter codes with default_locale among them: $(conf locales) / $(conf default_locale)" >&2
+  bad=1
+fi
 if ! [[ "$(conf events_expiration)" =~ ^[1-9][0-9]*$ ]]; then
   echo "FAIL platform.conf: events_expiration is not a number of seconds: $(conf events_expiration)" >&2
   bad=1
@@ -283,6 +288,18 @@ policy_norm() { printf '%s' "$1" | sed -e 's/(undefined)//g' -e 's/[[:space:]]//
 kc update "realms/$REALM" -s "passwordPolicy=$(conf password_policy)"
 check "$REALM passwordPolicy" "$(policy_norm "$(conf password_policy)")" \
   "$(policy_norm "$(realm_val "$(kc get "realms/$REALM")" passwordPolicy)")"
+
+# --- platform.conf: languages of $REALM ----------------------------------------
+# Keycloak keeps supportedLocales as a set: compare sorted.
+locales_json=""
+for l in $(conf locales); do locales_json="$locales_json\"$l\","; done
+kc update "realms/$REALM" -s internationalizationEnabled=true \
+  -s "supportedLocales=[${locales_json%,}]" -s "defaultLocale=$(conf default_locale)"
+live=$(kc get "realms/$REALM")
+check "$REALM internationalizationEnabled" true "$(realm_val "$live" internationalizationEnabled)"
+check "$REALM defaultLocale" "$(conf default_locale)" "$(realm_val "$live" defaultLocale)"
+check "$REALM supportedLocales" "$(conf locales | sorted)" \
+  "$(realm_val "$live" supportedLocales | tr -d '[]",' | sorted)"
 
 # --- platform.conf: outgoing mail of $REALM ------------------------------------
 # The password is never printed; Keycloak returns it masked, so the readback
