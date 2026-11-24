@@ -129,11 +129,15 @@ def build(data: dict, iscsi_networks: frozenset[str] = frozenset()) -> Metrics:
     cpu = last_point(graphs.get("cpu"), "cpu")
     m.add("truenas_cpu_utilisation_ratio", "gauge", "Busy share of all CPUs, last reporting point.",
           None if cpu is None else cpu / 100)
-    # The graph reports available memory; the ZFS ARC counts as used.
+    # `available` leaves out the ZFS ARC, which is reclaimable cache: used is
+    # what is neither available nor ARC, and the ARC is its own gauge.
     available = last_point(graphs.get("memory"), "available")
+    arc = last_point(graphs.get("arcsize"), "size")
     total = number((info or {}).get("physmem"))
-    m.add("truenas_memory_used_bytes", "gauge", "Physical memory not available, last reporting point.",
-          None if available is None or not total else total - available)
+    m.add("truenas_memory_arc_bytes", "gauge", "ZFS ARC size, last reporting point.", arc)
+    m.add("truenas_memory_used_bytes", "gauge",
+          "Physical memory neither available nor ZFS ARC, last reporting point.",
+          None if available is None or arc is None or not total else total - available - arc)
 
     pools = list(data.get("pool") or [])
     boot = data.get("boot/get_state")
@@ -281,11 +285,11 @@ class Collector:
             except Exception as e:  # noqa: BLE001
                 failed.append("disk/temperatures")
                 log("error", "api call failed", path="disk/temperatures", error=type(e).__name__)
-            # Optional: without it the CPU and memory-used metrics are absent, truenas_up stays 1.
+            # Optional: without it the CPU, memory-used and ARC metrics are absent, truenas_up stays 1.
             try:
                 end = int(time.time())
                 data["reporting/get_data"] = self.call("reporting/get_data", {
-                    "graphs": [{"name": "cpu"}, {"name": "memory"}],
+                    "graphs": [{"name": "cpu"}, {"name": "memory"}, {"name": "arcsize"}],
                     "query": {"start": end - REPORT_WINDOW, "end": end},
                 })
             except Exception as e:  # noqa: BLE001

@@ -90,7 +90,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: truenas-exporter-64b74dck4m
+          name: truenas-exporter-tchk247h52
         name: script
       - name: driver-config
         secret:

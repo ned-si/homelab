@@ -1057,9 +1057,12 @@ operator sets it once in the package settings after the first push.
 `platform/truenas-exporter/exporter.py` reads `system/info` (already one
 call per scrape or added to `GETS`) for `truenas_cpu_cores` and
 `truenas_load1` (its `loadavg[0]`) and `truenas_memory_total_bytes`
-(`physmem`), and the last point of the `cpu` and `memory` graphs of
-`reporting/get_data` for `truenas_cpu_utilisation_ratio` and
-`truenas_memory_used_bytes`. The task checks both calls against the NAS
+(`physmem`), and the last point of the `cpu`, `memory` and `arcsize`
+graphs of `reporting/get_data` for `truenas_cpu_utilisation_ratio`,
+`truenas_memory_used_bytes` and `truenas_memory_arc_bytes`. Used memory
+is `physmem` minus available minus the ZFS ARC: the ARC is reclaimable
+cache, like Linux's buff/cache, and counted as used it would hold a
+healthy NAS near 100% (#1637). The task checks both calls against the NAS
 (TrueNAS SCALE 25.10, REST v2.0) first; a call the API does not answer
 leaves its metric out, the snapshot key `null` and the tile "No data",
 and the move to the JSON-RPC API stays #1490. Tests in
