@@ -45,7 +45,7 @@ spec:
           value: /arr/lidarr
         - name: LIDARR__AUTH__METHOD
           value: External
-        image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:2962d8678beee7d93f3c91e979267d339cd90d79922d1cadddc91a1b346cf854
+        image: ghcr.io/hotio/lidarr:release-3.1.6.5079@sha256:a9493e36f15c882803c2db2cc78bddb9b949c0a6f49c720d1161800131b4a4ac
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 6
