@@ -137,6 +137,11 @@ dex:
 # The payload carries the revision of the last sync operation, so the workflow
 # sees the commit that deployed the failing change; `oncePer` sends one
 # dispatch per Application and revision.
+#
+# A sync that ends Healthy sets the commit status `argocd/<app>` on that
+# revision, which the homelab dashboard reads for deployment frequency and
+# lead time (.kiro/specs/homelab-dashboard/design.md). The token needs
+# "Commit statuses: write".
 notifications:
   enabled: true
   secret:
@@ -160,7 +165,16 @@ notifications:
       triggers:
         - on-sync-failed
         - on-health-degraded
+        - on-deployed
   triggers:
+    trigger.on-deployed: |
+      - description: The sync operation succeeded and the Application is Healthy.
+        when: app.status?.operationState?.phase == 'Succeeded' && app.status?.health?.status == 'Healthy'
+        oncePer: >-
+          [app.status?.operationState?.syncResult?.revision,
+          app.status?.operationState?.syncResult?.revisions]
+        send:
+          - argocd-commit-status
     trigger.on-sync-failed: |
       - description: The sync operation failed or errored.
         when: app.status?.operationState?.phase in ['Error', 'Failed']
@@ -220,6 +234,25 @@ notifications:
             {{- with .syncResult }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}
             {{- with .operation }}{{ with .sync }}{{ with .revision }}{{ . }} {{ end }}{{ range .revisions }}{{ . }} {{ end }}{{ end }}{{ end }}
             {{- end }}"}}
+    # A multi-source Application's revisions follow its sources; the status
+    # goes on this repository's revision, not on a chart version.
+    template.argocd-commit-status: |
+      webhook:
+        github-dispatch:
+          method: POST
+          path: >-
+            /repos/ned-si/homelab/statuses/
+            {{- $rev := "" }}
+            {{- with .app.status.operationState.syncResult }}
+            {{- with .revision }}{{ $rev = . }}{{ end }}
+            {{- $revs := .revisions }}
+            {{- range $i, $s := .sources }}
+            {{- if and (not $rev) (eq $s.repoURL "https://github.com/ned-si/homelab.git") }}{{ $rev = index $revs $i }}{{ end }}
+            {{- end }}
+            {{- end }}
+            {{- $rev }}
+          body: |
+            {"state": "success", "context": "argocd/{{ .app.metadata.name }}", "description": "Synced and Healthy"}
 
 # KSOPS on the repo-server: an init container copies the ksops binary onto
 # PATH, and the bundled kustomize runs it as a KRM exec function. The age

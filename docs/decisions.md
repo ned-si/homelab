@@ -232,8 +232,8 @@ Test without side effects: `gh workflow run auto-rollback.yaml -f app=<app>
 nothing.
 
 It runs on a fine-grained token (resource owner `ned-si`, only
-`ned-si/homelab`, Contents, Pull requests and Issues read and write), stored
-as the Actions secret `AUTO_ROLLBACK_TOKEN` and sealed in
+`ned-si/homelab`, Contents, Pull requests, Issues and Commit statuses read and
+write), stored as the Actions secret `AUTO_ROLLBACK_TOKEN` and sealed in
 `platform/secrets/argocd-notifications.sops.yaml`. To rotate it:
 
 ```sh
