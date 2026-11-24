@@ -1,0 +1,278 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/tuppr-alerts.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
+rule_files:
+  - homelab-tuppr.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # 2026-11-24: cp-1 done, w-1 next and still on the old version, the run
+  # waiting 3 h on an unhealthy app. Nothing pages; tuppr is up.
+  - interval: 1m
+    input_series:
+      - series: 'tuppr_build_info{version="v0.5.13"}'
+        values: '1x180'
+      - series: 'tuppr_talos_upgrade_phase{name="cluster", phase="HealthChecking"}'
+        values: '1x180'
+      - series: 'tuppr_node_target_version{kind="talos", node="homelab-cp-1", upgrade_name="cluster", version="v1.14.7"}'
+        values: '1x180'
+      - series: 'tuppr_node_target_version{kind="talos", node="homelab-w-1", upgrade_name="cluster", version="v1.14.7"}'
+        values: '1x180'
+      - series: 'tuppr_node_info{node="homelab-cp-1", talos_version="v1.14.7"}'
+        values: '1x180'
+      - series: 'tuppr_node_info{node="homelab-w-1", talos_version="v1.14.6"}'
+        values: '1x180'
+      - series: 'kube_node_spec_unschedulable{node="homelab-w-1"}'
+        values: '0x180'
+      - series: 'kube_node_status_condition{node="homelab-w-1", condition="Ready", status="true"}'
+        values: '1x180'
+      - series: 'kube_node_info{node="homelab-w-1", internal_ip="192.168.1.240"}'
+        values: '1x180'
+      # Booted 41 days before the test.
+      - series: 'node_boot_time_seconds{instance="192.168.1.240:9100"}'
+        values: '-3542400x180'
+      - series: 'kube_job_status_failed{namespace="system-upgrade", job_name="talos-drift-1"}'
+        values: '1x180'
+      - series: 'kube_job_owner{namespace="system-upgrade", job_name="talos-drift-1", owner_kind="CronJob", owner_name="talos-drift"}'
+        values: '1x180'
+    promql_expr_test:
+      - expr: tuppr:node:version_mismatch
+        eval_time: 1h
+        exp_samples:
+          - labels: 'tuppr:node:version_mismatch{node="homelab-w-1"}'
+            value: 1
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: TalosUpgradeStuck
+        exp_alerts: []
+      - eval_time: 3h
+        alertname: TupprOperatorAbsent
+        exp_alerts: []
+
+  # w-1 cordoned by its upgrade and not back on the target: pages after 30 min.
+  - interval: 1m
+    input_series:
+      - series: 'tuppr_node_target_version{kind="talos", node="homelab-w-1", upgrade_name="cluster", version="v1.14.7"}'
+        values: '1x60'
+      - series: 'tuppr_node_info{node="homelab-w-1", talos_version="v1.14.6"}'
+        values: '1x60'
+      - series: 'kube_node_spec_unschedulable{node="homelab-w-1"}'
+        values: '1x60'
+      - series: 'kube_node_status_condition{node="homelab-w-1", condition="Ready", status="true"}'
+        values: '1x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: TalosUpgradeStuck
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: TalosUpgradeStuck
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+              reason: node-mid-upgrade
+              node: homelab-w-1
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+              summary: "Talos upgrade stuck on homelab-w-1"
+              description: >-
+                homelab-w-1 has been cordoned or NotReady for 30 minutes
+                and does not run the target Talos version. Recovery:
+                docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+
+  # A failed pod of a TalosUpgrade Job pages at once and for 15 minutes
+  # after the Job is gone; a failed Job of a CronJob there does not.
+  - interval: 1m
+    input_series:
+      - series: 'kube_job_status_failed{namespace="system-upgrade", job_name="cluster-homelab-w-1-0a1b2c3d", reason="BackoffLimitExceeded"}'
+        values: '0 1 1 1 _x30'
+      - series: 'kube_job_owner{namespace="system-upgrade", job_name="cluster-homelab-w-1-0a1b2c3d", owner_kind="TalosUpgrade", owner_name="cluster"}'
+        values: '1 1 1 1 _x30'
+      - series: 'kube_job_status_failed{namespace="system-upgrade", job_name="talos-drift-2"}'
+        values: '1x30'
+      - series: 'kube_job_owner{namespace="system-upgrade", job_name="talos-drift-2", owner_kind="CronJob", owner_name="talos-drift"}'
+        values: '1x30'
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: TalosUpgradeStuck
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: TalosUpgradeStuck
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+              reason: job-failed
+              job_name: cluster-homelab-w-1-0a1b2c3d
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+              summary: "Talos upgrade Job cluster-homelab-w-1-0a1b2c3d failed"
+              description: >-
+                A pod of the upgrade Job cluster-homelab-w-1-0a1b2c3d failed in the
+                last 15 minutes (a retry or the end of the Job). Its log:
+                kubectl -n system-upgrade logs job/cluster-homelab-w-1-0a1b2c3d.
+                Recovery: docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+      - eval_time: 25m
+        alertname: TalosUpgradeStuck
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: KubernetesUpgradeStuck
+        exp_alerts: []
+
+  # w-1 rebooted 5 minutes into the test, Ready and uncordoned, still on
+  # the old version (A/B fallback): pages 15 minutes later.
+  - interval: 1m
+    input_series:
+      - series: 'tuppr_node_target_version{kind="talos", node="homelab-w-1", upgrade_name="cluster", version="v1.14.7"}'
+        values: '1x40'
+      - series: 'tuppr_node_info{node="homelab-w-1", talos_version="v1.14.6"}'
+        values: '1x40'
+      - series: 'kube_node_spec_unschedulable{node="homelab-w-1"}'
+        values: '0x40'
+      - series: 'kube_node_status_condition{node="homelab-w-1", condition="Ready", status="true"}'
+        values: '1x40'
+      - series: 'kube_node_info{node="homelab-w-1", internal_ip="192.168.1.240"}'
+        values: '1x40'
+      - series: 'node_boot_time_seconds{instance="192.168.1.240:9100"}'
+        values: '300x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: TalosUpgradeStuck
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: TalosUpgradeStuck
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+              reason: old-version-after-reboot
+              node: homelab-w-1
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+              summary: "homelab-w-1 rebooted on the old Talos version"
+              description: >-
+                homelab-w-1 booted in the last hour and does not run the
+                target Talos version. Check talosctl -n <node-ip> version and
+                dmesg. Recovery: docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+
+  # A node upgrade still Upgrading after 45 minutes; a Kubernetes upgrade
+  # in HealthChecking for 2 h does not page, one in Upgrading does.
+  - interval: 1m
+    input_series:
+      - series: 'tuppr_talos_upgrade_phase{name="cluster", phase="Upgrading"}'
+        values: '1x120'
+      - series: 'tuppr_kubernetes_upgrade_phase{name="kubernetes", phase="HealthChecking"}'
+        values: '1x120'
+      - series: 'tuppr_kubernetes_upgrade_phase{name="kubernetes-next", phase="Upgrading"}'
+        values: '1x120'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: TalosUpgradeStuck
+        exp_alerts: []
+      - eval_time: 50m
+        alertname: TalosUpgradeStuck
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+              reason: job-hung
+              name: cluster
+              phase: Upgrading
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+              summary: "Talos upgrade cluster in Upgrading for 45 minutes"
+              description: >-
+                The upgrade of a node has not finished in 45 minutes. Check
+                kubectl -n system-upgrade get jobs,pods and the target node.
+                Recovery: docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+      - eval_time: 2h
+        alertname: KubernetesUpgradeStuck
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              action: human
+              reason: job-hung
+              name: kubernetes-next
+              phase: Upgrading
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KubernetesUpgradeStuck.md
+              summary: "Kubernetes upgrade kubernetes-next in Upgrading for 45 minutes"
+              description: >-
+                talosctl upgrade-k8s has not finished in 45 minutes. Check
+                kubectl -n system-upgrade get jobs,pods and the control planes
+                (docs/talos-cheatsheet.md, Talos and Kubernetes upgrades).
+
+  # Failed runs and nodes page after a minute.
+  - interval: 1m
+    input_series:
+      - series: 'tuppr_talos_upgrade_phase{name="cluster", phase="Failed"}'
+        values: '1x10'
+      - series: 'tuppr_talos_upgrade_nodes_failed{name="cluster"}'
+        values: '1x10'
+      - series: 'tuppr_kubernetes_upgrade_phase{name="kubernetes", phase="Failed"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: TalosUpgradeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              action: human
+              name: cluster
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeFailed.md
+              summary: "Talos upgrade cluster is in phase Failed"
+              description: >-
+                Check kubectl get talosupgrade cluster -o yaml, the
+                tuppr log and the nodes (docs/talos-cheatsheet.md, Talos and
+                Kubernetes upgrades).
+      - eval_time: 5m
+        alertname: TalosUpgradeNodeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              action: human
+              name: cluster
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeNodeFailed.md
+              summary: "Talos upgrade cluster has 1 failed node(s)"
+              description: >-
+                tuppr stopped the run. Fix the node, then reset the run
+                (docs/talos-cheatsheet.md, Talos and Kubernetes upgrades).
+      - eval_time: 5m
+        alertname: KubernetesUpgradeFailed
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              action: human
+              name: kubernetes
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KubernetesUpgradeFailed.md
+              summary: "Kubernetes upgrade kubernetes is in phase Failed"
+              description: >-
+                Check kubectl get kubernetesupgrade kubernetes -o yaml
+                and the tuppr log. A minor cannot be downgraded: fix forward
+                (docs/talos-cheatsheet.md, Talos and Kubernetes upgrades).
+
+  # tuppr gone: not while its node reboots (10 min), after 30 minutes.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="kube-state-metrics"}'
+        values: '1x40'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: TupprOperatorAbsent
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: TupprOperatorAbsent
+        exp_alerts:
+          - exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TupprOperatorAbsent.md
+              summary: "tuppr is not reporting metrics"
+              description: >-
+                No tuppr metrics for 30 minutes: no upgrade runs and no upgrade
+                alert fires. Check kubectl -n system-upgrade get deploy,pods and
+                the ServiceMonitor.
+            exp_labels:
+              severity: critical
+              action: human

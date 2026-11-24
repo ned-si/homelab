@@ -67,6 +67,12 @@ that application's failing conditions and resources.
 - [TalosConfigDrift](TalosConfigDrift.md): a node runs a machine config main does not render
 - [NASiSCSITargetOpen](NASiSCSITargetOpen.md): a NAS iSCSI target open to more than the four nodes for an hour
 - [HomelabDashboardSnapshotStale](HomelabDashboardSnapshotStale.md): the public dashboard has accepted no snapshot for 48 hours
+- [TalosUpgradeStuck](TalosUpgradeStuck.md): a tuppr Talos upgrade broken partway (a node stuck mid-upgrade, a failed Job, a node back on the old version, a run hung)
+- [TalosUpgradeNodeFailed](TalosUpgradeNodeFailed.md): tuppr marked a node failed and stopped the run
+- [TalosUpgradeFailed](TalosUpgradeFailed.md): the TalosUpgrade is in phase Failed
+- [KubernetesUpgradeStuck](KubernetesUpgradeStuck.md): a tuppr Kubernetes upgrade hung or its Job failed
+- [KubernetesUpgradeFailed](KubernetesUpgradeFailed.md): the KubernetesUpgrade is in phase Failed
+- [TupprOperatorAbsent](TupprOperatorAbsent.md): no tuppr metrics for 30 minutes
 
 ## Backups
 
@@ -166,7 +172,6 @@ page nor a row here. The steps for this cluster are:
 | Alert | Upstream | Where |
 | --- | --- | --- |
 | `etcdInsufficientMembers`, `etcdNoLeader` | [etcdInsufficientMembers](https://runbooks.prometheus-operator.dev/runbooks/etcd/etcdinsufficientmembers), [etcdNoLeader](https://runbooks.prometheus-operator.dev/runbooks/etcd/etcdnoleader) | [talos-cheatsheet.md](../../talos-cheatsheet.md#4-troubleshooting) (`etcd members`, `etcd status`), then [HomelabNodeDown](HomelabNodeDown.md) for the missing member |
-| `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck`, `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent` | none | [talos-cheatsheet.md](../../talos-cheatsheet.md#talos-and-kubernetes-upgrades) (watch, pause, recovery) |
 | `KubeJobFailed` of a `*-backup-*` Job | [KubeJobFailed](https://runbooks.prometheus-operator.dev/runbooks/kubernetes/kubejobfailed) | [backups.md](../../backups.md#schedule): the Job's log (`kubectl -n <namespace> logs job/<job_name>`), then a manual run (`kubectl -n <namespace> create job --from=cronjob/<cronjob> <cronjob>-manual`) |
 | Any `critical` rule labelled `category: security` (none today) | the rule's own | [threat-model.md](../../threat-model.md) |
 

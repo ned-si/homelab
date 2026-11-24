@@ -126,9 +126,13 @@ How it works, with no step for you:
    Kubernetes: `talosctl upgrade-k8s`, no reboot.
 4. A failure stops the run in phase `Failed` and fires `TalosUpgradeFailed`
    or `KubernetesUpgradeFailed` (ntfy; a node left NotReady for 15 min
-   notifies as `HomelabNodeDown`). A stuck run fires `TalosUpgradeStuck`
-   (1 h, ntfy), a parked one `TupprUpgradeBlocked` (30 min, Grafana only:
-   it waits for an unhealthy app, which has its own alerts).
+   notifies as `HomelabNodeDown`). A broken one fires `TalosUpgradeStuck`
+   (ntfy): a node cordoned or NotReady off the target version for 30 min,
+   a failed upgrade Job, a node rebooted on the old version (A/B
+   fallback), a node upgrade unfinished after 45 min. A run waiting on its
+   health checks pages nobody: the unhealthy app has its own alerts, and
+   the wait shows on the Homelab / Automation timeline (`HealthChecking`).
+   Rules: `platform/kube-prometheus-stack/routes/tuppr-alerts.yaml`.
 
 No drain: every CloudNativePG cluster has one instance and a PDB that
 allows no eviction. Talos stops the pods during the reboot and they start
