@@ -26,7 +26,7 @@ spec:
       containers:
         - name: qbittorrent
           # renovate: datasource=docker depName=ghcr.io/hotio/qbittorrent
-          image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:4b751c8567f6257b69ac675efdbd61862771a7c6d444c9b43cfa846b094550d2
+          image: ghcr.io/hotio/qbittorrent:release-5.3.0@sha256:7091d12884e8f13faa447c80e3a9be58dff0b3819e9c73bdd2f66cf4a94a585c
           imagePullPolicy: Always
           # Root profile: s6 runs as root and drops to hotio (1000) with
           # s6-setuidgid, which needs SETGID, SETUID and KILL to stop it.
