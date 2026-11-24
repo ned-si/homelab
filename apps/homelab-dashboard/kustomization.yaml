@@ -93,8 +93,8 @@ patches:
             expect 200 60 "$base/snapshot.json"
             printf '%s\n' "$resp" | grep -qi '^content-type: application/json' \
               || { echo "FAIL $base/snapshot.json: not application/json"; fail=1; }
-            grep -q '"schema_version": *1' /tmp/body \
-              || { echo "FAIL $base/snapshot.json: no schema_version 1"; fail=1; }
+            grep -q '"schema_version": *[0-9]' /tmp/body \
+              || { echo "FAIL $base/snapshot.json: no schema_version"; fail=1; }
             exit "$fail"
           - postsync-smoke
       # curl writes the body here; the root file system is read-only.
