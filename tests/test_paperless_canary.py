@@ -17,10 +17,11 @@ NUMBER = "123456789012"
 class FakePaperless:
     """Consumes the upload after `index_after` searches; records every call."""
 
-    def __init__(self, upload_status=200, index_after=2, consumed=True):
+    def __init__(self, upload_status=200, index_after=2, consumed=True, down_for=0):
         self.upload_status = upload_status
         self.index_after = index_after
         self.consumed = consumed
+        self.down_for = down_for
         self.searches = 0
         self.calls: list[tuple[str, str, dict]] = []
 
@@ -29,6 +30,11 @@ class FakePaperless:
         parts = urllib.parse.urlsplit(url)
         query = dict(urllib.parse.parse_qsl(parts.query))
         self.calls.append((method, parts.path, query))
+        if method == "GET" and parts.path == "/api/":
+            if self.down_for > 0:
+                self.down_for -= 1
+                raise ConnectionRefusedError(111, "Connection refused")
+            return 200, b"{}"
         if parts.path == "/api/documents/post_document/":
             assert b'name="title"\r\n\r\ncanary 123456789012' in data
             assert b'filename="canary-123456789012.pdf"' in data
@@ -91,6 +97,23 @@ def test_refused_upload_fails_without_removal():
     assert not ok
     assert reason == "POST /api/documents/post_document/: HTTP 403"
     assert removed(fake) == []
+
+
+def test_restarting_paperless_is_waited_for():
+    fake = FakePaperless(index_after=0, down_for=3)
+    ok, seconds, reason = run(fake)
+    assert (ok, reason) == (True, "")
+    assert seconds == 0
+    assert [p for _, p, _ in fake.calls].count("/api/") == 4
+
+
+def test_unreachable_paperless_fails_without_upload():
+    fake = FakePaperless(down_for=10**6)
+    ok, seconds, reason = run(fake)
+    assert not ok
+    assert reason.startswith(f"Paperless unreachable for {canary.READY_TIMEOUT} s: ")
+    assert seconds == 0
+    assert {p for _, p, _ in fake.calls} == {"/api/"}
 
 
 def test_push_keeps_last_success_on_failure():
