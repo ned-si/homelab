@@ -16,10 +16,14 @@ const namespace = "homelab_dashboard"
 
 // Label values the collector uses.
 var (
-	Blocks      = []string{"cluster", "project", "daily"}
+	Blocks      = []string{"availability", "certificates", "cluster", "project", "daily"}
 	Sources     = []string{"prometheus", "github", "validation"}
 	PushResults = []string{"accepted", "rejected", "error"}
 )
+
+// LiveBlocks are the snapshot blocks with an as_of, whose age the web role
+// exports.
+var LiveBlocks = []string{"availability", "certificates", "cluster", "project"}
 
 // RejectReasons are the reasons the web role refuses a push for.
 var RejectReasons = []string{"size", "content_type", "signature", "replay", "schema", "allowlist"}
@@ -104,9 +108,9 @@ type Web struct {
 	Duration     prometheus.Histogram
 }
 
-// NewWeb registers the web role's metrics on reg. snapshotAge and dailyAge
-// are computed at scrape time, in seconds.
-func NewWeb(reg prometheus.Registerer, snapshotAge, dailyAge func() float64) *Web {
+// NewWeb registers the web role's metrics on reg. snapshotAge, dailyAge and
+// blockAge (for each of LiveBlocks) are computed at scrape time, in seconds.
+func NewWeb(reg prometheus.Registerer, snapshotAge, dailyAge func() float64, blockAge func(block string) float64) *Web {
 	m := &Web{
 		PushRejected: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: namespace, Name: "push_rejected_total",
@@ -131,6 +135,13 @@ func NewWeb(reg prometheus.Registerer, snapshotAge, dailyAge func() float64) *We
 		Help: "Now minus the end of daily.covers of the snapshot served; without one, now minus the process start.",
 	}, dailyAge)
 	reg.MustRegister(m.PushRejected, m.Requests, m.Duration, age, daily)
+	for _, b := range LiveBlocks {
+		reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: namespace, Name: "block_age_seconds",
+			Help:        "Now minus as_of of the block in the snapshot served; without one, now minus the process start.",
+			ConstLabels: prometheus.Labels{"block": b},
+		}, func() float64 { return blockAge(b) }))
+	}
 	for _, r := range RejectReasons {
 		m.PushRejected.WithLabelValues(r)
 	}

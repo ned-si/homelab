@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generated_at": "2026-11-20T17:00:00+01:00",
   "daily": {
     "covers": "2026-11-19",
@@ -15,6 +15,65 @@
       {"id": "blog", "name": "Blog", "availability_30d": 99.9, "error_budget_remaining_30d": 90, "availability_daily": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 99.6, 100.0, 100.0, 100.0]}
     ]
   },
-  "cluster": {"as_of": "2026-11-20T17:00:00+01:00", "nodes": 4, "apps": 55, "talos_version": "v1.14.6", "kubernetes_version": "v1.37.2"},
-  "project": {"as_of": "2026-11-20T16:52:00+01:00", "prs_merged_30d": 709, "renovate_share_30d": 50, "ci_median_seconds_30d": 305}
+  "availability": {
+    "as_of": "2026-11-20T17:00:00+01:00",
+    "days": ["2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"],
+    "apps": [
+      {"id": "immich", "name": "Immich", "state": "up", "availability_30d": 99.5, "error_budget_remaining_30d": 11, "availability_daily": [97.0, 96.1, 95.7, 100.0, 100.0, 99.8, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0, 99.8]},
+      {"id": "mealie", "name": "Mealie", "state": "up", "availability_30d": 99.5, "error_budget_remaining_30d": 15, "availability_daily": [100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 85.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.8]},
+      {"id": "paperless", "name": "Paperless-ngx", "state": "down", "availability_30d": 99.1, "error_budget_remaining_30d": -62, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 83.9, 99.7, 99.9, 97.1]},
+      {"id": "jellyfin", "name": "Jellyfin", "state": "up", "availability_30d": 99.6, "error_budget_remaining_30d": 22, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 88.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.8]},
+      {"id": "syncthing", "name": "Syncthing", "state": "up", "availability_30d": 99.5, "error_budget_remaining_30d": 11, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 85.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.8]},
+      {"id": "keycloak", "name": "Keycloak", "state": "up", "availability_30d": 99.5, "error_budget_remaining_30d": 9, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 85.0, 100.0, 100.0, 100.0, 99.8]},
+      {"id": "landing", "name": "Landing page", "state": "up", "availability_30d": 98.1, "error_budget_remaining_30d": -100, "availability_daily": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 90.5, 100.0, 100.0, 100.0, 99.8]},
+      {"id": "blog", "name": "Blog", "state": "up", "availability_30d": 99.9, "error_budget_remaining_30d": 90, "availability_daily": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 99.6, 100.0, 100.0, 100.0, 99.8]}
+    ]
+  },
+  "certificates": {
+    "as_of": "2026-11-20T17:00:00+01:00",
+    "certs": [
+      {"id": "lilalala", "name": "*.lilalala.com", "days_left": 39},
+      {"id": "nedsi", "name": "nedsi.io", "days_left": 82},
+      {"id": "homelab", "name": "homelab.nedsi.io", "days_left": null}
+    ]
+  },
+  "cluster": {
+    "as_of": "2026-11-20T17:00:00+01:00",
+    "nodes": 4,
+    "apps": 55,
+    "talos_version": "v1.14.6",
+    "kubernetes_version": "v1.37.2",
+    "synced": 54,
+    "healthy": 55,
+    "node_use": [
+      {"name": "homelab-cp-1", "ready": true, "cpu": 31.2, "memory": 62.0, "disk": 57.5, "cpu_pressure": 4.3, "memory_pressure": 0.0, "io_pressure": 0.3, "net_errors_per_second": 0.0},
+      {"name": "homelab-cp-2", "ready": true, "cpu": 44.8, "memory": 71.3, "disk": 64.1, "cpu_pressure": 4.3, "memory_pressure": 0.0, "io_pressure": 0.3, "net_errors_per_second": 0.0},
+      {"name": "homelab-cp-3", "ready": true, "cpu": 28.4, "memory": 58.9, "disk": 65.6, "cpu_pressure": 4.3, "memory_pressure": 0.0, "io_pressure": 0.3, "net_errors_per_second": 0.0},
+      {"name": "homelab-w-1", "ready": true, "cpu": 52.6, "memory": 80.4, "disk": 38.5, "cpu_pressure": 4.3, "memory_pressure": 0.0, "io_pressure": 0.3, "net_errors_per_second": 0.0}
+    ],
+    "nas": {"up": true, "pool_healthy": true, "pool": 47.9, "cpu": 2.0, "memory": 88.1, "load_per_core": 0.02, "device_errors": 0, "scrub_errors": 0},
+    "gateway": {"requests_per_second": 0.63, "errors_5xx": 0.59, "latency_p95_ms": 41},
+    "restarts_24h": 3,
+    "volumes": {"count": 35, "used_bytes": 412316860416, "capacity_bytes": 1099511627776, "fullest": 80.8}
+  },
+  "project": {
+    "as_of": "2026-11-20T16:52:00+01:00",
+    "prs_merged_30d": 709,
+    "renovate_share_30d": 50,
+    "ci_median_seconds_30d": 305,
+    "deploys_30d": 709,
+    "lead_time_seconds": 1260,
+    "lead_time_count": 640,
+    "failed_changes_30d": 9,
+    "change_failure_rate": 1.3,
+    "incidents_30d": 4,
+    "restore_seconds": 1500,
+    "ci_runs": [
+      {"run": 4105, "result": "success", "commit": "6d0407e", "pr": 1602, "started_at": "2026-11-20T16:40:12+01:00", "duration_seconds": 298},
+      {"run": 4104, "result": "failure", "commit": "a433737", "pr": 1601, "started_at": "2026-11-20T16:02:40+01:00", "duration_seconds": 341},
+      {"run": 4103, "result": "cancelled", "commit": "e8e93eb", "pr": 1600, "started_at": "2026-11-20T15:31:05+01:00", "duration_seconds": 95},
+      {"run": 4102, "result": "other", "commit": "2ec595b", "pr": null, "started_at": "2026-11-20T15:10:00+01:00", "duration_seconds": 0},
+      {"run": 4101, "result": "success", "commit": "b24598b", "pr": 1587, "started_at": "2026-11-20T14:58:44+01:00", "duration_seconds": 312}
+    ]
+  }
 }

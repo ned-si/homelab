@@ -18,9 +18,12 @@ import (
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
 
-// Querier runs instant PromQL queries.
+// Querier runs PromQL queries.
 type Querier interface {
+	// Query runs an instant query at at.
 	Query(ctx context.Context, query string, at time.Time) (model.Vector, error)
+	// QueryRange runs a range query.
+	QueryRange(ctx context.Context, query string, r promv1.Range) (model.Matrix, error)
 }
 
 type promClient struct {
@@ -48,6 +51,20 @@ func (p *promClient) Query(ctx context.Context, query string, at time.Time) (mod
 		return nil, fmt.Errorf("result type %s, want vector", v.Type())
 	}
 	return vec, nil
+}
+
+func (p *promClient) QueryRange(ctx context.Context, query string, r promv1.Range) (model.Matrix, error) {
+	ctx, cancel := context.WithTimeout(ctx, HTTPTimeout)
+	defer cancel()
+	v, _, _, err := p.api.QueryRange(ctx, query, r)
+	if err != nil {
+		return nil, err
+	}
+	m, ok := v.(model.Matrix)
+	if !ok {
+		return nil, fmt.Errorf("result type %s, want matrix", v.Type())
+	}
+	return m, nil
 }
 
 // figureError names the figure a query failed for.
@@ -111,7 +128,8 @@ func lowestVersion(ctx context.Context, q Querier, figure, label string, at time
 	return fmt.Sprintf("v%d.%d.%d", low[0], low[1], low[2]), nil
 }
 
-// cluster reads the cluster facts at at.
+// cluster reads the cluster facts at at, those of version 1 and the USE and
+// RED figures.
 func cluster(ctx context.Context, q Querier, at time.Time) (snapshot.Cluster, error) {
 	var c snapshot.Cluster
 	var err error
@@ -127,27 +145,40 @@ func cluster(ctx context.Context, q Querier, at time.Time) (snapshot.Cluster, er
 	if c.KubernetesVersion, err = lowestVersion(ctx, q, "kubernetes_version", "kubelet_version", at); err != nil {
 		return c, err
 	}
+	if err := use(ctx, q, at, &c); err != nil {
+		return c, err
+	}
 	c.AsOf = snapshot.FormatTime(at)
 	return c, nil
 }
 
 func byApp(v model.Vector) map[string]float64 {
+	return byLabel(v, "app")
+}
+
+func byLabel(v model.Vector, label model.LabelName) map[string]float64 {
 	out := make(map[string]float64, len(v))
 	for _, s := range v {
-		out[string(s.Metric["app"])] = float64(s.Value)
+		out[string(s.Metric[label])] = float64(s.Value)
 	}
 	return out
+}
+
+// sloSelector is the matcher of the shown apps' SLO series.
+func sloSelector() string {
+	shown := snapshot.Shown()
+	labels := make([]string, len(shown))
+	for i, a := range shown {
+		labels[i] = a.SLOApp
+	}
+	return `{app=~"` + strings.Join(labels, "|") + `"}`
 }
 
 // daily computes the availability block for the Zurich day covers, from
 // queries at the midnight that ends it. Only the shown apps are queried.
 func daily(ctx context.Context, q Querier, covers time.Time) ([]snapshot.App, error) {
 	shown := snapshot.Shown()
-	labels := make([]string, len(shown))
-	for i, a := range shown {
-		labels[i] = a.SLOApp
-	}
-	sel := `{app=~"` + strings.Join(labels, "|") + `"}`
+	sel := sloSelector()
 	end := snapshot.AddDays(covers, 1)
 
 	v, err := query(ctx, q, "availability_30d", "slo:availability:ratio_rate30d"+sel, end)

@@ -4,16 +4,16 @@
   "title": "snapshot.json, the public figures of https://homelab.nedsi.io/",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "generated_at", "daily", "cluster", "project"],
+  "required": ["schema_version", "generated_at", "daily", "availability", "certificates", "cluster", "project"],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
     "generated_at": {"$ref": "#/$defs/time"},
     "daily": {
       "type": "object",
       "additionalProperties": false,
       "required": ["covers", "computed_at", "apps"],
       "properties": {
-        "covers": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "covers": {"$ref": "#/$defs/date"},
         "computed_at": {"$ref": "#/$defs/time"},
         "apps": {
           "type": "array",
@@ -24,16 +24,61 @@
             "additionalProperties": false,
             "required": ["id", "name", "availability_30d", "error_budget_remaining_30d", "availability_daily"],
             "properties": {
-              "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,30}$"},
-              "name": {"type": "string", "pattern": "^[A-Za-z0-9 .-]{1,40}$"},
-              "availability_30d": {"type": "number", "minimum": 0, "maximum": 100},
-              "error_budget_remaining_30d": {"type": "integer", "minimum": -100, "maximum": 100},
-              "availability_daily": {
-                "type": "array",
-                "minItems": 30,
-                "maxItems": 30,
-                "items": {"type": ["number", "null"], "minimum": 0, "maximum": 100}
-              }
+              "id": {"$ref": "#/$defs/id"},
+              "name": {"$ref": "#/$defs/name"},
+              "availability_30d": {"$ref": "#/$defs/percent"},
+              "error_budget_remaining_30d": {"$ref": "#/$defs/budget"},
+              "availability_daily": {"$ref": "#/$defs/daily"}
+            }
+          }
+        }
+      }
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["as_of", "days", "apps"],
+      "properties": {
+        "as_of": {"$ref": "#/$defs/time"},
+        "days": {"type": "array", "minItems": 30, "maxItems": 30, "items": {"$ref": "#/$defs/date"}},
+        "apps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "state", "availability_30d", "error_budget_remaining_30d", "availability_daily"],
+            "properties": {
+              "id": {"$ref": "#/$defs/id"},
+              "name": {"$ref": "#/$defs/name"},
+              "state": {"enum": ["up", "down", "none"]},
+              "availability_30d": {"anyOf": [{"$ref": "#/$defs/percent"}, {"type": "null"}]},
+              "error_budget_remaining_30d": {"anyOf": [{"$ref": "#/$defs/budget"}, {"type": "null"}]},
+              "availability_daily": {"$ref": "#/$defs/daily"}
+            }
+          }
+        }
+      }
+    },
+    "certificates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["as_of", "certs"],
+      "properties": {
+        "as_of": {"$ref": "#/$defs/time"},
+        "certs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "days_left"],
+            "properties": {
+              "id": {"$ref": "#/$defs/id"},
+              "name": {"type": "string", "pattern": "^[a-z0-9*.-]{1,63}$"},
+              "days_left": {"type": ["integer", "null"], "minimum": -30, "maximum": 400}
             }
           }
         }
@@ -42,29 +87,132 @@
     "cluster": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["as_of", "nodes", "apps", "talos_version", "kubernetes_version"],
+      "required": ["as_of", "nodes", "apps", "talos_version", "kubernetes_version", "synced", "healthy",
+        "node_use", "nas", "gateway", "restarts_24h", "volumes"],
       "properties": {
         "as_of": {"$ref": "#/$defs/time"},
         "nodes": {"type": "integer", "minimum": 1, "maximum": 10},
         "apps": {"type": "integer", "minimum": 1, "maximum": 200},
         "talos_version": {"$ref": "#/$defs/version"},
-        "kubernetes_version": {"$ref": "#/$defs/version"}
+        "kubernetes_version": {"$ref": "#/$defs/version"},
+        "synced": {"type": "integer", "minimum": 0, "maximum": 200},
+        "healthy": {"type": "integer", "minimum": 0, "maximum": 200},
+        "node_use": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "ready", "cpu", "memory", "disk", "cpu_pressure", "memory_pressure", "io_pressure",
+              "net_errors_per_second"],
+            "properties": {
+              "name": {"type": "string", "pattern": "^[a-z0-9-]{1,63}$"},
+              "ready": {"type": "boolean"},
+              "cpu": {"$ref": "#/$defs/share"},
+              "memory": {"$ref": "#/$defs/share"},
+              "disk": {"$ref": "#/$defs/share"},
+              "cpu_pressure": {"$ref": "#/$defs/share"},
+              "memory_pressure": {"$ref": "#/$defs/share"},
+              "io_pressure": {"$ref": "#/$defs/share"},
+              "net_errors_per_second": {"$ref": "#/$defs/rate"}
+            }
+          }
+        },
+        "nas": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["up", "pool_healthy", "pool", "cpu", "memory", "load_per_core", "device_errors", "scrub_errors"],
+          "properties": {
+            "up": {"type": "boolean"},
+            "pool_healthy": {"type": ["boolean", "null"]},
+            "pool": {"$ref": "#/$defs/share"},
+            "cpu": {"$ref": "#/$defs/share"},
+            "memory": {"$ref": "#/$defs/share"},
+            "load_per_core": {"$ref": "#/$defs/rate"},
+            "device_errors": {"$ref": "#/$defs/errors"},
+            "scrub_errors": {"$ref": "#/$defs/errors"}
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requests_per_second", "errors_5xx", "latency_p95_ms"],
+          "properties": {
+            "requests_per_second": {"$ref": "#/$defs/rate"},
+            "errors_5xx": {"$ref": "#/$defs/share"},
+            "latency_p95_ms": {"type": ["integer", "null"], "minimum": 0, "maximum": 3600000}
+          }
+        },
+        "restarts_24h": {"type": "integer", "minimum": 0},
+        "volumes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["count", "used_bytes", "capacity_bytes", "fullest"],
+          "properties": {
+            "count": {"type": "integer", "minimum": 0, "maximum": 1000},
+            "used_bytes": {"type": "integer", "minimum": 0},
+            "capacity_bytes": {"type": "integer", "minimum": 0},
+            "fullest": {"$ref": "#/$defs/percent"}
+          }
+        }
       }
     },
     "project": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["as_of", "prs_merged_30d", "renovate_share_30d", "ci_median_seconds_30d"],
+      "required": ["as_of", "prs_merged_30d", "renovate_share_30d", "ci_median_seconds_30d", "deploys_30d",
+        "lead_time_seconds", "lead_time_count", "failed_changes_30d", "change_failure_rate", "incidents_30d",
+        "restore_seconds", "ci_runs"],
       "properties": {
         "as_of": {"$ref": "#/$defs/time"},
         "prs_merged_30d": {"type": "integer", "minimum": 0, "maximum": 10000},
         "renovate_share_30d": {"type": "integer", "minimum": 0, "maximum": 100},
-        "ci_median_seconds_30d": {"type": "integer", "minimum": 1, "maximum": 21600}
+        "ci_median_seconds_30d": {"type": "integer", "minimum": 1, "maximum": 21600},
+        "deploys_30d": {"type": "integer", "minimum": 0, "maximum": 10000},
+        "lead_time_seconds": {"$ref": "#/$defs/seconds"},
+        "lead_time_count": {"type": ["integer", "null"], "minimum": 0, "maximum": 10000},
+        "failed_changes_30d": {"type": ["integer", "null"], "minimum": 0, "maximum": 10000},
+        "change_failure_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+        "incidents_30d": {"type": ["integer", "null"], "minimum": 0, "maximum": 10000},
+        "restore_seconds": {"$ref": "#/$defs/seconds"},
+        "ci_runs": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["run", "result", "commit", "pr", "started_at", "duration_seconds"],
+            "properties": {
+              "run": {"type": "integer", "minimum": 1},
+              "result": {"enum": ["success", "failure", "cancelled", "other"]},
+              "commit": {"type": "string", "pattern": "^[0-9a-f]{7}$"},
+              "pr": {"type": ["integer", "null"], "minimum": 1},
+              "started_at": {"$ref": "#/$defs/time"},
+              "duration_seconds": {"type": "integer", "minimum": 0, "maximum": 86400}
+            }
+          }
+        }
       }
     }
   },
   "$defs": {
     "time": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$"},
-    "version": {"type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+$"}
+    "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+    "version": {"type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+$"},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,30}$"},
+    "name": {"type": "string", "pattern": "^[A-Za-z0-9 .-]{1,40}$"},
+    "percent": {"type": "number", "minimum": 0, "maximum": 100},
+    "budget": {"type": "integer", "minimum": -100, "maximum": 100},
+    "daily": {
+      "type": "array",
+      "minItems": 30,
+      "maxItems": 30,
+      "items": {"type": ["number", "null"], "minimum": 0, "maximum": 100}
+    },
+    "share": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "rate": {"type": ["number", "null"], "minimum": 0},
+    "errors": {"type": ["integer", "null"], "minimum": 0},
+    "seconds": {"type": ["integer", "null"], "minimum": 0, "maximum": 31536000}
   }
 }

@@ -132,8 +132,9 @@ func push(ctx context.Context, args []string, stdout io.Writer) error {
 }
 
 // moveToNow shifts generated_at, the as_of times and daily.computed_at by
-// now minus generated_at, and sets daily.covers to the day before
-// computed_at, so the web role accepts the push and shows nothing stale.
+// now minus generated_at, sets daily.covers to the day before computed_at
+// and availability.days to the 30 days ending today, so the web role
+// accepts the push and shows nothing stale.
 func moveToNow(raw []byte, now time.Time) ([]byte, error) {
 	var doc map[string]any
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -145,7 +146,7 @@ func moveToNow(raw []byte, now time.Time) ([]byte, error) {
 	}
 	delta := now.Truncate(time.Second).Sub(generated)
 	doc["generated_at"] = snapshot.FormatTime(generated.Add(delta))
-	for _, block := range []string{"cluster", "project"} {
+	for _, block := range []string{"availability", "certificates", "cluster", "project"} {
 		m, ok := doc[block].(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("no %s block", block)
@@ -156,6 +157,12 @@ func moveToNow(raw []byte, now time.Time) ([]byte, error) {
 		}
 		m["as_of"] = snapshot.FormatTime(t.Add(delta))
 	}
+	days := make([]string, snapshot.Days)
+	today := snapshot.Day(generated.Add(delta))
+	for i := range days {
+		days[i] = snapshot.AddDays(today, i-(snapshot.Days-1)).Format(snapshot.DateLayout)
+	}
+	doc["availability"].(map[string]any)["days"] = days
 	daily, ok := doc["daily"].(map[string]any)
 	if !ok {
 		return nil, errors.New("no daily block")

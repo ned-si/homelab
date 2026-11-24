@@ -90,7 +90,7 @@ func New(o Options) (*Server, error) {
 	sum := sha256.Sum256(css)
 	s.cssPath = "/assets/dashboard." + hex.EncodeToString(sum[:])[:8] + ".css"
 	s.cssIntegrity = "sha256-" + base64.StdEncoding.EncodeToString(sum[:])
-	s.metrics = metrics.NewWeb(o.Registry, s.SnapshotAge, s.DailyAge)
+	s.metrics = metrics.NewWeb(o.Registry, s.SnapshotAge, s.DailyAge, s.BlockAge)
 	return s, nil
 }
 
@@ -151,6 +151,25 @@ func (s *Server) DailyAge() float64 {
 	if h := s.current.Load(); h != nil {
 		if covers, err := snapshot.ParseDate(h.snap.Daily.Covers); err == nil {
 			from = snapshot.AddDays(covers, 1)
+		}
+	}
+	return s.now().Sub(from).Seconds()
+}
+
+// BlockAge is now minus as_of of the block (availability, certificates,
+// cluster or project) of the snapshot served, or minus the process start
+// without one, in seconds.
+func (s *Server) BlockAge(block string) float64 {
+	from := s.start
+	if h := s.current.Load(); h != nil {
+		asOf := map[string]string{
+			"availability": h.snap.Availability.AsOf,
+			"certificates": h.snap.Certificates.AsOf,
+			"cluster":      h.snap.Cluster.AsOf,
+			"project":      h.snap.Project.AsOf,
+		}[block]
+		if t, err := snapshot.ParseTime(asOf); err == nil {
+			from = t
 		}
 	}
 	return s.now().Sub(from).Seconds()

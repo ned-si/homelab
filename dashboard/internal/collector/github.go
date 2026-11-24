@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -76,9 +78,20 @@ func (g *GitHub) HasToken() bool {
 }
 
 func (g *GitHub) get(ctx context.Context, token, path string, out any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.BaseURL+path, nil)
+	return g.do(ctx, token, http.MethodGet, path, nil, out)
+}
+
+func (g *GitHub) do(ctx context.Context, token, method, path string, body []byte, out any) error {
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, g.BaseURL+path, rd)
 	if err != nil {
 		return err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", g.UserAgent)
@@ -137,9 +150,10 @@ func (g *GitHub) mergedCount(ctx context.Context, token, figure, span, extra str
 }
 
 // Project reads the figures from start, inclusive, to end, exclusive: pull
-// requests merged into main, Renovate's share of them and the median wall
-// time of the successful CI runs. The search API's total_count is exact,
-// so no page limit applies to the counts.
+// requests merged into main (the deploys), Renovate's share of them, the
+// median wall time of the successful CI runs and the last CI runs on main.
+// The search API's total_count is exact, so no page limit applies to the
+// counts. The DORA figures that need the GraphQL API are left nil.
 func (g *GitHub) Project(ctx context.Context, start, end time.Time) (snapshot.Project, error) {
 	var p snapshot.Project
 	token, err := g.token()
@@ -194,6 +208,78 @@ func (g *GitHub) Project(ctx context.Context, start, end time.Time) (snapshot.Pr
 		return p, &figureError{"ci_median_seconds_30d", errors.New("no successful run in the window")}
 	}
 	p.CIMedianSeconds30d = snapshot.RoundSeconds(snapshot.Median(walls))
+	p.Deploys30d = p.PRsMerged30d
+	if p.CIRuns, err = g.ciRuns(ctx, token); err != nil {
+		return p, err
+	}
 	p.AsOf = snapshot.FormatTime(end)
 	return p, nil
+}
+
+// prRE finds the pull request number GitHub appends to a merged title.
+var prRE = regexp.MustCompile(`\(#(\d+)\)`)
+
+// ciRuns returns the last completed runs of the CI workflow on main, newest
+// first.
+func (g *GitHub) ciRuns(ctx context.Context, token string) ([]snapshot.CIRun, error) {
+	q := url.Values{
+		"branch":                {mergedBase},
+		"event":                 {"push"},
+		"status":                {"completed"},
+		"per_page":              {strconv.Itoa(snapshot.MaxCIRuns)},
+		"exclude_pull_requests": {"true"},
+	}
+	var r struct {
+		WorkflowRuns []struct {
+			RunNumber    int    `json:"run_number"`
+			Conclusion   string `json:"conclusion"`
+			HeadSHA      string `json:"head_sha"`
+			RunStartedAt string `json:"run_started_at"`
+			UpdatedAt    string `json:"updated_at"`
+			HeadCommit   struct {
+				Message string `json:"message"`
+			} `json:"head_commit"`
+		} `json:"workflow_runs"`
+	}
+	path := fmt.Sprintf("/repos/%s/actions/workflows/%s/runs?%s", g.Repo, g.Workflow, q.Encode())
+	if err := g.get(ctx, token, path, &r); err != nil {
+		return nil, &figureError{"ci_runs", err}
+	}
+	runs := []snapshot.CIRun{}
+	for _, run := range r.WorkflowRuns {
+		if len(runs) == snapshot.MaxCIRuns {
+			break
+		}
+		started, err1 := time.Parse(time.RFC3339, run.RunStartedAt)
+		updated, err2 := time.Parse(time.RFC3339, run.UpdatedAt)
+		if err := errors.Join(err1, err2); err != nil {
+			return nil, &figureError{"ci_runs", err}
+		}
+		if len(run.HeadSHA) < 7 {
+			return nil, &figureError{"ci_runs", fmt.Errorf("run %d: head_sha %q", run.RunNumber, run.HeadSHA)}
+		}
+		c := snapshot.CIRun{
+			Run:             run.RunNumber,
+			Result:          result(run.Conclusion),
+			Commit:          strings.ToLower(run.HeadSHA[:7]),
+			StartedAt:       snapshot.FormatTime(started),
+			DurationSeconds: min(86400, max(0, int(updated.Sub(started).Seconds()))),
+		}
+		title, _, _ := strings.Cut(run.HeadCommit.Message, "\n")
+		if m := prRE.FindAllStringSubmatch(title, -1); m != nil {
+			if n, err := strconv.Atoi(m[len(m)-1][1]); err == nil && n > 0 {
+				c.PR = &n
+			}
+		}
+		runs = append(runs, c)
+	}
+	return runs, nil
+}
+
+func result(conclusion string) string {
+	switch conclusion {
+	case snapshot.RunSuccess, snapshot.RunFailure, snapshot.RunCancelled:
+		return conclusion
+	}
+	return snapshot.RunOther
 }

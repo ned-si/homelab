@@ -50,6 +50,10 @@ func apps(doc map[string]any) []any {
 	return obj(doc, "daily")["apps"].([]any)
 }
 
+func item(doc map[string]any, block, list string, i int) map[string]any {
+	return obj(doc, block)[list].([]any)[i].(map[string]any)
+}
+
 func TestValidateAcceptsFixture(t *testing.T) {
 	s, err := Validate(readValid(t))
 	if err != nil {
@@ -60,6 +64,64 @@ func TestValidateAcceptsFixture(t *testing.T) {
 	}
 	if got := s.Daily.Apps[6].AvailabilityDaily[0]; got != nil {
 		t.Errorf("landing availability_daily[0] = %v, want nil", *got)
+	}
+	if got := s.Certificates.Certs[2].DaysLeft; got != nil {
+		t.Errorf("homelab days_left = %v, want nil", *got)
+	}
+	if got, want := s.Availability.Days[len(s.Availability.Days)-1], "2026-11-20"; got != want {
+		t.Errorf("last of availability.days = %s, want %s", got, want)
+	}
+}
+
+// TestNoFreeText pins the version 2 keys that hold text: each is either
+// from a compiled list or bounded by a pattern a sentence cannot match.
+func TestNoFreeText(t *testing.T) {
+	s, err := Validate(readValid(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(struct {
+		A Availability
+		C Certificates
+		N []NodeUse
+		R []CIRun
+	}{s.Availability, s.Certificates, s.Cluster.NodeUse, s.Project.CIRuns})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var walk func(path string, v any)
+	walk = func(path string, v any) {
+		switch v := v.(type) {
+		case map[string]any:
+			for k, x := range v {
+				walk(path+"."+k, x)
+			}
+		case []any:
+			for _, x := range v {
+				walk(path, x)
+			}
+		case string:
+			if strings.ContainsAny(v, " _/") && !strings.HasSuffix(path, ".name") {
+				t.Errorf("%s = %q: free text", path, v)
+			}
+		}
+	}
+	var doc any
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	walk("", doc)
+	names := map[string]bool{}
+	for _, a := range Shown() {
+		names[a.Name] = true
+	}
+	for _, c := range ShownCerts() {
+		names[c.Name] = true
+	}
+	for _, a := range s.Availability.Apps {
+		if !names[a.Name] {
+			t.Errorf("availability app name %q is not compiled in", a.Name)
+		}
 	}
 }
 
@@ -75,7 +137,7 @@ func TestValidateRefuses(t *testing.T) {
 		{"extra key in an app", func(d map[string]any) { apps(d)[0].(map[string]any)["extra"] = 1 }, false},
 		{"extra key in cluster", func(d map[string]any) { obj(d, "cluster")["consumption"] = 1 }, false},
 		{"extra key in project", func(d map[string]any) { obj(d, "project")["extra"] = 1 }, false},
-		{"wrong schema version", func(d map[string]any) { d["schema_version"] = 2 }, false},
+		{"version 1", func(d map[string]any) { d["schema_version"] = 1 }, false},
 		{"availability above 100", func(d map[string]any) { apps(d)[0].(map[string]any)["availability_30d"] = 100.1 }, false},
 		{"budget below -100", func(d map[string]any) { apps(d)[0].(map[string]any)["error_budget_remaining_30d"] = -101 }, false},
 		{"29 daily values", func(d map[string]any) {
@@ -108,6 +170,99 @@ func TestValidateRefuses(t *testing.T) {
 			obj(d, "daily")["computed_at"] = "2026-11-20T17:30:00+01:00"
 		}, false},
 		{"covers on the day it was computed", func(d map[string]any) { obj(d, "daily")["covers"] = "2026-11-20" }, false},
+
+		// Version 2.
+		{"no availability", func(d map[string]any) { delete(d, "availability") }, false},
+		{"no certificates", func(d map[string]any) { delete(d, "certificates") }, false},
+		{"no node_use", func(d map[string]any) { delete(obj(d, "cluster"), "node_use") }, false},
+		{"no ci_runs", func(d map[string]any) { delete(obj(d, "project"), "ci_runs") }, false},
+		{"no state", func(d map[string]any) { delete(item(d, "availability", "apps", 0), "state") }, false},
+		{"extra key in availability", func(d map[string]any) { obj(d, "availability")["extra"] = 1 }, false},
+		{"extra key in a live app", func(d map[string]any) { item(d, "availability", "apps", 0)["extra"] = 1 }, false},
+		{"extra key in a certificate", func(d map[string]any) { item(d, "certificates", "certs", 0)["extra"] = 1 }, false},
+		{"extra key in a node", func(d map[string]any) { item(d, "cluster", "node_use", 0)["pod"] = "x" }, false},
+		{"extra key in nas", func(d map[string]any) { obj(d, "cluster", "nas")["extra"] = 1 }, false},
+		{"extra key in gateway", func(d map[string]any) { obj(d, "cluster", "gateway")["route"] = "x" }, false},
+		{"extra key in volumes", func(d map[string]any) { obj(d, "cluster", "volumes")["name"] = "x" }, false},
+		{"extra key in a ci run", func(d map[string]any) { item(d, "project", "ci_runs", 0)["title"] = "x" }, false},
+		{"unknown state", func(d map[string]any) { item(d, "availability", "apps", 0)["state"] = "degraded" }, false},
+		{"live availability above 100", func(d map[string]any) {
+			item(d, "availability", "apps", 0)["availability_30d"] = 100.1
+		}, false},
+		{"days_left above 400", func(d map[string]any) { item(d, "certificates", "certs", 0)["days_left"] = 401 }, false},
+		{"cpu above 100", func(d map[string]any) { item(d, "cluster", "node_use", 0)["cpu"] = 100.5 }, false},
+		{"negative network errors", func(d map[string]any) {
+			item(d, "cluster", "node_use", 0)["net_errors_per_second"] = -1
+		}, false},
+		{"negative restarts", func(d map[string]any) { obj(d, "cluster")["restarts_24h"] = -1 }, false},
+		{"change failure rate above 100", func(d map[string]any) { obj(d, "project")["change_failure_rate"] = 101 }, false},
+		{"unknown ci result", func(d map[string]any) { item(d, "project", "ci_runs", 0)["result"] = "skipped" }, false},
+		{"long commit", func(d map[string]any) { item(d, "project", "ci_runs", 0)["commit"] = "6d0407e2" }, false},
+		{"29 days", func(d map[string]any) {
+			a := obj(d, "availability")
+			a["days"] = a["days"].([]any)[1:]
+		}, false},
+		{"days not consecutive", func(d map[string]any) {
+			obj(d, "availability")["days"].([]any)[3] = "2026-10-26"
+		}, false},
+		{"days ending yesterday", func(d map[string]any) {
+			days := obj(d, "availability")["days"].([]any)
+			for i := range days {
+				t, _ := ParseDate(days[i].(string))
+				days[i] = AddDays(t, -1).Format(DateLayout)
+			}
+		}, false},
+		{"availability as_of after generated_at", func(d map[string]any) {
+			obj(d, "availability")["as_of"] = "2026-11-20T17:00:01+01:00"
+		}, false},
+		{"certificates as_of after generated_at", func(d map[string]any) {
+			obj(d, "certificates")["as_of"] = "2026-11-20T17:00:01+01:00"
+		}, false},
+		{"synced above apps", func(d map[string]any) { obj(d, "cluster")["synced"] = 56 }, false},
+		{"healthy above apps", func(d map[string]any) { obj(d, "cluster")["healthy"] = 56 }, false},
+		{"node_use shorter than nodes", func(d map[string]any) {
+			c := obj(d, "cluster")
+			c["node_use"] = c["node_use"].([]any)[1:]
+		}, false},
+		{"nodes out of order", func(d map[string]any) {
+			n := obj(d, "cluster")["node_use"].([]any)
+			n[0], n[1] = n[1], n[0]
+		}, false},
+		{"ci_runs out of order", func(d map[string]any) {
+			r := obj(d, "project")["ci_runs"].([]any)
+			r[0], r[1] = r[1], r[0]
+		}, false},
+		{"six ci runs", func(d map[string]any) {
+			p := obj(d, "project")
+			r := p["ci_runs"].([]any)
+			p["ci_runs"] = append(r, r[len(r)-1])
+		}, false},
+		{"live app outside the allow-list", func(d map[string]any) {
+			a := item(d, "availability", "apps", 0)
+			a["id"], a["name"] = "grafana", "Grafana"
+		}, true},
+		{"hidden live app", func(d map[string]any) {
+			a := item(d, "availability", "apps", 0)
+			a["id"], a["name"] = "radarr", "Radarr"
+		}, true},
+		{"live apps out of order", func(d map[string]any) {
+			as := obj(d, "availability")["apps"].([]any)
+			as[0], as[1] = as[1], as[0]
+		}, true},
+		{"unknown certificate", func(d map[string]any) {
+			c := item(d, "certificates", "certs", 0)
+			c["id"], c["name"] = "example", "example.org"
+		}, true},
+		{"one certificate missing", func(d map[string]any) {
+			c := obj(d, "certificates")
+			c["certs"] = c["certs"].([]any)[1:]
+		}, true},
+		{"node named like hidden tooling", func(d map[string]any) {
+			item(d, "cluster", "node_use", 3)["name"] = "sonarr"
+		}, true},
+		{"free text as a node name", func(d map[string]any) {
+			item(d, "cluster", "node_use", 0)["name"] = "Hello World"
+		}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -131,11 +286,32 @@ func TestValidateRefusesOversizedBody(t *testing.T) {
 
 func TestShownAppsAreNotHidden(t *testing.T) {
 	for _, a := range Shown() {
-		for _, v := range []string{a.ID, a.SLOApp, strings.ToLower(a.Name)} {
+		for _, v := range append([]string{a.ID, a.SLOApp, strings.ToLower(a.Name)}, a.Probes()...) {
 			if Hidden(v) {
 				t.Errorf("shown app %q: %q is download or indexer tooling, never shown", a.ID, v)
 			}
 		}
+	}
+}
+
+func TestShownCertsAreNotHidden(t *testing.T) {
+	for _, c := range ShownCerts() {
+		for _, v := range []string{c.ID, c.Name, c.Instance} {
+			if Hidden(v) {
+				t.Errorf("shown certificate %q: %q is download or indexer tooling, never shown", c.ID, v)
+			}
+		}
+	}
+}
+
+func TestProbes(t *testing.T) {
+	one := ShownApp{ID: "immich", SLOApp: "media"}
+	if diff := cmp.Diff([]string{"media"}, one.Probes()); diff != "" {
+		t.Errorf("Probes() of one probe mismatch (-want +got):\n%s", diff)
+	}
+	many := ShownApp{ID: "observability", SLOApp: "observability", ProbeApps: []string{"grafana", "signoz"}}
+	if diff := cmp.Diff([]string{"grafana", "signoz"}, many.Probes()); diff != "" {
+		t.Errorf("Probes() of four probes mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -203,6 +379,20 @@ func TestRounding(t *testing.T) {
 	}
 	if got, want := Median([]float64{600, 700, 900, 601}), 650.5; got != want {
 		t.Errorf("Median(even) = %v, want %v", got, want)
+	}
+	for _, tc := range []struct {
+		in, want float64
+	}{{0.12345, 12.3}, {0.125, 12.5}, {0.5, 50}, {1.5, 100}, {-0.1, 0}} {
+		if got := Percent(tc.in); got != tc.want {
+			t.Errorf("Percent(%v) = %v, want %v", tc.in, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		in, want float64
+	}{{0.625, 0.62}, {0.375, 0.38}} {
+		if got := Round(tc.in, 2); got != tc.want {
+			t.Errorf("Round(%v, 2) = %v, want %v", tc.in, got, tc.want)
+		}
 	}
 	seconds := []struct {
 		in   float64
