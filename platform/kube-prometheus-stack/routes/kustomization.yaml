@@ -17,6 +17,8 @@ resources:
   - automation.yaml
   - alerts.yaml
   - argocd-alerts.yaml
+  # tuppr upgrades, in place of the chart's rules.
+  - tuppr-alerts.yaml
   - outage-alerts.yaml
   # HomelabNASDown from a Prometheus without a NAS volume.
   - nas-watch.yaml

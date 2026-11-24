@@ -9,17 +9,13 @@ resources:
   limits:
     memory: 256Mi
 
-# Metrics and the chart's alerts (TalosUpgradeFailed, KubernetesUpgradeFailed,
-# TalosUpgradeStuck, TupprOperatorAbsent, ...) go to the kube-prometheus-stack
-# Prometheus, which selects on the `release` label, and show in Grafana;
-# The failed, stuck and operator-absent ones also notify, by name
-# (docs/sre.md "Paging").
+# Metrics go to the kube-prometheus-stack Prometheus, which selects on the
+# `release` label. The chart's alerts are off: they page on a run waiting
+# for its health checks. Ours: platform/kube-prometheus-stack/routes/tuppr-alerts.yaml.
 monitoring:
   serviceMonitor:
     enabled: true
     labels:
       release: kube-prometheus-stack
   prometheusRule:
-    enabled: true
-    labels:
-      release: kube-prometheus-stack
+    enabled: false

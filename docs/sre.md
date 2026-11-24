@@ -159,8 +159,8 @@ fails a rule without it (`scripts/ci/alertmanager-test.sh`):
 | PAGE | `action: human` | ntfy |
 | INFO | `action: auto` | Grafana only |
 
-The chart rules (kube-prometheus-stack, tuppr) have no label: they are INFO
-unless named in the PAGE table. An alert that needs no person and that no
+The kube-prometheus-stack chart rules have no label: they are INFO unless
+named in the PAGE table. The tuppr chart's rules are off; ours carry the label. An alert that needs no person and that no
 automation handles is deleted, not kept as INFO.
 
 PAGE, grouped by alert name (the persistent burns by app); repeated every
@@ -168,7 +168,7 @@ PAGE, grouped by alert name (the persistent burns by app); repeated every
 
 | Why a person | Alerts |
 | --- | --- |
-| Automation gave up or failed | `ArgoCDAppStillDegraded` (Degraded for 30 min: auto-rollback refused, skipped by the outage guard, or its revert failed), `ArgoCDSyncStuck` (OutOfSync 30 min after a failed sync), `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck`, `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent`, `TalosConfigDrift` (nothing applies Talos config), `PodStuckNotRunningLongTerm` (6 h), `PodSecurityEnforceDenied` (Pod Security admission keeps rejecting a controller's or an operator's Pods), `KyvernoDenied` (a Kyverno policy in Deny keeps rejecting them; no namespace label, so a namespace silence does not mute it), `NASiSCSITargetOpen` (an iSCSI target open to the LAN for 1 h: `nas-iscsi-guard` failed), `HomelabDashboardSnapshotStale` (no snapshot accepted by the public dashboard for 48 h) |
+| Automation gave up or failed | `ArgoCDAppStillDegraded` (Degraded for 30 min: auto-rollback refused, skipped by the outage guard, or its revert failed), `ArgoCDSyncStuck` (OutOfSync 30 min after a failed sync), `TalosUpgradeFailed`, `TalosUpgradeNodeFailed`, `TalosUpgradeStuck` (a node cordoned or NotReady off the target version for 30 min, a failed upgrade Job, a node rebooted on the old version, a node upgrade unfinished after 45 min; never a run waiting on its health checks), `KubernetesUpgradeFailed`, `KubernetesUpgradeStuck`, `TupprOperatorAbsent` (30 min), `TalosConfigDrift` (nothing applies Talos config), `PodStuckNotRunningLongTerm` (6 h), `PodSecurityEnforceDenied` (Pod Security admission keeps rejecting a controller's or an operator's Pods), `KyvernoDenied` (a Kyverno policy in Deny keeps rejecting them; no namespace label, so a namespace silence does not mute it), `NASiSCSITargetOpen` (an iSCSI target open to the LAN for 1 h: `nas-iscsi-guard` failed), `HomelabDashboardSnapshotStale` (no snapshot accepted by the public dashboard for 48 h) |
 | Backups | `BackupLockBroken` (old versions deletable), `BackupLockCheckStale`, `BackupNotFresh` (a restic CronJob without a success in 26 h), `BackupVerifyFailed`, `BackupVerifyStale`, `BackupVerifyDataStale`, `BackupVerifyMissing`, `CNPGBackupFailed`, `CNPGBaseBackupTooOld`, `CNPGBackupMetricsMissing`, `CNPGWALArchivingFailing`, `CNPGWALArchiveLag`, `CNPGMetricsAbsent`, `KubeJobFailed` of a `*-backup-*` Job |
 | The physical world | `HomelabNodeDown` (NotReady 15 min), `HomelabNASDown` (unreachable 10 min: press the NAS power button), `etcdInsufficientMembers`, `etcdNoLeader`, `NodeFilesystemReadOnly`, `NodeEmmcWearHigh`, `NodeEmmcEndOfLife`, `NASPoolUnhealthy`, `NASPoolDeviceNotOnline`, `NASPoolDeviceErrors`, `NASDiskHot`, `LANDeviceUnreachable`, `LANNewDeviceSeen` |
 | Capacity (nothing grows a volume) | `PersistentVolumeNearlyFull`, `PersistentVolumeCriticallyFull`, `PersistentVolumeFillingUp`, `PrometheusTsdbVolumeNearlyFull`, `PrometheusRetentionCutBySize` (retentionSize keeps under 29 days), `NodeFilesystemNearlyFull`, `NodeFilesystemCriticallyFull`, `NodeFilesystemInodesNearlyFull`, `NASPoolNearlyFull`, `NASPoolCriticallyFull`, `NASPoolFillingUp`, `NASScrubOverdue` |

@@ -1,0 +1,187 @@
+# tuppr upgrade alerts, in place of the chart's (platform/tuppr/values.yaml).
+# All page: each says the upgrade itself is broken. A run waiting on its
+# health checks (phase HealthChecking: an app unhealthy, a node NotReady) is
+# no alert: the unhealthy thing has its own, and the wait is an event on the
+# Homelab / Automation timeline (automation.yaml). docs/sre.md "Paging".
+# Tests: tests/prometheus/tuppr_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-tuppr
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.tuppr
+      rules:
+        # A node not on the Talos version tuppr is rolling out: the next ones
+        # while a run is in progress, or a node that failed.
+        - record: tuppr:node:version_mismatch
+          expr: |
+            max by (node) (
+              max by (node, version) (tuppr_node_target_version{kind="talos"})
+              unless on (node, version)
+              max by (node, version) (label_replace(tuppr_node_info, "version", "$1", "talos_version", "(.+)"))
+            )
+        # node-exporter has only the IP; kube_node_info maps it to the node.
+        - record: tuppr:node:booted_within_1h
+          expr: |
+            (
+              (time() - label_replace(node_boot_time_seconds, "internal_ip", "$1", "instance", "(.+):[0-9]+")) < 3600
+            ) * on (internal_ip) group_left (node) max by (internal_ip, node) (kube_node_info)
+
+        - alert: TalosUpgradeStuck
+          expr: |
+            tuppr:node:version_mismatch
+            and on (node) (
+              max by (node) (kube_node_spec_unschedulable) == 1
+              or on (node)
+              max by (node) (kube_node_status_condition{condition="Ready", status="true"}) == 0
+            )
+          for: 30m
+          labels:
+            severity: warning
+            action: human
+            reason: node-mid-upgrade
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+            summary: "Talos upgrade stuck on {{ $labels.node }}"
+            description: >-
+              {{ $labels.node }} has been cordoned or NotReady for 30 minutes
+              and does not run the target Talos version. Recovery:
+              docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+        - alert: TalosUpgradeStuck
+          expr: |
+            max by (job_name) (max_over_time(kube_job_status_failed{namespace="system-upgrade"}[15m])) > 0
+            and on (job_name)
+            max by (job_name) (max_over_time(kube_job_owner{namespace="system-upgrade", owner_kind="TalosUpgrade"}[15m]))
+          labels:
+            severity: warning
+            action: human
+            reason: job-failed
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+            summary: "Talos upgrade Job {{ $labels.job_name }} failed"
+            description: >-
+              A pod of the upgrade Job {{ $labels.job_name }} failed in the
+              last 15 minutes (a retry or the end of the Job). Its log:
+              kubectl -n system-upgrade logs job/{{ $labels.job_name }}.
+              Recovery: docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+        # Talos A/B fallback: the node rebooted into the old version.
+        - alert: TalosUpgradeStuck
+          expr: tuppr:node:version_mismatch and on (node) tuppr:node:booted_within_1h
+          for: 15m
+          labels:
+            severity: warning
+            action: human
+            reason: old-version-after-reboot
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+            summary: "{{ $labels.node }} rebooted on the old Talos version"
+            description: >-
+              {{ $labels.node }} booted in the last hour and does not run the
+              target Talos version. Check talosctl -n <node-ip> version and
+              dmesg. Recovery: docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+        # Past the TalosUpgrade's 30 min policy timeout, which should have
+        # failed the run.
+        - alert: TalosUpgradeStuck
+          expr: max by (name, phase) (tuppr_talos_upgrade_phase{phase=~"Upgrading|Rebooting|Draining"}) == 1
+          for: 45m
+          labels:
+            severity: warning
+            action: human
+            reason: job-hung
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeStuck.md
+            summary: "Talos upgrade {{ $labels.name }} in {{ $labels.phase }} for 45 minutes"
+            description: >-
+              The upgrade of a node has not finished in 45 minutes. Check
+              kubectl -n system-upgrade get jobs,pods and the target node.
+              Recovery: docs/talos-cheatsheet.md (Talos and Kubernetes upgrades).
+        - alert: TalosUpgradeNodeFailed
+          expr: max by (name) (tuppr_talos_upgrade_nodes_failed) > 0
+          for: 1m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeNodeFailed.md
+            summary: "Talos upgrade {{ $labels.name }} has {{ $value }} failed node(s)"
+            description: >-
+              tuppr stopped the run. Fix the node, then reset the run
+              (docs/talos-cheatsheet.md, Talos and Kubernetes upgrades).
+        - alert: TalosUpgradeFailed
+          expr: max by (name) (tuppr_talos_upgrade_phase{phase="Failed"}) == 1
+          for: 1m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TalosUpgradeFailed.md
+            summary: "Talos upgrade {{ $labels.name }} is in phase Failed"
+            description: >-
+              Check kubectl get talosupgrade {{ $labels.name }} -o yaml, the
+              tuppr log and the nodes (docs/talos-cheatsheet.md, Talos and
+              Kubernetes upgrades).
+
+        - alert: KubernetesUpgradeStuck
+          expr: max by (name, phase) (tuppr_kubernetes_upgrade_phase{phase="Upgrading"}) == 1
+          for: 45m
+          labels:
+            severity: warning
+            action: human
+            reason: job-hung
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KubernetesUpgradeStuck.md
+            summary: "Kubernetes upgrade {{ $labels.name }} in Upgrading for 45 minutes"
+            description: >-
+              talosctl upgrade-k8s has not finished in 45 minutes. Check
+              kubectl -n system-upgrade get jobs,pods and the control planes
+              (docs/talos-cheatsheet.md, Talos and Kubernetes upgrades).
+        - alert: KubernetesUpgradeStuck
+          expr: |
+            max by (job_name) (max_over_time(kube_job_status_failed{namespace="system-upgrade"}[15m])) > 0
+            and on (job_name)
+            max by (job_name) (max_over_time(kube_job_owner{namespace="system-upgrade", owner_kind="KubernetesUpgrade"}[15m]))
+          labels:
+            severity: warning
+            action: human
+            reason: job-failed
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KubernetesUpgradeStuck.md
+            summary: "Kubernetes upgrade Job {{ $labels.job_name }} failed"
+            description: >-
+              A pod of the upgrade Job {{ $labels.job_name }} failed in the
+              last 15 minutes. Its log: kubectl -n system-upgrade logs
+              job/{{ $labels.job_name }} (docs/talos-cheatsheet.md, Talos and
+              Kubernetes upgrades).
+        - alert: KubernetesUpgradeFailed
+          expr: max by (name) (tuppr_kubernetes_upgrade_phase{phase="Failed"}) == 1
+          for: 1m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KubernetesUpgradeFailed.md
+            summary: "Kubernetes upgrade {{ $labels.name }} is in phase Failed"
+            description: >-
+              Check kubectl get kubernetesupgrade {{ $labels.name }} -o yaml
+              and the tuppr log. A minor cannot be downgraded: fix forward
+              (docs/talos-cheatsheet.md, Talos and Kubernetes upgrades).
+
+        # 30 min: the controller moves when its node reboots for an upgrade.
+        - alert: TupprOperatorAbsent
+          expr: absent(tuppr_build_info)
+          for: 30m
+          labels:
+            severity: critical
+            action: human
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TupprOperatorAbsent.md
+            summary: "tuppr is not reporting metrics"
+            description: >-
+              No tuppr metrics for 30 minutes: no upgrade runs and no upgrade
+              alert fires. Check kubectl -n system-upgrade get deploy,pods and
+              the ServiceMonitor.

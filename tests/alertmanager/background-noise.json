@@ -8,9 +8,8 @@
     {"alertname": "ArgoCDAppOutOfSync", "severity": "warning", "name": "syncthing", "namespace": "syncthing"},
     {"alertname": "SLOErrorBudgetBurnSlow", "severity": "warning", "app": "syncthing", "namespace": "syncthing"},
     {"alertname": "PodNotReady", "severity": "warning", "namespace": "immich", "pod": "immich-ml-0", "node": "homelab-w-1"},
-    {"alertname": "CPUThrottlingHigh", "severity": "info", "namespace": "immich", "pod": "immich-ml-0"},
-    {"alertname": "TupprUpgradeBlocked", "severity": "warning", "name": "cluster"}
+    {"alertname": "CPUThrottlingHigh", "severity": "info", "namespace": "immich", "pod": "immich-ml-0"}
   ],
   "notifications": ["heartbeat Watchdog"],
-  "uninhibited": ["ArgoCDAppDegraded", "ArgoCDAppOutOfSync", "CPUThrottlingHigh", "KubeJobFailed", "KubePodCrashLooping", "PodNotReady", "SLOErrorBudgetBurnSlow", "TupprUpgradeBlocked", "Watchdog"]
+  "uninhibited": ["ArgoCDAppDegraded", "ArgoCDAppOutOfSync", "CPUThrottlingHigh", "KubeJobFailed", "KubePodCrashLooping", "PodNotReady", "SLOErrorBudgetBurnSlow", "Watchdog"]
 }
