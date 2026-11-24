@@ -129,7 +129,8 @@ API key from the CSI driver's Secret `iscsi-democratic-csi-driver-config`
 (key `driver-config-file.yaml`, field `httpConnection.apiKey`), so the key
 exists once. Since TrueNAS 25.04 an API key belongs to a user and carries
 that user's rights; it cannot be narrowed further. The exporter only sends
-GETs, plus the `disk/temperatures` query, which the API exposes as POST.
+GETs, plus the `disk/temperatures` and `reporting/get_data` queries, which
+the API exposes as POST.
 
 The REST API v2.0 is deprecated since 25.04 and planned for removal in
 TrueNAS 27. While democratic-csi, the exporter, the iSCSI guard and
@@ -144,6 +145,8 @@ which shows in `truenas_alerts` and does not page. Moving off REST: #1490.
 | `truenas_dataset_used_bytes`, `truenas_dataset_available_bytes` | each pool's root dataset and its direct children |
 | `truenas_disk_temperature_celsius`, `truenas_disk_info`, `truenas_disk_size_bytes` | `disk`, `disk/temperatures` |
 | `truenas_alerts` (`level`, `klass`) | the NAS's own alert list, not dismissed |
+| `truenas_cpu_cores`, `truenas_load1`, `truenas_memory_total_bytes` | `system/info`: `cores`, `loadavg[0]`, `physmem` |
+| `truenas_cpu_utilisation_ratio`, `truenas_memory_used_bytes` | the last point of the `cpu` and `memory` graphs of `reporting/get_data` (the last 60 s); used is `physmem` minus available, so the ZFS ARC counts as used. Absent when the call fails; `truenas_up` does not count it |
 | `truenas_up` | 1 when every call of the last scrape succeeded |
 | `truenas_iscsi_targets_unrestricted` | `iscsi/target`, `iscsi/initiator`: targets not limited to exactly `ISCSI_AUTH_NETWORKS` (CORE: their initiator group's `auth_network`; SCALE: their own `auth_networks`) |
 

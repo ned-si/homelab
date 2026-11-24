@@ -90,7 +90,7 @@ spec:
           type: RuntimeDefault
       volumes:
       - configMap:
-          name: truenas-exporter-fh46f4948b
+          name: truenas-exporter-64b74dck4m
         name: script
       - name: driver-config
         secret:
