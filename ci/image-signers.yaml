@@ -83,6 +83,8 @@
   unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
 - repository: ghcr.io/kyverno/reports-controller
   unsigned: signatures in ghcr.io/kyverno/signatures, not read (inventory 2026-11-18)
+- repository: ghcr.io/linuxserver/lazylibrarian
+  unsigned: no signature published (inventory 2026-11-18)
 - repository: ghcr.io/mealie-recipes/mealie
   unsigned: no signature published (inventory 2026-11-18)
 - repository: ghcr.io/ned-si/homelab-dashboard
@@ -101,8 +103,6 @@
   unsigned: no signature published (inventory 2026-11-18)
 - repository: grafana/grafana
   unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
-- repository: lscr.io/linuxserver/lazylibrarian
-  unsigned: no signature published (inventory 2026-11-18)
 - repository: mirror.gcr.io/aquasec/trivy
   unsigned: "not checked: no digest or no tag in the manifest (inventory 2026-11-18)"
 - repository: mirror.gcr.io/aquasec/trivy-operator
