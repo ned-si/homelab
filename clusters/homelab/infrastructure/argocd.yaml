@@ -1,7 +1,9 @@
 # Argo CD manages its own Helm release, adopted from the bootstrap install
 # (docs/bootstrap.md). CI (repo-policy `bootstrap-chart-versions`) keeps the
-# chart version equal to ci/helm-releases.yaml. No prune: a pruned CRD would
-# delete every Application.
+# chart version equal to ci/helm-releases.yaml. Prunes what a chart upgrade
+# drops, last, once everything else is applied; the CRDs carry Prune=false
+# (crds.annotations in the values): a pruned CRD would delete every
+# Application.
 #
 # BREAK-GLASS. If a sync breaks Argo CD itself, it cannot repair itself:
 #   git show <last-good-sha>:bootstrap/argocd-values.yaml > /tmp/hv.yaml
@@ -36,10 +38,11 @@ spec:
   revisionHistoryLimit: 10
   syncPolicy:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     syncOptions:
       - ServerSideApply=true
+      - PruneLast=true
       # A sync keeps the live value of every field ignored below.
       - RespectIgnoreDifferences=true
     retry:

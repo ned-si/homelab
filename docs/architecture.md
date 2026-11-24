@@ -84,6 +84,7 @@ retry policy on every Application (5 tries, 5 s doubling to 3 min) absorbs it.
 | `root`, the three layers, `namespaces` | yes, self-heal | no |
 | `cilium`, `democratic-csi` | yes, self-heal | no |
 | Leaves that ship CRDs: `gateway-api`, `cert-manager`, `cnpg`, `kube-prometheus-stack` | yes, self-heal | no |
+| `argocd` | yes, self-heal | yes, last; its CRDs carry `Delete=false,Prune=false` |
 | Every other leaf, including `immich` | yes, self-heal | yes |
 
 Every PVC, CNPG Cluster, StatefulSet and Namespace carries

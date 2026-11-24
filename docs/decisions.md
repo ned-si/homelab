@@ -72,8 +72,9 @@ hand on a fresh cluster, then adopted by their Applications
 ([bootstrap.md](bootstrap.md)). Argo CD manages its own Helm release through
 the Application `argocd` (`clusters/homelab/infrastructure/argocd.yaml`,
 infrastructure layer, sync wave -15): an Argo CD upgrade is a pull request like
-any other. That Application self-heals but does not prune; if a sync breaks
-Argo CD, the break-glass `helm upgrade` in that file's header repairs it.
+any other. That Application self-heals and prunes what a chart upgrade drops,
+last (`PruneLast=true`); its CRDs carry `Delete=false,Prune=false`. If a sync
+breaks Argo CD, the break-glass `helm upgrade` in that file's header repairs it.
 
 Why: the Talos configs and the bootstrap Secrets are dependencies of Argo CD
 itself, so it cannot apply them. Its own release can be adopted after the
