@@ -303,8 +303,8 @@ check "$REALM supportedLocales" "$(conf locales | sorted)" \
 
 # --- platform.conf: outgoing mail of $REALM ------------------------------------
 # The password is never printed; Keycloak returns it masked, so the readback
-# checks only that one is set.
-smtp_live() { kc get "realms/$REALM" --fields smtpServer; }
+# checks only that one is set. `--fields smtpServer` alone returns an empty object.
+smtp_live() { kc get "realms/$REALM" --fields 'smtpServer(*)'; }
 smtp_val() { # smtpServer JSON, key -> value
   printf '%s\n' "$1" | sed -n "s/^ *\"$2\" : \"\\(.*\\)\",\\{0,1\\}\$/\\1/p"
 }
