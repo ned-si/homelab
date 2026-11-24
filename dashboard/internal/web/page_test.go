@@ -205,7 +205,7 @@ func TestFullPageCardsAndStatuses(t *testing.T) {
 	if !regexp.MustCompile(`<rect class="none"[^>]*><title>2026-11-01: No data</title>`).MatchString(body) {
 		t.Error("the day without probes has no none bar titled No data")
 	}
-	if !regexp.MustCompile(`<rect class="(ok|warn|bad) today"[^>]*><title>2026-11-20 \(today so far\): 99\.8%</title>`).MatchString(body) {
+	if !regexp.MustCompile(`<rect class="(ok|warn|bad) today"[^>]*><title>2026-11-20 \(today so far\): 99\.80%</title>`).MatchString(body) {
 		t.Error("no bar of today so far")
 	}
 }
@@ -231,19 +231,19 @@ func TestCardsStatusWords(t *testing.T) {
 			`<span class="big ok">39<span class="unit">days</span></span> <span class="status ok">Valid</span>`,
 			`<p class="label">homelab.nedsi.io</p>
 <p> <span class="status none">No data</span></p>`,
-			`<span class="value ok">31.2%</span> <span class="status ok">OK</span>`,
-			`<span class="value warn">80.4%</span> <span class="status warn">Warning</span>`,
+			`<span class="value ok">31.20%</span> <span class="status ok">OK</span>`,
+			`<span class="value warn">80.40%</span> <span class="status warn">Warning</span>`,
 			`<span class="big warn">0.59<span class="unit">%</span></span> <span class="status warn">Warning</span>`,
 			`<span class="big ok">41<span class="unit">ms</span></span> <span class="status ok">OK</span>`,
 			`<span class="big">0.63<span class="unit">per second</span></span>`,
 			`<span class="big warn">55<span class="unit">apps</span></span> <span class="status warn">Warning</span>`,
 			`<p class="meta">54 Synced, 55 Healthy</p>`,
-			`<p class="meta">384 GiB of 1.0 TiB, fullest 80.8%</p>`,
+			`<p class="meta">384 GiB of 1.0 TiB, fullest 80.80%</p>`,
 			`<span class="big ok">709<span class="unit">deploys</span></span> <span class="status ok">Elite</span>`,
 			`<p class="meta">23.6 a day</p>`,
 			`<span class="big ok">21<span class="unit">min</span></span> <span class="status ok">Elite</span>`,
 			`<p class="meta">Median of 640 changes</p>`,
-			`<span class="big ok">1.3<span class="unit">%</span></span> <span class="status ok">Elite</span>`,
+			`<span class="big ok">1.30<span class="unit">%</span></span> <span class="status ok">Elite</span>`,
 			`<span class="big ok">25<span class="unit">min</span></span> <span class="status ok">Elite</span>`,
 			`<p class="meta">Median of 4 incidents</p>`,
 			`<li><span class="status ok">Success</span> <a href="https://github.com/ned-si/homelab/pull/1602">#1602</a> <code>6d0407e</code> <time datetime="2026-11-20T16:40:12&#43;01:00">20 Nov 16:40</time>, 4<span class="unit">min</span> 58<span class="unit">s</span></li>`,
@@ -255,11 +255,11 @@ func TestCardsStatusWords(t *testing.T) {
 			`<span class="big warn">14<span class="unit">days</span></span> <span class="status warn">Renewal late</span>`,
 			`<span class="big bad">3<span class="unit">days</span></span> <span class="status bad">Expiring</span>`,
 			`homelab-cp-1 <span class="state bad">Not ready</span>`,
-			`<span class="value bad">96.0%</span> <span class="status bad">Critical</span>`,
-			`<span class="value warn">90.0%</span> <span class="status warn">Warning</span>`,
+			`<span class="value bad">96.00%</span> <span class="status bad">Critical</span>`,
+			`<span class="value warn">90.00%</span> <span class="status warn">Warning</span>`,
 			`<span class="value bad">1.50/s</span> <span class="status bad">Critical</span>`,
 			`NAS <span class="state bad">Down</span>`,
-			`<span class="value bad">47.9%, unhealthy</span> <span class="status bad">Critical</span>`,
+			`<span class="value bad">47.90%, unhealthy</span> <span class="status bad">Critical</span>`,
 			`<span class="label">CPU</span> <span class="value none">No data</span> <span class="status none">No data</span>`,
 			`<span class="value warn">1.50</span> <span class="status warn">Warning</span>`,
 			`<span class="value bad">2</span> <span class="status bad">Critical</span>`,
@@ -271,7 +271,7 @@ func TestCardsStatusWords(t *testing.T) {
 			`<span class="big bad">35<span class="unit">PVCs</span></span> <span class="status bad">Critical</span>`,
 			`<span class="big warn">2<span class="unit">deploys</span></span> <span class="status warn">Medium</span>`,
 			`<span class="big warn">10<span class="unit">d</span></span> <span class="status warn">Medium</span>`,
-			`<span class="big bad">20.0<span class="unit">%</span></span> <span class="status bad">Low</span>`,
+			`<span class="big bad">20.00<span class="unit">%</span></span> <span class="status bad">Low</span>`,
 			`<span class="big ok">None</span> <span class="status ok">No incident</span>`,
 		}},
 	} {
@@ -290,12 +290,12 @@ func TestPageTexts(t *testing.T) {
 		not  []string
 	}{
 		{fixtureNow, []string{
-			"Target: 99.5% availability over 30 days per app.",
+			"Target: 99.50% availability over 30 days per app.",
 			`Updated <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time> (Zurich time).`,
 			`<span class="label">since 17 November</span>`,
-			"11% of the error budget left",
+			"11.00% of the error budget left",
 			`5<span class="unit">min</span> 05<span class="unit">s</span>`,
-			`aria-label="Opened by Renovate: 50%"`,
+			`aria-label="Opened by Renovate: 50.00%"`,
 			`As of <time datetime="2026-11-20T16:52:00&#43;01:00">20 November 2026, 16:52</time>.`,
 			"Solar production", "Home automation",
 		}, []string{"Live figures from", "Figures from", "No figures yet", "/tags/", "finished day"}},
@@ -313,6 +313,37 @@ func TestPageTexts(t *testing.T) {
 				t.Errorf("at %v the page contains %q", tc.now, n)
 			}
 		}
+	}
+}
+
+// TestPercentagesTwoDecimals checks that every percentage on the page, in
+// text, units, labels and titles, has two decimals.
+func TestPercentagesTwoDecimals(t *testing.T) {
+	pct := regexp.MustCompile(`([0-9][0-9.]*)(?:<span class="unit">)?%`)
+	for name, doc := range map[string]map[string]any{"fixture": fixture(t), "full": fullDaily(t), "exhausted": exhausted(t), "alarms": alarms(t)} {
+		body := page(t, doc)
+		ms := pct.FindAllStringSubmatch(body, -1)
+		if len(ms) == 0 {
+			t.Errorf("%s: no percentage on the page", name)
+		}
+		for _, m := range ms {
+			if _, dec, ok := strings.Cut(m[1], "."); !ok || len(dec) != 2 {
+				t.Errorf("%s: percentage %q has not two decimals", name, m[0])
+			}
+		}
+	}
+}
+
+// TestSectionOrder checks the order of the page's sections.
+func TestSectionOrder(t *testing.T) {
+	body := page(t, fixture(t))
+	last := -1
+	for _, s := range []string{`<header class="page">`, `id="availability"`, `id="cluster"`, "<h3>DORA metrics</h3>", `id="security"`, `id="certificates"`, "<h2>Coming later</h2>"} {
+		i := strings.Index(body, s)
+		if i < 0 || i < last {
+			t.Errorf("%s is missing or out of order", s)
+		}
+		last = i
 	}
 }
 
@@ -471,6 +502,43 @@ func TestDORABands(t *testing.T) {
 			t.Errorf("bandStatus(%s) = %q, want %q", b, got, want)
 		}
 	}
+	for _, tc := range []struct {
+		bands []band
+		want  band
+	}{
+		{[]band{bandElite, bandElite, bandElite, bandElite}, bandElite},
+		{[]band{bandElite, bandHigh, bandElite, bandElite}, bandHigh},
+		{[]band{bandHigh, bandMedium, bandElite, bandElite}, bandMedium},
+		{[]band{bandElite, bandMedium, bandLow, bandHigh}, bandLow},
+		{[]band{bandElite, "", bandElite, bandElite}, ""},
+		{nil, ""},
+	} {
+		if got := overallBand(tc.bands); got != tc.want {
+			t.Errorf("overallBand(%q) = %q, want %q", tc.bands, got, tc.want)
+		}
+	}
+	zero, rate, lead := 0, 1.0, 3600
+	p := snapshot.Project{Deploys30d: 40, ChangeFailureRate: &rate, Incidents30d: &zero}
+	if _, bs := doraTiles(p); overallBand(bs) != "" {
+		t.Errorf("doraTiles without a lead time: overall %q, want none", overallBand(bs))
+	}
+	p.LeadTimeSeconds = &lead
+	if _, bs := doraTiles(p); overallBand(bs) != bandElite {
+		t.Errorf("doraTiles with no incident: overall %q, want %q", overallBand(bs), bandElite)
+	}
+	for _, tc := range []struct {
+		bands []band
+		want  overall
+	}{
+		{[]band{bandElite, bandHigh, bandElite, bandElite}, overall{Status: statusOK, Word: "High"}},
+		{[]band{bandElite, bandMedium, bandElite, bandElite}, overall{Status: statusWarn, Word: "Medium"}},
+		{[]band{bandElite, bandLow, bandElite, bandElite}, overall{Status: statusBad, Word: "Low"}},
+		{[]band{bandElite, "", bandElite, bandElite}, overall{Status: statusNone, Word: "No data", NoData: true}},
+	} {
+		if got := doraOverall(tc.bands); got != tc.want {
+			t.Errorf("doraOverall(%q) = %+v, want %+v", tc.bands, got, tc.want)
+		}
+	}
 	for result, want := range map[string][2]string{"success": {"ok", "Success"}, "failure": {"bad", "Failure"},
 		"cancelled": {"none", "Cancelled"}, "other": {"warn", "Other"}} {
 		if st, w := runStatus(result); string(st) != want[0] || w != want[1] {
@@ -591,7 +659,7 @@ var (
 	chartNumeric = regexp.MustCompile(`^-?[0-9]+(\.[0-9])?$`)
 	chartViewBox = regexp.MustCompile(`^0 0 [0-9]+ [0-9]+$`)
 	chartLabel   = regexp.MustCompile(`^[A-Za-z0-9 :%,.]+$`)
-	chartTitle   = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}( \(today so far\))?: ([0-9]+\.[0-9]%|No data)$`)
+	chartTitle   = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}( \(today so far\))?: ([0-9]+\.[0-9]{2}%|No data)$`)
 	sparkTitle   = regexp.MustCompile(`^[0-9]{1,2} [A-Z][a-z]{2} [0-9]{2}:[0-9]{2} to [0-9]{1,2} [A-Z][a-z]{2} [0-9]{2}:[0-9]{2}: ([0-9,]+|No data)$`)
 )
 

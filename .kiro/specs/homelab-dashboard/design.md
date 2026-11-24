@@ -484,18 +484,18 @@ app is its own origin:
 to bottom:
 
 1. The title, the one-line intro "An over-engineered homelab, in
-   numbers." (no word on the apps left out: they are simply absent), the target ("Target: 99.5% availability
+   numbers." (no word on the apps left out: they are simply absent), the target ("Target: 99.50% availability
    over 30 days per app") and "Updated <time> (Zurich time)" from
    `generated_at`, with the staleness notices below.
 2. **Availability**: a grid of cards (`div.cards`), one per shown app in
    the allow-list order. Each card (`div.card`):
    - the app's name and, from task 12, its state: "Up" (`ok`), "Down"
      (`bad`) or "No data" (`none`), a word next to a dot of its colour;
-   - the 30-day availability as the big number, `99.9` with the unit
+   - the 30-day availability as the big number, `99.90` with the unit
      `%` in a smaller `span.unit`, coloured by the 30-day status, and the
      status word next to it ("Met", "At risk", "Missed");
    - the error budget meter: an SVG bar of the budget left (0-100%; empty
-     and "Exhausted" at or below 0), with the text "62% of the error
+     and "Exhausted" at or below 0), with the text "62.00% of the error
      budget left"; when the first daily value is `null` (under 30 days
      of data), the figure is in the neutral `none` colour with "since
      <first day>" next to it, no status word, no meter and no budget
@@ -505,18 +505,31 @@ to bottom:
      95% gets the minimum height), each coloured by that day's status, a
      dashed line at 99.5%, `none` bars at a fixed small height for
      days without probes. From task 12 the last bar is today so far,
-     outlined (class `today`) and titled "<date> (today so far): <n>%".
-3. **Certificates** (task 13): one tile per shown certificate, the days
-   left as the big number ("40 days"), its status word and colour.
-4. **Cluster**: from task 14 three groups of tiles. USE: one row per
+     outlined (class `today`) and titled "<date> (today so far): <n>%", `<n>` with two decimals.
+3. **Cluster**: from task 14 three groups of tiles. USE: one row per
    node and one for the NAS, each with CPU, memory and disk (pool for the
    NAS) as meters with their percentage, the pressures (load per core for
    the NAS) and errors; a node that is not Ready reads "Not ready"
    (`bad`). RED: the Gateway's requests per second, `5xx` share and p95
    in milliseconds. State: Argo CD ("56 apps, 56 Synced, 55 Healthy"),
    restarts in 24 h, volumes ("31 PVCs, 412 GiB of 1.2 TiB, fullest
-   78%"), nodes, Talos and Kubernetes versions. "as of <time>" from
+   78.00%"), nodes, Talos and Kubernetes versions. "as of <time>" from
    `cluster.as_of`.
+4. **Project, last 30 days**: from task 15, the four DORA tiles, each a
+   big number, its band word and colour. From task 17 they sit in their
+   own group under the heading "DORA metrics": two short paragraphs (what
+   DORA is, the four metrics in plain words, the bands from the
+   [2023 report](https://dora.dev/research/2023/dora-report/), links to
+   `https://dora.dev/` and that report), then "Overall level" with the
+   level of [DORA bands](#dora-bands) as a big word in its colour, and
+   the rule under it. Renovate's share and the median `ci` run move to
+   their own group, "Renovate and CI". The tiles: deployment frequency ("678
+   deploys, 22.6 a day"), lead time ("2 h 10 min"), change failure rate
+   ("1.30%"), time to restore ("38 min", or "None"); then Renovate's
+   share, the median `ci` run, and the last five `ci` runs on `main` as a
+   list (result word and colour, the run's pull request as a link to
+   `https://github.com/ned-si/homelab/pull/<n>`, the short commit, when,
+   how long). "as of <time>" from `project.as_of`.
 5. **Security** (task 16): a panel of stat tiles, one per security
    signal in the compiled order. Each tile: the signal's name, the 24 h
    count as the big number ("8,044 in 24 h") with its status word and
@@ -525,16 +538,15 @@ to bottom:
    tile's largest bar (all bars at the minimum height when every one is
    0), class `spark`, each titled "<start> to <end>: <n>" in Zurich time.
    "as of <time>" from `security.as_of`.
-6. **Project, last 30 days**: from task 15, the four DORA tiles, each a
-   big number, its band word and colour: deployment frequency ("678
-   deploys, 22.6 a day"), lead time ("2 h 10 min"), change failure rate
-   ("1.3%"), time to restore ("38 min", or "None"); then Renovate's
-   share, the median `ci` run, and the last five `ci` runs on `main` as a
-   list (result word and colour, the run's pull request as a link to
-   `https://github.com/ned-si/homelab/pull/<n>`, the short commit, when,
-   how long). "as of <time>" from `project.as_of`.
+6. **Certificates** (task 13): one tile per shown certificate, the days
+   left as the big number ("40 days"), its status word and colour.
 7. **Coming later**: two muted placeholder panels, solar production and
    home automation, with today's text.
+
+The order is the operator's (2026-11-24, task 17). Every percentage, in
+text, `aria-label` and `<title>`, has two decimals (`percent` and
+`fixed(v, 2)` in `render.go` and `chart.go`); the snapshot keeps its own
+precision and the status functions read the raw values.
 
 Layout, in `dashboard.css`:
 
@@ -647,6 +659,11 @@ upper bound:
 
 A `null` lead time or time to restore is `none`; "None" (no incident in
 30 days) is `elite` with the word "No incident".
+The overall level (task 17) is the lowest of the four bands, so one weak
+metric is never averaged away; it takes that band's word and colour. When
+any metric is `none`, the overall level is "No data" (`none`). DORA's own
+clusters come from a cluster analysis of survey answers, not from a rule
+a single team can apply; the lowest band is the strictest rule that can.
 
 Staleness, from the injected clock:
 
@@ -799,7 +816,8 @@ running images (#1507).
 
 The markup rules (navigation, no `<form>`, `<iframe>`, `<style>`,
 `style=`, `on*`, inline `<script>`, foreign origins, except an `<a>` to
-`https://github.com/ned-si/homelab/` for the `ci` runs' pull requests) are
+`https://github.com/ned-si/homelab/` for the `ci` runs' pull requests and,
+from task 17, to `https://dora.dev/` for the DORA links) are
 not repeated in Go: `tests/test_site_markup.py`, in the `tests` job that always runs,
 feeds every `dashboard/internal/web/testdata/*.golden.html` to
 `site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")`

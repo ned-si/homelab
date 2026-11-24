@@ -67,6 +67,11 @@ today; canary tokens are a separate spec, next month (#1618). No
 brute-force lockout count: Keycloak locks existing accounts only, so it
 would tell a stranger which usernames exist; failed sign-ins are shown
 as a count and a sparkline instead (2026-11-24).
+The operator's decision of 2026-11-24 (task 17): the project card's DORA
+part is labelled "DORA metrics", says in a few words what DORA is, names
+the four metrics and where the bands come from, links
+[dora.dev](https://dora.dev/), and adds an overall level from a stated
+rule. The text merges after its review round, without a preview approval.
 
 Non-goals are listed under [Out of scope](#out-of-scope).
 
@@ -217,6 +222,12 @@ in the look of the rest of the site.
    a contrast of at least 4.5:1 against its background.
 9. THE page SHALL use the site's dark palette and SHALL read without
    horizontal scrolling from 320 px wide up to a desktop screen.
+10. THE page SHALL show its sections in this order: the intro,
+    Availability, Cluster, the project card with "DORA metrics",
+    Security, Certificates, Coming later (operator, 2026-11-24).
+11. EVERY percentage on the page, in text, labels and titles, SHALL have
+    two decimals ("99.50%", "1.30%"); the SLO, the thresholds and the
+    error-budget maths stay on the raw values (operator, 2026-11-24).
 
 ## Requirement 4: Built and released like production software
 
@@ -376,6 +387,13 @@ Over the rolling 30 days ending at the collection (the window of 2.1):
    on `main` (`push` events): the result, the short commit, the pull
    request number from the commit title, when it started and how long it
    took. Renovate's share and the median `ci` run stay on the card.
+7. THE four DORA tiles SHALL sit under the heading "DORA metrics", with a
+   short explanation: what DORA is, the four metrics, and that the bands
+   come from DORA's research, linking `https://dora.dev/` and the report
+   the bands come from.
+8. THE card SHALL show an overall DORA level: the lowest of the four
+   bands ("None", no incident, counts as `elite`), in that band's colour
+   and word; "No data" when any metric has none.
 
 ## Requirement 11: Cluster card, USE and RED
 
@@ -506,8 +524,8 @@ turn things away, without learning anything that helps an attacker.
     Prometheus, and once live on a maintenance-silenced app). [2.2, 3.8]
 17. The golden pages show the certificates, cluster and project cards
     with each status class next to its word; a table test covers every
-    boundary of the certificate, USE, RED and DORA thresholds. [9, 10.5,
-    11.4]
+    boundary of the certificate, USE, RED and DORA thresholds and of the
+    overall DORA level. [9, 10.5, 10.8, 11.4]
 18. `collect --once --dry-run` prints DORA figures that
     `scripts/dashboard-dora-check.sh` recounts from `gh` for the same
     window to within one pull request and one minute. [10.1-10.4]
@@ -581,4 +599,4 @@ Each default holds until the operator says otherwise.
 | Theme | Always dark, the dark palette of `site/assets/css/main.css`; no light variant | Dashboards read better dark; one palette to test |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
-| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
+| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |

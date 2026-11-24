@@ -291,5 +291,19 @@ the rendered screenshot check.
       counts equal the design's queries in Grafana for the same instant.
       [12.1-12.5]
       #1624
+- [x] 17. DORA labels and overall level (**visible**, merges after its
+      review round without a preview approval, operator 2026-11-24): the
+      heading "DORA metrics", the two paragraphs and links of
+      [design.md, The page](design.md#the-page) item 6, the overall level
+      of [DORA bands](design.md#dora-bands) (`overallBand` in
+      `status.go`), Renovate's share and the median `ci` run in their own
+      group; `https://dora.dev/` in `LINKS` of
+      `scripts/ci/site_markup.py`; the section order and every
+      percentage with two decimals (operator, 2026-11-24). Snapshot keys
+      read: `project.*`, unchanged. Probes: none.
+      Check: acceptance criterion 17; the golden pages, a table test
+      of the overall rule, `TestSectionOrder` and
+      `TestPercentagesTwoDecimals`. Closes #1656. [7.10, 7.11, 10.7, 10.8]
+      #1657
 
 The last task ticked sets `status: done`, `closed:`, and closes #1554.

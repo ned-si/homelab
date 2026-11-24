@@ -29,7 +29,7 @@ func coord(v float64) string {
 }
 
 func percent(v float64) string {
-	return strconv.FormatFloat(v, 'f', 1, 64) + "%"
+	return strconv.FormatFloat(v, 'f', 2, 64) + "%"
 }
 
 func openSVG(b *strings.Builder, w, h int, label string) {
@@ -51,7 +51,7 @@ func budgetMeter(left int) template.HTML {
 	var b strings.Builder
 	label := "Error budget exhausted"
 	if left > 0 {
-		label = "Error budget left: " + strconv.Itoa(left) + "%"
+		label = "Error budget left: " + percent(float64(left))
 	}
 	openSVG(&b, meterWidth, meterHeight, label)
 	rect(&b, "track", 0, 0, meterWidth, meterHeight)
@@ -82,7 +82,7 @@ func meter(label string, v float64, st status) template.HTML {
 // shareBar draws a share (0-100%) as a filled track.
 func shareBar(label string, share int) template.HTML {
 	var b strings.Builder
-	openSVG(&b, meterWidth, meterHeight, label+": "+strconv.Itoa(share)+"%")
+	openSVG(&b, meterWidth, meterHeight, label+": "+percent(float64(share)))
 	rect(&b, "track", 0, 0, meterWidth, meterHeight)
 	b.WriteString("/>")
 	if share > 0 {
