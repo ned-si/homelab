@@ -92,6 +92,8 @@ SCALE = {
          "data": [[1795503462, 0, 0, 0], [1795503463, 25, 1, 0], [1795503464, None, None, None]]},
         {"name": "memory", "identifier": "memory", "legend": ["time", "available"],
          "data": [[1795503463, 4099068000], [1795503464, 4105572000]]},
+        {"name": "arcsize", "identifier": "arcsize", "legend": ["time", "size"],
+         "data": [[1795503463, 20000000000], [1795503464, 20000000000]]},
     ],
 }
 
@@ -102,7 +104,14 @@ def test_cpu_memory_load():
     assert "truenas_load1 0.025390625" in out
     assert "truenas_memory_total_bytes 33580396544" in out
     assert "truenas_cpu_utilisation_ratio 0.25" in out
-    assert "truenas_memory_used_bytes 29474824544" in out
+    assert "truenas_memory_arc_bytes 20000000000" in out
+    assert "truenas_memory_used_bytes 9474824544" in out
+
+
+def test_memory_used_absent_without_arc():
+    graphs = [g for g in SCALE["reporting/get_data"] if g["name"] != "arcsize"]
+    out = exporter.build({**SCALE, "reporting/get_data": graphs}).render().splitlines()
+    assert not any(l.startswith(("truenas_memory_used", "truenas_memory_arc")) for l in out)
 
 
 def test_cpu_memory_absent_without_answers():
@@ -162,7 +171,7 @@ def test_reporting_query():
         return plain(path, body)
     c.call = call
     out = c.collect().splitlines()
-    assert [g["name"] for g in bodies[0]["graphs"]] == ["cpu", "memory"]
+    assert [g["name"] for g in bodies[0]["graphs"]] == ["cpu", "memory", "arcsize"]
     assert bodies[0]["query"]["end"] - bodies[0]["query"]["start"] == exporter.REPORT_WINDOW
     assert "truenas_cpu_utilisation_ratio 0.25" in out
 
