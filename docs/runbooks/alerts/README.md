@@ -182,6 +182,7 @@ a link to their page.
 - [PaperlessIngestSlow](PaperlessIngestSlow.md): two canary uploads in a row over 5 minutes to findable
 - [ArrIndexersFailing](ArrIndexersFailing.md): Prowlarr indexers failing for 6 hours
 - [LANNewDeviceSeen](LANNewDeviceSeen.md): new hardware on the LAN
+
 ## Chart rules that page
 
 These come from the kube-prometheus-stack and tuppr charts, carry no
