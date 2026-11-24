@@ -263,7 +263,7 @@ func TestAges(t *testing.T) {
 	if got := h.s.SnapshotAge(); got != 30 {
 		t.Errorf("SnapshotAge() = %v, want 30", got)
 	}
-	for block, want := range map[string]float64{"availability": 30, "certificates": 30, "cluster": 30, "project": 510} {
+	for block, want := range map[string]float64{"availability": 30, "certificates": 30, "cluster": 30, "project": 510, "security": 30} {
 		if got := h.s.BlockAge(block); got != want {
 			t.Errorf("BlockAge(%q) = %v, want %v", block, got, want)
 		}

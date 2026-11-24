@@ -16,14 +16,14 @@ const namespace = "homelab_dashboard"
 
 // Label values the collector uses.
 var (
-	Blocks      = []string{"availability", "certificates", "cluster", "project"}
+	Blocks      = []string{"availability", "certificates", "cluster", "project", "security"}
 	Sources     = []string{"prometheus", "github", "validation"}
 	PushResults = []string{"accepted", "rejected", "error"}
 )
 
 // LiveBlocks are the snapshot blocks with an as_of, whose age the web role
 // exports.
-var LiveBlocks = []string{"availability", "certificates", "cluster", "project"}
+var LiveBlocks = []string{"availability", "certificates", "cluster", "project", "security"}
 
 // RejectReasons are the reasons the web role refuses a push for.
 var RejectReasons = []string{"size", "content_type", "signature", "replay", "schema", "allowlist"}

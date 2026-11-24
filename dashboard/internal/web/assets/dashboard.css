@@ -79,7 +79,7 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-.unit { font-size: 1rem; font-weight: 400; margin-left: 0.2em; color: var(--muted); }
+.unit { font-size: 1rem; font-weight: 400; margin-left: 0.2em; color: var(--muted); white-space: nowrap; }
 .status { font-weight: 700; white-space: nowrap; }
 
 .big.ok, .status.ok, .value.ok, .state.ok { color: var(--ok); }
@@ -133,7 +133,9 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0
 /* Fixed heights: the charts stretch to their card's width (the SVGs have
    preserveAspectRatio="none"), so a wider card gets wider bars, not
    taller ones. */
-.meter svg, .bars svg { display: block; width: 100%; }
+.meter svg, .bars svg, .spark svg { display: block; width: 100%; }
+.spark { margin: 0.5rem 0 0.25rem; }
+.spark svg { height: 2.5rem; }
 .meter svg { height: 1.25rem; }
 .bars svg { height: 4rem; }
 
@@ -143,6 +145,7 @@ svg rect.ok { fill: var(--ok); }
 svg rect.warn { fill: var(--warn); }
 svg rect.bad { fill: var(--bad); }
 svg rect.none { fill: var(--none); }
+svg rect.spark { fill: var(--link); }
 svg rect.today { stroke: var(--fg); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 svg line.target { stroke: var(--fg); stroke-width: 1; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 

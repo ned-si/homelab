@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 3
+const Version = 4
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -33,6 +33,13 @@ const Days = 30
 
 // MaxCIRuns is the number of ci runs on main the project block lists.
 const MaxCIRuns = 5
+
+// Buckets is the number of bars of a security signal's sparkline, each
+// BucketWidth long, the last one ending at security.as_of.
+const (
+	Buckets     = 28
+	BucketWidth = 6 * time.Hour
+)
 
 // The states of an app in the availability block.
 const (
@@ -67,6 +74,7 @@ type Snapshot struct {
 	Certificates  Certificates `json:"certificates"`
 	Cluster       Cluster      `json:"cluster"`
 	Project       Project      `json:"project"`
+	Security      Security     `json:"security"`
 }
 
 // Availability is the live availability block: each shown app's state, its
@@ -197,6 +205,22 @@ type CIRun struct {
 	DurationSeconds int    `json:"duration_seconds"`
 }
 
+// Security is the live block of the security signals.
+type Security struct {
+	AsOf    string   `json:"as_of"`
+	Signals []Signal `json:"signals"`
+}
+
+// Signal is one security signal: its counts over 24 hours and 7 days and
+// the 7 days in Buckets bars, oldest first. A nil count has no series.
+type Signal struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Count24h *int   `json:"count_24h"`
+	Count7d  *int   `json:"count_7d"`
+	Buckets  []*int `json:"buckets"`
+}
+
 // FormatTime formats t as the snapshot's timestamps: RFC 3339, second
 // precision, Zurich offset.
 func FormatTime(t time.Time) string {
@@ -239,8 +263,9 @@ var compiled = sync.OnceValues(func() (*jsonschema.Schema, error) {
 
 // Validate parses body and checks it: the size, the schema, then the rules
 // a schema cannot express (the shown apps and certificates in order, no
-// hidden app or node, the days ending today, no block newer than
-// generated_at, the counts within their totals, the ci runs newest first). An error about the shown names wraps
+// hidden app or node, the shown security signals in order, the days ending
+// today, no block newer than generated_at, the counts within their totals,
+// the ci runs newest first). An error about the shown names wraps
 // ErrNotShown.
 func Validate(body []byte) (*Snapshot, error) {
 	if len(body) > MaxSize {
@@ -280,6 +305,16 @@ func (s *Snapshot) check() error {
 		return s.Certificates.Certs[i].ID, s.Certificates.Certs[i].Name
 	}, func(i int) (string, string) { return certs[i].ID, certs[i].Name })...)
 	errs = append(errs, s.Cluster.check()...)
+	signals := ShownSignals()
+	errs = append(errs, checkShown("security.signals", len(s.Security.Signals), len(signals), func(i int) (string, string) {
+		return s.Security.Signals[i].ID, s.Security.Signals[i].Name
+	}, func(i int) (string, string) { return signals[i].ID, signals[i].Name })...)
+	for i, sig := range s.Security.Signals {
+		if sig.Count24h != nil && sig.Count7d != nil && *sig.Count24h > *sig.Count7d {
+			errs = append(errs, fmt.Errorf("security.signals[%d] %s: count_24h %d above count_7d %d",
+				i, sig.ID, *sig.Count24h, *sig.Count7d))
+		}
+	}
 	for i := 1; i < len(s.Project.CIRuns); i++ {
 		if s.Project.CIRuns[i].Run >= s.Project.CIRuns[i-1].Run {
 			errs = append(errs, fmt.Errorf("project.ci_runs[%d] run %d is not older than run %d",
@@ -295,6 +330,7 @@ func (s *Snapshot) check() error {
 		{"certificates.as_of", s.Certificates.AsOf},
 		{"cluster.as_of", s.Cluster.AsOf},
 		{"project.as_of", s.Project.AsOf},
+		{"security.as_of", s.Security.AsOf},
 	}
 	for _, t := range times {
 		v, err := ParseTime(t.value)

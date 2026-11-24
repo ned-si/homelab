@@ -1085,7 +1085,7 @@ change failure rate counts only what is labelled.
 The `security` block, built every cycle. Each signal is one PromQL
 expression with a window `<w>`: an instant query with `24h` and one with
 `7d` at the cycle's evaluation time `t`, and a range query with `6h`
-from `t - 162h` to `t` at a 6 h step for the 28 buckets. That is 24
+from `t - 162h` to `t` at a 6 h step for the 28 buckets. That is 21
 queries a cycle, each returning one series.
 
 The signals, `internal/snapshot/shown.go`, in this order:
@@ -1096,17 +1096,18 @@ The signals, `internal/snapshot/shown.go`, in this order:
 | `gateway_forbidden` | Access refused (403) | background | `sum(increase(envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code="403"}[<w>]))` |
 | `gateway_method` | Method not allowed (405) | background | The same with `envoy_response_code="405"` |
 | `signin_failed` | Failed sign-ins | background | `sum(increase(keycloak_user_events_total{event="login", error!=""}[<w>]))` |
-| `signin_lockouts` | Brute-force lockouts | expected zero | `sum(increase(keycloak_user_events_total{event=~"user_disabled_by_(temporary\|permanent)_lockout"}[<w>])) or vector(0)` |
 | `admission_denied` | Admission denials | expected zero | `sum(increase(apiserver_admission_webhook_rejection_count{name=~"i?vpol\\.validate\\.kyverno\\.svc.*", error_type="no_error"}[<w>])) or vector(0)` |
 | `ingress_dropped` | Ingress packets dropped by network policy | background | `sum(increase(cilium_drop_count_total{reason="Policy denied", direction="INGRESS"}[<w>]))` |
 | `runtime_detections` | Runtime detections (observe mode) | expected zero | `count(max_over_time(ALERTS{alertname=~"Runtime.+", alertstate="firing"}[<w>])) or vector(0)` |
 
 - `or vector(0)` only where the series is born with the first event (a
-  lockout, a denial, a detection); every other signal without a series
-  is `null` ("No data"). A counter born inside the window counts from
-  its first sample, which `increase()` alone misses, as
-  `tetragon:policy_events:increase5m` does; a collector test with a fake
-  Prometheus covers it.
+  denial, a detection); every other signal without a series is `null`
+  ("No data"). A counter born inside the window counts from its first
+  sample, which `increase()` alone misses, as
+  `tetragon:policy_events:increase5m` does: for a counter selector `S`
+  the collector queries `sum((S unless S offset <w>) or increase(S[<w>]))`,
+  so a series absent at `t - <w>` counts its whole value; a collector
+  test with a fake Prometheus pins the expression.
 - The Gateway signals are every request on the public listeners, the
   household's included (NAT loopback goes through the same Gateway).
   `4xx` comes from Envoy's downstream counter, so it includes the `404`s
@@ -1134,7 +1135,6 @@ datasource, read-only), 24 h and 7 d:
 | `gateway_forbidden` | Found: Envoy upstream counters by code | 0 | 661 |
 | `gateway_method` | Found: the same | 29 | 114 |
 | `signin_failed` | Found: `keycloak_user_events_total` (feature `user-event-metrics`) | 2 | 16 |
-| `signin_lockouts` | Found: both lockout events are in `KC_EVENT_METRICS_USER_EVENTS`; no lockout in 30 days, so no series yet. Task 16 checks the event names against the running Keycloak first | 0 | 0 |
 | `admission_denied` | Found: the API server's webhook counter (3 denials in 30 days) | 0 | 0 |
 | `ingress_dropped` | Found: Cilium agent's drop counter | 1 | 1 |
 | `runtime_detections` | Found: `ALERTS` of the `Runtime*` alerts (fired in the last 30 days) | 0 | 0 |
@@ -1148,6 +1148,7 @@ Deferred or not used:
 | Kyverno PolicyReport `fail` results (`kyverno_policyreport_summary`) | Not used: background-scan results on objects already admitted, a posture level and not a denial |
 | Hubble's ingress drop verdicts (`hubble_policy_verdicts_total{action="dropped", direction="ingress"}`) | Not used: 0 in 24 h where the Cilium agent counted 1; `hubble_drop_total` has no direction |
 | Raw Tetragon events (`tetragon_policy_events_total`, `tetragon_events_total`) | Not used: about 750,000 policy events a day, nearly all from allow-listed actors (runc, mounts, the agent); the detections are what the alerts leave |
+| Brute-force lockouts (`keycloak_user_events_total{event=~"user_disabled_by_.+_lockout"}`) | Not shown (2026-11-24): Keycloak locks existing accounts only, so a public count that moves after ten failed sign-ins tells a stranger the username exists. Failed sign-ins stay, as a count and a sparkline |
 | Canary tokens | Their own spec, #1618 (operator: next month) |
 
 ## Address

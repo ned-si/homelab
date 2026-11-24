@@ -1,8 +1,8 @@
 # Homelab dashboard
 
 `https://homelab.nedsi.io/` is the homelab's public dashboard: live
-availability per app against the 99.5% target, certificates, cluster and
-project figures. It is
+availability per app against the 99.5% target, certificates, cluster,
+security and project figures. It is
 first-party Go code in [`dashboard/`](../dashboard/), deployed by the
 Application `homelab-dashboard` from
 [`apps/homelab-dashboard/`](../apps/homelab-dashboard/). The design and its
@@ -143,6 +143,7 @@ the snapshot (60 min for the project) says "Figures from <time>".
 | Availability, one per shown app | State ("Up", "Down", "No data"), the rolling 30 days, the error budget left, 30 daily bars, the last one today so far | `probe_success` of the app's probes; `slo:availability:ratio_rate30d`, `slo:error_budget_remaining:ratio_rate30d`, `slo:probe_error:ratio_rate1d` ([sre.md](sre.md)) |
 | Certificates | Days left per shown certificate | `probe_ssl_earliest_cert_expiry` of the public probes |
 | Cluster | Per node and for the NAS: utilisation, saturation, errors (USE); at the Gateway: requests per second, `5xx` share and p95 over 5 min (RED); Argo CD Synced and Healthy, restarts in 24 h, volumes, versions | node-exporter, kube-state-metrics, `truenas_*`, Envoy, `argocd_app_info`, kubelet volume stats, all summed in PromQL |
+| Security | Per signal: the count of the last 24 h, of the last 7 days and the 7 days in 28 six-hour bars. Signals: Gateway `4xx`, `403` and `405`; failed sign-ins; Kyverno admission denials; ingress packets dropped by network policy; runtime detections | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `cilium_drop_count_total`, the `Runtime*` alerts; each one sum over the cluster |
 | Project | The four DORA metrics with their band, Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
 
 The shown apps are Immich, Mealie, Paperless-ngx, Plex, Syncthing,
@@ -161,6 +162,10 @@ release.
 - Cluster figures are aggregated in PromQL: the collector never receives a
   namespace, pod or volume name. The incident count reads the paging
   alerts' labels to tell firings apart; none reaches the snapshot.
+- The security card shows only cluster-wide counts by category: no
+  address, path, route, user, rule or alert name. It shows no brute-force
+  lockout count: Keycloak locks existing accounts only, so the count would
+  tell a stranger which usernames exist.
 - The access log keeps time, method, path, status, bytes and duration: no
   client address, user agent, referrer or query string.
 
@@ -199,7 +204,11 @@ left, `warn` from 0% to 25%, `bad` below 0%. One day is `ok` from 99.5%,
 `warn` from 96.25%, `bad` below. A certificate is "Valid" above 21 days,
 "Renewal late" from 7 to 21, "Expiring" below 7. The cluster figures read
 "OK", "Warning" or "Critical"; where an alert exists, its threshold is the
-card's. The DORA metrics show their band: "Elite" and "High" in green,
+card's. A security signal where one event is worth a look reads "None"
+or "Seen"; the others read "Usual", or "Above usual" when the 24 h count
+is above 20 and three times the daily mean of the 6 days before. No
+security figure is red: the alerts page, the card counts. The DORA
+metrics show their band: "Elite" and "High" in green,
 "Medium" in amber, "Low" in red. The full table is in the
 [design](../.kiro/specs/homelab-dashboard/design.md#status-colours).
 

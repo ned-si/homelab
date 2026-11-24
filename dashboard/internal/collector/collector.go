@@ -51,6 +51,7 @@ type Collector struct {
 	certificates *snapshot.Certificates
 	cluster      *snapshot.Cluster
 	project      *snapshot.Project
+	security     *snapshot.Security
 	nextProject  time.Time
 }
 
@@ -89,7 +90,8 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 	c.refreshAvailability(ctx, now)
 	c.refreshCertificates(ctx, now)
 	c.refreshCluster(ctx, now)
-	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil {
+	c.refreshSecurity(ctx, now)
+	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil || c.security == nil {
 		return false
 	}
 	s := &snapshot.Snapshot{
@@ -99,6 +101,7 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 		Certificates:  *c.certificates,
 		Cluster:       *c.cluster,
 		Project:       *c.project,
+		Security:      *c.security,
 	}
 	body, err := c.validate(s)
 	if err != nil {
@@ -160,6 +163,15 @@ func (c *Collector) refreshCluster(ctx context.Context, now time.Time) {
 	c.observe("cluster", start, err, "prometheus")
 	if err == nil {
 		c.cluster = &cl
+	}
+}
+
+func (c *Collector) refreshSecurity(ctx context.Context, now time.Time) {
+	start := time.Now()
+	s, err := security(ctx, c.Prometheus, now)
+	c.observe("security", start, err, "prometheus")
+	if err == nil {
+		c.security = &s
 	}
 }
 
@@ -283,6 +295,10 @@ func (c *Collector) Collect(ctx context.Context, at time.Time) (*snapshot.Snapsh
 	if err != nil {
 		return nil, nil, fmt.Errorf("project: %w", err)
 	}
+	sec, err := security(ctx, c.Prometheus, at)
+	if err != nil {
+		return nil, nil, fmt.Errorf("security: %w", err)
+	}
 	s := &snapshot.Snapshot{
 		SchemaVersion: snapshot.Version,
 		GeneratedAt:   snapshot.FormatTime(at),
@@ -290,6 +306,7 @@ func (c *Collector) Collect(ctx context.Context, at time.Time) (*snapshot.Snapsh
 		Certificates:  certs,
 		Cluster:       cl,
 		Project:       p,
+		Security:      sec,
 	}
 	body, err := c.validate(s)
 	if err != nil {

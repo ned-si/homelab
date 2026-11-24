@@ -58,6 +58,10 @@ type fake struct {
 	prs       []fakePR
 	runs      []map[string]any
 	graphql   int
+
+	// Version 4: the counts of every security signal by window.
+	secDay, secWeek, secBucket float64
+	noSecurity                 bool
 }
 
 // firing is a paging alert's firing in the fake ALERTS series.
@@ -98,6 +102,9 @@ func newFake() *fake {
 		noProbe:   map[string]bool{},
 		down:      map[string]bool{},
 		certDays:  map[string]float64{"lilalala": 39.7, "nedsi": 82.2},
+		secDay:    12.4,
+		secWeek:   40.6,
+		secBucket: 2.4,
 	}
 	f.budget = map[string]float64{}
 	for k, v := range f.avail {
@@ -187,6 +194,12 @@ func (f *fake) prom2(query string, at float64, apps []string) ([]sample, bool) {
 			out = append(out, vec(at, map[string]string{"nodename": n}, v))
 		}
 		return out
+	}
+	if v, ok := f.securityValue(query, "[24h]", "[7d]"); ok {
+		if v == nil {
+			return none, true
+		}
+		return one(*v), true
 	}
 	switch {
 	case strings.HasPrefix(query, "min by (app) (probe_success{"):
@@ -287,8 +300,50 @@ type series struct {
 	Values [][2]any          `json:"values"`
 }
 
-// promRangeReply answers the ALERTS range query from f.alerts.
+// securityValue answers a signal's query for one of windows: false for
+// another query, nil without a series.
+func (f *fake) securityValue(query string, windows ...string) (*float64, bool) {
+	isSignal := false
+	for _, s := range snapshot.ShownSignals() {
+		for _, w := range []string{"24h", "7d", "6h"} {
+			if query == strings.ReplaceAll(s.Query, snapshot.Window, w) {
+				isSignal = true
+			}
+		}
+	}
+	if !isSignal {
+		return nil, false
+	}
+	zero := strings.HasSuffix(query, " or vector(0)")
+	if strings.HasPrefix(query, "count(max_over_time(ALERTS") || (f.noSecurity && zero) {
+		v := 0.0
+		return &v, true
+	}
+	if f.noSecurity {
+		return nil, true
+	}
+	for _, w := range windows {
+		if strings.Contains(query, w) {
+			v := map[string]float64{"[24h]": f.secDay, "[7d]": f.secWeek, "[6h]": f.secBucket}[w]
+			return &v, true
+		}
+	}
+	return nil, true
+}
+
+// promRangeReply answers the ALERTS range query from f.alerts and the
+// signals' bucket queries.
 func (f *fake) promRangeReply(query string, r promRange) []series {
+	if v, ok := f.securityValue(query, "[6h]"); ok {
+		if v == nil {
+			return []series{}
+		}
+		s := series{Metric: map[string]string{}}
+		for t := r.start; !t.After(r.end); t = t.Add(r.step) {
+			s.Values = append(s.Values, [2]any{float64(t.Unix()), strconv.FormatFloat(*v, 'g', -1, 64)})
+		}
+		return []series{s}
+	}
 	if query != alertExpr {
 		panic("unexpected range query " + query)
 	}
@@ -368,7 +423,9 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		end, _ := strconv.ParseFloat(r.Form.Get("end"), 64)
 		step, _ := strconv.ParseFloat(r.Form.Get("step"), 64)
 		pr := promRange{time.Unix(int64(start), 0), time.Unix(int64(end), 0), time.Duration(step) * time.Second}
-		f.ranges = append(f.ranges, pr)
+		if r.Form.Get("query") == alertExpr {
+			f.ranges = append(f.ranges, pr)
+		}
 		if f.promFail {
 			reply(http.StatusServiceUnavailable, map[string]string{"status": "error", "errorType": "unavailable", "error": "boom"})
 			return
@@ -619,9 +676,10 @@ func TestFailingSourceKeepsLastBlock(t *testing.T) {
 	if got, want := s.Cluster.AsOf, "2026-11-20T17:00:00+01:00"; got != want {
 		t.Errorf("cluster.as_of = %s, want the last good %s", got, want)
 	}
-	// The availability, certificates and cluster blocks each failed once.
-	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("prometheus")); got != 3 {
-		t.Errorf("collect_errors_total{prometheus} = %v, want 3", got)
+	// The availability, certificates, cluster and security blocks each
+	// failed once.
+	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("prometheus")); got != 4 {
+		t.Errorf("collect_errors_total{prometheus} = %v, want 4", got)
 	}
 	if got := testutil.ToFloat64(e.m.Runs.WithLabelValues("cluster", "failure")); got != 1 {
 		t.Errorf("collect_runs_total{cluster,failure} = %v, want 1", got)

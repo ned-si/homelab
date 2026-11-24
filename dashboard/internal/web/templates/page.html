@@ -9,6 +9,9 @@
 {{- with .Detail}}
 <p class="meta">{{.}}</p>
 {{- end}}
+{{- with .Spark}}
+<div class="spark">{{.}}</div>
+{{- end}}
 </div>
 {{- end}}
 {{- define "asof"}}
@@ -92,6 +95,14 @@
 {{- range .State}}{{template "tile" .}}{{end}}
 </div>
 {{- template "asof" .Cluster}}
+</section>
+<section class="panel stats" aria-labelledby="security">
+<h2 id="security">Security</h2>
+<p class="meta">What the defences turned away, counted over the whole cluster: the last 24 hours, the last 7 days, and the 7 days in six-hour bars. The alerts page whoever has to act; this card only counts.</p>
+<div class="tiles">
+{{- range .Signals}}{{template "tile" .}}{{end}}
+</div>
+{{- template "asof" .Security}}
 </section>
 <section class="panel stats" aria-labelledby="project">
 <h2 id="project">Project, last 30 days</h2>

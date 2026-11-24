@@ -145,7 +145,7 @@ func (s *Server) SnapshotAge() float64 {
 }
 
 // BlockAge is now minus as_of of the block (availability, certificates,
-// cluster or project) of the snapshot served, or minus the process start
+// cluster, project or security) of the snapshot served, or minus the process start
 // without one, in seconds.
 func (s *Server) BlockAge(block string) float64 {
 	from := s.start
@@ -155,6 +155,7 @@ func (s *Server) BlockAge(block string) float64 {
 			"certificates": h.snap.Certificates.AsOf,
 			"cluster":      h.snap.Cluster.AsOf,
 			"project":      h.snap.Project.AsOf,
+			"security":     h.snap.Security.AsOf,
 		}[block]
 		if t, err := snapshot.ParseTime(asOf); err == nil {
 			from = t

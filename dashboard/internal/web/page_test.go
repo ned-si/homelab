@@ -220,6 +220,14 @@ func TestCardsStatusWords(t *testing.T) {
 		want []string
 	}{
 		{full, []string{
+			`<p class="label">Requests rejected (4xx)</p>
+<p><span class="big ok">8,044<span class="unit">in 24 h</span></span> <span class="status ok">Usual</span></p>
+<p class="meta">48,127 in 7 days</p>`,
+			`<span class="big warn">40<span class="unit">in 24 h</span></span> <span class="status warn">Above usual</span>`,
+			`<span class="big warn">1<span class="unit">in 24 h</span></span> <span class="status warn">Seen</span>`,
+			`<span class="big ok">0<span class="unit">in 24 h</span></span> <span class="status ok">None</span>`,
+			`<p class="label">Ingress packets dropped by network policy</p>
+<p> <span class="status none">No data</span></p>`,
 			`<span class="big ok">39<span class="unit">days</span></span> <span class="status ok">Valid</span>`,
 			`<p class="label">homelab.nedsi.io</p>
 <p> <span class="status none">No data</span></p>`,
@@ -579,11 +587,12 @@ func TestBarHeight(t *testing.T) {
 }
 
 var (
-	chartClasses = map[string]bool{"ok": true, "warn": true, "bad": true, "none": true, "track": true, "target": true, "today": true}
+	chartClasses = map[string]bool{"ok": true, "warn": true, "bad": true, "none": true, "track": true, "target": true, "today": true, "spark": true}
 	chartNumeric = regexp.MustCompile(`^-?[0-9]+(\.[0-9])?$`)
 	chartViewBox = regexp.MustCompile(`^0 0 [0-9]+ [0-9]+$`)
 	chartLabel   = regexp.MustCompile(`^[A-Za-z0-9 :%,.]+$`)
 	chartTitle   = regexp.MustCompile(`^[0-9]{4}-[0-9]{2}-[0-9]{2}( \(today so far\))?: ([0-9]+\.[0-9]%|No data)$`)
+	sparkTitle   = regexp.MustCompile(`^[0-9]{1,2} [A-Z][a-z]{2} [0-9]{2}:[0-9]{2} to [0-9]{1,2} [A-Z][a-z]{2} [0-9]{2}:[0-9]{2}: ([0-9,]+|No data)$`)
 )
 
 func TestChartMarkup(t *testing.T) {
@@ -608,6 +617,9 @@ func TestChartMarkup(t *testing.T) {
 		"use 80.4":          meter("Memory", 80.4, statusWarn),
 		"use 100":           meter("Disk", 100, statusBad),
 		"bars, partial day": dailyBars(ds[27:], []*float64{nil, v(12.3456), v(99.95)}),
+		"spark, mixed":      sparkBars(fixtureNow, sparkValues(1671, 0, 12345, -1)),
+		"spark, zeros":      sparkBars(fixtureNow, sparkValues(0, 0, 0, 0)),
+		"spark, no data":    sparkBars(fixtureNow, make([]*int, snapshot.Buckets)),
 	}
 	allowed := map[string]bool{"svg": true, "g": true, "rect": true, "line": true, "title": true}
 	for name, chart := range charts {
@@ -635,7 +647,7 @@ func TestChartMarkup(t *testing.T) {
 			case xml.CharData:
 				text := string(el)
 				if len(stack) > 0 && stack[len(stack)-1] == "title" {
-					if !chartTitle.MatchString(text) {
+					if !chartTitle.MatchString(text) && (!strings.HasPrefix(name, "spark") || !sparkTitle.MatchString(text)) {
 						t.Errorf("%s: title %q", name, text)
 					}
 				} else if strings.TrimSpace(text) != "" {
@@ -646,6 +658,63 @@ func TestChartMarkup(t *testing.T) {
 	}
 	if got := string(dailyBars(ds, mixed)); !strings.Contains(got, `aria-label="30 days: 2 met, 5 at risk, 22 missed, 1 without data"`) {
 		t.Errorf("dailyBars label: %s", got)
+	}
+}
+
+// sparkValues repeats the values over the buckets; -1 is a bucket without
+// data.
+func sparkValues(values ...int) []*int {
+	out := make([]*int, snapshot.Buckets)
+	for i := range out {
+		if v := values[i%len(values)]; v >= 0 {
+			out[i] = &v
+		}
+	}
+	return out
+}
+
+func TestSparkBars(t *testing.T) {
+	got := string(sparkBars(fixtureNow, sparkValues(0, 10, 5, -1)))
+	contains(t, got,
+		`aria-label="28 counts of six hours, highest 10"`,
+		`<rect class="spark" x="1.0" y="38.0" width="8.0" height="2.0"><title>13 Nov 17:00 to 13 Nov 23:00: 0</title></rect>`,
+		`<rect class="spark" x="11.0" y="0.0" width="8.0" height="40.0"><title>13 Nov 23:00 to 14 Nov 05:00: 10</title></rect>`,
+		`<rect class="spark" x="21.0" y="20.0" width="8.0" height="20.0">`,
+		`<rect class="none" x="31.0" y="38.0" width="8.0" height="2.0"><title>14 Nov 11:00 to 14 Nov 17:00: No data</title></rect>`,
+		`<title>20 Nov 11:00 to 20 Nov 17:00: No data</title>`,
+	)
+	if n := strings.Count(string(sparkBars(fixtureNow, sparkValues(0))), `height="2.0"`); n != snapshot.Buckets {
+		t.Errorf("all zeros: %d bars at the minimum height, want %d", n, snapshot.Buckets)
+	}
+}
+
+// Both rules of the security signals on each boundary (Requirement 12.4).
+func TestSecurityRules(t *testing.T) {
+	n := func(x int) *int { return &x }
+	for _, tc := range []struct {
+		zero      bool
+		day, week *int
+		st        status
+		word      string
+	}{
+		{true, n(0), n(0), statusOK, "None"},
+		{true, n(0), n(5), statusOK, "None"},
+		{true, n(1), n(1), statusWarn, "Seen"},
+		{true, nil, nil, statusNone, "No data"},
+		// Background: above 20 and above 3 times the mean of the 6 days
+		// before, (week - day) / 6.
+		{false, n(20), n(20), statusOK, "Usual"},
+		{false, n(21), n(21), statusWarn, "Above usual"},
+		{false, n(30), n(90), statusOK, "Usual"},         // 3 x 10 = 30: not above
+		{false, n(30), n(89), statusWarn, "Above usual"}, // 3 x 9.83
+		{false, n(30), n(91), statusOK, "Usual"},         // 3 x 10.17
+		{false, n(8044), n(48127), statusOK, "Usual"},    // 3 x 6680
+		{false, n(25), nil, statusWarn, "Above usual"},   // no week: a mean of 0
+		{false, nil, n(10), statusNone, "No data"},
+	} {
+		if st, w := signalStatus(tc.zero, tc.day, tc.week); st != tc.st || w != tc.word {
+			t.Errorf("signalStatus(%v, %v, %v) = %q %q, want %q %q", tc.zero, tc.day, tc.week, st, w, tc.st, tc.word)
+		}
 	}
 }
 

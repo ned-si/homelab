@@ -54,6 +54,7 @@ type tile struct {
 	Status status
 	Word   string
 	Meter  template.HTML
+	Spark  template.HTML
 	Detail string
 }
 
@@ -98,6 +99,8 @@ type figures struct {
 	Use          []useRow
 	RED          []tile
 	State        []tile
+	Security     block
+	Signals      []tile
 	Project      block
 	DORA         []tile
 	Delivery     []tile
@@ -459,6 +462,27 @@ func deliveryTiles(p snapshot.Project) []tile {
 	}
 }
 
+func signalTiles(s snapshot.Security) []tile {
+	end, _ := snapshot.ParseTime(s.AsOf) // validated
+	shown := map[string]snapshot.ShownSignal{}
+	for _, sig := range snapshot.ShownSignals() {
+		shown[sig.ID] = sig
+	}
+	out := make([]tile, 0, len(s.Signals))
+	for _, sig := range s.Signals {
+		t := tile{Label: sig.Name, Spark: sparkBars(end, sig.Buckets)}
+		t.Status, t.Word = signalStatus(shown[sig.ID].ExpectedZero, sig.Count24h, sig.Count7d)
+		if sig.Count24h != nil {
+			t.Value = one(thousands(*sig.Count24h), "in 24 h")
+		}
+		if sig.Count7d != nil {
+			t.Detail = thousands(*sig.Count7d) + " in 7 days"
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
 func runs(rs []snapshot.CIRun) []ciRun {
 	out := make([]ciRun, 0, len(rs))
 	for _, r := range rs {
@@ -494,6 +518,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		DORA:      doraTiles(s.Project),
 		Delivery:  deliveryTiles(s.Project),
 		Runs:      runs(s.Project.CIRuns),
+		Signals:   signalTiles(s.Security),
 	}
 	blocks := []struct {
 		dst   *block
@@ -504,6 +529,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		{&f.Certificates, s.Certificates.AsOf, blockStaleAfter},
 		{&f.Cluster, s.Cluster.AsOf, blockStaleAfter},
 		{&f.Project, s.Project.AsOf, projectStaleAfter},
+		{&f.Security, s.Security.AsOf, blockStaleAfter},
 	}
 	for _, b := range blocks {
 		if *b.dst, err = blockAt(b.asOf, g, b.after); err != nil {

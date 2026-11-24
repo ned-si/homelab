@@ -273,8 +273,8 @@ the rendered screenshot check.
       with its checks, the compiled signal list in `shown.go`. Collector:
       the queries of
       [Security signals](design.md#security-signals-task-16), with the
-      count of a series born inside the window and the lockout event
-      names checked against the running Keycloak first. Web: the tiles,
+      count of a series born inside the window (no lockout signal: it
+      would show which usernames exist). Web: the tiles,
       the sparkline builder in `chart.go` (class `spark`), the two rules
       in `status.go`, golden pages; the card in
       `docs/homelab-dashboard.md`. Snapshot keys read: `security.*`.

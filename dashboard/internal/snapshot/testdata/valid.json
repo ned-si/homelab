@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "generated_at": "2026-11-20T17:00:00+01:00",
   "availability": {
     "as_of": "2026-11-20T17:00:00+01:00",
@@ -62,6 +62,18 @@
       {"run": 4103, "result": "cancelled", "commit": "e8e93eb", "pr": 1600, "started_at": "2026-11-20T15:31:05+01:00", "duration_seconds": 95},
       {"run": 4102, "result": "other", "commit": "2ec595b", "pr": null, "started_at": "2026-11-20T15:10:00+01:00", "duration_seconds": 0},
       {"run": 4101, "result": "success", "commit": "b24598b", "pr": 1587, "started_at": "2026-11-20T14:58:44+01:00", "duration_seconds": 312}
+    ]
+  },
+  "security": {
+    "as_of": "2026-11-20T17:00:00+01:00",
+    "signals": [
+      {"id": "gateway_rejected", "name": "Requests rejected (4xx)", "count_24h": 8044, "count_7d": 48127, "buckets": [1671, 1671, 1671, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 2011, 2011, 2011, 2011]},
+      {"id": "gateway_forbidden", "name": "Access refused (403)", "count_24h": 0, "count_7d": 661, "buckets": [28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 0, 0, 0, 0]},
+      {"id": "gateway_method", "name": "Method not allowed (405)", "count_24h": 29, "count_7d": 114, "buckets": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 8, 7, 7, 7]},
+      {"id": "signin_failed", "name": "Failed sign-ins", "count_24h": 40, "count_7d": 46, "buckets": [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10]},
+      {"id": "admission_denied", "name": "Admission denials", "count_24h": 1, "count_7d": 3, "buckets": [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]},
+      {"id": "ingress_dropped", "name": "Ingress packets dropped by network policy", "count_24h": null, "count_7d": null, "buckets": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]},
+      {"id": "runtime_detections", "name": "Runtime detections (observe mode)", "count_24h": 0, "count_7d": 0, "buckets": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
     ]
   }
 }

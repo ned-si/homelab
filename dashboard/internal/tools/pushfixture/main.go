@@ -145,7 +145,7 @@ func moveToNow(raw []byte, now time.Time) ([]byte, error) {
 	}
 	delta := now.Truncate(time.Second).Sub(generated)
 	doc["generated_at"] = snapshot.FormatTime(generated.Add(delta))
-	for _, block := range []string{"availability", "certificates", "cluster", "project"} {
+	for _, block := range []string{"availability", "certificates", "cluster", "project", "security"} {
 		m, ok := doc[block].(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("no %s block", block)

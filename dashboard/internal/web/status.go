@@ -265,3 +265,32 @@ func runStatus(result string) (status, string) {
 		return statusWarn, "Other"
 	}
 }
+
+// The background rule of the security signals: a 24 h count above
+// usualFloor and above usualFactor times the daily mean of the 6 days
+// before is "Above usual".
+const (
+	usualFloor  = 20
+	usualFactor = 3
+)
+
+// signalStatus is the class and word of a security signal's 24 h count;
+// neither rule is bad: the alerts page, the page reports.
+func signalStatus(expectedZero bool, day, week *int) (status, string) {
+	switch {
+	case day == nil:
+		return statusNone, noData
+	case expectedZero && *day == 0:
+		return statusOK, "None"
+	case expectedZero:
+		return statusWarn, "Seen"
+	}
+	before := 0
+	if week != nil {
+		before = max(0, *week-*day)
+	}
+	if *day > usualFloor && float64(*day) > usualFactor*float64(before)/6 {
+		return statusWarn, "Above usual"
+	}
+	return statusOK, "Usual"
+}
