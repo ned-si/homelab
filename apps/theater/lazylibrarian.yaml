@@ -115,8 +115,8 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: apply-config
-          # renovate: datasource=docker depName=lscr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
-          image: lscr.io/linuxserver/lazylibrarian:4e8f22d9-ls405@sha256:e0dcbef65e632c0dee05b5c5d7eb86fd5662171e4b9a00df4430380d3bb6f586
+          # renovate: datasource=docker depName=ghcr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
+          image: ghcr.io/linuxserver/lazylibrarian:4e8f22d9-ls405@sha256:e0dcbef65e632c0dee05b5c5d7eb86fd5662171e4b9a00df4430380d3bb6f586
           imagePullPolicy: IfNotPresent
           command: ["python3", "/managed/apply.py"]
           envFrom:
@@ -145,8 +145,8 @@ spec:
       containers:
         - name: lazylibrarian
           # Starts as root (s6-overlay), then drops to PUID/PGID.
-          # renovate: datasource=docker depName=lscr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
-          image: lscr.io/linuxserver/lazylibrarian:4e8f22d9-ls405@sha256:e0dcbef65e632c0dee05b5c5d7eb86fd5662171e4b9a00df4430380d3bb6f586
+          # renovate: datasource=docker depName=ghcr.io/linuxserver/lazylibrarian versioning=regex:^[0-9a-f]+-ls(?<major>\d+)$
+          image: ghcr.io/linuxserver/lazylibrarian:4e8f22d9-ls405@sha256:e0dcbef65e632c0dee05b5c5d7eb86fd5662171e4b9a00df4430380d3bb6f586
           imagePullPolicy: IfNotPresent
           env:
             - name: TZ
