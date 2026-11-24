@@ -56,11 +56,14 @@ type Collector struct {
 	// Now is the clock, injected by tests.
 	Now func() time.Time
 
-	started     atomic.Bool
-	cluster     *snapshot.Cluster
-	project     *snapshot.Project
-	nextProject time.Time
-	daily       *snapshot.Daily
+	started      atomic.Bool
+	availability *snapshot.Availability
+	finished     *finishedDays
+	certificates *snapshot.Certificates
+	cluster      *snapshot.Cluster
+	project      *snapshot.Project
+	nextProject  time.Time
+	daily        *snapshot.Daily
 }
 
 // Ready reports whether the first cycle has started.
@@ -82,7 +85,7 @@ func (c *Collector) Run(ctx context.Context) {
 	}
 }
 
-// Cycle refreshes the blocks that are due and, once all three are held,
+// Cycle refreshes the blocks that are due and, once every block is held,
 // pushes a signed snapshot. It reports whether every web pod accepted it.
 func (c *Collector) Cycle(ctx context.Context) bool {
 	c.started.Store(true)
@@ -90,6 +93,8 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 	defer cancel()
 	now := c.Now().Truncate(time.Second)
 
+	c.refreshAvailability(ctx, now)
+	c.refreshCertificates(ctx, now)
 	c.refreshCluster(ctx, now)
 	if !now.Before(c.nextProject) {
 		c.refreshProject(ctx, now)
@@ -97,13 +102,15 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 	if covers := DailyCovers(now); c.daily == nil || c.daily.Covers != covers.Format(snapshot.DateLayout) {
 		c.refreshDaily(ctx, now, covers)
 	}
-	if c.cluster == nil || c.project == nil || c.daily == nil {
+	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil || c.daily == nil {
 		return false
 	}
 	s := &snapshot.Snapshot{
 		SchemaVersion: snapshot.Version,
 		GeneratedAt:   snapshot.FormatTime(now),
 		Daily:         *c.daily,
+		Availability:  *c.availability,
+		Certificates:  *c.certificates,
 		Cluster:       *c.cluster,
 		Project:       *c.project,
 	}
@@ -130,6 +137,37 @@ func (c *Collector) observe(block string, start time.Time, err error, source str
 	c.Logger.Warn("block failed, last value kept", "block", block, "figure", figure, "error", err.Error())
 }
 
+// refreshAvailability reads the finished days once per Zurich day, at the
+// first cycle after midnight, and the rest every cycle.
+func (c *Collector) refreshAvailability(ctx context.Context, now time.Time) {
+	start := time.Now()
+	a, err := c.readAvailability(ctx, now)
+	c.observe("availability", start, err, "prometheus")
+	if err == nil {
+		c.availability = &a
+	}
+}
+
+func (c *Collector) readAvailability(ctx context.Context, now time.Time) (snapshot.Availability, error) {
+	if today := snapshot.Day(now); c.finished == nil || !c.finished.today.Equal(today) {
+		f, err := readFinished(ctx, c.Prometheus, today)
+		if err != nil {
+			return snapshot.Availability{}, err
+		}
+		c.finished = f
+	}
+	return availability(ctx, c.Prometheus, now, c.finished)
+}
+
+func (c *Collector) refreshCertificates(ctx context.Context, now time.Time) {
+	start := time.Now()
+	cs, err := certificates(ctx, c.Prometheus, now)
+	c.observe("certificates", start, err, "prometheus")
+	if err == nil {
+		c.certificates = &cs
+	}
+}
+
 func (c *Collector) refreshCluster(ctx context.Context, now time.Time) {
 	start := time.Now()
 	cl, err := cluster(ctx, c.Prometheus, now)
@@ -147,8 +185,8 @@ func (c *Collector) refreshProject(ctx context.Context, now time.Time) {
 		cadence = projectWithToken
 	}
 	c.nextProject = now.Add(cadence)
-	p, err := c.GitHub.Project(ctx, now.In(snapshot.Zurich).AddDate(0, 0, -snapshot.Days), now)
-	c.observe("project", start, err, "github")
+	p, source, err := c.readProject(ctx, now)
+	c.observe("project", start, err, source)
 	var rl *RateLimitError
 	switch {
 	case errors.As(err, &rl):
@@ -165,6 +203,33 @@ func (c *Collector) refreshProject(ctx context.Context, now time.Time) {
 			c.Metrics.TokenValid.Set(0)
 		}
 	}
+}
+
+// readProject reads the project block for the 30 days ending at end. With
+// the token it adds the DORA figures; without, it keeps the last ones. On an
+// error it names the source that failed.
+func (c *Collector) readProject(ctx context.Context, end time.Time) (snapshot.Project, string, error) {
+	start := end.In(snapshot.Zurich).AddDate(0, 0, -snapshot.Days)
+	p, err := c.GitHub.Project(ctx, start, end)
+	if err != nil {
+		return p, "github", err
+	}
+	if !c.GitHub.HasToken() {
+		if c.project != nil {
+			keepDORA(&p, c.project)
+		}
+		return p, "", nil
+	}
+	prs, err := c.GitHub.mergedPRs(ctx, start, end)
+	if err != nil {
+		return p, "github", err
+	}
+	firings, err := alertFirings(ctx, c.Prometheus, start, end)
+	if err != nil {
+		return p, "prometheus", err
+	}
+	setDORA(&p, prs, firings, start, end)
+	return p, "", nil
 }
 
 func (c *Collector) refreshDaily(ctx context.Context, now, covers time.Time) {
@@ -226,14 +291,23 @@ func (c *Collector) Push(ctx context.Context, body []byte) bool {
 }
 
 // Collect computes every block once with queries at at, the daily block for
-// the day covers, and returns the validated snapshot and its encoding.
+// the day covers, and returns the validated snapshot and its encoding; at is
+// also its generated_at, so a dry run of a past day is consistent.
 func (c *Collector) Collect(ctx context.Context, at, covers time.Time) (*snapshot.Snapshot, []byte, error) {
-	now := c.Now().Truncate(time.Second)
+	at = at.Truncate(time.Second)
+	a, err := c.readAvailability(ctx, at)
+	if err != nil {
+		return nil, nil, fmt.Errorf("availability: %w", err)
+	}
+	certs, err := certificates(ctx, c.Prometheus, at)
+	if err != nil {
+		return nil, nil, fmt.Errorf("certificates: %w", err)
+	}
 	cl, err := cluster(ctx, c.Prometheus, at)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cluster: %w", err)
 	}
-	p, err := c.GitHub.Project(ctx, at.In(snapshot.Zurich).AddDate(0, 0, -snapshot.Days), at)
+	p, _, err := c.readProject(ctx, at)
 	if err != nil {
 		return nil, nil, fmt.Errorf("project: %w", err)
 	}
@@ -243,14 +317,16 @@ func (c *Collector) Collect(ctx context.Context, at, covers time.Time) (*snapsho
 	}
 	s := &snapshot.Snapshot{
 		SchemaVersion: snapshot.Version,
-		GeneratedAt:   snapshot.FormatTime(now),
+		GeneratedAt:   snapshot.FormatTime(at),
 		Daily: snapshot.Daily{
 			Covers:     covers.Format(snapshot.DateLayout),
-			ComputedAt: snapshot.FormatTime(now),
+			ComputedAt: snapshot.FormatTime(at),
 			Apps:       apps,
 		},
-		Cluster: cl,
-		Project: p,
+		Availability: a,
+		Certificates: certs,
+		Cluster:      cl,
+		Project:      p,
 	}
 	body, err := c.validate(s)
 	if err != nil {

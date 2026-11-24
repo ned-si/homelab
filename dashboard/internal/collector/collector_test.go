@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -47,6 +49,44 @@ type fake struct {
 	nodes       float64
 	blogSince   time.Time
 	noProbe     map[string]bool
+
+	// Version 2.
+	down      map[string]bool
+	certDays  map[string]float64
+	noUse     bool
+	noNAS     bool
+	noGateway bool
+	alerts    []firing
+	ranges    []promRange
+	prs       []fakePR
+	runs      []map[string]any
+	graphql   int
+}
+
+// firing is a paging alert's firing in the fake ALERTS series.
+type firing struct {
+	labels   map[string]string
+	from, to time.Time
+}
+
+type promRange struct {
+	start, end time.Time
+	step       time.Duration
+}
+
+// fakePR is a merged pull request of the fake GraphQL search.
+type fakePR struct {
+	Title     string
+	CreatedAt time.Time
+	MergedAt  time.Time
+	Labels    []string
+	Files     []string
+	// MoreFiles is added to the file count beyond Files.
+	MoreFiles int
+	OID       string
+	Message   string
+	// Synced are the times of argocd/* success statuses.
+	Synced []time.Time
 }
 
 func newFake() *fake {
@@ -59,6 +99,8 @@ func newFake() *fake {
 		nodes:     4,
 		blogSince: time.Date(2026, 11, 15, 0, 0, 0, 0, snapshot.Zurich),
 		noProbe:   map[string]bool{},
+		down:      map[string]bool{},
+		certDays:  map[string]float64{"lilalala": 39.7, "nedsi": 82.2},
 	}
 	f.budget = map[string]float64{}
 	for k, v := range f.avail {
@@ -121,7 +163,195 @@ func (f *fake) prom(query string, at float64) []sample {
 		}
 		return out
 	}
+	if out, ok := f.prom2(query, at, apps); ok {
+		return out
+	}
 	panic("unexpected query " + query)
+}
+
+func (f *fake) nodeNames() []string {
+	var names []string
+	for i := range int(f.nodes) {
+		names = append(names, fmt.Sprintf("homelab-n%d", i))
+	}
+	return names
+}
+
+// prom2 answers the queries of version 2.
+func (f *fake) prom2(query string, at float64, apps []string) ([]sample, bool) {
+	one := func(v float64) []sample { return []sample{vec(at, map[string]string{}, v)} }
+	none := []sample{}
+	perNode := func(v float64) []sample {
+		out := []sample{}
+		if f.noUse {
+			return out
+		}
+		for _, n := range f.nodeNames() {
+			out = append(out, vec(at, map[string]string{"nodename": n}, v))
+		}
+		return out
+	}
+	switch {
+	case strings.HasPrefix(query, "min by (app) (probe_success{"):
+		out := []sample{}
+		for _, a := range apps {
+			if f.noProbe[a] {
+				continue
+			}
+			v := 1.0
+			if f.down[a] {
+				v = 0
+			}
+			out = append(out, vec(at, map[string]string{"app": a}, v))
+		}
+		return out, true
+	case strings.HasPrefix(query, `avg by (app) (avg_over_time(probe_success{job="blackbox-public"`):
+		out := []sample{}
+		for _, a := range apps {
+			if f.noProbe[a] {
+				continue
+			}
+			v := 0.999
+			if f.down[a] {
+				v = 0.9
+			}
+			out = append(out, vec(at, map[string]string{"app": a}, v))
+		}
+		return out, true
+	case strings.HasPrefix(query, "avg(avg_over_time(probe_success{"):
+		return one(0.75), true
+	case strings.HasPrefix(query, "floor((min(probe_ssl_earliest_cert_expiry"):
+		for _, k := range []string{"homelab", "lilalala", "nedsi"} {
+			if strings.Contains(query, k) {
+				if v, ok := f.certDays[k]; ok {
+					return one(math.Floor(v)), true
+				}
+				return none, true
+			}
+		}
+	case query == `count(argocd_app_info{sync_status="Synced"})`:
+		return one(54), true
+	case query == `count(argocd_app_info{health_status="Healthy"})`:
+		return one(55), true
+	case query == readyQuery:
+		out := []sample{}
+		for i, n := range f.nodeNames() {
+			out = append(out, vec(at, map[string]string{"node": n}, float64(min(1, i))))
+		}
+		return out, true
+	case strings.Contains(query, "node_uname_info"):
+		switch {
+		case strings.Contains(query, "errs_total"):
+			return perNode(0.0123), true
+		case strings.Contains(query, "pressure"):
+			return perNode(0.04321), true
+		}
+		return perNode(0.61234), true
+	case strings.Contains(query, "truenas_") || strings.Contains(query, "nas:pool"):
+		if f.noNAS {
+			return none, true
+		}
+		switch {
+		case strings.Contains(query, "errors"):
+			return one(0), true
+		case strings.Contains(query, "up") || strings.Contains(query, "healthy"):
+			return one(1), true
+		case strings.Contains(query, "load1"):
+			return one(0.25), true
+		}
+		return one(0.4787), true
+	case strings.Contains(query, "envoy_"):
+		if f.noGateway {
+			return none, true
+		}
+		switch {
+		case strings.HasPrefix(query, "histogram_quantile"):
+			return one(40.9), true
+		case strings.Contains(query, `envoy_response_code_class="5"`):
+			return one(0.0059), true
+		}
+		return one(0.6333), true
+	case strings.HasPrefix(query, "sum(increase(kube_pod_container_status_restarts_total"):
+		return one(3.6), true
+	case query == "count(kubelet_volume_stats_capacity_bytes)":
+		return one(35), true
+	case query == "sum(kubelet_volume_stats_used_bytes)":
+		return one(4.1e11), true
+	case query == "sum(kubelet_volume_stats_capacity_bytes)":
+		return one(1.1e12), true
+	case strings.HasPrefix(query, "max(kubelet_volume_stats_used_bytes"):
+		return one(0.80825), true
+	}
+	return nil, false
+}
+
+type series struct {
+	Metric map[string]string `json:"metric"`
+	Values [][2]any          `json:"values"`
+}
+
+// promRangeReply answers the ALERTS range query from f.alerts.
+func (f *fake) promRangeReply(query string, r promRange) []series {
+	if query != alertExpr {
+		panic("unexpected range query " + query)
+	}
+	out := []series{}
+	for _, a := range f.alerts {
+		s := series{Metric: a.labels}
+		for t := r.start; !t.After(r.end); t = t.Add(r.step) {
+			if !t.Before(a.from) && !t.After(a.to) {
+				s.Values = append(s.Values, [2]any{float64(t.Unix()), "1"})
+			}
+		}
+		if len(s.Values) > 0 {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func (f *fake) graphQLReply(w http.ResponseWriter, r *http.Request, reply func(int, any)) {
+	f.graphql++
+	var req struct {
+		Variables struct {
+			Q     string  `json:"q"`
+			After *string `json:"after"`
+		} `json:"variables"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		reply(http.StatusBadRequest, nil)
+		return
+	}
+	first := 0
+	if req.Variables.After != nil {
+		first, _ = strconv.Atoi(*req.Variables.After)
+	}
+	last := min(first+100, len(f.prs))
+	var nodes []any
+	for _, p := range f.prs[first:last] {
+		var labels, files, contexts []any
+		for _, l := range p.Labels {
+			labels = append(labels, map[string]any{"name": l})
+		}
+		for _, path := range p.Files {
+			files = append(files, map[string]any{"path": path})
+		}
+		for _, t := range p.Synced {
+			contexts = append(contexts, map[string]any{"context": "argocd/app", "state": "SUCCESS", "createdAt": t.UTC().Format(time.RFC3339)})
+		}
+		contexts = append(contexts, map[string]any{"context": "ci", "state": "SUCCESS", "createdAt": p.MergedAt.UTC().Format(time.RFC3339)})
+		nodes = append(nodes, map[string]any{
+			"title": p.Title, "createdAt": p.CreatedAt.UTC().Format(time.RFC3339), "mergedAt": p.MergedAt.UTC().Format(time.RFC3339),
+			"labels":      map[string]any{"nodes": labels},
+			"files":       map[string]any{"totalCount": len(p.Files) + p.MoreFiles, "nodes": files},
+			"mergeCommit": map[string]any{"oid": p.OID, "message": p.Message, "status": map[string]any{"contexts": contexts}},
+		})
+	}
+	reply(http.StatusOK, map[string]any{"data": map[string]any{"search": map[string]any{
+		"issueCount": len(f.prs),
+		"pageInfo":   map[string]any{"hasNextPage": last < len(f.prs), "endCursor": strconv.Itoa(last)},
+		"nodes":      nodes,
+	}}})
 }
 
 func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +361,24 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(code)
 		_ = json.NewEncoder(w).Encode(body)
+	}
+	if r.URL.Path == "/api/v1/query_range" {
+		if err := r.ParseForm(); err != nil {
+			reply(http.StatusBadRequest, nil)
+			return
+		}
+		start, _ := strconv.ParseFloat(r.Form.Get("start"), 64)
+		end, _ := strconv.ParseFloat(r.Form.Get("end"), 64)
+		step, _ := strconv.ParseFloat(r.Form.Get("step"), 64)
+		pr := promRange{time.Unix(int64(start), 0), time.Unix(int64(end), 0), time.Duration(step) * time.Second}
+		f.ranges = append(f.ranges, pr)
+		if f.promFail {
+			reply(http.StatusServiceUnavailable, map[string]string{"status": "error", "errorType": "unavailable", "error": "boom"})
+			return
+		}
+		reply(http.StatusOK, map[string]any{"status": "success",
+			"data": map[string]any{"resultType": "matrix", "result": f.promRangeReply(r.Form.Get("query"), pr)}})
+		return
 	}
 	if r.URL.Path == "/api/v1/query" {
 		if err := r.ParseForm(); err != nil {
@@ -161,12 +409,16 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch {
+	case r.URL.Path == "/graphql" && r.Method == http.MethodPost:
+		f.graphQLReply(w, r, reply)
 	case r.URL.Path == "/search/issues":
 		n := 300
 		if strings.Contains(r.URL.Query().Get("q"), "author:app/renovate") {
 			n = 120
 		}
 		reply(http.StatusOK, map[string]any{"total_count": n, "incomplete_results": false, "items": []any{}})
+	case strings.HasSuffix(r.URL.Path, "/actions/workflows/ci.yaml/runs") && r.URL.Query().Get("status") == "completed":
+		reply(http.StatusOK, map[string]any{"total_count": len(f.runs), "workflow_runs": f.runs})
 	case strings.HasSuffix(r.URL.Path, "/actions/workflows/ci.yaml/runs"):
 		start := time.Date(2026, 11, 10, 10, 0, 0, 0, time.UTC)
 		var runs []map[string]string
@@ -192,6 +444,29 @@ func (f *fake) count(prefix string) int {
 		}
 	}
 	return n
+}
+
+// countAt counts the queries starting with prefix made at a time keep
+// accepts.
+func (f *fake) countAt(prefix string, keep func(time.Time) bool) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	for q, ts := range f.queryTimes {
+		if !strings.HasPrefix(q, prefix) {
+			continue
+		}
+		for _, t := range ts {
+			if keep(t) {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func midnight(t time.Time) bool {
+	return snapshot.Day(t).Equal(t)
 }
 
 func (f *fake) githubCalls() int {
@@ -327,13 +602,18 @@ func TestCyclePushesFullSnapshot(t *testing.T) {
 	if got, want := s.Daily.Covers, "2026-11-19"; got != want {
 		t.Errorf("daily.covers = %s, want %s", got, want)
 	}
-	if got, want := s.Cluster, (snapshot.Cluster{AsOf: s.GeneratedAt, Nodes: 4, Apps: 55,
-		TalosVersion: "v1.14.6", KubernetesVersion: "v1.37.2"}); got != want {
-		t.Errorf("cluster = %+v, want %+v", got, want)
+	cl := s.Cluster
+	cl.NodeUse, cl.NAS, cl.Gateway, cl.Volumes = nil, snapshot.NAS{}, snapshot.Gateway{}, snapshot.Volumes{}
+	if diff := cmp.Diff(snapshot.Cluster{AsOf: s.GeneratedAt, Nodes: 4, Apps: 55, TalosVersion: "v1.14.6",
+		KubernetesVersion: "v1.37.2", Synced: 54, Healthy: 55, Restarts24h: 3}, cl); diff != "" {
+		t.Errorf("cluster mismatch (-want +got):\n%s", diff)
 	}
-	if got, want := s.Project, (snapshot.Project{AsOf: s.GeneratedAt, PRsMerged30d: 300, RenovateShare30d: 40,
-		CIMedianSeconds30d: 700}); got != want {
-		t.Errorf("project = %+v, want %+v", got, want)
+	if got, want := [4]int{s.Project.PRsMerged30d, s.Project.RenovateShare30d, s.Project.CIMedianSeconds30d,
+		s.Project.Deploys30d}, [4]int{300, 40, 700, 300}; got != want {
+		t.Errorf("project prs, renovate, ci median, deploys = %v, want %v", got, want)
+	}
+	if s.Project.AsOf != s.GeneratedAt {
+		t.Errorf("project.as_of = %s, want %s", s.Project.AsOf, s.GeneratedAt)
 	}
 	if got := testutil.ToFloat64(e.m.Pushes.WithLabelValues("accepted")); got != 2 {
 		t.Errorf("push_total{accepted} = %v, want 2", got)
@@ -387,8 +667,9 @@ func TestFailingSourceKeepsLastBlock(t *testing.T) {
 	if got, want := s.Cluster.AsOf, "2026-11-20T17:00:00+01:00"; got != want {
 		t.Errorf("cluster.as_of = %s, want the last good %s", got, want)
 	}
-	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("prometheus")); got != 1 {
-		t.Errorf("collect_errors_total{prometheus} = %v, want 1", got)
+	// The availability, certificates and cluster blocks each failed once.
+	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("prometheus")); got != 3 {
+		t.Errorf("collect_errors_total{prometheus} = %v, want 3", got)
 	}
 	if got := testutil.ToFloat64(e.m.Runs.WithLabelValues("cluster", "failure")); got != 1 {
 		t.Errorf("collect_runs_total{cluster,failure} = %v, want 1", got)
@@ -497,7 +778,7 @@ func TestDailyCadence(t *testing.T) {
 	}
 	e.now = zurich(2026, 11, 20, 3, 44)
 	e.c.Cycle(t.Context())
-	if n := e.fake.count("slo:availability"); n != 1 {
+	if n := e.fake.countAt("slo:availability", midnight); n != 1 {
 		t.Errorf("daily computed %d times by 03:44, want 1", n)
 	}
 	e.now = zurich(2026, 11, 20, 3, 45)
@@ -507,7 +788,7 @@ func TestDailyCadence(t *testing.T) {
 	}
 	e.now = zurich(2026, 11, 20, 17, 0)
 	e.c.Cycle(t.Context())
-	if n := e.fake.count("slo:availability"); n != 2 {
+	if n := e.fake.countAt("slo:availability", midnight); n != 2 {
 		t.Errorf("daily computed %d times by 17:00, want 2", n)
 	}
 	if n := e.fake.count("count(kube_node_info)"); n != 4 {
@@ -679,6 +960,7 @@ func TestAsOfMatchesPublisher(t *testing.T) {
 		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+base%3Amain+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z",
 		"/search/issues?per_page=1&q=repo%3Aned-si%2Fhomelab+is%3Apr+is%3Amerged+base%3Amain+merged%3A2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z+author%3Aapp%2Frenovate",
 		"/repos/ned-si/homelab/actions/workflows/ci.yaml/runs?created=2026-10-20T22%3A00%3A00Z..2026-11-19T22%3A59%3A59Z&exclude_pull_requests=true&page=1&per_page=100&status=success",
+		"/repos/ned-si/homelab/actions/workflows/ci.yaml/runs?branch=main&event=push&exclude_pull_requests=true&per_page=5&status=completed",
 	}
 	if diff := cmp.Diff(wantCalls, e.fake.github); diff != "" {
 		t.Errorf("GitHub calls mismatch (-want +got):\n%s", diff)

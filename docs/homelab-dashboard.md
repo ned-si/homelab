@@ -138,9 +138,36 @@ Expected: cosign prints the verified signature payload; `gh` prints
 - Never household energy consumption; solar production is the only Home
   Assistant value the page may show.
 - Cluster figures are aggregated in PromQL: the collector never receives a
-  namespace, pod or volume name.
+  namespace, pod or volume name. The incident count reads the paging
+  alerts' labels to tell firings apart; none reaches the snapshot.
 - The access log keeps time, method, path, status, bytes and duration: no
   client address, user agent, referrer or query string.
+
+## DORA figures
+
+The project block of `snapshot.json` carries the four DORA metrics over
+the rolling 30 days ending at the fetch, defined so anyone can recount
+them from the repository
+([Requirement 10](../.kiro/specs/homelab-dashboard/requirements.md#requirement-10-project-card-dora-and-ci)):
+
+| Metric | Keys | Counted as |
+| --- | --- | --- |
+| Deployment frequency | `deploys_30d` | Pull requests merged into `main` |
+| Lead time for changes | `lead_time_seconds`, `lead_time_count` | Median from a pull request's creation to the first `argocd/<application>` commit status `success` on its merge commit within 24 h of the merge; the merge itself for a change outside `deploy/` and `clusters/` |
+| Change failure rate | `failed_changes_30d`, `change_failure_rate` | Rollbacks (label `auto-rollback`, or a title starting with "revert") and fix forwards (label `fix-forward`, [sre.md](sre.md#fix-forward)) over the deploys |
+| Time to restore | `incidents_30d`, `restore_seconds` | Median duration of the incidents ended in the window: continuous firings of `action: human` alerts, and rollbacks from the reverted merge to the revert's sync; overlapping ones count once |
+
+They need the GitHub token (GraphQL); without it they keep their last
+value. Recount them for the window of the live snapshot:
+
+```sh
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090 &
+curl -s https://homelab.nedsi.io/snapshot.json >/tmp/snapshot.json
+scripts/dashboard-dora-check.sh --compare /tmp/snapshot.json --prometheus http://localhost:9090
+```
+
+Expected: one `ok` line per figure, then `dashboard-dora-check: equal
+within one pull request and one minute`.
 
 ## Status colours
 

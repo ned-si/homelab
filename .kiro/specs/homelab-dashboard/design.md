@@ -135,9 +135,9 @@ same digest.
 | `certificates.as_of` | RFC 3339 |
 | `certificates.certs[]` | `id`, `name`, `days_left` (integer, rounded down, -30 to 400, `null` without a probe result) |
 | `cluster.synced`, `cluster.healthy` | Argo CD applications `Synced` and `Healthy` (0 to `cluster.apps`) |
-| `cluster.node_use[]` | One per node, by name (`^[a-z0-9-]{1,63}$`), sorted: `ready` (boolean); `cpu`, `memory`, `disk` (utilisation, 0-100, one decimal); `cpu_pressure`, `memory_pressure`, `io_pressure` (share of time with a task waiting, 0-100, one decimal); `net_errors_per_second` (0 or more, two decimals) |
-| `cluster.nas` | `up`, `pool_healthy` (booleans); `pool` (utilisation, 0-100, one decimal); `cpu`, `memory` (0-100, one decimal, `null` when the exporter has no value); `load_per_core` (two decimals, `null` likewise); `device_errors`, `scrub_errors` (integers, 0 or more) |
-| `cluster.gateway` | `requests_per_second` (two decimals), `errors_5xx` (share of answers, 0-100, two decimals), `latency_p95_ms` (integer); the last two `null` without requests |
+| `cluster.node_use[]` | One per node, by name (`^[a-z0-9-]{1,63}$`), sorted: `ready` (boolean); `cpu`, `memory`, `disk` (utilisation, 0-100, one decimal); `cpu_pressure`, `memory_pressure`, `io_pressure` (share of time with a task waiting, 0-100, one decimal); `net_errors_per_second` (0 or more, two decimals); each figure `null` without a series for the node |
+| `cluster.nas` | `up` (boolean, false without a series), `pool_healthy` (boolean); `pool` (utilisation, 0-100, one decimal); `cpu`, `memory` (0-100, one decimal); `load_per_core` (two decimals); `device_errors`, `scrub_errors` (integers, 0 or more); each but `up` `null` when the exporter has no value |
+| `cluster.gateway` | `requests_per_second` (two decimals), `errors_5xx` (share of answers, 0-100, two decimals), `latency_p95_ms` (integer); the last two `null` without requests, all three without a series |
 | `cluster.restarts_24h` | Container restarts in the last 24 h, summed over the cluster (integer, 0 or more) |
 | `cluster.volumes` | `count`, `used_bytes`, `capacity_bytes` (integers), `fullest` (the highest used share of one PVC, 0-100, one decimal; no name) |
 | `project.deploys_30d` | Equal to `prs_merged_30d` (Requirement 10.1); the page shows both the count and the count over 30 |
@@ -305,7 +305,7 @@ node_uname_info` that names each node.
 | `node_use.*_pressure` | `rate(node_pressure_cpu_waiting_seconds_total[5m])`, `rate(node_pressure_memory_waiting_seconds_total[5m])`, `rate(node_pressure_io_waiting_seconds_total[5m])`, `<node>` |
 | `node_use.net_errors_per_second` | `sum by (nodename) ((rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m])) <node>)` |
 | `nas.up` | `truenas_up` |
-| `nas.pool`, `pool_healthy` | `nas:pool_used:ratio` (the rule of `routes/nas-alerts.yaml`), `truenas_pool_healthy{pool="homelab"}` |
+| `nas.pool`, `pool_healthy` | `nas:pool_used:ratio{pool="homelab"}` (the rule of `routes/nas-alerts.yaml`), `truenas_pool_healthy{pool="homelab"}` |
 | `nas.device_errors`, `scrub_errors` | `sum(truenas_pool_device_errors{pool="homelab"})`, `truenas_pool_scrub_errors{pool="homelab"}` |
 | `nas.cpu`, `memory`, `load_per_core` | `truenas_cpu_utilisation_ratio`, `truenas_memory_used_bytes / truenas_memory_total_bytes`, `truenas_load1 / truenas_cpu_cores` (task 9) |
 | `gateway.requests_per_second` | `sum(rate(envoy_http_downstream_rq_total{envoy_http_conn_manager_prefix=~"listener-secure\|listener-insecure"}[5m]))` |
@@ -314,8 +314,10 @@ node_uname_info` that names each node.
 | `restarts_24h` | `sum(increase(kube_pod_container_status_restarts_total[24h]))`, rounded down |
 | `volumes` | `count(kubelet_volume_stats_capacity_bytes)`, `sum(kubelet_volume_stats_used_bytes)`, `sum(kubelet_volume_stats_capacity_bytes)`, `max(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes)` |
 
-The cluster queries aggregate in PromQL, so no namespace, pod or volume
-name reaches the collector's memory, let alone the snapshot.
+The cluster queries aggregate in PromQL (the per-node ones not
+aggregated above under `max by (nodename)`, the NAS ones under `max`), so
+no namespace, pod or volume name reaches the collector's memory, let alone
+the snapshot.
 Envoy's request time runs to the end of the response, so long media
 downloads raise the p95; task 14 checks the live value before it
 settles the thresholds of [Status colours](#status-colours).
@@ -675,7 +677,7 @@ Prefix `homelab_dashboard_`, both roles on port 9464, scraped by one
 | Metric | Role | Type | Labels |
 | --- | --- | --- | --- |
 | `build_info` | both | gauge 1 | `version`, `goversion`, `role` |
-| `collect_runs_total` | collector | counter | `block` = `cluster`, `project`, `daily`; `result` = `success`, `failure` |
+| `collect_runs_total` | collector | counter | `block` = `availability`, `certificates` (task 11), `cluster`, `project`, `daily`; `result` = `success`, `failure` |
 | `collect_errors_total` | collector | counter | `source` = `prometheus`, `github`, `validation` |
 | `collect_duration_seconds` | collector | histogram | `block` |
 | `push_total` | collector | counter | `result` = `accepted`, `rejected`, `error` |

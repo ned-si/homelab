@@ -45,6 +45,18 @@ func Median(xs []float64) float64 {
 	return (s[n/2-1] + s[n/2]) / 2
 }
 
+// Round returns x rounded half to even to decimals places.
+func Round(x float64, decimals int) float64 {
+	p := math.Pow10(decimals)
+	return math.RoundToEven(x*p) / p
+}
+
+// Percent returns ratio as a percentage with one decimal, rounded half to
+// even and clamped to 0-100.
+func Percent(ratio float64) float64 {
+	return min(100, max(0, Round(100*ratio, 1)))
+}
+
 // RoundSeconds returns seconds rounded half to even, at least 1.
 func RoundSeconds(seconds float64) int {
 	return max(1, int(math.RoundToEven(seconds)))
