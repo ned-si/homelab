@@ -26,7 +26,7 @@ spec:
           for: 15m
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md
             summary: Kyverno has not run a background scan for 3 hours

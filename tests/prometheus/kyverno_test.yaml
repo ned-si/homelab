@@ -20,7 +20,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md
               summary: Kyverno has not run a background scan for 3 hours
@@ -125,7 +125,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
               controller_name: background-scan-controller
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/KyvernoReportsStale.md

@@ -187,6 +187,41 @@ tests:
                 auto-rollback run on the Homelab / Automation dashboard, then
                 https://argo.lilalala.com/applications/argo/home.
 
+  # theater cannot pull an image from minute 5: the page at 65. mealie
+  # rolls out for 20 minutes; cilium (not project apps) stays Progressing.
+  - interval: 1m
+    input_series:
+      - series: 'argocd_app_info{name="theater", project="apps", dest_namespace="theater", health_status="Healthy", sync_status="Synced"}'
+        values: '1x4 _x80'
+      - series: 'argocd_app_info{name="theater", project="apps", dest_namespace="theater", health_status="Progressing", sync_status="Synced"}'
+        values: '_x4 1x80'
+      - series: 'argocd_app_info{name="mealie", project="apps", dest_namespace="mealie", health_status="Progressing", sync_status="Synced"}'
+        values: '_x4 1x20 _x60'
+      - series: 'argocd_app_info{name="mealie", project="apps", dest_namespace="mealie", health_status="Healthy", sync_status="Synced"}'
+        values: '1x4 _x20 1x60'
+      - series: 'argocd_app_info{name="cilium", project="infrastructure", dest_namespace="kube-system", health_status="Progressing", sync_status="Synced"}'
+        values: '1x85'
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: ArgoCDAppStillProgressing
+        exp_alerts: []
+      - eval_time: 66m
+        alertname: ArgoCDAppStillProgressing
+        exp_alerts:
+          - exp_labels:
+              name: theater
+              namespace: theater
+              severity: warning
+              action: human
+            exp_annotations:
+              runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/ArgoCDAppStillProgressing.md
+              summary: theater has been Progressing for an hour
+              description: >-
+                Argo CD has reported theater as Progressing for an
+                hour: a pod that cannot pull its image or never gets Ready.
+                Check
+                https://argo.lilalala.com/applications/argo/theater.
+
   # books: its first sync failure at minute 20 leaves it OutOfSync: the page
   # at 50. mealie: a failure at minute 20, reverted and Synced at 30: no page.
   - interval: 1m

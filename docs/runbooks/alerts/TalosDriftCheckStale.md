@@ -1,6 +1,6 @@
 # TalosDriftCheckStale
 
-`warning`, pages. Rule: [`platform/talos-drift/rules.yaml`](../../../platform/talos-drift/rules.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/talos-drift/rules.yaml`](../../../platform/talos-drift/rules.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

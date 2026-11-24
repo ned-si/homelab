@@ -38,7 +38,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyStale.md
             summary: "No passing restore test in 8 days: {{ $labels.check }}/{{ $labels.target }}"
@@ -57,7 +57,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyDataStale.md
             summary: "No passing pack read in 36 days: {{ $labels.target }}"
@@ -76,7 +76,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessRestoreStale.md
             summary: "No passing Paperless restore test in 35 days"
@@ -97,7 +97,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyMissing.md
             summary: "No passing {{ $labels.check }} restore test on record"
@@ -135,7 +135,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockCheckStale.md
             summary: "No passing backup lock test in 8 days"

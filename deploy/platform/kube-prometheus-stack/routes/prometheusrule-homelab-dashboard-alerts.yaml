@@ -26,5 +26,5 @@ spec:
       expr: max(homelab_dashboard_snapshot_age_seconds) > 48 * 3600
       for: 30m
       labels:
-        action: human
+        action: review
         severity: warning

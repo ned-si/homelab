@@ -56,7 +56,7 @@ tests:
               check: restic
               target: plex
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyStale.md
               summary: "No passing restore test in 8 days: restic/plex"
@@ -69,7 +69,7 @@ tests:
               check: postgres
               target: immich-db
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyStale.md
               summary: "No passing restore test in 8 days: postgres/immich-db"
@@ -88,7 +88,7 @@ tests:
               check: restic-data
               target: theater
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyDataStale.md
               summary: "No passing pack read in 36 days: theater"
@@ -145,7 +145,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessRestoreStale.md
               summary: "No passing Paperless restore test in 35 days"
@@ -171,7 +171,7 @@ tests:
           - exp_labels:
               check: paperless-restore
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PaperlessRestoreStale.md
               summary: "No passing Paperless restore test in 35 days"
@@ -223,7 +223,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockCheckStale.md
               summary: "No passing backup lock test in 8 days"
@@ -247,7 +247,7 @@ tests:
         exp_alerts:
           - exp_labels:
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupLockCheckStale.md
               summary: "No passing backup lock test in 8 days"
@@ -272,7 +272,7 @@ tests:
           - exp_labels:
               check: postgres
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyMissing.md
               summary: "No passing postgres restore test on record"
@@ -285,7 +285,7 @@ tests:
           - exp_labels:
               check: restic-data
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/BackupVerifyMissing.md
               summary: "No passing restic-data restore test on record"

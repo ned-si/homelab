@@ -19,7 +19,10 @@ Non-goals:
 
 ## Glossary
 
-- **PAGE**: an alert labelled `action: human`, sent to ntfy.
+- **PAGE**: an alert labelled `action: human`, urgent and actionable, sent
+  to ntfy.
+- **ALERT**: an alert labelled `action: review`, actionable but not urgent,
+  on the Homelab / Alerts dashboard with no notification.
 - **INFO**: an alert labelled `action: auto`, shown in Grafana only.
 
 ## Requirements
@@ -52,11 +55,11 @@ something", once per cause.
 
 #### Acceptance criteria
 
-1. EVERY alert of a homelab PrometheusRule SHALL carry `action: human` or
-   `action: auto`, one per alert name; CI fails a rule without it.
-   (`scripts/ci/alertmanager-test.sh`)
-2. WHEN an alert is PAGE, THE system SHALL send it to ntfy; WHEN INFO, to
-   Grafana only. (`tests/alertmanager/routes.txt`)
+1. EVERY alert of a homelab PrometheusRule SHALL carry `action: human`,
+   `action: review` or `action: auto`, one per alert name; CI fails a rule
+   without it. (`scripts/ci/alertmanager-test.sh`)
+2. WHEN an alert is PAGE, THE system SHALL send it to ntfy; WHEN ALERT or
+   INFO, to no receiver, Grafana only. (`tests/alertmanager/routes.txt`)
 3. THE inhibition rules SHALL hide causes behind the alert that notified;
    replayed scenarios (a Keycloak outage, an auto-rollback that works or
    fails, a node reboot, a NAS flap, a node or NAS down) SHALL send the

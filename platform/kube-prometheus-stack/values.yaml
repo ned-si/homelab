@@ -267,10 +267,11 @@ grafana:
     enabled: false
 
 # Alertmanager routes: the paging policy of docs/sre.md "Paging". Every homelab
-# rule carries `action: human` (page) or `action: auto` (INFO, Grafana only);
-# CI fails a rule without it.
+# rule carries `action: human` (page), `action: review` (alert, Grafana only)
+# or `action: auto` (INFO, Grafana only); CI fails a rule without it.
 #
 #   Watchdog          -> the healthchecks.io heartbeat (key `heartbeat-url`)
+#   action=review     -> "null"
 #   action=human      -> ntfy, one group per alert name
 #   chart rules       -> ntfy, by name: etcd quorum, tuppr, failed backup Job
 #   security critical -> ntfy
@@ -329,6 +330,11 @@ alertmanager:
             - alertname = "GatewayDown"
           group_by: [alertname]
           repeat_interval: 1h
+        # ALERT: a person acts, but not now (`action: review`). No
+        # notification of any kind; the Homelab / Alerts dashboard lists them.
+        - receiver: "null"
+          matchers:
+            - action = "review"
         # PAGE: every homelab rule labelled `action: human`.
         - receiver: ntfy
           matchers:

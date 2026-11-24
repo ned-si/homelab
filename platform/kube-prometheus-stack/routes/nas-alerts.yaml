@@ -90,7 +90,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolNearlyFull.md
             summary: "NAS pool {{ $labels.pool }} is over 80% used"
@@ -113,7 +113,7 @@ spec:
           for: 6h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASPoolFillingUp.md
             summary: "NAS pool {{ $labels.pool }} is full in {{ $value | humanize }} days at the current trend"
@@ -123,7 +123,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASScrubOverdue.md
             summary: "NAS pool {{ $labels.pool }} has not finished a scrub in 40 days"

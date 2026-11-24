@@ -980,7 +980,7 @@ def test_alert_runbooks_pass(tmp_path):
     ({"url": RUNBOOK + "Other.md"}, "DiskGone has runbook_url"),
     ({"runbook": False}, "DiskGone.md is missing"),
     ({"index": False}, "README.md does not link DiskGone.md"),
-    ({"extra": {"docs/runbooks/alerts/DiskSlow.md": "# DiskSlow\n"}}, "DiskSlow.md names no action: human alert"),
+    ({"extra": {"docs/runbooks/alerts/DiskSlow.md": "# DiskSlow\n"}}, "DiskSlow.md names no action: human or review alert"),
     ({"index": False, "extra": {"docs/runbooks/alerts/README.md": "- [DiskGone](DiskGone.md)\n"}},
      "etcdNoLeader pages but has no page and no row"),
 ])
@@ -995,9 +995,22 @@ def test_alert_runbooks_auto_alert_url_must_resolve(tmp_path):
         f"action: auto\n          annotations:\n            runbook_url: {RUNBOOK}DiskSlow.md\n")
     assert any("DiskSlow has runbook_url" in x for x in fails(policy(tmp_path, files=files)))
     files["docs/runbooks/alerts/DiskSlow.md"] = "# DiskSlow\n"
-    # A page for an auto alert is still stale: pages are for action: human alerts.
+    # A page for an auto alert is still stale: pages are for action: human and review alerts.
     assert [x for x in fails(policy(tmp_path / "b", files=files)) if "alert-runbooks" in x] == [
-        "FAIL alert-runbooks: docs/runbooks/alerts/DiskSlow.md names no action: human alert"]
+        "FAIL alert-runbooks: docs/runbooks/alerts/DiskSlow.md names no action: human or review alert"]
+
+
+def test_alert_runbooks_review_alert_needs_a_page(tmp_path):
+    files = alert_tree()
+    files["platform/x/rules.yaml"] = files["platform/x/rules.yaml"].replace("action: auto", "action: review")
+    assert any("DiskSlow has no runbook_url" in x for x in fails(policy(tmp_path, files=files)))
+    files["platform/x/rules.yaml"] = files["platform/x/rules.yaml"].replace(
+        "action: review\n          annotations:\n",
+        f"action: review\n          annotations:\n            runbook_url: {RUNBOOK}DiskSlow.md\n")
+    files["docs/runbooks/alerts/DiskSlow.md"] = "# DiskSlow\n"
+    files["docs/runbooks/alerts/README.md"] += "- [DiskSlow](DiskSlow.md)\n"
+    r = policy(tmp_path / "b", files=files)
+    assert [x for x in fails(r) if "alert-runbooks" in x] == [], r.stdout
 
 
 GAPS = "ci/pod-hardening-gaps.txt"

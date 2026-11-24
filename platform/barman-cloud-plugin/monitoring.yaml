@@ -69,7 +69,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/CNPGBackupMetricsMissing.md
             summary: "{{ $labels.namespace }}/{{ $labels.pod }} reports no Barman Cloud metrics"

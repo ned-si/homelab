@@ -64,7 +64,7 @@ minutes old.
 | --- | --- |
 | Logs | `kubectl -n homelab-dashboard logs deploy/homelab-dashboard-collector --since=1h`; the web role logs one JSON line per request, also in SigNoz |
 | Force a push | `kubectl -n homelab-dashboard rollout restart deploy/homelab-dashboard-collector` |
-| Stale figures | the page alert [HomelabDashboardSnapshotStale](runbooks/alerts/HomelabDashboardSnapshotStale.md) (no accepted push for 48 h) |
+| Stale figures | the alert [HomelabDashboardSnapshotStale](runbooks/alerts/HomelabDashboardSnapshotStale.md) (no accepted push for 48 h) |
 | Probe | `probe_success{app="homelab"}`, job `blackbox-public`, in the SLO like every user-facing app ([sre.md](sre.md)) |
 | Deploy-time check | the PostSync smoke Job checks the Service, then `https://homelab.nedsi.io/` through the Gateway: `200`, the headers, `405`, `404` |
 

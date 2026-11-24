@@ -1,5 +1,5 @@
 {
-  "description": "Things only a person can fix, one of each kind: a certificate renewal that failed, no restore test on record, a new device on the LAN, a failing disk, indexers with an expired login, a stalled Talos upgrade. One notification per alert name; the milder alert of the same certificate is inhibited.",
+  "description": "Things only a person can fix, one of each kind: a certificate renewal that failed, a failing disk, a stalled Talos upgrade page, one notification per alert name; the milder alert of the same certificate is inhibited. No restore test on record, a new device on the LAN and indexers with an expired login are action: review: no notification, still uninhibited for the Alerts dashboard.",
   "alerts": [
     {"alertname": "CertificateExpiringVerySoon", "severity": "critical", "namespace": "gateway", "name": "wildcard"},
     {"alertname": "CertificateExpiringSoon", "severity": "warning", "namespace": "gateway", "name": "wildcard"},
@@ -9,6 +9,6 @@
     {"alertname": "ArrIndexersFailing", "severity": "warning", "namespace": "theater", "source": "IndexerLongTermStatusCheck"},
     {"alertname": "TalosUpgradeStuck", "severity": "warning", "name": "cluster"}
   ],
-  "notifications": ["ntfy ArrIndexersFailing", "ntfy BackupVerifyMissing", "ntfy CertificateExpiringVerySoon", "ntfy LANNewDeviceSeen", "ntfy NASPoolDeviceErrors", "ntfy TalosUpgradeStuck"],
+  "notifications": ["ntfy CertificateExpiringVerySoon", "ntfy NASPoolDeviceErrors", "ntfy TalosUpgradeStuck"],
   "uninhibited": ["ArrIndexersFailing", "BackupVerifyMissing", "CertificateExpiringVerySoon", "LANNewDeviceSeen", "NASPoolDeviceErrors", "TalosUpgradeStuck"]
 }

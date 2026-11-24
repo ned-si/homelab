@@ -289,7 +289,7 @@ tests:
               pod: prometheus-0
               instance: 10.0.0.1:9090
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusRetentionCutBySize.md
               summary: "Prometheus keeps only 5d 0h 0m 0s of data: retentionSize is cutting it"
@@ -348,7 +348,7 @@ tests:
               namespace: immich
               persistentvolumeclaim: wal
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeFillingUp.md
               summary: "PVC immich/wal will be full within 24h"
@@ -461,7 +461,7 @@ tests:
               mountpoint: /inodes
               fstype: xfs
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemInodesNearlyFull.md
               summary: "cp-1 /inodes has under 10% of inodes free"
@@ -506,7 +506,7 @@ tests:
               instance: cp-2
               device: "mmc0:0001"
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeEmmcWearHigh.md
               summary: "cp-2 eMMC mmc0:0001 is wearing out"
@@ -519,7 +519,7 @@ tests:
               instance: w-1
               device: "mmc0:0001"
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeEmmcWearHigh.md
               summary: "w-1 eMMC mmc0:0001 is wearing out"

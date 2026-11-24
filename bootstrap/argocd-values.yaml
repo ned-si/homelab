@@ -84,6 +84,22 @@ configs:
       hs.status = "Healthy"
       hs.message = "Waiting for the first scheduled run"
       return hs
+    # Replaces the built-in CronJob check, which keeps a CronJob Degraded
+    # from one failed run until the next success: that paged
+    # ArgoCDAppStillDegraded and held tuppr's health gate for hours. A failed
+    # run has its own alert (docs/observability.md#argo-cd-alerts).
+    resource.customizations.health.batch_CronJob: |
+      local hs = {}
+      hs.status = "Healthy"
+      hs.message = "CronJob is scheduled"
+      local st = obj.status
+      if obj.spec ~= nil and obj.spec.suspend == true then
+        hs.message = "CronJob is suspended"
+      elseif st ~= nil and st.lastScheduleTime ~= nil and (st.active == nil or #st.active == 0)
+          and (st.lastSuccessfulTime == nil or st.lastSuccessfulTime < st.lastScheduleTime) then
+        hs.message = "The last run did not succeed; its Job alerts on its own"
+      end
+      return hs
 
   rbac:
     policy.default: ""

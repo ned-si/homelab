@@ -1,6 +1,6 @@
 # CNPGBackupMetricsMissing
 
-`warning`, pages. Rule: [`platform/barman-cloud-plugin/monitoring.yaml`](../../../platform/barman-cloud-plugin/monitoring.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/barman-cloud-plugin/monitoring.yaml`](../../../platform/barman-cloud-plugin/monitoring.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

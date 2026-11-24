@@ -1,6 +1,6 @@
 # PaperlessRestoreStale
 
-`warning`, pages. Rule: [`platform/backup-verify/alerts.yaml`](../../../platform/backup-verify/alerts.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/backup-verify/alerts.yaml`](../../../platform/backup-verify/alerts.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

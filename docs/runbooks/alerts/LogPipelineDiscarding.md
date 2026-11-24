@@ -1,6 +1,6 @@
 # LogPipelineDiscarding
 
-`warning`, pages. Rule: [`platform/kube-prometheus-stack/routes/signoz-trial.yaml`](../../../platform/kube-prometheus-stack/routes/signoz-trial.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/kube-prometheus-stack/routes/signoz-trial.yaml`](../../../platform/kube-prometheus-stack/routes/signoz-trial.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

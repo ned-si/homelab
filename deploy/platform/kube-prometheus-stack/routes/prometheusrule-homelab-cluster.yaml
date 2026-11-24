@@ -164,7 +164,7 @@ spec:
         predict_linear(kubelet_volume_stats_available_bytes[6h], 24 * 3600) < 0
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: PrometheusTsdbVolumeNearlyFull
       annotations:
@@ -198,7 +198,7 @@ spec:
         increase(prometheus_tsdb_size_retentions_total[4d]) > 0
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: NodeFilesystemNearlyFull
       annotations:
@@ -260,7 +260,7 @@ spec:
         ) < 0.10
       for: 30m
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: NodeEmmcWearHigh
       annotations:
@@ -275,7 +275,7 @@ spec:
         max by (instance, device) (node_emmc_pre_eol_info) >= 2
       for: 1h
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: NodeEmmcEndOfLife
       annotations:

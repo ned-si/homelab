@@ -1,6 +1,6 @@
 # VulnEnrichmentStale
 
-`warning`, pages. Rule: [`platform/vuln-enrich/rules.yaml`](../../../platform/vuln-enrich/rules.yaml).
+`warning`, `action: review`: no notification, listed on the Homelab / Alerts dashboard. Rule: [`platform/vuln-enrich/rules.yaml`](../../../platform/vuln-enrich/rules.yaml).
 Shell: [Before you start](README.md#before-you-start).
 
 ## What it means

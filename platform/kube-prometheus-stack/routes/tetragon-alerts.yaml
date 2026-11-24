@@ -125,7 +125,7 @@ spec:
           for: 30m
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/TetragonAgentMissing.md
             summary: Tetragon is not running or not scraped on {{ $labels.node }}

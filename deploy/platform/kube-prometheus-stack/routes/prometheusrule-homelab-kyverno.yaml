@@ -31,7 +31,7 @@ spec:
         absent(kyverno_controller_reconcile_total{controller_name="background-scan-controller"})
       for: 15m
       labels:
-        action: human
+        action: review
         severity: warning
     - alert: PodSecurityEnforceDenied
       annotations:

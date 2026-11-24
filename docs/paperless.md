@@ -238,7 +238,8 @@ Every month (the 3rd, 19:00 UTC) `backup-verify/backup-verify-paperless`
 restores the newest export and imports it into a throwaway Paperless in its
 own pod. It passes when the imported documents, `manifest.json` and
 `export-meta.json` count the same and a random PDF opens.
-`PaperlessRestoreStale` pages after 35 days without a pass
+`PaperlessRestoreStale` fires after 35 days without a pass (`action:
+review`: Alerts dashboard, no notification)
 ([runbook](runbooks/alerts/PaperlessRestoreStale.md)). Schedule and
 retention: [backups.md](backups.md).
 
@@ -255,8 +256,9 @@ user `canary` (token in Secret `paperless-canary`):
 
 The Homelab / Data protection dashboard shows the last success and the
 upload-to-findable time over 7 days. `PaperlessIngestFailing` pages after 13
-hours without a success; `PaperlessIngestSlow` pages when two successful
-runs in a row take over 5 minutes. Both runbooks are in `docs/runbooks/alerts/`.
+hours without a success; `PaperlessIngestSlow` fires when two successful
+runs in a row take over 5 minutes (`action: review`: Alerts dashboard, no
+notification). Both runbooks are in `docs/runbooks/alerts/`.
 
 Run it by hand:
 

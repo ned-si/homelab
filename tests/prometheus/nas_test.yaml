@@ -122,7 +122,7 @@ tests:
           - exp_labels:
               pool: homelab
               severity: warning
-              action: human
+              action: review
             exp_annotations:
               runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASScrubOverdue.md
               summary: NAS pool homelab has not finished a scrub in 40 days

@@ -195,7 +195,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PersistentVolumeFillingUp.md
             summary: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} will be full within 24h"
@@ -235,7 +235,8 @@ spec:
           # 30-day SLO windows see less than 30 days (#905). Both halves: a
           # young TSDB refills on its own, and a size cut with 29+ days kept is
           # harmless. 4d, because a steady size cut deletes a block about every
-          # 3 days. `action: human`: nothing fixes it on its own.
+          # 3 days. `action: review`: nothing fixes it on its own, and it
+          # costs SLO history slowly, not an outage.
           expr: |
             (time() - prometheus_tsdb_lowest_timestamp_seconds) < 29 * 86400
             and
@@ -243,7 +244,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/PrometheusRetentionCutBySize.md
             summary: "Prometheus keeps only {{ $value | humanizeDuration }} of data: retentionSize is cutting it"
@@ -322,7 +323,7 @@ spec:
           for: 30m
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeFilesystemInodesNearlyFull.md
             summary: "{{ $labels.instance }} {{ $labels.mountpoint }} has under 10% of inodes free"
@@ -341,7 +342,7 @@ spec:
           for: 1h
           labels:
             severity: warning
-            action: human
+            action: review
           annotations:
             runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NodeEmmcWearHigh.md
             summary: "{{ $labels.instance }} eMMC {{ $labels.device }} is wearing out"
