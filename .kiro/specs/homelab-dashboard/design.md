@@ -195,6 +195,20 @@ a test fails when an entry of the list matches it. The list is compiled
 in, not configuration: adding an app is a reviewed, signed release, and
 the web role refuses a snapshot that names any other app.
 
+### Version 4 (task 16)
+
+Version 4 is version 3 plus the `security` block; the rollout rule of
+version 3 applies.
+
+| Key | Value |
+| --- | --- |
+| `security.as_of` | RFC 3339, the Prometheus evaluation time |
+| `security.signals[]` | `id`, `name` (the compiled list of [Security signals](#security-signals-task-16), in order); `count_24h`, `count_7d` (integers, 0 or more, rounded to the nearest, `null` without a series); `buckets`: 28 integers or `null`, oldest first, six hours each, the last one ending at `as_of` |
+
+`Validate` gains: `security.signals` equals the compiled list, in order,
+by `id` and `name`; `buckets` has 28 entries; `count_24h` is at most
+`count_7d` when both are set. The block holds no other string.
+
 ## Collector
 
 ### Cadence
@@ -503,7 +517,15 @@ to bottom:
    restarts in 24 h, volumes ("31 PVCs, 412 GiB of 1.2 TiB, fullest
    78%"), nodes, Talos and Kubernetes versions. "as of <time>" from
    `cluster.as_of`.
-5. **Project, last 30 days**: from task 15, the four DORA tiles, each a
+5. **Security** (task 16): a panel of stat tiles, one per security
+   signal in the compiled order. Each tile: the signal's name, the 24 h
+   count as the big number ("8,044 in 24 h") with its status word and
+   colour, "<n> in 7 days", and the sparkline: 28 SVG bars of the
+   six-hour counts, oldest left, heights on a linear scale from 0 to the
+   tile's largest bar (all bars at the minimum height when every one is
+   0), class `spark`, each titled "<start> to <end>: <n>" in Zurich time.
+   "as of <time>" from `security.as_of`.
+6. **Project, last 30 days**: from task 15, the four DORA tiles, each a
    big number, its band word and colour: deployment frequency ("678
    deploys, 22.6 a day"), lead time ("2 h 10 min"), change failure rate
    ("1.3%"), time to restore ("38 min", or "None"); then Renovate's
@@ -511,7 +533,7 @@ to bottom:
    list (result word and colour, the run's pull request as a link to
    `https://github.com/ned-si/homelab/pull/<n>`, the short commit, when,
    how long). "as of <time>" from `project.as_of`.
-6. **Coming later**: two muted placeholder panels, solar production and
+7. **Coming later**: two muted placeholder panels, solar production and
    home automation, with today's text.
 
 Layout, in `dashboard.css`:
@@ -549,7 +571,7 @@ Every chart is built by a Go function in `chart.go` from numbers only
 `template.HTML`. A test proves each builder's output contains only the
 elements `svg`, `g`, `rect`, `line` and `title`; attributes that are
 numbers, `class` from the fixed set (`ok`, `warn`, `bad`, `none`,
-`track`, `target`, `today`), `role="img"`, `focusable="false"` and an
+`track`, `target`, `today`, and `spark` from task 16), `role="img"`, `focusable="false"` and an
 `aria-label` built from numbers and dates; and text only inside `title`
 ("2026-11-19: 100.0%"). Everything else goes through `html/template`'s
 contextual escaping.
@@ -591,6 +613,12 @@ when the alert would fire:
 | Restarts in 24 h | 0 to 5 | 6 to 20 | Above 20 | Dashboard default |
 | Fullest volume | Below 85% | 85% to 95% | Above 95% | `PersistentVolumeNearlyFull`, `-CriticallyFull` |
 | DORA metrics | `elite` and `high` | `medium` | `low` | [DORA bands](#dora-bands) |
+| Security, expected zero | 0 in 24 h ("None") | Above 0 ("Seen") | — | Dashboard default: one is worth a look |
+| Security, background | Otherwise ("Usual") | 24 h count above 20 and above 3 times the daily mean of the 6 days before, `(count_7d - count_24h) / 6` ("Above usual") | — | Dashboard default |
+
+The security rules are compiled per signal in
+[Security signals](#security-signals-task-16); neither has a `bad`
+class, so the card never claims an incident the alerts have not paged.
 
 Each rule is a function of `internal/web/status.go` taking the figure
 and returning the class and the word, table-tested on each boundary; a
@@ -1050,6 +1078,76 @@ that broke production"), and `docs/sre.md` (incident handling) says
 when to set it. Pull requests from before the label have none: the
 change failure rate counts only what is labelled.
 
+### Security signals (task 16)
+
+The `security` block, built every cycle. Each signal is one PromQL
+expression with a window `<w>`: an instant query with `24h` and one with
+`7d` at the cycle's evaluation time `t`, and a range query with `6h`
+from `t - 162h` to `t` at a 6 h step for the 28 buckets. That is 24
+queries a cycle, each returning one series.
+
+The signals, `internal/snapshot/shown.go`, in this order:
+
+| `id` | Name on the card | Rule | Query |
+| --- | --- | --- | --- |
+| `gateway_rejected` | Requests rejected (4xx) | background | `sum(increase(envoy_http_downstream_rq_xx{envoy_response_code_class="4", envoy_http_conn_manager_prefix=~"listener-secure\|listener-insecure"}[<w>]))` |
+| `gateway_forbidden` | Access refused (403) | background | `sum(increase(envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code="403"}[<w>]))` |
+| `gateway_method` | Method not allowed (405) | background | The same with `envoy_response_code="405"` |
+| `signin_failed` | Failed sign-ins | background | `sum(increase(keycloak_user_events_total{event="login", error!=""}[<w>]))` |
+| `signin_lockouts` | Brute-force lockouts | expected zero | `sum(increase(keycloak_user_events_total{event=~"user_disabled_by_(temporary\|permanent)_lockout"}[<w>])) or vector(0)` |
+| `admission_denied` | Admission denials | expected zero | `sum(increase(apiserver_admission_webhook_rejection_count{name=~"i?vpol\\.validate\\.kyverno\\.svc.*", error_type="no_error"}[<w>])) or vector(0)` |
+| `ingress_dropped` | Ingress packets dropped by network policy | background | `sum(increase(cilium_drop_count_total{reason="Policy denied", direction="INGRESS"}[<w>]))` |
+| `runtime_detections` | Runtime detections (observe mode) | expected zero | `count(max_over_time(ALERTS{alertname=~"Runtime.+", alertstate="firing"}[<w>])) or vector(0)` |
+
+- `or vector(0)` only where the series is born with the first event (a
+  lockout, a denial, a detection); every other signal without a series
+  is `null` ("No data"). A counter born inside the window counts from
+  its first sample, which `increase()` alone misses, as
+  `tetragon:policy_events:increase5m` does; a collector test with a fake
+  Prometheus covers it.
+- The Gateway signals are every request on the public listeners, the
+  household's included (NAT loopback goes through the same Gateway).
+  `4xx` comes from Envoy's downstream counter, so it includes the `404`s
+  Envoy answers itself for unknown hosts; `403` and `405` come from the
+  upstream counter by code (the downstream one has only the class).
+- `admission_denied` uses the selector of `KyvernoDenied`, with
+  `ivpol` added for `verify-own-images`; `runtime_detections` counts the
+  firings of the `Runtime*` alerts of `tetragon-alerts.yaml`, so the
+  card subtracts the same allow-lists as the pager.
+- The selectors name webhooks, clusters and alerts inside the
+  collector only; every expression sums them away before the answer
+  leaves Prometheus, as for the cluster block.
+- `ingress_dropped` counts the enforced policies only. The app
+  allow-lists in audit mode drop nothing and Hubble exports no audit
+  verdict (`hubble_policy_verdicts_total{action="audit"}` has no series);
+  they count through the same query once spec netpol-default-deny
+  enforces them.
+
+Signals checked on 2026-11-24 at 12:52Z (Grafana's Prometheus
+datasource, read-only), 24 h and 7 d:
+
+| Signal | Data today | 24 h | 7 d |
+| --- | --- | --- | --- |
+| `gateway_rejected` | Found: Envoy downstream counters of the shared Gateway | 8,044 | 48,127 |
+| `gateway_forbidden` | Found: Envoy upstream counters by code | 0 | 661 |
+| `gateway_method` | Found: the same | 29 | 114 |
+| `signin_failed` | Found: `keycloak_user_events_total` (feature `user-event-metrics`) | 2 | 16 |
+| `signin_lockouts` | Found: both lockout events are in `KC_EVENT_METRICS_USER_EVENTS`; no lockout in 30 days, so no series yet. Task 16 checks the event names against the running Keycloak first | 0 | 0 |
+| `admission_denied` | Found: the API server's webhook counter (3 denials in 30 days) | 0 | 0 |
+| `ingress_dropped` | Found: Cilium agent's drop counter | 1 | 1 |
+| `runtime_detections` | Found: `ALERTS` of the `Runtime*` alerts (fired in the last 30 days) | 0 | 0 |
+
+Deferred or not used:
+
+| Signal | Why |
+| --- | --- |
+| Scanner paths (requests for paths scanners probe, one category) | Deferred: no metric carries a path. Envoy's and Hubble's metrics have no path label; only the Gateway's logs in SigNoz do. Added once a log-derived counter exists |
+| Kyverno's own admission metrics (`kyverno_admission_requests_total`, `kyverno_policy_results_total`) | Not used: only the reports controller is scraped; the API server's counter already counts the denials |
+| Kyverno PolicyReport `fail` results (`kyverno_policyreport_summary`) | Not used: background-scan results on objects already admitted, a posture level and not a denial |
+| Hubble's ingress drop verdicts (`hubble_policy_verdicts_total{action="dropped", direction="ingress"}`) | Not used: 0 in 24 h where the Cilium agent counted 1; `hubble_drop_total` has no direction |
+| Raw Tetragon events (`tetragon_policy_events_total`, `tetragon_events_total`) | Not used: about 750,000 policy events a day, nearly all from allow-listed actors (runc, mounts, the agent); the detections are what the alerts leave |
+| Canary tokens | Their own spec, #1618 (operator: next month) |
+
 ## Address
 
 The dashboard is its own origin, `homelab.nedsi.io`, set up by task 4
@@ -1197,6 +1295,13 @@ of the blog, the landing page and the app equal.
 - **Cluster figures aggregated in PromQL.** The collector never receives
   a namespace, pod or volume name, so no later change to the page can
   leak one.
+- **Security as cluster-wide counts.** A count says the defences turn
+  things away without saying where they stand: no address, path, rule
+  or workload survives the sum. Someone probing sees a count move within
+  a minute, which tells them only that they were counted. Rejected:
+  per-rule or per-route breakdowns (a map of the defences), raw Tetragon
+  events (noise from allow-listed actors), and a `bad` status (the
+  alerts page; the page reports).
 - **Its own host, `homelab.nedsi.io`.** A separate origin gets its own
   HTTPRoute, certificate and CSP, serves from `/`, and shares no path
   space with nginx: the route is a plain backend route and the app never
