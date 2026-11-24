@@ -58,6 +58,12 @@ which replace the finished-day rule of 2026-11-20:
 5. **Every change a generic rule**: thresholds, bands and lists are
    compiled rules with tests, not per-figure exceptions.
 
+The operator's decision of 2026-11-24 (task 16): a Security card, with
+near-real-time counts and a 24 h / 7 d sparkline, generic rules and
+nothing that helps an attacker: no address, no path beyond the generic
+"scanner paths" category, no rule name. It uses only data that exists
+today; canary tokens are a separate spec, next month (#1618).
+
 Non-goals are listed under [Out of scope](#out-of-scope).
 
 ## Glossary
@@ -80,8 +86,11 @@ Non-goals are listed under [Out of scope](#out-of-scope).
   ([design, Freshness](design.md#freshness)). The figures of the
   redesign are listed in [design, The snapshot](design.md#the-snapshot).
 - **Card**: one panel of the page grid. An **availability card** shows
-  one shown app; the **certificates**, **cluster** and **project** cards
-  are the other panels.
+  one shown app; the **certificates**, **cluster**, **security** and
+  **project** cards are the other panels.
+- **Security signal**: one count on the security card, from the compiled
+  list of [design, Security signals](design.md#security-signals-task-16),
+  each a sum over the whole cluster.
 - **DORA metrics**: deployment frequency, lead time for changes, change
   failure rate and time to restore, as defined for this repository in
   [Requirement 10](#requirement-10-project-card-dora-and-ci); each falls
@@ -135,9 +144,10 @@ learning anything that helps an attacker or shows who is home.
    [design, The snapshot](design.md#the-snapshot), plus a
    `schema_version`. "Pull requests merged" SHALL count the pull requests
    merged into `main` in the rolling 30 days ending at the collection.
-2. EVERY figure SHALL be near real time: the availability, certificate
-   and cluster blocks refreshed every collector cycle (60 s), the project
-   block every 15 minutes with the GitHub token. No figure SHALL wait for
+2. EVERY figure SHALL be near real time: the availability, certificate,
+   cluster and security blocks refreshed every collector cycle (60 s),
+   the project block every 15 minutes with the GitHub token. No figure
+   SHALL wait for
    a finished day. Availability per shown app SHALL be its current state
    (up or down, from its latest probes), its availability and error
    budget over the rolling 30 days ending now, and 30 daily values, the
@@ -189,8 +199,9 @@ in the look of the rest of the site.
    `bytes` and the duration, and SHALL NOT keep the client address, the
    user agent, the referrer or the query string.
 7. THE page SHALL be a grid of cards: one availability card per shown
-   app, the certificates card, the cluster card, the project card and the
-   "Coming later" panels, each figure a large number with its unit.
+   app, the certificates card, the cluster card, the security card, the
+   project card and the "Coming later" panels, each figure a large
+   number with its unit.
    EVERY row SHALL be filled, whatever the number of cards, at a phone
    and a desktop width.
 8. EACH availability card SHALL show the app's current state ("Up",
@@ -382,6 +393,34 @@ the cluster is right now.
    rules of [design, Status colours](design.md#status-colours); a figure
    without data SHALL read "No data" in the neutral colour.
 
+## Requirement 12: Security card
+
+**User story:** As a reader, I want to see that the homelab's defences
+turn things away, without learning anything that helps an attacker.
+
+1. THE security card SHALL show one tile per security signal, in the
+   compiled order of
+   [design, Security signals](design.md#security-signals-task-16): the
+   count of the last 24 hours as the big number, the count of the last 7
+   days, and a sparkline of the 7 days in 28 six-hour bars, the last one
+   ending now; all refreshed every collector cycle.
+2. EACH count SHALL be one PromQL sum over the whole cluster. NO figure,
+   word or bar title on the card SHALL carry an address, a host name, a
+   path, a namespace, a pod, a user, a client, or a policy, rule or alert
+   name; the card names only the compiled signals, by category.
+3. THE security signals SHALL use only data Prometheus holds today. A
+   signal without its data is listed as deferred in the design and added
+   by a later change once the data exists, never shown as a placeholder.
+4. EACH signal's status SHALL follow one of two compiled rules
+   ([design, Status colours](design.md#status-colours)): an expected-zero
+   signal is `ok` at 0 in 24 hours and `warn` above; a background signal
+   is `warn` when its 24-hour count is above 20 and above three times its
+   daily mean of the 6 days before, `ok` otherwise. A signal without a
+   series is `none` with "No data". No signal SHALL be `bad`: the alerts
+   page whoever must act, not the page.
+5. Canary tokens SHALL NOT be part of the card (operator, 2026-11-24;
+   their own spec, #1618).
+
 ## Non-functional requirements
 
 - Platform: arm64 required (amd64 also built, for CI and kind); one
@@ -469,6 +508,15 @@ the cluster is right now.
 19. The snapshot of a dry run names no namespace, pod, volume or hidden
     app (a test over the full fixture and the dry run's output). [2.3,
     2.7]
+20. The `security` block of a dry run holds the compiled signals in
+    order, each with `count_24h`, `count_7d` and 28 `buckets`, and no
+    string other than the compiled ids and names (a test over the full
+    fixture and the dry run's output); each 24-hour count equals the
+    design's query run in Grafana for the same instant, within rounding.
+    [12.1-12.3]
+21. A table test covers both rules of 12.4 on each boundary; the golden
+    pages show the security card with `ok`, `warn` and `none` next to
+    their words. [12.4]
 
 ## Out of scope
 
@@ -485,6 +533,11 @@ the cluster is right now.
 - Vault or OpenBao: a card once it is deployed (8.5), not before.
 - Per-app RED or USE, per-namespace figures and anything with a pod or
   volume name (2.7).
+- Canary tokens watched by Tetragon and the audit log: #1618, next month
+  (12.5).
+- The deferred security signals of
+  [design, Security signals](design.md#security-signals-task-16), until
+  their data exists (12.3).
 
 ## Decided defaults
 
@@ -508,6 +561,9 @@ Each default holds until the operator says otherwise.
 | DORA | Definitions of [Requirement 10](#requirement-10-project-card-dora-and-ci); bands from the 2023 Accelerate State of DevOps report ([design, DORA bands](design.md#dora-bands)) | Recountable from git and GitHub; the published bands are what readers compare with |
 | Sync time | Argo CD Notifications sets the commit status `argocd/<application>` on each successful sync | The only record of when a merge reached the cluster that GitHub can return with the pull request |
 | Fix forward | Label `fix-forward`, set by whoever opens the fix | A rule a reader can check; titles alone cannot tell a fix forward from any other fix |
+| Security signals | Gateway `4xx`, `403` and `405`; failed sign-ins and brute-force lockouts (Keycloak's event metrics); Kyverno admission denials (the API server's webhook counter); ingress packets dropped by Cilium policy; Tetragon runtime detections (the `Runtime*` alerts); each a cluster-wide sum ([design, Security signals](design.md#security-signals-task-16)) | The data Prometheus holds today (checked 2026-11-24); a sum names nothing an attacker can use |
+| Security sparkline | 7 days in 28 six-hour bars, the last ending now; the 24 h and 7 d counts as figures | The last four bars are the 24 h; one chart per tile keeps eight tiles readable on a phone; rejected: 168 hourly bars (sub-pixel at 390 px), a 24 h chart and a 7 d chart per tile |
+| Security status | Two rules, expected-zero and background; no `bad` | Rejected requests are the internet's background noise, not an incident; paging is the alerts' job |
 | Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |
 | Cluster figures | From Prometheus | One source; no ClusterRole; the same numbers as the publisher for the comparison |
 | GitHub | A fine-grained read-only token for public repositories, no expiry (operator, 2026-11-20), reviewed yearly, created in task 3; on `401` no anonymous fallback | #1551, and an expired token stays visible |
@@ -519,4 +575,4 @@ Each default holds until the operator says otherwise.
 | Theme | Always dark, the dark palette of `site/assets/css/main.css`; no light variant | Dashboards read better dark; one palette to test |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
-| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
+| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |

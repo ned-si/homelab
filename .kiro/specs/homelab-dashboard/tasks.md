@@ -20,6 +20,10 @@ merges only after the operator approves a preview: the page rendered
 from the branch with live data, `/tmp/dashboard-redesign-preview.png`
 and `.html`, with its figures listed in the request.
 
+Task 16 is the Security card of 2026-11-24 and runs after task 15. It
+is visible: it joins the preview of tasks 12-15 when that one has not
+been shown yet, and gets its own preview and approval otherwise.
+
 Where the checks of the look live: task 1 carries the golden HTML tests
 (the page design, the status rules, the chart builders, the contrast
 test and the markup check in `tests/test_site_markup.py`); task 2 carries
@@ -263,5 +267,19 @@ the rendered screenshot check.
       `ALERTS` range query of task 11. Probes: none. Check: acceptance
       criteria 17 and 18; each band word next to its colour in the
       golden pages. [10.1-10.6]
+- [ ] 16. Security card (**visible**, in the preview of tasks 12-15 or
+      its own, approval first). Schema version 4: the `security` block
+      of [design.md, Version 4](design.md#version-4-task-16), `Validate`
+      with its checks, the compiled signal list in `shown.go`. Collector:
+      the queries of
+      [Security signals](design.md#security-signals-task-16), with the
+      count of a series born inside the window and the lockout event
+      names checked against the running Keycloak first. Web: the tiles,
+      the sparkline builder in `chart.go` (class `spark`), the two rules
+      in `status.go`, golden pages; the card in
+      `docs/homelab-dashboard.md`. Snapshot keys read: `security.*`.
+      Probes: none. Check: acceptance criteria 6, 19, 20 and 21; the 24 h
+      counts equal the design's queries in Grafana for the same instant.
+      [12.1-12.5]
 
 The last task ticked sets `status: done`, `closed:`, and closes #1554.
