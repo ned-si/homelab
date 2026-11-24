@@ -60,6 +60,12 @@ apps they have.
    adds the required action Update Password, so the person picks their own at
    the first login. Give them the temporary password in person or through the
    password manager, never by plain email.
+
+   Or by e-mail, when the person is not at hand: Credentials, Credential
+   reset, Reset actions Update Password, Expires in 72 hours, Send email.
+   Keycloak sends it from `homelab@nedsi.io` through Proton (`platform.conf`
+   `smtp`); the person sets their password from the link. A missed link:
+   send it again.
 3. OTP: only members of `admins` need it. They get the realm role
    `mfa-required` and Keycloak asks them to set up an authenticator after the
    password (required action `CONFIGURE_TOTP`, `platform.conf`

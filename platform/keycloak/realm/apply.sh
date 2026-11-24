@@ -192,6 +192,33 @@ if ! [[ "$(conf events_expiration)" =~ ^[1-9][0-9]*$ ]]; then
   echo "FAIL platform.conf: events_expiration is not a number of seconds: $(conf events_expiration)" >&2
   bad=1
 fi
+# smtp: known smtpServer fields, authenticated and encrypted.
+for kv in $(conf smtp); do
+  if ! [[ "$kv" =~ ^(host|port|from|fromDisplayName|starttls|ssl|auth|replyTo|envelopeFrom)=[^[:space:]]+$ ]]; then
+    echo "FAIL platform.conf: smtp entry is not a known <field>=<value>: $kv" >&2
+    bad=1
+  fi
+done
+for want in host= port= from= auth=true; do
+  case " $(conf smtp)" in
+    *" $want"*) ;;
+    *)
+      echo "FAIL platform.conf: smtp must set $want" >&2
+      bad=1
+      ;;
+  esac
+done
+if ! [[ "$(conf smtp_from_display_name)" =~ ^[^\"\\]+$ ]]; then
+  echo "FAIL platform.conf: smtp_from_display_name is empty or has a quote or backslash" >&2
+  bad=1
+fi
+case " $(conf smtp) " in
+  *" starttls=true "* | *" ssl=true "*) ;;
+  *)
+    echo "FAIL platform.conf: smtp must set starttls=true or ssl=true" >&2
+    bad=1
+    ;;
+esac
 [ "$bad" = 0 ] || exit 1
 if [ -n "${CHECK_ONLY:-}" ]; then
   echo "ok   static checks"
@@ -256,6 +283,37 @@ policy_norm() { printf '%s' "$1" | sed -e 's/(undefined)//g' -e 's/[[:space:]]//
 kc update "realms/$REALM" -s "passwordPolicy=$(conf password_policy)"
 check "$REALM passwordPolicy" "$(policy_norm "$(conf password_policy)")" \
   "$(policy_norm "$(realm_val "$(kc get "realms/$REALM")" passwordPolicy)")"
+
+# --- platform.conf: outgoing mail of $REALM ------------------------------------
+# The password is never printed; Keycloak returns it masked, so the readback
+# checks only that one is set.
+smtp_live() { kc get "realms/$REALM" --fields smtpServer; }
+smtp_val() { # smtpServer JSON, key -> value
+  printf '%s\n' "$1" | sed -n "s/^ *\"$2\" : \"\\(.*\\)\",\\{0,1\\}\$/\\1/p"
+}
+if [ -n "${SMTP_USER:-}" ] && usable "${SMTP_PASSWORD:-}"; then
+  smtp_from=$(conf smtp | tr ' ' '\n' | sed -n 's/^from=//p')
+  if [ "$SMTP_USER" != "$smtp_from" ]; then
+    check "$REALM smtpServer.user (SMTP_USER)" "$smtp_from" differs
+  else
+    smtp_name=$(conf smtp_from_display_name)
+    args=(-s "smtpServer.user=$SMTP_USER" -s "smtpServer.password=$SMTP_PASSWORD"
+      -s "smtpServer.fromDisplayName=$smtp_name")
+    for kv in $(conf smtp); do args+=(-s "smtpServer.$kv"); done
+    kc update "realms/$REALM" "${args[@]}"
+    live=$(smtp_live)
+    for kv in $(conf smtp) "user=$SMTP_USER"; do
+      check "$REALM smtpServer.${kv%%=*}" "${kv#*=}" "$(smtp_val "$live" "${kv%%=*}")"
+    done
+    check "$REALM smtpServer.fromDisplayName" "$smtp_name" "$(smtp_val "$live" fromDisplayName)"
+    got=""
+    if [ -n "$(smtp_val "$live" password)" ]; then got="set"; fi
+    check "$REALM smtpServer.password" set "$got"
+  fi
+  unset args live
+else
+  echo "WARN smtp: SMTP_USER or SMTP_PASSWORD is unset or PENDING; smtpServer left as is" >&2
+fi
 
 # --- platform.conf: login and admin events, in both realms ----------------------
 events_settings() {

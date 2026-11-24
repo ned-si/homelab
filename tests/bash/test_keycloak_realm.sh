@@ -106,6 +106,19 @@ for e in 's/^master_fields=.*/master_fields=bruteForceProtected/' \
   expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf" "$o"
 done
 
+# smtp: known fields, authenticated and encrypted.
+for e in 's/ starttls=true/ starttls=false/' 's/ auth=true//' 's/host=[^ ]* //' \
+  's/ from=[^ ]*/ from=/' 's/^smtp=/smtp=password=x /'; do
+  sed "/^smtp=/$e" "$REALM_DIR/platform.conf" > "$tmp/p8.conf"
+  o=$(run "$tmp/p8.conf" "$REALM_DIR/clients.conf")
+  expect_contains "platform.conf smtp '$e' fails" "rc=1 FAIL platform.conf: smtp" "$o"
+done
+for e in 's/^smtp_from_display_name=.*/smtp_from_display_name=/' 's/^smtp_from_display_name=.*/smtp_from_display_name=a"b/'; do
+  sed "$e" "$REALM_DIR/platform.conf" > "$tmp/p9.conf"
+  o=$(run "$tmp/p9.conf" "$REALM_DIR/clients.conf")
+  expect_contains "platform.conf '$e' fails" "rc=1 FAIL platform.conf: smtp_from_display_name" "$o"
+done
+
 # access.conf: <clientId>=<groups>, each client once, not also removed.
 access() { printf '%s\n' "$@" > "$tmp/access.conf"; echo "$tmp/access.conf"; }
 for l in 'immich=' 'immich' 'immich=family,media' 'imm ich=family' 'immich=fam*'; do
