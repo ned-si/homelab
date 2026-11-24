@@ -4,7 +4,7 @@
 Fails on <form>, <iframe>, <style>, style= and on* attributes, an inline
 <script>, a <script src> other than /stats/s.js, and a src= or href= outside
 <article> to an origin other than the SITE_HOSTS (the canonical <link> and
-an <a> to the project's repository, REPO, excepted). The CSP of the site would block most of these; this catches
+an <a> to one of the LINKS, the project's repository and DORA, excepted). The CSP of the site would block most of these; this catches
 them before the browser does.
 
 Every page also needs the site navigation: one <nav class="site"> with the
@@ -19,6 +19,9 @@ from urllib.parse import urljoin, urlsplit
 
 STATS_SCRIPT = "/stats/s.js"
 REPO = "https://github.com/ned-si/homelab/"
+# The <a> targets allowed outside <article>: the ci runs' pull requests and
+# the source of the dashboard's DORA bands.
+LINKS = (REPO, "https://dora.dev/")
 SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io")
 NAV = [
     ("Home", "https://nedsi.io/"),
@@ -73,8 +76,8 @@ class Checker(HTMLParser):
         canonical = tag == "link" and "canonical" in (a.get("rel") or "").split()
         for name in ("src", "href"):
             url = a.get(name)
-            repo = tag == "a" and name == "href" and (url or "").startswith(REPO)
-            if url and self.foreign(url, SITE_HOSTS) and not canonical and not repo:
+            link = tag == "a" and name == "href" and (url or "").startswith(LINKS)
+            if url and self.foreign(url, SITE_HOSTS) and not canonical and not link:
                 self.bad(f"{name}={url} outside <article>")
 
     def handle_data(self, data):

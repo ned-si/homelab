@@ -811,7 +811,8 @@ running images (#1507).
 
 The markup rules (navigation, no `<form>`, `<iframe>`, `<style>`,
 `style=`, `on*`, inline `<script>`, foreign origins, except an `<a>` to
-`https://github.com/ned-si/homelab/` for the `ci` runs' pull requests) are
+`https://github.com/ned-si/homelab/` for the `ci` runs' pull requests and,
+from task 17, to `https://dora.dev/` for the DORA links) are
 not repeated in Go: `tests/test_site_markup.py`, in the `tests` job that always runs,
 feeds every `dashboard/internal/web/testdata/*.golden.html` to
 `site_markup.Checker("homelab.nedsi.io", "https://homelab.nedsi.io/")`

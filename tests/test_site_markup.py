@@ -75,6 +75,13 @@ def test_repository_links_allowed_outside_article(tmp_path):
     assert run(tmp_path, {"index.html": body}).returncode == 0
 
 
+def test_dora_links_allowed_outside_article(tmp_path):
+    body = nav("Blog") + '<a href="https://dora.dev/research/2023/dora-report/">x</a>'
+    assert run(tmp_path, {"index.html": body}).returncode == 0
+    body = nav("Blog") + '<img src="https://dora.dev/x.png">'
+    assert run(tmp_path, {"index.html": body}).returncode == 1
+
+
 DASHBOARD_GOLDEN = sorted((REPO / "dashboard/internal/web/testdata").glob("*.golden.html"))
 
 

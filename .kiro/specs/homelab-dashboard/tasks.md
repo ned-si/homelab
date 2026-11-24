@@ -297,7 +297,9 @@ the rendered screenshot check.
       [design.md, The page](design.md#the-page) item 6, the overall level
       of [DORA bands](design.md#dora-bands) (`overallBand` in
       `status.go`), Renovate's share and the median `ci` run in their own
-      group. Snapshot keys read: `project.*`, unchanged. Probes: none.
+      group; `https://dora.dev/` in `LINKS` of
+      `scripts/ci/site_markup.py`. Snapshot keys read: `project.*`,
+      unchanged. Probes: none.
       Check: acceptance criterion 17; the golden pages and a table test
       of the overall rule. Closes #1656. [10.7, 10.8]
       #1657
