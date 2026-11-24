@@ -51,15 +51,14 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
 .meta.stale { color: var(--warn); }
 .label { font-size: 0.875rem; }
 
-/* Wrapping flex rather than a grid: the cards of the last row share its
-   width, so no row has a hole whatever the number of cards. */
+/* Fixed column tracks, left-aligned: auto-fill keeps the empty tracks, so
+   a card alone on the last row stays one column wide. */
 .cards {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
   gap: 1rem;
   margin-top: 1rem;
 }
-.cards > * { flex: 1 1 17rem; }
 
 .card, .panel {
   background: var(--panel);
@@ -99,21 +98,21 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
   background: currentColor;
 }
 
-/* A panel of stat tiles takes a whole row, so its tiles sit side by side;
-   tiles that still wrap share the last row's width, as the cards do. */
-.cards > .stats { flex-basis: 100%; }
+/* A panel of stat tiles takes a whole row, so its tiles sit side by side
+   on the same kind of tracks as the cards. */
+.cards > .stats { grid-column: 1 / -1; }
 .tiles {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
   gap: 0.5rem 1rem;
 }
-.tile { flex: 1 1 10rem; min-width: 0; }
+.tiles:has(> .use) { grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); }
+.tile { min-width: 0; }
 .tile p { margin: 0; }
 .panel h3 { margin: 1rem 0 0.5rem; }
 
 /* A node or the NAS: one line per figure, label left, value and word right. */
 .tile.use {
-  flex-basis: 12rem;
   border: 1px solid var(--rule);
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
@@ -161,5 +160,5 @@ footer.site {
 }
 
 @media (max-width: 40rem) {
-  .cards > *, .tile { flex-basis: 100%; }
+  .cards, .tiles, .tiles:has(> .use) { grid-template-columns: 1fr; }
 }

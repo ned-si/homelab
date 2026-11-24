@@ -4,11 +4,14 @@
 #
 # Starts the web role on 127.0.0.1 with a throwaway key, pushes the fixture
 # with internal/tools/pushfixture and renders the page with
-# chrome-headless-shell at 390x4200 and 1280x2000 into <out-dir>. Fails on a
-# Chrome error, a missing PNG, a CSP violation or failed load in Chrome's log,
-# a row of cards with a hole (internal/tools/gridcheck), or a status other
-# than 200 for the page or the stylesheet. No pixel diff: the PNGs are for
-# looking at in the pull request.
+# chrome-headless-shell into <out-dir>, one PNG per width: a phone (390), 4:3
+# (1024), 16:10 (1440), 16:9 (1920, 2560). The layout depends on the width
+# only (no viewport-height units), so each shot is taller than the page.
+# Fails on a Chrome error, a missing PNG, a CSP violation or failed load in
+# Chrome's log, a card off the column grid or a lone card stretched across
+# its row (internal/tools/gridcheck), or a status other than 200 for the page
+# or the stylesheet. No pixel diff: the PNGs are for looking at in the pull
+# request.
 #
 # CHROME (default chrome-headless-shell) is the browser; needs go on PATH.
 set -euo pipefail
@@ -35,9 +38,11 @@ for _ in $(seq 1 50); do
   sleep 0.2
 done
 "$work/pushfixture" push "$work/private-key" http://127.0.0.1:9465
+# The panels that span a row; any other card across a whole row is stretched.
+wide=$(curl -fs -m 10 http://127.0.0.1:8080/ | grep -o 'class="panel stats"' | wc -l | tr -d ' ')
 
 rc=0
-for size in 390x4200 1280x2000; do
+for size in 390x9000 1024x5000 1440x5000 1920x5000 2560x5000; do
   png="$out/dashboard-${size%%x*}.png"
   rm -f "$png"
   # --no-sandbox: the runner's AppArmor profile blocks Chrome's user
@@ -58,8 +63,8 @@ for size in 390x4200 1280x2000; do
     echo "dashboard-screenshots: FAIL Chrome reported a blocked or failed load at $size" >&2
     rc=1
   fi
-  if [ -s "$png" ] && ! "$work/gridcheck" internal/web/assets/dashboard.css "$png"; then
-    echo "dashboard-screenshots: FAIL a row of cards has a hole at $size" >&2
+  if [ -s "$png" ] && ! "$work/gridcheck" --wide "$wide" internal/web/assets/dashboard.css "$png"; then
+    echo "dashboard-screenshots: FAIL a card is off the column grid at $size" >&2
     rc=1
   fi
 done
@@ -78,5 +83,5 @@ for p in / /assets/; do
   fi
 done
 
-[ "$rc" -eq 0 ] && echo "dashboard-screenshots: dashboard-390.png and dashboard-1280.png in $out"
+[ "$rc" -eq 0 ] && echo "dashboard-screenshots: dashboard-{390,1024,1440,1920,2560}.png in $out"
 exit "$rc"

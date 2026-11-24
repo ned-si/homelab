@@ -71,7 +71,7 @@ Renovate, Argo CD, Kustomize.
 | `dashboard/internal/web/testdata/` | Snapshot fixtures, test keys, the golden HTML files and `headers.golden` |
 | `dashboard/internal/metrics/` | The metric definitions and the metrics server |
 | `dashboard/internal/tools/pushfixture/` | A test-only `main` that signs a fixture with the test key and pushes it to a web role; used by the screenshot step and the publish smoke, never in the image |
-| `dashboard/internal/tools/gridcheck/` | A test-only `main` that fails on a row of cards with a hole in a screenshot; used by the screenshot step, never in the image |
+| `dashboard/internal/tools/gridcheck/` | A test-only `main` that fails on a card off the column grid, or a lone card stretched across its row, in a screenshot; used by the screenshot step, never in the image |
 | `dashboard/Dockerfile` | Builder and runtime stages |
 
 Neither role talks to the Kubernetes API, so there is no `client-go`.
@@ -538,19 +538,21 @@ to bottom:
 
 Layout, in `dashboard.css`:
 
-- Each grid (`div.cards`: the app cards, the cluster and project panels,
-  the "Coming later" panels) is a wrapping flexbox, cards `flex: 1 1
-  17rem`, gap `1rem`: the cards of the last row grow to share its width,
-  so no row has a hole whatever the number of cards (three app cards a
-  row on a desktop, so eight give 3, 3 and 2 wider ones). Rejected: a
-  CSS grid with `auto-fill` (the last row keeps empty cells) and
-  `grid-auto-flow: dense` (it fills holes only with smaller items, and
-  every card is the same size). A panel of stat tiles (Cluster,
-  Project, class `stats`) takes a whole row, so its tiles sit side by
-  side; tiles are a wrapping flexbox too (`flex: 1 1 10rem`), so tiles
-  that still wrap share the last row. The page is at most `72rem` wide, wider
-  than the blog's `44rem` column. Below `40rem` every card takes the full
-  width, so the page reads from 320 px without horizontal scrolling.
+- Each grid (`div.cards`: the app cards, the panels, the "Coming later"
+  panels) is a CSS grid of fixed column tracks, `repeat(auto-fill,
+  minmax(17rem, 1fr))`, gap `1rem`, left-aligned: `auto-fill` keeps the
+  empty tracks, so a card alone on the last row stays one track wide
+  (operator, 2026-11-24: no lone card or tile stretches across a row).
+  Three tracks on a desktop, so ten app cards give 3, 3, 3 and 1.
+  Rejected: a wrapping flexbox (the last row's cards grow to fill it, a
+  lone card across the whole row). A panel of stat tiles (class `stats`)
+  spans the row, `grid-column: 1 / -1`; its tiles sit on tracks of
+  `minmax(10rem, 1fr)`, the node and NAS tiles on `minmax(12rem, 1fr)`,
+  so a lone tile stays one track wide too. The page is at most `72rem`
+  wide, wider than the blog's `44rem` column, and centred on wider
+  screens. Below `40rem` every grid has one track, so the page reads
+  from 320 px without horizontal scrolling. The layout depends on the
+  width only: no viewport-height units.
   Charts have a `viewBox`, `preserveAspectRatio="none"`, `width: 100%`
   and a fixed height (meters `1.25rem`, daily bars `4rem`), so a wider
   card gets wider bars, not taller ones.
@@ -819,18 +821,24 @@ Task 2 adds a step to the `dashboard` job, `scripts/ci/dashboard-screenshots.sh`
    with `go run ./internal/tools/pushfixture`.
 2. Render `http://127.0.0.1:8080/` with `chrome-headless-shell` (Chrome
    for Testing, version and sha256 in the `ci.yaml` env, installed by
-   `scripts/ci/install-tool.sh`) at `390x4200` and `1280x2000` (taller
-   than the page, so the whole page is in the shot), with `--screenshot`
-   and Chrome's log on stderr.
+   `scripts/ci/install-tool.sh`) at the widths of a phone (390), a 4:3
+   screen (1024), 16:10 (1440) and 16:9 (1920, 2560), each taller than
+   the page so the whole page is in the shot, with `--screenshot` and
+   Chrome's log on stderr.
 3. Fail when Chrome exits non-zero, a PNG is missing or empty, Chrome's
    log has a CSP violation (`Refused to`) or a failed load,
-   `internal/tools/gridcheck` finds a row of cards with a hole, or the
-   web role's access log has a status other than `200` for the page or
-   the stylesheet. `gridcheck` takes the `--panel` colour from
-   `dashboard.css`, finds the cards as runs of at least 12 px of it on
-   each pixel row, and fails a pixel row whose cards stop short of the
-   card area's left or right edge by more than a rounded corner (8 px).
-4. Upload both PNGs as the `dashboard-screenshots` artefact, so the look
+   `internal/tools/gridcheck` finds a card off the grid, or the web
+   role's access log has a status other than `200` for the page or the
+   stylesheet. `gridcheck` takes `--panel` and `--bg` from
+   `dashboard.css` and finds the cards on each pixel row as the runs
+   between page-background pixels that hold at least 12 px of the panel
+   colour. It fails a pixel row whose cards neither span the whole card
+   area nor sit one track wide on the tracks from its left edge (the
+   track is the most common card width, 8 px of slack for corners and
+   rounding), and, when there are tracks, a count of whole-area blocks
+   other than `--wide`, the `panel stats` sections of the page: one
+   more is a lone card stretched across its row.
+4. Upload the PNGs as the `dashboard-screenshots` artefact, so the look
    can be checked in the pull request.
 
 No pixel comparison: the rendering changes with every browser update,

@@ -1,17 +1,22 @@
-// Command gridcheck fails when a row of cards in a screenshot of the page
-// has a hole, for the screenshot check of scripts/ci/dashboard-screenshots.sh:
+// Command gridcheck fails when the cards in a screenshot of the page leave
+// the column grid of dashboard.css, for the screenshot check of
+// scripts/ci/dashboard-screenshots.sh:
 //
-//	gridcheck <dashboard.css> <png> [<png>]
+//	gridcheck [--wide <n>] <dashboard.css> <png> [<png>]
 //
-// Cards are runs of pixels in the --panel colour of dashboard.css. Every
-// pixel row that crosses a card must have cards from the left edge of the
-// card area to its right edge, both taken over the whole screenshot; a row
-// that stops short by more than a rounded corner is a hole.
+// A card is a run of pixels between page-background pixels that holds at
+// least minRun pixels of the --panel colour. On every pixel row the cards
+// must either be one card across the whole card area, or sit on the column
+// tracks from its left edge: one track wide, one gap apart. The track is the
+// most common width of the narrower cards. When the screenshot has tracks,
+// the cards across the whole area must form exactly <n> blocks, the panels
+// that span a row: one more is a card alone on its row, stretched.
 package main
 
 import (
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"image"
 	colour "image/color" //nolint:misspell // The standard library's package path.
@@ -21,8 +26,8 @@ import (
 	"regexp"
 )
 
-// corner is how far, in pixels, a card's rounded corner and border may pull
-// a row's first or last panel pixel in from the card area's edge.
+// corner is how far, in pixels, a card's rounded corner and border, or the
+// rounding of fractional tracks, may move a card's edge.
 const corner = 8
 
 // minRun is the shortest run of panel pixels that counts as a card: a
@@ -30,11 +35,9 @@ const corner = 8
 // background matches the panel colour for a pixel or two at most.
 const minRun = 12
 
-// channelSlack is how far a pixel's channel may be off the panel colour
-// and still count as a card.
+// channelSlack is how far a pixel's channel may be off a colour and still
+// count as that colour.
 const channelSlack = 2
-
-var panelVar = regexp.MustCompile(`--panel:\s*#([0-9a-f]{6});`)
 
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
@@ -44,33 +47,43 @@ func main() {
 }
 
 func run(args []string, stdout io.Writer) error {
-	if len(args) < 2 {
-		return errors.New("usage: gridcheck <dashboard.css> <png> [<png>]")
+	fs := flag.NewFlagSet("gridcheck", flag.ContinueOnError)
+	wide := fs.Int("wide", -1, "panels that span a whole row; -1 skips the count")
+	if err := fs.Parse(args); err != nil {
+		return err
 	}
-	css, err := os.ReadFile(args[0]) //nolint:gosec // G703: a path the CI script passes.
+	args = fs.Args()
+	if len(args) < 2 {
+		return errors.New("usage: gridcheck [--wide <n>] <dashboard.css> <png> [<png>]")
+	}
+	css, err := os.ReadFile(args[0])
 	if err != nil {
 		return err
 	}
-	panel, err := panelColour(css)
+	panel, err := cssColour(css, "panel")
+	if err != nil {
+		return fmt.Errorf("%s: %w", args[0], err)
+	}
+	bg, err := cssColour(css, "bg")
 	if err != nil {
 		return fmt.Errorf("%s: %w", args[0], err)
 	}
 	var errs []error
 	for _, path := range args[1:] {
-		if err := checkFile(path, panel); err != nil {
+		if err := checkFile(path, panel, bg, *wide); err != nil {
 			errs = append(errs, fmt.Errorf("%s: %w", path, err))
 			continue
 		}
-		_, _ = fmt.Fprintf(stdout, "%s: no hole\n", path)
+		_, _ = fmt.Fprintf(stdout, "%s: cards on the grid\n", path)
 	}
 	return errors.Join(errs...)
 }
 
-// panelColour reads --panel from the stylesheet.
-func panelColour(css []byte) (colour.RGBA, error) {
-	m := panelVar.FindSubmatch(css)
+// cssColour reads the custom property --<name> from the stylesheet.
+func cssColour(css []byte, name string) (colour.RGBA, error) {
+	m := regexp.MustCompile(`--` + name + `:\s*#([0-9a-f]{6});`).FindSubmatch(css)
 	if m == nil {
-		return colour.RGBA{}, errors.New("no --panel colour")
+		return colour.RGBA{}, fmt.Errorf("no --%s colour", name)
 	}
 	v, err := hex.DecodeString(string(m[1]))
 	if err != nil {
@@ -79,7 +92,7 @@ func panelColour(css []byte) (colour.RGBA, error) {
 	return colour.RGBA{R: v[0], G: v[1], B: v[2], A: 0xff}, nil
 }
 
-func checkFile(path string, panel colour.RGBA) error {
+func checkFile(path string, panel, bg colour.RGBA, wide int) error {
 	f, err := os.Open(path) //nolint:gosec // G304: a path the CI script passes.
 	if err != nil {
 		return err
@@ -89,72 +102,131 @@ func checkFile(path string, panel colour.RGBA) error {
 	if err != nil {
 		return err
 	}
-	return errors.Join(holes(img, panel)...)
+	return errors.Join(check(img, panel, bg, wide)...)
 }
 
-// span is the panel pixels of one pixel row, from x0 to x1 inclusive.
+// span is one card on a pixel row, from x0 to x1 inclusive.
 type span struct{ x0, x1 int }
 
-// holes returns one error per run of pixel rows whose cards do not fill the
-// card area, and an error when the image has no card at all.
-func holes(img image.Image, panel colour.RGBA) []error {
+func (c span) width() int { return c.x1 - c.x0 + 1 }
+
+// cardsOn returns the cards crossing pixel row y.
+func cardsOn(img image.Image, y int, panel, bg colour.RGBA) []span {
 	b := img.Bounds()
-	rows := make(map[int]span)
-	left, right := b.Max.X, b.Min.X-1
-	for y := b.Min.Y; y < b.Max.Y; y++ {
-		s := span{-1, -1}
-		run := 0
-		for x := b.Min.X; x <= b.Max.X; x++ {
-			if x < b.Max.X && isPanel(img, x, y, panel) {
-				run++
-				continue
+	var cards []span
+	start, run, longest := -1, 0, 0
+	for x := b.Min.X; x <= b.Max.X; x++ {
+		if x == b.Max.X || near(img, x, y, bg) {
+			if start >= 0 && longest >= minRun {
+				cards = append(cards, span{start, x - 1})
 			}
-			if run >= minRun {
-				if s.x0 < 0 {
-					s.x0 = x - run
-				}
-				s.x1 = x - 1
-			}
-			run = 0
-		}
-		if s.x0 < 0 {
+			start, run, longest = -1, 0, 0
 			continue
 		}
-		rows[y] = s
-		left, right = min(left, s.x0), max(right, s.x1)
+		if start < 0 {
+			start = x
+		}
+		if near(img, x, y, panel) {
+			run++
+		} else {
+			run = 0
+		}
+		longest = max(longest, run)
+	}
+	return cards
+}
+
+// check returns one error per run of pixel rows whose cards leave the
+// grid, one when the whole-area blocks are not wide, and one when the image
+// has no card at all.
+func check(img image.Image, panel, bg colour.RGBA, wide int) []error {
+	b := img.Bounds()
+	rows := make(map[int][]span)
+	left, right := b.Max.X, b.Min.X-1
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		cards := cardsOn(img, y, panel, bg)
+		if len(cards) == 0 {
+			continue
+		}
+		rows[y] = cards
+		left, right = min(left, cards[0].x0), max(right, cards[len(cards)-1].x1)
 	}
 	if len(rows) == 0 {
 		return []error{errors.New("no card in the screenshot")}
 	}
+	full := func(c span) bool { return c.x0 <= left+corner && c.x1 >= right-corner }
+	widths, gaps := make(map[int]int), make(map[int]int)
+	for _, cards := range rows {
+		for i, c := range cards {
+			if !full(c) {
+				widths[c.width()]++
+			}
+			if i > 0 {
+				gaps[c.x0-cards[i-1].x1-1]++
+			}
+		}
+	}
+	track, gap := mode(widths), mode(gaps)
+	onTracks := func(cards []span) bool {
+		for i, c := range cards {
+			if abs(c.x0-(left+i*(track+gap))) > corner || abs(c.width()-track) > corner {
+				return false
+			}
+		}
+		return track > 0
+	}
+
 	var errs []error
-	start := -1
-	var at span
+	start, blocks, inBlock := -1, 0, false
+	var at []span
 	flush := func(end int) {
 		if start >= 0 {
-			errs = append(errs, fmt.Errorf("pixel rows %d-%d: cards span x %d-%d, the card area is %d-%d",
-				start, end, at.x0, at.x1, left, right))
+			errs = append(errs, fmt.Errorf("pixel rows %d-%d: cards %v are off the grid (card area x %d-%d, track %d px, gap %d px)",
+				start, end, at, left, right, track, gap))
 			start = -1
 		}
 	}
 	for y := b.Min.Y; y < b.Max.Y; y++ {
-		s, ok := rows[y]
-		if !ok || (s.x0 <= left+corner && s.x1 >= right-corner) {
+		cards, ok := rows[y]
+		isWide := ok && len(cards) == 1 && full(cards[0])
+		if isWide && !inBlock {
+			blocks++
+		}
+		inBlock = isWide
+		if !ok || isWide || onTracks(cards) {
 			flush(y - 1)
 			continue
 		}
 		if start < 0 {
-			start, at = y, s
+			start, at = y, cards
 		}
 	}
 	flush(b.Max.Y - 1)
+	if track > 0 && wide >= 0 && blocks != wide {
+		errs = append(errs, fmt.Errorf("%d blocks of cards span the whole card area, want %d: a card alone on its row is stretched", blocks, wide))
+	}
 	return errs
 }
 
-func isPanel(img image.Image, x, y int, panel colour.RGBA) bool {
+// mode returns the most common key of counts, the smallest on a tie, and 0
+// when counts is empty.
+func mode(counts map[int]int) int {
+	best, n := 0, 0
+	for k, c := range counts {
+		if c > n || (c == n && k < best) {
+			best, n = k, c
+		}
+	}
+	return best
+}
+
+func abs(v int) int { return max(v, -v) }
+
+func near(img image.Image, x, y int, want colour.RGBA) bool {
 	r, g, b, _ := img.At(x, y).RGBA()
-	near := func(v uint32, want uint8) bool {
-		d := int(v>>8) - int(want)
+	ch := func(v uint32, w uint8) bool {
+		d := int(v>>8) - int(w)
 		return d >= -channelSlack && d <= channelSlack
 	}
-	return near(r, panel.R) && near(g, panel.G) && near(b, panel.B)
+	return ch(r, want.R) && ch(g, want.G) && ch(b, want.B)
 }

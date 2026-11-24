@@ -242,9 +242,11 @@ a reviewed commit, so the cluster runs only what CI built and signed.
 6. THE binary SHALL report its version (the git commit) with `version`, in
    its first log line and in a `build_info` metric.
 7. EVERY pull request touching `dashboard/` SHALL render the page in a
-   pinned headless browser at a phone and a desktop width, inside `ci`;
-   a browser error, a blocked resource, a CSP violation or a row of cards
-   with a hole fails `ci`, and the screenshots are attached to the run.
+   pinned headless browser at a phone width and the desktop widths of
+   4:3, 16:10 and 16:9 screens, inside `ci`; a browser error, a blocked
+   resource, a CSP violation, a card off the column grid or a lone card
+   stretched across its row fails `ci`, and the screenshots are attached
+   to the run.
 
 ## Requirement 5: Observable
 
@@ -478,8 +480,8 @@ turn things away, without learning anything that helps an attacker.
 11. The web role's log lines in SigNoz contain no client address or user
     agent. [3.6]
 12. The `dashboard` job's screenshot step passes and the run has the
-    `dashboard-screenshots` artefact with a 390 px and a 1280 px wide
-    rendering of the full fixture; the 390 px one shows every card in one
+    `dashboard-screenshots` artefact with a 390, 1024, 1440, 1920 and
+    2560 px wide rendering of the full fixture; the 390 px one shows every card in one
     column with no cut-off text (looked at in the PR). [3.9, 4.7]
 13. `curl -sI http://homelab.nedsi.io/x` returns `301` with
     `Location: https://homelab.nedsi.io/x`; `dig +short homelab.nedsi.io`

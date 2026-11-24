@@ -241,7 +241,8 @@ the rendered screenshot check.
       read: `availability.*`. Queries: those of task 11. Probes: task 8,
       and task 4's for `homelab` ("No data" until then). Check:
       acceptance criteria 3 (on the port-forward until task 4), 6, 12
-      and 16; the grid has no hole with ten cards at 390 and 1280 px.
+      and 16; the ten cards are on the grid at every width of the
+      screenshot step.
       [2.2, 2.4, 3.5, 3.7, 3.8, 8.4]
 - [ ] 13. Certificates card (**visible**, preview and approval first):
       the tiles, the rule of
