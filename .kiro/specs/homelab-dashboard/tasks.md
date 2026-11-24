@@ -298,10 +298,12 @@ the rendered screenshot check.
       of [DORA bands](design.md#dora-bands) (`overallBand` in
       `status.go`), Renovate's share and the median `ci` run in their own
       group; `https://dora.dev/` in `LINKS` of
-      `scripts/ci/site_markup.py`. Snapshot keys read: `project.*`,
-      unchanged. Probes: none.
-      Check: acceptance criterion 17; the golden pages and a table test
-      of the overall rule. Closes #1656. [10.7, 10.8]
+      `scripts/ci/site_markup.py`; the section order and every
+      percentage with two decimals (operator, 2026-11-24). Snapshot keys
+      read: `project.*`, unchanged. Probes: none.
+      Check: acceptance criterion 17; the golden pages, a table test
+      of the overall rule, `TestSectionOrder` and
+      `TestPercentagesTwoDecimals`. Closes #1656. [7.10, 7.11, 10.7, 10.8]
       #1657
 
 The last task ticked sets `status: done`, `closed:`, and closes #1554.

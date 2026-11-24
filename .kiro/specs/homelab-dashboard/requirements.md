@@ -222,6 +222,12 @@ in the look of the rest of the site.
    a contrast of at least 4.5:1 against its background.
 9. THE page SHALL use the site's dark palette and SHALL read without
    horizontal scrolling from 320 px wide up to a desktop screen.
+10. THE page SHALL show its sections in this order: the intro,
+    Availability, Cluster, the project card with "DORA metrics",
+    Security, Certificates, Coming later (operator, 2026-11-24).
+11. EVERY percentage on the page, in text, labels and titles, SHALL have
+    two decimals ("99.50%", "1.30%"); the SLO, the thresholds and the
+    error-budget maths stay on the raw values (operator, 2026-11-24).
 
 ## Requirement 4: Built and released like production software
 
@@ -593,4 +599,4 @@ Each default holds until the operator says otherwise.
 | Theme | Always dark, the dark palette of `site/assets/css/main.css`; no light variant | Dashboards read better dark; one palette to test |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
-| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level, merges after its review round, without a preview approval (operator, 2026-11-24) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
+| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |

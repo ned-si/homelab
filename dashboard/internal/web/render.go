@@ -41,7 +41,7 @@ type appCard struct {
 	NoData       bool
 	Since        string
 	Exhausted    bool
-	BudgetLeft   int
+	BudgetLeft   string
 	Meter        template.HTML
 	Bars         template.HTML
 }
@@ -243,11 +243,11 @@ func card(a snapshot.LiveApp, days []string) appCard {
 		left := *a.ErrorBudgetRemaining30d
 		c.Status = monthStatus(left)
 		c.Word = monthWord(c.Status)
-		c.BudgetLeft = max(left, 0)
+		c.BudgetLeft = fixed(float64(max(left, 0)), 2)
 		c.Exhausted = left <= 0
 		c.Meter = budgetMeter(left)
 	}
-	c.Availability = fixed(*a.Availability30d, 1)
+	c.Availability = fixed(*a.Availability30d, 2)
 	return c
 }
 
@@ -453,7 +453,7 @@ func doraTiles(p snapshot.Project) ([]tile, []band) {
 	if p.ChangeFailureRate == nil {
 		none("Change failure rate")
 	} else {
-		t := tile{Label: "Change failure rate", Value: one(fixed(*p.ChangeFailureRate, 1), "%")}
+		t := tile{Label: "Change failure rate", Value: one(fixed(*p.ChangeFailureRate, 2), "%")}
 		if p.FailedChanges30d != nil {
 			t.Detail = thousands(*p.FailedChanges30d) + " failed changes"
 		}
@@ -488,7 +488,7 @@ func doraOverall(bands []band) overall {
 
 func deliveryTiles(p snapshot.Project) []tile {
 	return []tile{
-		{Label: "Opened by Renovate", Value: one(strconv.Itoa(p.RenovateShare30d), "%"),
+		{Label: "Opened by Renovate", Value: one(fixed(float64(p.RenovateShare30d), 2), "%"),
 			Meter: shareBar("Opened by Renovate", p.RenovateShare30d)},
 		{Label: "Median CI run", Value: durationParts(p.CIMedianSeconds30d)},
 	}

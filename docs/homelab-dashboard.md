@@ -141,10 +141,13 @@ the snapshot (60 min for the project) says "Figures from <time>".
 | Card | Shows | Source |
 | --- | --- | --- |
 | Availability, one per shown app | State ("Up", "Down", "No data"), the rolling 30 days, the error budget left, 30 daily bars, the last one today so far | `probe_success` of the app's probes; `slo:availability:ratio_rate30d`, `slo:error_budget_remaining:ratio_rate30d`, `slo:probe_error:ratio_rate1d` ([sre.md](sre.md)) |
-| Certificates | Days left per shown certificate | `probe_ssl_earliest_cert_expiry` of the public probes |
 | Cluster | Per node and for the NAS: utilisation, saturation, errors (USE); at the Gateway: requests per second, `5xx` share and p95 over 5 min (RED); Argo CD Synced and Healthy, restarts in 24 h, volumes, versions | node-exporter, kube-state-metrics, `truenas_*`, Envoy, `argocd_app_info`, kubelet volume stats, all summed in PromQL |
-| Security | Per signal: the count of the last 24 h, of the last 7 days and the 7 days in 28 six-hour bars. Signals: Gateway `4xx`, `403` and `405`; failed sign-ins; Kyverno admission denials; ingress packets dropped by network policy; runtime detections | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `cilium_drop_count_total`, the `Runtime*` alerts; each one sum over the cluster |
 | Project | The four DORA metrics with their band and the overall level (the lowest of the four bands, "No data" when one is missing), Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
+| Security | Per signal: the count of the last 24 h, of the last 7 days and the 7 days in 28 six-hour bars. Signals: Gateway `4xx`, `403` and `405`; failed sign-ins; Kyverno admission denials; ingress packets dropped by network policy; runtime detections | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `cilium_drop_count_total`, the `Runtime*` alerts; each one sum over the cluster |
+| Certificates | Days left per shown certificate | `probe_ssl_earliest_cert_expiry` of the public probes |
+
+The page shows the cards in this order, then "Coming later". Every
+percentage has two decimals; the status colours read the raw values.
 
 The shown apps are Immich, Mealie, Paperless-ngx, Plex, Syncthing,
 Keycloak, Observability (Grafana, SigNoz, Prometheus and Alertmanager), the
