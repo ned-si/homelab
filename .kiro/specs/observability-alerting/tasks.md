@@ -28,6 +28,8 @@ needs one ([README](../README.md)).
 - [x] 16. Keep `grafana.db` on a volume. [5.4] (#473, #475)
 - [x] 17. Page only when a person has to act (`action` label). [2.1, 2.2] (#484)
 - [x] 18. Homelab / Automation dashboard and its event feed. [5.3] (#486, #490, #493)
+- [x] 19. Page only urgent and actionable alerts: `action: review` for the rest,
+      the Homelab / Alerts dashboard. [2.1, 2.2, 5.1] (#1651, #1654)
 
 - [x] 22. metrics-server with verified kubelet TLS: kubelet serving
       certificates by CSR and kubelet-serving-cert-approver, applied one node
