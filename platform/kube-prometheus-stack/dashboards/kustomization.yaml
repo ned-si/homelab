@@ -48,3 +48,6 @@ configMapGenerator:
   - name: grafana-dashboard-homelab-automation
     files:
       - homelab-automation.json
+  - name: grafana-dashboard-homelab-alerts
+    files:
+      - homelab-alerts.json

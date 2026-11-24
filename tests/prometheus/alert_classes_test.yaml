@@ -1,0 +1,69 @@
+# promtool unit tests for platform/kube-prometheus-stack/routes/alert-classes.yaml.
+# Run: scripts/ci/promtool-check.sh (CI: promtool job).
+rule_files:
+  - homelab-alert-classes.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # One alert of each class; the backup Job's KubeJobFailed pages, the seed
+  # Job's is INFO; the Watchdog is left out. Values: when each became active.
+  - interval: 1m
+    input_series:
+      - series: 'ALERTS{alertname="NASDiskHot", alertstate="firing", severity="warning", action="human", disk="sdc"}'
+        values: '1x5'
+      - series: 'ALERTS_FOR_STATE{alertname="NASDiskHot", severity="warning", action="human", disk="sdc"}'
+        values: '1000x5'
+      - series: 'ALERTS{alertname="NASScrubOverdue", alertstate="pending", severity="warning", action="review", pool="homelab"}'
+        values: '1x5'
+      - series: 'ALERTS_FOR_STATE{alertname="NASScrubOverdue", severity="warning", action="review", pool="homelab"}'
+        values: '2000x5'
+      - series: 'ALERTS{alertname="ArgoCDAppDegraded", alertstate="firing", severity="critical", action="auto", name="home", namespace="home"}'
+        values: '1x5'
+      - series: 'ALERTS_FOR_STATE{alertname="ArgoCDAppDegraded", severity="critical", action="auto", name="home", namespace="home"}'
+        values: '3000x5'
+      - series: 'ALERTS{alertname="etcdNoLeader", alertstate="firing", severity="critical", job="kube-etcd"}'
+        values: '1x5'
+      - series: 'ALERTS_FOR_STATE{alertname="etcdNoLeader", severity="critical", job="kube-etcd"}'
+        values: '4000x5'
+      - series: 'ALERTS{alertname="KubeJobFailed", alertstate="firing", severity="warning", namespace="mealie", job_name="mealie-backup-29868120"}'
+        values: '1x5'
+      - series: 'ALERTS_FOR_STATE{alertname="KubeJobFailed", severity="warning", namespace="mealie", job_name="mealie-backup-29868120"}'
+        values: '5000x5'
+      - series: 'ALERTS{alertname="KubeJobFailed", alertstate="firing", severity="warning", namespace="theater", job_name="qbittorrent-private-seed-29868120"}'
+        values: '1x5'
+      - series: 'ALERTS_FOR_STATE{alertname="KubeJobFailed", severity="warning", namespace="theater", job_name="qbittorrent-private-seed-29868120"}'
+        values: '6000x5'
+      - series: 'ALERTS{alertname="Watchdog", alertstate="firing", severity="none"}'
+        values: '1x5'
+      - series: 'ALERTS_FOR_STATE{alertname="Watchdog", severity="none"}'
+        values: '7000x5'
+    promql_expr_test:
+      - expr: alerts:active_since:timestamp_seconds
+        eval_time: 2m
+        exp_samples:
+          - labels: >-
+              alerts:active_since:timestamp_seconds{alertname="NASDiskHot", alertstate="firing", severity="warning", action="human", disk="sdc",
+              class="page", runbook="https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASDiskHot.md"}
+            value: 1000
+          - labels: >-
+              alerts:active_since:timestamp_seconds{alertname="NASScrubOverdue", alertstate="pending", severity="warning", action="review",
+              pool="homelab", class="review", runbook="https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/NASScrubOverdue.md"}
+            value: 2000
+          - labels: >-
+              alerts:active_since:timestamp_seconds{alertname="ArgoCDAppDegraded", alertstate="firing", severity="critical", action="auto",
+              name="home", namespace="home", class="info", runbook="https://github.com/ned-si/homelab/blob/main/docs/sre.md#paging"}
+            value: 3000
+          - labels: >-
+              alerts:active_since:timestamp_seconds{alertname="etcdNoLeader", alertstate="firing", severity="critical", job="kube-etcd", class="page",
+              runbook="https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/README.md#chart-rules-that-page"}
+            value: 4000
+          - labels: >-
+              alerts:active_since:timestamp_seconds{alertname="KubeJobFailed", alertstate="firing", severity="warning", namespace="mealie",
+              job_name="mealie-backup-29868120", class="page",
+              runbook="https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/README.md#chart-rules-that-page"}
+            value: 5000
+          - labels: >-
+              alerts:active_since:timestamp_seconds{alertname="KubeJobFailed", alertstate="firing", severity="warning", namespace="theater",
+              job_name="qbittorrent-private-seed-29868120", class="info", runbook="https://github.com/ned-si/homelab/blob/main/docs/sre.md#paging"}
+            value: 6000

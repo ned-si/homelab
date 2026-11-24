@@ -15,6 +15,8 @@ resources:
   - backup-slo-targets.yaml
   # The automation history of the Homelab / Automation dashboard.
   - automation.yaml
+  # Every active alert with its class, for the Homelab / Alerts dashboard.
+  - alert-classes.yaml
   - alerts.yaml
   - argocd-alerts.yaml
   # tuppr upgrades, in place of the chart's rules.

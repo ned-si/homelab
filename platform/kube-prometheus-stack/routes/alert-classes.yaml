@@ -1,0 +1,52 @@
+# The Homelab / Alerts dashboard: every firing and pending alert, one series
+# per alert, `alerts:active_since:timestamp_seconds`, value the time it became
+# active, with two labels added: `class` (page, review, info; docs/sre.md
+# "Paging") and `runbook`. The chart rules that page by name repeat the
+# `ntfy` routes of platform/kube-prometheus-stack/values.yaml: change both.
+# Tests: tests/prometheus/alert_classes_test.yaml.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: homelab-alert-classes
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: homelab.alert-classes
+      interval: 1m
+      rules:
+        # ALERTS_FOR_STATE has every label but alertstate; group_right keeps
+        # it from ALERTS. Chart rules carry no `action` label: they page by
+        # name, else they are INFO. The five parts never share a series.
+        - record: alerts:active_since:timestamp_seconds
+          expr: |
+            label_replace(label_replace(
+              ALERTS_FOR_STATE{action="human"} + ignoring (alertstate) group_right () (0 * ALERTS{action="human"})
+            , "class", "page", "", ""), "runbook", "https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/$1.md", "alertname", "(.+)")
+            or
+            label_replace(label_replace(
+              ALERTS_FOR_STATE{action="review"} + ignoring (alertstate) group_right () (0 * ALERTS{action="review"})
+            , "class", "review", "", ""), "runbook", "https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/$1.md", "alertname", "(.+)")
+            or
+            label_replace(label_replace(
+              ALERTS_FOR_STATE{action="auto"} + ignoring (alertstate) group_right () (0 * ALERTS{action="auto"})
+            , "class", "info", "", ""), "runbook", "https://github.com/ned-si/homelab/blob/main/docs/sre.md#paging", "", "")
+            or
+            label_replace(label_replace(
+              ALERTS_FOR_STATE{action=""} + ignoring (alertstate) group_right () (0 * (
+                ALERTS{action="", alertname=~"etcdInsufficientMembers|etcdNoLeader"}
+                or ALERTS{action="", alertname="KubeJobFailed", job_name=~".+-backup-.+", namespace!="backup-verify"}
+                or ALERTS{action="", category="security", severity="critical"}
+              ))
+            , "class", "page", "", ""), "runbook", "https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/README.md#chart-rules-that-page", "", "")
+            or
+            label_replace(label_replace(
+              ALERTS_FOR_STATE{action=""} + ignoring (alertstate) group_right () (0 * (
+                ALERTS{action="", alertname!~"Watchdog|InfoInhibitor"}
+                unless ALERTS{alertname=~"etcdInsufficientMembers|etcdNoLeader"}
+                unless ALERTS{alertname="KubeJobFailed", job_name=~".+-backup-.+", namespace!="backup-verify"}
+                unless ALERTS{category="security", severity="critical"}
+              ))
+            , "class", "info", "", ""), "runbook", "https://github.com/ned-si/homelab/blob/main/docs/sre.md#paging", "", "")
