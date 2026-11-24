@@ -287,7 +287,12 @@
 </section>
 <section class="panel stats" aria-labelledby="project">
 <h2 id="project">Project, last 30 days</h2>
-<p class="meta">Every pull request merged into main is a deploy. The bands are the four clusters of the 2023 State of DevOps report.</p>
+<p class="meta">Every pull request merged into main is a deploy.</p>
+<h3>DORA metrics</h3>
+<p class="meta"><a href="https://dora.dev/">DORA</a>, short for DevOps Research and Assessment, is the research programme behind the State of DevOps reports. It sums up software delivery in four metrics: how often changes reach production (deployment frequency), how long a change takes to get there (lead time for changes), how often a change breaks something (change failure rate) and how quickly things are back to normal when it does (time to restore).</p>
+<p class="meta">Each metric falls in one of four bands, Elite, High, Medium or Low, taken from the performance clusters of <a href="https://dora.dev/research/2023/dora-report/">DORA's 2023 report</a>. DORA has since added a fifth metric, rework rate, which those bands do not cover. Of course, the metrics were made for teams, not for one person and a few bots, but they make a fair yardstick all the same.</p>
+<p class="stat"><span class="label">Overall level</span> <span class="big ok">Elite</span></p>
+<p class="meta">The lowest of the four bands, so one weak metric is never averaged away.</p>
 <div class="tiles">
 <div class="tile">
 <p class="label">Deployment frequency</p>
@@ -309,6 +314,9 @@
 <p><span class="big ok">25<span class="unit">min</span></span> <span class="status ok">Elite</span></p>
 <p class="meta">Median of 4 incidents</p>
 </div>
+</div>
+<h3>Renovate and CI</h3>
+<div class="tiles">
 <div class="tile">
 <p class="label">Opened by Renovate</p>
 <p><span class="big">50<span class="unit">%</span></span></p>

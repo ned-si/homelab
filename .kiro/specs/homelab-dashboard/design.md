@@ -526,7 +526,14 @@ to bottom:
    0), class `spark`, each titled "<start> to <end>: <n>" in Zurich time.
    "as of <time>" from `security.as_of`.
 6. **Project, last 30 days**: from task 15, the four DORA tiles, each a
-   big number, its band word and colour: deployment frequency ("678
+   big number, its band word and colour. From task 17 they sit in their
+   own group under the heading "DORA metrics": two short paragraphs (what
+   DORA is, the four metrics in plain words, the bands from the
+   [2023 report](https://dora.dev/research/2023/dora-report/), links to
+   `https://dora.dev/` and that report), then "Overall level" with the
+   level of [DORA bands](#dora-bands) as a big word in its colour, and
+   the rule under it. Renovate's share and the median `ci` run move to
+   their own group, "Renovate and CI". The tiles: deployment frequency ("678
    deploys, 22.6 a day"), lead time ("2 h 10 min"), change failure rate
    ("1.3%"), time to restore ("38 min", or "None"); then Renovate's
    share, the median `ci` run, and the last five `ci` runs on `main` as a
@@ -647,6 +654,11 @@ upper bound:
 
 A `null` lead time or time to restore is `none`; "None" (no incident in
 30 days) is `elite` with the word "No incident".
+The overall level (task 17) is the lowest of the four bands, so one weak
+metric is never averaged away; it takes that band's word and colour. When
+any metric is `none`, the overall level is "No data" (`none`). DORA's own
+clusters come from a cluster analysis of survey answers, not from a rule
+a single team can apply; the lowest band is the strictest rule that can.
 
 Staleness, from the injected clock:
 

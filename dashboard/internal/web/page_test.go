@@ -471,6 +471,43 @@ func TestDORABands(t *testing.T) {
 			t.Errorf("bandStatus(%s) = %q, want %q", b, got, want)
 		}
 	}
+	for _, tc := range []struct {
+		bands []band
+		want  band
+	}{
+		{[]band{bandElite, bandElite, bandElite, bandElite}, bandElite},
+		{[]band{bandElite, bandHigh, bandElite, bandElite}, bandHigh},
+		{[]band{bandHigh, bandMedium, bandElite, bandElite}, bandMedium},
+		{[]band{bandElite, bandMedium, bandLow, bandHigh}, bandLow},
+		{[]band{bandElite, "", bandElite, bandElite}, ""},
+		{nil, ""},
+	} {
+		if got := overallBand(tc.bands); got != tc.want {
+			t.Errorf("overallBand(%q) = %q, want %q", tc.bands, got, tc.want)
+		}
+	}
+	zero, rate, lead := 0, 1.0, 3600
+	p := snapshot.Project{Deploys30d: 40, ChangeFailureRate: &rate, Incidents30d: &zero}
+	if _, bs := doraTiles(p); overallBand(bs) != "" {
+		t.Errorf("doraTiles without a lead time: overall %q, want none", overallBand(bs))
+	}
+	p.LeadTimeSeconds = &lead
+	if _, bs := doraTiles(p); overallBand(bs) != bandElite {
+		t.Errorf("doraTiles with no incident: overall %q, want %q", overallBand(bs), bandElite)
+	}
+	for _, tc := range []struct {
+		bands []band
+		want  overall
+	}{
+		{[]band{bandElite, bandHigh, bandElite, bandElite}, overall{Status: statusOK, Word: "High"}},
+		{[]band{bandElite, bandMedium, bandElite, bandElite}, overall{Status: statusWarn, Word: "Medium"}},
+		{[]band{bandElite, bandLow, bandElite, bandElite}, overall{Status: statusBad, Word: "Low"}},
+		{[]band{bandElite, "", bandElite, bandElite}, overall{Status: statusNone, Word: "No data", NoData: true}},
+	} {
+		if got := doraOverall(tc.bands); got != tc.want {
+			t.Errorf("doraOverall(%q) = %+v, want %+v", tc.bands, got, tc.want)
+		}
+	}
 	for result, want := range map[string][2]string{"success": {"ok", "Success"}, "failure": {"bad", "Failure"},
 		"cancelled": {"none", "Cancelled"}, "other": {"warn", "Other"}} {
 		if st, w := runStatus(result); string(st) != want[0] || w != want[1] {

@@ -83,6 +83,13 @@ type ciRun struct {
 	Duration []part
 }
 
+// overall is the overall DORA level: a band word in its colour.
+type overall struct {
+	Status status
+	Word   string
+	NoData bool
+}
+
 // block is a card's as of time and, when it lags generated_at, the notice.
 type block struct {
 	AsOf  when
@@ -103,6 +110,7 @@ type figures struct {
 	Signals      []tile
 	Project      block
 	DORA         []tile
+	DORALevel    overall
 	Delivery     []tile
 	Runs         []ciRun
 }
@@ -412,46 +420,70 @@ func noDataTile(label string) tile {
 	return tile{Label: label, Status: statusNone, Word: noData}
 }
 
-func doraTiles(p snapshot.Project) []tile {
-	out := []tile{bandTile(tile{
+// doraTiles are the four DORA tiles and their bands, "" for a metric
+// without data; no incident in 30 days is elite.
+func doraTiles(p snapshot.Project) ([]tile, []band) {
+	var tiles []tile
+	var bands []band
+	add := func(t tile, b band) {
+		tiles = append(tiles, bandTile(t, b))
+		bands = append(bands, b)
+	}
+	none := func(label string) {
+		tiles = append(tiles, noDataTile(label))
+		bands = append(bands, "")
+	}
+
+	add(tile{
 		Label:  "Deployment frequency",
 		Value:  one(thousands(p.Deploys30d), "deploys"),
 		Detail: fixed(float64(p.Deploys30d)/snapshot.Days, 1) + " a day",
-	}, deployBand(p.Deploys30d))}
+	}, deployBand(p.Deploys30d))
 
 	if p.LeadTimeSeconds == nil {
-		out = append(out, noDataTile("Lead time for changes"))
+		none("Lead time for changes")
 	} else {
 		t := tile{Label: "Lead time for changes", Value: durationParts(*p.LeadTimeSeconds), Detail: "Median"}
 		if p.LeadTimeCount != nil {
 			t.Detail = "Median of " + thousands(*p.LeadTimeCount) + " changes"
 		}
-		out = append(out, bandTile(t, leadBand(time.Duration(*p.LeadTimeSeconds)*time.Second)))
+		add(t, leadBand(time.Duration(*p.LeadTimeSeconds)*time.Second))
 	}
 
 	if p.ChangeFailureRate == nil {
-		out = append(out, noDataTile("Change failure rate"))
+		none("Change failure rate")
 	} else {
 		t := tile{Label: "Change failure rate", Value: one(fixed(*p.ChangeFailureRate, 1), "%")}
 		if p.FailedChanges30d != nil {
 			t.Detail = thousands(*p.FailedChanges30d) + " failed changes"
 		}
-		out = append(out, bandTile(t, failureBand(*p.ChangeFailureRate)))
+		add(t, failureBand(*p.ChangeFailureRate))
 	}
 
 	switch {
 	case p.Incidents30d == nil:
-		out = append(out, noDataTile("Time to restore"))
+		none("Time to restore")
 	case *p.Incidents30d == 0 || p.RestoreSeconds == nil:
-		out = append(out, tile{Label: "Time to restore", Value: one("None", ""), Status: statusOK, Word: "No incident"})
+		tiles = append(tiles, tile{Label: "Time to restore", Value: one("None", ""), Status: statusOK, Word: "No incident"})
+		bands = append(bands, bandElite)
 	default:
-		out = append(out, bandTile(tile{
+		add(tile{
 			Label:  "Time to restore",
 			Value:  durationParts(*p.RestoreSeconds),
 			Detail: "Median of " + thousands(*p.Incidents30d) + " incidents",
-		}, restoreBand(time.Duration(*p.RestoreSeconds)*time.Second)))
+		}, restoreBand(time.Duration(*p.RestoreSeconds)*time.Second))
 	}
-	return out
+	return tiles, bands
+}
+
+// doraOverall is the overall level of bands, in the colour of its band;
+// without it, "No data".
+func doraOverall(bands []band) overall {
+	b := overallBand(bands)
+	if b == "" {
+		return overall{Status: statusNone, Word: noData, NoData: true}
+	}
+	return overall{Status: bandStatus(b), Word: string(b)}
 }
 
 func deliveryTiles(p snapshot.Project) []tile {
@@ -515,11 +547,13 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		Certs:     certTiles(s.Certificates.Certs),
 		RED:       redTiles(s.Cluster.Gateway),
 		State:     stateTiles(s.Cluster),
-		DORA:      doraTiles(s.Project),
 		Delivery:  deliveryTiles(s.Project),
 		Runs:      runs(s.Project.CIRuns),
 		Signals:   signalTiles(s.Security),
 	}
+	var bands []band
+	f.DORA, bands = doraTiles(s.Project)
+	f.DORALevel = doraOverall(bands)
 	blocks := []struct {
 		dst   *block
 		asOf  string

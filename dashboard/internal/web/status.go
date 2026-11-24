@@ -191,6 +191,28 @@ func bandStatus(b band) status {
 	}
 }
 
+// bandRank orders the bands from best to worst.
+var bandRank = map[band]int{bandElite: 0, bandHigh: 1, bandMedium: 2, bandLow: 3}
+
+// overallBand is the lowest of bs, so one weak metric is never averaged
+// away; it is "" when bs is empty or holds a metric without data ("").
+func overallBand(bs []band) band {
+	if len(bs) == 0 {
+		return ""
+	}
+	out := bandElite
+	for _, b := range bs {
+		r, ok := bandRank[b]
+		if !ok {
+			return ""
+		}
+		if r > bandRank[out] {
+			out = b
+		}
+	}
+	return out
+}
+
 const (
 	day   = 24 * time.Hour
 	week  = 7 * day
