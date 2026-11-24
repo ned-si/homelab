@@ -8,6 +8,13 @@
 # configs.secret.createSecret stays true: with false, Helm deletes
 # argocd-secret on upgrade.
 
+# The Application prunes; a pruned or deleted CRD would delete every
+# Application, AppProject or ApplicationSet with it. Replaces the chart
+# default, so ServerSideApply=true stays in the list.
+crds:
+  annotations:
+    argocd.argoproj.io/sync-options: ServerSideApply=true,Delete=false,Prune=false
+
 global:
   domain: argo.lilalala.com
   # No chart NetworkPolicies: argocd-server's allowed ingress from anywhere.

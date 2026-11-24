@@ -41,7 +41,7 @@ spec:
     targetRevision: main
   syncPolicy:
     automated:
-      prune: false
+      prune: true
       selfHeal: true
     retry:
       backoff:
@@ -51,4 +51,5 @@ spec:
       limit: 5
     syncOptions:
     - ServerSideApply=true
+    - PruneLast=true
     - RespectIgnoreDifferences=true
