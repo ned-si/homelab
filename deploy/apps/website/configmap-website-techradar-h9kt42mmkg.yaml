@@ -351,9 +351,11 @@ data:
     </body>
     </html>
   layout.css: |
-    /* The container and navigation bar every public page shares (public-website
-       design, Shared layout). Colours come from the page's own stylesheet. Once
-       site/assets/css/layout.css exists, this file is a byte copy of it. */
+    /* The container, header, navigation bar and footer geometry every public
+       page shares (.kiro/specs/public-website/design.md, "Shared layout"). The
+       one definition: the landing page and the dashboard hold byte copies
+       (`task site:layout-sync`), checked by scripts/ci/site-check.sh. Colours
+       come from each page's own stylesheet. */
 
     * { box-sizing: border-box; }
 
@@ -501,5 +503,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-techradar-b4f9f978t2
+  name: website-techradar-h9kt42mmkg
   namespace: website
