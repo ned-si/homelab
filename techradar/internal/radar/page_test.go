@@ -239,7 +239,7 @@ func TestContrast(t *testing.T) {
 	rings := []string{"ring-adopt", "ring-trial", "ring-assess", "ring-hold"}
 	vars := regexp.MustCompile(`--([a-z-]+):\s*(#[0-9a-f]{6});`)
 	for _, theme := range []string{"dark", "light"} {
-		b, err := os.ReadFile("assets/theme-" + theme + ".css")
+		b, err := os.ReadFile("assets/theme-" + theme + ".css") //nolint:gosec // G304: a palette under assets/.
 		if err != nil {
 			t.Fatal(err)
 		}
