@@ -635,6 +635,38 @@ func TestDORABands(t *testing.T) {
 	}
 }
 
+// Acceptance criterion 23: the rework rate with its counts, no band word,
+// no status, outside the overall level, and both sentences of 10.9; "a
+// few agents", never "bots".
+func TestReworkTile(t *testing.T) {
+	body := page(t, fixture(t))
+	contains(t, body,
+		`<p class="tile-label">Rework rate</p>`+"\n"+`<p class="tile-value">1.69<span class="unit">%</span></p>`+"\n"+
+			`<p class="tile-detail">12 of 709 deploys</p>`,
+		"Rework rate counts the unplanned deploys: rollbacks, fix forwards, and <code>fix</code> merges made during an incident or in the 24 hours after it, over all deploys.",
+		"Rework rate, DORA's fifth metric since 2024, has no band here: the 2023 clusters these bands come from predate it.",
+		"one person and a few agents")
+	if strings.Contains(body, "bots") {
+		t.Error("the page says bots")
+	}
+	rate := 0.5
+	p := snapshot.Project{Deploys30d: 2, Rework: &snapshot.Rework{Count: 1, Deploys: 2, Rate: &rate}}
+	if tiles, bands := doraTiles(p); len(tiles) != 4 || len(bands) != 4 {
+		t.Errorf("doraTiles() = %d tiles, %d bands, want the four banded ones", len(tiles), len(bands))
+	}
+	if got := reworkTile(p); got.Status != "" || got.Word != "" {
+		t.Errorf("reworkTile() status %q, word %q, want neither", got.Status, got.Word)
+	}
+	for _, p := range []snapshot.Project{{}, {Rework: &snapshot.Rework{}}} {
+		if got := reworkTile(p); got.Word != noData {
+			t.Errorf("reworkTile(%+v) word %q, want %q", p.Rework, got.Word, noData)
+		}
+	}
+	if got := deliveryTiles(snapshot.Project{})[1]; got.Label != "Median CI run" || got.Word != noData {
+		t.Errorf("median CI run without a value = %+v, want No data", got)
+	}
+}
+
 // testDays are the 30 dates of the fixture, ending on 20 November.
 func testDays() []string {
 	var ds []string

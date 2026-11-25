@@ -19,8 +19,12 @@ import (
 	"github.com/ned-si/homelab/dashboard/internal/snapshot"
 )
 
-// ciPages is how many pages of 100 workflow runs the CI median reads.
-const ciPages = 3
+// ciSlice is the span of one listing of the CI median's runs; runsCap is
+// the most results the runs API returns for one filter.
+const (
+	ciSlice = 24 * time.Hour
+	runsCap = 1000
+)
 
 // mergedBase is the branch a pull request counts for once merged into.
 const mergedBase = "main"
@@ -153,7 +157,8 @@ func (g *GitHub) mergedCount(ctx context.Context, token, figure, span, extra str
 // requests merged into main (the deploys), Renovate's share of them, the
 // median wall time of the successful CI runs and the last CI runs on main.
 // The search API's total_count is exact, so no page limit applies to the
-// counts. The DORA figures that need the GraphQL API are left nil.
+// counts. The CI median needs the token, as do the DORA figures, which are
+// left nil.
 func (g *GitHub) Project(ctx context.Context, start, end time.Time) (snapshot.Project, error) {
 	var p snapshot.Project
 	token, err := g.token()
@@ -170,50 +175,75 @@ func (g *GitHub) Project(ctx context.Context, start, end time.Time) (snapshot.Pr
 	}
 	p.RenovateShare30d = snapshot.SharePercent(renovate, p.PRsMerged30d)
 
-	var walls []float64
-	for page := 1; page <= ciPages; page++ {
-		q := url.Values{
-			"status":                {"success"},
-			"created":               {span},
-			"per_page":              {"100"},
-			"page":                  {strconv.Itoa(page)},
-			"exclude_pull_requests": {"true"},
+	if token != "" {
+		walls, err := g.ciWalls(ctx, token, start, end)
+		if err != nil {
+			return p, err
 		}
-		var r struct {
-			WorkflowRuns []struct {
-				RunStartedAt string `json:"run_started_at"`
-				UpdatedAt    string `json:"updated_at"`
-			} `json:"workflow_runs"`
-		}
-		path := fmt.Sprintf("/repos/%s/actions/workflows/%s/runs?%s", g.Repo, g.Workflow, q.Encode())
-		if err := g.get(ctx, token, path, &r); err != nil {
-			return p, &figureError{"ci_median_seconds_30d", err}
-		}
-		for _, run := range r.WorkflowRuns {
-			if run.RunStartedAt == "" {
-				continue
-			}
-			started, err1 := time.Parse(time.RFC3339, run.RunStartedAt)
-			updated, err2 := time.Parse(time.RFC3339, run.UpdatedAt)
-			if err := errors.Join(err1, err2); err != nil {
-				return p, &figureError{"ci_median_seconds_30d", err}
-			}
-			walls = append(walls, updated.Sub(started).Seconds())
-		}
-		if len(r.WorkflowRuns) < 100 {
-			break
-		}
+		m := snapshot.RoundSeconds(snapshot.Median(walls))
+		p.CIMedianSeconds30d = &m
 	}
-	if len(walls) == 0 {
-		return p, &figureError{"ci_median_seconds_30d", errors.New("no successful run in the window")}
-	}
-	p.CIMedianSeconds30d = snapshot.RoundSeconds(snapshot.Median(walls))
 	p.Deploys30d = p.PRsMerged30d
 	if p.CIRuns, err = g.ciRuns(ctx, token); err != nil {
 		return p, err
 	}
 	p.AsOf = snapshot.FormatTime(end)
 	return p, nil
+}
+
+// ciWalls returns the wall time of every successful CI run created from
+// start, inclusive, to end, exclusive, listed in 24-hour slices so no
+// slice reaches the runs API's cap of 1,000 results.
+func (g *GitHub) ciWalls(ctx context.Context, token string, start, end time.Time) ([]float64, error) {
+	var walls []float64
+	for s := start; s.Before(end); s = s.Add(ciSlice) {
+		e := s.Add(ciSlice)
+		if e.After(end) {
+			e = end
+		}
+		for page := 1; ; page++ {
+			q := url.Values{
+				"status":                {"success"},
+				"created":               {utc(s) + ".." + utc(e.Add(-time.Second))},
+				"per_page":              {"100"},
+				"page":                  {strconv.Itoa(page)},
+				"exclude_pull_requests": {"true"},
+			}
+			var r struct {
+				TotalCount   int `json:"total_count"`
+				WorkflowRuns []struct {
+					RunStartedAt string `json:"run_started_at"`
+					UpdatedAt    string `json:"updated_at"`
+				} `json:"workflow_runs"`
+			}
+			path := fmt.Sprintf("/repos/%s/actions/workflows/%s/runs?%s", g.Repo, g.Workflow, q.Encode())
+			if err := g.get(ctx, token, path, &r); err != nil {
+				return nil, &figureError{"ci_median_seconds_30d", err}
+			}
+			if r.TotalCount >= runsCap {
+				return nil, &figureError{"ci_median_seconds_30d",
+					fmt.Errorf("%d runs from %s, at the runs API's cap of %d", r.TotalCount, utc(s), runsCap)}
+			}
+			for _, run := range r.WorkflowRuns {
+				if run.RunStartedAt == "" {
+					continue
+				}
+				started, err1 := time.Parse(time.RFC3339, run.RunStartedAt)
+				updated, err2 := time.Parse(time.RFC3339, run.UpdatedAt)
+				if err := errors.Join(err1, err2); err != nil {
+					return nil, &figureError{"ci_median_seconds_30d", err}
+				}
+				walls = append(walls, updated.Sub(started).Seconds())
+			}
+			if len(r.WorkflowRuns) < 100 || page*100 >= r.TotalCount {
+				break
+			}
+		}
+	}
+	if len(walls) == 0 {
+		return nil, &figureError{"ci_median_seconds_30d", errors.New("no successful run in the window")}
+	}
+	return walls, nil
 }
 
 // prRE finds the pull request number GitHub appends to a merged title.

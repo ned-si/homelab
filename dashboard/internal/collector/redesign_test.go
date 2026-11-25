@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -103,8 +104,8 @@ func TestLiveBlocks(t *testing.T) {
 	// Without a token the DORA figures wait for the first refresh with one.
 	p := s.Project
 	if p.LeadTimeSeconds != nil || p.LeadTimeCount != nil || p.FailedChanges30d != nil || p.ChangeFailureRate != nil ||
-		p.Incidents30d != nil || p.RestoreSeconds != nil {
-		t.Errorf("DORA figures without a token = %+v, want null", p)
+		p.Incidents30d != nil || p.RestoreSeconds != nil || p.Rework != nil || p.CIMedianSeconds30d != nil {
+		t.Errorf("DORA figures and CI median without a token = %+v, want null", p)
 	}
 	if e.fake.graphql != 0 || len(e.fake.ranges) != 0 {
 		t.Errorf("%d GraphQL and %d range queries without a token, want none", e.fake.graphql, len(e.fake.ranges))
@@ -185,35 +186,64 @@ func TestTodayWindow(t *testing.T) {
 	}
 }
 
-// The 29 finished days are read once per Zurich day, at the midnights
-// before today, across both changes of summer time.
+// The 29 finished days are read once per Zurich day, each from its
+// midnight to the next, across both changes of summer time.
 func TestFinishedDaysOnce(t *testing.T) {
-	for _, day := range []time.Time{zurich(2026, 3, 30, 0, 0), zurich(2026, 10, 26, 0, 0)} {
-		t.Run(day.Format(snapshot.DateLayout), func(t *testing.T) {
-			e := newEnv(t, day.Add(9*time.Hour))
-			finished := func() []time.Time {
-				return e.fake.queryTimes["1 - slo:probe_error:ratio_rate1d"+sloSelector()]
+	for _, tc := range []struct {
+		today time.Time
+		// dst is the index of the day of the change and its length.
+		dst    int
+		length string
+	}{
+		{zurich(2026, 3, 30, 0, 0), snapshot.Days - 2, "[82800s]"},
+		{zurich(2026, 10, 26, 0, 0), snapshot.Days - 2, "[90000s]"},
+	} {
+		t.Run(tc.today.Format(snapshot.DateLayout), func(t *testing.T) {
+			e := newEnv(t, tc.today.Add(9*time.Hour))
+			finished := func() []string {
+				var out []string
+				for _, q := range e.fake.queries {
+					if strings.HasPrefix(q, `avg by (app) (avg_over_time(probe_success{job="blackbox-public"`) && wholeDayRE.MatchString(q) {
+						out = append(out, q)
+					}
+				}
+				return out
 			}
 			if _, err := e.c.readAvailability(t.Context(), e.now); err != nil {
 				t.Fatal(err)
 			}
-			times := finished()
-			if len(times) != snapshot.Days-1 {
-				t.Fatalf("%d finished-day queries, want %d", len(times), snapshot.Days-1)
+			qs := finished()
+			if len(qs) != snapshot.Days-1 {
+				t.Fatalf("%d finished-day queries, want %d", len(qs), snapshot.Days-1)
 			}
-			for d, at := range times {
-				if want := snapshot.AddDays(day, d-(snapshot.Days-2)); !at.Equal(want) {
-					t.Errorf("finished-day query %d at %v, want %v", d, at.In(snapshot.Zurich), want)
+			for d, q := range qs {
+				want := "[86400s]"
+				if d == tc.dst {
+					want = tc.length
+				}
+				if !strings.Contains(q, want) {
+					t.Errorf("finished-day query %d = %s, want the window %s", d, q, want)
 				}
 			}
-			e.now = day.Add(23 * time.Hour)
+			// Each day is evaluated at the next midnight.
+			var times []time.Time
+			for _, q := range slices.Compact(slices.Clone(qs)) {
+				times = append(times, e.fake.queryTimes[q]...)
+			}
+			slices.SortFunc(times, func(a, b time.Time) int { return a.Compare(b) })
+			for d, at := range times {
+				if want := snapshot.AddDays(tc.today, d-(snapshot.Days-2)); !at.Equal(want) {
+					t.Errorf("finished day %d evaluated at %v, want %v", d, at.In(snapshot.Zurich), want)
+				}
+			}
+			e.now = tc.today.Add(22 * time.Hour)
 			if _, err := e.c.readAvailability(t.Context(), e.now); err != nil {
 				t.Fatal(err)
 			}
 			if got := len(finished()); got != snapshot.Days-1 {
 				t.Errorf("%d finished-day queries later the same day, want %d", got, snapshot.Days-1)
 			}
-			e.now = snapshot.AddDays(day, 1).Add(30 * time.Second)
+			e.now = snapshot.AddDays(tc.today, 1).Add(30 * time.Second)
 			if _, err := e.c.readAvailability(t.Context(), e.now); err != nil {
 				t.Fatal(err)
 			}
@@ -432,8 +462,17 @@ func TestDORAWithoutToken(t *testing.T) {
 	if got.AsOf == first.AsOf {
 		t.Fatal("the project block was not refreshed")
 	}
-	if diff := cmp.Diff(first.LeadTimeSeconds, got.LeadTimeSeconds); diff != "" || got.Incidents30d == nil {
-		t.Errorf("DORA figures without a token not kept (-want +got):\n%s", diff)
+	if diff := cmp.Diff(first, got, cmpopts.IgnoreFields(snapshot.Project{}, "AsOf", "PRsMerged30d", "RenovateShare30d",
+		"Deploys30d", "CIRuns")); diff != "" {
+		t.Errorf("DORA figures and CI median without a token not kept (-want +got):\n%s", diff)
+	}
+	// An hour after the last refresh with the token they are no data.
+	e.now = doraNow.Add(time.Hour + 15*time.Minute)
+	e.c.nextProject = e.now
+	p := e.push(t).Project
+	if p.LeadTimeSeconds != nil || p.LeadTimeCount != nil || p.FailedChanges30d != nil || p.ChangeFailureRate != nil ||
+		p.Incidents30d != nil || p.RestoreSeconds != nil || p.Rework != nil || p.CIMedianSeconds30d != nil {
+		t.Errorf("figures 75 min after the last refresh with the token = %+v, want null", p)
 	}
 }
 

@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "generated_at", "availability", "certificates", "cluster", "project", "security"],
   "properties": {
-    "schema_version": {"const": 5},
+    "schema_version": {"const": 6},
     "generated_at": {"$ref": "#/$defs/time"},
     "availability": {
       "type": "object",
@@ -137,12 +137,12 @@
       "additionalProperties": false,
       "required": ["as_of", "prs_merged_30d", "renovate_share_30d", "ci_median_seconds_30d", "deploys_30d",
         "lead_time_seconds", "lead_time_count", "failed_changes_30d", "change_failure_rate", "incidents_30d",
-        "restore_seconds", "ci_runs"],
+        "restore_seconds", "rework", "ci_runs"],
       "properties": {
         "as_of": {"$ref": "#/$defs/time"},
         "prs_merged_30d": {"type": "integer", "minimum": 0, "maximum": 10000},
         "renovate_share_30d": {"type": "number", "minimum": 0, "maximum": 100},
-        "ci_median_seconds_30d": {"type": "integer", "minimum": 1, "maximum": 21600},
+        "ci_median_seconds_30d": {"type": ["integer", "null"], "minimum": 1, "maximum": 21600},
         "deploys_30d": {"type": "integer", "minimum": 0, "maximum": 10000},
         "lead_time_seconds": {"$ref": "#/$defs/seconds"},
         "lead_time_count": {"type": ["integer", "null"], "minimum": 0, "maximum": 10000},
@@ -150,6 +150,16 @@
         "change_failure_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
         "incidents_30d": {"type": ["integer", "null"], "minimum": 0, "maximum": 10000},
         "restore_seconds": {"$ref": "#/$defs/seconds"},
+        "rework": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["count", "deploys", "rate"],
+          "properties": {
+            "count": {"type": "integer", "minimum": 0, "maximum": 10000},
+            "deploys": {"type": "integer", "minimum": 0, "maximum": 10000},
+            "rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+          }
+        },
         "ci_runs": {
           "type": "array",
           "maxItems": 5,

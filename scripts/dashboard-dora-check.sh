@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Recount the four DORA figures of the homelab dashboard with gh, for the
-# 30 Zurich days ending at --end, by the definitions of Requirement 10 in
-# .kiro/specs/homelab-dashboard/requirements.md. It shares no code with the
-# collector, so acceptance criterion 18 compares two independent counts.
+# Recount the DORA figures and the rework rate of the homelab dashboard with
+# gh, for the 30 Zurich days ending at --end, by the definitions of
+# Requirement 10 in .kiro/specs/homelab-dashboard/requirements.md. It shares
+# no code with the collector, so acceptance criteria 18 and 23 compare two
+# independent counts.
 #
-# Time to restore also counts the firings of the `action: human` alerts,
-# read from Prometheus with --prometheus <url> (a port-forward). Without it
-# only the rollbacks count, and --compare skips the two incident figures.
+# Time to restore and rework rate also count the firings of the
+# `action: human` alerts, read from Prometheus with --prometheus <url> (a
+# port-forward). Without it only the rollbacks count, and --compare skips
+# the incident figures and the rework rate. An incident counts when it
+# started in the window and ended (Requirement 10.4).
 #
 # USAGE
 #   scripts/dashboard-dora-check.sh [--end <RFC 3339>] [--prometheus <url>]
@@ -103,6 +106,7 @@ figures=$(jq -s --argjson start "$start_s" --argjson end "$end_s" --slurpfile fi
             | .createdAt | ts | select(. >= $m and . - $m <= 86400)] | min end;
   def rollback: (labels | index("auto-rollback")) != null or (.title | test("^revert"; "i"));
   def failed: rollback or (labels | index("fix-forward")) != null;
+  def fix: deploys and (.title | test("^fix(\\([^)]*\\))?!?: "));
   def merge: sort_by(.s, .e)
     | reduce .[] as $i ([]; if length > 0 and $i.s <= .[-1].e
         then .[-1].e = ([.[-1].e, $i.e] | max) | .[-1].open = (.[-1].open or $i.open)
@@ -113,11 +117,17 @@ figures=$(jq -s --argjson start "$start_s" --argjson end "$end_s" --slurpfile fi
   | ([$prs[] | select(failed)] | length) as $failed
   | [$prs[] | select(rollback) | synced as $s | select($s != null)
       | ([(.mergeCommit.message // "") | capture("This reverts commit (?<sha>[0-9a-f]{7,40})") | .sha] | first) as $sha
-      | (if $sha == null then null
-         else [$prs[] | select((.mergeCommit.oid // "") | startswith($sha)) | .mergedAt | ts] | first end) as $from
-      | ([($from // (.createdAt | ts)), $s] | min) as $from
+      # A reverted change merged before the window: left out.
+      | (if $sha == null then (.createdAt | ts)
+         else [$prs[] | select((.mergeCommit.oid // "") | startswith($sha)) | .mergedAt | ts] | first // empty end) as $from
+      | ([$from, $s] | min) as $from
       | {s: $from, e: $s, open: false}] as $rollbacks
-  | [($rollbacks + $firings[0]) | merge[] | select((.open | not) and .e >= $start and .e < $end) | .e - .s] as $restore
+  | (($rollbacks + $firings[0]) | merge) as $spans
+  | [$spans[] | select((.open | not) and .s > $start and .e < $end) | .e - .s] as $restore
+  # Rework: rollbacks, fix forwards, and deploying fix merges during an
+  # incident or within 24 h after its end, each once.
+  | ([$prs[] | (.mergedAt | ts) as $m
+      | select(failed or (fix and any($spans[]; $m >= .s and $m <= .e + 86400)))] | length) as $rework
   | {
       window: {start: ($start | todate), end: ($end | todate)},
       alerts: $alerts,
@@ -127,7 +137,9 @@ figures=$(jq -s --argjson start "$start_s" --argjson end "$end_s" --slurpfile fi
       failed_changes_30d: $failed,
       change_failure_rate: (if $deploys == 0 then null else ($failed * 1000 / $deploys | round) / 10 end),
       incidents_30d: ($restore | length),
-      restore_seconds: ($restore | median | if . == null then null else round end)
+      restore_seconds: ($restore | median | if . == null then null else round end),
+      rework_count: $rework,
+      rework_rate: (if $deploys == 0 then null else $rework / $deploys end)
     }' "$work/prs.jsonl")
 
 if [ -z "$compare" ]; then
@@ -137,9 +149,9 @@ fi
 
 # Counts within one, medians within 60 s; incidents only with the alerts.
 jq -nr --argjson f "$figures" --slurpfile s "$compare" '
-  ($s[0].project) as $p
+  ($s[0].project | . + {rework_count: .rework.count?}) as $p
   | [["deploys_30d", 1], ["lead_time_count", 1], ["failed_changes_30d", 1], ["lead_time_seconds", 60]]
-    + (if $f.alerts == "read" then [["incidents_30d", 1], ["restore_seconds", 60]] else [] end)
+    + (if $f.alerts == "read" then [["incidents_30d", 1], ["restore_seconds", 60], ["rework_count", 1]] else [] end)
   | map(. as [$k, $tol] | {figure: $k, dashboard: $p[$k], recount: $f[$k],
       ok: (if $p[$k] == null or $f[$k] == null then $p[$k] == $f[$k] else (($p[$k] - $f[$k]) | fabs) <= $tol end)})
   | (.[] | "\(if .ok then "ok  " else "DIFF" end) \(.figure): dashboard \(.dashboard), recount \(.recount)"),

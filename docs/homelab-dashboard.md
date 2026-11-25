@@ -138,11 +138,18 @@ Every figure is live: the collector refreshes each block every 60 s, the
 project block every 15 min. A card whose block is more than 5 min older than
 the snapshot (60 min for the project) says "Figures from <time>".
 
+Every time window is rolling and ends now: at the cycle, at the last
+evaluation of the recording rule it reads, or at the project block's last
+GitHub refresh. None is a calendar month, week or day, except the daily
+bars, which are Zurich days from midnight to midnight (23 and 25 hours on
+the days summer time starts and ends), the last one from midnight to now
+([Requirement 2.8](../.kiro/specs/homelab-dashboard/requirements.md#requirement-2-same-figures-same-privacy-rules)).
+
 | Card | Shows | Source |
 | --- | --- | --- |
-| Availability, one per shown app | State ("Up", "Down", "No data"), the rolling 30 days, the error budget left, 30 daily bars, the last one today so far | `probe_success` of the app's probes; `slo:availability:ratio_rate30d`, `slo:error_budget_remaining:ratio_rate30d`, `slo:probe_error:ratio_rate1d` ([sre.md](sre.md)) |
+| Availability, one per shown app | State ("Up", "Down", "No data"), the rolling 30 days, the error budget left, 30 daily bars, the last one today so far | `probe_success` of the app's probes, averaged over each day for the bars; `slo:availability:ratio_rate30d`, `slo:error_budget_remaining:ratio_rate30d` ([sre.md](sre.md)) |
 | Cluster | Per node and for the NAS: utilisation, saturation, errors (USE); at the Gateway: requests per second, `5xx` share and p95 over a rolling 5 min (RED); Argo CD Synced and Healthy, restarts over a rolling 24 h, volumes, versions | node-exporter, kube-state-metrics, `truenas_*`, Envoy, `argocd_app_info`, kubelet volume stats, all summed in PromQL |
-| Project | The four DORA metrics with their band and the overall level (the lowest of the four bands, "No data" when one is missing), Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
+| Project | The four DORA metrics with their band and the overall level (the lowest of the four bands, "No data" when one is missing), the rework rate without a band, Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
 | Security | Per signal: the count of the rolling 24 h and 7 days, its share of the requests or sign-ins, and the 7 days in 28 six-hour bars. Signals: unknown host or path (no route, and `404` from the static sites), refused by an app (`401` and `403`, the `403` part in the detail), method not allowed (`405`), failed sign-ins, deployments blocked by policy (Kyverno and Pod Security in enforce mode), ingress packets dropped from the internet, runtime detections. Under the 4xx tiles, the `4xx` the Gateway answered itself, which no tile can attribute | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `pod_security_evaluations_total`, `hubble_drop_total` from `reserved:world`, the `Runtime*` alerts; each one sum over the cluster |
 | Certificates | Days left per shown certificate | `probe_ssl_earliest_cert_expiry` of the public probes |
 
@@ -184,9 +191,9 @@ release.
 
 ## DORA figures
 
-The project block of `snapshot.json` carries the four DORA metrics over
-the rolling 30 days ending at the fetch, defined so anyone can recount
-them from the repository
+The project block of `snapshot.json` carries the four DORA metrics and the
+rework rate over the rolling 30 days ending at the fetch, defined so anyone
+can recount them from the repository
 ([Requirement 10](../.kiro/specs/homelab-dashboard/requirements.md#requirement-10-project-card-dora-and-ci)):
 
 | Metric | Keys | Counted as |
@@ -194,10 +201,13 @@ them from the repository
 | Deployment frequency | `deploys_30d` | Pull requests merged into `main` |
 | Lead time for changes | `lead_time_seconds`, `lead_time_count` | Median from a pull request's creation to the first `argocd/<application>` commit status `success` on its merge commit within 24 h of the merge; the merge itself for a change outside `deploy/` and `clusters/` |
 | Change failure rate | `failed_changes_30d`, `change_failure_rate` | Rollbacks (label `auto-rollback`, or a title starting with "revert") and fix forwards (label `fix-forward`, [sre.md](sre.md#fix-forward)) over the deploys |
-| Time to restore | `incidents_30d`, `restore_seconds` | Median duration of the incidents ended in the window: continuous firings of `action: human` alerts, and rollbacks from the reverted merge to the revert's sync; overlapping ones count once |
+| Time to restore | `incidents_30d`, `restore_seconds` | Median duration of the incidents that started in the window and ended: continuous firings of `action: human` alerts, and rollbacks from the reverted merge to the revert's sync; overlapping ones count once. A firing already going on when the window starts, and a rollback of a change merged before it, are left out |
+| Rework rate | `rework.count`, `rework.deploys`, `rework.rate` | Rollbacks and fix forwards, plus the merges that change `deploy/` or `clusters/` with a `fix:`, `fix(<scope>):` or `fix!:` title merged during an incident or in the 24 h after it ends, each pull request once, over the deploys. DORA added it in 2024; it has no band, because the 2023 clusters the bands come from predate it |
 
-They need the GitHub token (GraphQL); without it they keep their last
-value. Recount them for the window of the live snapshot:
+They need the GitHub token (GraphQL), as does the median `ci` run (every
+successful run of the window, listed in 24-hour slices). Without the token
+they keep the value of the last refresh with it for an hour, then show
+"No data". Recount them for the window of the live snapshot:
 
 ```sh
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090 &

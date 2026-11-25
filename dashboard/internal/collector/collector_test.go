@@ -59,6 +59,10 @@ type fake struct {
 	runs      []map[string]any
 	graphql   int
 
+	// Version 6: the successful runs the CI median lists; nil answers
+	// three runs to every listing.
+	ciRuns []fakeRun
+
 	// Version 4: the counts of every security signal by window.
 	secDay, secWeek, secBucket float64
 	noSecurity                 bool
@@ -73,6 +77,12 @@ type firing struct {
 type promRange struct {
 	start, end time.Time
 	step       time.Duration
+}
+
+// fakeRun is a successful run of the ci workflow.
+type fakeRun struct {
+	created time.Time
+	seconds int
 }
 
 // fakePR is a merged pull request of the fake GraphQL search.
@@ -122,7 +132,10 @@ func vec(at float64, labels map[string]string, v float64) sample {
 	return sample{Metric: labels, Value: [2]any{at, strconv.FormatFloat(v, 'g', -1, 64)}}
 }
 
-var appRE = regexp.MustCompile(`app=~"([^"]+)"`)
+var (
+	appRE      = regexp.MustCompile(`app=~"([^"]+)"`)
+	wholeDayRE = regexp.MustCompile(`\[(82800|86400|90000)s\]`)
+)
 
 func (f *fake) prom(query string, at float64) []sample {
 	var apps []string
@@ -216,13 +229,19 @@ func (f *fake) prom2(query string, at float64, apps []string) ([]sample, bool) {
 		}
 		return out, true
 	case strings.HasPrefix(query, `avg by (app) (avg_over_time(probe_success{job="blackbox-public"`):
+		// A whole day, 23 to 25 hours, is a finished day: the app's
+		// availability; anything shorter is today so far.
+		finished := wholeDayRE.MatchString(query)
 		out := []sample{}
 		for _, a := range apps {
-			if f.noProbe[a] {
+			if f.noProbe[a] || (finished && a == "blog" && at <= float64(f.blogSince.Unix())) {
 				continue
 			}
 			v := 0.999
-			if f.down[a] {
+			switch {
+			case finished:
+				v = f.avail[a]
+			case f.down[a]:
 				v = 0.9
 			}
 			out = append(out, vec(at, map[string]string{"app": a}, v))
@@ -484,6 +503,8 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		reply(http.StatusOK, map[string]any{"total_count": n, "incomplete_results": false, "items": []any{}})
 	case strings.HasSuffix(r.URL.Path, "/actions/workflows/ci.yaml/runs") && r.URL.Query().Get("status") == "completed":
 		reply(http.StatusOK, map[string]any{"total_count": len(f.runs), "workflow_runs": f.runs})
+	case strings.HasSuffix(r.URL.Path, "/actions/workflows/ci.yaml/runs") && f.ciRuns != nil:
+		reply(http.StatusOK, f.ciRunsReply(r.URL.Query()))
 	case strings.HasSuffix(r.URL.Path, "/actions/workflows/ci.yaml/runs"):
 		start := time.Date(2026, 11, 10, 10, 0, 0, 0, time.UTC)
 		var runs []map[string]string
@@ -497,6 +518,28 @@ func (f *fake) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		reply(http.StatusNotFound, nil)
 	}
+}
+
+// ciRunsReply lists the runs of f.ciRuns created in the inclusive range
+// of the created filter, a page of per_page at a time.
+func (f *fake) ciRunsReply(q url.Values) map[string]any {
+	from, to, _ := strings.Cut(q.Get("created"), "..")
+	start, _ := time.Parse(time.RFC3339, from)
+	end, _ := time.Parse(time.RFC3339, to)
+	var match []map[string]string
+	for _, r := range f.ciRuns {
+		if r.created.Before(start) || r.created.After(end) {
+			continue
+		}
+		match = append(match, map[string]string{
+			"run_started_at": r.created.UTC().Format(time.RFC3339),
+			"updated_at":     r.created.Add(time.Duration(r.seconds) * time.Second).UTC().Format(time.RFC3339),
+		})
+	}
+	per, _ := strconv.Atoi(q.Get("per_page"))
+	page, _ := strconv.Atoi(q.Get("page"))
+	first := min(len(match), (page-1)*per)
+	return map[string]any{"total_count": len(match), "workflow_runs": match[first:min(len(match), first+per)]}
 }
 
 func (f *fake) count(prefix string) int {
@@ -628,7 +671,10 @@ func TestCyclePushesFullSnapshot(t *testing.T) {
 		KubernetesVersion: "v1.37.2", Synced: 54, Healthy: 55, Restarts24h: 3}, cl); diff != "" {
 		t.Errorf("cluster mismatch (-want +got):\n%s", diff)
 	}
-	if got, want := [4]float64{float64(s.Project.PRsMerged30d), s.Project.RenovateShare30d, float64(s.Project.CIMedianSeconds30d),
+	if s.Project.CIMedianSeconds30d == nil {
+		t.Fatal("ci_median_seconds_30d with the token = null")
+	}
+	if got, want := [4]float64{float64(s.Project.PRsMerged30d), s.Project.RenovateShare30d, float64(*s.Project.CIMedianSeconds30d),
 		float64(s.Project.Deploys30d)}, [4]float64{300, 40, 700, 300}; got != want {
 		t.Errorf("project prs, renovate, ci median, deploys = %v, want %v", got, want)
 	}

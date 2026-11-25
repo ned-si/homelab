@@ -34,11 +34,15 @@ const (
 	alertSlice = 6 * 24 * time.Hour
 	// alertGap ends a firing: two missed evaluations.
 	alertGap = 120 * time.Second
+	// reworkAfter is how long after an incident ends a fix merge is still
+	// rework.
+	reworkAfter = 24 * time.Hour
 )
 
 var (
 	revertsRE  = regexp.MustCompile(`This reverts commit ([0-9a-f]{7,40})`)
 	revertRE   = regexp.MustCompile(`(?i)^revert`)
+	fixRE      = regexp.MustCompile(`^fix(\([^)]*\))?!?: `)
 	errNoToken = errors.New("the GraphQL API needs a token")
 )
 
@@ -87,6 +91,11 @@ func (m merged) rollback() bool {
 
 func (m merged) failed() bool {
 	return m.rollback() || m.label("fix-forward")
+}
+
+// fix is a deploying merge of Conventional Commits type fix.
+func (m merged) fix() bool {
+	return m.deploys && fixRE.MatchString(m.title)
 }
 
 // syncedAt is when the merge reached the cluster: the first argocd/*
@@ -314,14 +323,19 @@ func setDORA(p *snapshot.Project, prs []merged, firings []interval, start, end t
 			continue
 		}
 		// From the merge of the reverted change, or the revert's creation
-		// when its message names none in the window.
+		// when its message names none. A reverted change merged before the
+		// window started before it: left out.
 		from := m.createdAt
 		if r := revertsRE.FindStringSubmatch(m.message); r != nil {
+			found := false
 			for oid, reverted := range byOID {
 				if strings.HasPrefix(oid, r[1]) {
-					from = reverted.mergedAt
+					from, found = reverted.mergedAt, true
 					break
 				}
+			}
+			if !found {
+				continue
 			}
 		}
 		if from.After(synced) {
@@ -343,9 +357,12 @@ func setDORA(p *snapshot.Project, prs []merged, firings []interval, start, end t
 		rate := snapshot.SharePercent(failed, p.Deploys30d)
 		p.ChangeFailureRate = &rate
 	}
+	spans := mergeIntervals(incidents)
+	// Started in the window and ended: a firing at the window's first
+	// sample began before it.
 	var restore []time.Duration
-	for _, i := range mergeIntervals(incidents) {
-		if !i.open && !i.end.Before(start) && i.end.Before(end) {
+	for _, i := range spans {
+		if !i.open && i.start.After(start) && i.end.Before(end) {
 			restore = append(restore, i.end.Sub(i.start))
 		}
 	}
@@ -356,10 +373,40 @@ func setDORA(p *snapshot.Project, prs []merged, firings []interval, start, end t
 		s := medianSeconds(restore)
 		p.RestoreSeconds = &s
 	}
+	p.Rework = rework(prs, spans, p.Deploys30d)
 }
 
-// keepDORA copies the DORA figures of the last block, kept between
-// refreshes without a token.
+// rework counts the rework deploys (requirements.md, 10.9): each rollback
+// or fix forward, and each deploying fix merged during an incident or in
+// the 24 hours after it ends, once.
+func rework(prs []merged, incidents []interval, deploys int) *snapshot.Rework {
+	r := &snapshot.Rework{Deploys: deploys}
+	for _, m := range prs {
+		if m.failed() || (m.fix() && duringIncident(m.mergedAt, incidents)) {
+			r.Count++
+		}
+	}
+	if deploys > 0 {
+		rate := float64(r.Count) / float64(deploys)
+		r.Rate = &rate
+	}
+	return r
+}
+
+// duringIncident reports whether t is inside an incident or at most 24 h
+// after its end.
+func duringIncident(t time.Time, incidents []interval) bool {
+	for _, i := range incidents {
+		if !t.Before(i.start) && !t.After(i.end.Add(reworkAfter)) {
+			return true
+		}
+	}
+	return false
+}
+
+// keepDORA copies the DORA figures and the CI median of the last block,
+// kept between refreshes without a token for doraKeep after the last
+// refresh with it.
 func keepDORA(p, last *snapshot.Project) {
 	p.LeadTimeSeconds = last.LeadTimeSeconds
 	p.LeadTimeCount = last.LeadTimeCount
@@ -367,4 +414,6 @@ func keepDORA(p, last *snapshot.Project) {
 	p.ChangeFailureRate = last.ChangeFailureRate
 	p.Incidents30d = last.Incidents30d
 	p.RestoreSeconds = last.RestoreSeconds
+	p.Rework = last.Rework
+	p.CIMedianSeconds30d = last.CIMedianSeconds30d
 }

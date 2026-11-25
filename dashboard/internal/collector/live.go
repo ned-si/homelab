@@ -26,17 +26,19 @@ type finishedDays struct {
 	days  []map[string]float64
 }
 
-// readFinished reads the finished days before today: 1 -
-// slo:probe_error:ratio_rate1d at each of the 29 midnights, the newest at
-// today's 00:00, instant queries so the DST days stay right.
+// readFinished reads the 29 finished days before today, each from its
+// Zurich midnight to the next with the expression of today's bar, so the
+// days of the summer time changes are 23 and 25 hours long.
 func readFinished(ctx context.Context, q Querier, today time.Time) (*finishedDays, error) {
 	f := &finishedDays{today: today}
-	for i := snapshot.Days - 2; i >= 0; i-- {
-		v, err := query(ctx, q, "availability_daily", "1 - slo:probe_error:ratio_rate1d"+sloSelector(), snapshot.AddDays(today, -i))
+	shown := snapshot.Shown()
+	for i := snapshot.Days - 1; i >= 1; i-- {
+		day := snapshot.AddDays(today, -i)
+		v, err := todayValues(ctx, q, shown, snapshot.AddDays(day, 1), day)
 		if err != nil {
 			return nil, err
 		}
-		f.days = append(f.days, byApp(v))
+		f.days = append(f.days, v)
 	}
 	return f, nil
 }

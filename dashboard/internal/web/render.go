@@ -497,11 +497,29 @@ func overallTile(o overall) tile {
 	return tile{Label: "Overall level", Value: one(o.Word, ""), Status: o.Status, Accent: true}
 }
 
+// reworkTile is the rework rate: no band, no status, no part in the
+// overall level (requirements.md, 10.9).
+func reworkTile(p snapshot.Project) tile {
+	const label = "Rework rate"
+	if p.Rework == nil || p.Rework.Rate == nil {
+		return noDataTile(label)
+	}
+	return tile{
+		Label:   label,
+		Value:   one(pct(100**p.Rework.Rate), "%"),
+		Details: []string{thousands(p.Rework.Count) + " of " + thousands(p.Rework.Deploys) + " deploys"},
+	}
+}
+
 func deliveryTiles(p snapshot.Project) []tile {
+	ci := noDataTile("Median CI run")
+	if p.CIMedianSeconds30d != nil {
+		ci = tile{Label: "Median CI run", Value: durationParts(*p.CIMedianSeconds30d)}
+	}
 	return []tile{
 		{Label: "Opened by Renovate", Value: one(pct(p.RenovateShare30d), "%"),
 			Meter: shareBar("Opened by Renovate", p.RenovateShare30d)},
-		{Label: "Median CI run", Value: durationParts(p.CIMedianSeconds30d)},
+		ci,
 	}
 }
 
@@ -585,6 +603,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 	var bands []band
 	f.DORA, bands = doraTiles(s.Project)
 	f.DORALevel = overallTile(doraOverall(bands))
+	f.DORA = append(f.DORA, reworkTile(s.Project))
 	blocks := []struct {
 		dst   *block
 		asOf  string

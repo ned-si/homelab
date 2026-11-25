@@ -1,0 +1,52 @@
+{
+  "comment": "Read by TestDORAWindowFixture and tests/bash/test_dashboard_dora_check.sh: the collector and scripts/dashboard-dora-check.sh must agree on it.",
+  "end": "2026-11-20T17:00:00+01:00",
+  "firings": [
+    {"labels": {"alertname": "CrossesStart"}, "from": "2026-10-21T14:00:00Z", "to": "2026-10-21T15:30:00Z"},
+    {"labels": {"alertname": "Inside", "app": "cook"}, "from": "2026-11-10T10:00:00Z", "to": "2026-11-10T10:20:00Z"},
+    {"labels": {"alertname": "StillFiring"}, "from": "2026-11-20T15:50:00Z", "to": "2026-11-20T16:00:00Z"}
+  ],
+  "prs": [
+    {"title": "fix: right after the crossing firing", "createdAt": "2026-10-21T15:40:00Z", "mergedAt": "2026-10-21T16:00:00Z",
+      "labels": {"nodes": []}, "files": {"totalCount": 1, "nodes": [{"path": "deploy/apps/a.yaml"}]},
+      "mergeCommit": {"oid": "1111111111111111111111111111111111111111", "message": "fix: right after the crossing firing",
+        "status": {"contexts": [{"context": "argocd/a", "state": "SUCCESS", "createdAt": "2026-10-21T16:05:00Z"}]}}},
+    {"title": "Revert \"feat: old\"", "createdAt": "2026-10-22T08:50:00Z", "mergedAt": "2026-10-22T09:00:00Z",
+      "labels": {"nodes": [{"name": "auto-rollback"}]}, "files": {"totalCount": 1, "nodes": [{"path": "deploy/apps/b.yaml"}]},
+      "mergeCommit": {"oid": "2222222222222222222222222222222222222222", "message": "Revert \"feat: old\"\n\nThis reverts commit bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.",
+        "status": {"contexts": [{"context": "argocd/b", "state": "SUCCESS", "createdAt": "2026-10-22T09:05:00Z"}]}}},
+    {"title": "fix: during", "createdAt": "2026-11-10T10:05:00Z", "mergedAt": "2026-11-10T10:10:00Z",
+      "labels": {"nodes": []}, "files": {"totalCount": 1, "nodes": [{"path": "clusters/homelab/apps/cook.yaml"}]},
+      "mergeCommit": {"oid": "3333333333333333333333333333333333333333", "message": "fix: during",
+        "status": {"contexts": [{"context": "argocd/cook", "state": "SUCCESS", "createdAt": "2026-11-10T10:12:00Z"}]}}},
+    {"title": "fix: docs only", "createdAt": "2026-11-10T10:05:00Z", "mergedAt": "2026-11-10T10:10:00Z",
+      "labels": {"nodes": []}, "files": {"totalCount": 1, "nodes": [{"path": "docs/x.md"}]},
+      "mergeCommit": {"oid": "4444444444444444444444444444444444444444", "message": "fix: docs only", "status": null}},
+    {"title": "fix(cook): 24 h after", "createdAt": "2026-11-11T10:00:00Z", "mergedAt": "2026-11-11T10:20:00Z",
+      "labels": {"nodes": []}, "files": {"totalCount": 1, "nodes": [{"path": "deploy/apps/cook.yaml"}]},
+      "mergeCommit": {"oid": "5555555555555555555555555555555555555555", "message": "fix(cook): 24 h after",
+        "status": {"contexts": [{"context": "argocd/cook", "state": "SUCCESS", "createdAt": "2026-11-11T10:25:00Z"}]}}},
+    {"title": "fix: a second too late", "createdAt": "2026-11-11T10:00:00Z", "mergedAt": "2026-11-11T10:20:01Z",
+      "labels": {"nodes": []}, "files": {"totalCount": 1, "nodes": [{"path": "deploy/apps/cook.yaml"}]},
+      "mergeCommit": {"oid": "6666666666666666666666666666666666666666", "message": "fix: a second too late",
+        "status": {"contexts": [{"context": "argocd/cook", "state": "SUCCESS", "createdAt": "2026-11-11T10:25:00Z"}]}}},
+    {"title": "feat: break", "createdAt": "2026-11-12T07:00:00Z", "mergedAt": "2026-11-12T08:00:00Z",
+      "labels": {"nodes": []}, "files": {"totalCount": 1, "nodes": [{"path": "deploy/apps/c.yaml"}]},
+      "mergeCommit": {"oid": "7777777777777777777777777777777777777777", "message": "feat: break",
+        "status": {"contexts": [{"context": "argocd/c", "state": "SUCCESS", "createdAt": "2026-11-12T08:05:00Z"}]}}},
+    {"title": "fix: Revert \"feat: break\"", "createdAt": "2026-11-12T08:20:00Z", "mergedAt": "2026-11-12T08:30:00Z",
+      "labels": {"nodes": [{"name": "auto-rollback"}]}, "files": {"totalCount": 1, "nodes": [{"path": "deploy/apps/c.yaml"}]},
+      "mergeCommit": {"oid": "8888888888888888888888888888888888888888", "message": "fix: Revert \"feat: break\"\n\nThis reverts commit 7777777777777777777777777777777777777777.",
+        "status": {"contexts": [{"context": "argocd/c", "state": "SUCCESS", "createdAt": "2026-11-12T08:35:00Z"}]}}},
+    {"title": "chore: routine", "createdAt": "2026-11-15T09:00:00Z", "mergedAt": "2026-11-15T10:00:00Z",
+      "labels": {"nodes": []}, "files": {"totalCount": 1, "nodes": [{"path": "deploy/apps/d.yaml"}]},
+      "mergeCommit": {"oid": "9999999999999999999999999999999999999999", "message": "chore: routine",
+        "status": {"contexts": [{"context": "argocd/d", "state": "SUCCESS", "createdAt": "2026-11-15T10:05:00Z"}]}}}
+  ],
+  "want": {
+    "failed_changes_30d": 2,
+    "incidents_30d": 2,
+    "restore_seconds": 1650,
+    "rework_count": 5
+  }
+}
