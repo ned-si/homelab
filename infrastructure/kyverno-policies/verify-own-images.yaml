@@ -1,7 +1,8 @@
-# Our own images are signed keyless on main by site-publish and
-# dashboard-publish
+# Our own images are signed keyless on main by site-publish,
+# dashboard-publish and jamulus-publish
 # (.kiro/specs/image-provenance/design.md#the-own-image-policy-task-2,
-# .kiro/specs/homelab-dashboard/design.md#signature-verification-in-the-cluster).
+# .kiro/specs/homelab-dashboard/design.md#signature-verification-in-the-cluster,
+# .kiro/specs/self-hosted-jamulus/design.md#ci-signing-and-renovate).
 # Audit only, fail-open; each identity equals the ghcr.io/ned-si entry of
 # ci/image-signers.yaml for that image. Not in policies/kyverno: verification needs
 # the network, which the offline CI run does not have.
@@ -51,6 +52,14 @@ spec:
               subject: https://github.com/ned-si/homelab/.github/workflows/dashboard-publish.yaml@refs/heads/main
         ctlog:
           url: https://rekor.sigstore.dev
+    - name: jamulus
+      cosign:
+        keyless:
+          identities:
+            - issuer: https://token.actions.githubusercontent.com
+              subject: https://github.com/ned-si/homelab/.github/workflows/jamulus-publish.yaml@refs/heads/main
+        ctlog:
+          url: https://rekor.sigstore.dev
   validations:
     - expression: >-
         images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-site')).all(i, verifyImageSignatures(i, [attestors.site]) > 0)
@@ -58,3 +67,6 @@ spec:
     - expression: >-
         images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-dashboard')).all(i, verifyImageSignatures(i, [attestors.dashboard]) > 0)
       message: ghcr.io/ned-si/homelab-dashboard must be signed by dashboard-publish on main.
+    - expression: >-
+        images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-jamulus')).all(i, verifyImageSignatures(i, [attestors.jamulus]) > 0)
+      message: ghcr.io/ned-si/homelab-jamulus must be signed by jamulus-publish on main.

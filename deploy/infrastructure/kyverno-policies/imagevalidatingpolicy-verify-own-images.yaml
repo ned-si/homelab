@@ -30,6 +30,14 @@ spec:
         - issuer: https://token.actions.githubusercontent.com
           subject: https://github.com/ned-si/homelab/.github/workflows/dashboard-publish.yaml@refs/heads/main
     name: dashboard
+  - cosign:
+      ctlog:
+        url: https://rekor.sigstore.dev
+      keyless:
+        identities:
+        - issuer: https://token.actions.githubusercontent.com
+          subject: https://github.com/ned-si/homelab/.github/workflows/jamulus-publish.yaml@refs/heads/main
+    name: jamulus
   evaluation:
     background:
       enabled: true
@@ -61,5 +69,8 @@ spec:
       verifyImageSignatures(i, [attestors.dashboard]) > 0)
     message: ghcr.io/ned-si/homelab-dashboard must be signed by dashboard-publish
       on main.
+  - expression: images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-jamulus')).all(i,
+      verifyImageSignatures(i, [attestors.jamulus]) > 0)
+    message: ghcr.io/ned-si/homelab-jamulus must be signed by jamulus-publish on main.
   webhookConfiguration:
     timeoutSeconds: 10

@@ -1,0 +1,26 @@
+#!/bin/bash
+# jamulus-ping [host] [port] -- sends a Jamulus CLM_PING_MS (message 1001,
+# timestamp 0) and exits 0 only when the server echoes it byte for byte; 1
+# otherwise, 2 on a bad port. The pod's probes and the PostSync smoke run it
+# (.kiro/specs/self-hosted-jamulus/design.md#jamulus-ping).
+set -u
+host=${1:-127.0.0.1}
+port=${2:-41124}
+# Tag 0, id 1001, counter 0, length 4, timestamp 0, CRC-16/GENIBUS; the reply is identical.
+request=0000e903000400000000006f60
+case $port in
+  '' | *[!0-9]*) echo "jamulus-ping: port must be 1-65535, got '$port'" >&2; exit 2 ;;
+esac
+if [ "${#port}" -gt 5 ] || [ "$((10#$port))" -lt 1 ] || [ "$((10#$port))" -gt 65535 ]; then
+  echo "jamulus-ping: port must be 1-65535, got '$port'" >&2
+  exit 2
+fi
+if ! exec 3<>"/dev/udp/$host/$port"; then
+  exit 1
+fi
+bytes=
+for ((i = 0; i < ${#request}; i += 2)); do bytes+="\\x${request:i:2}"; done
+printf '%b' "$bytes" >&3 || exit 1
+# head reads the whole datagram; a byte-wise read would drop the leading NULs.
+reply=$(timeout 2 head -c 13 <&3 | od -An -v -tx1 | tr -d ' \n')
+[ "$reply" = "$request" ]

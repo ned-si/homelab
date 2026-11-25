@@ -1034,13 +1034,29 @@ jobs:
           GOTOOLCHAIN: local
         run: scripts/ci/techradar-check.sh
 
+  # The Jamulus image (scripts/ci/jamulus-check.sh): the linux/amd64 build,
+  # run read-only and non-root, must answer jamulus-ping. Exits early when
+  # the change does not touch it.
+  # fetch-depth 2: HEAD^1 is the base (main for a pull request's merge commit).
+  jamulus:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Jamulus image checks
+        run: scripts/ci/jamulus-check.sh
   # The one required check. `always()` so it reports even when a job above
   # failed; it fails unless every job succeeded, except pr-metadata, which may
   # be skipped outside a pull request, and talos-upgrade, which may be skipped
   # when `talos` did not plan a rehearsal.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod, site, dashboard, techradar]
+    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod, site, dashboard, techradar, jamulus]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -1053,7 +1069,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod site dashboard techradar; do
+          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod site dashboard techradar jamulus; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"

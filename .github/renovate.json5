@@ -90,7 +90,8 @@
     // `enabledManagers` is an allow-list -- omitting it here meant nothing
     // updated those revs and the claim in that file was false.
     'pre-commit',
-    // The FROM lines of site/Dockerfile and dashboard/Dockerfile (repo:tag@digest).
+    // The FROM lines of site/Dockerfile, dashboard/Dockerfile and
+    // jamulus/Dockerfile (repo:tag@digest).
     'dockerfile',
     // dashboard/go.mod: the modules, the govulncheck tool and the go line.
     'gomod',
@@ -207,6 +208,15 @@
       matchStrings: ['\\nref:\\s*(?<currentValue>v[0-9.]+)\\ncommit:\\s*(?<currentDigest>[a-f0-9]{40})\\n'],
       depNameTemplate: 'cilium/tetragon',
       datasourceTemplate: 'github-tags',
+    },
+    {
+      customType: 'regex',
+      description: 'The Jamulus release in jamulus/Dockerfile (stable rX_Y_Z only)',
+      managerFilePatterns: ['/^jamulus/Dockerfile$/'],
+      matchStrings: ['ARG JAMULUS_TAG=(?<currentValue>r\\d+_\\d+_\\d+)\\n'],
+      depNameTemplate: 'jamulussoftware/jamulus',
+      datasourceTemplate: 'github-releases',
+      versioningTemplate: 'regex:^r(?<major>\\d+)_(?<minor>\\d+)_(?<patch>\\d+)$',
     },
   ],
 
@@ -416,6 +426,16 @@
       matchPackageNames: ['ghcr.io/ned-si/homelab-dashboard'],
       matchUpdateTypes: ['digest'],
       groupName: 'homelab-dashboard',
+      automerge: true,
+      minimumReleaseAge: '0 days',
+    },
+    {
+      // The same for Jamulus: jamulus-publish.yaml pushes :main (spec
+      // self-hosted-jamulus, design "CI, signing and Renovate").
+      description: 'Deploy each new Jamulus image at once',
+      matchPackageNames: ['ghcr.io/ned-si/homelab-jamulus'],
+      matchUpdateTypes: ['digest'],
+      groupName: 'homelab-jamulus',
       automerge: true,
       minimumReleaseAge: '0 days',
     },
