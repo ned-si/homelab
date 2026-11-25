@@ -8,7 +8,7 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
 
 ## Theme
 
-- [ ] 1. Theme on `nedsi.io` and `blog.nedsi.io` (**live**): the
+- [x] 1. Theme on `nedsi.io` and `blog.nedsi.io` (**live**): the
       palette files `site/assets/css/theme-dark.css` and
       `theme-light.css` with every property of
       [design, Palette](design.md#palette) except `--ring-*` and
@@ -33,7 +33,10 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       [design, Gateway](design.md#gateway), recorded in the design, with
       its issue and the narrowed privacy text if the flows hold
       headers. [1, 2, 3, 5.1, 5.3, 5.4]
-- [ ] 2. Theme on `homelab.nedsi.io` (**live**): the embedded palette
+      Theme #1715, publish smoke #1725, image #1728 (`homelab-site`).
+      Checked live on both hosts with curl; the Hubble check and the
+      browser click are #1735.
+- [x] 2. Theme on `homelab.nedsi.io` (**live**): the embedded palette
       copies; `dashboard.css` without its palette; `/theme.css` and
       `/set-theme/` in `public.go` with their tests (the
       `Sec-Fetch-Site` and `Sec-Purpose` cases included); the preferences in
@@ -44,7 +47,9 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       Theme, the design's "Always dark"). Then the dashboard image
       deploy. Check: acceptance criteria 1-3 live on
       `homelab.nedsi.io`. [1.1-1.8, 3.2, 5.2]
-- [ ] 3. Theme on `techradar.nedsi.io` (**live**): the generator writes
+      Theme #1716, image #1730 (`homelab-dashboard`). Checked live with
+      curl; the browser click is #1735.
+- [x] 3. Theme on `techradar.nedsi.io` (**live**): the generator writes
       the palette copies from `techradar/internal/radar/assets/` and the
       preferences; `--ring-*` and `--blip-text` join
       `site/assets/css/theme-*.css` with the values of `techradar.css`,
@@ -57,6 +62,7 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       PR already did all of this, tick this task with that PR. Check:
       acceptance criteria 1-3 live on `techradar.nedsi.io`. [1.1-1.8,
       3.2, 5.1]
+      Theme #1717. Checked live with curl; the browser click is #1735.
 
 ## Language
 
