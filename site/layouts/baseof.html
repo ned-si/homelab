@@ -1,12 +1,32 @@
 <!doctype html>
-<html lang="en-GB">
+{{- /* English at today's URLs, French under /fr/
+   (.kiro/specs/site-theme-language/design.md#head-and-feeds). $other is the
+   same page in the other language: its translation (a fallback stub
+   included), or that language's home when there is none or on a 404 page. */}}
+{{- $lang := site.Language.Lang }}
+{{- $other := "" }}
+{{- $translated := false }}
+{{- if ne .Kind "404" }}{{ range .Translations }}{{ $other = . }}{{ $translated = true }}{{ end }}{{ end }}
+{{- if not $other }}{{ range hugo.Sites }}{{ if ne .Language.Lang $lang }}{{ $other = .Home }}{{ end }}{{ end }}{{ end }}
+{{- $fallback := or .Params.fallback (and $translated $other.Params.fallback) }}
+{{- $canonical := .Params.canonical | default .Permalink }}
+{{- if .Params.fallback }}{{ $canonical = $other.Permalink }}{{ end }}
+<html lang="{{ site.Language.Locale }}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title }} | {{ site.Title }}{{ end }}</title>
+{{- $title := .Title }}{{ if eq .Kind "taxonomy" }}{{ $title = T "tags" }}{{ else if eq .Kind "404" }}{{ $title = T "not_found_title" }}{{ end }}
+<title>{{ if .IsHome }}{{ site.Title }}{{ else }}{{ $title }} | {{ site.Title }}{{ end }}</title>
 <meta name="description" content="{{ .Params.summary | default site.Params.description }}">
 <meta name="author" content="{{ site.Params.author }}">
-<link rel="canonical" href="{{ .Params.canonical | default .Permalink }}">
+<link rel="canonical" href="{{ $canonical }}">
+{{- if and $translated (not $fallback) }}
+{{- $en := cond (eq $lang "en") . $other }}
+{{- $fr := cond (eq $lang "fr") . $other }}
+<link rel="alternate" hreflang="en" href="{{ $en.Permalink }}">
+<link rel="alternate" hreflang="fr" href="{{ $fr.Permalink }}">
+<link rel="alternate" hreflang="x-default" href="{{ $en.Permalink }}">
+{{- end }}
 {{- with site.Home.OutputFormats.Get "rss" }}
 <link rel="alternate" type="application/rss+xml" href="{{ .RelPermalink }}" title="{{ site.Title }}">
 {{- end }}
@@ -20,21 +40,23 @@
 <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
-{{- /* The same links as apps/website/landing/index.html; scripts/ci/site_markup.py checks both. */}}
+{{- /* The same links as apps/website/landing/index.html and index-fr.html;
+   scripts/ci/site_markup.py checks them (NAV, one list per language). */}}
 {{- $path := .RelPermalink }}
+{{- $about := "about/" | relLangURL }}
 {{- $current := "" }}
 {{- if or .IsHome (eq .Section "posts") (eq .Kind "taxonomy") (eq .Kind "term") }}{{ $current = "blog" }}
-{{- else if eq $path "/about/" }}{{ $current = "about" }}
+{{- else if eq $path $about }}{{ $current = "about" }}
 {{- end }}
 <header class="site">
 <nav class="site" aria-label="Site">
-<a href="https://nedsi.io/">Home</a>
-<a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>Blog</a>
-<a href="https://homelab.nedsi.io/">Homelab</a>
-<a href="https://techradar.nedsi.io/">Tech radar</a>
-<a href="{{ "about/" | relURL }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>About</a>
+<a href="https://nedsi.io/{{ if eq $lang "fr" }}fr/{{ end }}">{{ T "nav_home" }}</a>
+<a href="{{ site.Home.RelPermalink }}"{{ if eq $current "blog" }} aria-current="page"{{ end }}>{{ T "nav_blog" }}</a>
+<a href="https://homelab.nedsi.io/">{{ T "nav_homelab" }}</a>
+<a href="https://techradar.nedsi.io/">{{ T "nav_radar" }}</a>
+<a href="{{ $about }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>{{ T "nav_about" }}</a>
 </nav>
-{{ partial "prefs.html" (cond (eq .Kind "404") "/" $path) }}
+{{ partial "prefs.html" (dict "path" (cond (eq .Kind "404") site.Home.RelPermalink $path) "lang" $lang "other" $other.Permalink) }}
 </header>
 <main>
 <div class="prose">
@@ -42,9 +64,9 @@
 </div>
 </main>
 <footer class="site">
-<p>Articles by {{ site.Params.author }}.
-{{- with site.Taxonomies.tags }} <a href="{{ "tags/" | relURL }}">Tags</a>.{{ end }}
-<a href="{{ "index.xml" | relURL }}">RSS</a>. <a href="{{ "privacy/" | relURL }}">Privacy</a>.</p>
+<p>{{ T "articles_by" }} {{ site.Params.author }}.
+{{- with site.Taxonomies.tags }} <a href="{{ "tags/" | relLangURL }}">{{ T "tags" }}</a>.{{ end }}
+{{- with site.Home.OutputFormats.Get "rss" }} <a href="{{ .RelPermalink }}">{{ T "rss" }}</a>.{{ end }} <a href="{{ "privacy/" | relLangURL }}">{{ T "privacy" }}</a>.</p>
 </footer>
 </body>
 </html>

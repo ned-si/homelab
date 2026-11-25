@@ -1,13 +1,24 @@
 {{ define "main" }}
 <article>
-<h1>{{ .Title }}</h1>
+<h1{{ if .Params.fallback }} lang="en-GB"{{ end }}>{{ .Title }}</h1>
 {{- if eq .Section "posts" }}
-<p class="meta"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "2 January 2006" }}</time> by {{ site.Params.author }}
+<p class="meta"><time datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date | time.Format ":date_long" }}</time> {{ T "by" }} {{ site.Params.author }}
 {{- with .GetTerms "tags" }} ·{{ range . }} <a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a>{{ end }}{{ end }}</p>
 {{- end }}
+{{- if .Params.fallback }}
+{{- /* A stub index.fr.md (task site:fallback): the French chrome around the
+   English text (.kiro/specs/site-theme-language/design.md#blog). */}}
+{{- range first 1 (where .Translations "Language.Lang" "en") }}
+<p class="fallback">{{ T "fallback_note" }} <a href="{{ .RelPermalink }}" hreflang="en" lang="en-GB">{{ T "fallback_link" }}</a>.</p>
+<div lang="en-GB">
+{{ .Content }}
+</div>
+{{- end }}
+{{- else }}
 {{- with .Params.canonical }}
-<p class="meta">First published at <a href="{{ . }}">{{ (urls.Parse .).Host }}</a>.</p>
+<p class="meta">{{ T "first_published" }} <a href="{{ . }}">{{ (urls.Parse .).Host }}</a>.</p>
 {{- end }}
 {{ .Content }}
+{{- end }}
 </article>
 {{ end }}

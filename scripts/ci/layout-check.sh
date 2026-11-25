@@ -8,8 +8,10 @@
 # chrome-headless-shell at 1920x1080 and 390x844: the left edge and width of
 # body's content box, the box of `header.site > nav.site`, the x and width
 # of each nav link and, on the pages in THEMED, the box of `header.site >
-# .prefs` (the theme toggle, site-theme-language). Fails when a value differs
-# by more than 1 px from the landing page's at the same viewport. The pages
+# .prefs` (the preferences, site-theme-language). Fails when a value differs
+# by more than 1 px from the landing page's at the same viewport. The French
+# landing page, blog home, About and privacy pages are compared with the
+# French landing page, because the French link texts are longer. The pages
 # get the dark palette as /theme.css; the light one holds the same layout,
 # because the palettes hold colours only (scripts/ci/site_contrast.py).
 # <public dir> is the blog built by site-check.sh.
@@ -67,8 +69,16 @@ cp "$root/apps/website/techradar/techradar.css" "$www/"
 cp -R "$public/css" "$www/css"
 cp "$root/site/assets/css/theme-dark.css" "$www/theme.css"
 pages=(landing blog about privacy dashboard techradar)
-# The pages with the preferences; the other hosts get them in later tasks.
-themed="landing blog about privacy article dashboard techradar"
+# The pages whose preferences match the landing page's. The dashboard and
+# the tech radar get the language toggle in site-theme-language tasks 5
+# and 6; until then their preferences are narrower.
+themed="landing blog about privacy article landing-fr blog-fr about-fr privacy-fr"
+# One comparison per language; the first page of each is the reference.
+fr_pages=(landing-fr blog-fr about-fr privacy-fr)
+cp "$root/apps/website/landing/index-fr.html" "$work/landing-fr.html"
+cp "$public/fr/index.html" "$work/blog-fr.html"
+cp "$public/fr/about/index.html" "$work/about-fr.html"
+cp "$public/fr/privacy/index.html" "$work/privacy-fr.html"
 cp "$root/apps/website/landing/index.html" "$work/landing.html"
 cp "$root/apps/website/techradar/index.html" "$work/techradar.html"
 cp "$public/index.html" "$work/blog.html"
@@ -84,6 +94,8 @@ if [ -n "$article" ]; then
 else
   echo "layout-check: no article under posts/; measuring the other pages"
 fi
+groups="${pages[*]};${fr_pages[*]}"
+pages+=("${fr_pages[@]}")
 
 cat >"$www/measure.js" <<'EOF'
 (function () {
@@ -139,7 +151,7 @@ for size in 1920x1080 390x844; do
   done
 done
 
-THEMED=$themed python3 - "$work" "${pages[@]}" <<'EOF'
+THEMED=$themed GROUPS=$groups python3 - "$work" "${pages[@]}" <<'EOF'
 import html
 import json
 import os
@@ -148,6 +160,7 @@ import sys
 
 work, pages = sys.argv[1], sys.argv[2:]
 themed = set(os.environ["THEMED"].split())
+groups = [g.split() for g in os.environ["GROUPS"].split(";")]
 failed = False
 for size in ("1920x1080", "390x844"):
     got = {}
@@ -157,16 +170,17 @@ for size in ("1920x1080", "390x844"):
         if not m:
             sys.exit(f"layout-check: no measurements for {page} at {size}")
         got[page] = json.loads(html.unescape(m.group(1)))
-    ref = got[pages[0]]
-    print(f"== {size} (px): " + ", ".join(f"{k} {v:.1f}" for k, v in ref.items()))
-    for page in pages[1:]:
-        for key in sorted(set(ref) | set(got[page])):
-            if key.startswith("prefs ") and page not in themed:
-                continue
-            a, b = ref.get(key), got[page].get(key)
-            if a is None or b is None or abs(a - b) > 1:
-                print(f"layout-check: FAIL {page} at {size}: {key} {b}, landing {a}")
-                failed = True
+    for group in groups:
+        ref = got[group[0]]
+        print(f"== {size}, {group[0]} (px): " + ", ".join(f"{k} {v:.1f}" for k, v in ref.items()))
+        for page in group[1:]:
+            for key in sorted(set(ref) | set(got[page])):
+                if key.startswith("prefs ") and page not in themed:
+                    continue
+                a, b = ref.get(key), got[page].get(key)
+                if a is None or b is None or abs(a - b) > 1:
+                    print(f"layout-check: FAIL {page} at {size}: {key} {b}, {group[0]} {a}")
+                    failed = True
 sys.exit(1 if failed else 0)
 EOF
 echo "layout-check: ${pages[*]} match at 1920x1080 and 390x844"

@@ -4,6 +4,6 @@
 {{- range $posts.ByDate.Reverse }}
 {{ partial "summary.html" . }}
 {{- else }}
-<p>No articles yet.</p>
+<p>{{ T "no_articles" }}</p>
 {{- end }}
 {{ end }}

@@ -305,6 +305,10 @@ tasks:
     cmds:
       - ./scripts/site.sh strip
 
+  site:fallback:
+    desc: Write the French fallback stub of an article bundle (task site:fallback -- site/content/posts/<slug>)
+    cmds:
+      - ./scripts/site.sh fallback {{.CLI_ARGS}}
   site:layout-sync:
     desc: Copy site/assets/css/layout.css and the palette (theme-*.css) over their copies
     cmds:

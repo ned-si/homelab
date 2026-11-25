@@ -1,5 +1,5 @@
 #!/bin/bash
-# site.sh serve|build|strip -- the site:* tasks of the Taskfile.
+# site.sh serve|build|strip|fallback <bundle> -- the site:* tasks of the Taskfile.
 #
 # serve and build run the Hugo of HUGO_VERSION in .github/workflows/ci.yaml.
 # On macOS the release's package is downloaded once, checked against
@@ -7,7 +7,10 @@
 # ~/Library/Caches/homelab-site/. Elsewhere the hugo on PATH must be that
 # version. build runs scripts/ci/site-check.sh --all, which also needs
 # htmltest and exiftool (`task tools`). strip removes all metadata from the
-# images under site/.
+# images under site/. fallback writes the French stub of an article bundle
+# (site/content/posts/<slug>/): index.fr.md with fallback: true and the
+# English title, date and summary
+# (.kiro/specs/site-theme-language/design.md#blog).
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
@@ -45,6 +48,22 @@ case "${1:-}" in
     PATH="$(hugo_dir):$PATH" exec scripts/ci/site-check.sh --all ;;
   strip)
     exec exiftool -all= -overwrite_original -r -ext jpg -ext jpeg -ext png -ext webp -ext heic site ;;
+  fallback)
+    bundle=${2:?usage: site.sh fallback <bundle directory>}
+    en="$bundle/index.md" fr="$bundle/index.fr.md"
+    [ -f "$en" ] || { echo "site.sh: no $en" >&2; exit 1; }
+    [ ! -e "$fr" ] || { echo "site.sh: $fr exists" >&2; exit 1; }
+    {
+      echo ---
+      for field in title date summary; do
+        yq --front-matter=extract ".$field | select(. != null) | {\"$field\": .}" "$en"
+      done
+      echo "fallback: true"
+      echo "sitemap:"
+      echo "  disable: true"
+      echo ---
+    } >"$fr"
+    echo "site.sh: wrote $fr" ;;
   *)
-    echo "usage: site.sh serve|build|strip" >&2; exit 64 ;;
+    echo "usage: site.sh serve|build|strip|fallback <bundle>" >&2; exit 64 ;;
 esac

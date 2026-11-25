@@ -270,8 +270,10 @@ dashboard.
    `site/assets/css/layout.css`; the landing page and the dashboard
    SHALL carry byte-identical copies, and CI SHALL fail when a copy
    differs from it.
-3. THE navigation bar SHALL be one list of links, `NAV` in
-   `scripts/ci/site_markup.py`; CI SHALL fail when the navigation bar
+3. THE navigation bar SHALL be one list of links per language, `NAV` in
+   `scripts/ci/site_markup.py`
+   ([site-theme-language, Navigation](../site-theme-language/design.md#navigation));
+   CI SHALL fail when the navigation bar
    of a rendered public page differs from it in elements, classes,
    order, text or `href` (only `aria-current` differs, on the current
    page).
@@ -280,8 +282,8 @@ dashboard.
    page and the dashboard in the pinned headless browser at 1920x1080
    and 390x844, inside `ci`; it SHALL fail when the container's left
    edge and width, or the position and size of `nav.site` and of each of
-   its links, differ by more than 1 px between any two pages at the
-   same viewport.
+   its links, differ by more than 1 px between any two pages of the
+   same language at the same viewport.
 5. THE shared layout SHALL NOT add JavaScript, inline style, a web font
    or a third-party resource; Requirement 3 holds unchanged.
 
@@ -295,7 +297,8 @@ dashboard.
 - Voice: articles, the About page and the home page intro follow the
   operator's writing voice; reference text (the dashboard, the privacy
   page, the docs) follows the documentation standard.
-- Language: English, British spelling.
+- Language: English, British spelling, and Swiss French under `/fr/`
+  ([site-theme-language](../site-theme-language/requirements.md#requirement-4-english-and-french)).
 
 ## Acceptance criteria
 
@@ -349,7 +352,8 @@ dashboard.
 - The private homepage behind Keycloak (#817's private part): it stays on
   #817.
 - Comments (Hugo has none built in; readers can open a GitHub issue),
-  newsletters, search, a second language.
+  newsletters, search. French is in
+  [site-theme-language](../site-theme-language/requirements.md#requirement-4-english-and-french).
 - Household consumption, presence, cameras, doors, alarm, at any
   granularity (home-automation design, Public data).
 - Hosting off the cluster and Cloudflare's proxy: rejected for now, see
@@ -384,7 +388,7 @@ Each default holds until the operator says otherwise. Rows marked
 | Shared width | One container, `max-width: 72rem`, padding `1.5rem 1.25rem 3rem`, on every public page; the blog's text in a `44rem` column from the container's left edge ([design, Shared layout](design.md#shared-layout-task-12)) | The dashboard's grid needs 72rem; the blog keeps its reading measure; the nav and the content edge never move |
 | One definition | `site/assets/css/layout.css` with checked copies, `NAV` in `scripts/ci/site_markup.py` | Hugo, the landing ConfigMap and the Go binary cannot import one file; a byte comparison makes the copies one definition |
 | Layout check | chrome-headless-shell (the dashboard's pin) on static copies of the rendered pages, measuring with `getBoundingClientRect` at 1920x1080 and 390x844, 1 px tolerance | Deterministic, no pixel diff, no new browser or npm tree |
-| Language | English, British spelling (operator) | Same as the repository |
+| Language | English, British spelling (operator); French as in [site-theme-language](../site-theme-language/requirements.md#requirement-4-english-and-french) | Same as the repository |
 | Content plan | Intro article first; then two republished articles with canonical links (operator) | Texts and reuse permission from the operator |
 | Article licence | CC BY 4.0 in `site/LICENSE`, not stated on the pages; code under the repository licence (operator, 2026-11-16) | Reuse with credit; nobody reads a licence footer |
 | Article merge | Draft PR until the operator marks it ready | His words, under his name |
