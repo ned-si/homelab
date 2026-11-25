@@ -1016,7 +1016,7 @@ func luminance(t *testing.T, hex string) float64 {
 // scripts/ci/site_contrast.py checks every pair of the site.
 func TestContrast(t *testing.T) {
 	for _, theme := range []string{"dark", "light"} {
-		b, err := os.ReadFile("assets/theme-" + theme + ".css")
+		b, err := os.ReadFile("assets/theme-" + theme + ".css") //nolint:gosec // G304: a palette under assets/.
 		if err != nil {
 			t.Fatal(err)
 		}

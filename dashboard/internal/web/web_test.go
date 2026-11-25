@@ -437,17 +437,17 @@ func TestThemeStylesheet(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		header []string
-		want   string
+		want   []byte
 	}{
-		{"no cookie", nil, "color-scheme: dark"},
-		{"dark", []string{"Cookie", "theme=dark"}, "color-scheme: dark"},
-		{"other value", []string{"Cookie", "theme=blue"}, "color-scheme: dark"},
-		{"light", []string{"Cookie", "theme=light"}, "color-scheme: light"},
+		{"no cookie", nil, themeDark},
+		{"dark", []string{"Cookie", "theme=dark"}, themeDark},
+		{"other value", []string{"Cookie", "theme=blue"}, themeDark},
+		{"light", []string{"Cookie", "theme=light"}, themeLight},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := h.get(t, http.MethodGet, "/theme.css", tc.header...)
-			if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), tc.want) {
-				t.Fatalf("GET /theme.css = %d, want 200 with %q", rec.Code, tc.want)
+			if rec.Code != http.StatusOK || !bytes.Equal(rec.Body.Bytes(), tc.want) {
+				t.Fatalf("GET /theme.css = %d, want 200 with the %s palette", rec.Code, tc.name)
 			}
 			for k, want := range map[string]string{"Cache-Control": "no-store", "Vary": "Cookie", "Content-Type": "text/css; charset=utf-8", "Set-Cookie": ""} {
 				if got := rec.Header().Get(k); got != want {
