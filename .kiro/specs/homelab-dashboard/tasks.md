@@ -357,7 +357,7 @@ live check.
       `docs/homelab-dashboard.md`. Check: acceptance criteria 23 and
       30. [2.8, 10.4, 10.9, 10.10]
       #1703
-- [ ] 20. Provenance for both images and its verification (**not
+- [x] 20. Provenance for both images and its verification (**not
       visible**): `actions/attest-build-provenance` in
       `site-publish.yaml` with its `gh attestation verify` step, the
       builder and workflow check in both publishing workflows, the
@@ -369,7 +369,8 @@ live check.
       workflow and deployed. The PR body says `Closes #743` (signed
       provenance for the blog image on GHCR). Check: acceptance
       criteria 24 and 26. [13.3, 13.4, 13.7]
-- [ ] 21. Supply chain section, SLSA panel (**visible**): snapshot
+      #1714
+- [x] 21. Supply chain section, SLSA panel (**visible**): snapshot
       version 7 (`supply_chain` without `scorecard`), the compiled image
       list, level and builder texts in `shown.go`, the Kyverno query in
       the collector, the panel between DORA metrics and Security, the
@@ -378,6 +379,7 @@ live check.
       golden pages, the section in `docs/homelab-dashboard.md`. Check:
       acceptance criterion 25 (SLSA part); live, both images "Build L2"
       and "Verified". [3.10, 13.1, 13.2]
+      #1714
 - [x] 22. Our own traffic out of the Security figures (**not
       visible**), as in
       [design.md, Security card figures](design.md#security-card-figures-tasks-22-and-23):
