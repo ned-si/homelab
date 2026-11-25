@@ -154,7 +154,7 @@ spec:
       containers:
         - name: radarr
           # renovate: datasource=docker depName=ghcr.io/hotio/radarr
-          image: ghcr.io/hotio/radarr:release-7.0.3.10918@sha256:ffd2d7d23ff3a6153ee96875a8644b027a0273e0b21d3d2782cb6aaa4abaec26
+          image: ghcr.io/hotio/radarr:release-7.0.3.10918@sha256:af4a98707b799cd9c3e3e06fa13b641556113b16648d90cb7f8053da3601b676
           imagePullPolicy: Always
           # Root profile: UMASK=002 and a read-write NFS mount. s6 runs as
           # root and drops to hotio (1000) with s6-setuidgid, which needs
