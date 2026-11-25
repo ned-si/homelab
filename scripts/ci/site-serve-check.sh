@@ -1,7 +1,7 @@
 #!/bin/bash
-# site-serve-check.sh <public dir> -- serve the built blog and the landing page
-# with apps/website/nginx.conf on the image's nginx, as the cluster mounts them,
-# and check the host split, the 405 and every redirect's Location
+# site-serve-check.sh <public dir> -- serve the built blog, the landing page and
+# the tech radar with apps/website/nginx.conf on the image's nginx, as the
+# cluster mounts them, and check the host split, the 405 and every redirect's Location
 # (.kiro/specs/public-website/design.md#serving).
 # Needs docker and curl.
 set -euo pipefail
@@ -21,6 +21,7 @@ chmod -R a+rX "$html"
 docker run -d --name "$name" --read-only --tmpfs /tmp \
   -v "$root/apps/website/nginx.conf:/etc/nginx-site/nginx.conf:ro" \
   -v "$root/apps/website/landing:/usr/share/nginx/landing:ro" \
+  -v "$root/apps/website/techradar:/usr/share/nginx/techradar:ro" \
   -v "$html:/usr/share/nginx/html:ro" \
   -p 127.0.0.1:8080:8080 -p 127.0.0.1:8081:8081 \
   "$image" nginx -c /etc/nginx-site/nginx.conf -g 'daemon off;' >/dev/null
@@ -58,6 +59,11 @@ check 301 https://nedsi.io/a?b=1 8081 www.nedsi.io '/a?b=1'
 check 301 https://blog.nedsi.io/posts/ 8081 blog.nedsi.io /posts/
 check 301 https://homelab.nedsi.io/x 8081 homelab.nedsi.io /x
 check 405 - 8081 nedsi.io / -X POST
+check 200 - 8080 techradar.nedsi.io /
+check 200 - 8080 techradar.nedsi.io /techradar.css
+check 404 - 8080 techradar.nedsi.io /does-not-exist
+check 405 - 8080 techradar.nedsi.io / -X POST
+check 301 https://techradar.nedsi.io/x 8081 techradar.nedsi.io /x
 # The landing page links to the blog.
 curl -s -m 5 -H 'Host: nedsi.io' http://127.0.0.1:8080/ | grep -q 'href="https://blog.nedsi.io/"' \
   || { echo "FAIL nedsi.io: no link to https://blog.nedsi.io/"; rc=1; }

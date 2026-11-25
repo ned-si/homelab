@@ -1,0 +1,474 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/website
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/website and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en-GB">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tech radar · nedsi</title>
+    <meta name="description" content="What the nedsi homelab uses, tries, assesses and holds, and why.">
+    <meta name="author" content="nedsi">
+    <link rel="canonical" href="https://techradar.nedsi.io/">
+    <link rel="stylesheet" href="/layout.css">
+    <link rel="stylesheet" href="/techradar.css">
+    </head>
+    <body>
+    <header class="site">
+    <nav class="site" aria-label="Site">
+    <a href="https://nedsi.io/">Home</a>
+    <a href="https://blog.nedsi.io/">Blog</a>
+    <a href="https://homelab.nedsi.io/">Homelab</a>
+    <a href="https://blog.nedsi.io/about/">About</a>
+    </nav>
+    </header>
+    <main>
+    <h1>Tech radar</h1>
+    <p class="lead">What the homelab is built with, and why.</p>
+    <div class="intro">
+    <p>Every technology and technique the homelab uses, tries, keeps an eye on or decided against, each with a one-line reason and a link to where the decision is written down. Those reasons used to be spread over docs, specs and issues. Now they are on one page, in the spirit of <a href="https://github.com/zalando/tech-radar">Zalando's tech radar</a> (minus the JavaScript).</p>
+    <ul class="rings">
+    <li><strong class="ring-adopt">Adopt</strong>: in use, and I would choose it again.</li>
+    <li><strong class="ring-trial">Trial</strong>: in use on trial, or with a known limit I am working on.</li>
+    <li><strong class="ring-assess">Assess</strong>: researched or planned, not in use yet.</li>
+    <li><strong class="ring-hold">Hold</strong>: decided against, removed or replaced; the reason says why.</li>
+    </ul>
+    <p class="updated">110 entries, updated on <time datetime="2026-11-25">25 November 2026</time>. The numbers on the chart match the legend below it.</p>
+    </div>
+    <figure class="chart">
+    <svg viewBox="0 0 800 800" role="img" focusable="false" aria-label="Tech radar: 110 entries in four quadrants and four rings, listed in the legend below.">
+    <circle class="ring-line" cx="400" cy="400" r="170"/>
+    <circle class="ring-line" cx="400" cy="400" r="255"/>
+    <circle class="ring-line" cx="400" cy="400" r="330"/>
+    <circle class="ring-line" cx="400" cy="400" r="400"/>
+    <line class="axis" x1="0" y1="400" x2="800" y2="400"/>
+    <line class="axis" x1="400" y1="0" x2="400" y2="800"/>
+    <text class="ring-name" x="315" y="406">Adopt</text>
+    <text class="ring-name" x="485" y="406">Adopt</text>
+    <text class="ring-name" x="187.5" y="406">Trial</text>
+    <text class="ring-name" x="612.5" y="406">Trial</text>
+    <text class="ring-name" x="107.5" y="406">Assess</text>
+    <text class="ring-name" x="692.5" y="406">Assess</text>
+    <text class="ring-name" x="35" y="406">Hold</text>
+    <text class="ring-name" x="765" y="406">Hold</text>
+    <g class="blip ring-adopt"><title>1. Agent-written pull requests (Adopt)</title><circle cx="360.3" cy="356.6" r="8"/><text class="blip-number" x="360.3" y="359.6">1</text></g>
+    <g class="blip ring-adopt"><title>2. Automatic rollback (Adopt)</title><circle cx="290" cy="339.3" r="8"/><text class="blip-number" x="290" y="342.3">2</text></g>
+    <g class="blip ring-adopt"><title>3. CI as the only gate (Adopt)</title><circle cx="353.6" cy="383" r="8"/><text class="blip-number" x="353.6" y="386">3</text></g>
+    <g class="blip ring-adopt"><title>4. Database majors fix forward (Adopt)</title><circle cx="280.4" cy="368.9" r="8"/><text class="blip-number" x="280.4" y="371.9">4</text></g>
+    <g class="blip ring-adopt"><title>5. Deterministic first (Adopt)</title><circle cx="354" cy="314.4" r="8"/><text class="blip-number" x="354" y="317.4">5</text></g>
+    <g class="blip ring-adopt"><title>6. DORA metrics (Adopt)</title><circle cx="296.3" cy="312.2" r="8"/><text class="blip-number" x="296.3" y="315.2">6</text></g>
+    <g class="blip ring-adopt"><title>7. GitOps, main is production (Adopt)</title><circle cx="266.9" cy="329.9" r="8"/><text class="blip-number" x="266.9" y="332.9">7</text></g>
+    <g class="blip ring-adopt"><title>8. Images pinned by digest (Adopt)</title><circle cx="339.8" cy="255" r="8"/><text class="blip-number" x="339.8" y="258">8</text></g>
+    <g class="blip ring-adopt"><title>9. Keyless signing and SLSA provenance (Adopt)</title><circle cx="337.3" cy="285.7" r="8"/><text class="blip-number" x="337.3" y="288.7">9</text></g>
+    <g class="blip ring-adopt"><title>10. Page only when urgent and actionable (Adopt)</title><circle cx="332.6" cy="321.4" r="8"/><text class="blip-number" x="332.6" y="324.4">10</text></g>
+    <g class="blip ring-adopt"><title>11. Rendered manifests in git (Adopt)</title><circle cx="376.5" cy="343" r="8"/><text class="blip-number" x="376.5" y="346">11</text></g>
+    <g class="blip ring-adopt"><title>12. Restore-tested backups (Adopt)</title><circle cx="325.4" cy="351" r="8"/><text class="blip-number" x="325.4" y="354">12</text></g>
+    <g class="blip ring-adopt"><title>13. Scheduled pentests (Adopt)</title><circle cx="286.4" cy="291.4" r="8"/><text class="blip-number" x="286.4" y="294.4">13</text></g>
+    <g class="blip ring-adopt"><title>14. SLOs and error budgets (Adopt)</title><circle cx="297" cy="382.2" r="8"/><text class="blip-number" x="297" y="385.2">14</text></g>
+    <g class="blip ring-adopt"><title>15. Spec-driven development (Adopt)</title><circle cx="342" cy="365.7" r="8"/><text class="blip-number" x="342" y="368.7">15</text></g>
+    <g class="blip ring-adopt"><title>16. Trunk-based with squash merges (Adopt)</title><circle cx="375.8" cy="253.4" r="8"/><text class="blip-number" x="375.8" y="256.4">16</text></g>
+    <g class="blip ring-trial"><title>17. Default-deny network policies (Trial)</title><circle cx="297.2" cy="235.2" r="8"/><text class="blip-number" x="297.2" y="238.2">17</text></g>
+    <g class="blip ring-trial"><title>18. GitHub App instead of PATs (Trial)</title><circle cx="333.8" cy="169.3" r="8"/><text class="blip-number" x="333.8" y="172.3">18</text></g>
+    <g class="blip ring-trial"><title>19. Pod Security restricted (Trial)</title><circle cx="311.5" cy="205.6" r="8"/><text class="blip-number" x="311.5" y="208.6">19</text></g>
+    <g class="blip ring-assess"><title>20. Canary tokens (Assess)</title><circle cx="176.7" cy="227.5" r="8"/><text class="blip-number" x="176.7" y="230.5">20</text></g>
+    <g class="blip ring-assess"><title>21. Chaos experiments tied to SLOs (Assess)</title><circle cx="143" cy="234.2" r="8"/><text class="blip-number" x="143" y="237.2">21</text></g>
+    <g class="blip ring-assess"><title>22. Disaster recovery site (Assess)</title><circle cx="216.7" cy="149.3" r="8"/><text class="blip-number" x="216.7" y="152.3">22</text></g>
+    <g class="blip ring-assess"><title>23. Kubernetes OIDC through Keycloak (Assess)</title><circle cx="280.5" cy="154.7" r="8"/><text class="blip-number" x="280.5" y="157.7">23</text></g>
+    <g class="blip ring-assess"><title>24. Weekly SBOM and CVE scan (Assess)</title><circle cx="130.8" cy="348.3" r="8"/><text class="blip-number" x="130.8" y="351.3">24</text></g>
+    <g class="blip ring-assess"><title>25. Wide events (Assess)</title><circle cx="303.2" cy="122.7" r="8"/><text class="blip-number" x="303.2" y="125.7">25</text></g>
+    <g class="blip ring-hold"><title>26. ADR directory (Hold)</title><circle cx="66.7" cy="266.7" r="8"/><text class="blip-number" x="66.7" y="269.7">26</text></g>
+    <g class="blip ring-adopt"><title>27. chrome-headless-shell (Adopt)</title><circle cx="415.6" cy="357.1" r="8"/><text class="blip-number" x="415.6" y="360.1">27</text></g>
+    <g class="blip ring-adopt"><title>28. cosign (Adopt)</title><circle cx="473.8" cy="310.8" r="8"/><text class="blip-number" x="473.8" y="313.8">28</text></g>
+    <g class="blip ring-adopt"><title>29. GitHub Actions (Adopt)</title><circle cx="469.3" cy="337.5" r="8"/><text class="blip-number" x="469.3" y="340.5">29</text></g>
+    <g class="blip ring-adopt"><title>30. GitHub artifact attestations (Adopt)</title><circle cx="517.2" cy="342" r="8"/><text class="blip-number" x="517.2" y="345">30</text></g>
+    <g class="blip ring-adopt"><title>31. gitleaks (Adopt)</title><circle cx="435" cy="355.2" r="8"/><text class="blip-number" x="435" y="358.2">31</text></g>
+    <g class="blip ring-adopt"><title>32. Go (Adopt)</title><circle cx="423.3" cy="307.5" r="8"/><text class="blip-number" x="423.3" y="310.5">32</text></g>
+    <g class="blip ring-adopt"><title>33. Hugo (Adopt)</title><circle cx="494.9" cy="371" r="8"/><text class="blip-number" x="494.9" y="374">33</text></g>
+    <g class="blip ring-adopt"><title>34. kind (Adopt)</title><circle cx="456.8" cy="355.1" r="8"/><text class="blip-number" x="456.8" y="358.1">34</text></g>
+    <g class="blip ring-adopt"><title>35. Kiro (Adopt)</title><circle cx="528.4" cy="358.8" r="8"/><text class="blip-number" x="528.4" y="361.8">35</text></g>
+    <g class="blip ring-adopt"><title>36. kubeconform and kube-linter (Adopt)</title><circle cx="517" cy="374.4" r="8"/><text class="blip-number" x="517" y="377.4">36</text></g>
+    <g class="blip ring-adopt"><title>37. Kustomize and Helm (Adopt)</title><circle cx="455.9" cy="256.7" r="8"/><text class="blip-number" x="455.9" y="259.7">37</text></g>
+    <g class="blip ring-adopt"><title>38. OpenSSF Scorecard (Adopt)</title><circle cx="501.8" cy="286.9" r="8"/><text class="blip-number" x="501.8" y="289.9">38</text></g>
+    <g class="blip ring-adopt"><title>39. OpenTofu (Adopt)</title><circle cx="492" cy="345.1" r="8"/><text class="blip-number" x="492" y="348.1">39</text></g>
+    <g class="blip ring-adopt"><title>40. OWASP ZAP (Adopt)</title><circle cx="428.4" cy="275" r="8"/><text class="blip-number" x="428.4" y="278">40</text></g>
+    <g class="blip ring-adopt"><title>41. pre-commit (Adopt)</title><circle cx="520.3" cy="308" r="8"/><text class="blip-number" x="520.3" y="311">41</text></g>
+    <g class="blip ring-adopt"><title>42. Python (Adopt)</title><circle cx="455.8" cy="297" r="8"/><text class="blip-number" x="455.8" y="300">42</text></g>
+    <g class="blip ring-adopt"><title>43. Renovate (Adopt)</title><circle cx="440.5" cy="323.9" r="8"/><text class="blip-number" x="440.5" y="326.9">43</text></g>
+    <g class="blip ring-adopt"><title>44. SOPS with age (Adopt)</title><circle cx="436.1" cy="380.8" r="8"/><text class="blip-number" x="436.1" y="383.8">44</text></g>
+    <g class="blip ring-adopt"><title>45. talhelper (Adopt)</title><circle cx="550.2" cy="378.5" r="8"/><text class="blip-number" x="550.2" y="381.5">45</text></g>
+    <g class="blip ring-adopt"><title>46. Task (Adopt)</title><circle cx="540.3" cy="324.7" r="8"/><text class="blip-number" x="540.3" y="327.7">46</text></g>
+    <g class="blip ring-adopt"><title>47. Trivy (Adopt)</title><circle cx="420.4" cy="332.6" r="8"/><text class="blip-number" x="420.4" y="335.6">47</text></g>
+    <g class="blip ring-assess"><title>48. Lore (Assess)</title><circle cx="654.9" cy="216" r="8"/><text class="blip-number" x="654.9" y="219">48</text></g>
+    <g class="blip ring-hold"><title>49. Ansible (Hold)</title><circle cx="548" cy="65.2" r="8"/><text class="blip-number" x="548" y="68.2">49</text></g>
+    <g class="blip ring-hold"><title>50. Astro and Eleventy (Hold)</title><circle cx="747.1" cy="374.7" r="8"/><text class="blip-number" x="747.1" y="377.7">50</text></g>
+    <g class="blip ring-hold"><title>51. Zola (Hold)</title><circle cx="577.1" cy="88.2" r="8"/><text class="blip-number" x="577.1" y="91.2">51</text></g>
+    <g class="blip ring-adopt"><title>52. Alertmanager (Adopt)</title><circle cx="388.1" cy="469.1" r="8"/><text class="blip-number" x="388.1" y="472.1">52</text></g>
+    <g class="blip ring-adopt"><title>53. Argo CD (Adopt)</title><circle cx="353.8" cy="538.2" r="8"/><text class="blip-number" x="353.8" y="541.2">53</text></g>
+    <g class="blip ring-adopt"><title>54. Audiobookshelf (Adopt)</title><circle cx="347.6" cy="438.2" r="8"/><text class="blip-number" x="347.6" y="441.2">54</text></g>
+    <g class="blip ring-adopt"><title>55. Calibre-Web (Adopt)</title><circle cx="351.9" cy="516.4" r="8"/><text class="blip-number" x="351.9" y="519.4">55</text></g>
+    <g class="blip ring-adopt"><title>56. cert-manager (Adopt)</title><circle cx="372.8" cy="493.1" r="8"/><text class="blip-number" x="372.8" y="496.1">56</text></g>
+    <g class="blip ring-adopt"><title>57. CloudNativePG (Adopt)</title><circle cx="367.8" cy="441.9" r="8"/><text class="blip-number" x="367.8" y="444.9">57</text></g>
+    <g class="blip ring-adopt"><title>58. external-dns (Adopt)</title><circle cx="262.2" cy="424.8" r="8"/><text class="blip-number" x="262.2" y="427.8">58</text></g>
+    <g class="blip ring-adopt"><title>59. Grafana (Adopt)</title><circle cx="388.2" cy="521.1" r="8"/><text class="blip-number" x="388.2" y="524.1">59</text></g>
+    <g class="blip ring-adopt"><title>60. Headlamp (Adopt)</title><circle cx="325.2" cy="487.1" r="8"/><text class="blip-number" x="325.2" y="490.1">60</text></g>
+    <g class="blip ring-adopt"><title>61. healthchecks.io (Adopt)</title><circle cx="245.4" cy="440.4" r="8"/><text class="blip-number" x="245.4" y="443.4">61</text></g>
+    <g class="blip ring-adopt"><title>62. Home Assistant (Adopt)</title><circle cx="340.6" cy="470.5" r="8"/><text class="blip-number" x="340.6" y="473.5">62</text></g>
+    <g class="blip ring-adopt"><title>63. Hubble (Adopt)</title><circle cx="285.4" cy="467.7" r="8"/><text class="blip-number" x="285.4" y="470.7">63</text></g>
+    <g class="blip ring-adopt"><title>64. Immich (Adopt)</title><circle cx="359.8" cy="480.6" r="8"/><text class="blip-number" x="359.8" y="483.6">64</text></g>
+    <g class="blip ring-adopt"><title>65. Jellyfin (Adopt)</title><circle cx="337.8" cy="421" r="8"/><text class="blip-number" x="337.8" y="424">65</text></g>
+    <g class="blip ring-adopt"><title>66. Keycloak (Adopt)</title><circle cx="325.9" cy="454.9" r="8"/><text class="blip-number" x="325.9" y="457.9">66</text></g>
+    <g class="blip ring-adopt"><title>67. Kyverno (Adopt)</title><circle cx="301.5" cy="446" r="8"/><text class="blip-number" x="301.5" y="449">67</text></g>
+    <g class="blip ring-adopt"><title>68. Mealie (Adopt)</title><circle cx="388.4" cy="419.1" r="8"/><text class="blip-number" x="388.4" y="422.1">68</text></g>
+    <g class="blip ring-adopt"><title>69. Mosquitto (Adopt)</title><circle cx="278.2" cy="487.8" r="8"/><text class="blip-number" x="278.2" y="490.8">69</text></g>
+    <g class="blip ring-adopt"><title>70. ntfy (Adopt)</title><circle cx="308.2" cy="513.8" r="8"/><text class="blip-number" x="308.2" y="516.8">70</text></g>
+    <g class="blip ring-adopt"><title>71. Paperless-ngx (Adopt)</title><circle cx="329.7" cy="515.1" r="8"/><text class="blip-number" x="329.7" y="518.1">71</text></g>
+    <g class="blip ring-adopt"><title>72. Plex (Adopt)</title><circle cx="318.6" cy="438.3" r="8"/><text class="blip-number" x="318.6" y="441.3">72</text></g>
+    <g class="blip ring-adopt"><title>73. PostgreSQL (Adopt)</title><circle cx="308.5" cy="469" r="8"/><text class="blip-number" x="308.5" y="472">73</text></g>
+    <g class="blip ring-adopt"><title>74. Prometheus (Adopt)</title><circle cx="263.3" cy="447.2" r="8"/><text class="blip-number" x="263.3" y="450.2">74</text></g>
+    <g class="blip ring-adopt"><title>75. restic (Adopt)</title><circle cx="302.9" cy="491.7" r="8"/><text class="blip-number" x="302.9" y="494.7">75</text></g>
+    <g class="blip ring-adopt"><title>76. Syncthing (Adopt)</title><circle cx="332.7" cy="539.4" r="8"/><text class="blip-number" x="332.7" y="542.4">76</text></g>
+    <g class="blip ring-adopt"><title>77. tuppr (Adopt)</title><circle cx="376.1" cy="538.3" r="8"/><text class="blip-number" x="376.1" y="541.3">77</text></g>
+    <g class="blip ring-adopt"><title>78. Vector (Adopt)</title><circle cx="283.9" cy="438.2" r="8"/><text class="blip-number" x="283.9" y="441.2">78</text></g>
+    <g class="blip ring-adopt"><title>79. Zigbee2MQTT (Adopt)</title><circle cx="261.5" cy="473.6" r="8"/><text class="blip-number" x="261.5" y="476.6">79</text></g>
+    <g class="blip ring-trial"><title>80. SigNoz (Trial)</title><circle cx="249.4" cy="535" r="8"/><text class="blip-number" x="249.4" y="538">80</text></g>
+    <g class="blip ring-trial"><title>81. Tetragon (Trial)</title><circle cx="336.5" cy="573.6" r="8"/><text class="blip-number" x="336.5" y="576.6">81</text></g>
+    <g class="blip ring-assess"><title>82. CrowdSec (Assess)</title><circle cx="165.5" cy="588.7" r="8"/><text class="blip-number" x="165.5" y="591.7">82</text></g>
+    <g class="blip ring-assess"><title>83. Honeycomb and OBI (Assess)</title><circle cx="318.6" cy="679.7" r="8"/><text class="blip-number" x="318.6" y="682.7">83</text></g>
+    <g class="blip ring-assess"><title>84. KEDA (Assess)</title><circle cx="115.2" cy="425.5" r="8"/><text class="blip-number" x="115.2" y="428.5">84</text></g>
+    <g class="blip ring-assess"><title>85. OpenBao with External Secrets (Assess)</title><circle cx="136.4" cy="522.4" r="8"/><text class="blip-number" x="136.4" y="525.4">85</text></g>
+    <g class="blip ring-assess"><title>86. Shirudo (Assess)</title><circle cx="137.7" cy="455.6" r="8"/><text class="blip-number" x="137.7" y="458.6">86</text></g>
+    <g class="blip ring-assess"><title>87. Umami (Assess)</title><circle cx="128.6" cy="480.3" r="8"/><text class="blip-number" x="128.6" y="483.3">87</text></g>
+    <g class="blip ring-hold"><title>88. Dex in Argo CD (Hold)</title><circle cx="292.2" cy="729.6" r="8"/><text class="blip-number" x="292.2" y="732.6">88</text></g>
+    <g class="blip ring-hold"><title>89. Loki (Hold)</title><circle cx="211.7" cy="739.3" r="8"/><text class="blip-number" x="211.7" y="742.3">89</text></g>
+    <g class="blip ring-hold"><title>90. Policy Reporter UI (Hold)</title><circle cx="86.7" cy="537.3" r="8"/><text class="blip-number" x="86.7" y="540.3">90</text></g>
+    <g class="blip ring-hold"><title>91. Seafile (Hold)</title><circle cx="22.9" cy="466" r="8"/><text class="blip-number" x="22.9" y="469">91</text></g>
+    <g class="blip ring-hold"><title>92. Service mesh (Hold)</title><circle cx="35.9" cy="530.9" r="8"/><text class="blip-number" x="35.9" y="533.9">92</text></g>
+    <g class="blip ring-adopt"><title>93. AWS S3 (Adopt)</title><circle cx="420.2" cy="492.2" r="8"/><text class="blip-number" x="420.2" y="495.2">93</text></g>
+    <g class="blip ring-adopt"><title>94. Cilium (Adopt)</title><circle cx="531.1" cy="439" r="8"/><text class="blip-number" x="531.1" y="442">94</text></g>
+    <g class="blip ring-adopt"><title>95. Cloudflare DNS (Adopt)</title><circle cx="427.5" cy="435.8" r="8"/><text class="blip-number" x="427.5" y="438.8">95</text></g>
+    <g class="blip ring-adopt"><title>96. democratic-csi (Adopt)</title><circle cx="455.6" cy="532.1" r="8"/><text class="blip-number" x="455.6" y="535.1">96</text></g>
+    <g class="blip ring-adopt"><title>97. Gateway API (Adopt)</title><circle cx="493.7" cy="527.3" r="8"/><text class="blip-number" x="493.7" y="530.3">97</text></g>
+    <g class="blip ring-adopt"><title>98. Kubernetes (Adopt)</title><circle cx="477.8" cy="536.3" r="8"/><text class="blip-number" x="477.8" y="539.3">98</text></g>
+    <g class="blip ring-adopt"><title>99. Tailscale (Adopt)</title><circle cx="426.8" cy="513.9" r="8"/><text class="blip-number" x="426.8" y="516.9">99</text></g>
+    <g class="blip ring-adopt"><title>100. Talos Linux (Adopt)</title><circle cx="420.4" cy="468.3" r="8"/><text class="blip-number" x="420.4" y="471.3">100</text></g>
+    <g class="blip ring-adopt"><title>101. TrueNAS SCALE (Adopt)</title><circle cx="447.3" cy="444.8" r="8"/><text class="blip-number" x="447.3" y="447.8">101</text></g>
+    <g class="blip ring-trial"><title>102. Turing Pi 2 with RK1 (Trial)</title><circle cx="435.5" cy="637.5" r="8"/><text class="blip-number" x="435.5" y="640.5">102</text></g>
+    <g class="blip ring-assess"><title>103. NVMe per node (Assess)</title><circle cx="565.6" cy="628.1" r="8"/><text class="blip-number" x="565.6" y="631.1">103</text></g>
+    <g class="blip ring-assess"><title>104. SELinux enforcing on the nodes (Assess)</title><circle cx="649.8" cy="594.9" r="8"/><text class="blip-number" x="649.8" y="597.9">104</text></g>
+    <g class="blip ring-hold"><title>105. Cloudflare proxy and Pages (Hold)</title><circle cx="618.2" cy="686.9" r="8"/><text class="blip-number" x="618.2" y="689.9">105</text></g>
+    <g class="blip ring-hold"><title>106. GitHub Pages (Hold)</title><circle cx="528.9" cy="760.5" r="8"/><text class="blip-number" x="528.9" y="763.5">106</text></g>
+    <g class="blip ring-hold"><title>107. ingress-nginx (Hold)</title><circle cx="586.9" cy="701.8" r="8"/><text class="blip-number" x="586.9" y="704.8">107</text></g>
+    <g class="blip ring-hold"><title>108. kube-vip (Hold)</title><circle cx="588.5" cy="721.2" r="8"/><text class="blip-number" x="588.5" y="724.2">108</text></g>
+    <g class="blip ring-hold"><title>109. kubeadm (Hold)</title><circle cx="712.2" cy="576.8" r="8"/><text class="blip-number" x="712.2" y="579.8">109</text></g>
+    <g class="blip ring-hold"><title>110. TrueNAS CORE (Hold)</title><circle cx="779.8" cy="469.6" r="8"/><text class="blip-number" x="779.8" y="472.6">110</text></g>
+    </svg>
+    </figure>
+    <div class="legend">
+    <section aria-labelledby="q-techniques">
+    <h2 id="q-techniques">Techniques</h2>
+    <h3 class="ring-adopt">Adopt</h3>
+    <ol>
+    <li value="1"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Agent-written pull requests</a>: Agents implement through PRs; CI and the specs keep them honest.</li>
+    <li value="2"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#automatic-rollback">Automatic rollback</a>: A merge that degrades an app is reverted, with an outage guard.</li>
+    <li value="3"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-human-gates">CI as the only gate</a>: No human approval: green CI merges, a degraded app is reverted.</li>
+    <li value="4"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#database-majors-fix-forward">Database majors fix forward</a>: A Postgres major is a one-way door: fresh backup, then forward.</li>
+    <li value="5"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#deterministic-first">Deterministic first</a>: Scripts, checks and thresholds decide; AI writes and summarises.</li>
+    <li value="6"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/homelab-dashboard">DORA metrics</a>: Delivery measured from git, GitHub and alerts, live on the dashboard.</li>
+    <li value="7"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#main-is-production">GitOps, main is production</a>: Merging deploys and a revert rolls back; Argo CD tracks main.</li>
+    <li value="8"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Images pinned by digest</a>: A tag can move; a digest cannot.</li>
+    <li value="9"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/image-provenance">Keyless signing and SLSA provenance</a>: Own images signed by their workflow and checked by Kyverno.</li>
+    <li value="10"><a href="https://github.com/ned-si/homelab/blob/main/docs/sre.md">Page only when urgent and actionable</a>: Everything else is on a dashboard, never on the phone.</li>
+    <li value="11"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Rendered manifests in git</a>: Every object Argo CD applies is reviewed as a file in the pull request.</li>
+    <li value="12"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">Restore-tested backups</a>: A backup counts once a scheduled restore of it has passed.</li>
+    <li value="13"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">Scheduled pentests</a>: A scoped run against our own names and addresses, findings as issues.</li>
+    <li value="14"><a href="https://github.com/ned-si/homelab/blob/main/docs/sre.md">SLOs and error budgets</a>: One number per app, 99.5% over 30 days, from public probes.</li>
+    <li value="15"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Spec-driven development</a>: Requirements, design and tasks merged before the code.</li>
+    <li value="16"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#squash-merge">Trunk-based with squash merges</a>: One commit per pull request on a linear main.</li>
+    </ol>
+    <h3 class="ring-trial">Trial</h3>
+    <ol>
+    <li value="17"><a href="https://github.com/ned-si/homelab/issues/709">Default-deny network policies</a>: Enforced in a few namespaces; app allow-lists still in audit.</li>
+    <li value="18"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">GitHub App instead of PATs</a>: Short-lived tokens for the pentest workflows; PATs remain elsewhere.</li>
+    <li value="19"><a href="https://github.com/ned-si/homelab/issues/1021">Pod Security restricted</a>: Kyverno restricted policies in Audit until their reports are clean.</li>
+    </ol>
+    <h3 class="ring-assess">Assess</h3>
+    <ol>
+    <li value="20"><a href="https://github.com/ned-si/homelab/issues/1618">Canary tokens</a>: Fake credentials that page when touched.</li>
+    <li value="21"><a href="https://github.com/ned-si/homelab/issues/733">Chaos experiments tied to SLOs</a>: Break things on purpose, within the error budget.</li>
+    <li value="22"><a href="https://github.com/ned-si/homelab/issues/918">Disaster recovery site</a>: Where to rebuild if the house is gone, and how fast.</li>
+    <li value="23"><a href="https://github.com/ned-si/homelab/issues/711">Kubernetes OIDC through Keycloak</a>: Personal API credentials instead of a shared kubeconfig.</li>
+    <li value="24"><a href="https://github.com/ned-si/homelab/issues/1507">Weekly SBOM and CVE scan</a>: What runs, scanned weekly, not only at build time.</li>
+    <li value="25"><a href="https://github.com/ned-si/homelab/issues/734">Wide events</a>: One rich event per request instead of three signals.</li>
+    </ol>
+    <h3 class="ring-hold">Hold</h3>
+    <ol>
+    <li value="26"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md">ADR directory</a>: ADRs rot in a one-person repository; decisions live in the docs.</li>
+    </ol>
+    </section>
+    <section aria-labelledby="q-tools">
+    <h2 id="q-tools">Tools and languages</h2>
+    <h3 class="ring-adopt">Adopt</h3>
+    <ol>
+    <li value="27"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/homelab-dashboard/design.md">chrome-headless-shell</a>: Screenshot and layout checks without a pixel diff.</li>
+    <li value="28"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/image-provenance">cosign</a>: Keyless signatures with the workflow identity.</li>
+    <li value="29"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">GitHub Actions</a>: CI and publishing, every action pinned to a SHA.</li>
+    <li value="30"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/homelab-dashboard/design.md">GitHub artifact attestations</a>: SLSA v1 provenance for the own images, SLSA Build L2.</li>
+    <li value="31"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">gitleaks</a>: No secret reaches a commit, public repository or not.</li>
+    <li value="32"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#the-public-dashboard-is-a-first-party-go-app">Go</a>: The dashboard and this radar: one static binary, typed, tested.</li>
+    <li value="33"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Hugo</a>: One pinned binary, no theme, no npm tree, strict CSP possible.</li>
+    <li value="34"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">kind</a>: A throwaway cluster in CI for a server-side dry run and a real boot.</li>
+    <li value="35"><a href="https://github.com/ned-si/homelab/blob/main/docs/spec-driven-development.md">Kiro</a>: The agents that write most pull requests, held to the specs.</li>
+    <li value="36"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">kubeconform and kube-linter</a>: Schema and practice checks on every rendered manifest.</li>
+    <li value="37"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Kustomize and Helm</a>: Helm charts rendered through Kustomize into deploy/.</li>
+    <li value="38"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/scorecard-hardening">OpenSSF Scorecard</a>: A weekly score of the repository&#39;s supply-chain practice.</li>
+    <li value="39"><a href="https://github.com/ned-si/homelab/blob/main/docs/bootstrap.md">OpenTofu</a>: The cloud resources, applied by a workflow through GitHub OIDC.</li>
+    <li value="40"><a href="https://github.com/ned-si/homelab/blob/main/docs/pentest/README.md">OWASP ZAP</a>: The DAST scan of the public names.</li>
+    <li value="41"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">pre-commit</a>: The same checks locally on commit and push.</li>
+    <li value="42"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Python</a>: CI scripts and checks, with pytest.</li>
+    <li value="43"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Renovate</a>: Every dependency pinned and updated, automerged on green CI.</li>
+    <li value="44"><a href="https://github.com/ned-si/homelab/blob/main/docs/secrets.md">SOPS with age</a>: Secrets encrypted in git, decrypted by KSOPS in Argo CD.</li>
+    <li value="45"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md">talhelper</a>: The Talos machine configs rendered from one file.</li>
+    <li value="46"><a href="https://github.com/ned-si/homelab/blob/main/Taskfile.yml">Task</a>: One Taskfile for render, checks and Talos operations.</li>
+    <li value="47"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Trivy</a>: The image and config gate in CI.</li>
+    </ol>
+    <h3 class="ring-trial">Trial</h3>
+    <p class="none">Nothing here right now.</p>
+    <h3 class="ring-assess">Assess</h3>
+    <ol>
+    <li value="48"><a href="https://github.com/ned-si/homelab/issues/1675">Lore</a>: Memory for coding agents; not evaluated yet, the exact project first.</li>
+    </ol>
+    <h3 class="ring-hold">Hold</h3>
+    <ol>
+    <li value="49"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#talos-built-as-a-new-cluster">Ansible</a>: Node playbooks replaced by Talos machine configs.</li>
+    <li value="50"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Astro and Eleventy</a>: An npm dependency tree to patch for a static blog.</li>
+    <li value="51"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Zola</a>: Fine, but a smaller ecosystem and nothing gained over Hugo.</li>
+    </ol>
+    </section>
+    <section aria-labelledby="q-platform">
+    <h2 id="q-platform">Platform</h2>
+    <h3 class="ring-adopt">Adopt</h3>
+    <ol>
+    <li value="52"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#notifications">Alertmanager</a>: Pages through ntfy, quiet hours, only urgent alerts.</li>
+    <li value="53"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Argo CD</a>: Root, three layers, one Application per app, tracking main.</li>
+    <li value="54"><a href="https://github.com/ned-si/homelab/blob/main/apps/books/audiobookshelf.yaml">Audiobookshelf</a>: Audiobooks and podcasts.</li>
+    <li value="55"><a href="https://github.com/ned-si/homelab/blob/main/apps/books/calibre-web.yaml">Calibre-Web</a>: The e-book library.</li>
+    <li value="56"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#certificates">cert-manager</a>: Let&#39;s Encrypt over DNS-01, renewed without anyone noticing.</li>
+    <li value="57"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">CloudNativePG</a>: Postgres with WAL and base backups to S3 through Barman Cloud.</li>
+    <li value="58"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#dns">external-dns</a>: DNS records from the routes, upsert only.</li>
+    <li value="59"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#dashboards">Grafana</a>: The dashboards, behind Keycloak.</li>
+    <li value="60"><a href="https://github.com/ned-si/homelab/blob/main/docs/remote-access.md">Headlamp</a>: A cluster UI behind Keycloak.</li>
+    <li value="61"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md">healthchecks.io</a>: The dead man&#39;s switch: pages when the cluster goes silent.</li>
+    <li value="62"><a href="https://github.com/ned-si/homelab/blob/main/apps/home/home-assistant.yaml">Home Assistant</a>: Home automation, local first.</li>
+    <li value="63"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md">Hubble</a>: Network flows from Cilium, behind Keycloak.</li>
+    <li value="64"><a href="https://github.com/ned-si/homelab/tree/main/apps/immich">Immich</a>: The photo library, signed in through Keycloak.</li>
+    <li value="65"><a href="https://github.com/ned-si/homelab/blob/main/apps/theater/jellyfin.yaml">Jellyfin</a>: The open-source media server next to Plex, off SSO.</li>
+    <li value="66"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">Keycloak</a>: One sign-on for every app, access by group, TOTP for admins.</li>
+    <li value="67"><a href="https://github.com/ned-si/homelab/blob/main/docs/testing.md">Kyverno</a>: Baseline policies in Deny, in CI and in the cluster.</li>
+    <li value="68"><a href="https://github.com/ned-si/homelab/tree/main/apps/mealie">Mealie</a>: The household&#39;s recipes.</li>
+    <li value="69"><a href="https://github.com/ned-si/homelab/blob/main/apps/home/mosquitto.yaml">Mosquitto</a>: The MQTT broker for the home devices.</li>
+    <li value="70"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#notifications">ntfy</a>: Push notifications for pages.</li>
+    <li value="71"><a href="https://github.com/ned-si/homelab/tree/main/apps/paperless">Paperless-ngx</a>: Scanned documents, searchable.</li>
+    <li value="72"><a href="https://github.com/ned-si/homelab/blob/main/apps/theater/plex.yaml">Plex</a>: Films and series on the TVs, off SSO so the TV apps sign in.</li>
+    <li value="73"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">PostgreSQL</a>: The one database engine, run by CloudNativePG.</li>
+    <li value="74"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md">Prometheus</a>: Metrics for 30 days, the SLOs as recording rules.</li>
+    <li value="75"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md">restic</a>: File backups to S3 and the NAS, restore-tested weekly.</li>
+    <li value="76"><a href="https://github.com/ned-si/homelab/tree/main/apps/syncthing">Syncthing</a>: Device sync without a cloud in the middle.</li>
+    <li value="77"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md#upgrades">tuppr</a>: Talos and Kubernetes upgrades rolled out node by node.</li>
+    <li value="78"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#logs">Vector</a>: Pod and Talos logs shipped as structured events.</li>
+    <li value="79"><a href="https://github.com/ned-si/homelab/blob/main/apps/home/zigbee2mqtt.yaml">Zigbee2MQTT</a>: Zigbee devices on MQTT, no vendor hub.</li>
+    </ol>
+    <h3 class="ring-trial">Trial</h3>
+    <ol>
+    <li value="80"><a href="https://github.com/ned-si/homelab/issues/801">SigNoz</a>: Logs on ClickHouse, on trial as the one place for signals.</li>
+    <li value="81"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#runtime-tetragon">Tetragon</a>: Runtime detection that pages on critical events; nothing is blocked yet.</li>
+    </ol>
+    <h3 class="ring-assess">Assess</h3>
+    <ol>
+    <li value="82"><a href="https://github.com/ned-si/homelab/issues/1676">CrowdSec</a>: A shared blocklist at the Gateway; not evaluated yet.</li>
+    <li value="83"><a href="https://github.com/ned-si/homelab/issues/734">Honeycomb and OBI</a>: Traces from eBPF instrumentation, compared with SigNoz.</li>
+    <li value="84"><a href="https://github.com/ned-si/homelab/issues/917">KEDA</a>: Event-driven scaling, with the HA work.</li>
+    <li value="85"><a href="https://github.com/ned-si/homelab/issues/713">OpenBao with External Secrets</a>: Cluster-owned secrets issued, not stored.</li>
+    <li value="86"><a href="https://github.com/ned-si/homelab/issues/1628">Shirudo</a>: eBPF shields for unpatched code paths, once arm64 and Talos fit.</li>
+    <li value="87"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/public-website">Umami</a>: Cookieless statistics, chosen and not deployed yet.</li>
+    </ol>
+    <h3 class="ring-hold">Hold</h3>
+    <ol>
+    <li value="88"><a href="https://github.com/ned-si/homelab/issues/969">Dex in Argo CD</a>: Unused: Argo CD signs in with Keycloak directly.</li>
+    <li value="89"><a href="https://github.com/ned-si/homelab/blob/main/docs/observability.md#why-it-is-like-this">Loki</a>: Indexes labels only; the fallback if the SigNoz trial fails.</li>
+    <li value="90"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/wave3-runtime-security">Policy Reporter UI</a>: Grafana is the one view for policy reports.</li>
+    <li value="91"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#seafile-removed">Seafile</a>: Removed: Syncthing and Paperless-ngx cover its uses.</li>
+    <li value="92"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-service-mesh">Service mesh</a>: Cilium already gives the policies and the flows, without sidecars.</li>
+    </ol>
+    </section>
+    <section aria-labelledby="q-infrastructure">
+    <h2 id="q-infrastructure">Infrastructure</h2>
+    <h3 class="ring-adopt">Adopt</h3>
+    <ol>
+    <li value="93"><a href="https://github.com/ned-si/homelab/blob/main/docs/backups.md#the-bucket">AWS S3</a>: Off-site backups with locked object versions.</li>
+    <li value="94"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md">Cilium</a>: kube-proxy replacement, LB-IPAM, L2 announcements and the Gateway.</li>
+    <li value="95"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#dns">Cloudflare DNS</a>: Free zones, DNS-01 for certificates, DNS only.</li>
+    <li value="96"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md">democratic-csi</a>: iSCSI volumes from the NAS on demand, Retain for data.</li>
+    <li value="97"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#gateway">Gateway API</a>: One shared Gateway for every public name.</li>
+    <li value="98"><a href="https://github.com/ned-si/homelab/blob/main/docs/architecture.md#cluster">Kubernetes</a>: One API for every workload, run on Talos.</li>
+    <li value="99"><a href="https://github.com/ned-si/homelab/blob/main/docs/remote-access.md">Tailscale</a>: kubectl and talosctl only over the tailnet.</li>
+    <li value="100"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md">Talos Linux</a>: Immutable, API-only nodes with the machine config in git.</li>
+    <li value="101"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/nas-on-truenas-scale">TrueNAS SCALE</a>: The NAS: ZFS, iSCSI and NFS, driven by its API.</li>
+    </ol>
+    <h3 class="ring-trial">Trial</h3>
+    <ol>
+    <li value="102"><a href="https://github.com/ned-si/homelab/issues/985">Turing Pi 2 with RK1</a>: Four quiet arm64 nodes on one board, which is a single point of failure.</li>
+    </ol>
+    <h3 class="ring-assess">Assess</h3>
+    <ol>
+    <li value="103"><a href="https://github.com/ned-si/homelab/issues/738">NVMe per node</a>: Revisit from the eMMC wear trend.</li>
+    <li value="104"><a href="https://github.com/ned-si/homelab/issues/737">SELinux enforcing on the nodes</a>: Another layer under the pods.</li>
+    </ol>
+    <h3 class="ring-hold">Hold</h3>
+    <ol>
+    <li value="105"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">Cloudflare proxy and Pages</a>: A token with account write access and data pushed out of the house.</li>
+    <li value="106"><a href="https://github.com/ned-si/homelab/blob/main/.kiro/specs/public-website/design.md">GitHub Pages</a>: Cannot set a CSP header for the public site.</li>
+    <li value="107"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#why-it-is-like-this">ingress-nginx</a>: Retired upstream; the Cilium Gateway replaced it.</li>
+    <li value="108"><a href="https://github.com/ned-si/homelab/blob/main/docs/networking.md#why-it-is-like-this">kube-vip</a>: Talos holds the API VIP itself.</li>
+    <li value="109"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#talos-built-as-a-new-cluster">kubeadm</a>: The old cluster; rebuilt on Talos.</li>
+    <li value="110"><a href="https://github.com/ned-si/homelab/issues/1305">TrueNAS CORE</a>: Replaced by SCALE in November 2026.</li>
+    </ol>
+    </section>
+    </div>
+    </main>
+    <footer class="site">
+    <p><a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
+    </footer>
+    </body>
+    </html>
+  layout.css: |
+    /* The container and navigation bar every public page shares (public-website
+       design, Shared layout). Colours come from the page's own stylesheet. Once
+       site/assets/css/layout.css exists, this file is a byte copy of it. */
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0 auto;
+      max-width: 72rem;
+      padding: 1.5rem 1.25rem 3rem;
+      font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    header.site {
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    nav.site {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+    }
+
+    nav.site a { text-decoration: none; }
+    nav.site a:hover { color: var(--fg); }
+    nav.site a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 2px; }
+    nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; }
+
+    main { padding-top: 1.5rem; }
+
+    footer.site {
+      margin-top: 3rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--rule);
+    }
+  techradar.css: |
+    /* The tech radar's colours and components; the container and the nav come
+       from layout.css. Every colour pair is checked by TestContrast. */
+
+    :root {
+      --fg: #1d1f21;
+      --muted: #5c6166;
+      --bg: #fdfdfc;
+      --link: #0b5cad;
+      --rule: #d8dadc;
+      --line: #7b8187;
+      --adopt: #1a7f37;
+      --trial: #0b7285;
+      --assess: #8a5a00;
+      --hold: #c62828;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --fg: #e3e5e7;
+        --muted: #a0a6ab;
+        --bg: #17191b;
+        --link: #79b8ff;
+        --rule: #34383c;
+        --line: #6e757b;
+        --adopt: #4ac26b;
+        --trial: #3bc9db;
+        --assess: #e3b341;
+        --hold: #ff7b72;
+      }
+    }
+
+    body { color: var(--fg); background: var(--bg); }
+
+    a { color: var(--link); }
+
+    h1 { margin: 0; font-size: 2.5rem; }
+    h2 { margin: 2.5rem 0 0.5rem; font-size: 1.375rem; }
+    h3 { margin: 1.25rem 0 0.25rem; font-size: 1rem; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    .lead { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.25rem; }
+
+    .intro { max-width: 44rem; }
+    .rings { padding-left: 1.25rem; }
+    .updated { color: var(--muted); font-size: 0.9375rem; }
+
+    .ring-adopt { color: var(--adopt); }
+    .ring-trial { color: var(--trial); }
+    .ring-assess { color: var(--assess); }
+    .ring-hold { color: var(--hold); }
+
+    figure.chart { margin: 2rem auto; max-width: 64rem; }
+    figure.chart svg { display: block; width: 100%; height: auto; }
+
+    .ring-line { fill: none; stroke: var(--line); stroke-width: 1.5; }
+    .axis { stroke: var(--line); stroke-width: 1.5; }
+    .ring-name {
+      fill: var(--muted);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-anchor: middle;
+      text-transform: uppercase;
+      paint-order: stroke;
+      stroke: var(--bg);
+      stroke-width: 4px;
+    }
+    .blip circle, .blip path { fill: currentColor; }
+    .blip-number { fill: var(--bg); font-size: 8px; font-weight: 700; text-anchor: middle; }
+
+    footer.site { color: var(--muted); font-size: 0.875rem; }
+
+    .legend { display: grid; gap: 0 2.5rem; }
+    .legend ol { margin: 0; padding-left: 2.75rem; }
+    .legend li { margin: 0.25rem 0; overflow-wrap: anywhere; }
+    .legend .moved { color: var(--muted); }
+    .legend .none { margin: 0; color: var(--muted); }
+
+    @media (min-width: 60rem) {
+      .legend { grid-template-columns: 1fr 1fr; }
+    }
+kind: ConfigMap
+metadata:
+  name: website-techradar-2mtgtbgg57
+  namespace: website

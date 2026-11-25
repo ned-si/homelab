@@ -148,3 +148,30 @@ spec:
         kinds:
           - group: gateway.networking.k8s.io
             kind: HTTPRoute
+
+    # techradar.nedsi.io, the tech radar (spec tech-radar), served by
+    # apps/website with its own certificate-techradar-nedsi.yaml.
+    - name: http-nedsi-techradar
+      protocol: HTTP
+      port: 80
+      hostname: techradar.nedsi.io
+      allowedRoutes:
+        namespaces:
+          from: All
+
+    - name: https-nedsi-techradar
+      protocol: HTTPS
+      port: 443
+      hostname: techradar.nedsi.io
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: techradar-nedsi-io-tls
+      allowedRoutes:
+        namespaces:
+          from: All
+        kinds:
+          - group: gateway.networking.k8s.io
+            kind: HTTPRoute

@@ -11,7 +11,7 @@
 apiVersion: v1
 data:
   nginx.conf: |
-    # nginx for nedsi.io, blog.nedsi.io and www.nedsi.io
+    # nginx for nedsi.io, blog.nedsi.io, techradar.nedsi.io and www.nedsi.io
     # (.kiro/specs/public-website/design.md#serving). Mounted from a ConfigMap, so
     # a change here needs no new image. The root file system is read-only: the pid
     # and temp paths live in the /tmp emptyDir. Security headers are set at the
@@ -49,6 +49,7 @@ data:
         map $host $https_host {
             blog.nedsi.io    blog.nedsi.io;
             homelab.nedsi.io homelab.nedsi.io;
+            techradar.nedsi.io techradar.nedsi.io;
             default          nedsi.io;
         }
 
@@ -99,6 +100,22 @@ data:
             }
         }
 
+        # The tech radar, rendered by techradar/ (spec tech-radar).
+        server {
+            listen 8080;
+            server_name techradar.nedsi.io;
+            root /usr/share/nginx/techradar;
+
+            if ($request_method !~ ^(GET|HEAD)$) {
+                return 405;
+            }
+
+            location / {
+                try_files $uri $uri/ =404;
+                add_header Cache-Control "public, max-age=300";
+            }
+        }
+
         server {
             listen 8080;
             server_name www.nedsi.io;
@@ -121,5 +138,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-nginx-6k299b5ddd
+  name: website-nginx-chf955m9kd
   namespace: website
