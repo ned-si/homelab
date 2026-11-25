@@ -146,7 +146,7 @@ the shared layout.
       Text and check #1684, image #1689. The account URL is an exact-match
       `ACCOUNT` entry, not a `LINKS` prefix, so repository links outside
       `<article>` stay forbidden.
-- [ ] 12. One layout and its check, as in
+- [x] 12. One layout and its check, as in
       [design.md, Shared layout](design.md#shared-layout-task-12):
       `site/assets/css/layout.css` and its copies in
       `apps/website/landing/` and `dashboard/internal/web/assets/`,
@@ -163,6 +163,9 @@ the shared layout.
       between `nedsi.io`, `blog.nedsi.io` and `homelab.nedsi.io` at
       1920x1080 and 390x844 (the check's measurements on the live
       pages). [7.1-7.5]
+      Layout and check #1704, images #1693 (`homelab-site`) and #1706
+      (`homelab-dashboard`). `site-check.sh` also runs the markup check on
+      the dashboard's golden pages, so its nav is compared with `NAV`.
 
 The last task ticked sets `status: done`, `closed:`, and closes #971; the
 public part of #817 is then done and #817 keeps the private homepage.
