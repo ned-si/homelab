@@ -32,7 +32,6 @@ app.
 | `techradar/cmd/techradar/` | `main.go`: `techradar render -out <dir>` and `techradar check -out <dir>` (exit 1 when the files differ from a fresh render) |
 | `techradar/internal/radar/` | `model.go` (types, validation), `place.go` (placement), `svg.go` (the chart), `page.go` (`html/template`), `testdata/` (golden page) |
 | `techradar/internal/radar/assets/` | `page.html`, `techradar.css` (embedded) |
-| `techradar/.golangci.yaml` | A copy of `dashboard/.golangci.yaml` |
 | `apps/website/techradar/` | Rendered: `index.html`, `techradar.css`, `layout.css` (the shared layout's copy, checked by public-website task 12's copy check) |
 | `docs/techradar.md` | How to add or move an entry, what the rings mean, how it is served; Why it is like this |
 
@@ -42,6 +41,7 @@ Code style: Google's Go Style Guide, as the dashboard
 ## Data
 
 ```yaml
+updated: 2026-11-25          # required, YYYY-MM-DD, printed on the page
 entries:
   - name: Talos Linux
     quadrant: infrastructure   # techniques, tools, platform, infrastructure
@@ -53,6 +53,7 @@ entries:
 
 Validation (`model.go`), each a table-tested error naming the entry:
 
+- `updated` missing or not a valid `YYYY-MM-DD` date;
 - unknown key (strict decoding), quadrant, ring or `moved`;
 - duplicate `name`, case-insensitive;
 - `reason` empty, over 140 characters, with a newline, or with `—`
@@ -75,18 +76,23 @@ directory), so every link is the repository (`REPO` in `LINKS` of
 
 Zalando's look, without its JavaScript:
 
-- An SVG `viewBox="0 0 800 800"`, centre (400, 400). Ring radii 130,
-  220, 310, 400 (Adopt to Hold), so the inner rings, which hold the most
-  entries, get the most area per ring width. Quadrants: Techniques top
+- An SVG `viewBox="0 0 800 800"`, centre (400, 400). Ring radii 170,
+  255, 330, 400 (Adopt to Hold), wider at the centre than Zalando's
+  130, 220, 310, 400: the inner disc has the least area per ring width,
+  and Adopt holds the most entries (up to 28 in Platform). With the
+  placement below, a simulation over 200 seeds fits at least 33, 39,
+  48 and 56 blips per segment, Adopt to Hold. Quadrants: Techniques top
   left, Tools and languages top right, Platform bottom left,
   Infrastructure bottom right. Two axis lines, the four ring circles,
-  ring names on the horizontal axis, quadrant names in the legend
-  headings (the corners of a phone-width SVG are too small for text).
+  ring names along the horizontal axis (a deliberate change from
+  Zalando's vertical labels, readable on a phone), quadrant names as
+  the legend headings (the corners of a phone-width SVG are too small
+  for text).
 - Placement (`place.go`): for each quadrant and ring, the entries in
-  legend order; each blip (radius 9) gets candidate points from a
+  legend order; each blip (radius 8) gets candidate points from a
   PRNG seeded with the FNV-1a hash of `quadrant/ring/name`, uniform in
-  the segment's area, with a margin of 12 from the ring lines and the
-  axes; the first candidate at least 22 from every placed blip wins; 500
+  the segment's area, with a margin of 10 from the ring lines and the
+  axes; the first candidate at least 18 from every placed blip wins; 500
   candidates without a fit fail the build, naming the segment. Same
   input, same bytes.
 - Blips: a circle, a triangle (`moved: up` points to the centre,
@@ -115,8 +121,8 @@ Zalando's look, without its JavaScript:
    homelab uses, tries, looks at and decided against, and why; the
    rings in one line each; "In the spirit of Zalando's tech radar." with
    a link to `https://github.com/zalando/tech-radar` (in `LINKS`); the
-   generation date (the commit date of `entries.yaml`, passed by
-   `render -date`, so the output stays reproducible).
+   date of `updated` in `entries.yaml`, so render and check depend on
+   no git metadata.
 3. The chart, full container width up to `44rem`, centred in its
    column.
 4. The legend: four sections (`h2` per quadrant), each with four `h3`
@@ -178,11 +184,21 @@ next image deploy; both follow the PR.
 
 ## CI
 
-The `site` job, when `techradar/` or `apps/website/techradar/` changed:
-`golangci-lint run`, `go vet ./...`, `govulncheck ./...`,
+A `techradar` job in `ci.yaml`, modelled on the `dashboard` job:
+`actions/setup-go` with `go-version-file: techradar/go.mod`, the same
+golangci-lint and govulncheck pins through `install-tool.sh`, and
+`scripts/ci/techradar-check.sh`, which exits early unless the diff
+against `HEAD^1` matches
+`^(techradar/|apps/website/techradar/|docs/|\.kiro/specs/|scripts/ci/techradar)`
+(a renamed doc or spec breaks a link). It runs
+`golangci-lint run --config ../dashboard/.golangci.yaml` (one
+configuration, no copy to drift), `go vet ./...`, `govulncheck ./...`,
 `go mod verify`, `go test -race ./...`, `go run ./cmd/techradar check
--out ../apps/website/techradar`, and `site_markup.py` over the page. The
-tools are the pins the `dashboard` job uses. Renovate's `gomod` manager
+-out ../apps/website/techradar`, and `site_markup.py` over the page.
+The job joins the `ci` job's `needs:` list and its result loop.
+`site_markup.py` gains `techradar.nedsi.io` in `SITE_HOSTS` (task 1),
+so the radar page and the nav links to it pass the markup check.
+Renovate's `gomod` manager
 covers the new module (its package rule groups it with `dashboard/`).
 The `site-denylist` pre-commit hook adds `techradar/entries.yaml` to its
 paths.
@@ -194,9 +210,13 @@ link is the record. Entries named for review without a decision on
 record are `assess` with "not evaluated yet".
 
 Left off on purpose: Frigate and Scrypted (they would say the house has
-cameras: public-website Requirement 4.1), the download stack (never
-named on a public page), and Longhorn or any other storage system (never
-discussed in the repository).
+cameras: public-website Requirement 4.1), the download stack and
+LazyLibrarian (never named on a public page), Vaultwarden (a
+credential-tooling term the privacy audit keeps off public pages; back
+when a decision is recorded in the repository), and Longhorn or any
+other storage system (never discussed in the repository). The household
+apps are entries as the README's Services table names them; their
+internals are not.
 
 ### Techniques
 
@@ -252,8 +272,9 @@ discussed in the repository).
 | kind | adopt | A throwaway cluster in CI for a server-side dry run and a real boot | docs/testing.md |
 | chrome-headless-shell | adopt | Screenshot and layout checks without a pixel diff | .kiro/specs/homelab-dashboard/design.md |
 | OWASP ZAP | adopt | The DAST scan of the public names | docs/pentest/README.md |
+| Task | adopt | One Taskfile for render, checks and Talos operations | Taskfile.yml |
 | Kiro | adopt | The agents that write most pull requests, held to the specs | docs/spec-driven-development.md |
-| Lore | assess | Memory for coding agents; not evaluated yet | |
+| Lore | assess | Memory for coding agents; not evaluated yet, the exact project first | #1675 |
 | Astro and Eleventy | hold | An npm dependency tree to patch for a static blog | .kiro/specs/public-website/design.md |
 | Zola | hold | Fine, but a smaller ecosystem and nothing gained over Hugo | .kiro/specs/public-website/design.md |
 | Ansible | hold | Node playbooks replaced by Talos machine configs | docs/decisions.md#talos-built-as-a-new-cluster |
@@ -277,6 +298,18 @@ discussed in the repository).
 | restic | adopt | File backups to S3 and the NAS, restore-tested weekly | docs/backups.md |
 | Headlamp | adopt | A cluster UI behind Keycloak | docs/remote-access.md |
 | ntfy | adopt | Push notifications for pages | docs/observability.md#notifications |
+| PostgreSQL | adopt | The one database engine, run by CloudNativePG | docs/backups.md |
+| Immich | adopt | The photo library, signed in through Keycloak | apps/immich/ |
+| Plex | adopt | Films and series on the TVs, off SSO so the TV apps sign in | apps/theater/plex.yaml |
+| Jellyfin | adopt | The open-source media server next to Plex, off SSO | apps/theater/jellyfin.yaml |
+| Paperless-ngx | adopt | Scanned documents, searchable | apps/paperless/ |
+| Mealie | adopt | The household's recipes | apps/mealie/ |
+| Syncthing | adopt | Device sync without a cloud in the middle | apps/syncthing/ |
+| Audiobookshelf | adopt | Audiobooks and podcasts | apps/books/audiobookshelf.yaml |
+| Calibre-Web | adopt | The e-book library | apps/books/calibre-web.yaml |
+| Home Assistant | adopt | Home automation, local first | apps/home/home-assistant.yaml |
+| Mosquitto | adopt | The MQTT broker for the home devices | apps/home/mosquitto.yaml |
+| Zigbee2MQTT | adopt | Zigbee devices on MQTT, no vendor hub | apps/home/zigbee2mqtt.yaml |
 | healthchecks.io | adopt | The dead man's switch: pages when the cluster goes silent | docs/observability.md |
 | Tetragon | trial | Runtime detection in observe mode, paging on critical events | docs/observability.md#runtime-tetragon |
 | SigNoz | trial | Logs on ClickHouse, on trial as the one place for signals | #801 |
@@ -285,8 +318,7 @@ discussed in the repository).
 | KEDA | assess | Event-driven scaling, with the HA work | #917 |
 | Shirudo | assess | eBPF shields for unpatched code paths, once arm64 and Talos fit | #1628 |
 | Honeycomb and OBI | assess | Traces from eBPF instrumentation, compared with SigNoz | #734 |
-| CrowdSec | assess | A shared blocklist at the Gateway; not evaluated yet | |
-| Vaultwarden | hold | A self-hosted password vault is a target the homelab does not need | |
+| CrowdSec | assess | A shared blocklist at the Gateway; not evaluated yet | #1676 |
 | Loki | hold | Indexes labels only; the fallback if the SigNoz trial fails | docs/observability.md#why-it-is-like-this |
 | Service mesh | hold | Cilium already gives the policies and the flows, without sidecars | docs/decisions.md#no-service-mesh |
 | Seafile | hold | Removed: Syncthing and Paperless-ngx cover its uses | docs/decisions.md#seafile-removed |
@@ -297,6 +329,7 @@ discussed in the repository).
 
 | Name | Ring | Reason | Link |
 | --- | --- | --- | --- |
+| Kubernetes | adopt | One API for every workload, run on Talos | docs/architecture.md#cluster |
 | Talos Linux | adopt | Immutable, API-only nodes with the machine config in git | docs/talos.md |
 | Cilium | adopt | kube-proxy replacement, LB-IPAM, L2 announcements and the Gateway | docs/networking.md |
 | Gateway API | adopt | One shared Gateway for every public name | docs/networking.md#gateway |
@@ -320,7 +353,7 @@ discussed in the repository).
 | What | How |
 | --- | --- |
 | Validation | Table tests in `model_test.go`, one per rule |
-| Placement | No overlap, inside the segment, deterministic; the real file and a 40-entry segment |
+| Placement | No overlap, inside the segment, deterministic; the real file, a synthetic 30-entry Adopt segment and a 40-entry Hold segment |
 | Page | Golden HTML; the SVG element and attribute set; the contrast test over `techradar.css` |
 | Rendered output | `techradar check` in CI |
 | Serving | `site-serve-check.sh`, the PostSync smoke, the probe, `dast` |

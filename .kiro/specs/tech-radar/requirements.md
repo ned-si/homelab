@@ -57,7 +57,8 @@ in the repository, so a change of mind is a one-line pull request.
 
 1. THE entries SHALL be one YAML file, `techradar/entries.yaml`, each
    with `name`, `quadrant`, `ring`, `reason` (one line) and optionally
-   `link` and `moved`, the fields of Zalando's model.
+   `link` and `moved`, the fields of Zalando's model, under a required
+   top-level `updated` date (`YYYY-MM-DD`), which the page prints.
 2. `link`, when set, SHALL point to the decision: an issue (`#<n>`) or
    a file or directory of this repository, with an optional anchor
    (`docs/decisions.md#no-service-mesh`, `.kiro/specs/<name>/`); the
@@ -78,10 +79,12 @@ in the repository, so a change of mind is a one-line pull request.
 is built with and why, on any screen.
 
 1. THE page SHALL show the four quadrants and the four rings with their
-   names, one blip per entry inside its quadrant and ring, numbered, in
-   Zalando's layout: rings Adopt to Hold from the centre, quadrant names
-   at the corners, ring names along the horizontal axis, a circle for an
-   unchanged entry, a triangle up or down for `moved`, a star for `new`.
+   names, one blip per entry inside its quadrant and ring, numbered:
+   rings Adopt to Hold from the centre, quadrant names as the legend
+   headings, ring names along the horizontal axis (a deliberate change
+   from Zalando's vertical labels, readable on a phone), a circle for
+   an unchanged entry, a triangle up or down for `moved`, a star for
+   `new`.
 2. THE legend SHALL list every entry by quadrant, then ring, with its
    number, its name (a link when `link` is set), its ring and its
    reason; the numbering SHALL follow the legend's order.
@@ -101,7 +104,7 @@ is built with and why, on any screen.
 7. THE page SHALL carry the shared layout, the navigation bar (with
    "Tech radar" marked current) and the site's footer, and a short
    intro: what the radar is, what the rings mean, that it follows
-   Zalando's, and when it was last generated.
+   Zalando's, and the `updated` date of the entries.
 
 ## Requirement 3: Static and hardened
 
@@ -178,8 +181,8 @@ standard as the dashboard's Go code.
    two-line reason, an em dash, a missing link path, or a name from the
    download stack each fail the generator; the clean file passes.
    [1.2-1.4, 3.4]
-4. A placement test over the real entries and over 40 entries in one
-   segment finds no overlap and every blip inside its segment; two runs
+4. A placement test over the real entries, a synthetic 30-entry Adopt
+   segment and a 40-entry Hold segment finds no overlap and every blip inside its segment; two runs
    give the same bytes; the golden page matches. [2.3]
 5. The legend lists every entry of `entries.yaml` once, numbered as the
    chart; the contrast test passes in both palettes. [2.1, 2.2, 2.6]

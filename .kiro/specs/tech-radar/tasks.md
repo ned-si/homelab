@@ -8,12 +8,14 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
 
 - [ ] 1. Generator and data (**not live**): the `techradar/` module
       (`cmd/techradar`, `internal/radar` with validation, placement, the
-      SVG builder and the page template, `.golangci.yaml`),
+      SVG builder and the page template),
       `techradar/entries.yaml` with the
       [design's inventory](design.md#inventory), the rendered
-      `apps/website/techradar/` (not yet in the kustomization), the CI
-      steps in the `site` job, the Renovate rule, the deny-list hook
-      path. Check: acceptance criteria 2-5 and 8; the rendered page
+      `apps/website/techradar/` (not yet in the kustomization), the
+      `techradar` CI job with `scripts/ci/techradar-check.sh` in the
+      `ci` job's `needs:` ([design, CI](design.md#ci)),
+      `techradar.nedsi.io` in `SITE_HOSTS` of `site_markup.py`, the
+      Renovate rule, the deny-list hook path. Check: acceptance criteria 2-5 and 8; the rendered page
       read at 390 and 1920 px in the PR's screenshots. [1, 2, 3.1, 3.4,
       5]
 - [ ] 2. Serving at `techradar.nedsi.io` (**live**). Operator first: no
