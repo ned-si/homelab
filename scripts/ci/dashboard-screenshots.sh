@@ -64,7 +64,7 @@ for shot in dark:http://127.0.0.1:8080/ light:http://127.0.0.1:8090/; do
 theme=${shot%%:*} url=${shot#*:}
 name=dashboard
 [ "$theme" = light ] && name=dashboard-light
-for size in 390x9000 1024x5000 1440x5000 1920x5000 2560x5000; do
+for size in 390x9000 1024x8000 1440x8000 1920x8000 2560x8000; do
   png="$out/$name-${size%%x*}.png"
   rm -f "$png"
   # --no-sandbox: the runner's AppArmor profile blocks Chrome's user
