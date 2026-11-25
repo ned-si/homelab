@@ -33,9 +33,13 @@ linters:
       checks: ["all"]
     misspell:
       locale: UK
-      # The namespace of the download tooling.
+      # The namespace of the download tooling, then OpenSSF Scorecard's own
+      # US-spelt check names and reasons, shown verbatim.
       ignore-rules:
         - theater
+        - normalized
+        - organizations
+        - artifacts
     nolintlint:
       require-explanation: true
       require-specific: true
