@@ -554,9 +554,11 @@ to bottom:
    From task 19 the DORA group gains a fifth tile, "Rework rate"
    ("1.30%" with "9 of 678 deploys" as its detail line), after the four
    banded tiles and outside the overall level, in the neutral colour
-   with no band word, and under it the sentence "Rework rate, DORA's
-   fifth metric since 2024, has no band here: the 2023 clusters these
-   bands come from predate it." The second paragraph's "one person and a
+   with no band word, and under it two sentences: "Rework rate counts
+   the unplanned deploys: rollbacks, fix forwards, and `fix` merges made
+   during an incident or in the 24 hours after it, over all deploys."
+   and "Rework rate, DORA's fifth metric since 2024, has no band here:
+   the 2023 clusters these bands come from predate it." The second paragraph's "one person and a
    few bots" becomes "one person and a few agents".
 5. **Supply chain** (task 21): two panels of stat tiles, after the
    project card and before Security (2026-11-25: delivery first, then
@@ -581,7 +583,9 @@ to bottom:
    six-hour counts, oldest left, heights on a linear scale from 0 to the
    tile's largest bar (all bars at the minimum height when every one is
    0), class `spark`, each titled "<start> to <end>: <n>" in Zurich time.
-   "as of <time>" from `security.as_of`.
+   "as of <time>" from `security.as_of`. From task 23 the signals,
+   names, shares and lines of
+   [Security card figures](#security-card-figures-tasks-22-and-23).
 7. **Certificates** (task 13): one tile per shown certificate, the days
    left as the big number ("40 days"), its status word and colour.
 8. **Coming later**: two muted placeholder panels, solar production and
@@ -604,8 +608,9 @@ Layout, in `dashboard.css`:
   Rejected: a wrapping flexbox (the last row's cards grow to fill it, a
   lone card across the whole row). A panel of stat tiles (class `stats`)
   spans the row, `grid-column: 1 / -1`; its tiles sit on tracks of
-  `minmax(10rem, 1fr)`, the node and NAS tiles on `minmax(12rem, 1fr)`,
-  so a lone tile stays one track wide too. The page is at most `72rem`
+  `minmax(10rem, 1fr)` (the node and NAS groups as under
+  [Stat tiles](#stat-tiles-task-18)), so a lone tile stays one track
+  wide too. The page is at most `72rem`
   wide, wider than the blog's `44rem` column, and centred on wider
   screens. Below `40rem` every grid has one track, so the page reads
   from 320 px without horizontal scrolling. The layout depends on the
@@ -665,8 +670,14 @@ Gestalt rules of common region and proximity:
   colour still marks only the status, next to its word.
 - **One grid**: tiles sit in `div.tiles`, `repeat(auto-fill,
   minmax(10rem, 1fr))`, gap `0.5rem`, so they wrap and a lone tile stays
-  one track wide; the node and NAS groups keep `minmax(12rem, 1fr)`;
-  meters stay inside their tile, under the value. Below `40rem` the
+  one track wide; meters stay inside their tile, under the value.
+- **Node and NAS groups**: each node and the NAS stays one
+  `div.tile-group` (1px `--rule` border, its name and state as the
+  heading); its figures are compact tiles in an inner `div.tiles` on
+  `repeat(auto-fill, minmax(6rem, 1fr))`, `.tile-value` at `1.25rem`.
+  The groups sit on `repeat(auto-fill, minmax(14rem, 1fr))`, so two
+  figures sit side by side inside a group and the groups wrap like
+  cards. Below `40rem` the
   tracks shrink to `minmax(8.5rem, 1fr)` (two tiles side by side on a
   390 px phone).
 - **Contrast**: darker, not lighter, because a lighter tile (`#2a2e32`)
@@ -1296,6 +1307,79 @@ Deferred or not used:
 | Brute-force lockouts (`keycloak_user_events_total{event=~"user_disabled_by_.+_lockout"}`) | Not shown (2026-11-24): Keycloak locks existing accounts only, so a public count that moves after ten failed sign-ins tells a stranger the username exists. Failed sign-ins stay, as a count and a sparkline |
 | Canary tokens | Their own spec, #1618 (operator: next month) |
 
+### Security card figures (tasks 22 and 23)
+
+Operator, 2026-11-25: the public 4xx figures count only traffic that is
+not ours. On 2026-11-25 about 45% of the Gateway's 4xx in 24 h came
+from our own `theater` probe (Plex answers 401 on `/`), most of the rest
+from scanners asking for `/.env` or `/.git/config`, and about 12% from
+replies Envoy gives itself (malformed or reset requests), which no
+backend counter records.
+
+Sources first (task 22, not visible):
+
+- The `theater` probe targets an endpoint that answers 2xx without a
+  session (Plex `/identity`, which the smoke hook already uses, or the
+  SSO proxy's `/oauth2/` path), and the stale comment in
+  `platform/blackbox-exporter/probes/probes.yaml` (`/` goes to Plex,
+  the route's catch-all) is corrected. The `http_gated` module's
+  `valid_status_codes` drops `401`.
+- A CI check (a repo-policy rule over
+  `platform/blackbox-exporter/values.yaml` and its tests) fails on a
+  module used by a `probe: public` Probe whose `valid_status_codes`
+  holds a code outside 200-399.
+- Every check that triggers a 4xx or 405 on purpose (the PostSync smoke
+  hooks' `POST /` and `404` requests, `site-serve-check.sh` already
+  runs against a local nginx) targets the app's Service inside the
+  cluster, never a public name.
+- The task lists every own client still crossing the public listeners
+  (probes, the weekly `dast` and pentest runs) and whether Envoy can
+  attribute it by listener or route. What it can attribute is
+  excluded in the queries below; what it cannot gets one plain line
+  under its tile, such as "Includes our own weekly security scan."
+- Hubble gains a drop metric with the source's reserved identity
+  (`drop:sourceContext=reserved-identity`, no destination context), so
+  drops from the internet have a series: labels `reason`, `protocol`
+  and `source` (`reserved:world`, `reserved:host`, ...), a handful of
+  series.
+- #1677 handles the in-cluster drops into `trivy-server` and
+  `signoz-otel-collector` seen on w-1.
+
+The signals from task 23, replacing the list of
+[Security signals](#security-signals-task-16), in this order (`<P>` is
+`envoy_http_conn_manager_prefix=~"listener-secure|listener-insecure"`,
+`<own>` the exclusions task 22 found, empty if none):
+
+| `id` | Name on the card | Rule | Count | Share of |
+| --- | --- | --- | --- | --- |
+| `gateway_unknown` | Unknown host or path | background | `sum(increase(envoy_http_no_route{<P>}[<w>]))` plus the upstream `404`s of the static sites' clusters (`website`, `homelab-dashboard`) | the public requests |
+| `gateway_refused` | Refused by an app | background | `sum(increase(envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code=~"401\|403"<own>}[<w>]))`; the detail line gives the `403` part | the public requests |
+| `gateway_method` | Method not allowed (405) | background | the same with `envoy_response_code="405"` | the public requests |
+| `signin_failed` | Failed sign-ins | background | as in task 16 | `keycloak_user_events_total{event="login"}` |
+| `blocked` | Deployments blocked by policy | expected zero | the Kyverno selector of task 16 plus `sum(increase(pod_security_evaluations_total{decision="deny", mode="enforce"}[<w>]))`, each `or vector(0)` | none |
+| `ingress_world` | Ingress packets dropped from the internet | background | `sum(increase(hubble_drop_total{reason="POLICY_DENIED", source="reserved:world"}[<w>]))` | none |
+| `runtime_detections` | Runtime detections | expected zero | as in task 16 | none |
+
+- The public requests are
+  `sum(increase(envoy_http_downstream_rq_total{<P>}[<w>]))`, minus
+  `<own>` where it applies. A share is the count over its denominator
+  for the same window, two decimals, next to the count: "10.11% of
+  63,000 requests", "2.50% of 80 sign-ins". No share without a
+  denominator series.
+- Under the two 4xx tiles, one line gives the downstream 4xx that
+  neither tile counts (Envoy's own replies): "Another 760 answered by
+  the Gateway itself cannot be attributed." Shown only when above 0.
+- Pod Security runs in `audit` and `warn` today, so its part is 0 until
+  a namespace enforces; its warnings are not denials.
+- Time windows read "rolling 24 h" and "rolling 7 days"; the page never
+  says "observe mode". Once Tetragon enforces, the runtime tile may
+  count "blocked" separately (a later change).
+- Snapshot version 7: version 6 with `security.signals[]` holding the
+  list above by `id` and `name`, and per signal `share_24h`,
+  `share_7d` (0 to 1, or `null` without a denominator) and, for
+  `gateway_unknown`, `unattributed_24h` (integer or `null`). The
+  rollout rule of version 3 applies.
+
 ## Supply chain (tasks 20 and 21)
 
 ### Which SLSA Build level
@@ -1343,12 +1427,33 @@ the evidence.
   classic format its signatures use, and the policy reads that one; the
   task records which.
 - kube-state-metrics' `customResourceState` (the config that already
-  exports `kyverno_policyreport_summary`) gains
-  `kyverno_policyreport_result`: one series per result of the policy
-  `verify-own-images` only, labels `namespace`, `resource` (the Pod),
-  `rule` and `result`. The collector joins it with
-  `kube_pod_container_info{image=~"ghcr.io/ned-si/<image>@.*"}` on
-  namespace and Pod and reduces it to one boolean per image: verified
+  exports `kyverno_policyreport_summary`) gains an `Info` metric
+  `result` over the path `[results]` of the PolicyReport resource
+  (`kyverno_policyreport_result_info`), with `labelsFromPath`
+  `policy: [policy]`, `rule: [rule]`, `result: [result]` and, at report
+  level, `resource: [scope, name]`. `customResourceState` cannot filter
+  list elements by value, so it exports every result of every policy;
+  the kube-state-metrics ServiceMonitor keeps only `verify-own-images`
+  at scrape time (RE2 has no negative lookahead, hence the temporary
+  label):
+  ```yaml
+  metricRelabelings:
+    - sourceLabels: [__name__, policy]
+      regex: kyverno_policyreport_result_info;verify-own-images
+      targetLabel: __tmp_keep
+      replacement: "1"
+    - sourceLabels: [__name__, __tmp_keep]
+      regex: kyverno_policyreport_result_info;
+      action: drop
+  ```
+  A test runs the pinned kube-state-metrics' config over a fixture
+  PolicyReport with two policies, and a promtool test of the
+  relabelling shows that no other policy's series survives. The
+  collector joins the result with
+  `kube_pod_container_info{image_spec=~"ghcr.io/ned-si/<image>(:[^@]+)?@sha256:[0-9a-f]{64}"}`
+  (`image_spec` is the image as the Pod spec pins it, `:main@sha256:…`;
+  `image` is the runtime's) on namespace and Pod and reduces it to one
+  boolean per image: verified
   when every running Pod of the image passes both checks. No namespace
   or Pod name leaves the collector (Requirement 2.7).
 - `README.md`: the badge

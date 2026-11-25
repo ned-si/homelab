@@ -72,7 +72,7 @@ the four metrics and where the bands come from, links
 [dora.dev](https://dora.dev/), and adds an overall level from a stated
 rule. The text merges after its review round, without a preview approval.
 
-The operator's decisions of 2026-11-25 (tasks 18-21, #1670), which
+The operator's decisions of 2026-11-25 (tasks 18-23, #1670), which
 reopen the spec:
 
 1. **Stat tiles**: from the Cluster card down, every label-value figure
@@ -96,6 +96,18 @@ reopen the spec:
    metrics and Security.
 5. **No preview approval**: each task merges after its review round and
    is checked live (operator, 2026-11-24: no approval pauses).
+6. **Security card, honest figures** (tasks 22 and 23): our own traffic
+   does not count in the public 4xx figures, fixed at the source (the
+   `theater` probe expects a 2xx, deliberate 4xx and 405 checks run
+   inside the cluster); the 4xx tile splits into "Unknown host or path"
+   and "Refused by an app"; every Gateway count shows its share of the
+   requests; ingress drops count only packets from the internet;
+   admission denials become "Deployments blocked by policy", Pod
+   Security in enforce mode included; plain names, never "observe mode"
+   on the page.
+7. **Rolling windows**: every small text that describes a time window
+   says it is rolling ("rolling 24 h", "rolling 7 days", "rolling 30
+   days").
 
 Non-goals are listed under [Out of scope](#out-of-scope).
 
@@ -270,11 +282,16 @@ in the look of the rest of the site.
     muted style; the value large, its unit smaller beside it; the status
     colour only on the value or as a left accent of at most 4 px, never
     on the label or the box; tiles on a grid that wraps, with one gap
-    and one inner padding on every card. The availability cards keep
-    their layout.
+    and one inner padding on every card. Each node and the NAS SHALL be
+    one bordered tile group, named in its heading, holding its figures
+    as compact tiles side by side. The availability cards keep their
+    layout.
 13. EVERY text and status colour SHALL have a contrast of at least
     4.5:1 (WCAG 2.2 AA) against both the card and the tile background,
     checked by the contrast test.
+14. EVERY small text that describes a time window SHALL say it is
+    rolling: "rolling 24 h", "rolling 7 days", "rolling 30 days"
+    (operator, 2026-11-25).
 
 ## Requirement 4: Built and released like production software
 
@@ -449,8 +466,11 @@ Over the rolling 30 days ending at the collection (the window of 2.1):
    an incident of 10.4 was open or within 24 hours after it ended. It
    SHALL be shown as a percentage with the two counts ("1.30%, 9 of 678
    deploys"), with no band, no status colour and no part in the overall
-   level, and with one sentence saying that DORA's published bands, the
-   2023 clusters used here, predate the metric.
+   level, with one sentence defining it ("Rework rate counts the
+   unplanned deploys: rollbacks, fix forwards, and `fix` merges made
+   during an incident or in the 24 hours after it, over all deploys.")
+   and one sentence saying that DORA's published bands, the 2023
+   clusters used here, predate the metric.
 10. THE explanation of 10.7 SHALL speak of "one person and a few
     agents", never "bots".
 
@@ -503,6 +523,29 @@ turn things away, without learning anything that helps an attacker.
    page whoever must act, not the page.
 5. Canary tokens SHALL NOT be part of the card (operator, 2026-11-24;
    their own spec, #1618).
+6. THE public 4xx and 405 figures SHALL count only traffic that is not
+   ours (operator, 2026-11-25). Our own clients SHALL NOT cause them: a
+   public probe expects only 2xx or 3xx, checked in CI, and a check
+   that triggers a 4xx or 405 on purpose runs inside the cluster
+   against the Service, not through the public Gateway. What Envoy can
+   attribute to our own sources (by listener or route) SHALL be
+   excluded from the query; a remainder that cannot be attributed SHALL
+   be said in one plain line under its tile.
+7. THE Gateway's 4xx SHALL be two tiles: "Unknown host or path" (no
+   route, and 404 from the static sites) and "Refused by an app" (401
+   and 403 from an app, the 403 part in the detail line). "Method not
+   allowed (405)" and "Failed sign-ins" stay.
+8. EACH Gateway count and the failed sign-ins SHALL show their share
+   next to the count, with two decimals ("10.11% of 63,000 requests").
+9. THE ingress drop tile SHALL count only packets from outside the
+   cluster (Cilium's identity `reserved:world`); in-cluster drops are
+   for Grafana.
+10. THE admission tile SHALL be named "Deployments blocked by policy"
+    and count Kyverno's denials and Pod Security denials in enforce
+    mode.
+11. THE runtime tile SHALL be named "Runtime detections", and no text
+    on the page SHALL say "observe mode"; once enforcement exists, the
+    tile may count "blocked" separately.
 
 ## Requirement 13: Supply chain
 
@@ -641,15 +684,17 @@ evidence a machine checked.
 22. The golden pages and the screenshots at all five widths show every
     figure from the Cluster card down as a stat tile (`div.tile` with
     `.tile-label`, `.tile-value` and `.unit`); a test over the full
-    fixture finds no label-value text outside a tile on those cards and
-    no status class on a `.tile-label`; the contrast test passes for
-    every text and status colour on `--panel` and on `--tile`. [3.12,
-    3.13]
+    fixture finds no label-value text outside a tile on those cards,
+    no status class on a `.tile-label`, and each node and the NAS as one
+    `div.tile-group` with its figures in an inner `div.tiles`; the
+    contrast test passes for every text and status colour on `--panel`
+    and on `--tile`. [3.12, 3.13]
 23. `collect --once --dry-run` prints a rework rate that
     `scripts/dashboard-dora-check.sh` recounts from `gh` and the
     `ALERTS` range for the same window, to within one pull request; the
-    page shows it with its counts, no band word and the sentence of
-    10.9; the page contains "a few agents" and not "bots". [10.9, 10.10]
+    page shows it with its counts, no band word and both sentences of
+    10.9, checked by the golden test; the page contains "a few agents"
+    and not "bots". [10.9, 10.10]
 24. `gh attestation verify oci://ghcr.io/ned-si/<image>@<running
     digest> --owner ned-si --signer-workflow
     ned-si/homelab/.github/workflows/<image's workflow>` passes for both
@@ -664,6 +709,16 @@ evidence a machine checked.
     [13.1, 13.2, 13.5, 13.6]
 26. `README.md` shows the SLSA badge next to the Scorecard badge, with
     the level of 25. [13.7]
+27. The CI check over `platform/blackbox-exporter/` fails on a public
+    probe module whose `valid_status_codes` holds a code outside
+    200-399; the `theater` probe answers 2xx live; no smoke hook or CI
+    check sends a request meant to fail to a public name. [12.6]
+28. The golden pages and the live page show the Security tiles of
+    12.7-12.11 with their shares and "rolling 24 h" / "rolling 7 days";
+    the page contains no "observe mode"; a collector test with a fake
+    Prometheus pins every query of
+    [design, Security card figures](design.md#security-card-figures-tasks-22-and-23).
+    [3.14, 12.6-12.11]
 
 ## Out of scope
 
@@ -732,4 +787,4 @@ Each default holds until the operator says otherwise.
 | Theme | Always dark, the dark palette of `site/assets/css/main.css`; no light variant | Dashboards read better dark; one palette to test |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
-| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-21 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
+| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-23 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
