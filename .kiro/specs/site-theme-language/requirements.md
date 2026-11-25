@@ -106,7 +106,10 @@ consent banner.
 
 1. THE theme cookie SHALL be set only in the response to the reader's
    click on the sun. No page, stylesheet, redirect or error SHALL set it
-   otherwise.
+   otherwise. THE theme endpoint SHALL NOT set or delete the cookie when
+   `Sec-Fetch-Site` is present and is neither `same-origin`, `same-site`
+   nor `none`, or when `Sec-Purpose` is present (prefetch, prerender);
+   it still answers `303`.
 2. ITS value SHALL be `light`, with no identifier, no timestamp and
    nothing that tells one reader from another. Its attributes SHALL be
    those of [design, Cookie](design.md#cookie): `Domain=nedsi.io`,
@@ -200,10 +203,13 @@ both choices, so a later change cannot quietly break them.
      two headers);
    - `/set-theme/light/` (`303`, the `Location`, every cookie attribute);
    - `/set-theme/dark/` (the delete);
+   - `/set-theme/light/` with `Sec-Fetch-Site: cross-site`, and with
+     `Sec-Purpose: prefetch` (`303`, no `Set-Cookie`);
    - `/set-theme/blue/`, a path with `%5c` and a path with `%0d%0a`
      (`404`, no `Set-Cookie`), and `/set-theme/light//example.com/`
      (no `Location` starting with `//`);
-   - `/fr/` (`200`).
+   - `/fr/` (`200`, `Cache-Control: public, max-age=300`), and on the
+     blog a missing `/fr/` path (the French 404 page).
 2. THE dashboard's web tests SHALL cover the same cases on its handler,
    plus the golden pages in both languages.
 3. `scripts/ci/layout-check.sh` SHALL measure the preferences block
@@ -237,8 +243,10 @@ both choices, so a later change cannot quietly break them.
    `/set-theme/blue/` and `/set-theme/light/%5cexample.com/` return
    `404` with no `Set-Cookie`. `/set-theme/light//example.com/` returns
    `404`, or `303` with `Location: /example.com/` on the same host (nginx
-   merges slashes), never a `Location` starting with `//`. [1.3, 2.1,
-   2.2]
+   merges slashes), never a `Location` starting with `//`.
+   `/set-theme/light/about/` with `-H 'Sec-Fetch-Site: cross-site'` or
+   `-H 'Sec-Purpose: prefetch'` returns `303` with no `Set-Cookie`.
+   [1.3, 2.1, 2.2]
 3. `curl -sI` of any page, the theme stylesheet or a `404`, without the
    endpoint, carries no `Set-Cookie`. [2.1]
 4. The contrast check passes on both palettes and fails in a throwaway
@@ -277,7 +285,10 @@ merges, and that task edits them to point here:
 | --- | --- | --- |
 | public-website Requirement 3.1, "set no cookie" | No cookie other than the theme cookie of this spec | 1 |
 | public-website, Out of scope, "a second language"; Language, "English, British spelling" | French as in this spec | 4 |
-| homelab-dashboard Requirement 9, "the site's dark palette"; Decided defaults, Theme, "Always dark ... no light variant"; design, "Always dark" | Dark by default, light on the reader's choice, the palette of this spec | 2 |
+| public-website Requirement 7.3, `NAV` "one list of links" | One list per language ([design, Navigation](design.md#navigation)) | 4 |
+| public-website Requirement 7.4, "between any two pages" | Between any two pages of the same language | 4 |
+| tech-radar design, The page, "`techradar.css` holds the palette ... the ring colours"; Ring colours, "defined for the light and dark palettes in `techradar.css`" | The palette files of this spec; `techradar.css` holds layout only | 3 |
+| homelab-dashboard Introduction item 1 and Requirement 3.9, "the site's dark palette"; Decided defaults, Theme, "Always dark ... no light variant"; design, "Always dark" | Dark by default, light on the reader's choice, the palette of this spec | 2 |
 | homelab-dashboard, Language, "English, British spelling" | English and French as in this spec | 5 |
 | tech-radar, Language, "English, British spelling" | English and French as in this spec | 6 |
 

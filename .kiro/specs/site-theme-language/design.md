@@ -25,6 +25,7 @@ same way, with the same paths, the same headers and the same cookie.
 | `GET /theme.css`, `Cookie: theme=light` | `200`, the light palette, the same headers |
 | `GET /set-theme/light<path>` | `303`, `Location: <path>`, `Set-Cookie: theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax`, `Cache-Control: no-store` |
 | `GET /set-theme/dark<path>` | `303`, `Location: <path>`, `Set-Cookie: theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax`, `Cache-Control: no-store` |
+| `GET /set-theme/<light\|dark><path>` with `Sec-Fetch-Site` present and neither `same-origin`, `same-site` nor `none`, or with any `Sec-Purpose` | `303`, `Location: <path>`, `Cache-Control: no-store`, no `Set-Cookie` |
 | `GET /set-theme/` with any other theme, or a `<path>` outside `^/[A-Za-z0-9._~/-]*$` | `404`, the host's not-found page, no `Set-Cookie` |
 
 `<path>` is the page's own path, built into the HTML at render time
@@ -37,11 +38,16 @@ protocol-relative URL. nginx merges slashes before matching and Go
 rejects it, so the `Location` always starts with exactly one `/` on
 the same host.
 
-A `GET` that sets a cookie is acceptable here. It changes only how the
-reader's own next page looks. A third-party page can make a browser
-fetch it, and the worst outcome is the reader seeing the other theme.
-Every theme link carries `rel="nofollow"`, and the blog's `robots.txt`
-has `Disallow: /set-theme/`.
+A `GET` that sets a cookie is acceptable here, because it changes only
+how the reader's own next page looks, and only a click from one of the
+four hosts sets it. Browsers send `Sec-Fetch-Site: same-site` (or
+`same-origin`) on a click from a `nedsi.io` page and `none` when the
+reader types the address. A cross-site navigation that another page
+triggers and a browser prefetch or prerender (`Sec-Purpose`) get the
+redirect but no cookie. A browser that sends neither header is treated
+as a click, because it predates Fetch Metadata. Every theme link
+carries `rel="nofollow"`, and the blog's `robots.txt` has
+`Disallow: /set-theme/`.
 
 ## Per host
 
@@ -79,11 +85,26 @@ map $cookie_theme $theme {
     light   light;
     default dark;
 }
-map $uri $theme_cookie {
-    ~^/set-theme/light/ "theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax";
-    default             "theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax";
+# A click from a nedsi.io page or a typed address; not a cross-site
+# navigation, not a prefetch or prerender.
+map "$http_sec_fetch_site:$http_sec_purpose" $theme_click {
+    ~^(|same-origin|same-site|none):$ 1;
+    default                          0;
+}
+map "$theme_click:$uri" $theme_cookie {
+    ~^1:/set-theme/light/ "theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax";
+    ~^1:                  "theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax";
+    default               "";
+}
+# The blog's French 404 page.
+map $uri $not_found {
+    ~^/fr/  /fr/404.html;
+    default /404.html;
 }
 ```
+
+`add_header` with an empty value sends no header, so a request that is
+not a click gets the `303` without `Set-Cookie`.
 
 `apps/website/theme.conf` is a second key of the `website-nginx`
 ConfigMap, included by the `blog.nedsi.io`, `nedsi.io` and
@@ -115,16 +136,26 @@ location /set-theme/ {
   response.
 - The access log format is unchanged: it holds no header, so no cookie.
 - The French landing and radar pages live in flat ConfigMaps (keys
-  cannot hold `/`), so `index-fr.html` sits next to `index.html`:
+  cannot hold `/`), so `index-fr.html` sits next to `index.html`. The
+  exact location does not inherit the `Cache-Control` of `location /`,
+  so it sets the same value:
 
   ```nginx
-  location = /fr/ { try_files /index-fr.html =404; }
+  location = /fr/ {
+      try_files /index-fr.html =404;
+      add_header Cache-Control "public, max-age=300";
+  }
   location = /fr  { return 301 /fr/; }
   location = /index-fr.html { internal; }
   ```
 
-- In the blog's server, `location /fr/ { error_page 404 /fr/404.html;
-  ... }`, so a missing French path gets the French 404 page.
+- The blog's French tree stays in its `location /`, with the same
+  `try_files` and `Cache-Control` as English. Its server's
+  `error_page 404 /404.html;` becomes `error_page 404 $not_found;`, so
+  a missing French path gets the French 404 page. The serve check tests
+  that `/fr/` returns `Cache-Control: public, max-age=300` on all three
+  nginx hosts and that a missing `/fr/` path on the blog returns the
+  French 404 page.
 
 ### Go web role
 
@@ -138,8 +169,12 @@ In `dashboard/internal/web/public.go`, `route` gains two cases:
 - Paths with the prefix `/set-theme/`: the theme must be `light` or
   `dark`, and the rest must match `^/[A-Za-z0-9._~/-]*$` and must not
   start with `//`. Anything else gets `serveNotFound`. Otherwise
+  `Location: <path>` and `303`, with the cookie only when
+  `Sec-Fetch-Site` is absent, `same-origin`, `same-site` or `none` and
+  `Sec-Purpose` is absent, the same rule as nginx. The cookie uses
   `http.SetCookie` with the attributes above (`MaxAge: -1` writes
-  `Max-Age=0`), `Location: <path>` and `303`.
+  `Max-Age=0`). The tests cover `Sec-Fetch-Site: cross-site` and
+  `Sec-Purpose: prefetch`: `303`, no `Set-Cookie`.
 
 The page's HTML, its ETag and `Cache-Control: no-cache` do not change.
 The `<meta name="color-scheme" content="dark">` line goes, because the
@@ -149,6 +184,28 @@ header.
 The Go role could also render a class on `<html>` per request. It does
 not, because one contract keeps one header markup, one set of serve
 checks and HTML that does not depend on the cookie on all four hosts.
+
+### Gateway
+
+The shared Gateway (Cilium's Envoy) terminates TLS for the four hosts,
+so it sees the `Cookie` header before nginx or Go. Its access log is
+off, but `infrastructure/cilium/values.yaml` enables Hubble with the
+`httpV2` L7 metrics and sets no `hubble.redact`, and L7 flows can carry
+request headers. Task 1 checks it after a request with
+`-H 'Cookie: theme=light'`:
+
+```sh
+hubble observe --protocol http --to-namespace website -o jsonpb --last 20
+```
+
+- **No header in the flows:** task 1 records it here as verified, with
+  the command, and the privacy text stays as written.
+- **Headers in the flows:** task 1 opens an issue on board 1 for
+  `hubble.redact.enabled: true` with
+  `hubble.redact.http.headers.deny: [cookie, set-cookie, authorization]`.
+  That change restarts the Cilium agents, so it is its own weekday PR.
+  Until it merges, the privacy text says "No access log records it"
+  instead of "it is not logged".
 
 ## Palette
 
@@ -170,13 +227,19 @@ rule that hides the link to the current theme:
 | `--fg` | `#e3e5e7` | `#1d1f21` | every page |
 | `--muted` | `#a0a6ab` | `#5c6166` | every page |
 | `--link` | `#79b8ff` | `#0b5cad` | every page, the focus ring |
-| `--rule` | `#34383c` | `#d8dadc` | borders, decorative |
+| `--rule` | `#34383c` | `#d8dadc` | borders, the `.hl` line background |
 | `--code-bg` | `#212427` | `#f3f4f5` | blog code blocks |
 | `--panel` | `#212427` | `#f3f4f5` | dashboard cards |
 | `--tile` | `#1a1c1f` | `#e9ebed` | dashboard stat tiles |
 | `--ok`, `--warn`, `--bad`, `--none` | `#3fb950`, `#d29922`, `#f85149`, `#a0a6ab` | `#116329`, `#8a5c00`, `#b62324`, `#5c6166` | dashboard status |
-| `--ring-adopt`, `--ring-trial`, `--ring-assess`, `--ring-hold`, `--blip-text` | the tech radar's values | the tech radar's light values | tech radar |
-| `--syn-*` (about ten: comment, keyword, string, number, name, function, operator, error) | chroma's `github-dark` | chroma's `github` | blog code |
+| `--ring-adopt`, `--ring-trial`, `--ring-assess`, `--ring-hold`, `--blip-text` | from `techradar.css`, added by task 3 | from `techradar.css`, added by task 3 | tech radar |
+| `--syn-*`, the twelve of [Syntax colours](#syntax-colours) | chroma's `github-dark` | chroma's `github` | blog code |
+
+Task 1 writes every property except `--ring-*` and `--blip-text`, and
+leaves their contrast rows out. Task 3 adds both, with the values of
+`techradar.css`, adds their rows and moves the colours out of
+`techradar.css`. If tech-radar task 2 has merged before task 1, task 1
+takes the radar values and does both at once.
 
 The light status colours start from GitHub Primer's light palette,
 darkened so that they reach 4.5:1 on `--tile`. The contrast check
@@ -192,23 +255,55 @@ a difference.
 | --- | --- |
 | Blog | Hugo publishes `site/assets/css/theme-*.css` to `/theme-dark.css`, `/theme-light.css`, and the dark one also to `/theme.css` (`resources.Copy`, then `.Publish`) |
 | Landing page | `apps/website/landing/theme-dark.css`, `theme-light.css`, keys of `website-landing` |
-| Tech radar | the generator writes both into `apps/website/techradar/` |
+| Tech radar | `techradar/internal/radar/assets/theme-dark.css`, `theme-light.css`, embedded; the generator writes them into `apps/website/techradar/` |
 | Dashboard | `dashboard/internal/web/assets/theme-dark.css`, `theme-light.css`, embedded |
 
 The site stylesheets (`main.css`, `syntax.css`, `landing.css`,
 `dashboard.css`, `techradar.css`, `layout.css`) use `var(--...)` only.
-The blog's `prefers-color-scheme` block and the dashboard's palette go,
-and `syntax.css` is regenerated with variables. `site_markup.py` fails
+The blog's `prefers-color-scheme` block and the dashboard's palette go.
+`site_markup.py` fails
 on a colour literal (`#hex`, `rgb(`, `hsl(`, a named colour) in any of
 them.
+
+### Syntax colours
+
+`hugo gen chromastyles` writes literal colours only, so `syntax.css`
+becomes a hand-kept file of `var(--syn-…)` rules on today's class list.
+The dark values come from `hugo gen chromastyles --style=github-dark`,
+the light ones from `--style=github`, and a comment at the top of each
+palette file records both commands. Where a style gives two classes of
+one property different colours, the property takes the colour of the
+first class listed, and the task records it.
+
+| Property | Classes |
+| --- | --- |
+| `--syn-comment` | `.c .ch .cm .c1 .cs .cp .cpf .bp` |
+| `--syn-keyword` | `.k .kc .kd .kn .kp .kr .kt` |
+| `--syn-string` | `.s .sa .sb .sc .dl .sd .s2 .se .sh .si .sx .sr .s1 .ss` |
+| `--syn-number` | `.m .mb .mf .mh .mi .il .mo` |
+| `--syn-operator` | `.o .ow .or` |
+| `--syn-constant` | `.no .nd .nt` |
+| `--syn-function` | `.nf .fm .nb .ni` |
+| `--syn-variable` | `.nv .vc .vg .vi .vm` |
+| `--syn-label` | `.nl` (bold) |
+| `--syn-deleted` | `.gd` |
+| `--syn-inserted` | `.gi` |
+| `--syn-error` | `.err` |
+
+- Plain text (`.na .nc .nn .nx .p .ge .go`) uses `--fg`, line numbers
+  (`.lnt .ln`) `--muted`, and `.w` inherits.
+- `.bg`, `.chroma`, `.err`, `.gd` and `.gi` use `--code-bg` as their
+  background, which drops chroma's coloured blocks behind errors and
+  diffs. `.hl` uses `--rule` as its background.
 
 ## Markup
 
 The preferences sit in `header.site`, after `nav.site`, at the top
 right. The shared layout (`layout.css`) gains the rules:
 `header.site` as a flex row with `justify-content: space-between`,
-`.prefs` as a flex row with a `0.75rem` gap, the icon size, the focus
-ring of `nav.site a`, and a `.vh` visually-hidden class.
+`.prefs` as a flex row with a `0.75rem` gap, `.prefs a { color:
+var(--fg); }` (the icons and the language link), the icon size, the
+focus ring of `nav.site a`, and a `.vh` visually-hidden class.
 
 ```html
 <header class="site">
@@ -309,6 +404,9 @@ A new section, after "Access logs":
 > The language needs no cookie: the French pages are under `/fr/` in
 > the address.
 
+Until the [Gateway](#gateway) check passes or the Hubble redaction
+merges, "it is not logged" reads "no access log records it".
+
 "Legal basis" gains one sentence:
 
 > For the cookie: article 45c of the Swiss Telecommunications Act (you
@@ -331,18 +429,19 @@ A new section, after "Access logs":
 in each theme, the WCAG 2.2 contrast ratio
 `(L1 + 0.05) / (L2 + 0.05)` of every pair below. It fails on a pair
 under its minimum, on a property used in a pair but missing from a
-file, and on a property that is in a file but in no pair and not on
-the decorative list (`--rule`).
+file, and on a property that is in a file but in no pair. No property
+is decorative-only: `--rule` is the `.hl` background.
 
 | Foreground | Backgrounds | Minimum | WCAG |
 | --- | --- | --- | --- |
 | `--fg`, `--muted`, `--link` | `--bg`, `--panel`, `--tile`, `--code-bg` | 4.5 | 1.4.3 |
-| `--ok`, `--warn`, `--bad`, `--none` (as text) | `--panel`, `--tile` | 4.5 | 1.4.3 |
-| `--syn-*` | `--code-bg` | 4.5 | 1.4.3 |
-| `--blip-text` | each `--ring-*` | 4.5 | 1.4.3 |
-| `--ring-*` (blips, ring lines) | `--bg` | 3 | 1.4.11 |
+| `--ok`, `--warn`, `--bad`, `--none` (as text) | `--bg`, `--panel`, `--tile` | 4.5 | 1.4.3 |
+| `--fg`, `--muted`, `--syn-*` | `--code-bg`, `--rule` (`.hl`) | 4.5 | 1.4.3 |
+| `--blip-text` (from task 3) | each `--ring-*` | 4.5 | 1.4.3 |
+| `--ring-*` (blips, ring lines, from task 3) | `--bg` | 3 | 1.4.11 |
 | `--ok`, `--warn`, `--bad`, `--none` (accents, bars) | `--panel`, `--tile` | 3 | 1.4.11 |
-| `--link` (focus ring), `--fg` (theme icons) | `--bg` | 3 | 1.4.11 |
+| `--link` (focus ring) | `--bg`, `--panel`, `--tile` | 3 | 1.4.11 |
+| `--fg` (theme icons, `.prefs a`) | `--bg` | 3 | 1.4.11 |
 
 The dashboard's `TestContrast` reads `assets/theme-dark.css` and
 `assets/theme-light.css` instead of `dashboard.css`, and runs its
@@ -457,7 +556,7 @@ the French nav and toggles. It is a key of `website-landing`, served at
   for `en` and `fr`, the month names, and `formatPercent` and
   `formatNumber` per language. French uses a decimal comma, U+202F
   before `%` and before units, and the same half-to-even rounding to two
-  decimals as English (homelab-dashboard Requirement 11), so 99.957
+  decimals as English (homelab-dashboard Requirement 3.11), so 99.957
   shows "99,96 %". Dates use the form `25 novembre 2026, 14:05`, Zurich
   time.
 - `pageData` gains `Lang` (`en-GB` or `fr-CH`), `T` (the catalogue)
@@ -521,7 +620,7 @@ Conventions:
 | `site_markup.py` | `site` job, dashboard golden pages, radar page | the preferences markup and its targets; `lang`, canonical, `hreflang` per Requirement 4.5; `NAV` per language; no colour literal outside the palette files; the text rules on French pages too |
 | Translation check (`site_markup.py --content`) | `site` job | every English page has a `.fr.md` translation or (articles only) a stub; every French file has an English original; stub fields equal |
 | `site_contrast.py` | `site` job | [Contrast](#contrast) |
-| `site-check.sh` copy check | `site` job | the palette copies equal `site/assets/css/theme-*.css` |
+| `site-check.sh` copy check | `site` job | the palette copies (landing, radar assets and output, dashboard assets) equal `site/assets/css/theme-*.css` |
 | `site-serve-check.sh` | `site` job | the nginx cases of Requirement 5.1 against the real `nginx.conf` and `theme.conf` |
 | PostSync smoke (`apps/website/kustomization.yaml`) | after every sync | the same cases through the Gateway, for each nginx host |
 | `layout-check.sh` | `site` job | `.prefs` measured with `nav.site`; pages compared within one language |

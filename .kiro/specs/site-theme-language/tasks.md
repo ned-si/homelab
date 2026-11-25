@@ -11,13 +11,16 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
 - [ ] 1. Theme on `nedsi.io` and `blog.nedsi.io` (**live**): the
       palette files `site/assets/css/theme-dark.css` and
       `theme-light.css` with every property of
-      [design, Palette](design.md#palette); their landing copies and
-      `task site:layout-sync`; `main.css`, `syntax.css` (regenerated on
-      `--syn-*`), `landing.css` and `layout.css` on variables only; the
+      [design, Palette](design.md#palette) except `--ring-*` and
+      `--blip-text` (task 3 adds them); their landing copies and
+      `task site:layout-sync`; `main.css`, `syntax.css` (hand-kept
+      `var(--syn-…)` rules, [design, Syntax colours](design.md#syntax-colours)),
+      `landing.css` and `layout.css` on variables only; the
       preferences markup with the theme links (no language toggle yet)
       in `baseof.html`, `404.html` and the landing page; the `.prefs`
       rules in `layout.css`; `nginx.conf` maps and `apps/website/theme.conf`
-      in the `website-nginx` ConfigMap; `robots.txt` with
+      in the `website-nginx` ConfigMap, with the `Sec-Fetch-Site` and
+      `Sec-Purpose` rule and `error_page 404 $not_found`; `robots.txt` with
       `Disallow: /set-theme/`; `site_contrast.py` and its test;
       `site_markup.py` (preferences, no colour literal);
       `layout-check.sh` (`.prefs`); `site-serve-check.sh` and the
@@ -26,21 +29,28 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       public-website lines this spec supersedes (Requirement 3.1).
       Then the `homelab-site` digest bump. Check: acceptance criteria
       1-4 and 8 (English) live on both hosts; a manual click on the sun
-      and the moon in a browser at 390 and 1920 px. [1, 2, 3, 5.1,
-      5.3, 5.4]
+      and the moon in a browser at 390 and 1920 px; the Hubble check of
+      [design, Gateway](design.md#gateway), recorded in the design, with
+      its issue and the narrowed privacy text if the flows hold
+      headers. [1, 2, 3, 5.1, 5.3, 5.4]
 - [ ] 2. Theme on `homelab.nedsi.io` (**live**): the embedded palette
       copies; `dashboard.css` without its palette; `/theme.css` and
-      `/set-theme/` in `public.go` with their tests; the preferences in
+      `/set-theme/` in `public.go` with their tests (the
+      `Sec-Fetch-Site` and `Sec-Purpose` cases included); the preferences in
       `layout.html` (page and not found); no `color-scheme` meta;
       `TestContrast` on both themes; golden pages and screenshots in
       both themes; the copy in the copy check; the homelab-dashboard
-      lines this spec supersedes (Requirement 9, Theme, the design's
-      "Always dark"). Then the dashboard image
+      lines this spec supersedes (Introduction item 1, Requirement 3.9,
+      Theme, the design's "Always dark"). Then the dashboard image
       deploy. Check: acceptance criteria 1-3 live on
       `homelab.nedsi.io`. [1.1-1.8, 3.2, 5.2]
 - [ ] 3. Theme on `techradar.nedsi.io` (**live**): the generator writes
-      the palette copies and the preferences; the ring and blip colours
-      move from `techradar.css` into the palette (task 1's table); the
+      the palette copies from `techradar/internal/radar/assets/` and the
+      preferences; `--ring-*` and `--blip-text` join
+      `site/assets/css/theme-*.css` with the values of `techradar.css`,
+      with their contrast rows, and leave `techradar.css`; the radar
+      copies in the copy check; the tech-radar design lines this spec
+      supersedes (The page, Ring colours); the
       `techradar.nedsi.io` server block includes `theme.conf`; the
       radar's contrast test on both copies; the serve and smoke cases
       for the host. Needs tech-radar task 2 (serving). If a tech-radar
@@ -60,7 +70,8 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       locations; `NAV` per language and the translation check in
       `site_markup.py`; `layout-check.sh` per language;
       `site-serve-check.sh` and the smoke on `/fr/`; the public-website
-      lines this spec supersedes (Out of scope, Language). Then the
+      lines this spec supersedes (Out of scope, Language, Requirements
+      7.3 and 7.4). Then the
       `homelab-site` digest bump. Check: acceptance criteria 5, 6 and 8
       live. [4.1-4.8, 4.10, 5.1, 5.3, 5.4]
 - [ ] 5. French on `homelab.nedsi.io` (**live**): `i18n.go` with the
