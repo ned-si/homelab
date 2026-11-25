@@ -1,5 +1,6 @@
-# external-dns: publishes the shared Gateway's HTTPRoute hostnames to
-# Cloudflare, all to the WAN address in `--default-targets`. Token from
+# external-dns: publishes the shared Gateway's HTTPRoute hostnames and the
+# hostname annotation of LoadBalancer Services to Cloudflare, all to the WAN
+# address in `--default-targets`. Token from
 # `secrets-infrastructure`. A new chart CRD reports Degraded for a second
 # before Established, which triggers auto-rollback: merge such a version with
 # auto-rollback paused.

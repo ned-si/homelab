@@ -27,6 +27,7 @@ two other forwarded ports. The address table is in the README's
   | 80, 443 TCP | `192.168.1.254` | every public hostname (the shared Gateway) |
   | 22000 TCP and UDP | `192.168.1.201` | Syncthing sync protocol |
   | 50000 TCP | `192.168.1.200` | qBittorrent seeding |
+  | 41124 UDP | `192.168.1.202` | Jamulus, only while remote players are wanted |
 
 - The WAN address is dynamic. Its only copy in git is `--default-targets` in
   `infrastructure/external-dns/values.yaml`. Re-check it after a router reboot:
@@ -209,10 +210,25 @@ almost always failed to attach: read `Accepted` and `ResolvedRefs` in
 external-dns (chart version in `clusters/homelab/infrastructure/external-dns.yaml`),
 provider Cloudflare, policy `upsert-only`
 (it creates and updates records, never deletes them), TXT registry with the
-default owner. Its only source is `gateway-httproute`. Every record is an A
-record to the single `--default-targets` address. The wildcard redirect route
-opts out with `external-dns.alpha.kubernetes.io/controller: none`; CI requires
-that annotation on any wildcard route.
+default owner. Every record is an A record to the single `--default-targets`
+address, DNS only (not proxied). Two sources:
+
+| Source | Publishes |
+| --- | --- |
+| `gateway-httproute` | the `hostnames` of every HTTPRoute on the shared Gateway |
+| `service` | the `external-dns.alpha.kubernetes.io/hostname` annotation of a `LoadBalancer` Service (`--service-type-filter=LoadBalancer`): only `jam.lilalala.com` on `jamulus/jamulus` |
+
+A LoadBalancer Service without the annotation publishes nothing (no
+`--fqdn-template`). The wildcard redirect route opts out with
+`external-dns.alpha.kubernetes.io/controller: none`; CI requires that
+annotation on any wildcard route.
+
+```sh
+dig +short jam.lilalala.com @1.1.1.1; dig +short TXT a-jam.lilalala.com @1.1.1.1
+```
+
+Expected: the `--default-targets` address, then a TXT value containing
+`external-dns/resource=service/jamulus/jamulus`.
 
 The `nedsi.io` apex is the exception: a CNAME to `www.nedsi.io` (DNS only,
 flattened by Cloudflare), set once by hand in the Cloudflare dashboard.

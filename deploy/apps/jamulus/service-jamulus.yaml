@@ -12,6 +12,7 @@ apiVersion: v1
 kind: Service
 metadata:
   annotations:
+    external-dns.alpha.kubernetes.io/hostname: jam.lilalala.com
     lbipam.cilium.io/ips: 192.168.1.202
   labels:
     app.kubernetes.io/name: jamulus
