@@ -1,5 +1,5 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "generated_at": "2026-11-20T17:00:00+01:00",
   "availability": {
     "as_of": "2026-11-20T17:00:00+01:00",
@@ -56,6 +56,7 @@
     "change_failure_rate": 1.3,
     "incidents_30d": 4,
     "restore_seconds": 1500,
+    "rework": {"count": 12, "deploys": 709, "rate": 0.016925246826516222},
     "ci_runs": [
       {"run": 4105, "result": "success", "commit": "6d0407e", "pr": 1602, "started_at": "2026-11-20T16:40:12+01:00", "duration_seconds": 298},
       {"run": 4104, "result": "failure", "commit": "a433737", "pr": 1601, "started_at": "2026-11-20T16:02:40+01:00", "duration_seconds": 341},

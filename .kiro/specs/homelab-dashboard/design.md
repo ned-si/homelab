@@ -333,7 +333,8 @@ rollout rule of version 3 applies.
 ### Version 6 (task 19)
 
 Version 6 is version 5 plus `project.rework` (`count`, `deploys`
-integers; `rate` a number from 0 to 1 or `null`); `Validate` gains
+integers; `rate` a number from 0 to 1 or `null`; the whole object `null`
+when the DORA figures are, without the token); `Validate` gains
 `count` at most `deploys`. `project.ci_median_seconds_30d` becomes an
 integer or `null` ([Time windows](#time-windows-2026-11-25): it needs
 the token). The rollout rule of version 3 applies.
@@ -908,8 +909,10 @@ Requirement 2.1:
   once, that are a rollback or a fix forward of 10.3, plus the deploying
   merges of 10.2 whose title matches `^fix(\([^)]*\))?!?: ` and whose
   merge time falls inside an incident of 10.4 or within 24 hours after
-  its end (the incidents from the same `ALERTS` range query and
-  rollbacks as time to restore);
+  its end, both bounds included (the incidents from the same `ALERTS`
+  range query and rollbacks as time to restore, merged, before the
+  start-in-window filter: one still open or begun before the window
+  counts too);
 - rework rate `W / D`, `null` when `D` is 0.
 
 The incident condition is what makes a `fix` unplanned: without it every

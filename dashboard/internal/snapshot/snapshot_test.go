@@ -301,6 +301,15 @@ func TestValidateRefuses(t *testing.T) {
 			sec := obj(d, "security")
 			sec["signals"] = sec["signals"].([]any)[1:]
 		}, true},
+		// Version 6: the rework rate, the CI median nullable.
+		{"version 5", func(d map[string]any) { d["schema_version"] = 5 }, false},
+		{"no rework", func(d map[string]any) { delete(obj(d, "project"), "rework") }, false},
+		{"extra key in rework", func(d map[string]any) { obj(d, "project", "rework")["titles"] = []any{"fix: x"} }, false},
+		{"rework rate above 1", func(d map[string]any) { obj(d, "project", "rework")["rate"] = 1.5 }, false},
+		{"rework count above deploys", func(d map[string]any) {
+			r := obj(d, "project", "rework")
+			r["count"], r["deploys"] = 10, 9
+		}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -333,6 +342,20 @@ func TestValidateFullPrecision(t *testing.T) {
 	}
 	if got := s.Project.RenovateShare30d; got != 33.333 {
 		t.Errorf("renovate_share_30d = %v, want 33.333", got)
+	}
+}
+
+// Version 6: without the token the rework rate and the CI median are null.
+func TestValidateNullProjectFigures(t *testing.T) {
+	s, err := Validate(mutate(t, func(d map[string]any) {
+		p := obj(d, "project")
+		p["rework"], p["ci_median_seconds_30d"] = nil, nil
+	}))
+	if err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	if s.Project.Rework != nil || s.Project.CIMedianSeconds30d != nil {
+		t.Errorf("rework, ci median = %v, %v, want null", s.Project.Rework, s.Project.CIMedianSeconds30d)
 	}
 }
 

@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 5
+const Version = 6
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -176,7 +176,7 @@ type Project struct {
 	AsOf               string   `json:"as_of"`
 	PRsMerged30d       int      `json:"prs_merged_30d"`
 	RenovateShare30d   float64  `json:"renovate_share_30d"`
-	CIMedianSeconds30d int      `json:"ci_median_seconds_30d"`
+	CIMedianSeconds30d *int     `json:"ci_median_seconds_30d"`
 	Deploys30d         int      `json:"deploys_30d"`
 	LeadTimeSeconds    *int     `json:"lead_time_seconds"`
 	LeadTimeCount      *int     `json:"lead_time_count"`
@@ -184,7 +184,16 @@ type Project struct {
 	ChangeFailureRate  *float64 `json:"change_failure_rate"`
 	Incidents30d       *int     `json:"incidents_30d"`
 	RestoreSeconds     *int     `json:"restore_seconds"`
+	Rework             *Rework  `json:"rework"`
 	CIRuns             []CIRun  `json:"ci_runs"`
+}
+
+// Rework is the rework rate (requirements.md, 10.9): Count rework deploys
+// of Deploys, Rate their ratio, 0 to 1, nil without a deploy.
+type Rework struct {
+	Count   int      `json:"count"`
+	Deploys int      `json:"deploys"`
+	Rate    *float64 `json:"rate"`
 }
 
 // The results of a ci run.
@@ -329,6 +338,9 @@ func (s *Snapshot) check() error {
 			errs = append(errs, fmt.Errorf("security.signals[%d] %s: unattributed_24h is for %s only",
 				i, sig.ID, UnattributedSignal))
 		}
+	}
+	if r := s.Project.Rework; r != nil && r.Count > r.Deploys {
+		errs = append(errs, fmt.Errorf("project.rework: count %d above deploys %d", r.Count, r.Deploys))
 	}
 	for i := 1; i < len(s.Project.CIRuns); i++ {
 		if s.Project.CIRuns[i].Run >= s.Project.CIRuns[i-1].Run {

@@ -93,7 +93,7 @@
 <p class="meta">Every pull request merged into main is a deploy.</p>
 <h3>DORA metrics</h3>
 <p class="meta"><a href="https://dora.dev/">DORA</a>, short for DevOps Research and Assessment, is the research programme behind the State of DevOps reports. It sums up software delivery in four metrics: how often changes reach production (deployment frequency), how long a change takes to get there (lead time for changes), how often a change breaks something (change failure rate) and how quickly things are back to normal when it does (time to restore).</p>
-<p class="meta">Each metric falls in one of four bands, Elite, High, Medium or Low, taken from the performance clusters of <a href="https://dora.dev/research/2023/dora-report/">DORA's 2023 report</a>. DORA has since added a fifth metric, rework rate, which those bands do not cover. Of course, the metrics were made for teams, not for one person and a few bots, but they make a fair yardstick all the same.</p>
+<p class="meta">Each metric falls in one of four bands, Elite, High, Medium or Low, taken from the performance clusters of <a href="https://dora.dev/research/2023/dora-report/">DORA's 2023 report</a>. Of course, the metrics were made for teams, not for one person and a few agents, but they make a fair yardstick all the same.</p>
 <div class="tiles">
 {{- template "tile" .DORALevel}}
 </div>
@@ -101,6 +101,7 @@
 <div class="tiles">
 {{- range .DORA}}{{template "tile" .}}{{end}}
 </div>
+<p class="meta">Rework rate counts the unplanned deploys: rollbacks, fix forwards, and <code>fix</code> merges made during an incident or in the 24 hours after it, over all deploys. Rework rate, DORA's fifth metric since 2024, has no band here: the 2023 clusters these bands come from predate it.</p>
 <h3>Renovate and CI</h3>
 <div class="tiles">
 {{- range .Delivery}}{{template "tile" .}}{{end}}

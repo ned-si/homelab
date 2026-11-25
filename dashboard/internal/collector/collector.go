@@ -31,6 +31,9 @@ const (
 	projectWithToken    = 15 * time.Minute
 	projectWithoutToken = 60 * time.Minute
 	rateLimitMargin     = 30 * time.Second
+	// doraKeep is how long the figures that need the token outlive the
+	// last refresh with it: the project block's staleness threshold.
+	doraKeep = time.Hour
 )
 
 // Collector holds the last good value of each block between cycles.
@@ -53,6 +56,8 @@ type Collector struct {
 	project      *snapshot.Project
 	security     *snapshot.Security
 	nextProject  time.Time
+	// doraAt is the end of the window of the last refresh with the token.
+	doraAt time.Time
 }
 
 // Ready reports whether the first cycle has started.
@@ -204,8 +209,9 @@ func (c *Collector) refreshProject(ctx context.Context, now time.Time) {
 }
 
 // readProject reads the project block for the 30 days ending at end. With
-// the token it adds the DORA figures; without, it keeps the last ones. On an
-// error it names the source that failed.
+// the token it adds the DORA figures and the CI median; without, it keeps
+// the last ones for an hour, then leaves them null. On an error it names the
+// source that failed.
 func (c *Collector) readProject(ctx context.Context, end time.Time) (snapshot.Project, string, error) {
 	start := end.In(snapshot.Zurich).AddDate(0, 0, -snapshot.Days)
 	p, err := c.GitHub.Project(ctx, start, end)
@@ -213,7 +219,7 @@ func (c *Collector) readProject(ctx context.Context, end time.Time) (snapshot.Pr
 		return p, "github", err
 	}
 	if !c.GitHub.HasToken() {
-		if c.project != nil {
+		if c.project != nil && end.Sub(c.doraAt) <= doraKeep {
 			keepDORA(&p, c.project)
 		}
 		return p, "", nil
@@ -227,6 +233,7 @@ func (c *Collector) readProject(ctx context.Context, end time.Time) (snapshot.Pr
 		return p, "prometheus", err
 	}
 	setDORA(&p, prs, firings, start, end)
+	c.doraAt = end
 	return p, "", nil
 }
 
