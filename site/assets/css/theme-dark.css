@@ -1,0 +1,39 @@
+/* The dark palette, the default (.kiro/specs/site-theme-language/design.md#palette).
+   The only place a colour is written; theme-light.css has the same
+   properties. Served as /theme.css when there is no theme=light cookie.
+   Copies: `task site:layout-sync`. Contrast: scripts/ci/site_contrast.py.
+   --syn-*: hugo gen chromastyles --style=github-dark */
+:root {
+  color-scheme: dark;
+  --bg: #17191b;
+  --fg: #e3e5e7;
+  --muted: #a0a6ab;
+  --link: #79b8ff;
+  --rule: #34383c;
+  --code-bg: #212427;
+  --panel: #212427;
+  --tile: #1a1c1f;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --none: #a0a6ab;
+  --ring-adopt: #4ac26b;
+  --ring-trial: #3bc9db;
+  --ring-assess: #e3b341;
+  --ring-hold: #ff7b72;
+  --radar-line: #6e757b;
+  --blip-text: #17191b;
+  --syn-comment: #99a1aa;
+  --syn-keyword: #ff7b72;
+  --syn-string: #a5d6ff;
+  --syn-number: #a5d6ff;
+  --syn-operator: #ff7b72;
+  --syn-constant: #79c0ff;
+  --syn-function: #d2a8ff;
+  --syn-variable: #79c0ff;
+  --syn-label: #79c0ff;
+  --syn-deleted: #ffa198;
+  --syn-inserted: #56d364;
+  --syn-error: #fa7973;
+}
+.prefs .to-dark { display: none; }

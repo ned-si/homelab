@@ -5,3 +5,7 @@ CheckExternal: false
 CheckFavicon: false
 IgnoreAltMissing: false
 EnforceHTTPS: false
+# The theme endpoint is nginx's (apps/website/theme.conf), not a file;
+# scripts/ci/site-serve-check.sh tests it.
+IgnoreURLs:
+  - "^/set-theme/"

@@ -1,24 +1,5 @@
-:root {
-  --fg: #1d1f21;
-  --muted: #5c6166;
-  --bg: #fdfdfc;
-  --card-bg: #f3f4f5;
-  --link: #0b5cad;
-  --rule: #d8dadc;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fg: #e3e5e7;
-    --muted: #a0a6ab;
-    --bg: #17191b;
-    --card-bg: #212427;
-    --link: #79b8ff;
-    --rule: #34383c;
-  }
-}
-
-/* The container, nav and footer geometry are in layout.css. */
+/* The container, nav and footer geometry are in layout.css, the colours in
+   /theme.css. */
 body { color: var(--fg); background: var(--bg); }
 
 a { color: var(--link); }
@@ -46,7 +27,7 @@ h3 { margin: 0.25rem 0 0.5rem; font-size: 1.125rem; }
   padding: 1rem 1.25rem;
   border: 1px solid var(--rule);
   border-radius: 0.4rem;
-  background: var(--card-bg);
+  background: var(--panel);
 }
 
 .card p { margin: 0 0 0.75rem; }

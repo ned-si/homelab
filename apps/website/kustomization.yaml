@@ -15,11 +15,14 @@ configMapGenerator:
   - name: website-nginx
     files:
       - nginx.conf
+      - theme.conf
   - name: website-landing
     files:
       - landing/index.html
       - landing/layout.css
       - landing/landing.css
+      - landing/theme-dark.css
+      - landing/theme-light.css
   # Rendered by techradar/ (task techradar:render), checked in CI.
   - name: website-techradar
     files:
@@ -134,5 +137,52 @@ patches:
             location http://nedsi.io/ https://nedsi.io/
             expect 301 http://blog.nedsi.io/does-not-exist
             location http://blog.nedsi.io/does-not-exist https://blog.nedsi.io/does-not-exist
+
+            # The theme (.kiro/specs/site-theme-language/requirements.md,
+            # Requirement 5.1). hdr <url> <header> <want or -> [curl options...]
+            hdr() {
+              url=$1 name=$2 want=$3
+              shift 3
+              req "$url" "$@"
+              got=$(printf '%s\n' "$resp" | grep -i "^$name:" | sed 's/^[^:]*: //')
+              [ "$want" = - ] && want=""
+              [ "$got" = "$want" ] || { echo "FAIL $url: $name '$got', want '${want:-(none)}'"; fail=1; }
+            }
+            # body <url> <text> [curl options...]: the body holds <text>.
+            body() {
+              url=$1 want=$2
+              shift 2
+              # shellcheck disable=SC2086 # $gw splits on purpose
+              got=$(curl $gw "$@" -s --max-time 5 "$url") || true
+              printf '%s\n' "$got" | grep -qF "$want" || { echo "FAIL $url: body has no '$want'"; fail=1; }
+            }
+            light="theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax"
+            dark="theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax"
+            expect 200 https://nedsi.io/theme.css
+            hdr https://nedsi.io/theme.css cache-control no-store
+            hdr https://nedsi.io/theme.css vary Cookie
+            hdr https://nedsi.io/theme.css set-cookie -
+            body https://nedsi.io/theme.css "color-scheme: dark"
+            body https://nedsi.io/theme.css "color-scheme: light" -H "Cookie: theme=light"
+            hdr https://nedsi.io/theme.css cache-control no-store -H "Cookie: theme=light"
+            hdr https://nedsi.io/theme.css vary Cookie -H "Cookie: theme=light"
+            for site in https://nedsi.io https://blog.nedsi.io; do
+              expect 303 "$site/set-theme/light/about/"
+              location "$site/set-theme/light/about/" /about/
+              hdr "$site/set-theme/light/about/" set-cookie "$light"
+              hdr "$site/set-theme/dark/" set-cookie "$dark"
+              expect 303 "$site/set-theme/light/" -H "Sec-Fetch-Site: cross-site"
+              hdr "$site/set-theme/light/" set-cookie - -H "Sec-Fetch-Site: cross-site"
+              expect 303 "$site/set-theme/light/" -H "Sec-Purpose: prefetch"
+              hdr "$site/set-theme/light/" set-cookie - -H "Sec-Purpose: prefetch"
+              for bad in /set-theme/blue/ /set-theme/light/%5cexample.com/ /set-theme/light/%0d%0aX:y; do
+                expect 404 "$site$bad"
+                hdr "$site$bad" set-cookie -
+              done
+              # nginx merges the slashes: the same host, never //example.com/.
+              expect 303 "$site/set-theme/light//example.com/"
+              location "$site/set-theme/light//example.com/" /example.com/
+              hdr "$site/" set-cookie -
+            done
             exit "$fail"
           - postsync-smoke

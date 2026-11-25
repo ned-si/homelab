@@ -221,30 +221,31 @@ rule that hides the link to the current theme:
 .prefs .to-light { display: none; }
 ```
 
-| Property | Dark (today's values) | Light (starting values) | Used by |
+| Property | Dark | Light | Used by |
 | --- | --- | --- | --- |
 | `--bg` | `#17191b` | `#fdfdfc` | every page |
 | `--fg` | `#e3e5e7` | `#1d1f21` | every page |
-| `--muted` | `#a0a6ab` | `#5c6166` | every page |
+| `--muted` | `#a0a6ab` | `#5b6065` | every page |
 | `--link` | `#79b8ff` | `#0b5cad` | every page, the focus ring |
 | `--rule` | `#34383c` | `#d8dadc` | borders, the `.hl` line background |
 | `--code-bg` | `#212427` | `#f3f4f5` | blog code blocks |
 | `--panel` | `#212427` | `#f3f4f5` | dashboard cards |
 | `--tile` | `#1a1c1f` | `#e9ebed` | dashboard stat tiles |
-| `--ok`, `--warn`, `--bad`, `--none` | `#3fb950`, `#d29922`, `#f85149`, `#a0a6ab` | `#116329`, `#8a5c00`, `#b62324`, `#5c6166` | dashboard status |
-| `--ring-adopt`, `--ring-trial`, `--ring-assess`, `--ring-hold`, `--blip-text` | from `techradar.css`, added by task 3 | from `techradar.css`, added by task 3 | tech radar |
-| `--syn-*`, the twelve of [Syntax colours](#syntax-colours) | chroma's `github-dark` | chroma's `github` | blog code |
+| `--ok`, `--warn`, `--bad`, `--none` | `#3fb950`, `#d29922`, `#f85149`, `#a0a6ab` | `#116329`, `#8a5c00`, `#b62324`, `#5b6065` | dashboard status |
+| `--ring-adopt`, `--ring-trial`, `--ring-assess`, `--ring-hold` | `#4ac26b`, `#3bc9db`, `#e3b341`, `#ff7b72` | `#1a7f37`, `#0b7285`, `#8a5a00`, `#c62828` | tech radar: ring names, blips |
+| `--radar-line` | `#6e757b` | `#7b8187` | tech radar: ring lines and axes (`--line` in `techradar.css`) |
+| `--blip-text` | `#17191b` | `#fdfdfc` | tech radar: the number on a blip |
+| `--syn-*`, the twelve of [Syntax colours](#syntax-colours) | chroma's `github-dark`, with the changes below | chroma's `github`, with the changes below | blog code |
 
-Task 1 writes every property except `--ring-*` and `--blip-text`, and
-leaves their contrast rows out. Task 3 adds both, with the values of
-`techradar.css`, adds their rows and moves the colours out of
-`techradar.css`. If tech-radar task 2 has merged before task 1, task 1
-takes the radar values and does both at once.
+Tech-radar task 2 merged before task 1, so task 1 writes every
+property, the radar's included, with their contrast rows. Task 3 moves the
+radar onto them and its colours out of `techradar.css`. The light
+`--muted` and `--none` are one step darker than the blog's old `#5c6166`,
+which had 4.46:1 on `--rule` (the `.hl` line).
 
 The light status colours start from GitHub Primer's light palette,
-darkened so that they reach 4.5:1 on `--tile`. The contrast check
-decides the final values, and the PR that sets them records them in
-this table.
+darkened so that they reach 4.5:1 on `--tile`. The values above are the
+ones the contrast check passed in task 1.
 
 Where the copies live: the shared layout's pattern (public-website
 design, Shared layout). There are byte-identical copies, `task
@@ -273,7 +274,13 @@ The dark values come from `hugo gen chromastyles --style=github-dark`,
 the light ones from `--style=github`, and a comment at the top of each
 palette file records both commands. Where a style gives two classes of
 one property different colours, the property takes the colour of the
-first class listed, and the task records it.
+first class listed, and the task records it. Task 1 changed these values
+to reach 4.5:1 on `--rule` (`.hl`) or because the class loses its
+coloured block: dark `--syn-comment` `#99a1aa` (`#8b949e`), dark
+`--syn-error` `#fa7973` (`#f85149`), light `--syn-keyword` `#ba1f29`
+(`#cf222e`), light `--syn-error` `#82071e` (chroma's light text on that red).
+`--syn-function` is `.nf`, `--syn-string` `.s`, `--syn-constant` `.no` and
+`--syn-label` `.nl` in both styles; only `.nl` keeps its bold.
 
 | Property | Classes |
 | --- | --- |
@@ -437,8 +444,9 @@ is decorative-only: `--rule` is the `.hl` background.
 | `--fg`, `--muted`, `--link` | `--bg`, `--panel`, `--tile`, `--code-bg` | 4.5 | 1.4.3 |
 | `--ok`, `--warn`, `--bad`, `--none` (as text) | `--bg`, `--panel`, `--tile` | 4.5 | 1.4.3 |
 | `--fg`, `--muted`, `--syn-*` | `--code-bg`, `--rule` (`.hl`) | 4.5 | 1.4.3 |
-| `--blip-text` (from task 3) | each `--ring-*` | 4.5 | 1.4.3 |
-| `--ring-*` (blips, ring lines, from task 3) | `--bg` | 3 | 1.4.11 |
+| `--blip-text` | each `--ring-*` | 4.5 | 1.4.3 |
+| `--ring-*` (ring names as text, blips) | `--bg` | 4.5 | 1.4.3 |
+| `--radar-line` (ring lines, axes) | `--bg` | 3 | 1.4.11 |
 | `--ok`, `--warn`, `--bad`, `--none` (accents, bars) | `--panel`, `--tile` | 3 | 1.4.11 |
 | `--link` (focus ring) | `--bg`, `--panel`, `--tile` | 3 | 1.4.11 |
 | `--fg` (theme icons, `.prefs a`) | `--bg` | 3 | 1.4.11 |

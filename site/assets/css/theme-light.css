@@ -1,0 +1,39 @@
+/* The light palette, sent as /theme.css with the theme=light cookie
+   (.kiro/specs/site-theme-language/design.md#palette). The same properties
+   as theme-dark.css. Copies: `task site:layout-sync`. Contrast:
+   scripts/ci/site_contrast.py.
+   --syn-*: hugo gen chromastyles --style=github */
+:root {
+  color-scheme: light;
+  --bg: #fdfdfc;
+  --fg: #1d1f21;
+  --muted: #5b6065;
+  --link: #0b5cad;
+  --rule: #d8dadc;
+  --code-bg: #f3f4f5;
+  --panel: #f3f4f5;
+  --tile: #e9ebed;
+  --ok: #116329;
+  --warn: #8a5c00;
+  --bad: #b62324;
+  --none: #5b6065;
+  --ring-adopt: #1a7f37;
+  --ring-trial: #0b7285;
+  --ring-assess: #8a5a00;
+  --ring-hold: #c62828;
+  --radar-line: #7b8187;
+  --blip-text: #fdfdfc;
+  --syn-comment: #57606a;
+  --syn-keyword: #ba1f29;
+  --syn-string: #0a3069;
+  --syn-number: #0550ae;
+  --syn-operator: #0550ae;
+  --syn-constant: #0550ae;
+  --syn-function: #6639ba;
+  --syn-variable: #953800;
+  --syn-label: #990000;
+  --syn-deleted: #82071e;
+  --syn-inserted: #116329;
+  --syn-error: #82071e;
+}
+.prefs .to-light { display: none; }

@@ -159,7 +159,9 @@ publish it by merging, without touching the cluster.
 attack surface to the homelab as possible.
 
 1. THE site SHALL load no third-party resource (fonts, scripts, images,
-   embeds) and set no cookie. Its only JavaScript SHALL be the self-hosted
+   embeds) and set no cookie other than the theme cookie of the
+   [site-theme-language spec](../site-theme-language/requirements.md#requirement-2-the-cookie-needs-no-consent-banner).
+   Its only JavaScript SHALL be the self-hosted
    statistics script, served from `blog.nedsi.io`; the landing page, the
    dashboard and every other page work without JavaScript.
 2. EVERY HTTPS response on the three names SHALL carry: `Content-Security-Policy` with
