@@ -14,9 +14,12 @@ const ownImagesPolicy = "verify-own-images"
 
 // podResults counts the Pods running image that have a result of the
 // policy, of those whose result matches result: kube-state-metrics exports
-// one series per PolicyReport result, the Pod's name in `resource`.
+// one series per PolicyReport result, the Pod's name in `resource`. Pods
+// that are not Running, such as one a node shutdown left Completed, do not
+// count.
 func podResults(image snapshot.ShownImage, result string) string {
-	pods := `max by (namespace, pod) (kube_pod_container_info{image_spec=~"` + image.ImageSpec() + `"})`
+	pods := `max by (namespace, pod) (kube_pod_container_info{image_spec=~"` + image.ImageSpec() + `"})` +
+		` * on (namespace, pod) group_left () (max by (namespace, pod) (kube_pod_status_phase{phase="Running"}) == 1)`
 	results := `max by (namespace, pod) (label_replace(kyverno_policyreport_result_info{policy="` + ownImagesPolicy +
 		`"` + result + `}, "pod", "$1", "resource", "(.+)"))`
 	return "count(" + pods + " * on (namespace, pod) group_left () " + results + ")"

@@ -48,13 +48,14 @@ func TestSupplyChain(t *testing.T) {
 	}
 }
 
-// Each query joins the image's Pods with the policy's results by Pod, so
-// another policy or image never counts.
+// Each query joins the image's running Pods with the policy's results by
+// Pod, so another policy or image, or a Pod that has stopped, never counts.
 func TestPodResultsQuery(t *testing.T) {
 	q := podResults(snapshot.ShownImages()[1], `, result!="pass"`)
 	for _, want := range []string{
 		`kube_pod_container_info{image_spec=~"ghcr\\.io/ned-si/homelab-site(:[^@]+)?@sha256:[0-9a-f]{64}"}`,
 		`kyverno_policyreport_result_info{policy="verify-own-images", result!="pass"}`,
+		`(max by (namespace, pod) (kube_pod_status_phase{phase="Running"}) == 1)`,
 		`* on (namespace, pod) group_left ()`,
 		`"pod", "$1", "resource", "(.+)"`,
 	} {
