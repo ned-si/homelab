@@ -146,7 +146,7 @@ skill; no em dashes; "agents", never "bots".
 
 Landing page, from the top:
 
-- `<h1>Security and reliability engineer</h1>`, then
+- `<h1>Security and Reliability Engineering</h1>` (operator, 2026-11-25), then
   `<p class="lead">Automate all the things.</p>`.
 - **What this is**: "My corner of the web: the projects I work on and
   what I write about them. No newsletter, no cookies, no tracking."
@@ -158,6 +158,8 @@ Landing page, from the top:
     the trade-offs behind it, and what I learn on the way.
   - [Homelab dashboard](https://homelab.nedsi.io/): the homelab in
     numbers, live: availability, the cluster, DORA metrics, security.
+  - [Tech radar](https://techradar.nedsi.io/): what the homelab uses,
+    tries, assesses and holds, and why (operator, 2026-11-25).
   - [About](https://blog.nedsi.io/about/): who I am, what I have done so
     far, certifications and talks.
   - [Projects on GitHub](https://github.com/ned-si/): the homelab, the
@@ -165,8 +167,6 @@ Landing page, from the top:
     sits outside any `<article>`, so task 11 adds
     `"https://github.com/ned-si/"` (the operator's own account, trailing
     slash) to `LINKS` in `scripts/ci/site_markup.py`.
-  - Tech radar: added by spec tech-radar once `techradar.nedsi.io` is
-    live, "what the homelab uses, tries, assesses and holds, and why".
 - No "Start here" block. Its homelab paragraph moves into the About
   intro (below), where the projects are introduced.
 - The cards stay. The About card's text becomes "Who I am, what I have
