@@ -402,7 +402,7 @@ live check.
       28. [12.6-12.11]
       #1691
 
-- [ ] 24. Supply chain section, Scorecard panel (**visible**): snapshot
+- [x] 24. Supply chain section, Scorecard panel (**visible**): snapshot
       version 8 (`supply_chain.scorecard`), the Scorecard check list in
       `shown.go`, the Scorecard fetch in the collector, the panel after
       the SLSA one, the status rule in `status.go`,
@@ -412,4 +412,5 @@ live check.
       pull request per operator item (SLSA, then Scorecard). Check:
       acceptance criterion 25 (Scorecard part); live, the Scorecard
       score equal to the API's. [13.5, 13.6]
+      #1737
 The last task ticked sets `status: done`, `closed:`, and closes #1670.
