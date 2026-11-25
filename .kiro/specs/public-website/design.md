@@ -131,6 +131,160 @@ and the routes are plain backend routes like every other app's.
 directory, Application and namespace; `site/` holds sources, like
 `talos/` holds the Talos sources.
 
+From task 12: `site/assets/css/layout.css` (the shared layout, the one
+definition), its copies `apps/website/landing/layout.css` and
+`dashboard/internal/web/assets/layout.css`, and
+`scripts/ci/layout-check.sh` (the layout check).
+
+## Home and About text (task 11)
+
+The operator's edits of 2026-11-24, as text. The landing page is
+`apps/website/landing/index.html` (a ConfigMap, live with the merge);
+the About page is `site/content/about/index.md` (in the site image, live
+with the next `homelab-site` digest bump). Voice: the `operator-voice`
+skill; no em dashes; "agents", never "bots".
+
+Landing page, from the top:
+
+- `<h1>Security and reliability engineer</h1>`, then
+  `<p class="lead">Automate all the things.</p>`.
+- **What this is**: "My corner of the web: the projects I work on and
+  what I write about them. No newsletter, no cookies, no tracking."
+- **What you can expect**: today's first paragraph (security,
+  reliability and platform engineering, the soft spot for developer
+  experience, "not every week"), then "What is here so far:" and a list,
+  one line and one link each:
+  - [Blog](https://blog.nedsi.io/): how the homelab is built and run,
+    the trade-offs behind it, and what I learn on the way.
+  - [Homelab dashboard](https://homelab.nedsi.io/): the homelab in
+    numbers, live: availability, the cluster, DORA metrics, security.
+  - [About](https://blog.nedsi.io/about/): who I am, what I have done so
+    far, certifications and talks.
+  - [Projects on GitHub](https://github.com/ned-si): the homelab, the
+    keyboard firmware and the drum charts, all in the open.
+  - Tech radar: added by spec tech-radar once `techradar.nedsi.io` is
+    live, "what the homelab uses, tries, assesses and holds, and why".
+- No "Start here" block. Its homelab paragraph moves into the About
+  intro (below), where the projects are introduced.
+- The cards stay. The About card's text becomes "Who I am, what I have
+  done so far in IT, my certifications and talks." (no watches).
+
+About page intro (`site/content/about/index.md`, above "Résumé"):
+
+1. "Hi, I'm Julien Sudan, nedsi on most of the internet." unchanged.
+2. Who he is and what he has done so far in IT: the current-role
+   sentence as it is on the page today, then "A security engineer who
+   never quite stopped being an SRE, in other words. Before that, I ran
+   a public cloud as an SRE, built cloud native platforms as a
+   consultant and, before that, designed and ran observability and SIEM
+   platforms." and the thread sentence ("make the secure and reliable
+   path the easy one, then automate it so nobody has to think about
+   it"). The watch-industry and photography clause is removed.
+3. "What I work on when I am not at work:" with the three projects, a
+   link each:
+   - [the homelab](https://github.com/ned-si/homelab) and its
+     [dashboard](https://homelab.nedsi.io/): today's "Why the homelab?"
+     paragraph, shortened to two sentences (built to solve my own
+     problems and to test things properly; a fairly complex platform
+     run by very few people, here one and a handful of agents);
+   - [ergonomic keyboards](https://github.com/ned-si/scylla) and their
+     QMK and ZMK firmware, built and released by CI;
+   - [drum charts as code](https://github.com/ned-si/drum-charts), in
+     LilyPond, because away from the keyboards I play the drums.
+4. The contact sentence, unchanged.
+
+Certifications, newest first, years only, the names as on the page
+today:
+
+| Year | Certifications |
+| --- | --- |
+| 2024 | KCNA, KCSA, Kubestronaut (CNCF) |
+| 2023 | CISSP |
+| 2022 | HashiCorp Vault Operations Professional, HashiCorp Terraform Associate, AWS Solutions Architect Associate, Google Cloud Associate Cloud Engineer, Microsoft Azure Administrator Associate |
+| 2021 | CKAD, CKS |
+| 2020 | CKA, Elastic Certified Analyst |
+| 2019 | CompTIA Security+, Elastic Certified Engineer |
+
+`scripts/ci/site_markup.py` gains a text rule over the built About page
+and the landing page: no `watch`, `photograph` or `(I checked)`
+(case-insensitive), no "Start here" on the landing page, and the
+About page's certification years in strictly decreasing order.
+
+## Shared layout (task 12)
+
+Today each public page sizes its own `body`: the blog `44rem`, the
+landing page `60rem` with a `3rem` top padding and its nav outside
+`header.site`, the dashboard `72rem`. Switching pages moves the nav and
+the content edge.
+
+One container for every public page:
+
+- `body { margin: 0 auto; max-width: 72rem; padding: 1.5rem 1.25rem 3rem; }`,
+  `* { box-sizing: border-box; }`, the font shorthand
+  `1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif`
+  (font size and line height decide the nav's height, so they are part
+  of the layout).
+- `header.site` (`padding-bottom: 0.75rem`, a `1px` bottom rule in
+  `var(--rule)`), `nav.site` (flex, wrap, gap `0.5rem 1.5rem`, the link
+  states), `main { padding-top: 1.5rem; }`, and `footer.site`'s margin,
+  padding and rule.
+- `72rem` because the dashboard's grid needs it (three `17rem` tracks
+  and their gaps); the blog's text keeps its reading measure in a column
+  `main > .prose { max-width: 44rem; }` that starts at the container's
+  left edge, so the left content edge is the same everywhere. The
+  landing page's hero, blocks and cards use the full `72rem`.
+
+These rules live in `site/assets/css/layout.css` and nowhere else; the
+per-site stylesheets keep colours and their own components and drop
+every rule the shared file owns.
+
+| Page | How it gets `layout.css` |
+| --- | --- |
+| Blog | Hugo Pipes concatenates `layout.css`, `main.css` and `syntax.css` into the one fingerprinted stylesheet |
+| Landing page | `apps/website/landing/layout.css`, a copy, a third file of the `website-landing` ConfigMap, linked before `landing.css` |
+| Dashboard | `dashboard/internal/web/assets/layout.css`, a copy, embedded and served first in its one stylesheet (the integrity hash covers both) |
+
+`task site:layout-sync` copies the canonical file over the copies;
+`scripts/ci/site-check.sh` fails when a copy differs byte for byte (Go
+`embed` cannot read outside its module and a ConfigMap generator outside
+its kustomization, so a checked copy is the one definition both can
+use).
+
+The same navigation bar everywhere: `<header class="site"><nav
+class="site" aria-label="Site">` with the links of `NAV`; the landing
+page moves its nav into `header.site` and drops its negative margin.
+`scripts/ci/site_markup.py` compares each rendered page's
+`header.site > nav.site` with `NAV` (tags, classes, order, text,
+`href`); only `aria-current` may differ. The dashboard's golden pages
+are rendered pages, so its nav is checked too.
+
+The layout check, `scripts/ci/layout-check.sh`, a step of the `site`
+job, runs when `site/`, `apps/website/landing/`,
+`dashboard/internal/web/` or the script changed:
+
+1. Builds the blog, takes the landing page from its ConfigMap sources
+   and renders the dashboard's full fixture page (the web role and
+   `pushfixture`, as in `dashboard-screenshots.sh`).
+2. Writes a static copy of each page (landing, blog home, one article,
+   About, dashboard) with its stylesheet into a temporary directory,
+   each with one added `<script src="/measure.js">` that writes the
+   measurements into the DOM. The copies are test fixtures served by
+   `python3 -m http.server` on `127.0.0.1`, never deployed; the real
+   pages stay script-free. Layout depends only on HTML and CSS, so the
+   copy lays out like the page.
+3. Runs the pinned `chrome-headless-shell --dump-dom` at
+   `--window-size=1920,1080` and `390,844` and reads, for each page:
+   the left edge and width of `body`'s content box, the `x`, `y`,
+   width and height of `nav.site`, and the `x` and width of each nav
+   link (`getBoundingClientRect`, scrollbars hidden).
+4. Fails when any value differs by more than 1 px from the landing
+   page's at the same viewport, naming the page, the value and both
+   numbers. The current page's bold link can be wider, so the link
+   widths are compared with every page's links in normal weight: the
+   copy removes `aria-current` before measuring.
+
+Later public pages (the tech radar) add their page to the list.
+
 ## Generator
 
 Hugo: one static binary for macOS and Linux, Markdown, page bundles, RSS
@@ -537,6 +691,12 @@ The privacy page (`site/content/privacy.md`) lists:
   the strictest CSP is possible and there is little to patch.
 - No comments: no moderation, no extra service, no reader data to hold;
   readers can open a GitHub issue.
+- One layout file with checked copies: the three pages are built by
+  three tools (Hugo, a ConfigMap, a Go binary), so they cannot import
+  one stylesheet, and a stylesheet served from one origin to the others
+  would break the `'self'`-only CSP. Rejected: three hand-kept copies
+  (how the widths drifted apart), and a pixel diff (breaks on every
+  browser update; geometry is what has to match).
 - Statistics self-hosted under the site's own origin: no
   third party, no cookie, no consent banner, CSP `'self'` only.
 - Renovate publishes: it already pins and automerges images; a second

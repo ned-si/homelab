@@ -24,6 +24,21 @@ and a privacy page.
 Phase 2 adds statistics, the dashboard and the republished
 articles. Each phase is useful on its own.
 
+The operator's edits of 2026-11-24, amended on 2026-11-25 (tasks 11 and
+12):
+
+1. **Home and About text**: the headline line "Automate all the
+   things." under the title; no "(I checked)"; Home and About never
+   mention watches or photography; the About intro says who he is, what
+   he has done so far in IT and his main projects, with links; Home
+   drops "Start here" for a short "What this is" and a wider overview of
+   what is there now, one line and a link per page; certifications
+   newest first.
+2. **One layout**: `nedsi.io`, `blog.nedsi.io`, `homelab.nedsi.io` (and
+   every later `nedsi.io` page) share one container width, padding and
+   navigation bar, so switching pages never moves the nav or the
+   content edge; a CI check measures it.
+
 Non-goals are listed under [Out of scope](#out-of-scope).
 
 ## Glossary
@@ -60,8 +75,20 @@ Non-goals are listed under [Out of scope](#out-of-scope).
   photo on the About page and his professional history are not secret.
 - **Résumé**: the operator's professional history on the About page: his
   IT roles only, with employers, titles and periods; certifications
-  ordered by the year earned, with that year only; talks and articles. No
-  skills list, education, languages, phone, address or birth date.
+  newest first by the year earned, with that year only; talks and
+  articles. No skills list, education, languages, phone, address or
+  birth date.
+- **Public pages**: every HTML page served on a `nedsi.io` name: the
+  landing page, the blog, the dashboard and any later one.
+- **Shared layout**: the container (one `max-width`, one padding), the
+  header, the navigation bar and the footer geometry that every public
+  page uses, defined once in `site/assets/css/layout.css`
+  ([design, Shared layout](design.md#shared-layout-task-12)).
+- **Navigation bar**: `nav.site` with the same links in the same order
+  on every public page: Home `https://nedsi.io/`, Blog
+  `https://blog.nedsi.io/`, Homelab `https://homelab.nedsi.io/`, About
+  `https://blog.nedsi.io/about/`, plus the links later specs add (the
+  tech radar). The current page's link carries `aria-current="page"`.
 
 ## Requirement 1: The blog is live
 
@@ -90,11 +117,21 @@ writing articles.
    page may come later.
 7. A republished article SHALL carry `<link rel="canonical">` to its
    original and a visible line naming where it first appeared.
-8. THE landing page SHALL be one HTML page and one stylesheet: a headline
-   and intro line, three short blocks (What this is, What you can expect,
-   Start here), then cards for his projects (the source repository among
-   them), the blog, the About page and his contact links (no form); a
-   dashboard card from phase 2; the privacy link in its footer.
+8. THE landing page SHALL be one HTML page with the shared layout's
+   stylesheet and its own: the title "Security and reliability
+   engineer" with the line "Automate all the things." under it; two
+   blocks, a short "What this is" and a wider "What you can expect"
+   that introduces what is there now, one line and a link each (the
+   blog, the homelab dashboard, the About page, the projects on GitHub,
+   and the tech radar once it is live); then cards for his projects (the
+   source repository among them), the blog, the About page and his
+   contact links (no form); the privacy link in its footer. There SHALL
+   be no "Start here" block.
+9. THE landing page and the About page SHALL NOT mention watches or
+   photography. THE About intro SHALL say who the operator is, what he
+   has done so far in IT and his main projects (the homelab, the
+   keyboards, the drum charts), each with a link. No public page SHALL
+   carry the aside "(I checked)".
 
 ## Requirement 2: Writing and publishing is a pull request
 
@@ -164,7 +201,10 @@ the household or help anyone target the house.
    GitHub and LinkedIn, and `julien@nedsi.io`. Employers appear only on
    the About page.
    Agents MAY draft the page from his CV; no About or landing text is
-   merged before the operator has validated it.
+   merged before the operator has validated it. Text written to his
+   explicit instructions in chat (the edits of 2026-11-24, task 11)
+   counts as validated and merges after its review round (operator,
+   2026-11-24: no approval pause).
 3. CI SHALL fail when an image under `site/` carries EXIF, XMP, IPTC or
    GPS metadata (the About photo included), or when a file under `site/`
    matches the public deny patterns (e-mail addresses other than
@@ -212,6 +252,36 @@ banner.
 4. THE privacy page SHALL list exactly what is collected by the logs and
    the statistics, why, how long it is kept, who to contact
    and how to have data deleted.
+
+## Requirement 7: One layout across the public pages
+
+**User story:** As a reader, I want the navigation bar and the content
+edge to stay put when I move between the landing page, the blog and the
+dashboard.
+
+1. EVERY public page SHALL use the shared layout: one container with
+   one `max-width` in `rem`, the same horizontal and top padding, the
+   same header, navigation bar markup and spacing, and the same footer
+   geometry. Content narrower than the container (the blog's reading
+   column) SHALL start at the container's left edge.
+2. THE shared layout SHALL be defined once, in
+   `site/assets/css/layout.css`; the landing page and the dashboard
+   SHALL carry byte-identical copies, and CI SHALL fail when a copy
+   differs from it.
+3. THE navigation bar SHALL be one list of links, `NAV` in
+   `scripts/ci/site_markup.py`; CI SHALL fail when the navigation bar
+   of a rendered public page differs from it in elements, classes,
+   order, text or `href` (only `aria-current` differs, on the current
+   page).
+4. EVERY pull request touching a public page's markup or stylesheets
+   SHALL render the landing page, the blog home, an article, the About
+   page and the dashboard in the pinned headless browser at 1920x1080
+   and 390x844, inside `ci`; it SHALL fail when the container's left
+   edge and width, or the position and size of `nav.site` and of each of
+   its links, differ by more than 1 px between any two pages at the
+   same viewport.
+5. THE shared layout SHALL NOT add JavaScript, inline style, a web font
+   or a third-party resource; Requirement 3 holds unchanged.
 
 ## Non-functional requirements
 
@@ -261,6 +331,16 @@ banner.
     address. [6.1, 6.3]
 14. The statistics UI paths return `404` on `nedsi.io` and
     `blog.nedsi.io`. [3.8]
+15. `curl -s https://nedsi.io/` contains "Automate all the things." and
+    no "Start here"; neither it nor `https://blog.nedsi.io/about/`
+    contains "watch", "photograph" or "(I checked)" (case-insensitive),
+    which `scripts/ci/site_markup.py` also checks on the build; the
+    About page's certification years read 2024, 2023, 2022, 2021, 2020,
+    2019 in that order. [1.8, 1.9, glossary Résumé]
+16. `scripts/ci/layout-check.sh` passes in `ci` at 1920x1080 and
+    390x844, and fails in a throwaway commit that changes the padding of
+    one copy of `layout.css` or reorders the dashboard's navigation
+    links. [7.1-7.4]
 
 ## Out of scope
 
@@ -296,8 +376,12 @@ Each default holds until the operator says otherwise. Rows marked
 | Author | `nedsi`; the About page is his (operator) | Public commit identity |
 | About page | Short intro, optional photo, then the full résumé; drafted from his CV, validated by him before merge (operator, 2026-11-19) | One page instead of a résumé page or PDF; his words, nothing an agent invents |
 | Contact | GitHub, LinkedIn and `julien@nedsi.io`, a Proton custom-domain address; no form (operator, 2026-11-19) | A readable address on the public domain, in a mailbox he already has |
-| Résumé content | IT roles only, no skills, education or languages; employers named, the current one included (operator, 2026-11-19) | The About page stays short; the photography years are in the intro |
-| Certifications | Name and year earned, ordered by year, never whether one is valid or lapsed (operator, 2026-11-19) | Nothing to keep up to date |
+| Résumé content | IT roles only, no skills, education or languages; employers named, the current one included (operator, 2026-11-19); no watches or photography anywhere on Home or About (operator, 2026-11-24) | The About page stays short and about IT |
+| Certifications | Name and year earned, newest first (operator, 2026-11-24), never whether one is valid or lapsed (operator, 2026-11-19) | Nothing to keep up to date; the recent ones matter most to a reader |
+| Home text | Title "Security and reliability engineer", the line "Automate all the things.", "What this is" short, "What you can expect" with one line and a link per page, no "Start here" (operator, 2026-11-24) | A visitor sees what is here and where to go in one screen |
+| Shared width | One container, `max-width: 72rem`, padding `1.5rem 1.25rem 3rem`, on every public page; the blog's text in a `44rem` column from the container's left edge ([design, Shared layout](design.md#shared-layout-task-12)) | The dashboard's grid needs 72rem; the blog keeps its reading measure; the nav and the content edge never move |
+| One definition | `site/assets/css/layout.css` with checked copies, `NAV` in `scripts/ci/site_markup.py` | Hugo, the landing ConfigMap and the Go binary cannot import one file; a byte comparison makes the copies one definition |
+| Layout check | chrome-headless-shell (the dashboard's pin) on static copies of the rendered pages, measuring with `getBoundingClientRect` at 1920x1080 and 390x844, 1 px tolerance | Deterministic, no pixel diff, no new browser or npm tree |
 | Language | English, British spelling (operator) | Same as the repository |
 | Content plan | Intro article first; then two republished articles with canonical links (operator) | Texts and reuse permission from the operator |
 | Article licence | CC BY 4.0 in `site/LICENSE`, not stated on the pages; code under the repository licence (operator, 2026-11-16) | Reuse with credit; nobody reads a licence footer |

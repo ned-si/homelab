@@ -71,7 +71,7 @@ Change specs, active:
 | [household-access-groups](household-access-groups/) | 2026-11-04 | #1062 | task 4: the app accounts and deleting `family` and `media` (operator) |
 | [image-provenance](image-provenance/) | 2026-11-18 | #725 | task 1: the image inventory and its read-only workflow |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
-| [public-website](public-website/) | 2026-11-13 | #971 | task 3: the `nedsi.io` domain and the `website` app |
+| [public-website](public-website/) | 2026-11-13 | #971 | tasks 11-12: the Home and About text, one layout across the public pages |
 
 Change specs, done:
 

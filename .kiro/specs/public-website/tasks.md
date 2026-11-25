@@ -124,5 +124,40 @@ No task writes to the cluster outside Argo CD. The defaults are in
       and supplied the texts; draft PRs he marks ready. Check: each page
       has `<link rel="canonical">` to the original. [1.7]
 
+## Amendment of 2026-11-25: the text and one layout
+
+The operator's edits of 2026-11-24. Both tasks merge after their review
+round, with no approval pause (operator, 2026-11-24), and are checked
+live. Task 12 comes before the tech radar (spec tech-radar), which uses
+the shared layout.
+
+- [ ] 11. Home and About text, as in
+      [design.md, Home and About text](design.md#home-and-about-text-task-11):
+      `apps/website/landing/index.html` (the line "Automate all the
+      things.", "What this is" without "(I checked)", "What you can
+      expect" with the overview list, no "Start here", the About card's
+      text), `site/content/about/index.md` (the intro and the projects
+      with links, no watches or photography, certifications newest
+      first), the text rule in `scripts/ci/site_markup.py` and its test.
+      Then the `homelab-site` digest bump for the About page (Renovate,
+      or by hand as in #1549). Check: the `site` job; acceptance
+      criterion 15 live on both pages. [1.8, 1.9, 4.2]
+- [ ] 12. One layout and its check, as in
+      [design.md, Shared layout](design.md#shared-layout-task-12):
+      `site/assets/css/layout.css` and its copies in
+      `apps/website/landing/` and `dashboard/internal/web/assets/`,
+      each site's stylesheet without the rules it owns, the blog's
+      `.prose` column, the landing page's nav inside `header.site`,
+      `task site:layout-sync`, the copy check in
+      `scripts/ci/site-check.sh`, the nav comparison in
+      `scripts/ci/site_markup.py`, `scripts/ci/layout-check.sh` in the
+      `site` job, the dashboard's golden pages and screenshots updated;
+      `docs/website.md` gets the layout rule. Then the `homelab-site`
+      digest bump and the dashboard image deploy. Check: acceptance
+      criterion 16; live, the nav and the content edge do not move
+      between `nedsi.io`, `blog.nedsi.io` and `homelab.nedsi.io` at
+      1920x1080 and 390x844 (the check's measurements on the live
+      pages). [7.1-7.5]
+
 The last task ticked sets `status: done`, `closed:`, and closes #971; the
 public part of #817 is then done and #817 keeps the private homepage.
