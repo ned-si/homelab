@@ -4,15 +4,20 @@
 Fails on <form>, <iframe>, <style>, style= and on* attributes, an inline
 <script>, a <script src> other than /stats/s.js, and a src= or href= outside
 <article> to an origin other than the SITE_HOSTS (the canonical <link> and
-an <a> to one of the LINKS, the project's repository and DORA, excepted). The CSP of the site would block most of these; this catches
-them before the browser does.
+an <a> to one of the LINKS or to ACCOUNT excepted). The CSP of the site
+would block most of these; this catches them before the browser does.
 
 Every page also needs the site navigation: one <nav class="site"> with the
 NAV links in order, at most one of them
 aria-current="page", and that one on the page itself or on a parent path of
 it. A page whose own URL is in NAV marks it.
+
+Text: no page says "(I checked)", the landing page and the About page
+never mention watches or photography, the landing page has no "Start
+here", and the About page's certification years are newest first.
 """
 import pathlib
+import re
 import sys
 from html.parser import HTMLParser
 from urllib.parse import urljoin, urlsplit
@@ -22,6 +27,16 @@ REPO = "https://github.com/ned-si/homelab/"
 # The <a> targets allowed outside <article>: the ci runs' pull requests and
 # the source of the dashboard's DORA bands.
 LINKS = (REPO, "https://dora.dev/")
+# The operator's GitHub account, the landing page's overview link. Exact,
+# so links to other repositories stay inside <article>.
+ACCOUNT = "https://github.com/ned-si/"
+ABOUT = "https://blog.nedsi.io/about/"
+EVERYWHERE = ("(i checked)",)
+# Home and About never mention watches or photography (operator, 2026-11-24).
+BANNED = {
+    "https://nedsi.io/": EVERYWHERE + ("watch", "photograph", "start here"),
+    ABOUT: EVERYWHERE + ("watch", "photograph"),
+}
 SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io")
 NAV = [
     ("Home", "https://nedsi.io/"),
@@ -42,6 +57,11 @@ class Checker(HTMLParser):
         self.link = None
         self.links = []
         self.problems = []
+        self.text = []
+        self.heading = None
+        self.section = ""
+        self.item = None
+        self.years = []
 
     def bad(self, msg):
         self.problems.append((self.getpos()[0], msg))
@@ -60,6 +80,10 @@ class Checker(HTMLParser):
         if tag == "a" and self.in_nav:
             href = urljoin(self.url, a.get("href") or "")
             self.link = [href, "", a.get("aria-current") == "page"]
+        if re.fullmatch(r"h[1-6]", tag):
+            self.heading = ""
+        if tag == "li" and self.section == "Certifications":
+            self.item = ""
         if tag in ("form", "iframe", "style"):
             self.bad(f"<{tag}>")
         for name in a:
@@ -76,13 +100,18 @@ class Checker(HTMLParser):
         canonical = tag == "link" and "canonical" in (a.get("rel") or "").split()
         for name in ("src", "href"):
             url = a.get(name)
-            link = tag == "a" and name == "href" and (url or "").startswith(LINKS)
+            link = tag == "a" and name == "href" and ((url or "").startswith(LINKS) or url == ACCOUNT)
             if url and self.foreign(url, SITE_HOSTS) and not canonical and not link:
                 self.bad(f"{name}={url} outside <article>")
 
     def handle_data(self, data):
+        self.text.append(data)
         if self.link is not None:
             self.link[1] += data
+        if self.heading is not None:
+            self.heading += data
+        if self.item is not None:
+            self.item += data
 
     def handle_endtag(self, tag):
         if tag == "article" and self.article:
@@ -92,6 +121,26 @@ class Checker(HTMLParser):
             self.link = None
         if tag == "nav":
             self.in_nav = False
+        if re.fullmatch(r"h[1-6]", tag) and self.heading is not None:
+            self.section = self.heading.strip()
+            self.heading = None
+        if tag == "li" and self.item is not None:
+            year = re.match(r"\s*(\d{4})\b", self.item)
+            if year:
+                self.years.append(int(year.group(1)))
+            self.item = None
+
+    def check_text(self):
+        text = " ".join(" ".join(self.text).lower().split())
+        for word in BANNED.get(self.url, EVERYWHERE):
+            if word in text:
+                self.problems.append((0, f'says "{word}"'))
+        if self.url != ABOUT:
+            return
+        if not self.years:
+            self.problems.append((0, "no certification years under Certifications"))
+        elif any(a <= b for a, b in zip(self.years, self.years[1:])):
+            self.problems.append((0, f"certification years {self.years}, want newest first"))
 
     def check_nav(self):
         if self.navs != 1:
@@ -133,6 +182,7 @@ def main():
         checker.feed(page.read_text(encoding="utf-8"))
         checker.close()
         checker.check_nav()
+        checker.check_text()
         for line, msg in checker.problems:
             print(f"{rel}:{line}: {msg}")
             failed = True

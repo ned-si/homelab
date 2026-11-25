@@ -51,14 +51,16 @@ h3 { margin: 0.25rem 0 0.5rem; font-size: 1.125rem; }
 
 .lead { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.25rem; }
 
-.blocks, .cards {
+.cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
   gap: 1rem 1.5rem;
 }
 
 .blocks h2 { margin: 2.5rem 0 0.25rem; font-size: 1.125rem; }
-.blocks p { margin: 0; }
+.blocks p, .blocks ul { margin: 0 0 0.5rem; }
+.blocks ul { padding-left: 1.25rem; }
+.blocks li { margin: 0.25rem 0; }
 
 .card {
   display: flex;

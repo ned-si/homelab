@@ -23,6 +23,9 @@ def nav(current=None, links=None):
     return '<nav class="site" aria-label="Site">' + "".join(out) + "</nav>"
 
 
+CERTS = "<h3>Certifications</h3><ul><li>2024: KCNA</li><li>2023: CISSP</li><li>2019: Security+</li></ul>"
+
+
 def run(tmp_path, pages, host=None):
     for rel, body in pages.items():
         path = tmp_path / rel
@@ -37,7 +40,7 @@ def run(tmp_path, pages, host=None):
     [
         {"index.html": nav("Blog")},
         {"posts/x/index.html": nav("Blog"), "tags/index.html": nav("Blog")},
-        {"about/index.html": nav("About"), "privacy/index.html": nav(), "404.html": nav()},
+        {"about/index.html": nav("About") + CERTS, "privacy/index.html": nav(), "404.html": nav()},
     ],
 )
 def test_blog_pages_pass(tmp_path, pages):
@@ -114,3 +117,50 @@ def test_landing_page_passes():
         text=True,
     )
     assert res.returncode == 0, res.stdout
+
+
+@pytest.mark.parametrize(
+    "rel, host, body, msg",
+    [
+        ("index.html", "nedsi.io", "<p>Start\nhere</p>", 'says "start here"'),
+        ("index.html", "nedsi.io", "<p>Luxury Watches</p>", 'says "watch"'),
+        ("index.html", "nedsi.io", "<p>a photographer</p>", 'says "photograph"'),
+        ("about/index.html", None, CERTS + "<p>watch industry</p>", 'says "watch"'),
+        ("posts/x/index.html", None, "<p>No tracking (I checked).</p>", 'says "(i checked)"'),
+        ("about/index.html", None, "<p>no list</p>", "no certification years"),
+        (
+            "about/index.html",
+            None,
+            "<h3>Certifications</h3><ul><li>2019: Security+</li><li>2024: KCNA</li></ul>",
+            "want newest first",
+        ),
+        (
+            "about/index.html",
+            None,
+            "<h3>Certifications</h3><ul><li>2024: KCNA</li><li>2024: KCSA</li></ul>",
+            "want newest first",
+        ),
+    ],
+)
+def test_text_rules_fail(tmp_path, rel, host, body, msg):
+    current = {"nedsi.io": "Home", None: "About" if rel.startswith("about") else "Blog"}[host]
+    links = None
+    if host == "nedsi.io":
+        links = [
+            ("Home", "/"),
+            ("Blog", "https://blog.nedsi.io/"),
+            ("Homelab", "https://homelab.nedsi.io/"),
+            ("About", "https://blog.nedsi.io/about/"),
+        ]
+    res = run(tmp_path, {rel: nav(current, links) + body}, host)
+    assert res.returncode == 1
+    assert msg in res.stdout
+
+
+def test_watch_allowed_on_other_pages(tmp_path):
+    assert run(tmp_path, {"posts/x/index.html": nav("Blog") + "<p>watchdog</p>"}).returncode == 0
+
+
+def test_account_link_allowed_outside_article(tmp_path):
+    body = nav("Blog") + '<a href="https://github.com/ned-si/">Projects</a>'
+    assert run(tmp_path, {"index.html": body}).returncode == 0
