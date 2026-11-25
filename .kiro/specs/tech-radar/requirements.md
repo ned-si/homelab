@@ -92,8 +92,9 @@ is built with and why, on any screen.
    quadrant and ring with a margin; the placement SHALL be
    deterministic, so the same entries render the same bytes.
 4. THE chart SHALL be one inline SVG with a `viewBox`, styled by class
-   only, `role="img"` and an `aria-label` that points to the legend;
-   each blip SHALL carry a `<title>` with its number, name and ring.
+   only, `role="group"` and an `aria-label` that points to the legend;
+   each blip SHALL be a link to its legend item (`#entry-<slug>`) and
+   carry a `<title>` with its number, name, quadrant, ring and reason.
 5. THE page SHALL read without horizontal scrolling from 320 px wide up
    to a desktop screen; at 390 px the legend follows the chart in one
    column.
@@ -105,6 +106,13 @@ is built with and why, on any screen.
    "Tech radar" marked current) and the site's footer, and a short
    intro: what the radar is, what the rings mean, that it follows
    Zalando's, and the `updated` date of the entries.
+8. WHEN the pointer is over a blip or a blip has keyboard focus, THE
+   chart SHALL show a label with its name and ring next to it, in CSS
+   only; the linked
+   legend item SHALL be highlighted (`:target`). Where the device has
+   no hover, a tap follows the link to the legend (operator,
+   2026-11-25: "information on each point when we hover over each
+   point", without JavaScript).
 
 ## Requirement 3: Static and hardened
 
@@ -186,6 +194,10 @@ standard as the dashboard's Go code.
    give the same bytes; the golden page matches. [2.3]
 5. The legend lists every entry of `entries.yaml` once, numbered as the
    chart; the contrast test passes in both palettes. [2.1, 2.2, 2.6]
+9. Every blip of the golden page and of `entries.yaml` is an `<a>` with
+   a `<title>` (number, name, quadrant, ring, reason) and an `href` to
+   exactly one legend item's `id`; the live page serves them with the
+   CSP and headers of criterion 1 unchanged. [2.4, 2.8]
 6. `dig +short techradar.nedsi.io` returns the WAN address;
    `scripts/published-hostnames.sh` prints `techradar.nedsi.io` and
    `scripts/pentest-scope-check.sh` passes;
@@ -200,8 +212,8 @@ standard as the dashboard's Go code.
 ## Out of scope
 
 - A radar per area or several editions: one radar, history in git.
-- JavaScript features of Zalando's radar (hover highlight, filters);
-  `<title>` gives the hover text.
+- JavaScript features of Zalando's radar (filters, the legend
+  highlighting the hovered blip); the hover label is CSS (2.8).
 - A dashboard card or certificate tile for `techradar.nedsi.io`: the
   dashboard's allow-lists change in its own spec if wanted.
 - Entries for the household apps' internals and anything under

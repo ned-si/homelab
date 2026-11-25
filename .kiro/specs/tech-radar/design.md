@@ -98,14 +98,32 @@ Zalando's look, without its JavaScript:
   input, same bytes.
 - Blips: a circle, a triangle (`moved: up` points to the centre,
   `down` away) or a star (`new`), filled with the ring's colour, the
-  number in the middle, a `<title>` "12. Cilium (Adopt)". Numbers run
+  number in the middle, a `<title>` "12. Cilium (Platform, Adopt):
+  <reason>". Each blip is an `<a href="#entry-<slug>">` to its legend
+  item (`<li id="entry-<slug>">`); the slug is the name in lower case,
+  runs of other characters as `-` (`Gateway API`: `gateway-api`), and a
+  slug shared by two entries fails the build like a duplicate name.
+- Hover label: a `<g class="blip-label">` in each blip's `<a>`, one
+  `<text>` "Cilium · Adopt" with a halo in the background colour, on
+  the side facing the centre (`blip-label-start` or `blip-label-end`),
+  `visibility: hidden` until `:focus-visible` or, inside `@media
+  (hover: hover)`, `:hover`; the other blips dim to 0.3 meanwhile,
+  because later blips paint over the label (SVG has no z-index). The
+  hover rule stays out of touch screens, so a tap follows the link
+  instead of showing the label first. The target legend item gets an
+  outline in the link colour (`li:target`). No script, no inline style:
+  the CSP is unchanged. Numbers run
   through the legend: Techniques, Tools and languages, Platform,
   Infrastructure; inside each, Adopt to Hold; inside a ring, by name.
 - Classes only: `ring-adopt`, `ring-trial`, `ring-assess`, `ring-hold`,
-  `axis`, `ring-line`, `ring-name`, `blip`, `blip-number`. The SVG's
-  builder is tested to emit only `svg`, `g`, `circle`, `path`, `line`,
-  `text` and `title`, numeric attributes, classes from that set,
-  `role="img"`, `aria-label` and `focusable="false"`.
+  `axis`, `ring-line`, `ring-name`, `blip`, `blip-number`, `blip-label`,
+  `blip-label-start`, `blip-label-end`. The SVG's builder is tested to
+  emit only `svg`, `a`, `g`, `circle`, `path`, `line`, `text` and
+  `title`, numeric attributes, classes from that set, `href` to
+  `#entry-<slug>`, `role="group"` (the blips are links, which
+  `role="img"` would hide from screen readers), `aria-label`,
+  `aria-hidden="true"` (the number and the label, which repeat the
+  `<title>`) and `focusable="false"`.
 - Ring colours, Zalando's hues tuned for contrast, defined for the
   light and dark palettes in `techradar.css` and checked by the
   contrast test (Requirement 2.6): Adopt green, Trial teal, Assess
@@ -355,7 +373,7 @@ internals are not.
 | --- | --- |
 | Validation | Table tests in `model_test.go`, one per rule |
 | Placement | No overlap, inside the segment, deterministic; the real file, a synthetic 30-entry Adopt segment and a 40-entry Hold segment |
-| Page | Golden HTML; the SVG element and attribute set; the contrast test over `techradar.css` |
+| Page | Golden HTML; the SVG element and attribute set; every blip a link with a `<title>` to exactly one legend `id`; the contrast test over `techradar.css` |
 | Rendered output | `techradar check` in CI |
 | Serving | `site-serve-check.sh`, the PostSync smoke, the probe, `dast` |
 | Layout | `layout-check.sh` with the radar page |

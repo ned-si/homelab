@@ -30,7 +30,7 @@
 <li><strong class="ring-assess">Assess</strong>: researched or planned, not in use yet.</li>
 <li><strong class="ring-hold">Hold</strong>: decided against, removed or replaced; the reason says why.</li>
 </ul>
-<p class="updated">{{.Count}} entries, updated on <time datetime="{{.UpdatedISO}}">{{.Updated}}</time>. The numbers on the chart match the legend below it.</p>
+<p class="updated">{{.Count}} entries, updated on <time datetime="{{.UpdatedISO}}">{{.Updated}}</time>. The numbers on the chart match the legend below it; point at one for its name and ring, or follow it to its reason.</p>
 </div>
 <figure class="chart">
 {{.Chart}}
@@ -44,7 +44,7 @@
 {{- if .Entries}}
 <ol>
 {{- range .Entries}}
-<li value="{{.Number}}">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}{{if .Moved}} <span class="moved">({{.Moved}})</span>{{end}}: {{.Reason}}</li>
+<li value="{{.Number}}" id="entry-{{.Slug}}">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}{{if .Moved}} <span class="moved">({{.Moved}})</span>{{end}}: {{.Reason}}</li>
 {{- end}}
 </ol>
 {{- else}}
