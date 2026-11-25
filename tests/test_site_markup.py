@@ -14,6 +14,7 @@ def nav(current=None, links=None):
         ("Home", "https://nedsi.io/"),
         ("Blog", "/"),
         ("Homelab", "https://homelab.nedsi.io/"),
+        ("Tech radar", "https://techradar.nedsi.io/"),
         ("About", "/about/"),
     ]
     out = []
@@ -174,6 +175,7 @@ def test_text_rules_fail(tmp_path, rel, host, body, msg):
             ("Home", "/"),
             ("Blog", "https://blog.nedsi.io/"),
             ("Homelab", "https://homelab.nedsi.io/"),
+            ("Tech radar", "https://techradar.nedsi.io/"),
             ("About", "https://blog.nedsi.io/about/"),
         ]
     res = run(tmp_path, {rel: nav(current, links) + body}, host)
@@ -229,6 +231,7 @@ def test_landing_no_cookies_line(tmp_path):
         ("Home", "/"),
         ("Blog", "https://blog.nedsi.io/"),
         ("Homelab", "https://homelab.nedsi.io/"),
+        ("Tech radar", "https://techradar.nedsi.io/"),
         ("About", "https://blog.nedsi.io/about/"),
     ]
     res = run(tmp_path, {"index.html": nav("Home", links) + "<p>No cookies.</p>"}, "nedsi.io")

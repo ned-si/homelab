@@ -63,6 +63,7 @@ NAV = [
     ("Home", "https://nedsi.io/"),
     ("Blog", "https://blog.nedsi.io/"),
     ("Homelab", "https://homelab.nedsi.io/"),
+    ("Tech radar", "https://techradar.nedsi.io/"),
     ("About", "https://blog.nedsi.io/about/"),
 ]
 

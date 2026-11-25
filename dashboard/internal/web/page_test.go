@@ -225,6 +225,7 @@ func TestCardsStatusWords(t *testing.T) {
 	}{
 		{full, []string{
 			`<p class="tile-label">Unknown host or path</p>
+<div class="tile-body">
 <p class="tile-value ok">4,412 <span class="status ok">Usual</span></p>
 <p class="tile-detail">Rolling 24 h, 7.01% of 62,940 requests</p>
 <p class="tile-detail">Rolling 7 days: 26,391 (6.12%)</p>`,
@@ -232,9 +233,11 @@ func TestCardsStatusWords(t *testing.T) {
 			`<p class="tile-value warn">1 <span class="status warn">Seen</span></p>`,
 			`<p class="tile-value ok">0 <span class="status ok">None</span></p>`,
 			`<p class="tile-label">Ingress packets dropped from the internet</p>
+<div class="tile-body">
 <p class="tile-value none"><span class="status none">No data</span></p>`,
 			`<p class="tile-value ok">39<span class="unit">days</span> <span class="status ok">Valid</span></p>`,
 			`<p class="tile-label">homelab.nedsi.io</p>
+<div class="tile-body">
 <p class="tile-value none"><span class="status none">No data</span></p>`,
 			`<p class="tile-value ok">31.20<span class="unit">%</span> <span class="status ok">OK</span></p>`,
 			`<p class="tile-value warn">80.40<span class="unit">%</span> <span class="status warn">Warning</span></p>`,
@@ -253,6 +256,7 @@ func TestCardsStatusWords(t *testing.T) {
 			`<p class="tile-detail">Median of 4 incidents</p>`,
 			`<div class="tile accent ok">
 <p class="tile-label">Overall level</p>
+<div class="tile-body">
 <p class="tile-value">Elite</p>`,
 			`<li><span class="status ok">Success</span> <a href="https://github.com/ned-si/homelab/pull/1602">#1602</a> <code>6d0407e</code> <time datetime="2026-11-20T16:40:12&#43;01:00">20 Nov 16:40</time>, 4<span class="unit">min</span> 58<span class="unit">s</span></li>`,
 			`<li><span class="status bad">Failure</span>`,
@@ -270,12 +274,15 @@ func TestCardsStatusWords(t *testing.T) {
 			`<p class="tile-value bad">47.90<span class="unit">%</span> <span class="status bad">Critical</span></p>`,
 			`<p class="tile-detail">Unhealthy</p>`,
 			`<p class="tile-label">CPU</p>
+<div class="tile-body">
 <p class="tile-value none"><span class="status none">No data</span></p>`,
 			`<p class="tile-value warn">1.50 <span class="status warn">Warning</span></p>`,
 			`<p class="tile-value bad">2 <span class="status bad">Critical</span></p>`,
 			`<p class="tile-label">Requests</p>
+<div class="tile-body">
 <p class="tile-value none"><span class="status none">No data</span></p>`,
 			`<p class="tile-label">p95 duration</p>
+<div class="tile-body">
 <p class="tile-value none"><span class="status none">No data</span></p>`,
 			`<p class="tile-value bad">25 <span class="status bad">Critical</span></p>`,
 			`<p class="tile-value bad">35<span class="unit">PVCs</span> <span class="status bad">Critical</span></p>`,
@@ -284,9 +291,11 @@ func TestCardsStatusWords(t *testing.T) {
 			`<p class="tile-value bad">20.00<span class="unit">%</span> <span class="status bad">Low</span></p>`,
 			`<div class="tile accent ok">
 <p class="tile-label">Time to restore</p>
+<div class="tile-body">
 <p class="tile-value">None <span class="status ok">No incident</span></p>`,
 			`<div class="tile accent bad">
 <p class="tile-label">Overall level</p>
+<div class="tile-body">
 <p class="tile-value">Low</p>`,
 		}},
 	} {
@@ -305,7 +314,7 @@ func TestPageTexts(t *testing.T) {
 		not  []string
 	}{
 		{fixtureNow, []string{
-			"Target: 99.50% availability over a rolling 30 days per app.",
+			"SLA: 99.50% availability over a rolling 30 days per app.",
 			`Updated <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time> (Zurich time).`,
 			`<span class="label">since 17 November</span>`,
 			"91.40% of the error budget left",
@@ -388,7 +397,7 @@ func TestStatTiles(t *testing.T) {
 			t.Errorf("%s: %d tile labels and %d values, want one value per label", name, labels, values)
 		}
 		if tiles := strings.Count(below, `<div class="tile`) - strings.Count(below, `<div class="tile-group`) -
-			strings.Count(below, `<div class="tiles`); tiles != labels {
+			strings.Count(below, `<div class="tiles`) - strings.Count(below, `<div class="tile-body`); tiles != labels {
 			t.Errorf("%s: %d tiles and %d labels, want one label per tile", name, tiles, labels)
 		}
 		groups := strings.Count(below, `<div class="tile-group">`+"\n<h4>")
@@ -731,7 +740,7 @@ func TestDORABands(t *testing.T) {
 func TestReworkTile(t *testing.T) {
 	body := page(t, fixture(t))
 	contains(t, body,
-		`<p class="tile-label">Rework rate</p>`+"\n"+`<p class="tile-value">1.69<span class="unit">%</span></p>`+"\n"+
+		`<p class="tile-label">Rework rate</p>`+"\n"+`<div class="tile-body">`+"\n"+`<p class="tile-value">1.69<span class="unit">%</span></p>`+"\n"+
 			`<p class="tile-detail">12 of 709 deploys</p>`,
 		"Rework rate counts the unplanned deploys: rollbacks, fix forwards, and <code>fix</code> merges made during an incident or in the 24 hours after it, over all deploys.",
 		"Rework rate, DORA's fifth metric since 2024, has no band here: the 2023 clusters these bands come from predate it.",

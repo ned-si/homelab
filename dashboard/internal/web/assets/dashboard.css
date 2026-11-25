@@ -76,12 +76,19 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
   grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
   gap: 0.5rem;
 }
+/* Each tile spans two rows of its grid, the label and the rest: a label
+   that wraps grows the whole row, so the values stay level. */
 .tile {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
   min-width: 0;
   padding: 0.75rem;
   border-radius: 0.5rem;
   background: var(--tile);
 }
+.tile-body { min-width: 0; }
 .tile p { margin: 0; }
 .tile-label {
   font-size: 0.75rem;
@@ -100,6 +107,8 @@ h3 { font-size: 1.0625rem; margin: 0 0 0.5rem; }
 }
 .tile-value .unit { font-size: 0.6em; }
 .tile-value .status { font-size: 0.875rem; margin-left: 0.25em; }
+/* The DORA band always on its own line, however short the value. */
+.bands .tile-value .status { display: block; margin-left: 0; }
 .tile-detail { font-size: 0.875rem; color: var(--muted); }
 .tile.accent { border-left: 3px solid var(--none); }
 .tile.accent.ok { border-left-color: var(--ok); }

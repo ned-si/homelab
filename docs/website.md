@@ -15,7 +15,7 @@ geometry, so switching pages never moves the nav or the content edge.
 | --- | --- |
 | Container | `body`: `max-width: 72rem`, padding `1.5rem 1.25rem 3rem`, centred |
 | Font | `1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif` |
-| Header | `<header class="site"><nav class="site" aria-label="Site">`, links Home, Blog, Homelab, About |
+| Header | `<header class="site"><nav class="site" aria-label="Site">`, links Home, Blog, Homelab, Tech radar, About |
 | Blog text | `main > .prose`, `max-width: 44rem`, from the container's left edge |
 
 Rules:
