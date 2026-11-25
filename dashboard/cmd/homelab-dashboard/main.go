@@ -120,6 +120,7 @@ func collect(ctx context.Context, args []string, stdout, stderr io.Writer, logge
 	dryRun := fs.Bool("dry-run", false, "print the snapshot instead of pushing it")
 	promURL := fs.String("prometheus-url", env("PROM_URL", "http://kube-prometheus-stack-prometheus.monitoring.svc:9090"), "Prometheus base URL")
 	githubAPI := fs.String("github-api", env("GITHUB_API", "https://api.github.com"), "GitHub API base URL")
+	scorecardURL := fs.String("scorecard-url", env("SCORECARD_URL", collector.ScorecardURL), "OpenSSF Scorecard result of the repository")
 	tokenFile := fs.String("github-token-file", "/var/run/secrets/github/token", "GitHub token; absent means anonymous calls")
 	keyFile := fs.String("push-key-file", "/var/run/secrets/push/private-key", "Ed25519 private key, PKCS #8 PEM")
 	pushHost := fs.String("push-service", "homelab-dashboard-web-push.homelab-dashboard.svc", "headless Service of the web pods")
@@ -149,6 +150,11 @@ func collect(ctx context.Context, args []string, stdout, stderr io.Writer, logge
 			UserAgent: "homelab-dashboard/" + version,
 			Client:    httpClient,
 			Remaining: func(n int) { m.RateLimitRemaining.Set(float64(n)) },
+		},
+		Scorecard: &collector.Scorecard{
+			URL:       *scorecardURL,
+			UserAgent: "homelab-dashboard/" + version,
+			Client:    &http.Client{Timeout: collector.HTTPTimeout, CheckRedirect: collector.ScorecardRedirect},
 		},
 		Pusher: &collector.Pusher{
 			Targets: collector.HeadlessTargets(*pushHost, *pushPort),

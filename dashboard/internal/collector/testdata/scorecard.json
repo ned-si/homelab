@@ -1,0 +1,26 @@
+{
+  "date": "2026-11-20T14:06:49Z",
+  "repo": {"name": "github.com/ned-si/homelab", "commit": "c84c0bf6a8ef4daf32024bb6edd717c76ba4d81e"},
+  "scorecard": {"version": "v5.7.0", "commit": "d7552fb3cdc05e9f6426177d3328887304fce554"},
+  "score": 7.5,
+  "checks": [
+    {"name": "Code-Review", "score": 0, "reason": "Found 0/28 approved changesets -- score normalized to 0", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#code-review"}},
+    {"name": "Dependency-Update-Tool", "score": 10, "reason": "update tool detected", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dependency-update-tool"}},
+    {"name": "Dangerous-Workflow", "score": 10, "reason": "no dangerous workflow patterns detected", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#dangerous-workflow"}},
+    {"name": "Maintained", "score": 10, "reason": "30 commit(s) and 29 issue activity found in the last 90 days -- score normalized to 10", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained"}},
+    {"name": "Security-Policy", "score": 10, "reason": "security policy file detected", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#security-policy"}},
+    {"name": "Token-Permissions", "score": 10, "reason": "GitHub workflow tokens follow principle of least privilege", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#token-permissions"}},
+    {"name": "Binary-Artifacts", "score": 10, "reason": "no binaries found in the repo", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#binary-artifacts"}},
+    {"name": "CII-Best-Practices", "score": 2, "reason": "badge detected: InProgress", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#cii-best-practices"}},
+    {"name": "Pinned-Dependencies", "score": 10, "reason": "all dependencies are pinned", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#pinned-dependencies"}},
+    {"name": "Vulnerabilities", "score": 0, "reason": "29 existing vulnerabilities detected", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#vulnerabilities"}},
+    {"name": "SAST", "score": 9, "reason": "SAST tool detected but not run on all commits", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#sast"}},
+    {"name": "Signed-Releases", "score": -1, "reason": "no releases found", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#signed-releases"}},
+    {"name": "License", "score": 10, "reason": "license file detected", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#license"}},
+    {"name": "Packaging", "score": 10, "reason": "packaging workflow detected", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#packaging"}},
+    {"name": "Fuzzing", "score": 10, "reason": "project is fuzzed", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#fuzzing"}},
+    {"name": "Branch-Protection", "score": 4, "reason": "branch protection is not maximal on development and all release branches", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#branch-protection"}},
+    {"name": "Contributors", "score": 0, "reason": "project has 0 contributing companies or organizations -- score normalized to 0", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#contributors"}},
+    {"name": "CI-Tests", "score": 10, "reason": "30 out of 30 merged PRs checked by a CI test -- score normalized to 10", "documentation": {"short": "...", "url": "https://github.com/ossf/scorecard/blob/main/docs/checks.md#ci-tests"}}
+  ]
+}

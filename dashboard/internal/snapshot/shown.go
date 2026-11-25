@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // ShownApp is an app whose availability the public page shows.
@@ -82,6 +84,30 @@ func (i ShownImage) ImageSpec() string {
 var shownImages = []ShownImage{
 	{Name: "homelab-dashboard", Workflow: "dashboard-publish.yaml"},
 	{Name: "homelab-site", Workflow: "site-publish.yaml"},
+}
+
+// scorecardChecks are the OpenSSF Scorecard checks a result may name
+// (design.md, "Scorecard (task 24)"); any other name is dropped.
+var scorecardChecks = []string{
+	"Binary-Artifacts", "Branch-Protection", "CI-Tests", "CII-Best-Practices", "Code-Review",
+	"Contributors", "Dangerous-Workflow", "Dependency-Update-Tool", "Fuzzing", "License",
+	"Maintained", "Packaging", "Pinned-Dependencies", "SAST", "SBOM",
+	"Security-Policy", "Signed-Releases", "Token-Permissions", "Vulnerabilities", "Webhooks",
+}
+
+// MaxReason is the longest Scorecard reason shown, in characters.
+const MaxReason = 160
+
+// ScorecardCheckShown reports whether name is a compiled Scorecard check.
+func ScorecardCheckShown(name string) bool {
+	return slices.Contains(scorecardChecks, name)
+}
+
+// PlainReason reports whether s is valid UTF-8 of at most MaxReason
+// characters with no control character.
+func PlainReason(s string) bool {
+	return utf8.ValidString(s) && utf8.RuneCountInString(s) <= MaxReason &&
+		!strings.ContainsFunc(s, unicode.IsControl)
 }
 
 // UnattributedSignal is the signal whose tile says how many 4xx the Gateway

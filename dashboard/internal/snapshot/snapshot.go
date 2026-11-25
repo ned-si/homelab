@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 7
+const Version = 8
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -244,8 +244,9 @@ type Signal struct {
 
 // SupplyChain is the live block of how the first-party images are built.
 type SupplyChain struct {
-	AsOf   string  `json:"as_of"`
-	Images []Image `json:"images"`
+	AsOf      string    `json:"as_of"`
+	Images    []Image   `json:"images"`
+	Scorecard Scorecard `json:"scorecard"`
 }
 
 // Image is one first-party image: its SLSA Build level, set only when
@@ -256,6 +257,24 @@ type Image struct {
 	Level    *int   `json:"level"`
 	Verified *bool  `json:"verified"`
 	Builder  string `json:"builder"`
+}
+
+// Scorecard is the repository's latest OpenSSF Scorecard result as the
+// collector last fetched it: as_of, score and date all nil, and no check,
+// before the first fetch.
+type Scorecard struct {
+	AsOf   *string          `json:"as_of"`
+	Score  *float64         `json:"score"`
+	Date   *string          `json:"date"`
+	Lowest []ScorecardCheck `json:"lowest"`
+}
+
+// ScorecardCheck is one Scorecard check: a name from the compiled list, its
+// score out of 10 and Scorecard's reason.
+type ScorecardCheck struct {
+	Name   string `json:"name"`
+	Score  int    `json:"score"`
+	Reason string `json:"reason"`
 }
 
 // FormatTime formats t as the snapshot's timestamps: RFC 3339, second
@@ -301,7 +320,8 @@ var compiled = sync.OnceValues(func() (*jsonschema.Schema, error) {
 // Validate parses body and checks it: the size, the schema, then the rules
 // a schema cannot express (the shown apps and certificates in order, no
 // hidden app or node, the shown security signals and images in order, a
-// level only with a verified provenance, the days ending
+// level only with a verified provenance, the Scorecard checks compiled and
+// their reasons plain, the days ending
 // today, no block newer than generated_at, the counts within their totals,
 // the ci runs newest first). An error about the shown names wraps
 // ErrNotShown.
@@ -372,6 +392,7 @@ func (s *Snapshot) check() error {
 			errs = append(errs, fmt.Errorf("supply_chain.images[%d] %s: a level without a verified provenance", i, img.Name))
 		}
 	}
+	errs = append(errs, s.SupplyChain.Scorecard.check()...)
 	if r := s.Project.Rework; r != nil && r.Count > r.Deploys {
 		errs = append(errs, fmt.Errorf("project.rework: count %d above deploys %d", r.Count, r.Deploys))
 	}
@@ -392,6 +413,9 @@ func (s *Snapshot) check() error {
 		{"project.as_of", s.Project.AsOf},
 		{"security.as_of", s.Security.AsOf},
 		{"supply_chain.as_of", s.SupplyChain.AsOf},
+	}
+	if a := s.SupplyChain.Scorecard.AsOf; a != nil {
+		times = append(times, struct{ name, value string }{"supply_chain.scorecard.as_of", *a})
 	}
 	for _, t := range times {
 		v, err := ParseTime(t.value)
@@ -441,6 +465,27 @@ func checkDays(days []string, today time.Time) []error {
 		}
 	}
 	return nil
+}
+
+func (sc *Scorecard) check() []error {
+	var errs []error
+	fetched := sc.AsOf != nil
+	if (sc.Score != nil) != fetched || (sc.Date != nil) != fetched || (!fetched && len(sc.Lowest) > 0) {
+		errs = append(errs, errors.New("supply_chain.scorecard: as_of, score, date and the checks come together"))
+	}
+	for i, c := range sc.Lowest {
+		if !ScorecardCheckShown(c.Name) {
+			errs = append(errs, fmt.Errorf("supply_chain.scorecard.lowest[%d]: %q is not a compiled Scorecard check", i, c.Name))
+		}
+		if !PlainReason(c.Reason) {
+			errs = append(errs, fmt.Errorf("supply_chain.scorecard.lowest[%d] %s: the reason is not plain text of at most %d characters",
+				i, c.Name, MaxReason))
+		}
+		if i > 0 && c.Score < sc.Lowest[i-1].Score {
+			errs = append(errs, fmt.Errorf("supply_chain.scorecard.lowest[%d] %s: lower than the check before it", i, c.Name))
+		}
+	}
+	return errs
 }
 
 func (c *Cluster) check() []error {

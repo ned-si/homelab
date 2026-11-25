@@ -1,5 +1,5 @@
 {
-  "schema_version": 7,
+  "schema_version": 8,
   "generated_at": "2026-11-20T17:00:00+01:00",
   "availability": {
     "as_of": "2026-11-20T17:00:00+01:00",
@@ -82,6 +82,16 @@
     "images": [
       {"name": "homelab-dashboard", "level": 2, "verified": true, "builder": "GitHub-hosted runner, dashboard-publish.yaml on main"},
       {"name": "homelab-site", "level": 2, "verified": true, "builder": "GitHub-hosted runner, site-publish.yaml on main"}
-    ]
+    ],
+    "scorecard": {
+      "as_of": "2026-11-20T16:30:00+01:00",
+      "score": 7.5,
+      "date": "2026-11-20T15:06:49+01:00",
+      "lowest": [
+        {"name": "Code-Review", "score": 0, "reason": "Found 0/28 approved changesets -- score normalized to 0"},
+        {"name": "Contributors", "score": 0, "reason": "project has 0 contributing companies or organizations -- score normalized to 0"},
+        {"name": "Vulnerabilities", "score": 0, "reason": "29 existing vulnerabilities detected"}
+      ]
+    }
   }
 }
