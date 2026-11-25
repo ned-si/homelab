@@ -40,7 +40,7 @@ spec:
         env:
         - name: GOMEMLIMIT
           value: 51MiB
-        image: ghcr.io/ned-si/homelab-dashboard:main@sha256:0e4e294adbb6f8fb8d847578ff726b5c165fc52f7234d12990ab463e7283f712
+        image: ghcr.io/ned-si/homelab-dashboard:main@sha256:3baae271aa3a6f47e5f92fc0eb66af7450692301de714e7e867fea88543e7524
         livenessProbe:
           httpGet:
             path: /healthz
