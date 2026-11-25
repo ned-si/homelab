@@ -38,7 +38,7 @@ spec:
           # Built and signed by .github/workflows/dashboard-publish.yaml;
           # Renovate bumps the digest of both Deployments together.
           # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-dashboard
-          image: ghcr.io/ned-si/homelab-dashboard:main@sha256:aa47cdd0e3adfab8a335e318b68484765c1cb14daa5c84e0649eb21a5fd80e50
+          image: ghcr.io/ned-si/homelab-dashboard:main@sha256:75fc814337dab2438805ad810c615cd35ae7a1abe083c57469381073615c79cd
           args: ["web"]
           env:
             # 80 % of the memory limit.
