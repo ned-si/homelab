@@ -8,19 +8,22 @@ Hi, I'm Julien Sudan, nedsi on most of the internet.
 I'm a Senior Security Engineer at Genesys, doing security work with and
 around AI, in a very secure corporate environment. A security engineer who
 never quite stopped being an SRE, in other words. Before that, I ran a
-public cloud as an SRE, built cloud native platforms as a consultant and, a
-while before that, worked in the luxury watch industry as a photographer
-and retoucher in two major studios in Switzerland. The thread through all
-of it: make the secure and reliable path the easy one, then automate it so
-nobody has to think about it.
+public cloud as an SRE, built cloud native platforms as a consultant and,
+before that, designed and ran observability and SIEM platforms. The thread
+through all of it: make the secure and reliable path the easy one, then
+automate it so nobody has to think about it.
 
-Why the homelab? I built it to solve my own problems and to have somewhere
-to test things properly. It is also my way of sharing, in the open, how I
-think infrastructure should be run, trade-offs included. And it makes a
-point I care about: done this way, a fairly complex platform can be run by
-very few people. Here, one, and a handful of agents.
+What I work on when I am not at work:
 
-Away from the keyboards, I play the drums.
+- [the homelab](https://github.com/ned-si/homelab) and its
+  [dashboard](https://homelab.nedsi.io/): I built it to solve my own
+  problems and to test things properly. It also makes a point I care
+  about: a fairly complex platform can be run by very few people, here one
+  and a handful of agents.
+- [ergonomic keyboards](https://github.com/ned-si/scylla) and their QMK and
+  ZMK firmware, built and released by CI.
+- [drum charts as code](https://github.com/ned-si/drum-charts), in
+  LilyPond, because away from the keyboards I play the drums.
 
 You can find me on [GitHub](https://github.com/ned-si) and
 [LinkedIn](https://www.linkedin.com/in/juliensudan), or write to
@@ -51,17 +54,17 @@ end. Kubernetes audits, automation and DevSecOps.
 
 ### Certifications
 
-- 2019: CompTIA Security+, Elastic Certified Engineer
-- 2020: Certified Kubernetes Administrator (CKA), Elastic Certified Analyst
-- 2021: Certified Kubernetes Application Developer (CKAD), Certified
-  Kubernetes Security Specialist (CKS)
+- 2024: Kubernetes and Cloud Native Associate (KCNA), Kubernetes and Cloud
+  Native Security Associate (KCSA), Kubestronaut (CNCF)
+- 2023: CISSP
 - 2022: HashiCorp Certified Vault Operations Professional, HashiCorp
   Certified Terraform Associate, AWS Certified Solutions Architect
   Associate, Google Cloud Associate Cloud Engineer, Microsoft Certified
   Azure Administrator Associate
-- 2023: CISSP
-- 2024: Kubernetes and Cloud Native Associate (KCNA), Kubernetes and Cloud
-  Native Security Associate (KCSA), Kubestronaut (CNCF)
+- 2021: Certified Kubernetes Application Developer (CKAD), Certified
+  Kubernetes Security Specialist (CKS)
+- 2020: Certified Kubernetes Administrator (CKA), Elastic Certified Analyst
+- 2019: CompTIA Security+, Elastic Certified Engineer
 
 ### Talks and articles
 
