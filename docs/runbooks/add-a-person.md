@@ -104,7 +104,9 @@ their name.
 
 The person logs in once to each app they will use, in a browser or the
 mobile app. That login creates their account; the per-app settings below
-need it to exist.
+need it to exist. Audiobookshelf and Calibre-Web work at that first login:
+every library, read and download. Immich albums cannot be shared with the
+person before that login, because their Immich account does not exist yet.
 
 | App | Address | Mobile app |
 | --- | --- | --- |
@@ -142,7 +144,8 @@ config comes from the file; per-user settings are not.
    partner, picks the other user. It works in one direction; for both, each
    adds the other. The partner then sees them under Sharing and can turn on
    "Show in timeline".
-3. Shared albums: the album's owner opens it, Share, and picks users. Each
+3. Shared albums: once the person has logged in to Immich, the album's
+   owner opens it, Share, and picks users. Each
    invited user is an Editor (can add photos) or a Viewer. For someone
    without an account, Share, Create link instead, with an expiry and
    optionally a password; the link opens without a login.
@@ -185,25 +188,24 @@ Expected: Admin settings, Users lists the person, in the household above.
 OpenID settings live in the app's database ([books.md](../books.md#login)):
 auto register on, existing accounts matched by username, the local login
 kept for the `root` break-glass account. The first login creates an account
-with the `user` role.
+of type `user` with every library (Audiobooks, Podcasts) and downloads on:
+no step.
 
-As an admin: Settings, Users, the user. Check the libraries they may open
-(Audiobooks, Podcasts) and the download permission.
-
-Expected: the person sees the libraries in the app.
+Expected: right after their first login, the person sees both libraries
+and can download.
 
 ### 7. Calibre-Web
 
 Login type "Use OAuth", generic provider, settings in its database
 ([books.md](../books.md#login)). The first login creates an account named
 after the Keycloak username (an existing account is matched by name, then by
-email). The default role for new users is empty, so the new account can
-browse the catalogue but not read or download.
+email). The default role, set in `apps/books/calibre-web.yaml`, gives the
+new account the eBook viewer and downloads, no admin or upload: no step.
+"Allow Editing Public Shelves", if they share shelves, is ticked by an
+admin in Admin, Users, the user.
 
-As an admin: Admin, Users, the user. Tick "Allow eBook Viewer" and "Allow
-Downloads" (and "Allow Editing Public Shelves" if they share shelves), Save.
-
-Expected: the person can open a book in the browser.
+Expected: right after their first login, the person can open and download
+a book.
 
 ### 8. Home Assistant
 

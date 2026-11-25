@@ -93,6 +93,35 @@ spec:
         - mountPath: /cwa-book-ingest
           name: library
           subPath: books/ingest
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - |
+          db=/config/app.db
+          [ -f "$db" ] || exit 0
+          sqlite3 "$db" "UPDATE settings SET config_default_role = 258; UPDATE user SET role = 258 WHERE role = 0;"
+        image: crocodilestick/calibre-web-automated:v4.0.8@sha256:5e00373854247750cc3e4479b492ae09293ff5e06ed10177f226634d97888679
+        imagePullPolicy: IfNotPresent
+        name: default-role
+        resources:
+          limits:
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsGroup: 1000
+          runAsNonRoot: true
+          runAsUser: 1000
+        volumeMounts:
+        - mountPath: /config
+          name: config
       securityContext:
         seccompProfile:
           type: RuntimeDefault

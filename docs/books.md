@@ -47,8 +47,9 @@ settings in its database, so they are set once in Settings, Authentication:
 - Client ID `audiobookshelf`; client secret from Keycloak (Clients,
   audiobookshelf, Credentials).
 - Allowed mobile redirect URIs: `audiobookshelf://oauth`.
-- Auto register on. New users get the `user` role; give library access in
-  Settings, Users.
+- Auto register on. New users get the `user` type with upstream's
+  defaults: every library, downloads on, no upload, edit or delete, no
+  explicit content. Nothing to set per user.
 
 The local `root` account stays as the break-glass login. Its password is in
 the operator's password manager.
@@ -62,7 +63,13 @@ are also in its database: Admin, Edit Basic Configuration, Feature
 Configuration, Login type "Use OAuth", provider "Generic", metadata URL
 `https://auth.lilalala.com/realms/homelab/.well-known/openid-configuration`,
 client ID `calibre-web`, client secret from Keycloak, scopes
-`openid profile email`. The local `admin` account stays as the break-glass
+`openid profile email`. The first OAuth login creates the account with the
+default role, which the init container `default-role` sets in `app.db` on
+every start: "Allow eBook Viewer" and "Allow Downloads" (role 258), no
+admin, upload, edit or delete. It also gives that role to any account with
+no rights at all (role 0). Who may log in is decided by the Keycloak groups
+alone. Visibility for new users is the default (every sidebar item, no tag
+or column restriction). The local `admin` account stays as the break-glass
 login; its password is in the operator's password manager. A new image
 starts with `admin` / `admin123`: change it before anything else.
 

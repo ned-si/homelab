@@ -27,6 +27,40 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+      # Access comes from the Keycloak groups (access.conf): every SSO
+      # account may read in the browser and download (ROLE_DOWNLOAD |
+      # ROLE_VIEWER = 258), never admin or upload. Calibre-Web keeps the
+      # default role in app.db only, so it is set on every start; accounts
+      # with no rights at all (role 0) get the same. docs/books.md#login.
+      initContainers:
+        - name: default-role
+          # renovate: datasource=docker depName=crocodilestick/calibre-web-automated
+          image: crocodilestick/calibre-web-automated:v4.0.8@sha256:5e00373854247750cc3e4479b492ae09293ff5e06ed10177f226634d97888679
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              db=/config/app.db
+              [ -f "$db" ] || exit 0
+              sqlite3 "$db" "UPDATE settings SET config_default_role = 258; UPDATE user SET role = 258 WHERE role = 0;"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
       containers:
         - name: calibre-web
           # renovate: datasource=docker depName=crocodilestick/calibre-web-automated
