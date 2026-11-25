@@ -37,3 +37,11 @@ spec:
     - ports:
       - port: "41124"
         protocol: UDP
+  - fromEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: jamulus-probe
+        io.kubernetes.pod.namespace: monitoring
+    toPorts:
+    - ports:
+      - port: "41124"
+        protocol: UDP

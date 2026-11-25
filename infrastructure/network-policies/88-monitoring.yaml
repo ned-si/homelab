@@ -278,6 +278,33 @@ spec:
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
+  name: jamulus-probe
+  namespace: monitoring
+spec:
+  description: >-
+    jamulus-probe pings the Jamulus server on UDP 41124.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus-probe
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    # platform/jamulus-probe/deployment.yaml -- TARGETS 192.168.1.202:41124.
+    # The pod's BPF program translates the LoadBalancer address to the
+    # Jamulus pod before this rule, so it names the pod, not the address.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: jamulus
+            app.kubernetes.io/name: jamulus
+      toPorts:
+        - ports:
+            - port: "41124"
+              protocol: UDP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
   name: https-out
   namespace: monitoring
 spec:

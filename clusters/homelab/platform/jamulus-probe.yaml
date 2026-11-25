@@ -1,0 +1,33 @@
+# jamulus-probe: the Jamulus protocol ping behind JamulusDown
+# (platform/jamulus-probe).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jamulus-probe
+  namespace: argo
+  annotations:
+    # After kube-prometheus-stack (10): the ServiceMonitor CRD comes with that chart.
+    argocd.argoproj.io/sync-wave: "20"
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/platform/jamulus-probe
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

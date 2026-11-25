@@ -1,4 +1,4 @@
-# jamulus: the server and the PostSync smoke Job
+# jamulus: the server, the PostSync smoke Job and the probe
 # (.kiro/specs/self-hosted-jamulus/design.md#network). Enforced from the
 # start (90-enforcement.yaml).
 # UDP 41124 in, nothing out but the switch's cluster DNS: the server opens
@@ -35,6 +35,15 @@ spec:
     - fromEndpoints:
         - matchLabels:
             app.kubernetes.io/name: jamulus-smoke
+      toPorts:
+        - ports:
+            - port: "41124"
+              protocol: UDP
+    # platform/jamulus-probe, through the LoadBalancer address.
+    - fromEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: monitoring
+            app.kubernetes.io/name: jamulus-probe
       toPorts:
         - ports:
             - port: "41124"

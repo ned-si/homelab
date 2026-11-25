@@ -1,0 +1,27 @@
+# The Jamulus server (apps/jamulus): no answer to the probe's protocol ping
+# (platform/jamulus-probe). Review only: sessions are by appointment and
+# Jamulus has no SLO (docs/sre.md).
+# Tests: tests/prometheus/jamulus_test.yaml.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: jamulus-alerts
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: jamulus
+      rules:
+        - alert: JamulusDown
+          # absent() keeps the target label of the equality matcher, so a
+          # dead probe fires the same alert for the same target.
+          expr: |
+            jamulus_up{target="192.168.1.202:41124"} == 0
+            or absent(jamulus_up{target="192.168.1.202:41124"})
+          for: 15m
+          labels:
+            severity: warning
+            action: review
+          annotations:
+            runbook_url: https://github.com/ned-si/homelab/blob/main/docs/runbooks/alerts/JamulusDown.md
+            summary: "Jamulus at {{ $labels.target }} has not answered a ping for 15 minutes"
