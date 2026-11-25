@@ -72,6 +72,8 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
   [docs/networking.md](docs/networking.md), [docs/decisions.md](docs/decisions.md).
 - Data: [docs/backups.md](docs/backups.md), [docs/secrets.md](docs/secrets.md).
 - Monitoring: [docs/observability.md](docs/observability.md).
+- The public pages: [docs/homelab-dashboard.md](docs/homelab-dashboard.md),
+  [docs/techradar.md](docs/techradar.md).
 - Tests, from pre-commit to deploy-time smoke tests: [docs/testing.md](docs/testing.md).
 - Operating Talos nodes: [docs/talos-cheatsheet.md](docs/talos-cheatsheet.md).
 - App runbooks: [docs/runbooks/](docs/runbooks).
@@ -97,6 +99,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Argo CD | GitOps controller | `argo` | `argo` | Yes |
 | Headlamp | Read-only Kubernetes web UI | `headlamp` | `headlamp` | Yes (group `admins`) |
 | Homelab dashboard | Public availability, cluster and project figures ([docs/homelab-dashboard.md](docs/homelab-dashboard.md)) | `homelab-dashboard` | `homelab.nedsi.io` | No (public, read-only) |
+| Tech radar | What the homelab uses, tries, assesses and holds, and why ([docs/techradar.md](docs/techradar.md)) | `website` | `techradar.nedsi.io` | No (public, static) |
 
 Hostnames are prefixes of `lilalala.com` unless written in full. Plex and
 Jellyfin stay off SSO so their TV apps can sign in.
@@ -169,6 +172,7 @@ the `lbipam.cilium.io/ips` annotation so the router port forwards stay valid.
 | [`bootstrap/`](bootstrap) | `root-app.yaml` (the root Application, applied once by hand), values for the `argocd` Helm release, OpenTofu for a fresh install |
 | [`talos/`](talos) | talhelper config for the Talos nodes (machine configs, Image Factory schematic, patches); [docs/talos.md](docs/talos.md) |
 | [`ci/`](ci) | Helm CLI release list, vendored CRD schemas, pinned CI Python requirements |
+| [`techradar/`](techradar) | The tech radar's entries and Go generator; the page it renders is in `apps/website/techradar/` ([docs/techradar.md](docs/techradar.md)) |
 | [`scripts/`](scripts) | CI entry points (`scripts/ci/`), read-only cluster smoke suite (`smoke.sh`), guarded merge (`pr-merge.sh`), Trivy gate |
 | [`tests/`](tests) | pytest and bash tests for the scripts |
 | [`docs/`](docs) | Architecture, networking, bootstrap, backups, secrets, observability, decisions, runbooks, [roadmap](docs/roadmap.md) |
