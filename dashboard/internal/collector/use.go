@@ -27,17 +27,17 @@ var nodeQueries = []struct {
 	set          func(*snapshot.NodeUse, *float64)
 }{
 	{"node_use.cpu", `1 - avg by (nodename) (rate(node_cpu_seconds_total{mode="idle"}[5m])` + nodeJoin + `)`,
-		snapshot.Percent, func(n *snapshot.NodeUse, v *float64) { n.CPU = v }},
+		snapshot.ToPercent, func(n *snapshot.NodeUse, v *float64) { n.CPU = v }},
 	{"node_use.memory", `max by (nodename) ((1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)` + nodeJoin + `)`,
-		snapshot.Percent, func(n *snapshot.NodeUse, v *float64) { n.Memory = v }},
+		snapshot.ToPercent, func(n *snapshot.NodeUse, v *float64) { n.Memory = v }},
 	{"node_use.disk", `max by (nodename) ((1 - node_filesystem_avail_bytes{mountpoint="/var"} / node_filesystem_size_bytes{mountpoint="/var"})` + nodeJoin + `)`,
-		snapshot.Percent, func(n *snapshot.NodeUse, v *float64) { n.Disk = v }},
+		snapshot.ToPercent, func(n *snapshot.NodeUse, v *float64) { n.Disk = v }},
 	{"node_use.cpu_pressure", `max by (nodename) (rate(node_pressure_cpu_waiting_seconds_total[5m])` + nodeJoin + `)`,
-		snapshot.Percent, func(n *snapshot.NodeUse, v *float64) { n.CPUPressure = v }},
+		snapshot.ToPercent, func(n *snapshot.NodeUse, v *float64) { n.CPUPressure = v }},
 	{"node_use.memory_pressure", `max by (nodename) (rate(node_pressure_memory_waiting_seconds_total[5m])` + nodeJoin + `)`,
-		snapshot.Percent, func(n *snapshot.NodeUse, v *float64) { n.MemoryPressure = v }},
+		snapshot.ToPercent, func(n *snapshot.NodeUse, v *float64) { n.MemoryPressure = v }},
 	{"node_use.io_pressure", `max by (nodename) (rate(node_pressure_io_waiting_seconds_total[5m])` + nodeJoin + `)`,
-		snapshot.Percent, func(n *snapshot.NodeUse, v *float64) { n.IOPressure = v }},
+		snapshot.ToPercent, func(n *snapshot.NodeUse, v *float64) { n.IOPressure = v }},
 	{"node_use.net_errors_per_second", `sum by (nodename) ((rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]))` + nodeJoin + `)`,
 		func(x float64) float64 { return max(0, snapshot.Round(x, 2)) }, func(n *snapshot.NodeUse, v *float64) { n.NetErrorsPerSecond = v }},
 }
@@ -161,9 +161,9 @@ func nas(ctx context.Context, q Querier, at time.Time) (snapshot.NAS, error) {
 				n.PoolHealthy = &healthy
 			}
 		}},
-		{"nas.pool", `max(nas:pool_used:ratio{pool="homelab"})`, func(v *float64) { n.Pool = mapped(v, snapshot.Percent) }},
-		{"nas.cpu", `max(truenas_cpu_utilisation_ratio)`, func(v *float64) { n.CPU = mapped(v, snapshot.Percent) }},
-		{"nas.memory", `max(truenas_memory_used_bytes / truenas_memory_total_bytes)`, func(v *float64) { n.Memory = mapped(v, snapshot.Percent) }},
+		{"nas.pool", `max(nas:pool_used:ratio{pool="homelab"})`, func(v *float64) { n.Pool = mapped(v, snapshot.ToPercent) }},
+		{"nas.cpu", `max(truenas_cpu_utilisation_ratio)`, func(v *float64) { n.CPU = mapped(v, snapshot.ToPercent) }},
+		{"nas.memory", `max(truenas_memory_used_bytes / truenas_memory_total_bytes)`, func(v *float64) { n.Memory = mapped(v, snapshot.ToPercent) }},
 		{"nas.load_per_core", `max(truenas_load1 / truenas_cpu_cores)`, func(v *float64) {
 			n.LoadPerCore = mapped(v, func(x float64) float64 { return max(0, snapshot.Round(x, 2)) })
 		}},
@@ -197,7 +197,7 @@ func gateway(ctx context.Context, q Querier, at time.Time) (snapshot.Gateway, er
 	if err != nil {
 		return g, err
 	}
-	g.Errors5xx = mapped(errs, func(x float64) float64 { return min(100, max(0, snapshot.Round(100*x, 2))) })
+	g.Errors5xx = mapped(errs, snapshot.ToPercent)
 	p95, err := optional(ctx, q, "gateway.latency_p95_ms",
 		`histogram_quantile(0.95, sum by (le) (rate(envoy_http_downstream_rq_time_bucket{`+listeners+`}[5m])))`, at)
 	if err != nil {
@@ -224,7 +224,7 @@ func volumes(ctx context.Context, q Querier, at time.Time) (snapshot.Volumes, er
 		{"volumes.used_bytes", `sum(kubelet_volume_stats_used_bytes)`, func(x float64) { v.UsedBytes = int64(x) }},
 		{"volumes.capacity_bytes", `sum(kubelet_volume_stats_capacity_bytes)`, func(x float64) { v.CapacityBytes = int64(x) }},
 		{"volumes.fullest", `max(kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes)`,
-			func(x float64) { v.Fullest = snapshot.Percent(x) }},
+			func(x float64) { v.Fullest = snapshot.ToPercent(x) }},
 	}
 	for _, f := range figures {
 		x, err := optional(ctx, q, f.figure, f.expr, at)

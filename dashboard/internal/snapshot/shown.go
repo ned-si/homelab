@@ -42,7 +42,20 @@ type ShownSignal struct {
 	// Query is one PromQL sum over the whole cluster; Window replaces <w>
 	// in it.
 	Query string
+	// Total is the count the share is of, TotalNoun its word on the page
+	// ("requests"); empty for a signal without a share.
+	Total, TotalNoun string
+	// Part counts the share of Query named by PartNoun in the detail line
+	// (the 403s of the refusals); empty for none.
+	Part, PartNoun string
+	// Note is a plain line under the tile, such as our own traffic the
+	// Gateway cannot tell apart.
+	Note string
 }
+
+// UnattributedSignal is the signal whose tile says how many 4xx the Gateway
+// answered itself, which no tile counts.
+const UnattributedSignal = "gateway_unknown"
 
 // Window is the placeholder of a signal's query for its window.
 const Window = "<w>"
@@ -53,6 +66,13 @@ const Window = "<w>"
 // tetragon:policy_events:increase5m does.
 func counter(selector string) string {
 	return "sum((" + selector + " unless " + selector + " offset " + Window + ") or increase(" + selector + "[" + Window + "]))"
+}
+
+// orZero is 0 instead of nothing while source has a series: for a counter
+// born with its first event, so a quiet signal reads 0 and a missing
+// source "No data".
+func orZero(source string) string {
+	return " or on() (0 * sum(" + source + "))"
 }
 
 // Probes returns the `app` labels of the probes behind a's card.
@@ -85,25 +105,50 @@ var shownCerts = []ShownCert{
 	{ID: "homelab", Name: "homelab.nedsi.io", Instance: `https://homelab\\.nedsi\\.io/.*`},
 }
 
-// shownSignals are the signals of design.md, "Security signals", in page
-// order. Each sums its selectors away in PromQL, so no webhook, cluster,
-// route or alert name reaches the snapshot. No brute-force lockout count:
-// Keycloak locks existing accounts only, so it would name usernames.
+// The Gateway's public listeners, its requests and our own traffic on them
+// (design.md, "Security card figures").
+const (
+	listeners    = `envoy_http_conn_manager_prefix=~"listener-secure|listener-insecure"`
+	upstream     = `envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+"`
+	gatewayScan  = "Includes our own weekly security scan."
+	publicReqs   = `envoy_http_downstream_rq_total{` + listeners + `}`
+	staticSite   = `envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+/(website|homelab-dashboard)_.+", envoy_response_code="404"}`
+	kyvernoDeny  = `apiserver_admission_webhook_rejection_count{name=~"i?vpol\\.validate\\.kyverno\\.svc.*", error_type="no_error"}`
+	podSecDeny   = `pod_security_evaluations_total{decision="deny", mode="enforce"}`
+	worldDropped = `hubble_drop_total{reason="POLICY_DENIED", source="reserved:world"}`
+)
+
+// UnattributedQuery is the Gateway's own 4xx in the window: the downstream
+// 4xx less those without a route and those an app answered, at least 0.
+var UnattributedQuery = "clamp_min(" +
+	counter(`envoy_http_downstream_rq_xx{envoy_response_code_class="4", `+listeners+`}`) +
+	" - " + counter(`envoy_http_no_route{`+listeners+`}`) +
+	" - (" + counter(upstream+`, envoy_response_code=~"4.."}`) + orZero(publicReqs) + "), 0)"
+
+// shownSignals are the signals of design.md, "Security card figures", in
+// page order. Each sums its selectors away in PromQL, so no webhook,
+// cluster, route or alert name reaches the snapshot. No brute-force lockout
+// count: Keycloak locks existing accounts only, so it would name usernames.
 var shownSignals = []ShownSignal{
-	{ID: "gateway_rejected", Name: "Requests rejected (4xx)", Query: counter(
-		`envoy_http_downstream_rq_xx{envoy_response_code_class="4", envoy_http_conn_manager_prefix=~"listener-secure|listener-insecure"}`)},
-	{ID: "gateway_forbidden", Name: "Access refused (403)", Query: counter(
-		`envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code="403"}`)},
-	{ID: "gateway_method", Name: "Method not allowed (405)", Query: counter(
-		`envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code="405"}`)},
-	{ID: "signin_failed", Name: "Failed sign-ins", Query: counter(
-		`keycloak_user_events_total{event="login", error!=""}`)},
-	{ID: "admission_denied", Name: "Admission denials", ExpectedZero: true, Query: counter(
-		`apiserver_admission_webhook_rejection_count{name=~"i?vpol\\.validate\\.kyverno\\.svc.*", error_type="no_error"}`) +
-		" or vector(0)"},
-	{ID: "ingress_dropped", Name: "Ingress packets dropped by network policy", Query: counter(
-		`cilium_drop_count_total{reason="Policy denied", direction="INGRESS"}`)},
-	{ID: "runtime_detections", Name: "Runtime detections (observe mode)", ExpectedZero: true,
+	{ID: "gateway_unknown", Name: "Unknown host or path",
+		Query: counter(`envoy_http_no_route{`+listeners+`}`) + " + (" + counter(staticSite) + orZero(publicReqs) + ")",
+		Total: counter(publicReqs), TotalNoun: "requests", Note: gatewayScan},
+	{ID: "gateway_refused", Name: "Refused by an app",
+		Query: counter(upstream+`, envoy_response_code=~"401|403"}`) + orZero(publicReqs),
+		Total: counter(publicReqs), TotalNoun: "requests",
+		Part: counter(upstream+`, envoy_response_code="403"}`) + orZero(publicReqs), PartNoun: "403",
+		Note: gatewayScan},
+	{ID: "gateway_method", Name: "Method not allowed (405)",
+		Query: counter(upstream+`, envoy_response_code="405"}`) + orZero(publicReqs),
+		Total: counter(publicReqs), TotalNoun: "requests", Note: gatewayScan},
+	{ID: "signin_failed", Name: "Failed sign-ins",
+		Query: counter(`keycloak_user_events_total{event="login", error!=""}`),
+		Total: counter(`keycloak_user_events_total{event="login"}`), TotalNoun: "sign-ins"},
+	{ID: "blocked", Name: "Deployments blocked by policy", ExpectedZero: true,
+		Query: "(" + counter(kyvernoDeny) + " or vector(0)) + (" + counter(podSecDeny) + " or vector(0))"},
+	{ID: "ingress_world", Name: "Ingress packets dropped from the internet",
+		Query: counter(worldDropped) + orZero("hubble_drop_total")},
+	{ID: "runtime_detections", Name: "Runtime detections", ExpectedZero: true,
 		Query: `count(max_over_time(ALERTS{alertname=~"Runtime.+", alertstate="firing"}[` + Window + `])) or vector(0)`},
 }
 

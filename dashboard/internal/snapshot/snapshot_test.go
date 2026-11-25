@@ -291,6 +291,12 @@ func TestValidateRefuses(t *testing.T) {
 			sigs := obj(d, "security")["signals"].([]any)
 			sigs[0], sigs[1] = sigs[1], sigs[0]
 		}, true},
+		// Version 5: shares, totals, the 403 part and the unattributed 4xx.
+		{"share above 1", func(d map[string]any) { item(d, "security", "signals", 0)["share_24h"] = 1.5 }, false},
+		{"no share key", func(d map[string]any) { delete(item(d, "security", "signals", 0), "share_7d") }, false},
+		{"unattributed on another signal", func(d map[string]any) {
+			item(d, "security", "signals", 1)["unattributed_24h"] = 3
+		}, false},
 		{"one signal missing", func(d map[string]any) {
 			sec := obj(d, "security")
 			sec["signals"] = sec["signals"].([]any)[1:]
@@ -306,6 +312,27 @@ func TestValidateRefuses(t *testing.T) {
 				t.Errorf("errors.Is(%v, ErrNotShown) = %v, want %v", err, got, tc.notShown)
 			}
 		})
+	}
+}
+
+// Version 5 carries every percentage and the error budget at full
+// precision.
+func TestValidateFullPrecision(t *testing.T) {
+	s, err := Validate(mutate(t, func(d map[string]any) {
+		item(d, "availability", "apps", 1)["error_budget_remaining_30d"] = 25.004
+		obj(d, "project")["renovate_share_30d"] = 33.333
+	}))
+	if err != nil {
+		t.Fatalf("Validate() = %v", err)
+	}
+	if got := *s.Availability.Apps[0].Availability30d; got != 99.957 {
+		t.Errorf("availability_30d = %v, want 99.957", got)
+	}
+	if got := *s.Availability.Apps[1].ErrorBudgetRemaining30d; got != 25.004 {
+		t.Errorf("error_budget_remaining_30d = %v, want 25.004", got)
+	}
+	if got := s.Project.RenovateShare30d; got != 33.333 {
+		t.Errorf("renovate_share_30d = %v, want 33.333", got)
 	}
 }
 
@@ -344,7 +371,7 @@ func TestSignalQueries(t *testing.T) {
 	got := map[string]ShownSignal{}
 	for _, sig := range ShownSignals() {
 		got[sig.ID] = sig
-		if !strings.HasPrefix(sig.Query, "sum(") && !strings.HasPrefix(sig.Query, "count(") {
+		if !strings.HasPrefix(sig.Query, "sum(") && !strings.HasPrefix(sig.Query, "count(") && !strings.HasPrefix(sig.Query, "(sum(") {
 			t.Errorf("%s: %q is not a sum over the cluster", sig.ID, sig.Query)
 		}
 		if strings.Contains(sig.Query, " by (") {
@@ -353,12 +380,45 @@ func TestSignalQueries(t *testing.T) {
 		if Hidden(sig.ID) || Hidden(strings.ToLower(sig.Name)) {
 			t.Errorf("%s: names download or indexer tooling", sig.ID)
 		}
-		if zero := strings.HasSuffix(sig.Query, " or vector(0)"); zero != sig.ExpectedZero {
+		if zero := strings.Contains(sig.Query, "vector(0)"); zero != sig.ExpectedZero {
 			t.Errorf("%s: or vector(0) is %v, want it only on expected-zero signals", sig.ID, zero)
+		}
+		if strings.Contains(strings.ToLower(sig.Name), "observe") {
+			t.Errorf("%s: %q says observe mode", sig.ID, sig.Name)
 		}
 	}
 	if diff := cmp.Diff(want, got["signin_failed"].Query); diff != "" {
 		t.Errorf("signin_failed query mismatch (-want +got):\n%s", diff)
+	}
+	c := func(s string) string {
+		return "sum((" + s + " unless " + s + " offset <w>) or increase(" + s + "[<w>]))"
+	}
+	p := `envoy_http_conn_manager_prefix=~"listener-secure|listener-insecure"`
+	reqs := `envoy_http_downstream_rq_total{` + p + `}`
+	gw := " or on() (0 * sum(" + reqs + "))"
+	up := `envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code=`
+	for _, tc := range []struct{ id, field, got, want string }{
+		{"gateway_unknown", "query", got["gateway_unknown"].Query, c(`envoy_http_no_route{`+p+`}`) + " + (" +
+			c(`envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+/(website|homelab-dashboard)_.+", envoy_response_code="404"}`) + gw + ")"},
+		{"gateway_unknown", "total", got["gateway_unknown"].Total, c(reqs)},
+		{"gateway_refused", "query", got["gateway_refused"].Query, c(up+`~"401|403"}`) + gw},
+		{"gateway_refused", "part", got["gateway_refused"].Part, c(up+`"403"}`) + gw},
+		{"gateway_method", "query", got["gateway_method"].Query, c(up+`"405"}`) + gw},
+		{"signin_failed", "total", got["signin_failed"].Total, c(`keycloak_user_events_total{event="login"}`)},
+		{"blocked", "query", got["blocked"].Query, "(" +
+			c(`apiserver_admission_webhook_rejection_count{name=~"i?vpol\\.validate\\.kyverno\\.svc.*", error_type="no_error"}`) +
+			" or vector(0)) + (" + c(`pod_security_evaluations_total{decision="deny", mode="enforce"}`) + " or vector(0))"},
+		{"ingress_world", "query", got["ingress_world"].Query,
+			c(`hubble_drop_total{reason="POLICY_DENIED", source="reserved:world"}`) + " or on() (0 * sum(hubble_drop_total))"},
+		{"runtime_detections", "query", got["runtime_detections"].Query,
+			`count(max_over_time(ALERTS{alertname=~"Runtime.+", alertstate="firing"}[<w>])) or vector(0)`},
+		{"gateway_unknown", "unattributed", UnattributedQuery, "clamp_min(" +
+			c(`envoy_http_downstream_rq_xx{envoy_response_code_class="4", `+p+`}`) + " - " + c(`envoy_http_no_route{`+p+`}`) +
+			" - (" + c(up+`~"4.."}`) + gw + "), 0)"},
+	} {
+		if diff := cmp.Diff(tc.want, tc.got); diff != "" {
+			t.Errorf("%s %s mismatch (-want +got):\n%s", tc.id, tc.field, diff)
+		}
 	}
 	if _, ok := got["signin_lockouts"]; ok {
 		t.Error("a lockout count would show which usernames exist")
@@ -390,49 +450,24 @@ func TestHidden(t *testing.T) {
 }
 
 func TestRounding(t *testing.T) {
-	pct := []struct {
-		in   float64
+	// Full precision, clamped: the web role rounds once when it formats.
+	for _, tc := range []struct {
+		name string
+		got  float64
 		want float64
 	}{
-		{0.99956, 99.9},
-		{0.9995, 99.9},
-		{0.995, 99.5},
-		{1.0, 100},
-		{1.2, 100},
-		{-0.1, 0},
-	}
-	for _, tc := range pct {
-		if got := PercentDown(tc.in); got != tc.want {
-			t.Errorf("PercentDown(%v) = %v, want %v", tc.in, got, tc.want)
-		}
-	}
-	budget := []struct {
-		in   float64
-		want int
-	}{
-		{0.125, 12},
-		{0.135, 14},
-		{-0.625, -62},
-		{-3, -100},
-		{2, 100},
-	}
-	for _, tc := range budget {
-		if got := Budget(tc.in); got != tc.want {
-			t.Errorf("Budget(%v) = %d, want %d", tc.in, got, tc.want)
-		}
-	}
-	share := []struct {
-		part, total, want int
-	}{
-		{1, 8, 12},
-		{3, 8, 38},
-		{1, 200, 0},
-		{3, 200, 2},
-		{0, 0, 0},
-	}
-	for _, tc := range share {
-		if got := Share(tc.part, tc.total); got != tc.want {
-			t.Errorf("Share(%d, %d) = %d, want %d", tc.part, tc.total, got, tc.want)
+		{"ToPercent(0.99957)", ToPercent(0.99957), 100 * 0.99957},
+		{"ToPercent(1.2)", ToPercent(1.2), 100},
+		{"ToPercent(-0.1)", ToPercent(-0.1), 0},
+		{"BudgetPercent(-0.625)", BudgetPercent(-0.625), -62.5},
+		{"BudgetPercent(-3)", BudgetPercent(-3), -100},
+		{"BudgetPercent(2)", BudgetPercent(2), 100},
+		{"SharePercent(1, 8)", SharePercent(1, 8), 12.5},
+		{"SharePercent(3, 200)", SharePercent(3, 200), 1.5},
+		{"SharePercent(0, 0)", SharePercent(0, 0), 0},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("%s = %v, want %v", tc.name, tc.got, tc.want)
 		}
 	}
 	if got, want := Median([]float64{900, 600, 700}), 700.0; got != want {
@@ -440,13 +475,6 @@ func TestRounding(t *testing.T) {
 	}
 	if got, want := Median([]float64{600, 700, 900, 601}), 650.5; got != want {
 		t.Errorf("Median(even) = %v, want %v", got, want)
-	}
-	for _, tc := range []struct {
-		in, want float64
-	}{{0.12345, 12.3}, {0.125, 12.5}, {0.5, 50}, {1.5, 100}, {-0.1, 0}} {
-		if got := Percent(tc.in); got != tc.want {
-			t.Errorf("Percent(%v) = %v, want %v", tc.in, got, tc.want)
-		}
 	}
 	for _, tc := range []struct {
 		in, want float64

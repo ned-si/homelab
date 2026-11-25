@@ -315,7 +315,7 @@ except tasks 20 and 22, merges after its review round with no preview approval (
 2026-11-24 and 2026-11-25), and is followed by the image deploy and a
 live check.
 
-- [ ] 18. Stat tiles (**visible**): the `tile` template, `div.tiles`
+- [x] 18. Stat tiles (**visible**): the `tile` template, `div.tiles`
       and the tile classes in `dashboard.css` as in
       [design.md, Stat tiles](design.md#stat-tiles-task-18), applied to
       every figure from the Cluster card down (Gateway, nodes, NAS,
@@ -334,6 +334,7 @@ live check.
       that section, 99.957 shown as "99.96%" among them.
       Snapshot keys read: unchanged. Probes: none. Check: acceptance
       criteria 6, 22 and 29. [3.11, 3.12, 3.13, 3.14]
+      #1691
 - [ ] 19. Rework rate and "agents" (**visible**): snapshot version 6
       (`project.rework`, `ci_median_seconds_30d` nullable), the collector's count of
       [design.md, DORA bands](design.md#dora-bands), the tile without a
@@ -378,7 +379,7 @@ live check.
       "Verified", the Scorecard score equal to the API's. [3.10, 13.1,
       13.2, 13.5, 13.6]
 
-- [ ] 22. Our own traffic out of the Security figures (**not
+- [x] 22. Our own traffic out of the Security figures (**not
       visible**), as in
       [design.md, Security card figures](design.md#security-card-figures-tasks-22-and-23):
       the `theater` probe on a 2xx endpoint and its comment, `401`
@@ -390,10 +391,14 @@ live check.
       `task render`. Check: acceptance criterion 27; live,
       `probe_success{app="theater"}` is 1 and the Gateway's 401 rate
       drops by the probe's 120 an hour. [12.6]
-- [ ] 23. Security card figures (**visible**): snapshot version 8, the
+      #1691
+- [x] 23. Security card figures (**visible**): snapshot version 5 with
+      task 18 (tasks 18, 22 and 23 in one pull request, operator
+      2026-11-25), the
       signal list, shares and unattributed line in `shown.go` and the
       collector, the plain names, no "observe mode", golden pages, the
       card in `docs/homelab-dashboard.md`. Check: acceptance criterion
       28. [12.6-12.11]
+      #1691
 
 The last task ticked sets `status: done`, `closed:`, and closes #1670.

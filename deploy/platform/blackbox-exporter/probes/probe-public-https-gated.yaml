@@ -35,4 +35,4 @@ spec:
         - __param_target
         targetLabel: app
       static:
-      - https://theater.lilalala.com/
+      - https://theater.lilalala.com/oauth2/sign_in

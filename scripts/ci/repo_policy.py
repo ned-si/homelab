@@ -121,6 +121,10 @@ objects and rule ids only; values are never printed.
                         step, uploads SARIF and no plaintext artifact;
                         pentest-schedule.yaml, when present, runs no scanner
                         and triggers on exactly the big-change paths
+  public-probe-codes    every module of platform/blackbox-exporter/values.yaml used by
+                        a Probe under platform/blackbox-exporter/probes/ with the
+                        label probe: public expects only codes 200-399, so our own
+                        probes never add to the public 4xx figures
   expected-ingresses    every <ns>/<name> in ci/expected-ingresses.txt is rendered
                         by the new layout
   alert-tests           every alert of a PrometheusRule under platform/ or apps/
@@ -231,6 +235,8 @@ IPV4 = re.compile(r"(?<![0-9.])(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 DEFAULT_TARGETS = re.compile(r"--default-targets=(\d{1,3}(?:\.\d{1,3}){3})(?![0-9.])")
 AWS_BACKUP_TF = "bootstrap/aws-backup/main.tf"
 CILIUM_VALUES = "infrastructure/cilium/values.yaml"
+BLACKBOX_VALUES = "platform/blackbox-exporter/values.yaml"
+BLACKBOX_PROBES = "platform/blackbox-exporter/probes"
 # What the backup bucket policy must deny to everyone (docs/backups.md#immutable-versions).
 LOCK_ACTIONS = {"s3:DeleteObjectVersion", "s3:PutBucketVersioning", "s3:DeleteBucket"}
 CI_WORKFLOW = ".github/workflows/ci.yaml"
@@ -949,6 +955,31 @@ class Policy:
         if not envoy or not re.search(r"^  xdsMode: \S+", envoy.group(1), re.M):
             self.fail(rule, f"{CILIUM_VALUES}: set envoy.xdsMode explicitly (the chart default changed in 1.20.4)")
 
+    def rule_public_probe_codes(self) -> None:
+        rule = "public-probe-codes"
+        values, probes = self.root / BLACKBOX_VALUES, self.root / BLACKBOX_PROBES
+        if not values.is_file() or not probes.is_dir():
+            return
+        self.on(rule)
+        docs = yaml_file_docs(values)
+        modules = ((docs[0].get("config") or {}).get("modules") or {}) if docs else {}
+        for path in sorted(probes.glob("*.yaml")):
+            for d in yaml_file_docs(path):
+                spec = d.get("spec") or {}
+                labels = ((spec.get("targets") or {}).get("staticConfig") or {}).get("labels") or {}
+                if d.get("kind") != "Probe" or labels.get("probe") != "public":
+                    continue
+                name, module = self.name_of(d), spec.get("module")
+                if module not in modules:
+                    self.fail(rule, f"{BLACKBOX_PROBES}/{path.name}: Probe {name} uses module {module}, "
+                                    f"not defined in {BLACKBOX_VALUES}")
+                    continue
+                codes = ((modules[module] or {}).get("http") or {}).get("valid_status_codes") or []
+                bad = [c for c in codes if not (isinstance(c, int) and 200 <= c <= 399)]
+                if bad:
+                    self.fail(rule, f"{BLACKBOX_VALUES}: module {module} of public Probe {name} expects "
+                                    f"{', '.join(map(str, bad))}, outside 200-399")
+
     def rule_monitor_selected(self) -> None:
         rule = "monitor-selected"
         for e in self.entries():
@@ -1430,7 +1461,7 @@ class Policy:
                      self.rule_restic_locks,
                      self.rule_root_profiles, self.rule_bootstrap_chart_versions, self.rule_cnpg_backup,
                      self.rule_backup_bucket_lock, self.rule_kiro_tracked, self.rule_cilium_explicit_xds,
-                     self.rule_monitor_selected, self.rule_appproject_kinds, self.rule_spec_lifecycle,
+                     self.rule_monitor_selected, self.rule_public_probe_codes, self.rule_appproject_kinds, self.rule_spec_lifecycle,
                      self.rule_pentest_roe, self.rule_pentest_runbooks, self.rule_pentest_reports,
                      self.rule_expected_ingresses, self.rule_alert_tests, self.rule_alert_runbooks,
                      self.rule_backup_slo_targets, self.rule_k8s_version,

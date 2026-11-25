@@ -141,13 +141,23 @@ the snapshot (60 min for the project) says "Figures from <time>".
 | Card | Shows | Source |
 | --- | --- | --- |
 | Availability, one per shown app | State ("Up", "Down", "No data"), the rolling 30 days, the error budget left, 30 daily bars, the last one today so far | `probe_success` of the app's probes; `slo:availability:ratio_rate30d`, `slo:error_budget_remaining:ratio_rate30d`, `slo:probe_error:ratio_rate1d` ([sre.md](sre.md)) |
-| Cluster | Per node and for the NAS: utilisation, saturation, errors (USE); at the Gateway: requests per second, `5xx` share and p95 over 5 min (RED); Argo CD Synced and Healthy, restarts in 24 h, volumes, versions | node-exporter, kube-state-metrics, `truenas_*`, Envoy, `argocd_app_info`, kubelet volume stats, all summed in PromQL |
+| Cluster | Per node and for the NAS: utilisation, saturation, errors (USE); at the Gateway: requests per second, `5xx` share and p95 over a rolling 5 min (RED); Argo CD Synced and Healthy, restarts over a rolling 24 h, volumes, versions | node-exporter, kube-state-metrics, `truenas_*`, Envoy, `argocd_app_info`, kubelet volume stats, all summed in PromQL |
 | Project | The four DORA metrics with their band and the overall level (the lowest of the four bands, "No data" when one is missing), Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
-| Security | Per signal: the count of the last 24 h, of the last 7 days and the 7 days in 28 six-hour bars. Signals: Gateway `4xx`, `403` and `405`; failed sign-ins; Kyverno admission denials; ingress packets dropped by network policy; runtime detections | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `cilium_drop_count_total`, the `Runtime*` alerts; each one sum over the cluster |
+| Security | Per signal: the count of the rolling 24 h and 7 days, its share of the requests or sign-ins, and the 7 days in 28 six-hour bars. Signals: unknown host or path (no route, and `404` from the static sites), refused by an app (`401` and `403`, the `403` part in the detail), method not allowed (`405`), failed sign-ins, deployments blocked by policy (Kyverno and Pod Security in enforce mode), ingress packets dropped from the internet, runtime detections. Under the 4xx tiles, the `4xx` the Gateway answered itself, which no tile can attribute | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `pod_security_evaluations_total`, `hubble_drop_total` from `reserved:world`, the `Runtime*` alerts; each one sum over the cluster |
 | Certificates | Days left per shown certificate | `probe_ssl_earliest_cert_expiry` of the public probes |
 
-The page shows the cards in this order, then "Coming later". Every
-percentage has two decimals; the status colours read the raw values.
+The page shows the cards in this order, then "Coming later". From the
+Cluster card down, every figure is a stat tile: a label above its value,
+the status colour on the value or, for a word, as a left border. Every
+percentage has two decimals: the snapshot keeps full precision and the page
+rounds once, half to even; the status colours read the raw values.
+
+Our own traffic stays out of the Gateway's `4xx` and `405` figures: public
+probes expect only `2xx` or `3xx` (repo-policy `public-probe-codes`), and
+the smoke hooks send their deliberate `404` and `POST` to the Service. The
+weekly `dast` scan and the quarterly pentest still cross the Gateway from
+GitHub's runners, which Envoy cannot tell apart, so the Gateway tiles say
+so.
 
 The shown apps are Immich, Mealie, Paperless-ngx, Plex, Syncthing,
 Keycloak, Observability (Grafana, SigNoz, Prometheus and Alertmanager), the

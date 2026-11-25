@@ -42,12 +42,15 @@ patches:
             headers="content-security-policy strict-transport-security x-content-type-options x-frame-options"
             headers="$headers referrer-policy permissions-policy cross-origin-opener-policy"
             # req <url> [curl options...]: sets $code, $resp (the headers) and
-            # writes the body to /tmp/body.
+            # writes the body to /tmp/body. The Service is reached directly, a
+            # public name through $gw.
             req() {
               url=$1
               shift
-              # shellcheck disable=SC2086 # $gw splits on purpose
-              resp=$(curl $gw "$@" -s -D - -o /tmp/body -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
+              via=$gw
+              case $url in "$svc"*) via= ;; esac
+              # shellcheck disable=SC2086 # $via splits on purpose
+              resp=$(curl $via "$@" -s -D - -o /tmp/body -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
               code=$(printf '%s\n' "$resp" | sed -n 's/^CODE //p')
               code=${code:-000}
             }
@@ -86,9 +89,11 @@ patches:
             done
             expect 200 3 "$base/"
             has_headers "$base/"
-            expect 404 3 "$base/does-not-exist"
-            has_headers "$base/does-not-exist"
-            expect 405 3 "$base/" -X POST
+            # The 404 and 405 go to the Service, so our own checks add nothing
+            # to the public 4xx figures; the web role sets the headers itself.
+            expect 404 3 "$svc/does-not-exist"
+            has_headers "$svc/does-not-exist"
+            expect 405 3 "$svc/" -X POST
             # The first push follows the collector's first full cycle.
             expect 200 60 "$base/snapshot.json"
             printf '%s\n' "$resp" | grep -qi '^content-type: application/json' \

@@ -1,11 +1,11 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "generated_at": "2026-11-20T17:00:00+01:00",
   "availability": {
     "as_of": "2026-11-20T17:00:00+01:00",
     "days": ["2026-10-22", "2026-10-23", "2026-10-24", "2026-10-25", "2026-10-26", "2026-10-27", "2026-10-28", "2026-10-29", "2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15", "2026-11-16", "2026-11-17", "2026-11-18", "2026-11-19", "2026-11-20"],
     "apps": [
-      {"id": "immich", "name": "Immich", "state": "up", "availability_30d": 99.5, "error_budget_remaining_30d": 11, "availability_daily": [97.0, 96.1, 95.7, 100.0, 100.0, 99.8, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0, 99.8]},
+      {"id": "immich", "name": "Immich", "state": "up", "availability_30d": 99.957, "error_budget_remaining_30d": 91.4, "availability_daily": [97.0, 96.1, 95.7, 100.0, 100.0, 99.8, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 100.0, 99.9, 100.0, 99.8]},
       {"id": "mealie", "name": "Mealie", "state": "up", "availability_30d": 99.5, "error_budget_remaining_30d": 15, "availability_daily": [100.0, 99.9, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 85.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 99.8]},
       {"id": "paperless", "name": "Paperless-ngx", "state": "down", "availability_30d": 99.1, "error_budget_remaining_30d": -62, "availability_daily": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 83.9, 99.7, 99.9, 97.1]},
       {"id": "plex", "name": "Plex", "state": "up", "availability_30d": 99.6, "error_budget_remaining_30d": 22, "availability_daily": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 100.0, 98.0, 100.0, 99.8]},
@@ -67,13 +67,13 @@
   "security": {
     "as_of": "2026-11-20T17:00:00+01:00",
     "signals": [
-      {"id": "gateway_rejected", "name": "Requests rejected (4xx)", "count_24h": 8044, "count_7d": 48127, "buckets": [1671, 1671, 1671, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 1670, 2011, 2011, 2011, 2011]},
-      {"id": "gateway_forbidden", "name": "Access refused (403)", "count_24h": 0, "count_7d": 661, "buckets": [28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 0, 0, 0, 0]},
-      {"id": "gateway_method", "name": "Method not allowed (405)", "count_24h": 29, "count_7d": 114, "buckets": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 8, 7, 7, 7]},
-      {"id": "signin_failed", "name": "Failed sign-ins", "count_24h": 40, "count_7d": 46, "buckets": [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10]},
-      {"id": "admission_denied", "name": "Admission denials", "count_24h": 1, "count_7d": 3, "buckets": [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]},
-      {"id": "ingress_dropped", "name": "Ingress packets dropped by network policy", "count_24h": null, "count_7d": null, "buckets": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]},
-      {"id": "runtime_detections", "name": "Runtime detections (observe mode)", "count_24h": 0, "count_7d": 0, "buckets": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
+      {"id": "gateway_unknown", "name": "Unknown host or path", "count_24h": 4412, "count_7d": 26391, "share_24h": 0.0701, "share_7d": 0.0612, "total_24h": 62940, "total_7d": 431250, "part_24h": null, "unattributed_24h": 760, "buckets": [916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 916, 1103, 1103, 1103, 1103]},
+      {"id": "gateway_refused", "name": "Refused by an app", "count_24h": 40, "count_7d": 661, "share_24h": 0.000636, "share_7d": 0.00153, "total_24h": 62940, "total_7d": 431250, "part_24h": 12, "unattributed_24h": null, "buckets": [28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 10, 10, 10, 10]},
+      {"id": "gateway_method", "name": "Method not allowed (405)", "count_24h": 29, "count_7d": 114, "share_24h": 0.000461, "share_7d": 0.000264, "total_24h": 62940, "total_7d": 431250, "part_24h": null, "unattributed_24h": null, "buckets": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 8, 7, 7, 7]},
+      {"id": "signin_failed", "name": "Failed sign-ins", "count_24h": 40, "count_7d": 46, "share_24h": 0.5, "share_7d": 0.0871, "total_24h": 80, "total_7d": 528, "part_24h": null, "unattributed_24h": null, "buckets": [1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0]},
+      {"id": "blocked", "name": "Deployments blocked by policy", "count_24h": 1, "count_7d": 3, "share_24h": null, "share_7d": null, "total_24h": null, "total_7d": null, "part_24h": null, "unattributed_24h": null, "buckets": [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]},
+      {"id": "ingress_world", "name": "Ingress packets dropped from the internet", "count_24h": null, "count_7d": null, "share_24h": null, "share_7d": null, "total_24h": null, "total_7d": null, "part_24h": null, "unattributed_24h": null, "buckets": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null]},
+      {"id": "runtime_detections", "name": "Runtime detections", "count_24h": 0, "count_7d": 0, "share_24h": null, "share_7d": null, "total_24h": null, "total_7d": null, "part_24h": null, "unattributed_24h": null, "buckets": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
     ]
   }
 }

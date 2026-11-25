@@ -1,16 +1,19 @@
 {{define "value"}}{{range $i, $p := .}}{{if $i}} {{end}}{{$p.Num}}{{with $p.Unit}}<span class="unit">{{.}}</span>{{end}}{{end}}{{end}}
 {{- define "tile"}}
-<div class="tile">
-<p class="label">{{.Label}}</p>
-<p>{{if .Value}}<span class="big{{with .Status}} {{.}}{{end}}">{{template "value" .Value}}</span>{{end}}{{with .Word}} <span class="status {{$.Status}}">{{.}}</span>{{end}}</p>
+<div class="tile{{if .Accent}} accent {{.Status}}{{end}}">
+<p class="tile-label">{{.Label}}</p>
+<p class="tile-value{{if and .Status (not .Accent)}} {{.Status}}{{end}}">{{template "value" .Value}}{{with .Word}}{{if $.Value}} {{end}}<span class="status {{$.Status}}">{{.}}</span>{{end}}</p>
 {{- with .Meter}}
 <div class="meter">{{.}}</div>
 {{- end}}
-{{- with .Detail}}
-<p class="meta">{{.}}</p>
+{{- range .Details}}
+<p class="tile-detail">{{.}}</p>
 {{- end}}
 {{- with .Spark}}
 <div class="spark">{{.}}</div>
+{{- end}}
+{{- with .Note}}
+<p class="tile-detail">{{.}}</p>
 {{- end}}
 </div>
 {{- end}}
@@ -25,7 +28,7 @@
 <header class="page">
 <h1>Homelab</h1>
 <p class="intro">An over-engineered homelab, in numbers.</p>
-<p class="meta">Target: 99.50% availability over 30 days per app.</p>
+<p class="meta">Target: 99.50% availability over a rolling 30 days per app.</p>
 {{- with .Figures}}
 <p class="meta">Updated <time datetime="{{.Generated.Datetime}}">{{.Generated.Text}}</time> (Zurich time).</p>
 {{- end}}
@@ -65,20 +68,17 @@
 <section class="panel stats" aria-labelledby="cluster">
 <h2 id="cluster">Cluster</h2>
 <h3>Nodes and NAS: utilisation, saturation, errors</h3>
-<div class="tiles">
+<div class="tile-groups">
 {{- range .Use}}
-<div class="tile use">
-<p class="label">{{.Name}} <span class="state {{.State}}">{{.StateWord}}</span></p>
-{{- range .Figures}}
-<p class="figure"><span class="label">{{.Label}}</span> <span class="value {{.Status}}">{{.Value}}</span> <span class="status {{.Status}}">{{.Word}}</span></p>
-{{- with .Meter}}
-<div class="meter">{{.}}</div>
-{{- end}}
-{{- end}}
+<div class="tile-group">
+<h4>{{.Name}} <span class="state {{.State}}">{{.StateWord}}</span></h4>
+<div class="tiles compact">
+{{- range .Figures}}{{template "tile" .}}{{end}}
+</div>
 </div>
 {{- end}}
 </div>
-<h3>Gateway, last 5 minutes: rate, errors, duration</h3>
+<h3>Gateway, rolling 5 minutes: rate, errors, duration</h3>
 <div class="tiles">
 {{- range .RED}}{{template "tile" .}}{{end}}
 </div>
@@ -89,15 +89,15 @@
 {{- template "asof" .Cluster}}
 </section>
 <section class="panel stats" aria-labelledby="project">
-<h2 id="project">Project, last 30 days</h2>
+<h2 id="project">Project, rolling 30 days</h2>
 <p class="meta">Every pull request merged into main is a deploy.</p>
 <h3>DORA metrics</h3>
 <p class="meta"><a href="https://dora.dev/">DORA</a>, short for DevOps Research and Assessment, is the research programme behind the State of DevOps reports. It sums up software delivery in four metrics: how often changes reach production (deployment frequency), how long a change takes to get there (lead time for changes), how often a change breaks something (change failure rate) and how quickly things are back to normal when it does (time to restore).</p>
 <p class="meta">Each metric falls in one of four bands, Elite, High, Medium or Low, taken from the performance clusters of <a href="https://dora.dev/research/2023/dora-report/">DORA's 2023 report</a>. DORA has since added a fifth metric, rework rate, which those bands do not cover. Of course, the metrics were made for teams, not for one person and a few bots, but they make a fair yardstick all the same.</p>
-{{- with .DORALevel}}
-<p class="stat"><span class="label">Overall level</span> <span class="{{if .NoData}}status{{else}}big{{end}} {{.Status}}">{{.Word}}</span></p>
-{{- end}}
-<p class="meta">The lowest of the four bands, so one weak metric is never averaged away.</p>
+<div class="tiles">
+{{- template "tile" .DORALevel}}
+</div>
+<p class="meta">The overall level is the lowest of the four bands, so one weak metric is never averaged away.</p>
 <div class="tiles">
 {{- range .DORA}}{{template "tile" .}}{{end}}
 </div>
@@ -115,7 +115,7 @@
 </section>
 <section class="panel stats" aria-labelledby="security">
 <h2 id="security">Security</h2>
-<p class="meta">What the defences turned away, counted over the whole cluster: the last 24 hours, the last 7 days, and the 7 days in six-hour bars. The alerts page whoever has to act; this card only counts.</p>
+<p class="meta">What the defences turned away, counted over the whole cluster: the rolling 24 h, the rolling 7 days, and the same 7 days in six-hour bars. The Gateway figures leave out our own probes and checks. The alerts page whoever has to act; this card only counts.</p>
 <div class="tiles">
 {{- range .Signals}}{{template "tile" .}}{{end}}
 </div>
