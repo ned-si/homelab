@@ -105,12 +105,12 @@ reopen the spec:
    admission denials become "Deployments blocked by policy", Pod
    Security in enforce mode included; plain names, never "observe mode"
    on the page.
-7. **Rolling windows**: every small text that describes a time window
+7. **Rolling wording**: every small text that describes a time window
    says it is rolling ("rolling 24 h", "rolling 7 days", "rolling 30
    days").
-8. **Rounding** (task 18): a percentage with two decimals whose last
-   digit is always 0 is rounded to one decimal before it is formatted.
-   Every percentage is computed at full precision and rounded once, to
+8. **Rounding** (task 18): today every percentage shows a trailing 0,
+   because the collector rounds it to one decimal before the page
+   formats it with two. From task 18 every percentage is computed at full precision and rounded once, to
    two decimals, when it is formatted; 99.957 shows "99.96%". The SLO,
    status and error-budget maths stay at full precision.
 9. **Rolling windows** (task 19): every time window on the page is a
@@ -242,7 +242,9 @@ learning anything that helps an attacker or shows who is home.
    week or day, and no figure SHALL cover only part of its window. The
    daily bars are the one exception: each is a Zurich calendar day,
    midnight to midnight whatever its length (23, 24 or 25 hours), today's
-   from midnight to now (operator, 2026-11-25).
+   from midnight to now (operator, 2026-11-25). The one figure allowed to
+   cover less than its window is the 30-day availability of an app with
+   fewer than 30 days of probes, shown as "since <first day>" (2.4).
 
 ## Requirement 3: The page
 
@@ -462,7 +464,8 @@ Over the rolling 30 days ending at the collection (the window of 2.1):
    forward (label `fix-forward`, set on a pull request that repairs a
    merged change that broke production instead of reverting it).
 4. **Time to restore** SHALL be the median duration of the incidents that
-   ended in the window. An incident is either a continuous firing of an
+   started in the window and have ended (from task 19; until then, those
+   that ended in the window). An incident is either a continuous firing of an
    alert with `action: human` (start: its first firing sample; end: its
    last) or a rollback of 10.3 (start: the merge of the pull request it
    reverts; end: the rollback's merge commit synced, as in 10.2).
@@ -753,10 +756,15 @@ evidence a machine checked.
     GitHub pin the window of every figure in
     [design, Time windows](design.md#time-windows-2026-11-25): each
     query's range and evaluation time; the CI median over every
-    successful run of the 30 days (more than 300 runs, a day slice at
-    GitHub's 1,000-result cap failing the block); a firing that began
-    before the window counted from its first sample; the daily bars of
-    the last Sundays of March and October as 23 and 25 hours. [2.8]
+    successful run of the 30 days (more than 300 runs, the 719 h and
+    721 h windows sliced without a gap or an overlap, a slice at
+    GitHub's 1,000-result cap failing the block); a firing already
+    firing at the window's start, and a rollback whose reverted pull
+    request merged before the window, left out of the incidents; the
+    recount of `scripts/dashboard-dora-check.sh` and the collector
+    agreeing on a fixture firing that crosses the window start; the
+    daily bars of the last Sundays of March and October as 23 and 25
+    hours. [2.8, 10.4]
 
 ## Out of scope
 

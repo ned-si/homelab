@@ -120,10 +120,10 @@ window the page shows:
 | Security, 24 h and 7 days | `security`, `internal/collector/security.go` | Rolling 24 h and 168 h ending now | Unchanged |
 | Security sparklines | `buckets`, `internal/collector/security.go` | 28 rolling 6-hour buckets, the last ending now | Unchanged |
 | Deploys, pull requests merged, Renovate's share | The window in `(*Collector).readProject`, `internal/collector/collector.go` (from the same Zurich wall time 30 days earlier, 719 to 721 h, to the fetch); the counts in `(*GitHub).Project` and `mergedCount`, `internal/collector/github.go` | Rolling 30 days ending at the fetch | Unchanged |
-| Median `ci` run | `(*GitHub).Project`, `internal/collector/github.go` (`ciPages = 3`) | **Not 30 days.** It reads the 3 newest pages of 100 successful runs. On 2026-11-25 the 30 days held 2,304 successful `ci` runs and the 300th newest was created on 2026-11-20 at 10:05Z, so the median covered about 5 days | Every successful run of the 30 days: the window in 30 one-day slices, each paged to its end; GitHub's runs API returns at most 1,000 results for a `created` filter, so a slice at 1,000 fails the block (`source="github"`), as the search cap does. About 35 calls a refresh, 140 an hour of the token's 5,000. Without the token, as the DORA keys below |
+| Median `ci` run | `(*GitHub).Project`, `internal/collector/github.go` (`ciPages = 3`) | **Not 30 days.** It reads the 3 newest pages of 100 successful runs. On 2026-11-25 the 30 days held 2,304 successful `ci` runs and the 300th newest was created on 2026-11-20 at 10:05Z, so the median covered about 5 days | Every successful run of the 30 days: slices `[start + i*24h, min(start + (i+1)*24h, end))` for `i = 0, 1, ...` until a slice ends at `end` (30 or 31 slices, so the 719 h and 721 h windows have no gap and no overlap), each passed as `created=<utc(s)>..<utc(e - 1s)>` and paged to its end. GitHub's runs API returns at most 1,000 results for a filter, so a slice whose first page has `total_count >= 1000` fails the block with `figure="ci_median_seconds_30d"`, `source="github"`, as the search cap does. About 35 calls a refresh, 140 an hour of the token's 5,000. Without the token `Project` lists no runs for the median, and `ci_median_seconds_30d` follows the DORA rule below |
 | Lead time, failed changes, change failure rate, rework rate | `mergedPRs` and `setDORA`, `internal/collector/dora.go` | Rolling 30 days, the same window | Unchanged |
-| Time to restore, incidents | `alertFirings` and `setDORA`, `internal/collector/dora.go` | Rolling 30 days for the end of an incident, but the `ALERTS` range starts at the window's start, so a firing that began before it counts from the window's start and its duration is cut | The range starts 7 days before the window (two more 6-day slices): a firing that ended in the window keeps its first sample up to 7 days back; a longer one is cut at 7 days, already the `low` band ("Over 1 week"). A rollback whose reverted pull request merged before the window still starts at the rollback's creation |
-| DORA figures without the token | `keepDORA` and `(*Collector).readProject`, `internal/collector/dora.go` and `collector.go` | The figures of the last refresh with the token are kept for ever, while `project.as_of` moves on hourly: their window can end hours or days before now | Kept for at most 60 minutes after that refresh (the project block's staleness threshold), then `null` ("No data"); the median `ci` run follows the same rule |
+| Time to restore, incidents | `alertFirings` and `setDORA`, `internal/collector/dora.go` | Rolling 30 days for the end of an incident, but the `ALERTS` range starts at the window's start, so a firing that began before it counts from the window's start and its duration is cut Count the incidents that started in the window and have ended (Requirement 10.4). The range stays at the window, which the 30-day Prometheus retention covers (`retention: 30d`, the oldest sample 30.66 days old on 2026-11-25), so no extension before it is readable. In `setDORA`: `if !i.open && i.start.After(start) && i.end.Before(end)`; a firing already firing at the window's first sample started before it and is left out. A rollback whose reverted pull request is not in `byOID` (merged before the window) is left out, rather than counted from its creation; one whose message names no commit starts at its `createdAt`, as today. `incidents_30d` follows the same rule, and so does the recount of `scripts/dashboard-dora-check.sh` (its `select` on `.s` as well as `.e`) |
+| DORA figures without the token | `keepDORA` and `(*Collector).readProject`, `internal/collector/dora.go` and `collector.go` | The figures of the last refresh with the token are kept for ever, while `project.as_of` moves on hourly: their window can end hours or days before now At a refresh without the token, the DORA keys and `ci_median_seconds_30d` are copied when `now.Sub(doraAt) <= time.Hour` (`doraAt` the last refresh with the token; 60 minutes is the project block's staleness threshold), otherwise `null` ("No data") |
 | Overall DORA level, the last five `ci` runs, Supply chain (task 21) | `overallBand`, `internal/web/status.go`; `ciRuns`, `github.go`; task 21 | No window of their own: the bands above, the last five runs, the latest Scorecard result and Kyverno report | Unchanged |
 
 The page's own words for the windows ("over 30 days" in the target
@@ -182,7 +182,7 @@ same digest.
 | `project.lead_time_seconds` | Median lead time (integer, `null` without a counted merge), and `project.lead_time_count`, the merges counted |
 | `project.failed_changes_30d` | Rollbacks and fix forwards merged in the window (integer) |
 | `project.change_failure_rate` | `failed_changes_30d` over `deploys_30d`, 0-100, one decimal, rounded half to even |
-| `project.incidents_30d`, `project.restore_seconds` | Incidents ended in the window, and their median duration (integer, `null` without one) |
+| `project.incidents_30d`, `project.restore_seconds` | Incidents ended in the window (from task 19: started in the window and ended), and their median duration (integer, `null` without one) |
 | `project.ci_runs[]` | Up to 5, newest first: `run` (run number), `result` (`success`, `failure`, `cancelled`, `other`), `commit` (7 hex digits), `pr` (integer or `null`), `started_at`, `duration_seconds` |
 
 `Validate` gains: `availability.apps` equals the shown apps and
@@ -243,10 +243,11 @@ The rule from task 18:
   GitHub (`100 * ratio`, clamped to the key's range), with no rounding.
   The keys are listed in [Version 5](#version-5-task-18).
 - **Round once, when formatting.** The web role turns a percentage
-  into text in one function of `internal/web/chart.go`,
-  `strconv.FormatFloat(v, 'f', 2, 64)`: `percent(v)` adds the `%` for
-  text, chart titles and `aria-label`s, and the tiles put the same
-  number next to their `%` unit. Nothing calls `math.Round` or a
+  into text in one new function of `internal/web/chart.go`,
+  `pct(v float64) string`, which returns
+  `strconv.FormatFloat(v, 'f', 2, 64)`. `percent(v)` is `pct(v) + "%"`
+  for text, chart titles and `aria-label`s, and every percentage tile
+  in `render.go` calls `pct` instead of `fixed(v, 2)`. Nothing calls `math.Round` or a
   `snapshot.Round` helper on a percentage before it, so there is no
   double rounding.
 - **Ties: half to even.** `strconv.FormatFloat` rounds the exact binary
@@ -262,7 +263,13 @@ The rule from task 18:
   budget of 25.004% is `ok` ("Met", above 25%) while it reads
   "25.00%"; an availability from 99.995% up to but not including 100%
   reads "100.00%", and its status word and budget still show that it
-  is not perfect. The SLO recording rules are unchanged.
+  is not perfect. A day from 99.495% up to 99.5% reads "99.50%" and
+  is `warn`: `dayStatus` reads the raw value against the 99.5 target.
+  The SLO recording rules are unchanged.
+- **Types.** `snapshot.LiveApp.ErrorBudgetRemaining30d` becomes
+  `*float64` and `snapshot.Project.RenovateShare30d` `float64`;
+  `monthStatus`, `budgetMeter` and `shareBar` in `internal/web` take a
+  `float64`.
 - **Other figures.** Counts stay integers; rates per second and load
   per core keep two decimals, rounded in the collector as today;
   "22.6 a day" keeps one decimal. They are not percentages.
@@ -314,9 +321,12 @@ removed:
 | `project.renovate_share_30d` | Number, 0-100, not rounded (was an integer) |
 | `project.change_failure_rate` | Number, 0-100, or `null`, not rounded (was one decimal) |
 
-The schema's `budget` definition becomes a number; `share` and the
-percentage definitions already are. The rollout rule of version 3
-applies.
+In `snapshot.schema.json`: `$defs/budget` becomes
+`{"type": "number", "minimum": -100, "maximum": 100}`;
+`project.renovate_share_30d` becomes
+`{"type": "number", "minimum": 0, "maximum": 100}`; `$defs/percent`,
+`$defs/share` and `change_failure_rate` already are numbers. The
+rollout rule of version 3 applies.
 
 ### Version 6 (task 19)
 
@@ -480,8 +490,8 @@ merge commit's `oid`, its message, and its commit status contexts
 `argocd/*` with their state and `createdAt`. The search caps at 1000
 results: above that the block fails (`source="github"`) rather than
 undercount. Without a token the DORA keys keep their last value, `null`
-at start-up; from task 19 for at most 60 minutes
-([Time windows](#time-windows-2026-11-25)). From these:
+at start-up; from task 19 for at most 60 minutes after the last refresh
+with the token ([Time windows](#time-windows-2026-11-25)). From these:
 
 - `lead_time_seconds`: Requirement 10.2, the median over the counted
   merges; `createdAt` to the earliest `argocd/*` `success` after
@@ -494,10 +504,11 @@ at start-up; from task 19 for at most 60 minutes
   `createdAt`) to its sync; and the firings of `action: human` alerts,
   from a Prometheus range query of `max by (alertname, app, namespace,
   instance) (ALERTS{alertstate="firing", action="human"})` over the 30
-  days (from task 19, from 7 days before them) at a 60 s step, in 6-day slices (each under Prometheus's
+  days at a 60 s step, in five 6-day slices (each under Prometheus's
   11,000 points), a gap of more than 120 s ending a firing. Overlapping
-  intervals merge; the median duration of those ended in the window is
-  `restore_seconds`. The range query runs at each GitHub refresh, not
+  intervals merge; the median duration of those ended in the window
+  (from task 19, of those started in the window and ended, see
+  [Time windows](#time-windows-2026-11-25)) is `restore_seconds`. The range query runs at each GitHub refresh, not
   every cycle.
 - `ci_runs`: `GET /repos/ned-si/homelab/actions/workflows/ci.yaml/runs?branch=main&event=push&status=completed&per_page=5`;
   `pr` from the last `(#<n>)` in the head commit's title; `result` is

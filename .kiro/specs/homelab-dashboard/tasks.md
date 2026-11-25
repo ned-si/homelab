@@ -344,13 +344,16 @@ live check.
       metric in `docs/homelab-dashboard.md`. The rolling-window fixes
       of [design.md, Time windows](design.md#time-windows-2026-11-25)
       (operator, 2026-11-25): the median `ci` run over every successful
-      run of the 30 days in one-day slices, the `ALERTS` range from 7
-      days before the window, the DORA figures and the CI median
-      `null` 60 minutes after the last refresh with the token, the
-      finished daily bars midnight to midnight; the window tests of
+      run of the 30 days in 24-hour slices ending at the window's end,
+      the incidents that started in the window and ended (Requirement
+      10.4) with the same rule in the recount of
+      `scripts/dashboard-dora-check.sh` (range and filter), the DORA
+      figures and the CI median `null` 60 minutes after the last
+      refresh with the token, the finished daily bars midnight to
+      midnight; the window tests of
       acceptance criterion 30; Requirement 2.8 in
       `docs/homelab-dashboard.md`. Check: acceptance criteria 23 and
-      30. [2.8, 10.9, 10.10]
+      30. [2.8, 10.4, 10.9, 10.10]
 - [ ] 20. Provenance for both images and its verification (**not
       visible**): `actions/attest-build-provenance` in
       `site-publish.yaml` with its `gh attestation verify` step, the
