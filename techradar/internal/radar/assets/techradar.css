@@ -1,33 +1,6 @@
-/* The tech radar's colours and components; the container and the nav come
-   from layout.css. Every colour pair is checked by TestContrast. */
-
-:root {
-  --fg: #1d1f21;
-  --muted: #5c6166;
-  --bg: #fdfdfc;
-  --link: #0b5cad;
-  --rule: #d8dadc;
-  --line: #7b8187;
-  --adopt: #1a7f37;
-  --trial: #0b7285;
-  --assess: #8a5a00;
-  --hold: #c62828;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fg: #e3e5e7;
-    --muted: #a0a6ab;
-    --bg: #17191b;
-    --link: #79b8ff;
-    --rule: #34383c;
-    --line: #6e757b;
-    --adopt: #4ac26b;
-    --trial: #3bc9db;
-    --assess: #e3b341;
-    --hold: #ff7b72;
-  }
-}
+/* The tech radar's components; the container and the nav come from
+   layout.css, the colours from the palette, served as /theme.css
+   (theme-dark.css or theme-light.css). */
 
 body { color: var(--fg); background: var(--bg); }
 
@@ -43,16 +16,16 @@ h3 { margin: 1.25rem 0 0.25rem; font-size: 1rem; letter-spacing: 0.05em; text-tr
 .rings { padding-left: 1.25rem; }
 .updated { color: var(--muted); font-size: 0.9375rem; }
 
-.ring-adopt { color: var(--adopt); }
-.ring-trial { color: var(--trial); }
-.ring-assess { color: var(--assess); }
-.ring-hold { color: var(--hold); }
+.ring-adopt { color: var(--ring-adopt); }
+.ring-trial { color: var(--ring-trial); }
+.ring-assess { color: var(--ring-assess); }
+.ring-hold { color: var(--ring-hold); }
 
 figure.chart { margin: 2rem auto; max-width: 64rem; }
 figure.chart svg { display: block; width: 100%; height: auto; }
 
-.ring-line { fill: none; stroke: var(--line); stroke-width: 1.5; }
-.axis { stroke: var(--line); stroke-width: 1.5; }
+.ring-line { fill: none; stroke: var(--radar-line); stroke-width: 1.5; }
+.axis { stroke: var(--radar-line); stroke-width: 1.5; }
 .ring-name {
   fill: var(--muted);
   font-size: 16px;
@@ -65,7 +38,7 @@ figure.chart svg { display: block; width: 100%; height: auto; }
   stroke-width: 4px;
 }
 .blip circle, .blip path { fill: currentColor; }
-.blip-number { fill: var(--bg); font-size: 8px; font-weight: 700; text-anchor: middle; }
+.blip-number { fill: var(--blip-text); font-size: 8px; font-weight: 700; text-anchor: middle; }
 .blip { text-decoration: none; }
 .blip:focus { outline: none; }
 .blip:focus-visible circle, .blip:focus-visible path { stroke: var(--fg); stroke-width: 2; }

@@ -137,6 +137,8 @@ data:
                 return 405;
             }
 
+            include /etc/nginx-site/theme.conf;
+
             location / {
                 try_files $uri $uri/ =404;
                 add_header Cache-Control "public, max-age=300";
@@ -187,5 +189,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-nginx-9fbg6b8ddg
+  name: website-nginx-7g4fhm5g6m
   namespace: website

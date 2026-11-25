@@ -140,15 +140,15 @@ spec:
           }
           light="theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax"
           dark="theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax"
-          expect 200 https://nedsi.io/theme.css
-          hdr https://nedsi.io/theme.css cache-control no-store
-          hdr https://nedsi.io/theme.css vary Cookie
-          hdr https://nedsi.io/theme.css set-cookie -
-          body https://nedsi.io/theme.css "color-scheme: dark"
-          body https://nedsi.io/theme.css "color-scheme: light" -H "Cookie: theme=light"
-          hdr https://nedsi.io/theme.css cache-control no-store -H "Cookie: theme=light"
-          hdr https://nedsi.io/theme.css vary Cookie -H "Cookie: theme=light"
-          for site in https://nedsi.io https://blog.nedsi.io; do
+          for site in https://nedsi.io https://blog.nedsi.io https://techradar.nedsi.io; do
+            expect 200 "$site/theme.css"
+            hdr "$site/theme.css" cache-control no-store
+            hdr "$site/theme.css" vary Cookie
+            hdr "$site/theme.css" set-cookie -
+            body "$site/theme.css" "color-scheme: dark"
+            body "$site/theme.css" "color-scheme: light" -H "Cookie: theme=light"
+            hdr "$site/theme.css" cache-control no-store -H "Cookie: theme=light"
+            hdr "$site/theme.css" vary Cookie -H "Cookie: theme=light"
             expect 303 "$site/set-theme/light/about/"
             location "$site/set-theme/light/about/" /about/
             hdr "$site/set-theme/light/about/" set-cookie "$light"

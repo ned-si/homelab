@@ -88,11 +88,11 @@ spec:
           sizeLimit: 64Mi
         name: tmp
       - configMap:
-          name: website-nginx-9fbg6b8ddg
+          name: website-nginx-7g4fhm5g6m
         name: nginx
       - configMap:
           name: website-landing-2598k59b27
         name: landing
       - configMap:
-          name: website-techradar-t2hhd5khbb
+          name: website-techradar-f4kff7f769
         name: techradar

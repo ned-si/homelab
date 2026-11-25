@@ -22,6 +22,7 @@ data:
     <link rel="canonical" href="https://techradar.nedsi.io/">
     <link rel="stylesheet" href="/layout.css">
     <link rel="stylesheet" href="/techradar.css">
+    <link rel="stylesheet" href="/theme.css">
     </head>
     <body>
     <header class="site">
@@ -31,6 +32,10 @@ data:
     <a href="https://homelab.nedsi.io/">Homelab</a>
     <a href="https://blog.nedsi.io/about/">About</a>
     </nav>
+    <p class="prefs">
+    <a class="to-light" href="/set-theme/light/" rel="nofollow" title="Light theme, remembered with a cookie"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">Light theme</span></a>
+    <a class="to-dark" href="/set-theme/dark/" rel="nofollow" title="Dark theme"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">Dark theme</span></a>
+    </p>
     </header>
     <main>
     <h1>Tech radar</h1>
@@ -420,36 +425,9 @@ data:
       border-top: 1px solid var(--rule);
     }
   techradar.css: |
-    /* The tech radar's colours and components; the container and the nav come
-       from layout.css. Every colour pair is checked by TestContrast. */
-
-    :root {
-      --fg: #1d1f21;
-      --muted: #5c6166;
-      --bg: #fdfdfc;
-      --link: #0b5cad;
-      --rule: #d8dadc;
-      --line: #7b8187;
-      --adopt: #1a7f37;
-      --trial: #0b7285;
-      --assess: #8a5a00;
-      --hold: #c62828;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --fg: #e3e5e7;
-        --muted: #a0a6ab;
-        --bg: #17191b;
-        --link: #79b8ff;
-        --rule: #34383c;
-        --line: #6e757b;
-        --adopt: #4ac26b;
-        --trial: #3bc9db;
-        --assess: #e3b341;
-        --hold: #ff7b72;
-      }
-    }
+    /* The tech radar's components; the container and the nav come from
+       layout.css, the colours from the palette, served as /theme.css
+       (theme-dark.css or theme-light.css). */
 
     body { color: var(--fg); background: var(--bg); }
 
@@ -465,16 +443,16 @@ data:
     .rings { padding-left: 1.25rem; }
     .updated { color: var(--muted); font-size: 0.9375rem; }
 
-    .ring-adopt { color: var(--adopt); }
-    .ring-trial { color: var(--trial); }
-    .ring-assess { color: var(--assess); }
-    .ring-hold { color: var(--hold); }
+    .ring-adopt { color: var(--ring-adopt); }
+    .ring-trial { color: var(--ring-trial); }
+    .ring-assess { color: var(--ring-assess); }
+    .ring-hold { color: var(--ring-hold); }
 
     figure.chart { margin: 2rem auto; max-width: 64rem; }
     figure.chart svg { display: block; width: 100%; height: auto; }
 
-    .ring-line { fill: none; stroke: var(--line); stroke-width: 1.5; }
-    .axis { stroke: var(--line); stroke-width: 1.5; }
+    .ring-line { fill: none; stroke: var(--radar-line); stroke-width: 1.5; }
+    .axis { stroke: var(--radar-line); stroke-width: 1.5; }
     .ring-name {
       fill: var(--muted);
       font-size: 16px;
@@ -487,7 +465,7 @@ data:
       stroke-width: 4px;
     }
     .blip circle, .blip path { fill: currentColor; }
-    .blip-number { fill: var(--bg); font-size: 8px; font-weight: 700; text-anchor: middle; }
+    .blip-number { fill: var(--blip-text); font-size: 8px; font-weight: 700; text-anchor: middle; }
     .blip { text-decoration: none; }
     .blip:focus { outline: none; }
     .blip:focus-visible circle, .blip:focus-visible path { stroke: var(--fg); stroke-width: 2; }
@@ -531,7 +509,87 @@ data:
     @media (min-width: 60rem) {
       .legend { grid-template-columns: 1fr 1fr; }
     }
+  theme-dark.css: |
+    /* The dark palette, the default (.kiro/specs/site-theme-language/design.md#palette).
+       The only place a colour is written; theme-light.css has the same
+       properties. Served as /theme.css when there is no theme=light cookie.
+       Copies: `task site:layout-sync`. Contrast: scripts/ci/site_contrast.py.
+       --syn-*: hugo gen chromastyles --style=github-dark */
+    :root {
+      color-scheme: dark;
+      --bg: #17191b;
+      --fg: #e3e5e7;
+      --muted: #a0a6ab;
+      --link: #79b8ff;
+      --rule: #34383c;
+      --code-bg: #212427;
+      --panel: #212427;
+      --tile: #1a1c1f;
+      --ok: #3fb950;
+      --warn: #d29922;
+      --bad: #f85149;
+      --none: #a0a6ab;
+      --ring-adopt: #4ac26b;
+      --ring-trial: #3bc9db;
+      --ring-assess: #e3b341;
+      --ring-hold: #ff7b72;
+      --radar-line: #6e757b;
+      --blip-text: #17191b;
+      --syn-comment: #99a1aa;
+      --syn-keyword: #ff7b72;
+      --syn-string: #a5d6ff;
+      --syn-number: #a5d6ff;
+      --syn-operator: #ff7b72;
+      --syn-constant: #79c0ff;
+      --syn-function: #d2a8ff;
+      --syn-variable: #79c0ff;
+      --syn-label: #79c0ff;
+      --syn-deleted: #ffa198;
+      --syn-inserted: #56d364;
+      --syn-error: #fa7973;
+    }
+    .prefs .to-dark { display: none; }
+  theme-light.css: |
+    /* The light palette, sent as /theme.css with the theme=light cookie
+       (.kiro/specs/site-theme-language/design.md#palette). The same properties
+       as theme-dark.css. Copies: `task site:layout-sync`. Contrast:
+       scripts/ci/site_contrast.py.
+       --syn-*: hugo gen chromastyles --style=github */
+    :root {
+      color-scheme: light;
+      --bg: #fdfdfc;
+      --fg: #1d1f21;
+      --muted: #5b6065;
+      --link: #0b5cad;
+      --rule: #d8dadc;
+      --code-bg: #f3f4f5;
+      --panel: #f3f4f5;
+      --tile: #e9ebed;
+      --ok: #116329;
+      --warn: #8a5c00;
+      --bad: #b62324;
+      --none: #5b6065;
+      --ring-adopt: #1a7f37;
+      --ring-trial: #0b7285;
+      --ring-assess: #8a5a00;
+      --ring-hold: #c62828;
+      --radar-line: #7b8187;
+      --blip-text: #fdfdfc;
+      --syn-comment: #57606a;
+      --syn-keyword: #ba1f29;
+      --syn-string: #0a3069;
+      --syn-number: #0550ae;
+      --syn-operator: #0550ae;
+      --syn-constant: #0550ae;
+      --syn-function: #6639ba;
+      --syn-variable: #953800;
+      --syn-label: #990000;
+      --syn-deleted: #82071e;
+      --syn-inserted: #116329;
+      --syn-error: #82071e;
+    }
+    .prefs .to-light { display: none; }
 kind: ConfigMap
 metadata:
-  name: website-techradar-t2hhd5khbb
+  name: website-techradar-f4kff7f769
   namespace: website
