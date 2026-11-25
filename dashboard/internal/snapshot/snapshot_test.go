@@ -310,6 +310,32 @@ func TestValidateRefuses(t *testing.T) {
 			r := obj(d, "project", "rework")
 			r["count"], r["deploys"] = 10, 9
 		}, false},
+		// Version 7: the supply chain block.
+		{"version 6", func(d map[string]any) { d["schema_version"] = 6 }, false},
+		{"no supply chain", func(d map[string]any) { delete(d, "supply_chain") }, false},
+		{"images out of order", func(d map[string]any) {
+			imgs := obj(d, "supply_chain")["images"].([]any)
+			imgs[0], imgs[1] = imgs[1], imgs[0]
+		}, false},
+		{"an image missing", func(d map[string]any) {
+			sc := obj(d, "supply_chain")
+			sc["images"] = sc["images"].([]any)[:1]
+		}, false},
+		{"another builder", func(d map[string]any) {
+			obj(d, "supply_chain")["images"].([]any)[0].(map[string]any)["builder"] = "self-hosted runner"
+		}, false},
+		{"level 3", func(d map[string]any) {
+			obj(d, "supply_chain")["images"].([]any)[0].(map[string]any)["level"] = 3
+		}, false},
+		{"level without verification", func(d map[string]any) {
+			obj(d, "supply_chain")["images"].([]any)[0].(map[string]any)["verified"] = false
+		}, false},
+		{"extra key in an image", func(d map[string]any) {
+			obj(d, "supply_chain")["images"].([]any)[0].(map[string]any)["pod"] = "homelab-dashboard-web-1"
+		}, false},
+		{"supply chain after generated_at", func(d map[string]any) {
+			obj(d, "supply_chain")["as_of"] = "2026-11-20T18:00:00+01:00"
+		}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

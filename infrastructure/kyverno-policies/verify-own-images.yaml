@@ -3,8 +3,9 @@
 # (.kiro/specs/image-provenance/design.md#the-own-image-policy-task-2,
 # .kiro/specs/homelab-dashboard/design.md#signature-verification-in-the-cluster,
 # .kiro/specs/self-hosted-jamulus/design.md#ci-signing-and-renovate).
-# Audit only, fail-open; each identity equals the ghcr.io/ned-si entry of
-# ci/image-signers.yaml for that image. Not in policies/kyverno: verification needs
+# Each needs its signature and its SLSA provenance. Audit only, fail-open;
+# each identity equals the ghcr.io/ned-si entry of ci/image-signers.yaml for
+# that image. Not in policies/kyverno: verification needs
 # the network, which the offline CI run does not have.
 apiVersion: policies.kyverno.io/v1
 kind: ImageValidatingPolicy
@@ -60,6 +61,13 @@ spec:
               subject: https://github.com/ned-si/homelab/.github/workflows/jamulus-publish.yaml@refs/heads/main
         ctlog:
           url: https://rekor.sigstore.dev
+  # The SLSA v1 provenance GitHub's attest action pushes as a Sigstore bundle,
+  # which Kyverno reads as is
+  # (.kiro/specs/homelab-dashboard/design.md#provenance-task-20).
+  attestations:
+    - name: provenance
+      intoto:
+        type: https://slsa.dev/provenance/v1
   validations:
     - expression: >-
         images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-site')).all(i, verifyImageSignatures(i, [attestors.site]) > 0)
@@ -70,3 +78,20 @@ spec:
     - expression: >-
         images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-jamulus')).all(i, verifyImageSignatures(i, [attestors.jamulus]) > 0)
       message: ghcr.io/ned-si/homelab-jamulus must be signed by jamulus-publish on main.
+    # Signed by the same workflow, built on a GitHub-hosted runner: SLSA
+    # Build L2, as the dashboard states.
+    - expression: >-
+        images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-site')).all(i,
+        verifyAttestationSignatures(i, attestations.provenance, [attestors.site]) > 0 &&
+        extractPayload(i, attestations.provenance).predicate.buildDefinition.internalParameters.github.runner_environment == 'github-hosted')
+      message: ghcr.io/ned-si/homelab-site must carry a SLSA provenance signed by site-publish on main, built on a GitHub-hosted runner.
+    - expression: >-
+        images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-dashboard')).all(i,
+        verifyAttestationSignatures(i, attestations.provenance, [attestors.dashboard]) > 0 &&
+        extractPayload(i, attestations.provenance).predicate.buildDefinition.internalParameters.github.runner_environment == 'github-hosted')
+      message: ghcr.io/ned-si/homelab-dashboard must carry a SLSA provenance signed by dashboard-publish on main, built on a GitHub-hosted runner.
+    - expression: >-
+        images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-jamulus')).all(i,
+        verifyAttestationSignatures(i, attestations.provenance, [attestors.jamulus]) > 0 &&
+        extractPayload(i, attestations.provenance).predicate.buildDefinition.internalParameters.github.runner_environment == 'github-hosted')
+      message: ghcr.io/ned-si/homelab-jamulus must carry a SLSA provenance signed by jamulus-publish on main, built on a GitHub-hosted runner.

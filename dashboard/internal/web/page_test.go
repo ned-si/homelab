@@ -101,6 +101,8 @@ func alarms(t *testing.T) map[string]any {
 	sub(c, "volumes")["fullest"] = 96.0
 	p := sub(doc, "project")
 	p["deploys_30d"], p["lead_time_seconds"], p["change_failure_rate"], p["incidents_30d"] = 2, 864000, 20.0, 0
+	img := sub(doc, "supply_chain")["images"].([]any)[1].(map[string]any)
+	img["level"], img["verified"] = nil, false
 	return doc
 }
 
@@ -416,12 +418,45 @@ func TestRollingWindows(t *testing.T) {
 func TestSectionOrder(t *testing.T) {
 	body := page(t, fixture(t))
 	last := -1
-	for _, s := range []string{`<header class="page">`, `id="availability"`, `id="cluster"`, "<h3>DORA metrics</h3>", `id="security"`, `id="certificates"`, "<h2>Coming later</h2>"} {
+	for _, s := range []string{`<header class="page">`, `id="availability"`, `id="cluster"`, "<h3>DORA metrics</h3>", `id="supply-chain"`, `id="security"`, `id="certificates"`, "<h2>Coming later</h2>"} {
 		i := strings.Index(body, s)
 		if i < 0 || i < last {
 			t.Errorf("%s is missing or out of order", s)
 		}
 		last = i
+	}
+}
+
+// Requirement 13.1: one tile per first-party image, the level only with a
+// verified provenance, and the link to the SLSA levels.
+func TestImageTiles(t *testing.T) {
+	body := page(t, fixture(t))
+	contains(t, body, `<a href="https://slsa.dev/spec/v1.0/levels">SLSA Build level 2</a>`,
+		`<p class="tile-label">homelab-dashboard</p>`, `<p class="tile-label">homelab-site</p>`,
+		"GitHub-hosted runner, dashboard-publish.yaml on main", "GitHub-hosted runner, site-publish.yaml on main")
+	if n := strings.Count(body, `Build L2 <span class="status ok">Verified</span>`); n != 2 {
+		t.Errorf("%d verified Build L2 tiles, want 2", n)
+	}
+	yes, no := true, false
+	l2 := snapshot.Level
+	for _, tc := range []struct {
+		name  string
+		img   snapshot.Image
+		value []part
+		st    status
+		word  string
+	}{
+		{"verified", snapshot.Image{Name: "a", Level: &l2, Verified: &yes, Builder: "b"}, one("Build L2", ""), statusOK, "Verified"},
+		{"not verified", snapshot.Image{Name: "a", Verified: &no, Builder: "b"}, nil, statusWarn, "Not verified"},
+		{"no report", snapshot.Image{Name: "a", Builder: "b"}, nil, statusNone, noData},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := imageTiles(snapshot.SupplyChain{Images: []snapshot.Image{tc.img}})[0]
+			want := tile{Label: "a", Value: tc.value, Status: tc.st, Word: tc.word, Details: []string{"b"}}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("imageTiles (-want +got):\n%s", diff)
+			}
+		})
 	}
 }
 

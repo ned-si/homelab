@@ -13,6 +13,10 @@ kind: ImageValidatingPolicy
 metadata:
   name: verify-own-images
 spec:
+  attestations:
+  - intoto:
+      type: https://slsa.dev/provenance/v1
+    name: provenance
   attestors:
   - cosign:
       ctlog:
@@ -72,5 +76,23 @@ spec:
   - expression: images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-jamulus')).all(i,
       verifyImageSignatures(i, [attestors.jamulus]) > 0)
     message: ghcr.io/ned-si/homelab-jamulus must be signed by jamulus-publish on main.
+  - expression: images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-site')).all(i,
+      verifyAttestationSignatures(i, attestations.provenance, [attestors.site]) >
+      0 && extractPayload(i, attestations.provenance).predicate.buildDefinition.internalParameters.github.runner_environment
+      == 'github-hosted')
+    message: ghcr.io/ned-si/homelab-site must carry a SLSA provenance signed by site-publish
+      on main, built on a GitHub-hosted runner.
+  - expression: images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-dashboard')).all(i,
+      verifyAttestationSignatures(i, attestations.provenance, [attestors.dashboard])
+      > 0 && extractPayload(i, attestations.provenance).predicate.buildDefinition.internalParameters.github.runner_environment
+      == 'github-hosted')
+    message: ghcr.io/ned-si/homelab-dashboard must carry a SLSA provenance signed
+      by dashboard-publish on main, built on a GitHub-hosted runner.
+  - expression: images.containers.filter(i, i.startsWith('ghcr.io/ned-si/homelab-jamulus')).all(i,
+      verifyAttestationSignatures(i, attestations.provenance, [attestors.jamulus])
+      > 0 && extractPayload(i, attestations.provenance).predicate.buildDefinition.internalParameters.github.runner_environment
+      == 'github-hosted')
+    message: ghcr.io/ned-si/homelab-jamulus must carry a SLSA provenance signed by
+      jamulus-publish on main, built on a GitHub-hosted runner.
   webhookConfiguration:
     timeoutSeconds: 10

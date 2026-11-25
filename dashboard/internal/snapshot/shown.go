@@ -53,6 +53,37 @@ type ShownSignal struct {
 	Note string
 }
 
+// ShownImage is a first-party image whose build the public page shows.
+type ShownImage struct {
+	// Name is the repository under ghcr.io/ned-si and the label on the page.
+	Name string
+	// Workflow is the publishing workflow that builds, attests and signs it
+	// on main.
+	Workflow string
+}
+
+// Level is the SLSA v1.0 Build level of the first-party images: provenance
+// made and signed by GitHub artefact attestations in the build job on a
+// GitHub-hosted runner (design.md, "Which SLSA Build level").
+const Level = 2
+
+// Builder is the compiled builder text: the publishing workflows check that
+// the provenance names this workflow and a GitHub-hosted runner.
+func (i ShownImage) Builder() string {
+	return "GitHub-hosted runner, " + i.Workflow + " on main"
+}
+
+// ImageSpec matches the image as a Pod spec pins it, for kube-state-metrics'
+// image_spec label: escaped for a PromQL string.
+func (i ShownImage) ImageSpec() string {
+	return `ghcr\\.io/ned-si/` + i.Name + `(:[^@]+)?@sha256:[0-9a-f]{64}`
+}
+
+var shownImages = []ShownImage{
+	{Name: "homelab-dashboard", Workflow: "dashboard-publish.yaml"},
+	{Name: "homelab-site", Workflow: "site-publish.yaml"},
+}
+
 // UnattributedSignal is the signal whose tile says how many 4xx the Gateway
 // answered itself, which no tile counts.
 const UnattributedSignal = "gateway_unknown"
@@ -171,6 +202,11 @@ func ShownCerts() []ShownCert {
 // ShownSignals returns the security signals, in page order.
 func ShownSignals() []ShownSignal {
 	return slices.Clone(shownSignals)
+}
+
+// ShownImages returns the first-party images, in page order.
+func ShownImages() []ShownImage {
+	return slices.Clone(shownImages)
 }
 
 // Hidden reports whether s names download or indexer tooling.

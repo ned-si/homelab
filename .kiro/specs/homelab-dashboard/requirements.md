@@ -586,8 +586,10 @@ evidence a machine checked.
    runner and the workflow that signs the provenance), with a link to
    `https://slsa.dev/spec/v1.0/levels`.
 2. THE level SHALL be the one the build actually meets, per the design's
-   [level table](design.md#supply-chain-tasks-20-and-21); it SHALL read
-   "No provenance" while an image has no signed provenance.
+   [level table](design.md#supply-chain-tasks-20-and-21), shown only
+   while Kyverno has verified the provenance; otherwise the tile SHALL
+   show no level, only "Not verified" or "No data" (Kyverno's one result
+   per Pod cannot tell a missing provenance from a failed signature).
 3. BOTH first-party images SHALL carry a signed SLSA v1 provenance
    attestation made by GitHub artifact attestations in their publishing
    workflow, pushed to the registry next to the image.
@@ -725,14 +727,16 @@ evidence a machine checked.
     digest> --owner ned-si --signer-workflow
     ned-si/homelab/.github/workflows/<image's workflow>` passes for both
     first-party images; the `verify-own-images` report for their Pods
-    passes the provenance check, and fails it in a kind test for an
-    image signed but without provenance. [13.3, 13.4]
+    passes the provenance check, and `kyverno apply` of the policy fails
+    it for an image signed but without provenance (the `homelab-site`
+    digest running before task 20; the offline CI cannot reach Sigstore).
+    [13.3, 13.4]
 25. The Supply chain section of the golden pages and of the live page
     shows both images with "Build L2", "Verified", the builder identity
-    and the slsa.dev link, and the Scorecard tile with the score, its
-    date, three checks and the viewer link; with the Scorecard API
-    unreachable the tile keeps its last figures and says from when.
-    [13.1, 13.2, 13.5, 13.6]
+    and the slsa.dev link (task 21), and the Scorecard tile with the
+    score, its date, three checks and the viewer link (task 24); with the
+    Scorecard API unreachable the tile keeps its last figures and says
+    from when. [13.1, 13.2, 13.5, 13.6]
 26. `README.md` shows the SLSA badge next to the Scorecard badge, with
     the level of 25. [13.7]
 27. The CI check over `platform/blackbox-exporter/` fails on a public

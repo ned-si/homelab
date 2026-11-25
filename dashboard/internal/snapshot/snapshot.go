@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 6
+const Version = 7
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -75,6 +75,7 @@ type Snapshot struct {
 	Cluster       Cluster      `json:"cluster"`
 	Project       Project      `json:"project"`
 	Security      Security     `json:"security"`
+	SupplyChain   SupplyChain  `json:"supply_chain"`
 }
 
 // Availability is the live availability block: each shown app's state, its
@@ -241,6 +242,22 @@ type Signal struct {
 	Buckets         []*int   `json:"buckets"`
 }
 
+// SupplyChain is the live block of how the first-party images are built.
+type SupplyChain struct {
+	AsOf   string  `json:"as_of"`
+	Images []Image `json:"images"`
+}
+
+// Image is one first-party image: its SLSA Build level, set only when
+// Kyverno verified its provenance on every reporting Pod, the verification
+// itself, nil without a report, and the compiled builder text.
+type Image struct {
+	Name     string `json:"name"`
+	Level    *int   `json:"level"`
+	Verified *bool  `json:"verified"`
+	Builder  string `json:"builder"`
+}
+
 // FormatTime formats t as the snapshot's timestamps: RFC 3339, second
 // precision, Zurich offset.
 func FormatTime(t time.Time) string {
@@ -283,7 +300,8 @@ var compiled = sync.OnceValues(func() (*jsonschema.Schema, error) {
 
 // Validate parses body and checks it: the size, the schema, then the rules
 // a schema cannot express (the shown apps and certificates in order, no
-// hidden app or node, the shown security signals in order, the days ending
+// hidden app or node, the shown security signals and images in order, a
+// level only with a verified provenance, the days ending
 // today, no block newer than generated_at, the counts within their totals,
 // the ci runs newest first). An error about the shown names wraps
 // ErrNotShown.
@@ -339,6 +357,21 @@ func (s *Snapshot) check() error {
 				i, sig.ID, UnattributedSignal))
 		}
 	}
+	images := ShownImages()
+	if len(s.SupplyChain.Images) != len(images) {
+		errs = append(errs, fmt.Errorf("supply_chain.images has %d entries, want %d", len(s.SupplyChain.Images), len(images)))
+	}
+	for i, img := range s.SupplyChain.Images {
+		if i >= len(images) {
+			break
+		}
+		if w := images[i]; img.Name != w.Name || img.Builder != w.Builder() {
+			errs = append(errs, fmt.Errorf("supply_chain.images[%d] is %q (%q), want %q (%q)", i, img.Name, img.Builder, w.Name, w.Builder()))
+		}
+		if img.Level != nil && (img.Verified == nil || !*img.Verified) {
+			errs = append(errs, fmt.Errorf("supply_chain.images[%d] %s: a level without a verified provenance", i, img.Name))
+		}
+	}
 	if r := s.Project.Rework; r != nil && r.Count > r.Deploys {
 		errs = append(errs, fmt.Errorf("project.rework: count %d above deploys %d", r.Count, r.Deploys))
 	}
@@ -358,6 +391,7 @@ func (s *Snapshot) check() error {
 		{"cluster.as_of", s.Cluster.AsOf},
 		{"project.as_of", s.Project.AsOf},
 		{"security.as_of", s.Security.AsOf},
+		{"supply_chain.as_of", s.SupplyChain.AsOf},
 	}
 	for _, t := range times {
 		v, err := ParseTime(t.value)
