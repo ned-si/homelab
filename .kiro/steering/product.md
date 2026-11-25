@@ -26,6 +26,7 @@ one Keycloak single sign-on, and it is public as an implementation example.
 | Recipes | Mealie |
 | Device sync | Syncthing |
 | Home | Home Assistant, Mosquitto, Zigbee2MQTT |
+| Music | Jamulus (playing together live) |
 | Identity | Keycloak, realm `homelab`, per-app access by group |
 | Operator tools | Argo CD, Grafana, Headlamp, Hubble, SigNoz (public behind Keycloak, group `admins`, TOTP) |
 

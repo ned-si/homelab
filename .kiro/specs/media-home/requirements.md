@@ -11,12 +11,15 @@ The household's films, series, music, books and home automation. Namespace
 `theater` holds the media stack (Plex, Jellyfin, the *arr apps, Prowlarr,
 qBittorrent, Bazarr, Recyclarr, LazyLibrarian); `books` holds Audiobookshelf
 and Calibre-Web Automated; `home` holds Home Assistant, Mosquitto and
-Zigbee2MQTT; `paperless` holds Paperless-ngx, the household's documents.
+Zigbee2MQTT; `paperless` holds Paperless-ngx, the household's documents;
+`jamulus` holds the Jamulus server for playing music together live, built
+by the change spec [self-hosted-jamulus](../self-hosted-jamulus/).
 This spec records what they do today. Detail:
 [docs/theater.md](../../../docs/theater.md),
 [docs/books.md](../../../docs/books.md),
 [docs/home-automation.md](../../../docs/home-automation.md),
-[docs/paperless.md](../../../docs/paperless.md).
+[docs/paperless.md](../../../docs/paperless.md),
+[docs/jamulus.md](../../../docs/jamulus.md).
 
 Non-goals:
 - Backing up the media library or the audiobook files (re-acquirable).

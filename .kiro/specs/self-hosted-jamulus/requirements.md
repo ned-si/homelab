@@ -201,10 +201,13 @@ and reason about the server from the docs alone.
 
 - Cost: nothing paid. GitHub-hosted runners and GHCR are free for a public
   repository.
-- Bandwidth: at most 8 players at about 1 Mbit/s each way each (high
-  quality, 64-sample frames), about 8 Mbit/s each way on the home line.
-  The per-player figure is to be read from the client's "Audio stream
-  rate" during a real session in task 6 and filled in here.
+- Bandwidth: at most 8 players at up to 906 kbit/s each way each (stereo,
+  high quality, 64-sample frames; 684 kbit/s mono), under 8 Mbit/s each
+  way on the home line. The per-player figures are the client's "Audio
+  Stream Rate", computed by upstream `CChannel::GetUploadRateKbps` in
+  3.12.6 (codec bytes, sequence number and 77 bytes of headers per frame);
+  no session was played to read them from a client
+  ([docs/jamulus.md](../../../docs/jamulus.md#connect)).
 - Repository is public: no player names or addresses in git.
 
 ## Acceptance criteria

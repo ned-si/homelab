@@ -95,6 +95,7 @@ Is it reasonable for a home? No. Is it a very good playground? Indeed.
 | Mealie | Recipes | `mealie` | `cook` | Yes |
 | Home Assistant, Mosquitto, Zigbee2MQTT | Home automation ([docs/home-automation.md](docs/home-automation.md)) | `home` | `home` | Yes (Home Assistant) |
 | Syncthing | Device sync | `syncthing` | `syncthing` (UI); sync on `.201` | Yes (UI, group `admins`) |
+| Jamulus | Playing music together live ([docs/jamulus.md](docs/jamulus.md)) | `jamulus` | `jam` (UDP 41124 on `.202`) | No (no login in Jamulus) |
 | Keycloak | Single sign-on, realm `homelab` | `keycloak` | `auth` | - |
 | Grafana, Prometheus, Alertmanager | Monitoring | `monitoring` | `grafana` | Yes (Grafana) |
 | Argo CD | GitOps controller | `argo` | `argo` | Yes |
@@ -114,7 +115,7 @@ Jellyfin stay off SSO so their TV apps can sign in.
 | Talos | OS, kubelet, etcd, control plane, Kubernetes API VIP `192.168.1.11` | Machine configs rendered from [`talos/`](talos) by talhelper, applied with `task talos:*` ([docs/talos.md](docs/talos.md)) |
 | Cilium Gateway | Shared Gateway `gateway/shared` for every public hostname, on `192.168.1.254` | Argo CD |
 | cert-manager | Certificates, ClusterIssuer `letsencrypt`, DNS-01 via Cloudflare | Argo CD |
-| external-dns | Cloudflare records for every Ingress and HTTPRoute, upsert only | Argo CD |
+| external-dns | Cloudflare records for every HTTPRoute and annotated LoadBalancer Service, upsert only | Argo CD |
 | CloudNativePG | PostgreSQL for Immich, Keycloak, Mealie, Sonarr, Radarr, Lidarr and Prowlarr | Argo CD |
 | democratic-csi | iSCSI volumes on TrueNAS | Argo CD (release name `iscsi`), values in [`infrastructure/democratic-csi/values-iscsi.yaml`](infrastructure/democratic-csi/values-iscsi.yaml); driver config sealed in [`infrastructure/secrets/`](infrastructure/secrets) |
 | kube-prometheus-stack | Prometheus, Alertmanager, Grafana | Argo CD |

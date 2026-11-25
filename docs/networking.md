@@ -1,7 +1,8 @@
 # Networking
 
 One flat LAN, one public entrypoint (the shared Gateway on `192.168.1.254`),
-two other forwarded ports. The address table is in the README's
+two other forwarded ports, and a third for Jamulus while remote players are
+wanted. The address table is in the README's
 [Networking](../README.md#networking) section.
 
 ## LAN and router

@@ -21,5 +21,6 @@ expected output, rollback. Pages for paging alerts are in
 | [immich-upgrade.md](immich-upgrade.md) | Immich server and database upgrades |
 | [arr-qbittorrent.md](arr-qbittorrent.md) | The *arr apps cannot reach qBittorrent |
 | [subtitles.md](subtitles.md) | Subtitles keep switching themselves off |
+| [jamulus.md](jamulus.md) | Open Jamulus to remote players and close it; check, restart, upgrade; abuse |
 | [nfs-hardening.md](nfs-hardening.md) | The open gap on the media NFS export |
 | [paperless-postgres.md](paperless-postgres.md) | Moving Paperless from SQLite to PostgreSQL (an option, not done) |
