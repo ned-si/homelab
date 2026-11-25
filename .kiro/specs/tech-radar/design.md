@@ -31,8 +31,8 @@ app.
 | `techradar/entries.yaml` | The entries ([Data](#data)) |
 | `techradar/cmd/techradar/` | `main.go`: `techradar render -out <dir>` and `techradar check -out <dir>` (exit 1 when the files differ from a fresh render) |
 | `techradar/internal/radar/` | `model.go` (types, validation), `place.go` (placement), `svg.go` (the chart), `page.go` (`html/template`), `testdata/` (golden page) |
-| `techradar/internal/radar/assets/` | `page.html`, `techradar.css` (embedded) |
-| `apps/website/techradar/` | Rendered: `index.html`, `techradar.css`, `layout.css` (the shared layout's copy, checked by public-website task 12's copy check) |
+| `techradar/internal/radar/assets/` | `page.html`, `techradar.css`, the palette copies `theme-dark.css` and `theme-light.css` (embedded) |
+| `apps/website/techradar/` | Rendered: `index.html`, `techradar.css`, `layout.css` (the shared layout's copy, checked by public-website task 12's copy check), `theme-dark.css` and `theme-light.css` (nginx serves one as `/theme.css`) |
 | `docs/techradar.md` | How to add or move an entry, what the rings mean, how it is served; Why it is like this |
 
 Code style: Google's Go Style Guide, as the dashboard
@@ -124,11 +124,11 @@ Zalando's look, without its JavaScript:
   `role="img"` would hide from screen readers), `aria-label`,
   `aria-hidden="true"` (the number and the label, which repeat the
   `<title>`) and `focusable="false"`.
-- Ring colours, Zalando's hues tuned for contrast, defined for the
-  light and dark palettes in `techradar.css` and checked by the
+- Ring colours, Zalando's hues tuned for contrast, `--ring-*` in the
+  site's palette ([site-theme-language](../site-theme-language/design.md#palette)) and checked by the
   contrast test (Requirement 2.6): Adopt green, Trial teal, Assess
-  amber, Hold red; the blip number in the page background colour on
-  the fill (4.5:1).
+  amber, Hold red; the blip number in `--blip-text` on the fill
+  (4.5:1), the ring lines in `--radar-line` (3:1).
 
 ## The page
 
@@ -149,9 +149,10 @@ Zalando's look, without its JavaScript:
    name, reason`. A grid of two columns from `60rem`, one below.
 5. The site's footer.
 
-`techradar.css` holds the palette (the site's light and dark values),
-the ring colours and the legend grid; the layout comes from
-`layout.css`. No rule there repeats a rule of `layout.css`.
+`techradar.css` holds the radar's components and the legend grid, with
+no colour; the colours come from the site's palette
+([site-theme-language](../site-theme-language/design.md#palette)), served as `/theme.css`, and the layout
+from `layout.css`. No rule there repeats a rule of `layout.css`.
 
 ## Serving
 
@@ -373,7 +374,7 @@ internals are not.
 | --- | --- |
 | Validation | Table tests in `model_test.go`, one per rule |
 | Placement | No overlap, inside the segment, deterministic; the real file, a synthetic 30-entry Adopt segment and a 40-entry Hold segment |
-| Page | Golden HTML; the SVG element and attribute set; every blip a link with a `<title>` to exactly one legend `id`; the contrast test over `techradar.css` |
+| Page | Golden HTML; the SVG element and attribute set; every blip a link with a `<title>` to exactly one legend `id`; the contrast test over both palette copies |
 | Rendered output | `techradar check` in CI |
 | Serving | `site-serve-check.sh`, the PostSync smoke, the probe, `dast` |
 | Layout | `layout-check.sh` with the radar page |

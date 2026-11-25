@@ -137,6 +137,7 @@ curl -s -m 5 -H 'Host: nedsi.io' http://127.0.0.1:8080/ | grep -q 'href="https:/
 
 theme blog.nedsi.io
 theme nedsi.io
+theme techradar.nedsi.io
 check 404 - 8080 blog.nedsi.io /fr/does-not-exist
 header blog.nedsi.io /about/ cache-control "public, max-age=300" -H 'Cookie: theme=light'
 curl -s -m 5 -H 'Host: blog.nedsi.io' http://127.0.0.1:8080/robots.txt | grep -qx 'Disallow: /set-theme/' \

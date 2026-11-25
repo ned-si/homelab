@@ -231,42 +231,47 @@ func luminance(t *testing.T, hex string) float64 {
 	return l
 }
 
-// TestContrast checks every colour against the page background in the light
-// and the dark palette: text 4.5:1, ring lines 3:1 (WCAG 2.2 1.4.3 and
-// 1.4.11). The blip numbers are the background colour on the ring colours,
-// the same pairs as the ring colours as text.
+// TestContrast checks the radar's colours in both palettes, byte copies of
+// site/assets/css/theme-*.css: text and the ring colours 4.5:1 on --bg, the
+// ring lines 3:1, the blip numbers 4.5:1 on each ring colour (WCAG 2.2 1.4.3
+// and 1.4.11). techradar.css holds no colour.
 func TestContrast(t *testing.T) {
-	b, err := os.ReadFile("assets/techradar.css")
+	rings := []string{"ring-adopt", "ring-trial", "ring-assess", "ring-hold"}
+	vars := regexp.MustCompile(`--([a-z-]+):\s*(#[0-9a-f]{6});`)
+	for _, theme := range []string{"dark", "light"} {
+		b, err := os.ReadFile("assets/theme-" + theme + ".css")
+		if err != nil {
+			t.Fatal(err)
+		}
+		colours := map[string]string{}
+		for _, m := range vars.FindAllStringSubmatch(string(b), -1) {
+			colours[m[1]] = m[2]
+		}
+		check := func(fg, bg string, want float64) {
+			f, okF := colours[fg]
+			g, okG := colours[bg]
+			if !okF || !okG {
+				t.Errorf("%s: no --%s or --%s", theme, fg, bg)
+				return
+			}
+			lf, lg := luminance(t, f), luminance(t, g)
+			if ratio := (max(lf, lg) + 0.05) / (min(lf, lg) + 0.05); ratio < want {
+				t.Errorf("%s: --%s %s on --%s %s: contrast %.2f, want at least %.1f", theme, fg, f, bg, g, ratio, want)
+			}
+		}
+		for _, name := range append([]string{"fg", "muted", "link"}, rings...) {
+			check(name, "bg", 4.5)
+		}
+		check("radar-line", "bg", 3)
+		for _, ring := range rings {
+			check("blip-text", ring, 4.5)
+		}
+	}
+	css, err := os.ReadFile("assets/techradar.css")
 	if err != nil {
 		t.Fatal(err)
 	}
-	css := string(b)
-	light, dark, ok := strings.Cut(css, "@media (prefers-")
-	if !ok {
-		t.Fatal("no dark palette in techradar.css")
-	}
-	minimum := map[string]float64{"fg": 4.5, "muted": 4.5, "link": 4.5, "adopt": 4.5, "trial": 4.5, "assess": 4.5, "hold": 4.5, "line": 3}
-	vars := regexp.MustCompile(`--([a-z-]+):\s*(#[0-9a-f]{6});`)
-	for palette, block := range map[string]string{"light": light, "dark": dark} {
-		colours := map[string]string{}
-		for _, m := range vars.FindAllStringSubmatch(block, -1) {
-			colours[m[1]] = m[2]
-		}
-		bgHex, ok := colours["bg"]
-		if !ok {
-			t.Fatalf("%s: no --bg", palette)
-		}
-		bg := luminance(t, bgHex)
-		for name, want := range minimum {
-			c, ok := colours[name]
-			if !ok {
-				t.Errorf("%s: no --%s", palette, name)
-				continue
-			}
-			fg := luminance(t, c)
-			if ratio := (max(fg, bg) + 0.05) / (min(fg, bg) + 0.05); ratio < want {
-				t.Errorf("%s: --%s %s on --bg %s: contrast %.2f, want at least %.1f", palette, name, c, bgHex, ratio, want)
-			}
-		}
+	if m := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b`).Find(css); m != nil {
+		t.Errorf("techradar.css holds the colour %s; colours live in the palette", m)
 	}
 }

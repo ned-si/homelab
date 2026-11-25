@@ -43,7 +43,8 @@ type entryView struct {
 
 var movedText = map[string]string{"up": "moved in", "down": "moved out", "new": "new"}
 
-// Render places the blips and renders index.html with its stylesheets.
+// Render places the blips and renders index.html with its stylesheets: its
+// own, the shared layout and the two palettes nginx picks /theme.css from.
 func Render(r *Radar, root fs.StatFS) (Files, error) {
 	blips, err := Place(r.Entries)
 	if err != nil {
@@ -81,7 +82,7 @@ func Render(r *Radar, root fs.StatFS) (Files, error) {
 		return nil, err
 	}
 	files := Files{"index.html": buf.Bytes()}
-	for _, name := range []string{"techradar.css", "layout.css"} {
+	for _, name := range []string{"techradar.css", "layout.css", "theme-dark.css", "theme-light.css"} {
 		b, err := assets.ReadFile("assets/" + name)
 		if err != nil {
 			return nil, err
