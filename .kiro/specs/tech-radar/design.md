@@ -92,7 +92,8 @@ Zalando's look, without its JavaScript:
   legend order; each blip (radius 8) gets candidate points from a
   PRNG seeded with the FNV-1a hash of `quadrant/ring/name`, uniform in
   the segment's area, with a margin of 10 from the ring lines and the
-  axes; the first candidate at least 18 from every placed blip wins; 500
+  vertical axis and of 16 from the horizontal axis, which carries the
+  ring names; the first candidate at least 18 from every placed blip wins; 500
   candidates without a fit fail the build, naming the segment. Same
   input, same bytes.
 - Blips: a circle, a triangle (`moved: up` points to the centre,
@@ -123,8 +124,8 @@ Zalando's look, without its JavaScript:
    a link to `https://github.com/zalando/tech-radar` (in `LINKS`); the
    date of `updated` in `entries.yaml`, so render and check depend on
    no git metadata.
-3. The chart, full container width up to `44rem`, centred in its
-   column.
+3. The chart, full container width up to `64rem` (the blip numbers
+   stay readable on a desktop screen), centred in its column.
 4. The legend: four sections (`h2` per quadrant), each with four `h3`
    rings and an ordered list (`<ol>` with explicit `value`) of `number,
    name, reason`. A grid of two columns from `60rem`, one below.
@@ -311,7 +312,7 @@ internals are not.
 | Mosquitto | adopt | The MQTT broker for the home devices | apps/home/mosquitto.yaml |
 | Zigbee2MQTT | adopt | Zigbee devices on MQTT, no vendor hub | apps/home/zigbee2mqtt.yaml |
 | healthchecks.io | adopt | The dead man's switch: pages when the cluster goes silent | docs/observability.md |
-| Tetragon | trial | Runtime detection in observe mode, paging on critical events | docs/observability.md#runtime-tetragon |
+| Tetragon | trial | Runtime detection that pages on critical events; nothing is blocked yet | docs/observability.md#runtime-tetragon |
 | SigNoz | trial | Logs on ClickHouse, on trial as the one place for signals | #801 |
 | Umami | assess | Cookieless statistics, chosen and not deployed yet | .kiro/specs/public-website/ |
 | OpenBao with External Secrets | assess | Cluster-owned secrets issued, not stored | #713 |

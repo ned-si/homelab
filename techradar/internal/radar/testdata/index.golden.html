@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech radar · nedsi</title>
+<meta name="description" content="What the nedsi homelab uses, tries, assesses and holds, and why.">
+<meta name="author" content="nedsi">
+<link rel="canonical" href="https://techradar.nedsi.io/">
+<link rel="stylesheet" href="/layout.css">
+<link rel="stylesheet" href="/techradar.css">
+</head>
+<body>
+<header class="site">
+<nav class="site" aria-label="Site">
+<a href="https://nedsi.io/">Home</a>
+<a href="https://blog.nedsi.io/">Blog</a>
+<a href="https://homelab.nedsi.io/">Homelab</a>
+<a href="https://blog.nedsi.io/about/">About</a>
+</nav>
+</header>
+<main>
+<h1>Tech radar</h1>
+<p class="lead">What the homelab is built with, and why.</p>
+<div class="intro">
+<p>Every technology and technique the homelab uses, tries, keeps an eye on or decided against, each with a one-line reason and a link to where the decision is written down. Those reasons used to be spread over docs, specs and issues. Now they are on one page, in the spirit of <a href="https://github.com/zalando/tech-radar">Zalando's tech radar</a> (minus the JavaScript).</p>
+<ul class="rings">
+<li><strong class="ring-adopt">Adopt</strong>: in use, and I would choose it again.</li>
+<li><strong class="ring-trial">Trial</strong>: in use on trial, or with a known limit I am working on.</li>
+<li><strong class="ring-assess">Assess</strong>: researched or planned, not in use yet.</li>
+<li><strong class="ring-hold">Hold</strong>: decided against, removed or replaced; the reason says why.</li>
+</ul>
+<p class="updated">6 entries, updated on <time datetime="2026-11-25">25 November 2026</time>. The numbers on the chart match the legend below it.</p>
+</div>
+<figure class="chart">
+<svg viewBox="0 0 800 800" role="img" focusable="false" aria-label="Tech radar: 6 entries in four quadrants and four rings, listed in the legend below.">
+<circle class="ring-line" cx="400" cy="400" r="170"/>
+<circle class="ring-line" cx="400" cy="400" r="255"/>
+<circle class="ring-line" cx="400" cy="400" r="330"/>
+<circle class="ring-line" cx="400" cy="400" r="400"/>
+<line class="axis" x1="0" y1="400" x2="800" y2="400"/>
+<line class="axis" x1="400" y1="0" x2="400" y2="800"/>
+<text class="ring-name" x="315" y="406">Adopt</text>
+<text class="ring-name" x="485" y="406">Adopt</text>
+<text class="ring-name" x="187.5" y="406">Trial</text>
+<text class="ring-name" x="612.5" y="406">Trial</text>
+<text class="ring-name" x="107.5" y="406">Assess</text>
+<text class="ring-name" x="692.5" y="406">Assess</text>
+<text class="ring-name" x="35" y="406">Hold</text>
+<text class="ring-name" x="765" y="406">Hold</text>
+<g class="blip ring-assess"><title>1. Wide events (Assess)</title><circle cx="303.2" cy="122.7" r="8"/><text class="blip-number" x="303.2" y="125.7">1</text></g>
+<g class="blip ring-adopt"><title>2. Go (Adopt)</title><path d="M423.3 297.5 L425.9 303.9 L432.8 304.4 L427.6 308.9 L429.2 315.6 L423.3 312 L417.4 315.6 L419 308.9 L413.8 304.4 L420.7 303.9 Z"/><text class="blip-number" x="423.3" y="310.5">2</text></g>
+<g class="blip ring-adopt"><title>3. Kyverno (Adopt)</title><path d="M356.2 542.1 L360.1 560.1 L342.9 554.8 Z"/><text class="blip-number" x="353.3" y="554.7">3</text></g>
+<g class="blip ring-trial"><title>4. Tetragon (Trial)</title><path d="M333.1 583 L330.1 564.9 L347 571.1 Z"/><text class="blip-number" x="336.5" y="576.6">4</text></g>
+<g class="blip ring-hold"><title>5. Service mesh (Hold)</title><circle cx="35.9" cy="530.9" r="8"/><text class="blip-number" x="35.9" y="533.9">5</text></g>
+<g class="blip ring-adopt"><title>6. Talos Linux (Adopt)</title><circle cx="420.4" cy="468.3" r="8"/><text class="blip-number" x="420.4" y="471.3">6</text></g>
+</svg>
+</figure>
+<div class="legend">
+<section aria-labelledby="q-techniques">
+<h2 id="q-techniques">Techniques</h2>
+<h3 class="ring-adopt">Adopt</h3>
+<p class="none">Nothing here right now.</p>
+<h3 class="ring-trial">Trial</h3>
+<p class="none">Nothing here right now.</p>
+<h3 class="ring-assess">Assess</h3>
+<ol>
+<li value="1"><a href="https://github.com/ned-si/homelab/issues/734">Wide events</a>: One rich event per request.</li>
+</ol>
+<h3 class="ring-hold">Hold</h3>
+<p class="none">Nothing here right now.</p>
+</section>
+<section aria-labelledby="q-tools">
+<h2 id="q-tools">Tools and languages</h2>
+<h3 class="ring-adopt">Adopt</h3>
+<ol>
+<li value="2"><a href="https://github.com/ned-si/homelab/tree/main/.kiro/specs/tech-radar">Go</a> <span class="moved">(new)</span>: One static binary.</li>
+</ol>
+<h3 class="ring-trial">Trial</h3>
+<p class="none">Nothing here right now.</p>
+<h3 class="ring-assess">Assess</h3>
+<p class="none">Nothing here right now.</p>
+<h3 class="ring-hold">Hold</h3>
+<p class="none">Nothing here right now.</p>
+</section>
+<section aria-labelledby="q-platform">
+<h2 id="q-platform">Platform</h2>
+<h3 class="ring-adopt">Adopt</h3>
+<ol>
+<li value="3">Kyverno <span class="moved">(moved in)</span>: Baseline policies in Deny.</li>
+</ol>
+<h3 class="ring-trial">Trial</h3>
+<ol>
+<li value="4">Tetragon <span class="moved">(moved out)</span>: Runtime detection that pages on critical events.</li>
+</ol>
+<h3 class="ring-assess">Assess</h3>
+<p class="none">Nothing here right now.</p>
+<h3 class="ring-hold">Hold</h3>
+<ol>
+<li value="5"><a href="https://github.com/ned-si/homelab/blob/main/docs/decisions.md#no-service-mesh">Service mesh</a>: Cilium already gives the policies and the flows.</li>
+</ol>
+</section>
+<section aria-labelledby="q-infrastructure">
+<h2 id="q-infrastructure">Infrastructure</h2>
+<h3 class="ring-adopt">Adopt</h3>
+<ol>
+<li value="6"><a href="https://github.com/ned-si/homelab/blob/main/docs/talos.md">Talos Linux</a>: Immutable, API-only nodes with the machine config in git.</li>
+</ol>
+<h3 class="ring-trial">Trial</h3>
+<p class="none">Nothing here right now.</p>
+<h3 class="ring-assess">Assess</h3>
+<p class="none">Nothing here right now.</p>
+<h3 class="ring-hold">Hold</h3>
+<p class="none">Nothing here right now.</p>
+</section>
+</div>
+</main>
+<footer class="site">
+<p><a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
+</footer>
+</body>
+</html>
