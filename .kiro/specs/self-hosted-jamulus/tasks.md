@@ -28,7 +28,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       `curl -s -o /dev/null -w '%{http_code}\n'
       'https://ghcr.io/token?scope=repository:ned-si/homelab-jamulus:pull'`
       printing `200`. [1] (#1713)
-- [ ] 2. The app (**live**). Starts only when the GHCR check of task 1
+- [x] 2. The app (**live**). Starts only when the GHCR check of task 1
       prints `200`; until then the run sends the parent a `warning`
       naming the operator step, and at the cutoff records tasks 2-6 as
       open, blocked on the operator. Files: namespace `jamulus`
@@ -51,7 +51,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       the namespace's three PSA labels are `restricted`; the `jamulus`
       policy report has no `fail` and `verify-own-images` is `pass`;
       `vector_log_events_total{namespace="jamulus"}` increases; no new
-      alerts. [2, 3, 4.1, 4.2, 6.3]
+      alerts. [2, 3, 4.1, 4.2, 6.3] (#1720)
 - [ ] 3. Probe and alert (**live**): `platform/jamulus-probe/`,
       `clusters/homelab/platform/jamulus-probe.yaml`, the `jamulus-probe`
       policy in `88-monitoring.yaml` and its ingress rule in

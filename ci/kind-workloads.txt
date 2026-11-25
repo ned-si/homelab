@@ -10,3 +10,6 @@ deploy/apps/homelab-dashboard/configmap-homelab-dashboard-push-pubkey.yaml
 deploy/apps/homelab-dashboard/deployment-homelab-dashboard-web.yaml
 deploy/apps/homelab-dashboard/service-homelab-dashboard-web.yaml
 deploy/apps/homelab-dashboard/service-homelab-dashboard-web-push.yaml
+# The Jamulus server; Ready once its exec ping is answered.
+deploy/apps/jamulus/serviceaccount-jamulus.yaml
+deploy/apps/jamulus/deployment-jamulus.yaml

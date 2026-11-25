@@ -155,6 +155,7 @@ flowchart LR
 | `192.168.1.200`-`.227` | Cilium pool `pool-2` (LoadBalancer Services) |
 | `192.168.1.200` | `theater/qbittorrent-seed`, pinned |
 | `192.168.1.201` | `syncthing/syncthing-protocol`, pinned |
+| `192.168.1.202` | `jamulus/jamulus`, pinned |
 | `192.168.1.254` | Cilium pool `pool-1`: `gateway/cilium-gateway-shared`, pinned |
 
 Nodes use static addresses outside the DHCP pool. Pinned LoadBalancer IPs use

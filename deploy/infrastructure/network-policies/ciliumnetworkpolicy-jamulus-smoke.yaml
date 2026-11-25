@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     infrastructure/network-policies
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in infrastructure/network-policies and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jamulus-smoke
+  namespace: jamulus
+spec:
+  description: The PostSync smoke Job pings jamulus:41124 after every sync.
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        app.kubernetes.io/name: jamulus
+    toPorts:
+    - ports:
+      - port: "41124"
+        protocol: UDP
+  enableDefaultDeny:
+    egress: false
+    ingress: false
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus-smoke

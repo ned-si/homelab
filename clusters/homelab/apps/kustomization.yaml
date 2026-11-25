@@ -12,3 +12,4 @@ resources:
   - home.yaml
   - website.yaml
   - homelab-dashboard.yaml
+  - jamulus.yaml

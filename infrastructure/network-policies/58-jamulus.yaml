@@ -1,0 +1,64 @@
+# jamulus: the server and the PostSync smoke Job
+# (.kiro/specs/self-hosted-jamulus/design.md#network). Enforced from the
+# start (90-enforcement.yaml).
+# UDP 41124 in, nothing out but the switch's cluster DNS: the server opens
+# no connection of its own (no directory). Replies to players pass through
+# connection tracking.
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jamulus
+  namespace: jamulus
+spec:
+  description: >-
+    The Jamulus server: UDP 41124 from players and the smoke Job; no egress.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  ingress:
+    # Players through the jamulus LoadBalancer (192.168.1.202). LAN players
+    # also arrive as `world`; `host` and `remote-node` cover SNAT when the
+    # announcing node forwards to a pod on another node.
+    - fromEntities:
+        - world
+        - host
+        - remote-node
+      toPorts:
+        - ports:
+            - port: "41124"
+              protocol: UDP
+    # apps/jamulus/smoke.yaml.
+    - fromEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: jamulus-smoke
+      toPorts:
+        - ports:
+            - port: "41124"
+              protocol: UDP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: jamulus-smoke
+  namespace: jamulus
+spec:
+  description: >-
+    The PostSync smoke Job pings jamulus:41124 after every sync.
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus-smoke
+  enableDefaultDeny:
+    ingress: false
+    egress: false
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            app.kubernetes.io/name: jamulus
+      toPorts:
+        - ports:
+            - port: "41124"
+              protocol: UDP
