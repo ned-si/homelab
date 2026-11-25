@@ -118,12 +118,12 @@ writing articles.
 7. A republished article SHALL carry `<link rel="canonical">` to its
    original and a visible line naming where it first appeared.
 8. THE landing page SHALL be one HTML page with the shared layout's
-   stylesheet and its own: the title "Security and reliability
-   engineer" with the line "Automate all the things." under it; two
+   stylesheet and its own: the title "Security and Reliability
+   Engineering" with the line "Automate all the things." under it; two
    blocks, a short "What this is" and a wider "What you can expect"
    that introduces what is there now, one line and a link each (the
-   blog, the homelab dashboard, the About page, the projects on GitHub,
-   and the tech radar once it is live); then cards for his projects (the
+   blog, the homelab dashboard, the tech radar, the About page and the
+   projects on GitHub); then cards for his projects (the
    source repository among them), the blog, the About page and his
    contact links (no form); the privacy link in its footer. There SHALL
    be no "Start here" block.
@@ -380,7 +380,7 @@ Each default holds until the operator says otherwise. Rows marked
 | Contact | GitHub, LinkedIn and `julien@nedsi.io`, a Proton custom-domain address; no form (operator, 2026-11-19) | A readable address on the public domain, in a mailbox he already has |
 | Résumé content | IT roles only, no skills, education or languages; employers named, the current one included (operator, 2026-11-19); no watches or photography anywhere on Home or About (operator, 2026-11-24) | The About page stays short and about IT |
 | Certifications | Name and year earned, newest first (operator, 2026-11-24), never whether one is valid or lapsed (operator, 2026-11-19) | Nothing to keep up to date; the recent ones matter most to a reader |
-| Home text | Title "Security and reliability engineer", the line "Automate all the things.", "What this is" short, "What you can expect" with one line and a link per page, no "Start here" (operator, 2026-11-24) | A visitor sees what is here and where to go in one screen |
+| Home text | Title "Security and Reliability Engineering" (operator, 2026-11-25), the line "Automate all the things.", "What this is" short, "What you can expect" with one line and a link per page, the tech radar among them (operator, 2026-11-25), no "Start here" (operator, 2026-11-24) | A visitor sees what is here and where to go in one screen |
 | Shared width | One container, `max-width: 72rem`, padding `1.5rem 1.25rem 3rem`, on every public page; the blog's text in a `44rem` column from the container's left edge ([design, Shared layout](design.md#shared-layout-task-12)) | The dashboard's grid needs 72rem; the blog keeps its reading measure; the nav and the content edge never move |
 | One definition | `site/assets/css/layout.css` with checked copies, `NAV` in `scripts/ci/site_markup.py` | Hugo, the landing ConfigMap and the Go binary cannot import one file; a byte comparison makes the copies one definition |
 | Layout check | chrome-headless-shell (the dashboard's pin) on static copies of the rendered pages, measuring with `getBoundingClientRect` at 1920x1080 and 390x844, 1 px tolerance | Deterministic, no pixel diff, no new browser or npm tree |
