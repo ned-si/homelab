@@ -68,7 +68,7 @@ for copy in apps/website/landing/layout.css dashboard/internal/web/assets/layout
 done
 
 echo "== palette copies, contrast and colour literals"
-palette_copies=(apps/website/landing)
+palette_copies=(apps/website/landing dashboard/internal/web/assets)
 for theme in dark light; do
   for copy in "${palette_copies[@]}"; do
     cmp -s "site/assets/css/theme-$theme.css" "$copy/theme-$theme.css" \
@@ -77,7 +77,8 @@ for theme in dark light; do
 done
 python3 scripts/ci/site_contrast.py site/assets/css || fail "contrast: see the lines above"
 python3 scripts/ci/site_markup.py --css site/assets/css/layout.css site/assets/css/main.css \
-  site/assets/css/syntax.css apps/website/landing/landing.css || fail "colour literals: see the lines above"
+  site/assets/css/syntax.css apps/website/landing/landing.css \
+  dashboard/internal/web/assets/dashboard.css || fail "colour literals: see the lines above"
 
 echo "== drafts and future-dated pages"
 # Unpublished pages live in draft pull requests, never on main.

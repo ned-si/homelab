@@ -1010,34 +1010,45 @@ func luminance(t *testing.T, hex string) float64 {
 	return l
 }
 
+// TestContrast checks the dashboard's text and status colours on the card
+// and on the stat tile in both palettes (Requirement 3.13). The palettes are
+// byte copies of site/assets/css/theme-*.css, where
+// scripts/ci/site_contrast.py checks every pair of the site.
 func TestContrast(t *testing.T) {
-	b, err := os.ReadFile("assets/dashboard.css")
+	for _, theme := range []string{"dark", "light"} {
+		b, err := os.ReadFile("assets/theme-" + theme + ".css") //nolint:gosec // G304: a palette under assets/.
+		if err != nil {
+			t.Fatal(err)
+		}
+		vars := map[string]string{}
+		for _, m := range regexp.MustCompile(`--([a-z-]+):\s*(#[0-9a-f]{6});`).FindAllStringSubmatch(string(b), -1) {
+			vars[m[1]] = m[2]
+		}
+		for _, bgName := range []string{"bg", "panel", "tile"} {
+			back, ok := vars[bgName]
+			if !ok {
+				t.Fatalf("%s: no --%s", theme, bgName)
+			}
+			bg := luminance(t, back)
+			for _, name := range []string{"fg", "muted", "link", "ok", "warn", "bad", "none"} {
+				c, ok := vars[name]
+				if !ok {
+					t.Errorf("%s: no --%s", theme, name)
+					continue
+				}
+				fg := luminance(t, c)
+				ratio := (max(fg, bg) + 0.05) / (min(fg, bg) + 0.05)
+				if ratio < 4.5 {
+					t.Errorf("%s: --%s %s on --%s %s: contrast %.2f, want at least 4.5", theme, name, c, bgName, back, ratio)
+				}
+			}
+		}
+	}
+	css, err := os.ReadFile("assets/dashboard.css")
 	if err != nil {
 		t.Fatal(err)
 	}
-	vars := map[string]string{}
-	for _, m := range regexp.MustCompile(`--([a-z-]+):\s*(#[0-9a-f]{6});`).FindAllStringSubmatch(string(b), -1) {
-		vars[m[1]] = m[2]
-	}
-	// Every text and status colour on the card and on the stat tile
-	// (Requirement 3.13).
-	for _, bgName := range []string{"panel", "tile"} {
-		back, ok := vars[bgName]
-		if !ok {
-			t.Fatalf("no --%s in dashboard.css", bgName)
-		}
-		bg := luminance(t, back)
-		for _, name := range []string{"fg", "muted", "link", "ok", "warn", "bad", "none"} {
-			c, ok := vars[name]
-			if !ok {
-				t.Errorf("no --%s in dashboard.css", name)
-				continue
-			}
-			fg := luminance(t, c)
-			ratio := (max(fg, bg) + 0.05) / (min(fg, bg) + 0.05)
-			if ratio < 4.5 {
-				t.Errorf("--%s %s on --%s %s: contrast %.2f, want at least 4.5", name, c, bgName, back, ratio)
-			}
-		}
+	if m := regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b`).Find(css); m != nil {
+		t.Errorf("dashboard.css holds the colour %s; colours live in the palette", m)
 	}
 }

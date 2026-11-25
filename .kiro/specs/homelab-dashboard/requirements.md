@@ -27,7 +27,8 @@ merged (#1556):
 
 1. **Look**: a real observability dashboard. A grid of panels, big
    numbers with units, status colours against the 99.5% target,
-   server-rendered inline SVG charts, the site's dark palette, responsive;
+   server-rendered inline SVG charts, the site's palette (dark by default,
+   light on the reader's choice, [site-theme-language](../site-theme-language/design.md#palette)), responsive;
    no JavaScript and the same CSP. Golden HTML tests and a rendered
    screenshot check in CI.
 2. **Address**: the dashboard gets its own host, `https://homelab.nedsi.io/`
@@ -287,7 +288,8 @@ in the look of the rest of the site.
    far, each bar coloured by that day's status. Colour SHALL never be the
    only carrier of a status, and every text and status colour SHALL have
    a contrast of at least 4.5:1 against its background.
-9. THE page SHALL use the site's dark palette and SHALL read without
+9. THE page SHALL use the site's palette, dark by default and light on
+   the reader's choice ([site-theme-language](../site-theme-language/design.md#palette)), and SHALL read without
    horizontal scrolling from 320 px wide up to a desktop screen.
 10. THE page SHALL show its sections in this order: the intro,
     Availability, Cluster, the project card with "DORA metrics", Supply
@@ -836,7 +838,7 @@ Each default holds until the operator says otherwise.
 | Address | `https://homelab.nedsi.io/`, its own origin (orchestrator, on the operator's suggestion, 2026-11-20); `blog.nedsi.io/homelab/` a `301` to it | Its own route, certificate, CSP and app, with no path prefix shared with nginx; rejected: `nedsi.io/homelab/` and staying on the blog (see [design, Address](design.md#address)) |
 | Look | A dashboard: a grid of panels, big numbers with units, status colours against 99.5%, inline SVG charts, responsive (operator, 2026-11-20) | It is the project's showcase |
 | Status colours | 30 days: `ok` with more than 25% of the budget left, `warn` from 0% to 25%, `bad` below 0% (target missed). Per day: `ok` from 99.5%, `warn` from 96.25%, `bad` below (that day alone spent a quarter of the month's budget, the postmortem trigger of `docs/sre.md`). Every other figure: the thresholds of [design, Status colours](design.md#status-colours), taken from an existing alert where one exists | Tied to the SLO, the error-budget policy and the alerts, not to taste |
-| Theme | Always dark, the dark palette of `site/assets/css/main.css`; no light variant | Dashboards read better dark; one palette to test |
+| Theme | Dark by default, light on the reader's choice: the palette of [site-theme-language](../site-theme-language/design.md#palette), served as `/theme.css` | One palette for every public page; dark stays the default |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
 | Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-23 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
