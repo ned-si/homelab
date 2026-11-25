@@ -308,7 +308,9 @@ the rendered screenshot check.
 
 #1554 closed with task 17. The amendment of 2026-11-25 (#1670) reopens
 the spec with tasks 18-21, in order, and the operator's Security-card
-decisions of the same day add tasks 22 and 23. Each is **visible**
+decisions of the same day add tasks 22 and 23. The same day's
+rounding rule joins task 18 and the rolling-window fixes join task 19.
+Each is **visible**
 except tasks 20 and 22, merges after its review round with no preview approval (operator,
 2026-11-24 and 2026-11-25), and is followed by the image deploy and a
 live check.
@@ -323,17 +325,35 @@ live check.
       class; golden pages; the screenshots at the five widths in the PR.
       Every small text describing a time window says "rolling"
       ("rolling 24 h", "rolling 7 days", "rolling 30 days").
+      Rounding (operator, 2026-11-25), as in
+      [design.md, Rounding](design.md#rounding-task-18): snapshot
+      version 5, every percentage and the error budget at full
+      precision in the collector, `PercentDown`, `Percent`, `Budget`
+      and `Share` deleted, one formatting function at two decimals,
+      half to even, the status rules on the raw values; the tests of
+      that section, 99.957 shown as "99.96%" among them.
       Snapshot keys read: unchanged. Probes: none. Check: acceptance
-      criteria 6 and 22. [3.12, 3.13, 3.14]
-- [ ] 19. Rework rate and "agents" (**visible**): snapshot version 5
-      (`project.rework`), the collector's count of
+      criteria 6, 22 and 29. [3.11, 3.12, 3.13, 3.14]
+- [ ] 19. Rework rate and "agents" (**visible**): snapshot version 6
+      (`project.rework`, `ci_median_seconds_30d` nullable), the collector's count of
       [design.md, DORA bands](design.md#dora-bands), the tile without a
       band and its sentence, "a few agents" in the DORA paragraph, the
       recount in `scripts/dashboard-dora-check.sh`, a table test of the
       rework rule (a `fix` merge inside, at, and 1 s after the 24 h
       after an incident; a rollback counted once), golden pages; the
-      metric in `docs/homelab-dashboard.md`. Check: acceptance
-      criterion 23. [10.9, 10.10]
+      metric in `docs/homelab-dashboard.md`. The rolling-window fixes
+      of [design.md, Time windows](design.md#time-windows-2026-11-25)
+      (operator, 2026-11-25): the median `ci` run over every successful
+      run of the 30 days in 24-hour slices ending at the window's end,
+      the incidents that started in the window and ended (Requirement
+      10.4) with the same rule in the recount of
+      `scripts/dashboard-dora-check.sh` (range and filter), the DORA
+      figures and the CI median `null` 60 minutes after the last
+      refresh with the token, the finished daily bars midnight to
+      midnight; the window tests of
+      acceptance criterion 30; Requirement 2.8 in
+      `docs/homelab-dashboard.md`. Check: acceptance criteria 23 and
+      30. [2.8, 10.4, 10.9, 10.10]
 - [ ] 20. Provenance for both images and its verification (**not
       visible**): `actions/attest-build-provenance` in
       `site-publish.yaml` with its `gh attestation verify` step, the
@@ -346,7 +366,7 @@ live check.
       workflow and deployed. The PR body says `Closes #743` (signed
       provenance for the blog image on GHCR). Check: acceptance
       criteria 24 and 26. [13.3, 13.4, 13.7]
-- [ ] 21. Supply chain section (**visible**): snapshot version 6
+- [ ] 21. Supply chain section (**visible**): snapshot version 7
       (`supply_chain`), the compiled image list, builder texts and
       Scorecard check list in `shown.go`, the Scorecard fetch and the
       Kyverno query in the collector, the two panels between DORA
@@ -370,7 +390,7 @@ live check.
       `task render`. Check: acceptance criterion 27; live,
       `probe_success{app="theater"}` is 1 and the Gateway's 401 rate
       drops by the probe's 120 an hour. [12.6]
-- [ ] 23. Security card figures (**visible**): snapshot version 7, the
+- [ ] 23. Security card figures (**visible**): snapshot version 8, the
       signal list, shares and unattributed line in `shown.go` and the
       collector, the plain names, no "observe mode", golden pages, the
       card in `docs/homelab-dashboard.md`. Check: acceptance criterion

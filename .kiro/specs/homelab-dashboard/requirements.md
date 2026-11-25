@@ -105,9 +105,19 @@ reopen the spec:
    admission denials become "Deployments blocked by policy", Pod
    Security in enforce mode included; plain names, never "observe mode"
    on the page.
-7. **Rolling windows**: every small text that describes a time window
+7. **Rolling wording**: every small text that describes a time window
    says it is rolling ("rolling 24 h", "rolling 7 days", "rolling 30
    days").
+8. **Rounding** (task 18): today every percentage shows a trailing 0,
+   because the collector rounds it to one decimal before the page
+   formats it with two. From task 18 every percentage is computed at full precision and rounded once, to
+   two decimals, when it is formatted; 99.957 shows "99.96%". The SLO,
+   status and error-budget maths stay at full precision.
+9. **Rolling windows** (task 19): every time window on the page is a
+   rolling window ending now, never a calendar month, week or day; only
+   the daily bars are calendar days, in Zurich time. The audit of
+   2026-11-25 and the fixes are in
+   [design, Time windows](design.md#time-windows-2026-11-25).
 
 Non-goals are listed under [Out of scope](#out-of-scope).
 
@@ -224,6 +234,17 @@ learning anything that helps an attacker or shows who is home.
 7. CLUSTER figures SHALL be per node (by node name), for the NAS, for
    the Gateway as a whole or summed over the cluster; no figure SHALL
    name a namespace, a pod, a volume or an app outside the shown apps.
+8. EVERY time window on the page SHALL be a rolling window ending now:
+   at the cycle's evaluation time, at the last evaluation of the
+   recording rule it reads (at most 2 minutes before), or, for the
+   project block, at its last GitHub refresh (at most 15 minutes before
+   with the token, 60 without). No window SHALL be a calendar month,
+   week or day, and no figure SHALL cover only part of its window. The
+   daily bars are the one exception: each is a Zurich calendar day,
+   midnight to midnight whatever its length (23, 24 or 25 hours), today's
+   from midnight to now (operator, 2026-11-25). The one figure allowed to
+   cover less than its window is the 30-day availability of an app with
+   fewer than 30 days of probes, shown as "since <first day>" (2.4).
 
 ## Requirement 3: The page
 
@@ -275,6 +296,10 @@ in the look of the rest of the site.
 11. EVERY percentage on the page, in text, labels and titles, SHALL have
     two decimals ("99.50%", "1.30%"); the SLO, the thresholds and the
     error-budget maths stay on the raw values (operator, 2026-11-24).
+    THE snapshot SHALL carry every percentage and the error budget at
+    full precision, and THE web role SHALL round each once, when it
+    formats it, to two decimals, half to even; 99.957 SHALL show
+    "99.96%" (operator, 2026-11-25).
 12. FROM the Cluster card down (Cluster, the project card, Supply chain,
     Security, Certificates), EVERY figure shown as a label and a value
     SHALL be a stat tile: a rounded box whose background differs from
@@ -439,7 +464,8 @@ Over the rolling 30 days ending at the collection (the window of 2.1):
    forward (label `fix-forward`, set on a pull request that repairs a
    merged change that broke production instead of reverting it).
 4. **Time to restore** SHALL be the median duration of the incidents that
-   ended in the window. An incident is either a continuous firing of an
+   started in the window and have ended (from task 19; until then, those
+   that ended in the window). An incident is either a continuous firing of an
    alert with `action: human` (start: its first firing sample; end: its
    last) or a rollback of 10.3 (start: the merge of the pull request it
    reverts; end: the rollback's merge commit synced, as in 10.2).
@@ -719,6 +745,26 @@ evidence a machine checked.
     Prometheus pins every query of
     [design, Security card figures](design.md#security-card-figures-tasks-22-and-23).
     [3.14, 12.6-12.11]
+29. A unit test formats 99.957 as "99.96%", and the tie 0.125 as
+    "0.12%" (half to even); a collector test with a fake Prometheus
+    answering 0.99957 for `slo:availability:ratio_rate30d` puts 99.957
+    in the snapshot and "99.96" on the page; a status test reads a raw
+    budget of 25.004% as `ok` while it shows "25.00%"; the helpers
+    `PercentDown`, `Percent`, `Budget` and `Share` of
+    `internal/snapshot/round.go` no longer exist. [3.11]
+30. Collector tests with an injected clock and a fake Prometheus and
+    GitHub pin the window of every figure in
+    [design, Time windows](design.md#time-windows-2026-11-25): each
+    query's range and evaluation time; the CI median over every
+    successful run of the 30 days (more than 300 runs, the 719 h and
+    721 h windows sliced without a gap or an overlap, a slice at
+    GitHub's 1,000-result cap failing the block); a firing already
+    firing at the window's start, and a rollback whose reverted pull
+    request merged before the window, left out of the incidents; the
+    recount of `scripts/dashboard-dora-check.sh` and the collector
+    agreeing on a fixture firing that crosses the window start; the
+    daily bars of the last Sundays of March and October as 23 and 25
+    hours. [2.8, 10.4]
 
 ## Out of scope
 
@@ -775,6 +821,8 @@ Each default holds until the operator says otherwise.
 | SLSA level | Build L2 for both images, after task 20 gives `homelab-site` a signed provenance; L3 later | What GitHub artifact attestations made in the build job give, per GitHub's documentation ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)) |
 | Provenance verified | Kyverno `verify-own-images`, Audit, a SLSA v1 provenance signed by the image's own workflow; the result per image through kube-state-metrics | The cluster checks what it runs; the collector keeps no Kubernetes rights |
 | Scorecard | `api.securityscorecards.dev`, hourly, no token; score `ok` from 7.0, `warn` from 4.0, `bad` below; the three lowest checks with their reasons | The public result of the repository's `scorecard` workflow; the collector already reaches `world:443` |
+| Rounding | Percentages and the error budget at full precision in the snapshot; rounded once, to two decimals, half to even, by `strconv.FormatFloat(v, 'f', 2, 64)` in the web role (operator asked for half to even or half up, 2026-11-25) | One rounding cannot add the error of two; half to even is what `strconv` does with an exact tie, so no extra code, and it matches the `math.RoundToEven` of the other helpers |
+| Time windows | Rolling, ending now (2.8); the daily bars are Zurich calendar days (operator, 2026-11-25) | A calendar window makes a figure jump at midnight or on the 1st; a rolling one moves by the minute, like the SLO it is judged against |
 | Supply chain place | Between DORA metrics and Security (orchestrator, 2026-11-25, within the operator's order) | Delivery, then how what is delivered is built and trusted, then how the running system defends itself |
 | Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |
 | Cluster figures | From Prometheus | One source; no ClusterRole; the same numbers as the publisher for the comparison |

@@ -89,10 +89,48 @@ availability covered finished days only):
 | `cluster` | Every cycle | Now, or the last 5 minutes for rates; restarts over 24 h |
 | `project` | Every 15 min with the GitHub token, hourly without | The rolling 30 days ending at the fetch |
 
+Every window is rolling, the daily bars excepted
+([Time windows](#time-windows-2026-11-25)).
 The page therefore shows an outage, or a power cut, while it happens.
 That was the reason for the finished-day rule; the operator chose the
 live page. Household energy consumption and every other Home Assistant
 value except solar production stay out (Requirement 2.5).
+
+## Time windows (2026-11-25)
+
+Operator, 2026-11-25: every time window on the page is a rolling window
+ending now, never a calendar month, week or day; the daily bars may be
+calendar days in Zurich time (Requirement 2.8). "Ending now" means the
+cycle's evaluation time, the last evaluation of the recording rule read
+(every 2 minutes for the long SLO windows), or the project block's last
+GitHub refresh (15 minutes with the token, 60 without), which the card
+already states with "as of" and its staleness notice.
+
+The audit of the collector at `07cafaf7` (main, 2026-11-25), every
+window the page shows:
+
+| Window on the page | Computed in | Today | Required |
+| --- | --- | --- | --- |
+| Availability, 30 days, and the error budget | `slo:availability:ratio_rate30d` and `slo:error_budget_remaining:ratio_rate30d` (groups `homelab.slo.sli-long` and `homelab.slo.observability-long` of `platform/kube-prometheus-stack/routes/slo.yaml`, every 2 min), read at now by `availability` in `internal/collector/live.go` | Rolling 720 h ending at the rule's last evaluation | Unchanged |
+| Daily bars, the 29 finished days | `readFinished`, `internal/collector/live.go`: `1 - slo:probe_error:ratio_rate1d` at each Zurich midnight | **Not the calendar day.** A fixed 24 h ending at the rule's last evaluation, up to 2 min before midnight: the 23-hour day (last Sunday of March) takes in the last hour of the day before, the 25-hour day (last Sunday of October) leaves out its own first hour | Midnight to midnight, Zurich: the expression of today's bar, `avg_over_time(probe_success{...}[<s>s])` with `<s>` the day's length in seconds, at the next midnight; read once a day as today |
+| Daily bar, today | `todayValues`, `internal/collector/live.go` | Zurich midnight to now, at least 60 s | Unchanged |
+| Certificates | `certificates`, `internal/collector/live.go` | No window: the latest probe | Unchanged |
+| Cluster USE and RED | `nodeUse`, `nas` and `gateway`, `internal/collector/use.go` | Rolling 5 min ending now (rates), or now | Unchanged |
+| Restarts | `use`, `internal/collector/use.go` (`restarts_24h`) | Rolling 24 h ending now | Unchanged |
+| Security, 24 h and 7 days | `security`, `internal/collector/security.go` | Rolling 24 h and 168 h ending now | Unchanged |
+| Security sparklines | `buckets`, `internal/collector/security.go` | 28 rolling 6-hour buckets, the last ending now | Unchanged |
+| Deploys, pull requests merged, Renovate's share | The window in `(*Collector).readProject`, `internal/collector/collector.go` (from the same Zurich wall time 30 days earlier, 719 to 721 h, to the fetch); the counts in `(*GitHub).Project` and `mergedCount`, `internal/collector/github.go` | Rolling 30 days ending at the fetch | Unchanged |
+| Median `ci` run | `(*GitHub).Project`, `internal/collector/github.go` (`ciPages = 3`) | **Not 30 days.** It reads the 3 newest pages of 100 successful runs. On 2026-11-25 the 30 days held 2,304 successful `ci` runs and the 300th newest was created on 2026-11-20 at 10:05Z, so the median covered about 5 days | Every successful run of the 30 days: slices `[start + i*24h, min(start + (i+1)*24h, end))` for `i = 0, 1, ...` until a slice ends at `end` (30 or 31 slices, so the 719 h and 721 h windows have no gap and no overlap), each passed as `created=<utc(s)>..<utc(e - 1s)>` and paged to its end. GitHub's runs API returns at most 1,000 results for a filter, so a slice whose first page has `total_count >= 1000` fails the block with `figure="ci_median_seconds_30d"`, `source="github"`, as the search cap does. About 35 calls a refresh, 140 an hour of the token's 5,000. Without the token `Project` lists no runs for the median, and `ci_median_seconds_30d` follows the DORA rule below |
+| Lead time, failed changes, change failure rate, rework rate | `mergedPRs` and `setDORA`, `internal/collector/dora.go` | Rolling 30 days, the same window | Unchanged |
+| Time to restore, incidents | `alertFirings` and `setDORA`, `internal/collector/dora.go` | Rolling 30 days for the end of an incident, but the `ALERTS` range starts at the window's start, so a firing that began before it counts from the window's start and its duration is cut Count the incidents that started in the window and have ended (Requirement 10.4). The range stays at the window, which the 30-day Prometheus retention covers (`retention: 30d`, the oldest sample 30.66 days old on 2026-11-25), so no extension before it is readable. In `setDORA`: `if !i.open && i.start.After(start) && i.end.Before(end)`; a firing already firing at the window's first sample started before it and is left out. A rollback whose reverted pull request is not in `byOID` (merged before the window) is left out, rather than counted from its creation; one whose message names no commit starts at its `createdAt`, as today. `incidents_30d` follows the same rule, and so does the recount of `scripts/dashboard-dora-check.sh` (its `select` on `.s` as well as `.e`) |
+| DORA figures without the token | `keepDORA` and `(*Collector).readProject`, `internal/collector/dora.go` and `collector.go` | The figures of the last refresh with the token are kept for ever, while `project.as_of` moves on hourly: their window can end hours or days before now At a refresh without the token, the DORA keys and `ci_median_seconds_30d` are copied when `now.Sub(doraAt) <= time.Hour` (`doraAt` the last refresh with the token; 60 minutes is the project block's staleness threshold), otherwise `null` ("No data") |
+| Overall DORA level, the last five `ci` runs, Supply chain (task 21) | `overallBand`, `internal/web/status.go`; `ciRuns`, `github.go`; task 21 | No window of their own: the bands above, the last five runs, the latest Scorecard result and Kyverno report | Unchanged |
+
+The page's own words for the windows ("over 30 days" in the target
+line, "Project, last 30 days", "the last 24 hours, the last 7 days",
+"Restarts in 24 h", "in 24 h", "in 7 days"; `templates/page.html` and
+`render.go`) become "rolling 30 days", "rolling 24 h" and "rolling 7
+days" in task 18 (Requirement 3.14).
 
 ## The snapshot
 
@@ -144,7 +182,7 @@ same digest.
 | `project.lead_time_seconds` | Median lead time (integer, `null` without a counted merge), and `project.lead_time_count`, the merges counted |
 | `project.failed_changes_30d` | Rollbacks and fix forwards merged in the window (integer) |
 | `project.change_failure_rate` | `failed_changes_30d` over `deploys_30d`, 0-100, one decimal, rounded half to even |
-| `project.incidents_30d`, `project.restore_seconds` | Incidents ended in the window, and their median duration (integer, `null` without one) |
+| `project.incidents_30d`, `project.restore_seconds` | Incidents ended in the window (from task 19: started in the window and ended), and their median duration (integer, `null` without one) |
 | `project.ci_runs[]` | Up to 5, newest first: `run` (run number), `result` (`success`, `failure`, `cancelled`, `other`), `commit` (7 hex digits), `pr` (integer or `null`), `started_at`, `duration_seconds` |
 
 `Validate` gains: `availability.apps` equals the shown apps and
@@ -178,12 +216,71 @@ the day of `daily.computed_at`; no `as_of` and no `computed_at` is after
 `generated_at`. The collector runs it before every push; the web role on
 every push it receives.
 
-Rounding matches `publisher.py`, so the comparison of task 3 finds no
-false differences: `math.Floor(r*1000+1e-9)/10` for the percentages,
-`math.RoundToEven` for the error budget, Renovate's share and the CI
-median (Python's `round()` rounds half to even), and the median of an
-even count is the mean of the two middle values. Tests cover `.5` cases
-for each.
+Until task 18, rounding matched `publisher.py`, so the comparison of
+task 3 found no false differences: `math.Floor(r*1000+1e-9)/10` for the
+percentages, `math.RoundToEven` for the error budget, Renovate's share
+and the CI median (Python's `round()` rounds half to even), and the
+median of an even count is the mean of the two middle values. The
+publisher is gone (task 6); from task 18 the percentages follow
+[Rounding](#rounding-task-18).
+
+### Rounding (task 18)
+
+The bug, found by the operator on 2026-11-25: every percentage on the
+page has two decimals and the last one is always 0. The collector rounds
+each percentage to one decimal (`snapshot.PercentDown` and
+`snapshot.Percent` in `internal/snapshot/round.go`, `snapshot.Round(x,
+1)` for the change failure rate in `internal/collector/dora.go`
+`setDORA`), the error budget and Renovate's share to integers
+(`snapshot.Budget`, `snapshot.Share`), and the web role then prints the
+result with `fixed(v, 2)` or `percent(v)`: "99.90%", "62.00%",
+"33.00%".
+
+The rule from task 18:
+
+- **Compute at full precision.** The collector writes every percentage
+  and the error budget as the float64 it computes from Prometheus or
+  GitHub (`100 * ratio`, clamped to the key's range), with no rounding.
+  The keys are listed in [Version 5](#version-5-task-18).
+- **Round once, when formatting.** The web role turns a percentage
+  into text in one new function of `internal/web/chart.go`,
+  `pct(v float64) string`, which returns
+  `strconv.FormatFloat(v, 'f', 2, 64)`. `percent(v)` is `pct(v) + "%"`
+  for text, chart titles and `aria-label`s, and every percentage tile
+  in `render.go` calls `pct` instead of `fixed(v, 2)`. Nothing calls `math.Round` or a
+  `snapshot.Round` helper on a percentage before it, so there is no
+  double rounding.
+- **Ties: half to even.** `strconv.FormatFloat` rounds the exact binary
+  value to the nearest, and an exact tie to the even digit: 0.125 shows
+  "0.12%", 0.375 "0.38%". Most decimal values are not exact in binary
+  and are no tie at all: 99.957 is stored as 99.95699999999999363...
+  and shows "99.96%". Rejected: half up, which needs a `math.Round(v*100)/100`
+  step before the formatting, two roundings instead of one.
+- **Maths at full precision.** The status rules of
+  [Status colours](#status-colours), the error-budget meter, the
+  "Exhausted" test, the daily bar heights and the DORA band of the
+  change failure rate read the raw snapshot value, never the text. A
+  budget of 25.004% is `ok` ("Met", above 25%) while it reads
+  "25.00%"; an availability from 99.995% up to but not including 100%
+  reads "100.00%", and its status word and budget still show that it
+  is not perfect. A day from 99.495% up to 99.5% reads "99.50%" and
+  is `warn`: `dayStatus` reads the raw value against the 99.5 target.
+  The SLO recording rules are unchanged.
+- **Types.** `snapshot.LiveApp.ErrorBudgetRemaining30d` becomes
+  `*float64` and `snapshot.Project.RenovateShare30d` `float64`;
+  `monthStatus`, `budgetMeter` and `shareBar` in `internal/web` take a
+  `float64`.
+- **Other figures.** Counts stay integers; rates per second and load
+  per core keep two decimals, rounded in the collector as today;
+  "22.6 a day" keeps one decimal. They are not percentages.
+
+Tests (task 18): a table test of `percent` with 99.957 → "99.96%",
+0.125 → "0.12%", 0.375 → "0.38%", 0 → "0.00%" and 100 → "100.00%"; a
+collector test with a fake Prometheus answering 0.99957 for
+`slo:availability:ratio_rate30d` that finds 99.957 in the snapshot and
+"99.96" on the page; a status test with a raw budget of 25.004. The
+helpers `PercentDown`, `Percent`, `Budget` and `Share` are deleted, so
+the compiler finds any caller left.
 
 Shown apps, `internal/snapshot/shown.go`: the list of today's
 `config.json` (Immich, Mealie, Paperless-ngx, Jellyfin, Syncthing,
@@ -209,15 +306,39 @@ version 3 applies.
 by `id` and `name`; `buckets` has 28 entries; `count_24h` is at most
 `count_7d` when both are set. The block holds no other string.
 
-### Version 5 (task 19)
+### Version 5 (task 18)
 
-Version 5 is version 4 plus `project.rework` (`count`, `deploys`
+Version 5 is version 4 with every percentage and the error budget at
+full precision ([Rounding](#rounding-task-18)); no key is added or
+removed:
+
+| Key | From version 5 |
+| --- | --- |
+| `availability.apps[].availability_30d`, `availability_daily[]` | Number, 0-100, not rounded (was one decimal, rounded down) |
+| `availability.apps[].error_budget_remaining_30d` | Number, -100 to 100, clamped, not rounded (was an integer) |
+| `cluster.node_use[].cpu`, `memory`, `disk`, `cpu_pressure`, `memory_pressure`, `io_pressure`; `cluster.nas.pool`, `cpu`, `memory`; `cluster.volumes.fullest` | Number, 0-100, not rounded (was one decimal) |
+| `cluster.gateway.errors_5xx` | Number, 0-100, not rounded (was two decimals) |
+| `project.renovate_share_30d` | Number, 0-100, not rounded (was an integer) |
+| `project.change_failure_rate` | Number, 0-100, or `null`, not rounded (was one decimal) |
+
+In `snapshot.schema.json`: `$defs/budget` becomes
+`{"type": "number", "minimum": -100, "maximum": 100}`;
+`project.renovate_share_30d` becomes
+`{"type": "number", "minimum": 0, "maximum": 100}`; `$defs/percent`,
+`$defs/share` and `change_failure_rate` already are numbers. The
+rollout rule of version 3 applies.
+
+### Version 6 (task 19)
+
+Version 6 is version 5 plus `project.rework` (`count`, `deploys`
 integers; `rate` a number from 0 to 1 or `null`); `Validate` gains
-`count` at most `deploys`. The rollout rule of version 3 applies.
+`count` at most `deploys`. `project.ci_median_seconds_30d` becomes an
+integer or `null` ([Time windows](#time-windows-2026-11-25): it needs
+the token). The rollout rule of version 3 applies.
 
-### Version 6 (task 21)
+### Version 7 (task 21)
 
-Version 6 is version 5 plus the `supply_chain` block:
+Version 7 is version 6 plus the `supply_chain` block:
 
 | Key | Value |
 | --- | --- |
@@ -286,7 +407,8 @@ numbers as the publisher for the comparison.
 GitHub, `https://api.github.com`, repository `ned-si/homelab`: the search
 API for merged pull requests and those by `app/renovate`; the `ci.yaml`
 workflow runs (`status=success`, created in the window, up to 3 pages of
-100) for the median wall time. `User-Agent: homelab-dashboard/<version>`.
+100; from task 19 every run of the window, see
+[Time windows](#time-windows-2026-11-25)) for the median wall time. `User-Agent: homelab-dashboard/<version>`.
 
 `prs_merged_30d` is the pull requests merged into `main` in the rolling 30
 days ending at the collection: `is:pr is:merged base:main
@@ -331,7 +453,7 @@ node_uname_info` that names each node.
 | --- | --- |
 | `state` | `min by (app) (probe_success{job=~"blackbox-public\|blackbox-internal", app=~"<shown>"})` at `t`: 1 `up`, 0 `down`, no series `none`; for `observability`, `down` when any of its four probes fails |
 | `availability_30d`, `error_budget_remaining_30d` | `slo:availability:ratio_rate30d` and `slo:error_budget_remaining:ratio_rate30d` (`app=~"<shown>"`) |
-| `availability_daily`, finished days | `1 - slo:probe_error:ratio_rate1d{app=~"<shown>"}` at each of the 29 Zurich midnights, the newest at today's 00:00 (as for version 1, so DST days stay right) |
+| `availability_daily`, finished days | `1 - slo:probe_error:ratio_rate1d{app=~"<shown>"}` at each of the 29 Zurich midnights, the newest at today's 00:00; from task 19 each Zurich day midnight to midnight ([Time windows](#time-windows-2026-11-25)) |
 | `availability_daily`, today | `avg by (app) (avg_over_time(probe_success{job="blackbox-public", app=~"<shown>"}[<today>s]))`, and for `observability` the mean over its four probes |
 | `days_left` | `floor((min(probe_ssl_earliest_cert_expiry{job="blackbox-public", instance=~"<cert>"}) - time()) / 86400)` per shown certificate |
 | `synced`, `healthy` | `count(argocd_app_info{sync_status="Synced"})`, `count(argocd_app_info{health_status="Healthy"})` |
@@ -368,7 +490,8 @@ merge commit's `oid`, its message, and its commit status contexts
 `argocd/*` with their state and `createdAt`. The search caps at 1000
 results: above that the block fails (`source="github"`) rather than
 undercount. Without a token the DORA keys keep their last value, `null`
-at start-up. From these:
+at start-up; from task 19 for at most 60 minutes after the last refresh
+with the token ([Time windows](#time-windows-2026-11-25)). From these:
 
 - `lead_time_seconds`: Requirement 10.2, the median over the counted
   merges; `createdAt` to the earliest `argocd/*` `success` after
@@ -383,8 +506,9 @@ at start-up. From these:
   instance) (ALERTS{alertstate="firing", action="human"})` over the 30
   days at a 60 s step, in five 6-day slices (each under Prometheus's
   11,000 points), a gap of more than 120 s ending a firing. Overlapping
-  intervals merge; the median duration of those ended in the window is
-  `restore_seconds`. The range query runs at each GitHub refresh, not
+  intervals merge; the median duration of those ended in the window
+  (from task 19, of those started in the window and ended, see
+  [Time windows](#time-windows-2026-11-25)) is `restore_seconds`. The range query runs at each GitHub refresh, not
   every cycle.
 - `ci_runs`: `GET /repos/ned-si/homelab/actions/workflows/ci.yaml/runs?branch=main&event=push&status=completed&per_page=5`;
   `pr` from the last `(#<n>)` in the head commit's title; `result` is
@@ -1374,7 +1498,7 @@ The signals from task 23, replacing the list of
 - Time windows read "rolling 24 h" and "rolling 7 days"; the page never
   says "observe mode". Once Tetragon enforces, the runtime tile may
   count "blocked" separately (a later change).
-- Snapshot version 7: version 6 with `security.signals[]` holding the
+- Snapshot version 8: version 7 with `security.signals[]` holding the
   list above by `id` and `name`, and per signal `share_24h`,
   `share_7d` (0 to 1, or `null` without a denominator) and, for
   `gateway_unknown`, `unattributed_24h` (integer or `null`). The
