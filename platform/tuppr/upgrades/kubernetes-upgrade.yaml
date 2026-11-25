@@ -13,7 +13,7 @@ spec:
   kubernetes:
     # Equal to kubernetesVersion in talos/talconfig.yaml (CI checks).
     # renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
-    version: v1.37.2
+    version: v1.37.3
   healthChecks:
     - apiVersion: v1
       kind: Node
