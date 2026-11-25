@@ -82,7 +82,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       alerts. If the operator has set the router rule, `--once
       jam.lilalala.com:41124` from the Mac prints `up` (UDP through NAT
       loopback); otherwise it prints `down` and that is expected. [5] (#1729)
-- [ ] 5. Pentest and threat model (**not live**): the
+- [x] 5. Pentest and threat model (**not live**): the
       `forwarded_ports` entry in `docs/pentest/scope.yaml`, the ping step
       in `pentest-external.yaml`, the row in
       `docs/pentest/runbooks/external.md`, `"41124"` in
@@ -92,7 +92,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       host and port are public; [design, Pentest and threat
       model](design.md#pentest-and-threat-model)). Check:
       `scripts/pentest-scope-check.sh` passes; `ci` (actionlint, repo
-      policy) is green. [7]
+      policy) is green. [7] (#1734)
 - [ ] 6. Docs and done (**live** for the radar): `docs/jamulus.md`,
       `docs/runbooks/jamulus.md` (with the router rule and its phone check
       exactly as in [design, Operator steps](design.md#operator-steps),

@@ -78,6 +78,38 @@ point, a credential or an admission path is added or removed.
   app. Not to be confused with the Talos API, also port 50000, which is not
   forwarded.
 
+### Internet to Jamulus (41124 UDP on `192.168.1.202`)
+
+The router forwards the port only while the operator keeps the rule for
+remote players; without it, only the LAN reaches the server.
+
+- Threats: S (anyone who knows host and port joins, under any name, with no
+  login), I (the mix can be heard; the player list, with name, country,
+  city, instrument and skill, and the server version can be read without
+  joining and without a log line, through `CLM_REQ_CONN_CLIENTS_LIST` and
+  `CLM_REQ_VERSION_AND_OS`), D (the 8 channels filled, which locks the band
+  out; the home uplink flooded; the server used as a UDP reflector against
+  a spoofed source, with a client list larger than the request), E (a
+  parser bug in the server).
+- Control: not registered in any directory (no `--directoryaddress`,
+  checked by `tests/test_jamulus.py`); the non-default port 41124, the only
+  admitted ingress; 8 channels; the JSON-RPC API off and no admin
+  interface over UDP. The pod runs as UID 65532 with a read-only root, no
+  capabilities, no ServiceAccount token, no Secret and no volume but a
+  16 MiB `/tmp`, under PSA `restricted` and Tetragon; enforced egress
+  allows only cluster DNS, so it reaches no other app, LAN host or cluster
+  API, and requests to send to a third address (`CLM_SEND_EMPTY_MESSAGE`)
+  are dropped. Each audio connection is logged to SigNoz. The router rule
+  is the operator's switch.
+- Residual: Jamulus has no password, allow-list or rate limit, and host
+  and port are public in this repository, so the server is open to anyone
+  while the router rule exists; the non-default port only stops untargeted
+  scans of 22124. Reading the player list or the version leaves no log
+  line, and with `externalTrafficPolicy: Cluster` a logged address can be
+  a node address.
+- Planned: none. If strangers show up, the fallback is the tailnet only
+  (a Tailscale-exposed Service) instead of the router rule.
+
 ### Supply chain: Renovate and GitHub Actions to `main`
 
 - Threats: T (a compromised upstream image, chart or action), E (a workflow

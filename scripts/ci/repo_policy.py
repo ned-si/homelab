@@ -276,7 +276,7 @@ PENTEST_ISSUE = re.compile(r"#\d+|/issues/\d+")
 # requirement asks for; tasks 3 and 4 add theirs.
 PENTEST_RUNBOOKS = {
     "docs/pentest/runbooks/external.md": (
-        "Boundary:", "Internet to the Gateway", "80 and 443", "22000", "50000", "`scripts/tls-check.sh`",
+        "Boundary:", "Internet to the Gateway", "80 and 443", "22000", "50000", "41124", "`scripts/tls-check.sh`",
         "`dast.yaml`", "`full_scan: true`", "`pentest-family`", "pentest-external.yaml", "GitHub-hosted runner"),
     "docs/pentest/runbooks/internal.md": (
         "Boundary:", "The LAN", "50000", "192.168.1.11:6443", "192.168.1.228", "BMC", "`pentest-pod`",
