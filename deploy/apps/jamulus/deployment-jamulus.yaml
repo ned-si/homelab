@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/jamulus
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/jamulus and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: jamulus
+  name: jamulus
+  namespace: jamulus
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jamulus
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - args:
+        - --server
+        - --nogui
+        - --port
+        - "41124"
+        - --numchannels
+        - "8"
+        - --fastupdate
+        - --discononquit
+        image: ghcr.io/ned-si/homelab-jamulus:main@sha256:2adac3cb0b23951903523b9dad881cbddd12f2c7a8253d8fbfdade2a33a99d58
+        livenessProbe:
+          exec:
+            command:
+            - jamulus-ping
+          failureThreshold: 6
+          periodSeconds: 20
+          timeoutSeconds: 5
+        name: jamulus
+        ports:
+        - containerPort: 41124
+          name: jamulus
+          protocol: UDP
+        readinessProbe:
+          exec:
+            command:
+            - jamulus-ping
+          failureThreshold: 3
+          periodSeconds: 10
+          timeoutSeconds: 5
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /tmp
+          name: tmp
+      securityContext:
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: jamulus
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - emptyDir:
+          sizeLimit: 16Mi
+        name: tmp

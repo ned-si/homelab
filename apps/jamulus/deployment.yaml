@@ -1,0 +1,75 @@
+# The server. No directory, recording, JSON-RPC, status page or log file:
+# tests/test_jamulus.py pins the arguments.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jamulus
+  labels:
+    app.kubernetes.io/name: jamulus
+spec:
+  replicas: 1
+  # A session lives in one process; two servers would split the players.
+  strategy:
+    type: Recreate
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jamulus
+    spec:
+      serviceAccountName: jamulus
+      automountServiceAccountToken: false
+      # --discononquit tells clients to disconnect at once.
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: jamulus
+          # Built and signed by .github/workflows/jamulus-publish.yaml;
+          # Renovate bumps this digest and the smoke Job's together.
+          # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-jamulus
+          image: ghcr.io/ned-si/homelab-jamulus:main@sha256:2adac3cb0b23951903523b9dad881cbddd12f2c7a8253d8fbfdade2a33a99d58
+          args: ["--server", "--nogui", "--port", "41124", "--numchannels", "8", "--fastupdate", "--discononquit"]
+          ports:
+            - name: jamulus
+              containerPort: 41124
+              protocol: UDP
+          readinessProbe:
+            exec:
+              command: ["jamulus-ping"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Two minutes without an echo; any session is lost by then.
+          livenessProbe:
+            exec:
+              command: ["jamulus-ping"]
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # Qt's runtime directory; the headless server writes no settings.
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

@@ -1,0 +1,30 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     apps/jamulus
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in apps/jamulus and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    lbipam.cilium.io/ips: 192.168.1.202
+  labels:
+    app.kubernetes.io/name: jamulus
+  name: jamulus
+  namespace: jamulus
+spec:
+  allocateLoadBalancerNodePorts: false
+  externalTrafficPolicy: Cluster
+  ports:
+  - name: jamulus
+    port: 41124
+    protocol: UDP
+    targetPort: jamulus
+  selector:
+    app.kubernetes.io/name: jamulus
+  type: LoadBalancer

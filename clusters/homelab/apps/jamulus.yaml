@@ -1,0 +1,32 @@
+# The Jamulus server (.kiro/specs/self-hosted-jamulus/design.md#the-app).
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jamulus
+  namespace: argo
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: apps
+  source:
+    repoURL: https://github.com/ned-si/homelab.git
+    targetRevision: main
+    path: deploy/apps/jamulus
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jamulus
+  revisionHistoryLimit: 10
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

@@ -1,0 +1,22 @@
+# LAN players connect to 192.168.1.202:41124; the internet only while the
+# router forwards it (docs/networking.md#loadbalancer-ips). No node ports:
+# the L2 path needs none, and they would open 41124 on every node.
+apiVersion: v1
+kind: Service
+metadata:
+  name: jamulus
+  labels:
+    app.kubernetes.io/name: jamulus
+  annotations:
+    lbipam.cilium.io/ips: "192.168.1.202"
+spec:
+  type: LoadBalancer
+  allocateLoadBalancerNodePorts: false
+  externalTrafficPolicy: Cluster
+  selector:
+    app.kubernetes.io/name: jamulus
+  ports:
+    - name: jamulus
+      protocol: UDP
+      port: 41124
+      targetPort: jamulus

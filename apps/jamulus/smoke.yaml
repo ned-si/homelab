@@ -1,0 +1,45 @@
+# After every sync, the server answers a protocol ping through the Service;
+# a failure fails the sync and auto-rollback reverts the merge. Its own hook:
+# components/postsync-smoke only speaks HTTP.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jamulus-smoke
+  labels:
+    app.kubernetes.io/name: jamulus-smoke
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 120
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jamulus-smoke
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: smoke
+          # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-jamulus
+          image: ghcr.io/ned-si/homelab-jamulus:main@sha256:2adac3cb0b23951903523b9dad881cbddd12f2c7a8253d8fbfdade2a33a99d58
+          command: [bash, -c, 'for i in 1 2 3 4 5 6; do jamulus-ping jamulus 41124 && exit 0; sleep 5; done; exit 1']
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

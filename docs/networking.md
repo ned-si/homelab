@@ -73,7 +73,8 @@ selectors (`infrastructure/cilium/ip-pools.yaml`):
 
 Addresses the router forwards to are pinned with the `lbipam.cilium.io/ips`
 annotation: `.254` on the Gateway (through `spec.infrastructure.annotations`),
-`.200` on `theater/qbittorrent-seed`, `.201` on `syncthing/syncthing-protocol`.
+`.200` on `theater/qbittorrent-seed`, `.201` on `syncthing/syncthing-protocol`,
+`.202` on `jamulus/jamulus`.
 
 Cilium L2 announcements answer ARP for these addresses
 (`infrastructure/cilium/l2-announcement-policy.yaml`: every node, LoadBalancer
@@ -91,7 +92,8 @@ kubectl get svc -A --field-selector spec.type=LoadBalancer
 
 Expected: `gateway/cilium-gateway-shared` on `192.168.1.254`,
 `theater/qbittorrent-seed` on `192.168.1.200`, `syncthing/syncthing-protocol` on
-`192.168.1.201`.
+`192.168.1.201`, `jamulus/jamulus` on `192.168.1.202` (`41124/UDP`, no node
+port).
 
 ## Gateway
 
@@ -275,7 +277,7 @@ is switched to default-deny.
 kubectl get cnp -A | grep -v -E 'headlamp|hubble' | wc -l
 ```
 
-Expected: the policy count plus the header line (28 today).
+Expected: the policy count plus the header line (107 today).
 
 NFS and iSCSI are mounted by the kubelet and `iscsid` in the host network
 namespace, so a pod policy never sees that traffic. The NAS export allow-list is
