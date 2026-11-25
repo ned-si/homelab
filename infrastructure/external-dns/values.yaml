@@ -1,4 +1,4 @@
-# external-dns, `gateway-httproute` as the only source. Chart defaults kept:
+# external-dns, sources `gateway-httproute` and `service`. Chart defaults kept:
 # TXT registry, default owner id, no prefix, no domain filter. Adding a prefix
 # would orphan every ownership record; the nedsi.io apex is a CNAME instead
 # (docs/networking.md#dns).
@@ -18,18 +18,21 @@ env:
         name: cloudflare-api-token-secret
         key: api-token
 
-# Only the shared Gateway's HTTPRoutes publish hostnames (ADR 0011). The
-# redirect route opts out with `external-dns.alpha.kubernetes.io/controller:
-# none`.
+# The shared Gateway's HTTPRoutes publish hostnames (ADR 0011); the redirect
+# route opts out with `external-dns.alpha.kubernetes.io/controller: none`.
+# `service` is for raw UDP/TCP on a LoadBalancer: only LoadBalancer Services
+# with the hostname annotation publish (no --fqdn-template).
 sources:
   - gateway-httproute
+  - service
 
 # The public WAN IP, set only here (CI rule `wan-ip-single-source`). Dynamic:
 # re-check after router reboots. The force flag makes default targets replace
-# the Gateway's LAN address on every record (external-dns#6134).
+# the LAN address (Gateway or Service) on every record (external-dns#6134).
 extraArgs:
   - --default-targets=31.164.170.92
   - --force-default-targets
+  - --service-type-filter=LoadBalancer
 resources:
   requests:
     cpu: 10m

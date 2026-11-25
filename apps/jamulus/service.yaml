@@ -1,6 +1,8 @@
 # LAN players connect to 192.168.1.202:41124; the internet only while the
 # router forwards it (docs/networking.md#loadbalancer-ips). No node ports:
 # the L2 path needs none, and they would open 41124 on every node.
+# external-dns publishes the hostname to the WAN address
+# (docs/networking.md#dns).
 apiVersion: v1
 kind: Service
 metadata:
@@ -9,6 +11,7 @@ metadata:
     app.kubernetes.io/name: jamulus
   annotations:
     lbipam.cilium.io/ips: "192.168.1.202"
+    external-dns.alpha.kubernetes.io/hostname: jam.lilalala.com
 spec:
   type: LoadBalancer
   allocateLoadBalancerNodePorts: false

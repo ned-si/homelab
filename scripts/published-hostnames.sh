@@ -5,7 +5,8 @@
 #
 # Published: `spec.hostnames` of an HTTPRoute, the only names the Gateway
 # terminates TLS for. Not: wildcards, `homelab.lilalala.com` (a label-key
-# prefix), `sync.lilalala.com` (raw TCP/UDP on a LoadBalancer).
+# prefix), `sync.lilalala.com` and `jam.lilalala.com` (raw TCP/UDP on a
+# LoadBalancer).
 #
 # awk over deploy/, not a YAML library: kustomize output always has `kind:`
 # at column 0 and `spec.hostnames` at two spaces. Not safe on hand-written
