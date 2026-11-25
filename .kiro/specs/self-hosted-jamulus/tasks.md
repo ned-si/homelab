@@ -7,7 +7,7 @@ checks are read-only. "No new alerts" means `ALERTS{alertstate="firing"}`
 holds the same alerts 15 minutes after the sync as before the merge.
 Defaults: [requirements.md](requirements.md#decided-defaults).
 
-- [ ] 1. The image (**live**: the Kyverno policy only): `jamulus/Dockerfile`,
+- [x] 1. The image (**live**: the Kyverno policy only): `jamulus/Dockerfile`,
       `jamulus/jamulus-release-key.asc`, `jamulus/jamulus-ping`,
       `scripts/ci/jamulus-smoke.sh`, `scripts/ci/jamulus-check.sh`, the
       `jamulus` job in `ci.yaml` (and in `ci`'s `needs` and loop),
@@ -27,7 +27,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       ([design, Operator steps](design.md#operator-steps)), checked with
       `curl -s -o /dev/null -w '%{http_code}\n'
       'https://ghcr.io/token?scope=repository:ned-si/homelab-jamulus:pull'`
-      printing `200`. [1]
+      printing `200`. [1] (#1713)
 - [ ] 2. The app (**live**). Starts only when the GHCR check of task 1
       prints `200`; until then the run sends the parent a `warning`
       naming the operator step, and at the cutoff records tasks 2-6 as
