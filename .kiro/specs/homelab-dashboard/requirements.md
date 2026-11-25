@@ -1,9 +1,8 @@
 ---
 kind: change
-status: done
+status: active
 created: 2026-11-20
-closed: 2026-11-24
-issue: 1554
+issue: 1670
 ---
 # Requirements: homelab-dashboard
 
@@ -73,6 +72,31 @@ the four metrics and where the bands come from, links
 [dora.dev](https://dora.dev/), and adds an overall level from a stated
 rule. The text merges after its review round, without a preview approval.
 
+The operator's decisions of 2026-11-25 (tasks 18-21, #1670), which
+reopen the spec:
+
+1. **Stat tiles**: from the Cluster card down, every label-value figure
+   becomes a tile: a rounded box a shade darker than its card, the label
+   small, bold and uppercase in the muted colour, the value large under
+   it with its unit smaller beside it, the status colour only on the
+   value or as a thin left accent. One pattern on every card, on a grid
+   that wraps, so no text dangles between figures. The availability
+   cards keep their layout.
+2. **DORA wording and rework rate**: "a few bots" becomes "a few
+   agents". Rework rate, DORA's fifth metric since its 2024 report, is
+   shown with a precise definition, without a band, and with one
+   sentence saying why.
+3. **Supply chain**: a new section with the SLSA Build level of the two
+   first-party images, `homelab-dashboard` and `homelab-site`
+   (provenance present and verified by Kyverno, the builder identity, a
+   link to slsa.dev), and the repository's OpenSSF Scorecard score with
+   its three lowest checks, fetched by the collector. The README gets a
+   SLSA badge next to the Scorecard one.
+4. **Order**: the operator's order stays; Supply chain goes between DORA
+   metrics and Security.
+5. **No preview approval**: each task merges after its review round and
+   is checked live (operator, 2026-11-24: no approval pauses).
+
 Non-goals are listed under [Out of scope](#out-of-scope).
 
 ## Glossary
@@ -103,7 +127,17 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 - **DORA metrics**: deployment frequency, lead time for changes, change
   failure rate and time to restore, as defined for this repository in
   [Requirement 10](#requirement-10-project-card-dora-and-ci); each falls
-  in a **DORA band** (`elite`, `high`, `medium`, `low`).
+  in a **DORA band** (`elite`, `high`, `medium`, `low`). **Rework
+  rate** (10.9) is the fifth, shown without a band.
+- **Stat tile**: one figure as a rounded box: a label, a value with its
+  unit, optionally a status word and a detail line
+  ([design, Stat tiles](design.md#stat-tiles-task-18)).
+- **First-party images**: `ghcr.io/ned-si/homelab-dashboard` and
+  `ghcr.io/ned-si/homelab-site`, built and signed by this repository's
+  publishing workflows.
+- **SLSA Build level**: the level of the
+  [SLSA v1.0 Build track](https://slsa.dev/spec/v1.0/levels) that an
+  image's provenance meets ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)).
 - **Publisher**: today's implementation, `apps/website/publisher/` and the
   `/homelab/` server-side include in `apps/website/nginx.conf`.
 - **Status**: how a figure compares with its threshold: `ok`, `warn`,
@@ -185,11 +219,11 @@ learning anything that helps an attacker or shows who is home.
 in the look of the rest of the site.
 
 1. THE page SHALL be served at the root of its own host,
-   `https://homelab.nedsi.io/`, and SHALL carry the site's header,
-   navigation bar (Home `https://nedsi.io/`, Blog `https://blog.nedsi.io/`,
-   Homelab `https://homelab.nedsi.io/`, About `https://blog.nedsi.io/about/`)
-   and footer, the intro text and the "Coming later" panels (solar, home
-   automation).
+   `https://homelab.nedsi.io/`, and SHALL carry the site's header, the
+   navigation bar and the shared layout of the public-website spec
+   ([glossary](../public-website/requirements.md#glossary), Requirement 7
+   there) and its footer, the intro text and the "Coming later" panels
+   (solar, home automation).
 2. THE page SHALL be server-rendered with Go `html/template`, with no
    JavaScript, no inline style, no form, no iframe, no web font and no
    third-party resource; every chart is inline SVG built from numbers.
@@ -223,11 +257,24 @@ in the look of the rest of the site.
 9. THE page SHALL use the site's dark palette and SHALL read without
    horizontal scrolling from 320 px wide up to a desktop screen.
 10. THE page SHALL show its sections in this order: the intro,
-    Availability, Cluster, the project card with "DORA metrics",
-    Security, Certificates, Coming later (operator, 2026-11-24).
+    Availability, Cluster, the project card with "DORA metrics", Supply
+    chain, Security, Certificates, Coming later (operator, 2026-11-24;
+    Supply chain placed on 2026-11-25).
 11. EVERY percentage on the page, in text, labels and titles, SHALL have
     two decimals ("99.50%", "1.30%"); the SLO, the thresholds and the
     error-budget maths stay on the raw values (operator, 2026-11-24).
+12. FROM the Cluster card down (Cluster, the project card, Supply chain,
+    Security, Certificates), EVERY figure shown as a label and a value
+    SHALL be a stat tile: a rounded box whose background differs from
+    its card's; the label above the value in a small, bold, uppercase,
+    muted style; the value large, its unit smaller beside it; the status
+    colour only on the value or as a left accent of at most 4 px, never
+    on the label or the box; tiles on a grid that wraps, with one gap
+    and one inner padding on every card. The availability cards keep
+    their layout.
+13. EVERY text and status colour SHALL have a contrast of at least
+    4.5:1 (WCAG 2.2 AA) against both the card and the tile background,
+    checked by the contrast test.
 
 ## Requirement 4: Built and released like production software
 
@@ -394,6 +441,18 @@ Over the rolling 30 days ending at the collection (the window of 2.1):
 8. THE card SHALL show an overall DORA level: the lowest of the four
    bands ("None", no incident, counts as `elite`), in that band's colour
    and word; "No data" when any metric has none.
+9. **Rework rate** SHALL be the rework deploys over the deploys of
+   10.1, in the same window. A rework deploy is a merged pull request,
+   counted once, that is either a rollback or a fix forward of 10.3, or
+   a deploying merge of 10.2 whose title has the Conventional Commits
+   type `fix` (`fix:`, `fix(<scope>):`, `fix!:`) and which merged while
+   an incident of 10.4 was open or within 24 hours after it ended. It
+   SHALL be shown as a percentage with the two counts ("1.30%, 9 of 678
+   deploys"), with no band, no status colour and no part in the overall
+   level, and with one sentence saying that DORA's published bands, the
+   2023 clusters used here, predate the metric.
+10. THE explanation of 10.7 SHALL speak of "one person and a few
+    agents", never "bots".
 
 ## Requirement 11: Cluster card, USE and RED
 
@@ -444,6 +503,44 @@ turn things away, without learning anything that helps an attacker.
    page whoever must act, not the page.
 5. Canary tokens SHALL NOT be part of the card (operator, 2026-11-24;
    their own spec, #1618).
+
+## Requirement 13: Supply chain
+
+**User story:** As a reader, I want to see how the homelab's own images
+are built and how the repository scores on supply-chain practice, from
+evidence a machine checked.
+
+1. THE Supply chain section SHALL show one stat tile per first-party
+   image: its SLSA Build level ("Build L2"), whether its provenance is
+   present and verified by Kyverno in the cluster ("Verified", "Not
+   verified", "No data"), and its builder identity (the GitHub-hosted
+   runner and the workflow that signs the provenance), with a link to
+   `https://slsa.dev/spec/v1.0/levels`.
+2. THE level SHALL be the one the build actually meets, per the design's
+   [level table](design.md#supply-chain-tasks-20-and-21); it SHALL read
+   "No provenance" while an image has no signed provenance.
+3. BOTH first-party images SHALL carry a signed SLSA v1 provenance
+   attestation made by GitHub artifact attestations in their publishing
+   workflow, pushed to the registry next to the image.
+4. Kyverno's `verify-own-images` policy SHALL verify, in Audit, that the
+   running digest of each first-party image has a SLSA v1 provenance
+   signed by its own publishing workflow on `main`, next to the
+   signature check it already makes; the result SHALL reach Prometheus
+   per image without naming a pod on the page.
+5. THE Supply chain section SHALL show the repository's OpenSSF
+   Scorecard score out of 10 with its date, and the three checks with
+   the lowest score (inconclusive checks, score `-1`, left out; ties by
+   name), each with its score and Scorecard's reason, and a link to
+   `https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab`.
+6. THE collector SHALL fetch the Scorecard result from
+   `https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`
+   at most hourly, without a token; the browser SHALL fetch nothing.
+   Check names SHALL come from a compiled list of Scorecard's checks and
+   reasons SHALL be plain text of at most 160 characters; anything else
+   is dropped and counted as a collector error.
+7. THE README SHALL carry a SLSA badge that states the same level as
+   the page and links to the SLSA levels page, next to the Scorecard
+   badge.
 
 ## Non-functional requirements
 
@@ -541,6 +638,32 @@ turn things away, without learning anything that helps an attacker.
 21. A table test covers both rules of 12.4 on each boundary; the golden
     pages show the security card with `ok`, `warn` and `none` next to
     their words. [12.4]
+22. The golden pages and the screenshots at all five widths show every
+    figure from the Cluster card down as a stat tile (`div.tile` with
+    `.tile-label`, `.tile-value` and `.unit`); a test over the full
+    fixture finds no label-value text outside a tile on those cards and
+    no status class on a `.tile-label`; the contrast test passes for
+    every text and status colour on `--panel` and on `--tile`. [3.12,
+    3.13]
+23. `collect --once --dry-run` prints a rework rate that
+    `scripts/dashboard-dora-check.sh` recounts from `gh` and the
+    `ALERTS` range for the same window, to within one pull request; the
+    page shows it with its counts, no band word and the sentence of
+    10.9; the page contains "a few agents" and not "bots". [10.9, 10.10]
+24. `gh attestation verify oci://ghcr.io/ned-si/<image>@<running
+    digest> --owner ned-si --signer-workflow
+    ned-si/homelab/.github/workflows/<image's workflow>` passes for both
+    first-party images; the `verify-own-images` report for their Pods
+    passes the provenance check, and fails it in a kind test for an
+    image signed but without provenance. [13.3, 13.4]
+25. The Supply chain section of the golden pages and of the live page
+    shows both images with "Build L2", "Verified", the builder identity
+    and the slsa.dev link, and the Scorecard tile with the score, its
+    date, three checks and the viewer link; with the Scorecard API
+    unreachable the tile keeps its last figures and says from when.
+    [13.1, 13.2, 13.5, 13.6]
+26. `README.md` shows the SLSA badge next to the Scorecard badge, with
+    the level of 25. [13.7]
 
 ## Out of scope
 
@@ -562,6 +685,10 @@ turn things away, without learning anything that helps an attacker.
 - The deferred security signals of
   [design, Security signals](design.md#security-signals-task-16), until
   their data exists (12.3).
+- SLSA Build L3 (a reusable build workflow, or the SLSA GitHub
+  generator) and enforcing the provenance check in Deny: a later change
+  ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)).
+- A band for rework rate: DORA publishes none for it (10.9).
 
 ## Decided defaults
 
@@ -588,6 +715,12 @@ Each default holds until the operator says otherwise.
 | Security signals | Gateway `4xx`, `403` and `405`; failed sign-ins (Keycloak's event metrics; lockouts left out, they would show which usernames exist); Kyverno admission denials (the API server's webhook counter); ingress packets dropped by Cilium policy; Tetragon runtime detections (the `Runtime*` alerts); each a cluster-wide sum ([design, Security signals](design.md#security-signals-task-16)) | The data Prometheus holds today (checked 2026-11-24); a sum names nothing an attacker can use |
 | Security sparkline | 7 days in 28 six-hour bars, the last ending now; the 24 h and 7 d counts as figures | The last four bars are the 24 h; one chart per tile keeps eight tiles readable on a phone; rejected: 168 hourly bars (sub-pixel at 390 px), a 24 h chart and a 7 d chart per tile |
 | Security status | Two rules, expected-zero and background; no `bad` | Rejected requests are the internet's background noise, not an incident; paging is the alerts' job |
+| Stat tiles | Tile background `--tile`, a shade darker than `--panel`; label `0.75rem`, bold, uppercase, `0.04em` letter spacing, muted; value `1.75rem`, unit `0.6em` muted; status on the value text, or a `3px` left accent for figures whose value is a word; tiles on `repeat(auto-fill, minmax(10rem, 1fr))`, gap `0.5rem`, padding `0.75rem` (operator, 2026-11-25) | Proximity and common region make each label belong to its value; one style for every label gives the hierarchy; colour on the value only keeps the status readable without making labels shout |
+| Rework rate | Rollbacks and fix forwards of 10.3, plus deploying `fix` merges during or within 24 h after an incident of 10.4, over the deploys of 10.1; no band (operator asked for the metric, 2026-11-24) | DORA's definition, "unplanned deployments made because of an incident in production", recountable from git, GitHub and the `ALERTS` series; without the incident condition every routine `fix` would count |
+| SLSA level | Build L2 for both images, after task 20 gives `homelab-site` a signed provenance; L3 later | What GitHub artifact attestations made in the build job give, per GitHub's documentation ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)) |
+| Provenance verified | Kyverno `verify-own-images`, Audit, a SLSA v1 provenance signed by the image's own workflow; the result per image through kube-state-metrics | The cluster checks what it runs; the collector keeps no Kubernetes rights |
+| Scorecard | `api.securityscorecards.dev`, hourly, no token; score `ok` from 7.0, `warn` from 4.0, `bad` below; the three lowest checks with their reasons | The public result of the repository's `scorecard` workflow; the collector already reaches `world:443` |
+| Supply chain place | Between DORA metrics and Security (orchestrator, 2026-11-25, within the operator's order) | Delivery, then how what is delivered is built and trusted, then how the running system defends itself |
 | Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |
 | Cluster figures | From Prometheus | One source; no ClusterRole; the same numbers as the publisher for the comparison |
 | GitHub | A fine-grained read-only token for public repositories, no expiry (operator, 2026-11-20), reviewed yearly, created in task 3; on `401` no anonymous fallback | #1551, and an expired token stays visible |
@@ -599,4 +732,4 @@ Each default holds until the operator says otherwise.
 | Theme | Always dark, the dark palette of `site/assets/css/main.css`; no light variant | Dashboards read better dark; one palette to test |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
-| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
+| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-21 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |

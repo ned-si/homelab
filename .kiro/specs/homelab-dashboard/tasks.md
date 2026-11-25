@@ -306,4 +306,52 @@ the rendered screenshot check.
       `TestPercentagesTwoDecimals`. Closes #1656. [7.10, 7.11, 10.7, 10.8]
       #1657
 
-The last task ticked sets `status: done`, `closed:`, and closes #1554.
+#1554 closed with task 17. The amendment of 2026-11-25 (#1670) reopens
+the spec with tasks 18-21, in order. Each is **visible** except task
+20, merges after its review round with no preview approval (operator,
+2026-11-24 and 2026-11-25), and is followed by the image deploy and a
+live check.
+
+- [ ] 18. Stat tiles (**visible**): the `tile` template, `div.tiles`
+      and the tile classes in `dashboard.css` as in
+      [design.md, Stat tiles](design.md#stat-tiles-task-18), applied to
+      every figure from the Cluster card down (Gateway, nodes, NAS,
+      State, DORA, Renovate and CI, Security, Certificates);
+      `--tile` and `TestContrast` on both backgrounds; the test that no
+      label or value sits outside a tile and no label carries a status
+      class; golden pages; the screenshots at the five widths in the PR.
+      Snapshot keys read: unchanged. Probes: none. Check: acceptance
+      criteria 6 and 22. [3.12, 3.13]
+- [ ] 19. Rework rate and "agents" (**visible**): snapshot version 5
+      (`project.rework`), the collector's count of
+      [design.md, DORA bands](design.md#dora-bands), the tile without a
+      band and its sentence, "a few agents" in the DORA paragraph, the
+      recount in `scripts/dashboard-dora-check.sh`, a table test of the
+      rework rule (a `fix` merge inside, at, and 1 s after the 24 h
+      after an incident; a rollback counted once), golden pages; the
+      metric in `docs/homelab-dashboard.md`. Check: acceptance
+      criterion 23. [10.9, 10.10]
+- [ ] 20. Provenance for both images and its verification (**not
+      visible**): `actions/attest-build-provenance` in
+      `site-publish.yaml` with its `gh attestation verify` step, the
+      builder and workflow check in both publishing workflows, the
+      attestation checks in `infrastructure/kyverno-policies/verify-own-images.yaml`
+      (Audit), the `kyverno_policyreport_result` metric in the
+      kube-state-metrics values, the SLSA badge in `README.md`, `task
+      render`; the image-provenance spec's inventory notes the new
+      attestation. Then one `homelab-site` image built by the new
+      workflow and deployed. Check: acceptance criteria 24 and 26.
+      [13.3, 13.4, 13.7]
+- [ ] 21. Supply chain section (**visible**): snapshot version 6
+      (`supply_chain`), the compiled image list, builder texts and
+      Scorecard check list in `shown.go`, the Scorecard fetch and the
+      Kyverno query in the collector, the two panels between DORA
+      metrics and Security, the status rules in `status.go`,
+      `https://slsa.dev/` and `https://scorecard.dev/` in `LINKS` of
+      `scripts/ci/site_markup.py`, `TestSectionOrder` with Supply
+      chain, golden pages, the section in `docs/homelab-dashboard.md`.
+      Check: acceptance criterion 25; live, both images "Build L2" and
+      "Verified", the Scorecard score equal to the API's. [3.10, 13.1,
+      13.2, 13.5, 13.6]
+
+The last task ticked sets `status: done`, `closed:`, and closes #1670.
