@@ -1,0 +1,80 @@
+/* The tech radar's colours and components; the container and the nav come
+   from layout.css. Every colour pair is checked by TestContrast. */
+
+:root {
+  --fg: #1d1f21;
+  --muted: #5c6166;
+  --bg: #fdfdfc;
+  --link: #0b5cad;
+  --rule: #d8dadc;
+  --line: #7b8187;
+  --adopt: #1a7f37;
+  --trial: #0b7285;
+  --assess: #8a5a00;
+  --hold: #c62828;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg: #e3e5e7;
+    --muted: #a0a6ab;
+    --bg: #17191b;
+    --link: #79b8ff;
+    --rule: #34383c;
+    --line: #6e757b;
+    --adopt: #4ac26b;
+    --trial: #3bc9db;
+    --assess: #e3b341;
+    --hold: #ff7b72;
+  }
+}
+
+body { color: var(--fg); background: var(--bg); }
+
+a { color: var(--link); }
+
+h1 { margin: 0; font-size: 2.5rem; }
+h2 { margin: 2.5rem 0 0.5rem; font-size: 1.375rem; }
+h3 { margin: 1.25rem 0 0.25rem; font-size: 1rem; letter-spacing: 0.05em; text-transform: uppercase; }
+
+.lead { margin: 0.5rem 0 0; color: var(--muted); font-size: 1.25rem; }
+
+.intro { max-width: 44rem; }
+.rings { padding-left: 1.25rem; }
+.updated { color: var(--muted); font-size: 0.9375rem; }
+
+.ring-adopt { color: var(--adopt); }
+.ring-trial { color: var(--trial); }
+.ring-assess { color: var(--assess); }
+.ring-hold { color: var(--hold); }
+
+figure.chart { margin: 2rem auto; max-width: 64rem; }
+figure.chart svg { display: block; width: 100%; height: auto; }
+
+.ring-line { fill: none; stroke: var(--line); stroke-width: 1.5; }
+.axis { stroke: var(--line); stroke-width: 1.5; }
+.ring-name {
+  fill: var(--muted);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-anchor: middle;
+  text-transform: uppercase;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 4px;
+}
+.blip circle, .blip path { fill: currentColor; }
+.blip-number { fill: var(--bg); font-size: 8px; font-weight: 700; text-anchor: middle; }
+
+footer.site { color: var(--muted); font-size: 0.875rem; }
+
+.legend { display: grid; gap: 0 2.5rem; }
+.legend ol { margin: 0; padding-left: 2.75rem; }
+.legend li { margin: 0.25rem 0; overflow-wrap: anywhere; }
+.legend .moved { color: var(--muted); }
+.legend .none { margin: 0; color: var(--muted); }
+
+@media (min-width: 60rem) {
+  .legend { grid-template-columns: 1fr 1fr; }
+}

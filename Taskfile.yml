@@ -305,6 +305,12 @@ tasks:
     cmds:
       - ./scripts/site.sh strip
 
+  techradar:render:
+    desc: Render the tech radar from techradar/entries.yaml into apps/website/techradar/
+    dir: techradar
+    cmds:
+      - go run ./cmd/techradar render -out ../apps/website/techradar
+
   validate:
     desc: Render + schema-validate against the cluster's Kubernetes version
     deps: [tools:check]

@@ -1,5 +1,6 @@
 #!/bin/bash
-# site-denylist.sh -- fail when a file under site/ contains a term of
+# site-denylist.sh -- fail when a file under site/ or the tech radar's
+# entries (techradar/entries.yaml) contain a term of
 # site/denylist.local.txt (git-ignored; one term per line, # comments, case
 # insensitive). Prints the file and line of each match, never the term.
 # Passes when the list is absent, as in CI.
@@ -13,7 +14,7 @@ trap 'rm -f "$pats"' EXIT
 tr -d '\r' < "$list" | grep -vE '^[[:space:]]*(#|$)' > "$pats" || true
 [ -s "$pats" ] || exit 0
 
-files=$(git ls-files -co --exclude-standard site)
+files=$(git ls-files -co --exclude-standard site techradar/entries.yaml)
 [ -n "$files" ] || exit 0
 hits=$(printf '%s\n' "$files" | tr '\n' '\0' | xargs -0 grep -niIF -f "$pats" -- | cut -d: -f1,2 || true)
 if [ -n "$hits" ]; then

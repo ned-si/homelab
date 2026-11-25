@@ -105,7 +105,8 @@ env:
   # (.kiro/specs/image-provenance/design.md).
   COSIGN_VERSION: v3.1.4
   COSIGN_SHA256: 424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa
-  # golangci-lint v2 for the dashboard job (dashboard/.golangci.yaml).
+  # golangci-lint v2 for the dashboard and techradar jobs
+  # (dashboard/.golangci.yaml).
   GOLANGCI_LINT_VERSION: 2.15.0
   GOLANGCI_LINT_SHA256: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
   # Chrome for Testing's headless shell (linux64) for the dashboard's
@@ -966,13 +967,62 @@ jobs:
           path: ${{ runner.temp }}/dashboard-screenshots/
           if-no-files-found: warn
 
+  # The tech radar's generator under techradar/ and the page it renders
+  # (scripts/ci/techradar-check.sh): mod verify and tidy, golangci-lint, vet,
+  # govulncheck, tests with the race detector, the committed page against a
+  # fresh render, the markup check. Exits early when the change does not touch
+  # what the radar reads.
+  # fetch-depth 2: HEAD^1 is the base (main for a pull request's merge commit).
+  techradar:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Restore tool archives
+        id: tools
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: tools-techradar-${{ env.GOLANGCI_LINT_VERSION }}
+          restore-keys: tools-techradar-
+
+      - name: Install pinned tools
+        id: setup
+        env:
+          TOOL_CACHE: ${{ runner.temp }}/tool-cache
+        run: scripts/ci/install-tool.sh golangci-lint
+
+      - name: Save tool archives
+        if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/tool-cache
+          key: ${{ steps.tools.outputs.cache-primary-key }}
+
+      # The Go version of go.mod; the module cache is keyed on go.sum.
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: techradar/go.mod
+          cache-dependency-path: techradar/go.sum
+
+      - name: Tech radar checks
+        env:
+          GOTOOLCHAIN: local
+        run: scripts/ci/techradar-check.sh
+
   # The one required check. `always()` so it reports even when a job above
   # failed; it fails unless every job succeeded, except pr-metadata, which may
   # be skipped outside a pull request, and talos-upgrade, which may be skipped
   # when `talos` did not plan a rehearsal.
   ci:
     if: ${{ always() }}
-    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod, site, dashboard]
+    needs: [lint, render, tests, promtool, alertmanager, security, talos, talos-upgrade, pr-metadata, preprod, site, dashboard, techradar]
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
@@ -985,7 +1035,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod site dashboard; do
+          for j in lint render tests promtool alertmanager security talos talos-upgrade pr-metadata preprod site dashboard techradar; do
             result=$(jq -r --arg j "$j" '.[$j].result // "missing"' <<<"$NEEDS")
             if [ "$result" = "success" ]; then
               echo "ok      $j"

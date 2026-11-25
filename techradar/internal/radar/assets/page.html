@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech radar · nedsi</title>
+<meta name="description" content="What the nedsi homelab uses, tries, assesses and holds, and why.">
+<meta name="author" content="nedsi">
+<link rel="canonical" href="https://techradar.nedsi.io/">
+<link rel="stylesheet" href="/layout.css">
+<link rel="stylesheet" href="/techradar.css">
+</head>
+<body>
+<header class="site">
+<nav class="site" aria-label="Site">
+<a href="https://nedsi.io/">Home</a>
+<a href="https://blog.nedsi.io/">Blog</a>
+<a href="https://homelab.nedsi.io/">Homelab</a>
+<a href="https://blog.nedsi.io/about/">About</a>
+</nav>
+</header>
+<main>
+<h1>Tech radar</h1>
+<p class="lead">What the homelab is built with, and why.</p>
+<div class="intro">
+<p>Every technology and technique the homelab uses, tries, keeps an eye on or decided against, each with a one-line reason and a link to where the decision is written down. Those reasons used to be spread over docs, specs and issues. Now they are on one page, in the spirit of <a href="https://github.com/zalando/tech-radar">Zalando's tech radar</a> (minus the JavaScript).</p>
+<ul class="rings">
+<li><strong class="ring-adopt">Adopt</strong>: in use, and I would choose it again.</li>
+<li><strong class="ring-trial">Trial</strong>: in use on trial, or with a known limit I am working on.</li>
+<li><strong class="ring-assess">Assess</strong>: researched or planned, not in use yet.</li>
+<li><strong class="ring-hold">Hold</strong>: decided against, removed or replaced; the reason says why.</li>
+</ul>
+<p class="updated">{{.Count}} entries, updated on <time datetime="{{.UpdatedISO}}">{{.Updated}}</time>. The numbers on the chart match the legend below it.</p>
+</div>
+<figure class="chart">
+{{.Chart}}
+</figure>
+<div class="legend">
+{{- range .Quadrants}}
+<section aria-labelledby="q-{{.ID}}">
+<h2 id="q-{{.ID}}">{{.Name}}</h2>
+{{- range .Rings}}
+<h3 class="ring-{{.ID}}">{{.Name}}</h3>
+{{- if .Entries}}
+<ol>
+{{- range .Entries}}
+<li value="{{.Number}}">{{if .URL}}<a href="{{.URL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}{{if .Moved}} <span class="moved">({{.Moved}})</span>{{end}}: {{.Reason}}</li>
+{{- end}}
+</ol>
+{{- else}}
+<p class="none">Nothing here right now.</p>
+{{- end}}
+{{- end}}
+</section>
+{{- end}}
+</div>
+</main>
+<footer class="site">
+<p><a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
+</footer>
+</body>
+</html>
