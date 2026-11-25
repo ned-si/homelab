@@ -1,8 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-25
-issue: 1702
+closed: 2026-11-25
 ---
 # Requirements: self-hosted-jamulus
 

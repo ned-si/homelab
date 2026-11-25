@@ -43,7 +43,8 @@ needs one ([README](../README.md)).
       [self-hosted-jamulus](../self-hosted-jamulus/): our signed image
       from the upstream .deb, the hardened app on `192.168.1.202` UDP
       41124, the probe and `JamulusDown`, the DNS name, the pentest scope
-      and threat model, the docs. (#1713, #1720, #1723, #1729, #1734)
+      and threat model, the docs. (#1713, #1720, #1723, #1729, #1734,
+      #1745)
 
 ## Moved to the backlog (2026-10-26)
 
