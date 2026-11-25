@@ -68,7 +68,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       platform/jamulus-probe/exporter.py --once 192.168.1.202:41124` from
       the Mac prints `up clients=0`; `JamulusDown` is in Prometheus's
       rules and inactive; no new alerts. [6.1, 6.2, 6.4, 6.5] (#1723)
-- [ ] 4. DNS (**live**): `sources: [gateway-httproute, service]` and
+- [x] 4. DNS (**live**): `sources: [gateway-httproute, service]` and
       `--service-type-filter=LoadBalancer` in
       `infrastructure/external-dns/values.yaml`, the hostname annotation on
       the Service, the DNS section and the port-forward table row of
@@ -81,7 +81,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       unchanged; `scripts/pentest-scope-check.sh` still passes; no new
       alerts. If the operator has set the router rule, `--once
       jam.lilalala.com:41124` from the Mac prints `up` (UDP through NAT
-      loopback); otherwise it prints `down` and that is expected. [5]
+      loopback); otherwise it prints `down` and that is expected. [5] (#1729)
 - [ ] 5. Pentest and threat model (**not live**): the
       `forwarded_ports` entry in `docs/pentest/scope.yaml`, the ping step
       in `pentest-external.yaml`, the row in
