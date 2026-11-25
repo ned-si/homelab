@@ -429,7 +429,8 @@ backups amendment (#1739).
       [13.5, 13.6]
       #1757
 
-#1670 closes with task 24. The amendment of 2026-11-25 (#1739) reopens
+#1670 closes with task 24. Task 24's tick closes #1670 and leaves the
+spec `active` while tasks 25-26 are open. The amendment of 2026-11-25 (#1739) reopens
 the spec with tasks 25 and 26, the "Databases and backups" group of
 the Cluster card, in order. Task 25 is **not visible**, task 26 is; each merges
 after its review round with no preview approval (operator, 2026-11-24

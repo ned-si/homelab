@@ -671,11 +671,14 @@ without learning which databases there are.
    good one (`CNPGBackupFailed`); a failed restore test
    (`BackupVerifyFailed`) or none passed in 8 days
    (`BackupVerifyStale`); backup freshness under its 99% objective over
-   30 days (`homelab-backup-slo`). Point-in-time recovery carries no
-   status. With no database reporting, every tile of the group SHALL
-   read "No data".
+   30 days (`homelab-backup-slo`). A scrape gap shorter than the
+   shortest `for:` of those alerts (10 minutes), such as an instance
+   pod restart, SHALL NOT change a status. Point-in-time recovery
+   carries no status. With no database reporting, every tile of the
+   group SHALL read "No data".
 5. EVERY window SHALL be rolling and its small text SHALL say so:
-   "rolling 24 h" for the WAL files archived, "rolling 26 h" for the
+   "rolling 24 h" for the database count and the WAL files archived,
+   "rolling 26 h" for the
    base backups, "rolling 8 days" for the restore tests, "rolling 30
    days" for the backup freshness (3.14).
 6. THE database figures SHALL be refreshed every collector cycle with
@@ -841,13 +844,17 @@ without learning which databases there are.
     daily bars of the last Sundays of March and October as 23 and 25
     hours. [2.8, 10.4]
 31. `tests/prometheus/databases_test.yaml` passes in the `promtool`
-    job and covers: every database healthy; one down (still counted in
-    the rolling 24 h, gone after it); WAL archiving failing and WAL
+    job and covers: every database healthy; one database's series
+    gone for 3 minutes and back with a new `instance` label (every
+    aggregate unchanged); one down (`up` short of all after 10
+    minutes, still counted in the rolling 24 h, gone after it); WAL archiving failing and WAL
     behind; a base backup 26 h old, one failed after the last good one
-    and one never taken; a restore test failed, one overdue (last pass
-    8 days and 1 minute ago) and a Pushgateway restart that drops the
-    current series without changing the result; every aggregate
-    without a label. [14.2-14.4]
+    and one never taken; a restore test failed; overdue with the
+    series still reporting a pass 8 days and 1 minute old
+    (Pushgateway alive) and with the series stopped 8 days and 1
+    minute ago (Pushgateway replaced); a Pushgateway restart that
+    drops the current series without changing the result; every
+    aggregate without a label. [14.2-14.4]
 32. `collect --once --dry-run` prints a `cluster.databases` block of
     numbers only, each equal to its recording rule queried in Grafana
     at the same instant (within rounding), and the live card shows the
@@ -857,7 +864,8 @@ without learning which databases there are.
 33. A table test covers every boundary of the database rules of 14.4
     (all, all but one, 0 databases); the golden pages show the
     "Databases and backups" group with `ok`, `warn`, `bad` and `none`
-    next to their words, every tile a stat tile, and "rolling 24 h", "rolling 26 h",
+    next to their words, every tile a stat tile, and "Seen in the
+    rolling 24 h" (the database count), "rolling 24 h", "rolling 26 h",
     "rolling 8 days" and "rolling 30 days" in its text. [3.12, 3.14,
     14.4, 14.5]
 
@@ -928,7 +936,7 @@ Each default holds until the operator says otherwise.
 | Time windows | Rolling, ending now (2.8); the daily bars are Zurich calendar days (operator, 2026-11-25) | A calendar window makes a figure jump at midnight or on the 1st; a rolling one moves by the minute, like the SLO it is judged against |
 | Supply chain place | Between DORA metrics and Security (orchestrator, 2026-11-25, within the operator's order) | Delivery, then how what is delivered is built and trusted, then how the running system defends itself |
 | Databases | One "Databases and backups" group in the Cluster card, after State: databases (count, up, data size), WAL archiving, base backups, point-in-time recovery, restore tests, backup freshness; every figure summed over all databases, no per-database row (orchestrator, 2026-11-25) | The hidden apps' databases stay unidentifiable without a per-figure exception; the Argo CD and Volumes tiles already count the hidden apps the same way |
-| Database thresholds | Those of the alerts: base backup stale at 26 h or failed since the last good one; WAL archiving failing, or behind at more than 5 files waiting; restore test failed, or overdue with no pass in the rolling 8 days; backup freshness `ok` from the SLO's 99% over the rolling 30 days | The page and the pager never disagree; no warning band where the alert has none, so the daily backup cycle never turns a tile amber |
+| Database thresholds | Those of the alerts: base backup stale at 26 h or failed since the last good one; WAL archiving failing, or behind at more than 5 files waiting; restore test failed, or overdue with no pass in the rolling 8 days; backup freshness `ok` from the SLO's 99% over the rolling 30 days | A tile turns where its alert fires, and a scrape gap shorter than the alerts' 10-minute `for:` (a pod restart) changes nothing; no warning band where the alert has none, so the daily backup cycle never turns a tile amber |
 | Database source | PrometheusRule `homelab-databases` (`platform/kube-prometheus-stack/routes/databases.yaml`): per-database rules, then label-free aggregates the collector reads; evaluated every minute, the restore-test rules every 2 minutes | Names never leave Prometheus, and promtool tests the PromQL; rejected: the joins in the collector's queries (tested only against a fake Prometheus) |
 | Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |
 | Cluster figures | From Prometheus | One source; no ClusterRole; the same numbers as the publisher for the comparison |

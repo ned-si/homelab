@@ -128,7 +128,8 @@ window the page shows:
 | Databases: base backups | `cluster:cnpg_base_backup_fresh:count` | New | Rolling 26 h ending at the rule's last evaluation |
 | Databases: restore tests | `cluster:cnpg_restore_passed:count`, `-failed:count`, `-rows:sum`, `-duration:median_seconds` | New | Rolling 8 days ending at the rule's last evaluation (every 2 minutes) |
 | Databases: backup freshness | `min(slo:backup_freshness:ratio_rate30d{kind="cnpg"})` at `t` | New | Rolling 30 days ending at the rule's last evaluation (every 2 minutes) |
-| Databases: up, WAL archiving now, oldest base backup, point-in-time recovery | The other `cluster:cnpg_*` aggregates | New | No window: the state at the rule's last evaluation |
+| Databases: up, data size | `cluster:cnpg_databases_up:count`, `cluster:cnpg_data:bytes` | New | The last 10 minutes ending at the rule's last evaluation, so a pod restart's gap is bridged; the page says "now" |
+| Databases: WAL archiving now, oldest base backup, point-in-time recovery | The other `cluster:cnpg_*` aggregates | New | No window: the state at the rule's last evaluation, the Barman timestamps the latest of the rolling 26 h |
 | Overall DORA level, the last five `ci` runs, Supply chain (tasks 21 and 24) | `overallBand`, `internal/web/status.go`; `ciRuns`, `github.go`; `supply.go` | No window of their own: the bands above, the last five runs, the latest Scorecard result and Kyverno report | Unchanged |
 
 The page's own words for the windows ("over 30 days" in the target
@@ -395,8 +396,8 @@ has no string, so no name can travel in it.
 | `base_fresh` | Databases with a base backup in the rolling 26 h and no failed one since, integer 0 to `count` |
 | `base_oldest_seconds` | The largest age of a database's latest base backup, integer seconds 0 or more (rounded down), `null` without one |
 | `recovery_window_seconds` | The shortest point-in-time recovery window, integer seconds 0 or more (rounded down), `null` without one |
-| `restore_passed`, `restore_failed` | Databases whose last restore test in the rolling 8 days passed, and failed; integers, their sum at most `count` |
-| `restore_rows` | Rows compared in each database's latest restore test, summed; integer 0 or more, `null` without a result |
+| `restore_passed`, `restore_failed` | Databases whose latest restore test passed in the rolling 8 days, and whose latest visible test failed; integers, their sum at most `count` |
+| `restore_rows` | Rows compared in each database's latest passing restore test in the rolling 8 days, summed; integer 0 or more, `null` without a result |
 | `restore_median_seconds` | Median time to a Ready restored cluster over those tests, integer seconds (rounded down), `null` without a result |
 | `freshness_30d` | The lowest backup freshness of a database over the rolling 30 days, 0-100 at full precision, `null` without a series |
 
@@ -925,7 +926,7 @@ when the alert would fire:
 | Security, expected zero | 0 in 24 h ("None") | Above 0 ("Seen") | — | Dashboard default: one is worth a look |
 | Scorecard score (task 24) | 7.0 or more | 4.0 to under 7.0 | Under 4.0 | Dashboard default; Scorecard's own badge turns from green under 7 |
 | SLSA provenance (task 21) | Verified by Kyverno ("Verified") | Not verified, or no provenance ("Not verified") | — | `verify-own-images` runs in Audit; the page reports, the policy decides |
-| Databases (task 26) | `up` equal to `count` ("Up") | — | `up` below `count` ("Down") | A database that stops reporting is down; `CNPGMetricsAbsent` when none reports |
+| Databases (task 26) | `up` equal to `count` ("Up") | — | `up` below `count` ("Down") | A database is down after 10 minutes without a series or with `cnpg_collector_up` 0 (the shortest `for:` of the CNPG alerts), so a pod restart changes nothing; `CNPGMetricsAbsent` when none reports |
 | WAL archiving | `wal_archiving` equal to `count` ("Archiving") | Below, and `wal_archiving + wal_behind` equal to `count` ("Behind") | Otherwise: a database failing or not up ("Failing") | `CNPGWALArchivingFailing`; `CNPGWALArchiveLag` (more than 5 files waiting) is `warn`, because the page has no `for:` and a burst of writes queues files for a minute |
 | Base backups | `base_fresh` equal to `count` ("Fresh") | — | Below ("Stale") | `CNPGBaseBackupTooOld` (26 h, also the backup-freshness SLO's), `CNPGBackupFailed`; no warning band, so the nightly cycle (up to about 24 h old just before each backup) never turns the tile amber |
 | Restore tests | `restore_passed` equal to `count` ("Passed") | None failed, some without a test in the rolling 8 days ("Overdue") | `restore_failed` above 0 ("Failed") | `BackupVerifyFailed` (pages), `BackupVerifyStale` (8 days, review) |
@@ -1776,7 +1777,7 @@ read-only):
   pushes `backup_verify_*{check="postgres", target="<cluster>"}` to the
   Pushgateway in `backup-verify` ([docs/backups.md, Reading the results](../../../docs/backups.md#reading-the-results)).
 
-Two facts shape the rules:
+Three facts shape the rules:
 
 - **Time since the last archived WAL file is not a health signal.** A
   database that writes nothing archives nothing (`archive_timeout`
@@ -1784,12 +1785,27 @@ Two facts shape the rules:
   databases had archived nothing for 19 hours. Archiving fails only
   when the last failure is newer than the last success, the rule of
   `CNPGWALArchivingFailing`.
-- **The Pushgateway forgets on restart.** It keeps results in memory,
-  so after its pod restarts `backup_verify_*` has no current series
-  until the next weekly run (on 2026-11-25 none had been current since
-  a restart, while 8 days of history held every result). Every
-  restore-test rule reads the rolling 8 days of history, never the
-  current sample, as the `backup-verify` alerts read 9 days.
+- **Instance pods restart, and their series gap.** Every CNPG and
+  Barman series comes from the instance pod, so while it is
+  rescheduled the database has no series, and it comes back with a
+  new `instance` label. In the rolling 7 days to 2026-11-25 each of
+  the 8 databases had 3 to 4 `instance` labels on
+  `cnpg_collector_up`. No alert fires on such a gap (the shortest
+  `for:` of the CNPG alerts is 10 minutes), so the rules smooth it:
+  `up` is the maximum over the last 10 minutes, the Barman
+  timestamps the maximum over the rolling 26 h, each aggregated by
+  database before any comparison, so an old `instance` series cannot
+  carry a stale value.
+- **A new Pushgateway pod starts empty.** The Pushgateway persists
+  its results to an emptyDir, so a container restart keeps them, but
+  a new pod (rescheduled, rolled out) has no `backup_verify_*` series
+  until the next weekly run (on 2026-11-25 none had been current
+  since the pod was replaced, while 8 days of history held every
+  result). While the pod lives, it serves the last pushed value on
+  every scrape, however old. So every restore-test rule reads the
+  rolling 8 days of history, never only the current sample, and
+  bounds a pass by its own age (`time() - last_success < 8 days`, as
+  `BackupVerifyStale` does).
 
 ### Recording rules (task 25)
 
@@ -1815,9 +1831,11 @@ groups:
       # "<n> of <m>", so a database that stops reporting still counts.
       - record: cnpg_cluster:seen_24h
         expr: group by (namespace, cluster) (max_over_time(cnpg_collector_up[24h]))
+      # Down after 10 minutes without a series: the shortest for: of the
+      # CNPG alerts, so a pod restart changes nothing.
       - record: cnpg_cluster:up
         expr: |
-          max by (namespace, cluster) (cnpg_collector_up)
+          max by (namespace, cluster) (max_over_time(cnpg_collector_up[10m]))
           or on (namespace, cluster) (cnpg_cluster:seen_24h * 0)
       - record: cnpg_cluster:wal_failing
         expr: |
@@ -1829,30 +1847,39 @@ groups:
           max by (namespace, cluster) (label_replace(
             cnpg_collector_pg_wal_archive_status{value="ready"} > bool 5,
             "cluster", "$1", "pod", "(.+)-[0-9]+"))
-      # No series before the first base backup (the timestamp is 0).
+      # The Barman timestamps: the latest in the rolling 26 h, by database
+      # first, so a pod restart neither drops nor duplicates one. No age
+      # series before the first base backup (the timestamp is 0).
       - record: cnpg_cluster:base_backup_age:seconds
         expr: |
-          min by (namespace, cluster) (label_replace(
-            time() - (barman_cloud_cloudnative_pg_io_last_available_backup_timestamp > 0),
-            "cluster", "$1", "pod", "(.+)-[0-9]+"))
+          time() - (max by (namespace, cluster) (label_replace(
+            max_over_time(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp[26h]),
+            "cluster", "$1", "pod", "(.+)-[0-9]+")) > 0)
       - record: cnpg_cluster:base_backup_failed
         expr: |
           max by (namespace, cluster) (label_replace(
-            barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp
-              > bool barman_cloud_cloudnative_pg_io_last_available_backup_timestamp,
+            max_over_time(barman_cloud_cloudnative_pg_io_last_failed_backup_timestamp[26h]),
+            "cluster", "$1", "pod", "(.+)-[0-9]+"))
+          > bool
+          max by (namespace, cluster) (label_replace(
+            max_over_time(barman_cloud_cloudnative_pg_io_last_available_backup_timestamp[26h]),
             "cluster", "$1", "pod", "(.+)-[0-9]+"))
       - record: cnpg_cluster:recovery_window:seconds
         expr: |
-          min by (namespace, cluster) (label_replace(
-            time() - (barman_cloud_cloudnative_pg_io_first_recoverability_point > 0),
-            "cluster", "$1", "pod", "(.+)-[0-9]+"))
+          time() - (max by (namespace, cluster) (label_replace(
+            max_over_time(barman_cloud_cloudnative_pg_io_first_recoverability_point[26h]),
+            "cluster", "$1", "pod", "(.+)-[0-9]+")) > 0)
       - record: cluster:cnpg_databases:count
         expr: count(cnpg_cluster:seen_24h) or vector(0)
       - record: cluster:cnpg_databases_up:count
         expr: sum(cnpg_cluster:up) or vector(0)
-      # The app databases, without Postgres's own postgres and template*.
+      # The app databases, without Postgres's own postgres and template*;
+      # by database first, so a restart's new instance label counts once.
       - record: cluster:cnpg_data:bytes
-        expr: sum(cnpg_pg_database_size_bytes{datname!~"postgres|template[0-9]+"})
+        expr: |
+          sum(max by (namespace, cluster, datname) (label_replace(
+            max_over_time(cnpg_pg_database_size_bytes{datname!~"postgres|template[0-9]+"}[10m]),
+            "cluster", "$1", "pod", "(.+)-[0-9]+")))
       - record: cluster:cnpg_wal_archiving:count
         expr: |
           count(
@@ -1878,8 +1905,8 @@ groups:
       - record: cluster:cnpg_recovery_window:min_seconds
         expr: min(cnpg_cluster:recovery_window:seconds)
 
-  # Weekly results over the rolling 8 days of history (the Pushgateway
-  # forgets on restart). Every 2 minutes: the 8-day subqueries are the
+  # Weekly results over the rolling 8 days of history (a new Pushgateway
+  # pod starts empty). Every 2 minutes: the 8-day subqueries are the
   # heaviest rules here and the results change once a week.
   - name: homelab.databases.restore
     interval: 2m
@@ -1894,7 +1921,8 @@ groups:
           max by (cluster) (label_replace(
             max_over_time(backup_verify_last_success_timestamp_seconds{check="postgres"}[8d]),
             "cluster", "$1", "target", "(.+)"))
-      # The latest value, whichever Pushgateway pod served it.
+      # Rows and time of the latest passing test (verify-postgres.sh pushes
+      # them only on a pass), whichever Pushgateway pod served them.
       - record: cnpg_cluster:restore_rows
         expr: |
           max by (cluster) (label_replace(
@@ -1905,12 +1933,16 @@ groups:
           max by (cluster) (label_replace(
             last_over_time((max by (target) (backup_verify_restore_seconds{check="postgres"}))[8d:5m]),
             "cluster", "$1", "target", "(.+)"))
+      # A pass counts while it is under 8 days old: the Pushgateway keeps
+      # serving an old one.
       - record: cluster:cnpg_restore_passed:count
         expr: |
           count(
             (cnpg_cluster:restore_last_success:timestamp >= on (cluster) cnpg_cluster:restore_last_run:timestamp)
+            and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
             and on (cluster) cnpg_cluster:seen_24h
           ) or vector(0)
+      # The latest visible run failed, whatever its age, as BackupVerifyFailed.
       - record: cluster:cnpg_restore_failed:count
         expr: |
           count(
@@ -1920,18 +1952,35 @@ groups:
             )
             and on (cluster) cnpg_cluster:seen_24h
           ) or vector(0)
+      # Only passes inside the rolling 8 days, the window the tile names.
       - record: cluster:cnpg_restore_rows:sum
-        expr: sum(cnpg_cluster:restore_rows and on (cluster) cnpg_cluster:seen_24h)
+        expr: |
+          sum(cnpg_cluster:restore_rows
+            and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
+            and on (cluster) cnpg_cluster:seen_24h)
       - record: cluster:cnpg_restore_duration:median_seconds
-        expr: quantile(0.5, cnpg_cluster:restore_duration:seconds and on (cluster) cnpg_cluster:seen_24h)
+        expr: |
+          quantile(0.5, cnpg_cluster:restore_duration:seconds
+            and on (cluster) (time() - cnpg_cluster:restore_last_success:timestamp < 8 * 86400)
+            and on (cluster) cnpg_cluster:seen_24h)
 ```
 
 - A passing run pushes `backup_verify_last_success_timestamp_seconds`
   equal to its `backup_verify_last_run_timestamp_seconds`
-  (`platform/backup-verify/scripts/common.sh`), so "passed" is the last
-  success at or after the last run, and "failed" is a later run, or a
-  run with no success in the 8 days. A database with neither in the 8
-  days is "overdue": `count - restore_passed - restore_failed`.
+  (`platform/backup-verify/scripts/common.sh`); a failing run pushes
+  only `last_run`. So "passed" is the latest run passed and its
+  success is under 8 days old; "failed" is the latest visible run newer
+  than its success, or a run with no success in the history, whatever
+  its age (as `BackupVerifyFailed`, which reads the current value); a
+  database with neither is "overdue": `count - restore_passed -
+  restore_failed`. Overdue covers both ways a test goes missing: the
+  Pushgateway still serving a pass older than 8 days (the CronJob
+  stopped), and no series at all (a new Pushgateway pod and no run in
+  8 days).
+- Rows and restore time are bounded by the age of the last success,
+  not of the last run: the figures come from the last passing run, so
+  a pass older than 8 days drops out of the sum and the median even
+  when a newer run failed.
 - The restore rules match on `cluster` alone: cluster names are unique
   across namespaces today, and a duplicate would make `and on
   (cluster)` count both, which the promtool test does not need to
@@ -1945,15 +1994,22 @@ groups:
 `tests/prometheus/databases_test.yaml` (`rule_files:
 [homelab-databases.yaml]`, run by `scripts/ci/promtool-check.sh`) has
 the cases of acceptance criterion 31, each with `promql_expr_test`s on
-the aggregates: all healthy (8 of 8 everywhere); one database's series
-stopping (`count` still 8 and `up` 7 until 24 h later, then 7 and 7);
-`last_failed_time` after `last_archived_time` (failing) and 6 files
-`ready` (behind); a base backup 26 h old, one failed after the last
-good one, and one with timestamp 0 (no age series, not fresh); a
-restore run newer than its success (failed), a last pass 8 days and
-1 minute ago (overdue), and the Pushgateway's `pod` label changing
-with a gap of a day between the two series (same passed count, rows
-and median); and a check that every aggregate has an empty label set.
+the aggregates: all healthy (8 of 8 everywhere); one database's
+series stopping for 3 minutes and coming back with a new `instance`
+label (every aggregate still 8 of 8, data bytes counted once); one
+database's series stopping for good (`up` 8 for 10 minutes, then 7,
+`count` 8 until 24 h later, then 7 and 7; base backups 8 until 26 h
+after its last backup); `last_failed_time` after `last_archived_time`
+(failing) and 6 files `ready` (behind); a base backup 26 h old, one
+failed after the last good one, and one with timestamp 0 (no age
+series, not fresh); a restore run newer than its success (failed);
+overdue twice, a pass 8 days and 1 minute old that the series keeps
+reporting up to the evaluation (Pushgateway alive), and a series that
+stopped 8 days and 1 minute ago (Pushgateway replaced), both with
+their rows and time left out of the sum and median; the
+Pushgateway's `pod` label changing with a gap of a day between the
+two series (same passed count, rows and median); and a check that
+every aggregate has an empty label set.
 
 Values on 2026-11-25 at 19:30Z, from the raw queries the rules
 encode:
@@ -1993,9 +2049,11 @@ encode:
   expected. `Validate` keeps the same bounds as a guard.
 - **Errors.** A Prometheus error fails the cluster block, which keeps
   its last value, as every cluster query does. A missing rule is no
-  error: its counts read 0 and its figures `null`, so a rule not yet
-  deployed shows "No data"; the dry run of acceptance criterion 32
-  catches a renamed one.
+  error and is not logged: a missing count rule reads 0 and its tile
+  falls short of all; a missing figure rule reads `null` and its
+  detail line is left out; without `cluster:cnpg_databases:count`
+  every tile is "No data". The dry run of acceptance criterion 32
+  catches each.
 
 The page, `internal/web`: `figures.Databases []tile`, from
 `databaseTiles(d snapshot.Databases)` in `render.go`; a helper `durationText(s int) string` joins
@@ -2014,7 +2072,7 @@ tile is `noDataTile(label)`:
 
 | Label | Value | Status words | Detail lines |
 | --- | --- | --- | --- |
-| PostgreSQL | `count`, unit "databases" | "Up", "Down" | "<up> up, <bytesText(data_bytes)> of data" (", … of data" left out when `null`) |
+| PostgreSQL | `count`, unit "databases" | "Up", "Down" | "Seen in the rolling 24 h"; "<up> up now, <bytesText(data_bytes)> of data" (", … of data" left out when `null`) |
 | WAL archiving | `wal_archiving`, unit "of <count>" | "Archiving", "Behind", "Failing" | "<wal_archived_24h> files archived, rolling 24 h" (`thousands`) |
 | Base backups | `base_fresh`, unit "of <count>" | "Fresh", "Stale" | "Nightly, each in the rolling 26 h"; "Oldest <durationText(base_oldest_seconds)> ago" |
 | Point-in-time recovery | `recovery_window_seconds / 86400` rounded down, unit "days" | none (no class) | "The shortest window of all databases" |
@@ -2026,7 +2084,7 @@ A detail line whose figure is `null` is left out; a tile whose value is
 in `status.go` (`databasesStatus`, `walStatus`, `baseBackupStatus`,
 `restoreStatus`, `freshnessStatus`), table-tested on each boundary
 (acceptance criterion 33). On 2026-11-25 the group would read: 8
-databases, 8 up, 1 GiB of data; 8 of 8 archiving, 1,517 files; 8 of 8
+databases seen in the rolling 24 h, 8 up now, 1 GiB of data; 8 of 8 archiving, 1,517 files; 8 of 8
 fresh, oldest 19 h 31 min ago; 30 days; 8 of 8 passed, 1,031,332 rows,
 median 6 min 54 s; 99.97%, Met.
 
@@ -2140,7 +2198,7 @@ of the blog, the landing page and the app equal.
 | Web request | Unknown path, method | `404`, `405` with the headers | `http_requests_total{code}` |
 | Publish | Build, smoke, sign, verify | Nothing tagged `main`, nothing deployed | ntfy, low priority |
 | Kyverno | Unsigned or wrong identity | Audit report `fail` | Security dashboard |
-| Database rules (task 26) | A `cluster:cnpg_*` rule missing or renamed | No error: its counts read 0 and its figures `null`, the tiles "No data" | The dry run of acceptance criterion 32; a Prometheus error fails the cluster block like any cluster query |
+| Database rules (task 26) | A `cluster:cnpg_*` rule missing or renamed | No error: a missing count rule reads 0 and its tile falls short of all; a missing figure rule reads `null` and its detail line is left out; without `cluster:cnpg_databases:count` every tile is "No data" | The dry run of acceptance criterion 32; a Prometheus error fails the cluster block like any cluster query |
 
 ## Why it is like this
 
