@@ -94,5 +94,5 @@ spec:
           name: website-landing-cb2cm7hf5h
         name: landing
       - configMap:
-          name: website-techradar-947ch78cct
+          name: website-techradar-b4f9f978t2
         name: techradar

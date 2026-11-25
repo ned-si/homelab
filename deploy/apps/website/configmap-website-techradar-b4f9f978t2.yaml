@@ -456,6 +456,7 @@ data:
     }
     .blip circle, .blip path { fill: currentColor; }
     .blip-number { fill: var(--bg); font-size: 8px; font-weight: 700; text-anchor: middle; }
+    .blip { text-decoration: none; }
     .blip:focus { outline: none; }
     .blip:focus-visible circle, .blip:focus-visible path { stroke: var(--fg); stroke-width: 2; }
 
@@ -500,5 +501,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-techradar-947ch78cct
+  name: website-techradar-b4f9f978t2
   namespace: website
