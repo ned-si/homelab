@@ -306,4 +306,74 @@ the rendered screenshot check.
       `TestPercentagesTwoDecimals`. Closes #1656. [7.10, 7.11, 10.7, 10.8]
       #1657
 
-The last task ticked sets `status: done`, `closed:`, and closes #1554.
+#1554 closed with task 17. The amendment of 2026-11-25 (#1670) reopens
+the spec with tasks 18-21, in order, and the operator's Security-card
+decisions of the same day add tasks 22 and 23. Each is **visible**
+except tasks 20 and 22, merges after its review round with no preview approval (operator,
+2026-11-24 and 2026-11-25), and is followed by the image deploy and a
+live check.
+
+- [ ] 18. Stat tiles (**visible**): the `tile` template, `div.tiles`
+      and the tile classes in `dashboard.css` as in
+      [design.md, Stat tiles](design.md#stat-tiles-task-18), applied to
+      every figure from the Cluster card down (Gateway, nodes, NAS,
+      State, DORA, Renovate and CI, Security, Certificates);
+      `--tile` and `TestContrast` on both backgrounds; the test that no
+      label or value sits outside a tile and no label carries a status
+      class; golden pages; the screenshots at the five widths in the PR.
+      Every small text describing a time window says "rolling"
+      ("rolling 24 h", "rolling 7 days", "rolling 30 days").
+      Snapshot keys read: unchanged. Probes: none. Check: acceptance
+      criteria 6 and 22. [3.12, 3.13, 3.14]
+- [ ] 19. Rework rate and "agents" (**visible**): snapshot version 5
+      (`project.rework`), the collector's count of
+      [design.md, DORA bands](design.md#dora-bands), the tile without a
+      band and its sentence, "a few agents" in the DORA paragraph, the
+      recount in `scripts/dashboard-dora-check.sh`, a table test of the
+      rework rule (a `fix` merge inside, at, and 1 s after the 24 h
+      after an incident; a rollback counted once), golden pages; the
+      metric in `docs/homelab-dashboard.md`. Check: acceptance
+      criterion 23. [10.9, 10.10]
+- [ ] 20. Provenance for both images and its verification (**not
+      visible**): `actions/attest-build-provenance` in
+      `site-publish.yaml` with its `gh attestation verify` step, the
+      builder and workflow check in both publishing workflows, the
+      attestation checks in `infrastructure/kyverno-policies/verify-own-images.yaml`
+      (Audit), the `kyverno_policyreport_result` metric in the
+      kube-state-metrics values, the SLSA badge in `README.md`, `task
+      render`; the image-provenance spec's inventory notes the new
+      attestation. Then one `homelab-site` image built by the new
+      workflow and deployed. The PR body says `Closes #743` (signed
+      provenance for the blog image on GHCR). Check: acceptance
+      criteria 24 and 26. [13.3, 13.4, 13.7]
+- [ ] 21. Supply chain section (**visible**): snapshot version 6
+      (`supply_chain`), the compiled image list, builder texts and
+      Scorecard check list in `shown.go`, the Scorecard fetch and the
+      Kyverno query in the collector, the two panels between DORA
+      metrics and Security, the status rules in `status.go`,
+      `https://slsa.dev/` and `https://scorecard.dev/` in `LINKS` of
+      `scripts/ci/site_markup.py`, `TestSectionOrder` with Supply
+      chain, golden pages, the section in `docs/homelab-dashboard.md`.
+      Check: acceptance criterion 25; live, both images "Build L2" and
+      "Verified", the Scorecard score equal to the API's. [3.10, 13.1,
+      13.2, 13.5, 13.6]
+
+- [ ] 22. Our own traffic out of the Security figures (**not
+      visible**), as in
+      [design.md, Security card figures](design.md#security-card-figures-tasks-22-and-23):
+      the `theater` probe on a 2xx endpoint and its comment, `401`
+      out of `http_gated`, the CI rule that a public probe expects only
+      2xx or 3xx with its test, the smoke hooks' deliberate 4xx and
+      405 requests against the Services, the list of own clients still
+      crossing the Gateway and their exclusion where Envoy can
+      attribute them, the Hubble drop metric with the source identity,
+      `task render`. Check: acceptance criterion 27; live,
+      `probe_success{app="theater"}` is 1 and the Gateway's 401 rate
+      drops by the probe's 120 an hour. [12.6]
+- [ ] 23. Security card figures (**visible**): snapshot version 7, the
+      signal list, shares and unattributed line in `shown.go` and the
+      collector, the plain names, no "observe mode", golden pages, the
+      card in `docs/homelab-dashboard.md`. Check: acceptance criterion
+      28. [12.6-12.11]
+
+The last task ticked sets `status: done`, `closed:`, and closes #1670.

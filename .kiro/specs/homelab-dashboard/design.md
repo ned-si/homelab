@@ -209,6 +209,27 @@ version 3 applies.
 by `id` and `name`; `buckets` has 28 entries; `count_24h` is at most
 `count_7d` when both are set. The block holds no other string.
 
+### Version 5 (task 19)
+
+Version 5 is version 4 plus `project.rework` (`count`, `deploys`
+integers; `rate` a number from 0 to 1 or `null`); `Validate` gains
+`count` at most `deploys`. The rollout rule of version 3 applies.
+
+### Version 6 (task 21)
+
+Version 6 is version 5 plus the `supply_chain` block:
+
+| Key | Value |
+| --- | --- |
+| `supply_chain.as_of` | RFC 3339 |
+| `supply_chain.images[]` | `name` (the compiled list `homelab-dashboard`, `homelab-site`, in order), `level` (`2`, or `null` with no signed provenance), `verified` (`true`, `false` or `null` without a report), `builder` (the compiled builder text of the image) |
+| `supply_chain.scorecard` | `score` (0 to 10, one decimal, or `null`), `date` (the result's date), `lowest[]`: at most 3 of `name` (from the compiled check list), `score` (0 to 10), `reason` (plain text, at most 160 characters) |
+
+`Validate` gains: `images` equals the compiled list by `name`; every
+check name is in the compiled list of Scorecard checks; `reason` has no
+control character and at most 160 characters. The rollout rule of
+version 3 applies.
+
 ## Collector
 
 ### Cadence
@@ -530,20 +551,48 @@ to bottom:
    list (result word and colour, the run's pull request as a link to
    `https://github.com/ned-si/homelab/pull/<n>`, the short commit, when,
    how long). "as of <time>" from `project.as_of`.
-5. **Security** (task 16): a panel of stat tiles, one per security
+   From task 19 the DORA group gains a fifth tile, "Rework rate"
+   ("1.30%" with "9 of 678 deploys" as its detail line), after the four
+   banded tiles and outside the overall level, in the neutral colour
+   with no band word, and under it two sentences: "Rework rate counts
+   the unplanned deploys: rollbacks, fix forwards, and `fix` merges made
+   during an incident or in the 24 hours after it, over all deploys."
+   and "Rework rate, DORA's fifth metric since 2024, has no band here:
+   the 2023 clusters these bands come from predate it." The second paragraph's "one person and a
+   few bots" becomes "one person and a few agents".
+5. **Supply chain** (task 21): two panels of stat tiles, after the
+   project card and before Security (2026-11-25: delivery first, then
+   how what is delivered is built and trusted, then how the running
+   system defends itself). "SLSA provenance": one tile per first-party
+   image (`homelab-dashboard`, `homelab-site`) with the level as the
+   value ("Build L2"), the verification as the status word
+   ("Verified", "Not verified", "No data") and the builder as the
+   detail line ("GitHub-hosted runner, dashboard-publish.yaml on
+   main"), and one sentence with the link to the
+   [SLSA levels](https://slsa.dev/spec/v1.0/levels). "OpenSSF
+   Scorecard": the score as the value ("7.5" with the unit "/ 10") and
+   its date, then the three lowest checks as tiles (the check's name as
+   the label, its score as the value with "/ 10", Scorecard's reason as
+   the detail line), and a link to the
+   [full report](https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab).
+   "as of <time>" from `supply_chain.as_of`.
+6. **Security** (task 16): a panel of stat tiles, one per security
    signal in the compiled order. Each tile: the signal's name, the 24 h
    count as the big number ("8,044 in 24 h") with its status word and
    colour, "<n> in 7 days", and the sparkline: 28 SVG bars of the
    six-hour counts, oldest left, heights on a linear scale from 0 to the
    tile's largest bar (all bars at the minimum height when every one is
    0), class `spark`, each titled "<start> to <end>: <n>" in Zurich time.
-   "as of <time>" from `security.as_of`.
-6. **Certificates** (task 13): one tile per shown certificate, the days
+   "as of <time>" from `security.as_of`. From task 23 the signals,
+   names, shares and lines of
+   [Security card figures](#security-card-figures-tasks-22-and-23).
+7. **Certificates** (task 13): one tile per shown certificate, the days
    left as the big number ("40 days"), its status word and colour.
-7. **Coming later**: two muted placeholder panels, solar production and
+8. **Coming later**: two muted placeholder panels, solar production and
    home automation, with today's text.
 
-The order is the operator's (2026-11-24, task 17). Every percentage, in
+The order is the operator's (2026-11-24, task 17), with Supply chain
+placed in it on 2026-11-25. Every percentage, in
 text, `aria-label` and `<title>`, has two decimals (`percent` and
 `fixed(v, 2)` in `render.go` and `chart.go`); the snapshot keeps its own
 precision and the status functions read the raw values.
@@ -559,8 +608,9 @@ Layout, in `dashboard.css`:
   Rejected: a wrapping flexbox (the last row's cards grow to fill it, a
   lone card across the whole row). A panel of stat tiles (class `stats`)
   spans the row, `grid-column: 1 / -1`; its tiles sit on tracks of
-  `minmax(10rem, 1fr)`, the node and NAS tiles on `minmax(12rem, 1fr)`,
-  so a lone tile stays one track wide too. The page is at most `72rem`
+  `minmax(10rem, 1fr)` (the node and NAS groups as under
+  [Stat tiles](#stat-tiles-task-18)), so a lone tile stays one track
+  wide too. The page is at most `72rem`
   wide, wider than the blog's `44rem` column, and centred on wider
   screens. Below `40rem` every grid has one track, so the page reads
   from 320 px without horizontal scrolling. The layout depends on the
@@ -596,6 +646,58 @@ status has its word next to its colour; every text and status colour has
 a contrast of at least 4.5:1 against `--panel`, which a unit test
 computes from the custom properties of `dashboard.css`.
 
+### Stat tiles (task 18)
+
+From the Cluster card down, the figures read as a wall of text: labels
+and values in the same weight, spread over lines with nothing grouping
+a label with its number. Task 18 applies one pattern, the stat panel
+of observability tools (a small title above one large value), with the
+Gestalt rules of common region and proximity:
+
+- **Common region and proximity**: each figure is a box, `div.tile`,
+  `--tile #1a1c1f` (a shade darker than `--panel #212427`), radius
+  `0.5rem`, padding `0.75rem`; the label sits directly above its value,
+  closer to it than to any other tile.
+- **Hierarchy**: the label, `.tile-label`, `0.75rem`, bold, uppercase
+  with `0.04em` letter spacing, in `--muted`; the value, `.tile-value`,
+  `1.75rem`, tabular figures, in `--fg`; the unit, `.unit`, `0.6em` in
+  `--muted`, beside the value; an optional status word and a detail
+  line, `.tile-detail`, `0.875rem`, muted, under the value.
+- **Colour on the value only**: a status class (`ok`, `warn`, `bad`,
+  `none`) colours `.tile-value`; a tile whose value is a word (a
+  version, "Verified") carries the status as a `3px` left border
+  instead. Labels, boxes and detail lines never take a status colour, so
+  colour still marks only the status, next to its word.
+- **One grid**: tiles sit in `div.tiles`, `repeat(auto-fill,
+  minmax(10rem, 1fr))`, gap `0.5rem`, so they wrap and a lone tile stays
+  one track wide; meters stay inside their tile, under the value.
+- **Node and NAS groups**: each node and the NAS stays one
+  `div.tile-group` (1px `--rule` border, its name and state as the
+  heading); its figures are compact tiles in an inner `div.tiles` on
+  `repeat(auto-fill, minmax(6rem, 1fr))`, `.tile-value` at `1.25rem`.
+  The groups sit on `repeat(auto-fill, minmax(14rem, 1fr))`, so two
+  figures sit side by side inside a group and the groups wrap like
+  cards. Below `40rem` the
+  tracks shrink to `minmax(8.5rem, 1fr)` (two tiles side by side on a
+  390 px phone).
+- **Contrast**: darker, not lighter, because a lighter tile (`#2a2e32`)
+  would put `--bad` at 4.08:1; on `#1a1c1f` every text and status
+  colour is at least 5.09:1 (`--bad`), against 4.65:1 on `--panel`.
+  `TestContrast` checks every text and status colour on both `--panel`
+  and `--tile`.
+
+Each figure is one tile: the Gateway's requests per second, `5xx` share
+and p95; each node's and the NAS's CPU, memory, disk or pool (with their
+meters), pressures or load and errors; the State figures (Argo CD,
+restarts, volumes, nodes, Talos, Kubernetes); the DORA tiles, the
+overall level and rework rate; Renovate's share and the median `ci` run;
+the security signals (the sparkline under the value); the certificates;
+the Supply chain tiles. The last five `ci` runs stay a list. One
+template, `{{template "tile" .}}`, renders every tile, so the pattern
+cannot drift between cards; a test over the full fixture fails when a
+card from the Cluster card down has a label or value outside a tile, or
+a status class on a label.
+
 ### Status colours
 
 | Figure | `ok` | `warn` | `bad` | `none` |
@@ -628,6 +730,8 @@ when the alert would fire:
 | Fullest volume | Below 85% | 85% to 95% | Above 95% | `PersistentVolumeNearlyFull`, `-CriticallyFull` |
 | DORA metrics | `elite` and `high` | `medium` | `low` | [DORA bands](#dora-bands) |
 | Security, expected zero | 0 in 24 h ("None") | Above 0 ("Seen") | — | Dashboard default: one is worth a look |
+| Scorecard score (task 21) | 7.0 or more | 4.0 to under 7.0 | Under 4.0 | Dashboard default; Scorecard's own badge turns from green under 7 |
+| SLSA provenance (task 21) | Verified by Kyverno ("Verified") | Not verified, or no provenance ("Not verified") | — | `verify-own-images` runs in Audit; the page reports, the policy decides |
 | Security, background | Otherwise ("Usual") | 24 h count above 20 and above 3 times the daily mean of the 6 days before, `(count_7d - count_24h) / 6` ("Above usual") | — | Dashboard default |
 
 The security rules are compiled per signal in
@@ -664,6 +768,29 @@ metric is never averaged away; it takes that band's word and colour. When
 any metric is `none`, the overall level is "No data" (`none`). DORA's own
 clusters come from a cluster analysis of survey answers, not from a rule
 a single team can apply; the lowest band is the strictest rule that can.
+
+Rework rate (task 19) has no band and no status: DORA added it in its
+[2024 report](https://dora.dev/research/2024/dora-report/) and defines it
+as the ratio of deployments that are unplanned and happen because of an
+incident in production
+([DORA metrics guide](https://dora.dev/guides/dora-metrics/)); the 2023
+clusters used for the four bands predate it. Here, over the window of
+Requirement 2.1:
+
+- the deploys `D` are those of 10.1;
+- the rework deploys `W` are the merged pull requests, each counted
+  once, that are a rollback or a fix forward of 10.3, plus the deploying
+  merges of 10.2 whose title matches `^fix(\([^)]*\))?!?: ` and whose
+  merge time falls inside an incident of 10.4 or within 24 hours after
+  its end (the incidents from the same `ALERTS` range query and
+  rollbacks as time to restore);
+- rework rate `W / D`, `null` when `D` is 0.
+
+The incident condition is what makes a `fix` unplanned: without it every
+routine `fix` would count, and the metric would measure commit types.
+Change failure rate counts the rollbacks and fix forwards only, so rework
+rate is at least the change failure rate; the gap is the follow-up fixes
+that incidents cause.
 
 Staleness, from the injected clock:
 
@@ -1180,6 +1307,181 @@ Deferred or not used:
 | Brute-force lockouts (`keycloak_user_events_total{event=~"user_disabled_by_.+_lockout"}`) | Not shown (2026-11-24): Keycloak locks existing accounts only, so a public count that moves after ten failed sign-ins tells a stranger the username exists. Failed sign-ins stay, as a count and a sparkline |
 | Canary tokens | Their own spec, #1618 (operator: next month) |
 
+### Security card figures (tasks 22 and 23)
+
+Operator, 2026-11-25: the public 4xx figures count only traffic that is
+not ours. On 2026-11-25 about 45% of the Gateway's 4xx in 24 h came
+from our own `theater` probe (Plex answers 401 on `/`), most of the rest
+from scanners asking for `/.env` or `/.git/config`, and about 12% from
+replies Envoy gives itself (malformed or reset requests), which no
+backend counter records.
+
+Sources first (task 22, not visible):
+
+- The `theater` probe targets an endpoint that answers 2xx without a
+  session (Plex `/identity`, which the smoke hook already uses, or the
+  SSO proxy's `/oauth2/` path), and the stale comment in
+  `platform/blackbox-exporter/probes/probes.yaml` (`/` goes to Plex,
+  the route's catch-all) is corrected. The `http_gated` module's
+  `valid_status_codes` drops `401`.
+- A CI check (a repo-policy rule over
+  `platform/blackbox-exporter/values.yaml` and its tests) fails on a
+  module used by a `probe: public` Probe whose `valid_status_codes`
+  holds a code outside 200-399.
+- Every check that triggers a 4xx or 405 on purpose (the PostSync smoke
+  hooks' `POST /` and `404` requests, `site-serve-check.sh` already
+  runs against a local nginx) targets the app's Service inside the
+  cluster, never a public name.
+- The task lists every own client still crossing the public listeners
+  (probes, the weekly `dast` and pentest runs) and whether Envoy can
+  attribute it by listener or route. What it can attribute is
+  excluded in the queries below; what it cannot gets one plain line
+  under its tile, such as "Includes our own weekly security scan."
+- Hubble gains a drop metric with the source's reserved identity
+  (`drop:sourceContext=reserved-identity`, no destination context), so
+  drops from the internet have a series: labels `reason`, `protocol`
+  and `source` (`reserved:world`, `reserved:host`, ...), a handful of
+  series.
+- #1677 handles the in-cluster drops into `trivy-server` and
+  `signoz-otel-collector` seen on w-1.
+
+The signals from task 23, replacing the list of
+[Security signals](#security-signals-task-16), in this order (`<P>` is
+`envoy_http_conn_manager_prefix=~"listener-secure|listener-insecure"`,
+`<own>` the exclusions task 22 found, empty if none):
+
+| `id` | Name on the card | Rule | Count | Share of |
+| --- | --- | --- | --- | --- |
+| `gateway_unknown` | Unknown host or path | background | `sum(increase(envoy_http_no_route{<P>}[<w>]))` plus the upstream `404`s of the static sites' clusters (`website`, `homelab-dashboard`) | the public requests |
+| `gateway_refused` | Refused by an app | background | `sum(increase(envoy_cluster_upstream_rq{envoy_cluster_name=~"gateway/.+", envoy_response_code=~"401\|403"<own>}[<w>]))`; the detail line gives the `403` part | the public requests |
+| `gateway_method` | Method not allowed (405) | background | the same with `envoy_response_code="405"` | the public requests |
+| `signin_failed` | Failed sign-ins | background | as in task 16 | `keycloak_user_events_total{event="login"}` |
+| `blocked` | Deployments blocked by policy | expected zero | the Kyverno selector of task 16 plus `sum(increase(pod_security_evaluations_total{decision="deny", mode="enforce"}[<w>]))`, each `or vector(0)` | none |
+| `ingress_world` | Ingress packets dropped from the internet | background | `sum(increase(hubble_drop_total{reason="POLICY_DENIED", source="reserved:world"}[<w>]))` | none |
+| `runtime_detections` | Runtime detections | expected zero | as in task 16 | none |
+
+- The public requests are
+  `sum(increase(envoy_http_downstream_rq_total{<P>}[<w>]))`, minus
+  `<own>` where it applies. A share is the count over its denominator
+  for the same window, two decimals, next to the count: "10.11% of
+  63,000 requests", "2.50% of 80 sign-ins". No share without a
+  denominator series.
+- Under the two 4xx tiles, one line gives the downstream 4xx that
+  neither tile counts (Envoy's own replies): "Another 760 answered by
+  the Gateway itself cannot be attributed." Shown only when above 0.
+- Pod Security runs in `audit` and `warn` today, so its part is 0 until
+  a namespace enforces; its warnings are not denials.
+- Time windows read "rolling 24 h" and "rolling 7 days"; the page never
+  says "observe mode". Once Tetragon enforces, the runtime tile may
+  count "blocked" separately (a later change).
+- Snapshot version 7: version 6 with `security.signals[]` holding the
+  list above by `id` and `name`, and per signal `share_24h`,
+  `share_7d` (0 to 1, or `null` without a denominator) and, for
+  `gateway_unknown`, `unattributed_24h` (integer or `null`). The
+  rollout rule of version 3 applies.
+
+## Supply chain (tasks 20 and 21)
+
+### Which SLSA Build level
+
+The [SLSA v1.0 Build track](https://slsa.dev/spec/v1.0/levels) has three
+levels: L1, provenance exists; L2, the provenance is generated and signed
+by a hosted build platform; L3, the platform also keeps the signing
+material out of reach of the user-defined build steps and isolates runs
+from each other. What each option gives here:
+
+| Build and provenance | Level | Why |
+| --- | --- | --- |
+| BuildKit's `--provenance=mode=max` alone (`homelab-site` today) | L1 | Provenance exists, but unsigned: anyone who can push the image can rewrite it |
+| `actions/attest-build-provenance` in the job that builds, on a GitHub-hosted runner (`homelab-dashboard` today, `homelab-site` from task 20) | L2 | GitHub signs the provenance with the workflow's OIDC identity through Sigstore; GitHub's documentation states that artifact attestations give Build L2. The build steps run in the same job and could request the same token, so not L3 |
+| The build moved into a reusable workflow that makes the attestation | L3, per GitHub | GitHub documents [reusable workflows with artifact attestations as Build L3](https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/increase-security-rating): the signing identity is the reusable workflow, which the caller cannot change |
+| The SLSA GitHub generator's container workflow (`slsa-framework/slsa-github-generator`) | L3 | The provenance is made in a separate job of the generator's reusable workflow, isolated from the build job |
+
+So both images show **Build L2** once task 20 lands. L3 is a later
+change (out of scope here): it changes the signing identity that
+Kyverno, `ci/image-signers.yaml` and the inventory check, so it is its
+own spec.
+
+The builder identity shown: `runDetails.builder.id` of the provenance,
+`https://github.com/actions/runner/github-hosted`, and the signing
+workflow, `https://github.com/ned-si/homelab/.github/workflows/<image's
+workflow>@refs/heads/main`. Both are compiled per image in `shown.go`;
+the publishing workflow fails when its fresh attestation names another
+builder or workflow (`gh attestation verify --signer-workflow` and a
+`jq` check of the builder id), so the compiled text cannot drift from
+the evidence.
+
+### Provenance (task 20)
+
+- `site-publish` gains `attestations: write` and the
+  `actions/attest-build-provenance` step that `dashboard-publish`
+  already has (`push-to-registry: true`), then verifies it with
+  `gh attestation verify --signer-workflow`, before signing and
+  tagging.
+- `verify-own-images` (Audit, fail-open) gains, per image, an
+  attestation check next to the signature check: a SLSA v1 provenance
+  (`https://slsa.dev/provenance/v1`) on the running digest, signed by
+  that image's workflow identity on `main`. If Kyverno cannot read the
+  Sigstore bundle the attest action pushes, the workflow also attaches
+  the same predicate with `cosign attest --type slsaprovenance1` in the
+  classic format its signatures use, and the policy reads that one; the
+  task records which.
+- kube-state-metrics' `customResourceState` (the config that already
+  exports `kyverno_policyreport_summary`) gains an `Info` metric
+  `result` over the path `[results]` of the PolicyReport resource
+  (`kyverno_policyreport_result_info`), with `labelsFromPath`
+  `policy: [policy]`, `rule: [rule]`, `result: [result]` and, at report
+  level, `resource: [scope, name]`. `customResourceState` cannot filter
+  list elements by value, so it exports every result of every policy;
+  the kube-state-metrics ServiceMonitor keeps only `verify-own-images`
+  at scrape time (RE2 has no negative lookahead, hence the temporary
+  label):
+  ```yaml
+  metricRelabelings:
+    - sourceLabels: [__name__, policy]
+      regex: kyverno_policyreport_result_info;verify-own-images
+      targetLabel: __tmp_keep
+      replacement: "1"
+    - sourceLabels: [__name__, __tmp_keep]
+      regex: kyverno_policyreport_result_info;
+      action: drop
+  ```
+  A test runs the pinned kube-state-metrics' config over a fixture
+  PolicyReport with two policies, and a promtool test of the
+  relabelling shows that no other policy's series survives. The
+  collector joins the result with
+  `kube_pod_container_info{image_spec=~"ghcr.io/ned-si/<image>(:[^@]+)?@sha256:[0-9a-f]{64}"}`
+  (`image_spec` is the image as the Pod spec pins it, `:main@sha256:…`;
+  `image` is the runtime's) on namespace and Pod and reduces it to one
+  boolean per image: verified
+  when every running Pod of the image passes both checks. No namespace
+  or Pod name leaves the collector (Requirement 2.7).
+- `README.md`: the badge
+  `[![SLSA Build L2](https://slsa.dev/images/gh-badge-level2.svg)](https://slsa.dev/spec/v1.0/levels#build-l2)`
+  after the Scorecard badge.
+
+### Scorecard (task 21)
+
+- Source: `GET https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`
+  (the public Scorecard API; the README badge uses its other name,
+  `api.scorecard.dev`), no token, `User-Agent` as for GitHub, hourly in
+  the project refresh, 10 s timeout, redirects only to `https://`
+  Scorecard hosts. The collector's egress to `world:443` already allows
+  it; no policy change.
+- The answer's `score`, `date` and `checks[]` (`name`, `score`,
+  `reason`) are read; checks with `score: -1` are left out; the three
+  lowest by score, then name, are kept. Unknown check names, reasons
+  over 160 characters or with control characters are dropped and counted
+  in `collector_errors_total{source="scorecard"}`. A failed fetch keeps
+  the last result; the block's staleness rule is the project block's
+  (60 min).
+- The compiled check list: Binary-Artifacts, Branch-Protection,
+  CI-Tests, CII-Best-Practices, Code-Review, Contributors,
+  Dangerous-Workflow, Dependency-Update-Tool, Fuzzing, License,
+  Maintained, Packaging, Pinned-Dependencies, SAST, SBOM,
+  Security-Policy, Signed-Releases, Token-Permissions, Vulnerabilities,
+  Webhooks.
+
 ## Address
 
 The dashboard is its own origin, `homelab.nedsi.io`, set up by task 4
@@ -1370,6 +1672,23 @@ of the blog, the landing page and the app equal.
   provenance all name the commit. Rejected for now: semantic-version tags
   and a release PR bot (a second merge path and a GitHub App token for one
   deployer).
+- **Stat tiles.** A label belongs to its value when both share a box
+  and sit closer to each other than to anything else; one label style
+  everywhere makes the hierarchy readable at a glance. Rejected: bold
+  labels alone (the figures still run together across a card), and a
+  coloured box per status (colour would cover the label too and read as
+  an alarm).
+- **Rework rate without a band.** DORA has published no thresholds for
+  it, and an invented band would claim a comparison that does not
+  exist; the number and its counts are still a fair yardstick over time.
+- **SLSA level stated, not computed.** The level is a property of the
+  build, which changes only with the publishing workflow; the page shows
+  the compiled level with the cluster's live verification next to it,
+  and the workflow fails if the evidence stops matching. Rejected:
+  verifying Sigstore bundles in the collector (a large dependency for a
+  check Kyverno already makes).
+- **Scorecard from its API, not the badge.** The JSON has the checks
+  and reasons; the browser fetches nothing, so the CSP is unchanged.
 - **Home Assistant.** Its own UI and companion app already do control and
   home dashboards, behind its own login; rebuilding them here would add a
   write path into the house to a project whose point is that the public
