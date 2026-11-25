@@ -98,7 +98,7 @@ def test_kyverno_ids(name):
 
 
 def test_verify_own_images_audit_and_identity():
-    """verify-own-images: synced, Audit and fail-open, ghcr.io/ned-si only, one attestor per image."""
+    """verify-own-images: synced, Audit and fail-open, ghcr.io/ned-si only, one attestor per image, signature and provenance."""
     root = REPO / "infrastructure" / "kyverno-policies"
     assert "verify-own-images.yaml" in docs(root / "kustomization.yaml")[0]["resources"]
     (policy,) = docs(root / "verify-own-images.yaml")
@@ -112,15 +112,22 @@ def test_verify_own_images_audit_and_identity():
     own = [e for e in json.loads(out.stdout) if e["repository"].startswith("ghcr.io/ned-si/")]
     assert own, "no ghcr.io/ned-si entry in ci/image-signers.yaml"
     attestors = {a["name"]: a["cosign"]["keyless"]["identities"] for a in spec["attestors"]}
-    # Each image: exactly one attestor with its identity alone, and exactly
-    # one validation for its prefix that verifies against that attestor.
+    assert spec["attestations"] == [{"name": "provenance", "intoto": {"type": "https://slsa.dev/provenance/v1"}}]
+    # Each image: exactly one attestor with its identity alone, one signature
+    # validation and one provenance validation against that attestor.
     for e in own:
         identity = [{"issuer": e["issuer"], "subject": e["subject"]}]
         (name,) = [n for n, ids in attestors.items() if ids == identity]
         prefix = f"startsWith('{e['repository']}')"
-        (v,) = [v for v in spec["validations"] if prefix in v["expression"]]
-        assert f"[attestors.{name}]" in v["expression"], f"{e['repository']}: validation uses another attestor"
-    assert len(attestors) == len(own) == len(spec["validations"])
+        mine = [v["expression"] for v in spec["validations"] if prefix in v["expression"]]
+        (sig,) = [x for x in mine if "verifyImageSignatures(" in x]
+        (prov,) = [x for x in mine if "verifyAttestationSignatures(" in x]
+        assert len(mine) == 2, f"{e['repository']}: expected one signature and one provenance validation"
+        assert f"verifyImageSignatures(i, [attestors.{name}])" in sig, f"{e['repository']}: signature uses another attestor"
+        assert f"verifyAttestationSignatures(i, attestations.provenance, [attestors.{name}])" in prov, f"{e['repository']}: provenance uses another attestor"
+        assert "runner_environment == 'github-hosted'" in prov, f"{e['repository']}: provenance does not require a GitHub-hosted runner"
+    assert len(attestors) == len(own)
+    assert len(spec["validations"]) == 2 * len(own)
 
 
 def test_dashboard_route_and_server_headers_match():
