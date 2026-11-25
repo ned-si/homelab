@@ -138,7 +138,8 @@ the shared layout.
       expect" with the overview list, no "Start here", the About card's
       text), `site/content/about/index.md` (the intro and the projects
       with links, no watches or photography, certifications newest
-      first), the text rule in `scripts/ci/site_markup.py` and its test.
+      first), the text rule in `scripts/ci/site_markup.py` and its test,
+      `https://github.com/ned-si/` in its `LINKS`.
       Then the `homelab-site` digest bump for the About page (Renovate,
       or by hand as in #1549). Check: the `site` job; acceptance
       criterion 15 live on both pages. [1.8, 1.9, 4.2]
@@ -151,7 +152,8 @@ the shared layout.
       `task site:layout-sync`, the copy check in
       `scripts/ci/site-check.sh`, the nav comparison in
       `scripts/ci/site_markup.py`, `scripts/ci/layout-check.sh` in the
-      `site` job, the dashboard's golden pages and screenshots updated;
+      `site` job (with `setup-go`, chrome-headless-shell and the wider
+      skip regex of the design), the dashboard's golden pages and screenshots updated;
       `docs/website.md` gets the layout rule. Then the `homelab-site`
       digest bump and the dashboard image deploy. Check: acceptance
       criterion 16; live, the nav and the content edge do not move

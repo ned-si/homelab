@@ -160,8 +160,11 @@ Landing page, from the top:
     numbers, live: availability, the cluster, DORA metrics, security.
   - [About](https://blog.nedsi.io/about/): who I am, what I have done so
     far, certifications and talks.
-  - [Projects on GitHub](https://github.com/ned-si): the homelab, the
-    keyboard firmware and the drum charts, all in the open.
+  - [Projects on GitHub](https://github.com/ned-si/): the homelab, the
+    keyboard firmware and the drum charts, all in the open. This link
+    sits outside any `<article>`, so task 11 adds
+    `"https://github.com/ned-si/"` (the operator's own account, trailing
+    slash) to `LINKS` in `scripts/ci/site_markup.py`.
   - Tech radar: added by spec tech-radar once `techradar.nedsi.io` is
     live, "what the homelab uses, tries, assesses and holds, and why".
 - No "Start here" block. Its homelab paragraph moves into the About
@@ -245,7 +248,10 @@ every rule the shared file owns.
 | Dashboard | `dashboard/internal/web/assets/layout.css`, a copy, embedded and served first in its one stylesheet (the integrity hash covers both) |
 
 `task site:layout-sync` copies the canonical file over the copies;
-`scripts/ci/site-check.sh` fails when a copy differs byte for byte (Go
+`scripts/ci/site-check.sh` fails when a copy differs byte for byte. It
+and `layout-check.sh` run when the diff against `HEAD^1` matches
+`^(site/|apps/website/|dashboard/internal/web/|scripts/ci/(site[-_]|layout-check))`,
+so a dashboard-only change to its copy or its nav is checked too (Go
 `embed` cannot read outside its module and a ConfigMap generator outside
 its kustomization, so a checked copy is the one definition both can
 use).
@@ -259,8 +265,11 @@ page moves its nav into `header.site` and drops its negative margin.
 are rendered pages, so its nav is checked too.
 
 The layout check, `scripts/ci/layout-check.sh`, a step of the `site`
-job, runs when `site/`, `apps/website/landing/`,
-`dashboard/internal/web/` or the script changed:
+job, runs on the regex above. The `site` job gains what the check
+needs and the `dashboard` job already has: `actions/setup-go` with
+`go-version-file: dashboard/go.mod` (the web role and `pushfixture`)
+and `install-tool.sh chrome-headless-shell`, its tool-cache key adding
+`CHROME_HEADLESS_SHELL_VERSION`. Steps:
 
 1. Builds the blog, takes the landing page from its ConfigMap sources
    and renders the dashboard's full fixture page (the web role and
