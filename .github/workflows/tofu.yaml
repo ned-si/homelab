@@ -70,7 +70,7 @@ jobs:
 
       - name: AWS credentials (plan role)
         id: aws
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
         with:
           role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
           role-session-name: tofu-plan-${{ github.run_id }}
@@ -173,7 +173,7 @@ jobs:
 
       - name: AWS credentials (apply role)
         id: aws
-        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
         with:
           role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
           role-session-name: tofu-apply-${{ github.run_id }}
