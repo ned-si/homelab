@@ -43,9 +43,10 @@ Argo CD. Defaults: [requirements.md](requirements.md#decided-defaults).
       can add an entry from the doc alone; links resolve.
       #1690.
 
-- [ ] 5. Hover details (**live**, amendment 2026-11-25): every blip a
+- [x] 5. Hover details (**live**, amendment 2026-11-25): every blip a
       link to its legend item with the full `<title>`, the CSS hover
       and focus label, the `:target` highlight, the tests of acceptance
       criterion 9, the rendered page. Check: criterion 9 and criterion
       1 live, the probe up. [2.4, 2.8]
+      #1705.
 The last task ticked sets `status: done`, `closed:`, and closes #1671.
