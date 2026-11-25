@@ -2,8 +2,9 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: website
 
-# The landing page at https://nedsi.io and the blog at https://blog.nedsi.io
-# (.kiro/specs/public-website/design.md).
+# The landing page at https://nedsi.io, the blog at https://blog.nedsi.io
+# (.kiro/specs/public-website/design.md) and the tech radar at
+# https://techradar.nedsi.io (.kiro/specs/tech-radar/design.md).
 resources:
   - deployment.yaml
   - service.yaml
@@ -18,6 +19,12 @@ configMapGenerator:
     files:
       - landing/index.html
       - landing/landing.css
+  # Rendered by techradar/ (task techradar:render), checked in CI.
+  - name: website-techradar
+    files:
+      - techradar/index.html
+      - techradar/layout.css
+      - techradar/techradar.css
 
 # After every sync: the Service answers, with its 404 and 405 (sent to the
 # Service, so our own checks add nothing to the public 4xx figures), then
@@ -91,7 +98,8 @@ patches:
               if [ "$code" = 200 ]; then echo "ok   $code $url"; else echo "FAIL $code $url"; fail=1; fi
             done
 
-            # The first sync waits for the nedsi-io certificate: up to 5 minutes.
+            # The first sync waits for the nedsi-io and techradar-nedsi-io
+            # certificates: up to 5 minutes each.
             for try in $(seq 1 30); do
               req https://blog.nedsi.io/
               [ "$code" = 200 ] && break
@@ -104,6 +112,17 @@ patches:
             expect 200 https://nedsi.io/
             has_headers https://nedsi.io/
             expect 405 http://website:8080/ -X POST -H "Host: nedsi.io"
+            for try in $(seq 1 30); do
+              req https://techradar.nedsi.io/
+              [ "$code" = 200 ] && break
+              sleep 10
+            done
+            expect 200 https://techradar.nedsi.io/
+            has_headers https://techradar.nedsi.io/
+            expect 404 http://website:8080/does-not-exist -H "Host: techradar.nedsi.io"
+            expect 405 http://website:8080/ -X POST -H "Host: techradar.nedsi.io"
+            expect 301 http://techradar.nedsi.io/x
+            location http://techradar.nedsi.io/x https://techradar.nedsi.io/x
             expect 301 https://blog.nedsi.io/homelab/
             location https://blog.nedsi.io/homelab/ https://homelab.nedsi.io/
             expect 301 https://www.nedsi.io/

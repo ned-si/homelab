@@ -8,5 +8,6 @@ resources:
   - certificate.yaml
   - certificate-nedsi.yaml
   - certificate-homelab-nedsi.yaml
+  - certificate-techradar-nedsi.yaml
   - http-redirect.yaml
   - argocd-route.yaml

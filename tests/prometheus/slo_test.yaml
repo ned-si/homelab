@@ -216,6 +216,8 @@ tests:
         values: '1x30'
       - series: 'probe_success{job="blackbox-public", app="homelab"}'
         values: '1x30'
+      - series: 'probe_success{job="blackbox-public", app="techradar"}'
+        values: '1x30'
     alert_rule_test:
       - eval_time: 20m
         alertname: SLOTargetProbeAbsent

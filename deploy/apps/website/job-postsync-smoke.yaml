@@ -84,7 +84,8 @@ spec:
             if [ "$code" = 200 ]; then echo "ok   $code $url"; else echo "FAIL $code $url"; fail=1; fi
           done
 
-          # The first sync waits for the nedsi-io certificate: up to 5 minutes.
+          # The first sync waits for the nedsi-io and techradar-nedsi-io
+          # certificates: up to 5 minutes each.
           for try in $(seq 1 30); do
             req https://blog.nedsi.io/
             [ "$code" = 200 ] && break
@@ -97,6 +98,17 @@ spec:
           expect 200 https://nedsi.io/
           has_headers https://nedsi.io/
           expect 405 http://website:8080/ -X POST -H "Host: nedsi.io"
+          for try in $(seq 1 30); do
+            req https://techradar.nedsi.io/
+            [ "$code" = 200 ] && break
+            sleep 10
+          done
+          expect 200 https://techradar.nedsi.io/
+          has_headers https://techradar.nedsi.io/
+          expect 404 http://website:8080/does-not-exist -H "Host: techradar.nedsi.io"
+          expect 405 http://website:8080/ -X POST -H "Host: techradar.nedsi.io"
+          expect 301 http://techradar.nedsi.io/x
+          location http://techradar.nedsi.io/x https://techradar.nedsi.io/x
           expect 301 https://blog.nedsi.io/homelab/
           location https://blog.nedsi.io/homelab/ https://homelab.nedsi.io/
           expect 301 https://www.nedsi.io/

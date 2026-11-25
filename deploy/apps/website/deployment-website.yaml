@@ -74,6 +74,9 @@ spec:
         - mountPath: /usr/share/nginx/landing
           name: landing
           readOnly: true
+        - mountPath: /usr/share/nginx/techradar
+          name: techradar
+          readOnly: true
       securityContext:
         runAsGroup: 101
         runAsNonRoot: true
@@ -85,8 +88,11 @@ spec:
           sizeLimit: 64Mi
         name: tmp
       - configMap:
-          name: website-nginx-6k299b5ddd
+          name: website-nginx-chf955m9kd
         name: nginx
       - configMap:
           name: website-landing-g9dg5bmhbh
         name: landing
+      - configMap:
+          name: website-techradar-2mtgtbgg57
+        name: techradar

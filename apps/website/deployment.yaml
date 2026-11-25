@@ -70,6 +70,9 @@ spec:
             - name: landing
               mountPath: /usr/share/nginx/landing
               readOnly: true
+            - name: techradar
+              mountPath: /usr/share/nginx/techradar
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir:
@@ -80,3 +83,6 @@ spec:
         - name: landing
           configMap:
             name: website-landing
+        - name: techradar
+          configMap:
+            name: website-techradar
