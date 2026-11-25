@@ -428,3 +428,43 @@ backups amendment (#1739).
       live, the panel lists the API's checks with their scores.
       [13.5, 13.6]
       #1757
+
+#1670 closes with task 24. The amendment of 2026-11-25 (#1739) reopens
+the spec with tasks 25 and 26, the "Databases and backups" group of
+the Cluster card, in order. Task 25 is **not visible**, task 26 is; each merges
+after its review round with no preview approval (operator, 2026-11-24
+and 2026-11-25) and is followed by a live check, task 26 by the image
+deploy first.
+
+- [ ] 25. Database recording rules (**not visible**), as in
+      [design.md, Recording rules](design.md#recording-rules-task-25):
+      PrometheusRule `homelab-databases` in
+      `platform/kube-prometheus-stack/routes/databases.yaml` with the
+      groups `homelab.databases` (1 min) and
+      `homelab.databases.restore` (2 min), its entry and comment in
+      that directory's `kustomization.yaml`,
+      `tests/prometheus/databases_test.yaml` with the cases of
+      acceptance criterion 31, `task render`; one paragraph in
+      `docs/backups.md`, Reading the results, naming the aggregates
+      and what reads them. The PR body says `Spec:
+      homelab-dashboard#25` and `Part of #1739`. Check: acceptance
+      criterion 31; live, each aggregate in Grafana equal to the
+      values of the design's table recomputed from the raw series at
+      the same instant. [14.2, 14.3, 14.6]
+- [ ] 26. Databases and backups group (**visible**), as in
+      [design.md, Collector and page](design.md#collector-and-page-task-26):
+      snapshot version 9 (`cluster.databases`, numbers only) in
+      `snapshot.go`, `snapshot.schema.json` and `Validate`;
+      `internal/collector/databases.go` with its queries and the
+      clamp; `databaseTiles`, `durationText` and the five status
+      functions; the group, its paragraph and tiles after State in
+      `page.html`; the fixtures and golden pages (`full`, `alarms`,
+      `since`); the screenshots at the five widths in the PR; the
+      group, its figures and its rules in `docs/homelab-dashboard.md`
+      (Cards, Privacy rules, Status colours). The PR body says
+      `Closes #1739`. Check: acceptance criteria 32 and 33; live,
+      after the digest bump, the card equal to the aggregates in
+      Grafana at the same minute and no hidden name in
+      `snapshot.json` or the page. [2.7, 3.12, 3.14, 14.1-14.6]
+
+The last task ticked sets `status: done`, `closed:`, and closes #1739.

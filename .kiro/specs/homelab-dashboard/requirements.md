@@ -1,9 +1,8 @@
 ---
 kind: change
-status: done
+status: active
 created: 2026-11-20
-closed: 2026-11-25
-issue: 1670
+issue: 1739
 ---
 # Requirements: homelab-dashboard
 
@@ -129,6 +128,16 @@ alphabetical by check name, which stays the same from one Scorecard run
 to the next; a check Scorecard could not apply (score `-1`) shows "Not
 applicable".
 
+The operator's decision of 2026-11-25 (tasks 25 and 26, #1739), which
+reopens the spec: a database part in the Cluster card, with the backup
+status ("it's quite impressive to manage so many things properly"). The
+defaults are the orchestrator's, within the standing rules: every
+database figure is summed over the cluster in Prometheus, so no
+database, namespace or hidden app is named or can be picked out; each
+status turns where the alert for it fires; every window is rolling and
+the page says so
+([Requirement 14](#requirement-14-databases-and-backups)).
+
 Non-goals are listed under [Out of scope](#out-of-scope).
 
 ## Glossary
@@ -170,6 +179,10 @@ Non-goals are listed under [Out of scope](#out-of-scope).
 - **SLSA Build level**: the level of the
   [SLSA v1.0 Build track](https://slsa.dev/spec/v1.0/levels) that an
   image's provenance meets ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)).
+- **Database**: one CloudNativePG cluster (one instance each) with a
+  `cnpg_collector_up` series in the rolling 24 h; the hidden apps'
+  databases are databases like the others
+  ([design, Databases](design.md#databases-tasks-25-and-26)).
 - **Publisher**: today's implementation, `apps/website/publisher/` and the
   `/homelab/` server-side include in `apps/website/nginx.conf`.
 - **Status**: how a figure compares with its threshold: `ok`, `warn`,
@@ -242,7 +255,8 @@ learning anything that helps an attacker or shows who is home.
    the compiled allow-lists) and SHALL refuse a document that fails,
    keeping the last good one.
 7. CLUSTER figures SHALL be per node (by node name), for the NAS, for
-   the Gateway as a whole or summed over the cluster; no figure SHALL
+   the Gateway as a whole or summed over the cluster (the database
+   figures of Requirement 14 included); no figure SHALL
    name a namespace, a pod, a volume or an app outside the shown apps.
 8. EVERY time window on the page SHALL be a rolling window ending now:
    at the cycle's evaluation time, at the last evaluation of the
@@ -625,6 +639,49 @@ evidence a machine checked.
    the page and links to the SLSA levels page, next to the Scorecard
    badge.
 
+## Requirement 14: Databases and backups
+
+**User story:** As a reader, I want to see that every database is
+backed up continuously and that its backups are proven to restore,
+without learning which databases there are.
+
+1. THE cluster card SHALL have a "Databases and backups" group after
+   State, with one stat tile each for: the databases (their count, how
+   many are up, the data they hold), WAL archiving, base backups, point-in-time
+   recovery, restore tests and backup freshness, with the figures of
+   [design, Databases](design.md#databases-tasks-25-and-26), and one
+   short paragraph saying how the databases are protected.
+2. EVERY database figure SHALL be a count, a sum, a minimum, a maximum
+   or a median over all databases, computed in Prometheus (by recording
+   rules, or by one aggregation of a recording rule in the collector's
+   query), so that no name reaches the collector. NO figure, word,
+   title or detail line SHALL name a database, a cluster, a namespace,
+   a pod, a bucket path or an app, and the snapshot's `databases` block
+   SHALL hold numbers only. The hidden apps' databases count in every
+   figure like the others and are never singled out.
+3. EVERY "<n> of <m>" figure SHALL use the database count as `<m>`: a
+   database that stops reporting still counts in `<m>` for 24 hours
+   and makes its tiles fall short of "all".
+4. EACH tile SHALL take its status from the compiled rules of
+   [design, Status colours](design.md#status-colours), whose
+   thresholds are those of the alerts and the SLO that already watch
+   the databases: WAL archiving failing (`CNPGWALArchivingFailing`) or
+   more than 5 WAL files waiting (`CNPGWALArchiveLag`); no base backup
+   in 26 hours (`CNPGBaseBackupTooOld`) or a failed one since the last
+   good one (`CNPGBackupFailed`); a failed restore test
+   (`BackupVerifyFailed`) or none passed in 8 days
+   (`BackupVerifyStale`); backup freshness under its 99% objective over
+   30 days (`homelab-backup-slo`). Point-in-time recovery carries no
+   status. With no database reporting, every tile of the group SHALL
+   read "No data".
+5. EVERY window SHALL be rolling and its small text SHALL say so:
+   "rolling 24 h" for the WAL files archived, "rolling 26 h" for the
+   base backups, "rolling 8 days" for the restore tests, "rolling 30
+   days" for the backup freshness (3.14).
+6. THE database figures SHALL be refreshed every collector cycle with
+   the cluster block and read from recording rules evaluated at least
+   every 2 minutes (2.8).
+
 ## Non-functional requirements
 
 - Platform: arm64 required (amd64 also built, for CI and kind); one
@@ -783,6 +840,26 @@ evidence a machine checked.
     agreeing on a fixture firing that crosses the window start; the
     daily bars of the last Sundays of March and October as 23 and 25
     hours. [2.8, 10.4]
+31. `tests/prometheus/databases_test.yaml` passes in the `promtool`
+    job and covers: every database healthy; one down (still counted in
+    the rolling 24 h, gone after it); WAL archiving failing and WAL
+    behind; a base backup 26 h old, one failed after the last good one
+    and one never taken; a restore test failed, one overdue (last pass
+    8 days and 1 minute ago) and a Pushgateway restart that drops the
+    current series without changing the result; every aggregate
+    without a label. [14.2-14.4]
+32. `collect --once --dry-run` prints a `cluster.databases` block of
+    numbers only, each equal to its recording rule queried in Grafana
+    at the same instant (within rounding), and the live card shows the
+    same figures; a test over the full fixture and the dry run's
+    output finds no string in the block and no hidden name on the
+    page. [2.3, 2.7, 14.1, 14.2, 14.6]
+33. A table test covers every boundary of the database rules of 14.4
+    (all, all but one, 0 databases); the golden pages show the
+    "Databases and backups" group with `ok`, `warn`, `bad` and `none`
+    next to their words, every tile a stat tile, and "rolling 24 h", "rolling 26 h",
+    "rolling 8 days" and "rolling 30 days" in its text. [3.12, 3.14,
+    14.4, 14.5]
 
 ## Out of scope
 
@@ -808,6 +885,14 @@ evidence a machine checked.
   generator) and enforcing the provenance check in Deny: a later change
   ([design, Supply chain](design.md#supply-chain-tasks-20-and-21)).
 - A band for rework rate: DORA publishes none for it (10.9).
+- Per-database figures, database names and PostgreSQL versions on the
+  page (14.2): a per-database row would have to leave the hidden apps'
+  databases out or name them.
+- The restic file backups, the Paperless restore test and the bucket
+  lock test on the card: Requirement 14 covers the databases; the
+  other backups can get their own change.
+- New alerts: the existing CNPG, backup-verify and backup-freshness
+  alerts already page; the card reports (14.4).
 
 ## Decided defaults
 
@@ -842,6 +927,9 @@ Each default holds until the operator says otherwise.
 | Rounding | Percentages and the error budget at full precision in the snapshot; rounded once, to two decimals, half to even, by `strconv.FormatFloat(v, 'f', 2, 64)` in the web role (operator asked for half to even or half up, 2026-11-25) | One rounding cannot add the error of two; half to even is what `strconv` does with an exact tie, so no extra code, and it matches the `math.RoundToEven` of the other helpers |
 | Time windows | Rolling, ending now (2.8); the daily bars are Zurich calendar days (operator, 2026-11-25) | A calendar window makes a figure jump at midnight or on the 1st; a rolling one moves by the minute, like the SLO it is judged against |
 | Supply chain place | Between DORA metrics and Security (orchestrator, 2026-11-25, within the operator's order) | Delivery, then how what is delivered is built and trusted, then how the running system defends itself |
+| Databases | One "Databases and backups" group in the Cluster card, after State: databases (count, up, data size), WAL archiving, base backups, point-in-time recovery, restore tests, backup freshness; every figure summed over all databases, no per-database row (orchestrator, 2026-11-25) | The hidden apps' databases stay unidentifiable without a per-figure exception; the Argo CD and Volumes tiles already count the hidden apps the same way |
+| Database thresholds | Those of the alerts: base backup stale at 26 h or failed since the last good one; WAL archiving failing, or behind at more than 5 files waiting; restore test failed, or overdue with no pass in the rolling 8 days; backup freshness `ok` from the SLO's 99% over the rolling 30 days | The page and the pager never disagree; no warning band where the alert has none, so the daily backup cycle never turns a tile amber |
+| Database source | PrometheusRule `homelab-databases` (`platform/kube-prometheus-stack/routes/databases.yaml`): per-database rules, then label-free aggregates the collector reads; evaluated every minute, the restore-test rules every 2 minutes | Names never leave Prometheus, and promtool tests the PromQL; rejected: the joins in the collector's queries (tested only against a fake Prometheus) |
 | Rendering | The web role renders on every request, `Cache-Control: no-cache`, no automatic page refresh | Never older than the last push; automatic reloads disturb screen readers (WCAG 2.2.1); the operator can overrule it with a 60 s refresh |
 | Cluster figures | From Prometheus | One source; no ClusterRole; the same numbers as the publisher for the comparison |
 | GitHub | A fine-grained read-only token for public repositories, no expiry (operator, 2026-11-20), reviewed yearly, created in task 3; on `401` no anonymous fallback | #1551, and an expired token stays visible |
@@ -853,4 +941,4 @@ Each default holds until the operator says otherwise.
 | Theme | Dark by default, light on the reader's choice: the palette of [site-theme-language](../site-theme-language/design.md#palette), served as `/theme.css` | One palette for every public page; dark stays the default |
 | Screenshot check | Chrome for Testing's `chrome-headless-shell`, pinned with its checksum; screenshots as an artefact, no pixel diff | A pixel diff breaks on every browser update; the check catches CSP and layout breakage, the artefact shows the look in each PR |
 | Switch-over gate | Waived (operator, 2026-11-23): tasks 4-6 go live without the three equal comparisons of 6.2 and acceptance criterion 10, and the publisher is deleted without waiting a daily block (6.4); the security checks of requirement 1 and acceptance criteria 1-3, 5 and 13 still hold | The page is a low-stakes showcase; the only bar is no security hole on a public host |
-| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-23 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25) | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
+| Order | Tasks 1-3 right after this amendment; tasks 4 and 5 in the next weekday daytime run, with the operator (operator, 2026-11-20). Redesign tasks 8-15 in order; the tasks that change the rendered page merge only after the operator approves a preview (operator, 2026-11-23). Task 16, the Security card, after task 15, in the same preview as tasks 12-15 when that one has not been shown yet (operator, 2026-11-24). Task 17, the DORA labels and overall level with the section order and two-decimal percentages, merges after its review round, without a preview approval (operator, 2026-11-24). Tasks 18-23 in order, each merged after its review round and checked live, no preview approval (operator, 2026-11-24 and 2026-11-25). Tasks 25 and 26 in order, the same way | The public host and the redirect are the steps that can break a public page; the look is the operator's call |
