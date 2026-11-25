@@ -96,7 +96,8 @@ their script runs, and the script fails when one is missing.
   markup, the site nav, image metadata and the `layout.css` copies;
   `scripts/ci/site-serve-check.sh` serves it with the real nginx config;
   `scripts/ci/layout-check.sh` compares the container and nav of the
-  landing page, the blog and the dashboard in `chrome-headless-shell` at
+  landing page, the blog, the dashboard and the tech radar in
+  `chrome-headless-shell` at
   1920x1080 and 390x844 ([website.md](website.md#shared-layout)). Skipped
   when nothing under `site/`, `apps/website/` or `dashboard/internal/web/`
   changed.

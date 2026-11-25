@@ -246,6 +246,7 @@ every rule the shared file owns.
 | Blog | Hugo Pipes concatenates `layout.css`, `main.css` and `syntax.css` into the one fingerprinted stylesheet |
 | Landing page | `apps/website/landing/layout.css`, a copy, a third file of the `website-landing` ConfigMap, linked before `landing.css` |
 | Dashboard | `dashboard/internal/web/assets/layout.css`, a copy, embedded and served first in its one stylesheet (the integrity hash covers both) |
+| Tech radar | `techradar/internal/radar/assets/layout.css`, a copy, embedded in the generator and rendered to `apps/website/techradar/layout.css`, a file of the `website-techradar` ConfigMap, linked before `techradar.css` |
 
 `task site:layout-sync` copies the canonical file over the copies;
 `scripts/ci/site-check.sh` fails when a copy differs byte for byte. It

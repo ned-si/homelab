@@ -4,7 +4,8 @@
 #
 # The markup check also covers the landing page (apps/website/landing/) and
 # the dashboard's golden pages (dashboard/internal/web/testdata/); the
-# copies of site/assets/css/layout.css must equal it byte for byte.
+# copies of site/assets/css/layout.css (landing page, dashboard, tech radar)
+# must equal it byte for byte.
 #
 # Without --all it exits 0 when SITE_BASE..HEAD (default HEAD^1, main for a
 # pull request's merge commit) touches neither site/, apps/website/, the
@@ -59,7 +60,8 @@ else
 fi
 
 echo "== shared layout copies"
-for copy in apps/website/landing/layout.css dashboard/internal/web/assets/layout.css; do
+for copy in apps/website/landing/layout.css dashboard/internal/web/assets/layout.css \
+  techradar/internal/radar/assets/layout.css apps/website/techradar/layout.css; do
   cmp -s site/assets/css/layout.css "$copy" || fail "$copy differs from site/assets/css/layout.css; run \`task site:layout-sync\`"
 done
 

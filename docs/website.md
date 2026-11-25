@@ -22,16 +22,19 @@ Rules:
 
 - The layout is defined once, in `site/assets/css/layout.css`. Edit only
   that file, then run `task site:layout-sync`: it copies it to
-  `apps/website/landing/layout.css` and
-  `dashboard/internal/web/assets/layout.css`. `scripts/ci/site-check.sh`
+  `apps/website/landing/layout.css`,
+  `dashboard/internal/web/assets/layout.css`,
+  `techradar/internal/radar/assets/layout.css` and
+  `apps/website/techradar/layout.css`. `scripts/ci/site-check.sh`
   fails when a copy differs.
-- A page's own stylesheet (`main.css`, `landing.css`, `dashboard.css`)
+- A page's own stylesheet (`main.css`, `landing.css`, `dashboard.css`,
+  `techradar.css`)
   holds colours and its own components, never a rule of `layout.css`.
 - The nav links are `NAV` in `scripts/ci/site_markup.py`; the check fails
   when a page's nav differs from it (only `aria-current` may differ).
 - `scripts/ci/layout-check.sh <built blog>`, a step of the `site` job,
   renders the landing page, the blog home, About, privacy, the newest
-  article and the dashboard's fixture page in the pinned
+  article, the dashboard's fixture page and the tech radar in the pinned
   `chrome-headless-shell` at 1920x1080 and 390x844, and fails when the
   container or the nav differs by more than 1 px from the landing page.
   Locally: `CHROME=<a Chrome binary> scripts/ci/layout-check.sh <dir>` after
@@ -39,7 +42,7 @@ Rules:
 
 A layout change reaches the blog and the dashboard with their next image
 deploys (digest bumps of `homelab-site` and `homelab-dashboard`); the
-landing page is live with the merge.
+landing page and the tech radar are live with the merge.
 
 ## Why it is like this
 

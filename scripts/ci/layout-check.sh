@@ -3,7 +3,8 @@
 # (.kiro/specs/public-website/design.md, "Shared layout").
 #
 # Measures the landing page, the blog home, its About and privacy pages, the
-# newest article (when there is one) and the dashboard's full fixture page in
+# newest article (when there is one), the dashboard's full fixture page and
+# the tech radar (apps/website/techradar/) in
 # chrome-headless-shell at 1920x1080 and 390x844: the left edge and width of
 # body's content box, the box of `header.site > nav.site` and the x and width
 # of each nav link. Fails when a value differs by more than 1 px from the
@@ -55,12 +56,15 @@ css=$(grep -o '/assets/dashboard\.[0-9a-f]*\.css' "$work/dashboard.html" | head 
 [ -n "$css" ] || { echo "layout-check: no stylesheet link in the dashboard page" >&2; exit 1; }
 curl -fs -m 10 -o "$www$css" "http://127.0.0.1:18080$css"
 
-# The landing page's and the blog's stylesheets sit at different paths, so
-# one root serves every copy.
+# The landing page's, the radar's and the blog's stylesheets sit at
+# different paths, so one root serves every copy. The radar's /layout.css is
+# the landing page's: site-check.sh holds both to the same bytes.
 cp "$root/apps/website/landing/layout.css" "$root/apps/website/landing/landing.css" "$www/"
+cp "$root/apps/website/techradar/techradar.css" "$www/"
 cp -R "$public/css" "$www/css"
-pages=(landing blog about privacy dashboard)
+pages=(landing blog about privacy dashboard techradar)
 cp "$root/apps/website/landing/index.html" "$work/landing.html"
+cp "$root/apps/website/techradar/index.html" "$work/techradar.html"
 cp "$public/index.html" "$work/blog.html"
 cp "$public/about/index.html" "$work/about.html"
 cp "$public/privacy/index.html" "$work/privacy.html"
