@@ -30,7 +30,7 @@ spec:
       containers:
         - name: smoke
           # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-jamulus
-          image: ghcr.io/ned-si/homelab-jamulus:main@sha256:2adac3cb0b23951903523b9dad881cbddd12f2c7a8253d8fbfdade2a33a99d58
+          image: ghcr.io/ned-si/homelab-jamulus:main@sha256:5f0bdb5e5dc08ad260946cac7719ad2ce2ba166a720e42f67328be12dd2701ec
           command: [bash, -c, 'for i in 1 2 3 4 5 6; do jamulus-ping jamulus 41124 && exit 0; sleep 5; done; exit 1']
           resources:
             requests:

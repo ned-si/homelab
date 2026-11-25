@@ -35,7 +35,7 @@ spec:
           # Built and signed by .github/workflows/jamulus-publish.yaml;
           # Renovate bumps this digest and the smoke Job's together.
           # renovate: datasource=docker depName=ghcr.io/ned-si/homelab-jamulus
-          image: ghcr.io/ned-si/homelab-jamulus:main@sha256:2adac3cb0b23951903523b9dad881cbddd12f2c7a8253d8fbfdade2a33a99d58
+          image: ghcr.io/ned-si/homelab-jamulus:main@sha256:5f0bdb5e5dc08ad260946cac7719ad2ce2ba166a720e42f67328be12dd2701ec
           args: ["--server", "--nogui", "--port", "41124", "--numchannels", "8", "--fastupdate", "--discononquit"]
           ports:
             - name: jamulus
