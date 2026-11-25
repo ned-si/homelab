@@ -9,11 +9,12 @@ import (
 )
 
 // SVG draws the chart: the rings, the axes, the ring names along the
-// horizontal axis and one numbered blip per entry. Styled by class only
-// (techradar.css), so the page's CSP needs no inline style.
+// horizontal axis and one numbered blip per entry, a link to its legend
+// item. Styled by class only (techradar.css), so the page's CSP needs no
+// inline style; the hover label is CSS, the tooltip the native <title>.
 func SVG(blips []Blip) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, `<svg viewBox="0 0 %d %d" role="img" focusable="false" aria-label="%s">`+"\n",
+	fmt.Fprintf(&b, `<svg viewBox="0 0 %d %d" role="group" focusable="false" aria-label="%s">`+"\n",
 		Size, Size, html.EscapeString(fmt.Sprintf("Tech radar: %d entries in four quadrants and four rings, listed in the legend below.", len(blips))))
 	for _, r := range Radii {
 		fmt.Fprintf(&b, `<circle class="ring-line" cx="%d" cy="%d" r="%s"/>`+"\n", centre, centre, num(r))
@@ -27,8 +28,16 @@ func SVG(blips []Blip) string {
 		}
 	}
 	for _, bl := range blips {
-		fmt.Fprintf(&b, `<g class="blip ring-%s"><title>%s</title>%s<text class="blip-number" x="%s" y="%s">%d</text></g>`+"\n",
-			bl.Entry.Ring, html.EscapeString(label(bl.Number, bl.Entry)), shape(bl), num(bl.X), num(bl.Y+3), bl.Number)
+		// The label sits on the side facing the centre, so it stays inside
+		// the chart.
+		side, dx := "blip-label-start", 14.0
+		if bl.X > centre {
+			side, dx = "blip-label-end", -14
+		}
+		fmt.Fprintf(&b, `<a class="blip ring-%s" href="#entry-%s"><title>%s</title>%s<text class="blip-number" x="%s" y="%s" aria-hidden="true">%d</text>`+
+			`<g class="blip-label" aria-hidden="true"><text class="%s" x="%s" y="%s">%s</text></g></a>`+"\n",
+			bl.Entry.Ring, Slug(bl.Entry.Name), html.EscapeString(label(bl.Number, bl.Entry)), shape(bl), num(bl.X), num(bl.Y+3), bl.Number,
+			side, num(bl.X+dx), num(bl.Y+5), html.EscapeString(bl.Entry.Name+" · "+name(Rings, bl.Entry.Ring)))
 	}
 	b.WriteString("</svg>")
 	return b.String()

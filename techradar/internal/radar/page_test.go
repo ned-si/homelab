@@ -71,7 +71,7 @@ func TestLegendMatchesEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 	page := string(files["index.html"])
-	items := regexp.MustCompile(`<li value="(\d+)">(?:<a href="[^"]*">)?([^<]*)`).FindAllStringSubmatch(page, -1)
+	items := regexp.MustCompile(`<li value="(\d+)" id="entry-[a-z0-9-]+">(?:<a href="[^"]*">)?([^<]*)`).FindAllStringSubmatch(page, -1)
 	if len(items) != len(r.Entries) {
 		t.Fatalf("legend has %d items, entries.yaml %d", len(items), len(r.Entries))
 	}
@@ -91,6 +91,46 @@ func TestLegendMatchesEntries(t *testing.T) {
 	}
 }
 
+// TestBlipLinks holds every point of the chart, on the golden fixture and on
+// entries.yaml, to a native tooltip with the name, quadrant, ring and reason,
+// and a link to an anchor of the legend, one point per legend item.
+func TestBlipLinks(t *testing.T) {
+	root, err := RepoFS("../../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixed, err := Parse([]byte(fixture), repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blip := regexp.MustCompile(`<a class="blip ring-[a-z]+" href="#(entry-[a-z0-9-]+)"><title>([^<]*)</title>`)
+	for src, r := range map[string]*Radar{"fixture": fixed, "entries.yaml": {Entries: realEntries(t)}} {
+		files, err := Render(r, root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		page := string(files["index.html"])
+		ids := map[string]int{}
+		for _, m := range regexp.MustCompile(`<li value="\d+" id="([^"]+)"`).FindAllStringSubmatch(page, -1) {
+			ids[m[1]]++
+		}
+		blips := blip.FindAllStringSubmatch(page, -1)
+		if len(blips) != len(r.Entries) || strings.Count(page, `<a class="blip `) != len(r.Entries) {
+			t.Fatalf("%s: %d linked blips with a <title>, entries %d", src, len(blips), len(r.Entries))
+		}
+		for i, e := range r.Entries {
+			id, title := blips[i][1], blips[i][2]
+			if ids[id] != 1 {
+				t.Errorf("%s: blip %d links #%s, %d legend items with that id", src, i+1, id, ids[id])
+			}
+			want := htmlText(strconv.Itoa(i+1) + ". " + e.Name + " (" + name(Quadrants, e.Quadrant) + ", " + name(Rings, e.Ring) + "): " + e.Reason)
+			if title != want {
+				t.Errorf("%s: blip %d title %q, want %q", src, i+1, title, want)
+			}
+		}
+	}
+}
+
 func htmlText(s string) string {
 	return strings.NewReplacer("&", "&amp;", "'", "&#39;", "<", "&lt;", ">", "&gt;", `"`, "&#34;").Replace(s)
 }
@@ -106,8 +146,8 @@ func TestSVGMarkup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	elements := map[string]bool{"svg": true, "g": true, "circle": true, "path": true, "line": true, "text": true, "title": true}
-	classes := map[string]bool{"ring-adopt": true, "ring-trial": true, "ring-assess": true, "ring-hold": true, "axis": true, "ring-line": true, "ring-name": true, "blip": true, "blip-number": true}
+	elements := map[string]bool{"svg": true, "a": true, "g": true, "circle": true, "path": true, "line": true, "text": true, "title": true}
+	classes := map[string]bool{"ring-adopt": true, "ring-trial": true, "ring-assess": true, "ring-hold": true, "axis": true, "ring-line": true, "ring-name": true, "blip": true, "blip-number": true, "blip-label": true, "blip-label-start": true, "blip-label-end": true}
 	numeric := regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 	pathData := regexp.MustCompile(`^M[0-9. L]+ Z$`)
 	dec := xml.NewDecoder(strings.NewReader(SVG(blips)))
@@ -136,7 +176,7 @@ func TestSVGMarkup(t *testing.T) {
 					}
 				}
 			case "role":
-				if v != "img" {
+				if v != "group" {
 					t.Errorf("role=%q", v)
 				}
 			case "focusable":
@@ -144,6 +184,14 @@ func TestSVGMarkup(t *testing.T) {
 					t.Errorf("focusable=%q", v)
 				}
 			case "aria-label":
+			case "aria-hidden":
+				if v != "true" {
+					t.Errorf("aria-hidden=%q", v)
+				}
+			case "href":
+				if !regexp.MustCompile(`^#entry-[a-z0-9-]+$`).MatchString(v) {
+					t.Errorf("href=%q", v)
+				}
 			case "viewBox":
 				if v != "0 0 800 800" {
 					t.Errorf("viewBox=%q", v)

@@ -36,9 +36,9 @@ type ringView struct {
 }
 
 type entryView struct {
-	Number            int
-	Name, URL, Reason string
-	Moved             string
+	Number                  int
+	Slug, Name, URL, Reason string
+	Moved                   string
 }
 
 var movedText = map[string]string{"up": "moved in", "down": "moved out", "new": "new"}
@@ -64,6 +64,7 @@ func Render(r *Radar, root fs.StatFS) (Files, error) {
 				if b.Entry.Quadrant == q.ID && b.Entry.Ring == rg.ID {
 					rv.Entries = append(rv.Entries, entryView{
 						Number: b.Number,
+						Slug:   Slug(b.Entry.Name),
 						Name:   b.Entry.Name,
 						URL:    URL(b.Entry.Link, root),
 						Reason: b.Entry.Reason,

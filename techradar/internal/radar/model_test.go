@@ -88,6 +88,8 @@ func TestParseErrors(t *testing.T) {
 		{"unknown moved", entry("moved", "sideways"), `unknown moved "sideways"`},
 		{"unknown key", entry("owner", "me"), "field owner not found"},
 		{"duplicate name", clean + "  - name: talos linux\n    quadrant: infrastructure\n    ring: hold\n    reason: Again.\n", `"talos linux": duplicate name`},
+		{"duplicate anchor", clean + "  - name: Talos-Linux\n    quadrant: infrastructure\n    ring: hold\n    reason: Again.\n", "duplicate name or anchor #entry-talos-linux"},
+		{"name without an anchor", entry("name", `"++"`), "name without a letter or digit"},
 		{"empty reason", entry("reason", `""`), "empty reason"},
 		{"two-line reason", entry("reason", `"One line.\nTwo lines."`), "more than one line"},
 		{"long reason", entry("reason", strings.Repeat("a", MaxReason+1)), "reason of 141 characters"},
@@ -110,6 +112,19 @@ func TestParseErrors(t *testing.T) {
 				t.Errorf("Parse error = %q, want it to contain %q", err, tt.want)
 			}
 		})
+	}
+}
+
+func TestSlug(t *testing.T) {
+	for name, want := range map[string]string{
+		"Cilium":                 "cilium",
+		"Gateway API":            "gateway-api",
+		"C++ / Go (1.25)":        "c-go-1-25",
+		" Trailing punctuation.": "trailing-punctuation",
+	} {
+		if got := Slug(name); got != want {
+			t.Errorf("Slug(%q) = %q, want %q", name, got, want)
+		}
 	}
 }
 

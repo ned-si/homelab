@@ -53,6 +53,8 @@ var denied = regexp.MustCompile(`(?i)\b(sonarr|radarr|lidarr|prowlarr|bazarr|rec
 
 var issueLink = regexp.MustCompile(`^#[0-9]+$`)
 
+var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
+
 // Entry is one item of entries.yaml.
 type Entry struct {
 	Name     string `yaml:"name"`
@@ -93,9 +95,10 @@ func Parse(data []byte, root fs.StatFS) (*Radar, error) {
 	}
 	seen := map[string]bool{}
 	for _, e := range f.Entries {
-		key := strings.ToLower(strings.TrimSpace(e.Name))
-		if seen[key] {
-			errs = append(errs, fmt.Errorf("%q: duplicate name", e.Name))
+		// The legend anchor comes from the name, so it must be unique too.
+		key := Slug(e.Name)
+		if seen[key] && key != "" {
+			errs = append(errs, fmt.Errorf("%q: duplicate name or anchor #entry-%s", e.Name, key))
 		}
 		seen[key] = true
 		for _, err := range check(e, root) {
@@ -111,8 +114,8 @@ func Parse(data []byte, root fs.StatFS) (*Radar, error) {
 
 func check(e Entry, root fs.StatFS) []error {
 	var errs []error
-	if strings.TrimSpace(e.Name) == "" {
-		errs = append(errs, errors.New("empty name"))
+	if Slug(e.Name) == "" {
+		errs = append(errs, errors.New("name without a letter or digit"))
 	}
 	if index(Quadrants, e.Quadrant) < 0 {
 		errs = append(errs, fmt.Errorf("unknown quadrant %q", e.Quadrant))
@@ -231,7 +234,14 @@ func RepoFS(root string) (fs.StatFS, error) {
 	return statFS, nil
 }
 
-// label is the hover text of a blip: "12. Cilium (Adopt)".
+// Slug is the entry's anchor in the legend, #entry-<slug>: "Gateway API"
+// is "gateway-api".
+func Slug(name string) string {
+	return strings.Trim(nonSlug.ReplaceAllString(strings.ToLower(name), "-"), "-")
+}
+
+// label is the native tooltip of a blip: "12. Cilium (Platform, Adopt):
+// <reason>".
 func label(n int, e Entry) string {
-	return strconv.Itoa(n) + ". " + e.Name + " (" + name(Rings, e.Ring) + ")"
+	return strconv.Itoa(n) + ". " + e.Name + " (" + name(Quadrants, e.Quadrant) + ", " + name(Rings, e.Ring) + "): " + e.Reason
 }

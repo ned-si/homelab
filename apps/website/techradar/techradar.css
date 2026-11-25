@@ -66,12 +66,43 @@ figure.chart svg { display: block; width: 100%; height: auto; }
 }
 .blip circle, .blip path { fill: currentColor; }
 .blip-number { fill: var(--bg); font-size: 8px; font-weight: 700; text-anchor: middle; }
+.blip { text-decoration: none; }
+.blip:focus { outline: none; }
+.blip:focus-visible circle, .blip:focus-visible path { stroke: var(--fg); stroke-width: 2; }
+
+/* The point's label, hidden until hover or keyboard focus. Hover only where
+   the device has it: a tap goes straight to the legend item. */
+.blip-label { visibility: hidden; }
+.blip-label text {
+  fill: var(--fg);
+  font-size: 14px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+.blip-label-start { text-anchor: start; }
+.blip-label-end { text-anchor: end; }
+.blip:focus-visible .blip-label { visibility: visible; }
+/* Later points paint over the label; dim them while one is pointed at. */
+svg:has(.blip:focus-visible) .blip:not(:focus-visible) { opacity: 0.3; }
+@media (hover: hover) {
+  .blip:hover .blip-label { visibility: visible; }
+  svg:has(.blip:hover) .blip:not(:hover) { opacity: 0.3; }
+}
 
 footer.site { color: var(--muted); font-size: 0.875rem; }
 
 .legend { display: grid; gap: 0 2.5rem; }
 .legend ol { margin: 0; padding-left: 2.75rem; }
 .legend li { margin: 0.25rem 0; overflow-wrap: anywhere; }
+.legend li:target {
+  outline: 2px solid var(--link);
+  outline-offset: 0.25rem;
+  border-radius: 2px;
+  scroll-margin-top: 1rem;
+}
 .legend .moved { color: var(--muted); }
 .legend .none { margin: 0; color: var(--muted); }
 
