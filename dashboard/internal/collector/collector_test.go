@@ -66,6 +66,11 @@ type fake struct {
 	// Version 4: the counts of every security signal by window.
 	secDay, secWeek, secBucket float64
 	noSecurity                 bool
+
+	// Version 7: per first-party image, the Pods with a verify-own-images
+	// result and those whose result is not pass; a missing image has no
+	// series.
+	reported, failed map[string]float64
 }
 
 // firing is a paging alert's firing in the fake ALERTS series.
@@ -115,6 +120,8 @@ func newFake() *fake {
 		secDay:    12.4,
 		secWeek:   40.6,
 		secBucket: 2.4,
+		reported:  map[string]float64{"homelab-dashboard": 2, "homelab-site": 1},
+		failed:    map[string]float64{},
 	}
 	f.budget = map[string]float64{}
 	for k, v := range f.avail {
@@ -213,6 +220,20 @@ func (f *fake) prom2(query string, at float64, apps []string) ([]sample, bool) {
 			return none, true
 		}
 		return one(*v), true
+	}
+	if strings.Contains(query, "kyverno_policyreport_result_info") {
+		values := f.reported
+		if strings.Contains(query, `result!="pass"`) {
+			values = f.failed
+		}
+		for _, img := range snapshot.ShownImages() {
+			if strings.Contains(query, "/"+img.Name+"(") {
+				if v, ok := values[img.Name]; ok {
+					return one(v), true
+				}
+				return none, true
+			}
+		}
 	}
 	switch {
 	case strings.HasPrefix(query, "min by (app) (probe_success{"):
@@ -733,10 +754,10 @@ func TestFailingSourceKeepsLastBlock(t *testing.T) {
 	if got, want := s.Cluster.AsOf, "2026-11-20T17:00:00+01:00"; got != want {
 		t.Errorf("cluster.as_of = %s, want the last good %s", got, want)
 	}
-	// The availability, certificates, cluster and security blocks each
-	// failed once.
-	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("prometheus")); got != 4 {
-		t.Errorf("collect_errors_total{prometheus} = %v, want 4", got)
+	// The availability, certificates, cluster, security and supply chain
+	// blocks each failed once.
+	if got := testutil.ToFloat64(e.m.Errors.WithLabelValues("prometheus")); got != 5 {
+		t.Errorf("collect_errors_total{prometheus} = %v, want 5", got)
 	}
 	if got := testutil.ToFloat64(e.m.Runs.WithLabelValues("cluster", "failure")); got != 1 {
 		t.Errorf("collect_runs_total{cluster,failure} = %v, want 1", got)

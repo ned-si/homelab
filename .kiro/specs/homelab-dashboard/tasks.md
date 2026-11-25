@@ -308,7 +308,8 @@ the rendered screenshot check.
 
 #1554 closed with task 17. The amendment of 2026-11-25 (#1670) reopens
 the spec with tasks 18-21, in order, and the operator's Security-card
-decisions of the same day add tasks 22 and 23. The same day's
+decisions of the same day add tasks 22 and 23; task 24 is the Scorecard
+half of task 21. The same day's
 rounding rule joins task 18 and the rolling-window fixes join task 19.
 Each is **visible**
 except tasks 20 and 22, merges after its review round with no preview approval (operator,
@@ -356,7 +357,7 @@ live check.
       `docs/homelab-dashboard.md`. Check: acceptance criteria 23 and
       30. [2.8, 10.4, 10.9, 10.10]
       #1703
-- [ ] 20. Provenance for both images and its verification (**not
+- [x] 20. Provenance for both images and its verification (**not
       visible**): `actions/attest-build-provenance` in
       `site-publish.yaml` with its `gh attestation verify` step, the
       builder and workflow check in both publishing workflows, the
@@ -368,18 +369,17 @@ live check.
       workflow and deployed. The PR body says `Closes #743` (signed
       provenance for the blog image on GHCR). Check: acceptance
       criteria 24 and 26. [13.3, 13.4, 13.7]
-- [ ] 21. Supply chain section (**visible**): snapshot version 7
-      (`supply_chain`), the compiled image list, builder texts and
-      Scorecard check list in `shown.go`, the Scorecard fetch and the
-      Kyverno query in the collector, the two panels between DORA
-      metrics and Security, the status rules in `status.go`,
-      `https://slsa.dev/` and `https://scorecard.dev/` in `LINKS` of
-      `scripts/ci/site_markup.py`, `TestSectionOrder` with Supply
-      chain, golden pages, the section in `docs/homelab-dashboard.md`.
-      Check: acceptance criterion 25; live, both images "Build L2" and
-      "Verified", the Scorecard score equal to the API's. [3.10, 13.1,
-      13.2, 13.5, 13.6]
-
+      #1714
+- [x] 21. Supply chain section, SLSA panel (**visible**): snapshot
+      version 7 (`supply_chain` without `scorecard`), the compiled image
+      list, level and builder texts in `shown.go`, the Kyverno query in
+      the collector, the panel between DORA metrics and Security, the
+      status rule in `status.go`, `https://slsa.dev/` in `LINKS` of
+      `scripts/ci/site_markup.py`, `TestSectionOrder` with Supply chain,
+      golden pages, the section in `docs/homelab-dashboard.md`. Check:
+      acceptance criterion 25 (SLSA part); live, both images "Build L2"
+      and "Verified". [3.10, 13.1, 13.2]
+      #1714
 - [x] 22. Our own traffic out of the Security figures (**not
       visible**), as in
       [design.md, Security card figures](design.md#security-card-figures-tasks-22-and-23):
@@ -402,4 +402,14 @@ live check.
       28. [12.6-12.11]
       #1691
 
+- [ ] 24. Supply chain section, Scorecard panel (**visible**): snapshot
+      version 8 (`supply_chain.scorecard`), the Scorecard check list in
+      `shown.go`, the Scorecard fetch in the collector, the panel after
+      the SLSA one, the status rule in `status.go`,
+      `https://scorecard.dev/` in `LINKS` of
+      `scripts/ci/site_markup.py`, golden pages, the section in
+      `docs/homelab-dashboard.md`. Split from task 21 on 2026-11-25: one
+      pull request per operator item (SLSA, then Scorecard). Check:
+      acceptance criterion 25 (Scorecard part); live, the Scorecard
+      score equal to the API's. [13.5, 13.6]
 The last task ticked sets `status: done`, `closed:`, and closes #1670.

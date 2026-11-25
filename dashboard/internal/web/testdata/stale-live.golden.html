@@ -389,6 +389,24 @@
 </ul>
 <p class="meta">As of <time datetime="2026-11-20T16:52:00&#43;01:00">20 November 2026, 16:52</time>.</p>
 </section>
+<section class="panel stats" aria-labelledby="supply-chain">
+<h2 id="supply-chain">Supply chain</h2>
+<h3>SLSA provenance</h3>
+<p class="meta">The two images I build here, this dashboard and the site, are built on runners GitHub hosts, and GitHub signs a provenance for each: that makes <a href="https://slsa.dev/spec/v1.0/levels">SLSA Build level 2</a>. Kyverno checks both on every Pod that runs them. Level 3 needs the build moved into a reusable workflow, which is for later.</p>
+<div class="tiles">
+<div class="tile">
+<p class="tile-label">homelab-dashboard</p>
+<p class="tile-value ok">Build L2 <span class="status ok">Verified</span></p>
+<p class="tile-detail">GitHub-hosted runner, dashboard-publish.yaml on main</p>
+</div>
+<div class="tile">
+<p class="tile-label">homelab-site</p>
+<p class="tile-value ok">Build L2 <span class="status ok">Verified</span></p>
+<p class="tile-detail">GitHub-hosted runner, site-publish.yaml on main</p>
+</div>
+</div>
+<p class="meta">As of <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time>.</p>
+</section>
 <section class="panel stats" aria-labelledby="security">
 <h2 id="security">Security</h2>
 <p class="meta">What the defences turned away, counted over the whole cluster: the rolling 24 h, the rolling 7 days, and the same 7 days in six-hour bars. The Gateway figures leave out our own probes and checks. The alerts page whoever has to act; this card only counts.</p>

@@ -104,6 +104,8 @@ type figures struct {
 	State        []tile
 	Security     block
 	Signals      []tile
+	SupplyChain  block
+	Images       []tile
 	Project      block
 	DORA         []tile
 	DORALevel    tile
@@ -564,6 +566,21 @@ func signalTiles(s snapshot.Security) []tile {
 	return out
 }
 
+// imageTiles are the first-party images: the SLSA Build level as the value,
+// the verification as the status word, the builder as the detail line.
+func imageTiles(sc snapshot.SupplyChain) []tile {
+	out := make([]tile, 0, len(sc.Images))
+	for _, img := range sc.Images {
+		t := tile{Label: img.Name, Details: []string{img.Builder}}
+		t.Status, t.Word = provenanceStatus(img.Verified)
+		if img.Level != nil {
+			t.Value = one("Build L"+strconv.Itoa(*img.Level), "")
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
 func runs(rs []snapshot.CIRun) []ciRun {
 	out := make([]ciRun, 0, len(rs))
 	for _, r := range rs {
@@ -599,6 +616,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		Delivery:  deliveryTiles(s.Project),
 		Runs:      runs(s.Project.CIRuns),
 		Signals:   signalTiles(s.Security),
+		Images:    imageTiles(s.SupplyChain),
 	}
 	var bands []band
 	f.DORA, bands = doraTiles(s.Project)
@@ -614,6 +632,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		{&f.Cluster, s.Cluster.AsOf, blockStaleAfter},
 		{&f.Project, s.Project.AsOf, projectStaleAfter},
 		{&f.Security, s.Security.AsOf, blockStaleAfter},
+		{&f.SupplyChain, s.SupplyChain.AsOf, blockStaleAfter},
 	}
 	for _, b := range blocks {
 		if *b.dst, err = blockAt(b.asOf, g, b.after); err != nil {

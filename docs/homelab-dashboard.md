@@ -113,9 +113,12 @@ Release: a merge to `main` that touches `dashboard/` runs
 `.github/workflows/dashboard-publish.yaml`. It smoke-tests the image, builds
 `linux/arm64` and `linux/amd64` with an SBOM and SLSA provenance, attests the
 provenance, signs the index keyless with cosign, tags it `main` and notifies
-ntfy on failure. Renovate then opens the digest bump of
-`apps/homelab-dashboard/` (group `homelab-dashboard`), which automerges on
-green CI. Kyverno's `verify-own-images` checks the signature in the cluster.
+ntfy on failure. Before signing, it checks with `gh attestation verify`
+that the provenance names `dashboard-publish.yaml` on `main` and a
+GitHub-hosted runner; `site-publish` does the same for the site image.
+Renovate then opens the digest bump of `apps/homelab-dashboard/` (group
+`homelab-dashboard`), which automerges on green CI. Kyverno's
+`verify-own-images` checks the signature and the provenance in the cluster.
 
 Verify the running image:
 
@@ -150,6 +153,7 @@ the days summer time starts and ends), the last one from midnight to now
 | Availability, one per shown app | State ("Up", "Down", "No data"), the rolling 30 days, the error budget left, 30 daily bars, the last one today so far | `probe_success` of the app's probes, averaged over each day for the bars; `slo:availability:ratio_rate30d`, `slo:error_budget_remaining:ratio_rate30d` ([sre.md](sre.md)) |
 | Cluster | Per node and for the NAS: utilisation, saturation, errors (USE); at the Gateway: requests per second, `5xx` share and p95 over a rolling 5 min (RED); Argo CD Synced and Healthy, restarts over a rolling 24 h, volumes, versions | node-exporter, kube-state-metrics, `truenas_*`, Envoy, `argocd_app_info`, kubelet volume stats, all summed in PromQL |
 | Project | The four DORA metrics with their band and the overall level (the lowest of the four bands, "No data" when one is missing), the rework rate without a band, Renovate's share, the median `ci` run, the last five `ci` runs on `main` | GitHub, the `action: human` alerts ([DORA figures](#dora-figures)) |
+| Supply chain | Per first-party image (`homelab-dashboard`, `homelab-site`): "Build L2" when Kyverno verified its provenance on every Pod with a report, "Verified", "Not verified" or "No data", and the builder | `kyverno_policyreport_result_info{policy="verify-own-images"}` from kube-state-metrics, joined with `kube_pod_container_info` by Pod and counted per image ([SLSA level](#slsa-level)) |
 | Security | Per signal: the count of the rolling 24 h and 7 days, its share of the requests or sign-ins, and the 7 days in 28 six-hour bars. Signals: unknown host or path (no route, and `404` from the static sites), refused by an app (`401` and `403`, the `403` part in the detail), method not allowed (`405`), failed sign-ins, deployments blocked by policy (Kyverno and Pod Security in enforce mode), ingress packets dropped from the internet, runtime detections. Under the 4xx tiles, the `4xx` the Gateway answered itself, which no tile can attribute | Envoy's counters on the shared Gateway, `keycloak_user_events_total`, `apiserver_admission_webhook_rejection_count`, `pod_security_evaluations_total`, `hubble_drop_total` from `reserved:world`, the `Runtime*` alerts; each one sum over the cluster |
 | Certificates | Days left per shown certificate | `probe_ssl_earliest_cert_expiry` of the public probes |
 
@@ -172,6 +176,20 @@ landing page, the blog and this dashboard. An app with fewer than 30 days of
 probes shows "since <date>" in grey, with no status word and no budget.
 Adding an app is a change to `dashboard/internal/snapshot/shown.go` and a
 release.
+
+## SLSA level
+
+Both first-party images are at SLSA v1.0 Build L2: GitHub's
+`actions/attest-build-provenance` signs the provenance with the workflow's
+OIDC identity, in the job that builds, on a GitHub-hosted runner. Not L3:
+the build steps run in that same job and could ask for the same token.
+L3 needs the build in a reusable workflow, a change of signing identity
+for Kyverno, `ci/image-signers.yaml` and the inventory; it is out of scope.
+The level is compiled in `dashboard/internal/snapshot/shown.go`; the page
+shows it only when Kyverno verified the provenance, and the publishing
+workflows fail when the provenance stops matching. The README badge states
+the same level
+([design](../.kiro/specs/homelab-dashboard/design.md#which-slsa-build-level)).
 
 ## Privacy rules
 
@@ -230,7 +248,8 @@ left, `warn` from 0% to 25%, `bad` below 0%. One day is `ok` from 99.5%,
 card's. A security signal where one event is worth a look reads "None"
 or "Seen"; the others read "Usual", or "Above usual" when the 24 h count
 is above 20 and three times the daily mean of the 6 days before. No
-security figure is red: the alerts page, the card counts. The DORA
+security figure is red: the alerts page, the card counts. An image's
+provenance reads "Verified" in green or "Not verified" in amber. The DORA
 metrics show their band: "Elite" and "High" in green,
 "Medium" in amber, "Low" in red. The full table is in the
 [design](../.kiro/specs/homelab-dashboard/design.md#status-colours).

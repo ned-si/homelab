@@ -124,7 +124,7 @@ window the page shows:
 | Lead time, failed changes, change failure rate, rework rate | `mergedPRs` and `setDORA`, `internal/collector/dora.go` | Rolling 30 days, the same window | Unchanged |
 | Time to restore, incidents | `alertFirings` and `setDORA`, `internal/collector/dora.go` | Rolling 30 days for the end of an incident, but the `ALERTS` range starts at the window's start, so a firing that began before it counts from the window's start and its duration is cut Count the incidents that started in the window and have ended (Requirement 10.4). The range stays at the window, which the 30-day Prometheus retention covers (`retention: 30d`, the oldest sample 30.66 days old on 2026-11-25), so no extension before it is readable. In `setDORA`: `if !i.open && i.start.After(start) && i.end.Before(end)`; a firing already firing at the window's first sample started before it and is left out. A rollback whose reverted pull request is not in `byOID` (merged before the window) is left out, rather than counted from its creation; one whose message names no commit starts at its `createdAt`, as today. `incidents_30d` follows the same rule, and so does the recount of `scripts/dashboard-dora-check.sh` (its `select` on `.s` as well as `.e`) |
 | DORA figures without the token | `keepDORA` and `(*Collector).readProject`, `internal/collector/dora.go` and `collector.go` | The figures of the last refresh with the token are kept for ever, while `project.as_of` moves on hourly: their window can end hours or days before now At a refresh without the token, the DORA keys and `ci_median_seconds_30d` are copied when `now.Sub(doraAt) <= time.Hour` (`doraAt` the last refresh with the token; 60 minutes is the project block's staleness threshold), otherwise `null` ("No data") |
-| Overall DORA level, the last five `ci` runs, Supply chain (task 21) | `overallBand`, `internal/web/status.go`; `ciRuns`, `github.go`; task 21 | No window of their own: the bands above, the last five runs, the latest Scorecard result and Kyverno report | Unchanged |
+| Overall DORA level, the last five `ci` runs, Supply chain (tasks 21 and 24) | `overallBand`, `internal/web/status.go`; `ciRuns`, `github.go`; `supply.go` | No window of their own: the bands above, the last five runs, the latest Scorecard result and Kyverno report | Unchanged |
 
 The page's own words for the windows ("over 30 days" in the target
 line, "Project, last 30 days", "the last 24 hours, the last 7 days",
@@ -339,20 +339,24 @@ when the DORA figures are, without the token); `Validate` gains
 integer or `null` ([Time windows](#time-windows-2026-11-25): it needs
 the token). The rollout rule of version 3 applies.
 
-### Version 7 (task 21)
+### Versions 7 and 8 (tasks 21 and 24)
 
-Version 7 is version 6 plus the `supply_chain` block:
+Version 7 (task 21, the SLSA panel) is version 6 plus the
+`supply_chain` block without `scorecard`; version 8 (task 24, the
+Scorecard panel) adds `supply_chain.scorecard`. Two pull requests, one
+per operator item (2026-11-25), each its own version.
 
 | Key | Value |
 | --- | --- |
-| `supply_chain.as_of` | RFC 3339 |
-| `supply_chain.images[]` | `name` (the compiled list `homelab-dashboard`, `homelab-site`, in order), `level` (`2`, or `null` with no signed provenance), `verified` (`true`, `false` or `null` without a report), `builder` (the compiled builder text of the image) |
-| `supply_chain.scorecard` | `score` (0 to 10, one decimal, or `null`), `date` (the result's date), `lowest[]`: at most 3 of `name` (from the compiled check list), `score` (0 to 10), `reason` (plain text, at most 160 characters) |
+| `supply_chain.as_of` | RFC 3339, the Prometheus evaluation time |
+| `supply_chain.images[]` | `name` (the compiled list `homelab-dashboard`, `homelab-site`, in order), `level` (`2` when `verified` is `true`, else `null`), `verified` (`true`, `false` or `null` without a report), `builder` (the compiled builder text of the image) |
+| `supply_chain.scorecard` (version 8) | `score` (0 to 10, one decimal, or `null`), `date` (the result's date), `lowest[]`: at most 3 of `name` (from the compiled check list), `score` (0 to 10), `reason` (plain text, at most 160 characters) |
 
-`Validate` gains: `images` equals the compiled list by `name`; every
-check name is in the compiled list of Scorecard checks; `reason` has no
-control character and at most 160 characters. The rollout rule of
-version 3 applies.
+`Validate` gains: `images` equals the compiled list by `name` and
+`builder`, in order; a `level` only with `verified` `true`; from version
+8, every check name is in the compiled list of Scorecard checks and
+`reason` has no control character and at most 160 characters. The
+rollout rule of version 3 applies to each.
 
 ## Collector
 
@@ -687,7 +691,7 @@ to bottom:
    and "Rework rate, DORA's fifth metric since 2024, has no band here:
    the 2023 clusters these bands come from predate it." The second paragraph's "one person and a
    few bots" becomes "one person and a few agents".
-5. **Supply chain** (task 21): two panels of stat tiles, after the
+5. **Supply chain** (tasks 21 and 24): two panels of stat tiles, after the
    project card and before Security (2026-11-25: delivery first, then
    how what is delivered is built and trusted, then how the running
    system defends itself). "SLSA provenance": one tile per first-party
@@ -695,8 +699,12 @@ to bottom:
    value ("Build L2"), the verification as the status word
    ("Verified", "Not verified", "No data") and the builder as the
    detail line ("GitHub-hosted runner, dashboard-publish.yaml on
-   main"), and one sentence with the link to the
-   [SLSA levels](https://slsa.dev/spec/v1.0/levels). "OpenSSF
+   main"), and a short paragraph with the link to the
+   [SLSA levels](https://slsa.dev/spec/v1.0/levels): GitHub-hosted
+   runners and a provenance GitHub signs make Build L2, Kyverno checks
+   every running Pod, L3 needs a reusable workflow. A tile shows the
+   level only when `level` is set; otherwise its status word alone.
+   "OpenSSF
    Scorecard": the score as the value ("7.5" with the unit "/ 10") and
    its date, then the three lowest checks as tiles (the check's name as
    the label, its score as the value with "/ 10", Scorecard's reason as
@@ -857,7 +865,7 @@ when the alert would fire:
 | Fullest volume | Below 85% | 85% to 95% | Above 95% | `PersistentVolumeNearlyFull`, `-CriticallyFull` |
 | DORA metrics | `elite` and `high` | `medium` | `low` | [DORA bands](#dora-bands) |
 | Security, expected zero | 0 in 24 h ("None") | Above 0 ("Seen") | — | Dashboard default: one is worth a look |
-| Scorecard score (task 21) | 7.0 or more | 4.0 to under 7.0 | Under 4.0 | Dashboard default; Scorecard's own badge turns from green under 7 |
+| Scorecard score (task 24) | 7.0 or more | 4.0 to under 7.0 | Under 4.0 | Dashboard default; Scorecard's own badge turns from green under 7 |
 | SLSA provenance (task 21) | Verified by Kyverno ("Verified") | Not verified, or no provenance ("Not verified") | — | `verify-own-images` runs in Audit; the page reports, the policy decides |
 | Security, background | Otherwise ("Usual") | 24 h count above 20 and above 3 times the daily mean of the 6 days before, `(count_7d - count_24h) / 6` ("Above usual") | — | Dashboard default |
 
@@ -1572,14 +1580,28 @@ change (out of scope here): it changes the signing identity that
 Kyverno, `ci/image-signers.yaml` and the inventory check, so it is its
 own spec.
 
-The builder identity shown: `runDetails.builder.id` of the provenance,
-`https://github.com/actions/runner/github-hosted`, and the signing
-workflow, `https://github.com/ned-si/homelab/.github/workflows/<image's
-workflow>@refs/heads/main`. Both are compiled per image in `shown.go`;
-the publishing workflow fails when its fresh attestation names another
-builder or workflow (`gh attestation verify --signer-workflow` and a
-`jq` check of the builder id), so the compiled text cannot drift from
-the evidence.
+The builder identity shown: the runner environment of the provenance,
+`buildDefinition.internalParameters.github.runner_environment`
+(`github-hosted`), and the signing workflow, which is also
+`runDetails.builder.id`:
+`https://github.com/ned-si/homelab/.github/workflows/<image's
+workflow>@refs/heads/main` (read from the attestation of
+`homelab-dashboard` on 2026-11-25). The text is compiled per image in
+`shown.go` ("GitHub-hosted runner, <workflow> on main"); the publishing
+workflow fails when its fresh attestation names another workflow, ref or
+runner (`gh attestation verify --bundle-from-oci --signer-workflow
+--source-ref refs/heads/main --deny-self-hosted-runners` and a `jq` check
+of the builder id), so the compiled text cannot drift from the evidence.
+
+Level and verification per image: Kyverno writes one result per Pod
+for `verify-own-images`, covering the signature and the provenance
+together, so a missing provenance and a failed signature look the same.
+`verified` is `null` when no running Pod of the image has a result,
+`false` when one has a result other than `pass`, `true` otherwise (a
+Pod without a result yet, just after a rollout, is left out). The level
+is claimed only on that evidence: `level` is `2` when `verified` is
+`true`, `null` otherwise, and the tile then shows its status word alone
+(Requirement 13.2).
 
 ### Provenance (task 20)
 
@@ -1591,11 +1613,13 @@ the evidence.
 - `verify-own-images` (Audit, fail-open) gains, per image, an
   attestation check next to the signature check: a SLSA v1 provenance
   (`https://slsa.dev/provenance/v1`) on the running digest, signed by
-  that image's workflow identity on `main`. If Kyverno cannot read the
-  Sigstore bundle the attest action pushes, the workflow also attaches
-  the same predicate with `cosign attest --type slsaprovenance1` in the
-  classic format its signatures use, and the policy reads that one; the
-  task records which.
+  that image's workflow identity on `main`, whose
+  `runner_environment` is `github-hosted`. Kyverno 1.20 reads the
+  Sigstore bundle the attest action pushes as an OCI referrer, so no
+  `cosign attest` copy is needed (task 20: `kyverno apply` passed for
+  the running `homelab-dashboard` digest and failed for the running
+  `homelab-site` digest, signed but without a provenance, and for a
+  provenance from another workflow).
 - kube-state-metrics' `customResourceState` (the config that already
   exports `kyverno_policyreport_summary`) gains an `Info` metric
   `result` over the path `[results]` of the PolicyReport resource
@@ -1616,9 +1640,13 @@ the evidence.
       regex: kyverno_policyreport_result_info;
       action: drop
   ```
-  A test runs the pinned kube-state-metrics' config over a fixture
-  PolicyReport with two policies, and a promtool test of the
-  relabelling shows that no other policy's series survives. The
+  `tests/test_ksm_policyreport.py` checks the metric's config and applies
+  the relabelling as Prometheus does: only `verify-own-images` results
+  survive, every other metric is untouched (promtool cannot run
+  `metricRelabelings`). The pinned kube-state-metrics (v2.20.0) was run
+  once against the live PolicyReports with this config (task 20): 20,911
+  result series exported, 858 of `verify-own-images` kept, one per
+  reported resource, the Pod's name in `resource`. The
   collector joins the result with
   `kube_pod_container_info{image_spec=~"ghcr.io/ned-si/<image>(:[^@]+)?@sha256:[0-9a-f]{64}"}`
   (`image_spec` is the image as the Pod spec pins it, `:main@sha256:…`;
@@ -1630,7 +1658,7 @@ the evidence.
   `[![SLSA Build L2](https://slsa.dev/images/gh-badge-level2.svg)](https://slsa.dev/spec/v1.0/levels#build-l2)`
   after the Scorecard badge.
 
-### Scorecard (task 21)
+### Scorecard (task 24)
 
 - Source: `GET https://api.securityscorecards.dev/projects/github.com/ned-si/homelab`
   (the public Scorecard API; the README badge uses its other name,

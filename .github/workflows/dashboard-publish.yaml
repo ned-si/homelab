@@ -134,6 +134,21 @@ jobs:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
+      # The provenance names this workflow on main and a GitHub-hosted runner:
+      # the builder the dashboard states for SLSA Build L2
+      # (.kiro/specs/homelab-dashboard/design.md#which-slsa-build-level).
+      - name: Verify the provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh attestation verify "oci://$IMAGE@$DIGEST" --owner ned-si --bundle-from-oci \
+            --signer-workflow ned-si/homelab/.github/workflows/dashboard-publish.yaml --source-ref refs/heads/main \
+            --deny-self-hosted-runners --format json > "$RUNNER_TEMP/provenance.json"
+          builder=$(jq -r '[.[].verificationResult.statement.predicate.runDetails.builder.id] | unique | join(",")' "$RUNNER_TEMP/provenance.json")
+          want="https://github.com/ned-si/homelab/.github/workflows/dashboard-publish.yaml@refs/heads/main"
+          [ "$builder" = "$want" ] || { echo "provenance builder is $builder, want $want"; exit 1; }
+          echo "provenance verified: $builder, GitHub-hosted runner" | tee -a "$GITHUB_STEP_SUMMARY"
 
       # The cosign pin lives in ci.yaml's env, as for site-publish.
       - name: Install the pinned cosign

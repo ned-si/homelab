@@ -317,3 +317,16 @@ func signalStatus(expectedZero bool, day, week *int) (status, string) {
 	}
 	return statusOK, "Usual"
 }
+
+// provenanceStatus is the status and word of an image's provenance as
+// Kyverno verified it; nil is no report.
+func provenanceStatus(verified *bool) (status, string) {
+	switch {
+	case verified == nil:
+		return statusNone, noData
+	case *verified:
+		return statusOK, "Verified"
+	default:
+		return statusWarn, "Not verified"
+	}
+}

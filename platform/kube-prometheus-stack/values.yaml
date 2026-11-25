@@ -121,6 +121,19 @@ prometheus-node-exporter:
 # The report name keeps the series apart (Kyverno writes one report per
 # resource); Kyverno's own per-result counter overflows its cardinality limit.
 kube-state-metrics:
+  # RE2 has no negative lookahead: mark the verify-own-images results, drop
+  # every other kyverno_policyreport_result_info series.
+  prometheus:
+    monitor:
+      http:
+        metricRelabelings:
+          - sourceLabels: [__name__, policy]
+            regex: kyverno_policyreport_result_info;verify-own-images
+            targetLabel: __tmp_keep
+            replacement: "1"
+          - sourceLabels: [__name__, __tmp_keep]
+            regex: kyverno_policyreport_result_info;
+            action: drop
   rbac:
     extraRules:
       - apiGroups: [wgpolicyk8s.io]
@@ -144,6 +157,22 @@ kube-state-metrics:
                   gauge:
                     path: [summary]
                     labelFromKey: result
+              # One series per result, for the dashboard's SLSA tiles
+              # (.kiro/specs/homelab-dashboard/design.md#provenance-task-20).
+              # It cannot filter by policy: the ServiceMonitor keeps only
+              # verify-own-images.
+              - name: result_info
+                help: One result of a Kyverno PolicyReport
+                labelsFromPath:
+                  resource: [scope, name]
+                each:
+                  type: Info
+                  info:
+                    path: [results]
+                    labelsFromPath:
+                      policy: [policy]
+                      rule: [rule]
+                      result: [result]
           - groupVersionKind: {group: wgpolicyk8s.io, version: v1alpha2, kind: ClusterPolicyReport}
             metricNamePrefix: kyverno_clusterpolicyreport
             labelsFromPath:

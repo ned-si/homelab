@@ -55,6 +55,7 @@ type Collector struct {
 	cluster      *snapshot.Cluster
 	project      *snapshot.Project
 	security     *snapshot.Security
+	supplyChain  *snapshot.SupplyChain
 	nextProject  time.Time
 	// doraAt is the end of the window of the last refresh with the token.
 	doraAt time.Time
@@ -96,7 +97,9 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 	c.refreshCertificates(ctx, now)
 	c.refreshCluster(ctx, now)
 	c.refreshSecurity(ctx, now)
-	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil || c.security == nil {
+	c.refreshSupplyChain(ctx, now)
+	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil || c.security == nil ||
+		c.supplyChain == nil {
 		return false
 	}
 	s := &snapshot.Snapshot{
@@ -107,6 +110,7 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 		Cluster:       *c.cluster,
 		Project:       *c.project,
 		Security:      *c.security,
+		SupplyChain:   *c.supplyChain,
 	}
 	body, err := c.validate(s)
 	if err != nil {
@@ -177,6 +181,15 @@ func (c *Collector) refreshSecurity(ctx context.Context, now time.Time) {
 	c.observe("security", start, err, "prometheus")
 	if err == nil {
 		c.security = &s
+	}
+}
+
+func (c *Collector) refreshSupplyChain(ctx context.Context, now time.Time) {
+	start := time.Now()
+	s, err := supplyChain(ctx, c.Prometheus, now)
+	c.observe("supply_chain", start, err, "prometheus")
+	if err == nil {
+		c.supplyChain = &s
 	}
 }
 
@@ -306,6 +319,10 @@ func (c *Collector) Collect(ctx context.Context, at time.Time) (*snapshot.Snapsh
 	if err != nil {
 		return nil, nil, fmt.Errorf("security: %w", err)
 	}
+	sc, err := supplyChain(ctx, c.Prometheus, at)
+	if err != nil {
+		return nil, nil, fmt.Errorf("supply chain: %w", err)
+	}
 	s := &snapshot.Snapshot{
 		SchemaVersion: snapshot.Version,
 		GeneratedAt:   snapshot.FormatTime(at),
@@ -314,6 +331,7 @@ func (c *Collector) Collect(ctx context.Context, at time.Time) (*snapshot.Snapsh
 		Cluster:       cl,
 		Project:       p,
 		Security:      sec,
+		SupplyChain:   sc,
 	}
 	body, err := c.validate(s)
 	if err != nil {

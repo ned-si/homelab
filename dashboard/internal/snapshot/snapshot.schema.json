@@ -4,9 +4,9 @@
   "title": "snapshot.json, the public figures of https://homelab.nedsi.io/",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "generated_at", "availability", "certificates", "cluster", "project", "security"],
+  "required": ["schema_version", "generated_at", "availability", "certificates", "cluster", "project", "security", "supply_chain"],
   "properties": {
-    "schema_version": {"const": 6},
+    "schema_version": {"const": 7},
     "generated_at": {"$ref": "#/$defs/time"},
     "availability": {
       "type": "object",
@@ -206,6 +206,30 @@
               "part_24h": {"$ref": "#/$defs/count"},
               "unattributed_24h": {"$ref": "#/$defs/count"},
               "buckets": {"type": "array", "minItems": 28, "maxItems": 28, "items": {"$ref": "#/$defs/count"}}
+            }
+          }
+        }
+      }
+    },
+    "supply_chain": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["as_of", "images"],
+      "properties": {
+        "as_of": {"$ref": "#/$defs/time"},
+        "images": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "level", "verified", "builder"],
+            "properties": {
+              "name": {"$ref": "#/$defs/id"},
+              "level": {"enum": [2, null]},
+              "verified": {"type": ["boolean", "null"]},
+              "builder": {"type": "string", "pattern": "^[A-Za-z0-9 ,.-]{1,80}$"}
             }
           }
         }

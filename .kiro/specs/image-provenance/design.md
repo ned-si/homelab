@@ -164,6 +164,14 @@ verifier, `cosign verify`, the inventory) reads it. With cosign 3.x that is
 Kyverno report shows `error` for a signature the CLI verifies, the format is
 the first suspect; switching formats is a change to this section.
 
+From homelab-dashboard task 20, `site-publish` also pushes a signed SLSA
+v1 provenance made by `actions/attest-build-provenance` (a Sigstore bundle
+as an OCI referrer), as `dashboard-publish` already did. The inventory's
+attestation column already reads `yes` from BuildKit's attestation
+manifest and does not tell the two apart; Kyverno's `verify-own-images`
+verifies the signed one in the cluster
+([homelab-dashboard design, Provenance](../homelab-dashboard/design.md#provenance-task-20)).
+
 ## The own-image policy (task 2)
 
 `infrastructure/kyverno-policies/verify-own-images.yaml`, listed in that
