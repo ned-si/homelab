@@ -337,14 +337,15 @@ Authorized Devices).
 
 ## First-party code
 
-Two images are built from this repository; everything else is upstream.
+Three images are built from this repository; everything else is upstream.
 
 | Sources | Image | Workflow | Deployed by |
 | --- | --- | --- | --- |
 | `site/` (Hugo blog on nginx) | `ghcr.io/ned-si/homelab-site` | `site-publish.yaml` | `apps/website/` |
 | `dashboard/` (Go, [homelab-dashboard.md](homelab-dashboard.md)) | `ghcr.io/ned-si/homelab-dashboard` | `dashboard-publish.yaml` | `apps/homelab-dashboard/` |
+| `jamulus/` (the upstream Jamulus server, signed `.deb` on Debian) | `ghcr.io/ned-si/homelab-jamulus` | `jamulus-publish.yaml` | `apps/jamulus/` |
 
-Both are multi-arch, signed keyless with cosign by their own workflow on
+All are multi-arch, signed keyless with cosign by their own workflow on
 `main` (`ci/image-signers.yaml`), checked by Kyverno's `verify-own-images`,
 and reach the cluster by digest through a Renovate pull request. Go code
 follows the Google Go Style Guide, enforced by `dashboard/.golangci.yaml`.

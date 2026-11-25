@@ -113,6 +113,14 @@ their script runs, and the script fails when one is missing.
   analyses the Go code too. A merge that touches `dashboard/` runs
   `.github/workflows/dashboard-publish.yaml`: smoke test, multi-arch build
   with SBOM and provenance, cosign signature, tag `main`.
+- `jamulus`: `scripts/ci/jamulus-check.sh` builds the Jamulus image in
+  `jamulus/` for `linux/amd64` and runs `scripts/ci/jamulus-smoke.sh` on
+  it: the pinned version, then the server read-only, non-root and without
+  capabilities must echo `jamulus-ping` within 20 s. Skipped when nothing
+  under `jamulus/`, `scripts/ci/jamulus-*.sh` or `platform/jamulus-probe/`
+  changed. A merge that touches `jamulus/` runs
+  `.github/workflows/jamulus-publish.yaml`: the same smoke test, multi-arch
+  build with SBOM and provenance, cosign signature, tag `main`.
 
 Downloads and caches:
 
