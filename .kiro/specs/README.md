@@ -73,6 +73,7 @@ Change specs, active:
 | [image-provenance](image-provenance/) | 2026-11-18 | #725 | task 1: the image inventory and its read-only workflow |
 | [netpol-default-deny](netpol-default-deny/) | 2026-11-04 | #709 | task 1: the readiness rules every 2 minutes with the presence term, then the break-glass runbook and the flips |
 | [public-website](public-website/) | 2026-11-13 | #971 | tasks 11-12: the Home and About text, one layout across the public pages |
+| [self-hosted-jamulus](self-hosted-jamulus/) | 2026-11-25 | #1702 | task 1: the image, its publishing and signature |
 | [site-theme-language](site-theme-language/) | 2026-11-25 | #1662 | task 1: the theme on `nedsi.io` and the blog, after public-website task 12 |
 | [tech-radar](tech-radar/) | 2026-11-25 | #1671 | task 3: the nav link, the landing card and the layout check, after public-website task 12 |
 
