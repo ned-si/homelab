@@ -20,7 +20,7 @@ def nav(current=None, links=None):
     for text, href in links:
         cur = ' aria-current="page"' if text == current else ""
         out.append(f'<a href="{href}"{cur}>{text}</a>')
-    return '<nav class="site" aria-label="Site">' + "".join(out) + "</nav>"
+    return '<header class="site"><nav class="site" aria-label="Site">' + "".join(out) + "</nav></header>"
 
 
 CERTS = "<h3>Certifications</h3><ul><li>2024: KCNA</li><li>2023: CISSP</li><li>2019: Security+</li></ul>"
@@ -53,6 +53,10 @@ def test_blog_pages_pass(tmp_path, pages):
     [
         ("<p>no nav</p>", '0 <nav class="site">'),
         (nav("Blog") + nav("Blog"), '2 <nav class="site">'),
+        (nav("Blog").replace('<header class="site">', "<header>"), "outside <header"),
+        (nav("Blog").replace('<nav class="site"', '<nav class="site wide"'), "attributes"),
+        (nav("Blog").replace("</a>", "</a><span>|</span>", 1), "want only <a>"),
+        (nav("Blog").replace("<a ", '<a class="x" ', 1), "want only href and aria-current"),
         (nav("Blog", [("Blog", "/"), ("Home", "https://nedsi.io/")]), "site nav"),
         (nav(), "no aria-current"),
         (nav("About"), "not this page or a parent"),

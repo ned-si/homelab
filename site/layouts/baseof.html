@@ -10,7 +10,7 @@
 {{- with site.Home.OutputFormats.Get "rss" }}
 <link rel="alternate" type="application/rss+xml" href="{{ .RelPermalink }}" title="{{ site.Title }}">
 {{- end }}
-{{- $css := slice (resources.Get "css/main.css") (resources.Get "css/syntax.css") | resources.Concat "css/main.css" | minify | fingerprint }}
+{{- $css := slice (resources.Get "css/layout.css") (resources.Get "css/main.css") (resources.Get "css/syntax.css") | resources.Concat "css/main.css" | minify | fingerprint }}
 <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}">
 </head>
 <body>
@@ -29,7 +29,9 @@
 </nav>
 </header>
 <main>
+<div class="prose">
 {{ block "main" . }}{{ end }}
+</div>
 </main>
 <footer class="site">
 <p>Articles by {{ site.Params.author }}.

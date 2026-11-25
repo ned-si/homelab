@@ -51,6 +51,7 @@ check 200 - 8080 blog.nedsi.io /
 check 404 - 8080 blog.nedsi.io /does-not-exist
 check 405 - 8080 blog.nedsi.io / -X POST
 check 200 - 8080 nedsi.io /
+check 200 - 8080 nedsi.io /layout.css
 check 200 - 8080 nedsi.io /landing.css
 check 405 - 8080 nedsi.io / -X POST
 check 301 https://nedsi.io/a?b=1 8080 www.nedsi.io '/a?b=1'

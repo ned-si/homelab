@@ -92,6 +92,14 @@ their script runs, and the script fails when one is missing.
   presence, HIGH on delta against the merge-base).
 - `pr-metadata`: PR title and every commit subject (`scripts/ci/check-title.sh`),
   every commit verified.
+- `site`: `scripts/ci/site-check.sh` builds the blog and checks links,
+  markup, the site nav, image metadata and the `layout.css` copies;
+  `scripts/ci/site-serve-check.sh` serves it with the real nginx config;
+  `scripts/ci/layout-check.sh` compares the container and nav of the
+  landing page, the blog and the dashboard in `chrome-headless-shell` at
+  1920x1080 and 390x844 ([website.md](website.md#shared-layout)). Skipped
+  when nothing under `site/`, `apps/website/` or `dashboard/internal/web/`
+  changed.
 - `dashboard`: `scripts/ci/dashboard-check.sh` on the Go module in
   `dashboard/` ([homelab-dashboard.md](homelab-dashboard.md)), skipped when
   nothing under it changed: `go mod verify` and `tidy -diff`, golangci-lint

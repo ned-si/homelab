@@ -1,0 +1,38 @@
+/* The container, header, navigation bar and footer geometry every public
+   page shares (.kiro/specs/public-website/design.md, "Shared layout"). The
+   one definition: the landing page and the dashboard hold byte copies
+   (`task site:layout-sync`), checked by scripts/ci/site-check.sh. Colours
+   come from each page's own stylesheet. */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0 auto;
+  max-width: 72rem;
+  padding: 1.5rem 1.25rem 3rem;
+  font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+header.site {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+nav.site {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+
+nav.site a { text-decoration: none; }
+nav.site a:hover { color: var(--fg); }
+nav.site a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 2px; }
+nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; }
+
+main { padding-top: 1.5rem; }
+
+footer.site {
+  margin-top: 3rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--rule);
+}

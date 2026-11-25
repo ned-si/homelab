@@ -305,6 +305,12 @@ tasks:
     cmds:
       - ./scripts/site.sh strip
 
+  site:layout-sync:
+    desc: Copy site/assets/css/layout.css over its copies (landing page, dashboard)
+    cmds:
+      - cp site/assets/css/layout.css apps/website/landing/layout.css
+      - cp site/assets/css/layout.css dashboard/internal/web/assets/layout.css
+
   techradar:render:
     desc: Render the tech radar from techradar/entries.yaml into apps/website/techradar/
     dir: techradar

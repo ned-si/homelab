@@ -20,20 +20,21 @@ data:
     <meta name="description" content="nedsi: security and reliability engineering, a homelab run like production, and writing about both.">
     <meta name="author" content="nedsi">
     <link rel="canonical" href="https://nedsi.io/">
+    <link rel="stylesheet" href="/layout.css">
     <link rel="stylesheet" href="/landing.css">
     </head>
     <body>
+    <header class="site">
     <nav class="site" aria-label="Site">
     <a href="https://nedsi.io/" aria-current="page">Home</a>
     <a href="https://blog.nedsi.io/">Blog</a>
     <a href="https://homelab.nedsi.io/">Homelab</a>
     <a href="https://blog.nedsi.io/about/">About</a>
     </nav>
-    <header>
-    <h1>Security and reliability engineer</h1>
-    <p class="lead">Automate all the things.</p>
     </header>
     <main>
+    <h1>Security and reliability engineer</h1>
+    <p class="lead">Automate all the things.</p>
     <section class="blocks" aria-label="About this site">
     <div>
     <h2>What this is</h2>
@@ -119,7 +120,7 @@ data:
     </div>
     </section>
     </main>
-    <footer>
+    <footer class="site">
     <p><a href="https://blog.nedsi.io/privacy/">Privacy</a>.</p>
     </footer>
     </body>
@@ -145,32 +146,10 @@ data:
       }
     }
 
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0 auto;
-      max-width: 60rem;
-      padding: 3rem 1.25rem;
-      color: var(--fg);
-      background: var(--bg);
-      font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
-    }
+    /* The container, nav and footer geometry are in layout.css. */
+    body { color: var(--fg); background: var(--bg); }
 
     a { color: var(--link); }
-
-    nav.site {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem 1.5rem;
-      margin: -1.5rem 0 2.5rem;
-      padding-bottom: 0.75rem;
-      border-bottom: 1px solid var(--rule);
-    }
-
-    nav.site a { text-decoration: none; }
-    nav.site a:hover { color: var(--fg); }
-    nav.site a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 2px; }
-    nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; }
 
     h1 { margin: 0; font-size: 2.5rem; }
     h2 { margin: 3rem 0 1rem; font-size: 1.375rem; }
@@ -216,14 +195,47 @@ data:
       text-transform: uppercase;
     }
 
-    footer {
+    footer.site { color: var(--muted); font-size: 0.875rem; }
+  layout.css: |
+    /* The container, header, navigation bar and footer geometry every public
+       page shares (.kiro/specs/public-website/design.md, "Shared layout"). The
+       one definition: the landing page and the dashboard hold byte copies
+       (`task site:layout-sync`), checked by scripts/ci/site-check.sh. Colours
+       come from each page's own stylesheet. */
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0 auto;
+      max-width: 72rem;
+      padding: 1.5rem 1.25rem 3rem;
+      font: 1.0625rem/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+
+    header.site {
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    nav.site {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1.5rem;
+    }
+
+    nav.site a { text-decoration: none; }
+    nav.site a:hover { color: var(--fg); }
+    nav.site a:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; border-radius: 2px; }
+    nav.site a[aria-current="page"] { color: var(--fg); font-weight: 700; }
+
+    main { padding-top: 1.5rem; }
+
+    footer.site {
       margin-top: 3rem;
       padding-top: 0.75rem;
       border-top: 1px solid var(--rule);
-      color: var(--muted);
-      font-size: 0.875rem;
     }
 kind: ConfigMap
 metadata:
-  name: website-landing-g9dg5bmhbh
+  name: website-landing-cb2cm7hf5h
   namespace: website
