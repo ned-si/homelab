@@ -309,6 +309,7 @@ tasks:
     desc: Copy site/assets/css/layout.css and the palette (theme-*.css) over their copies
     cmds:
       - cp site/assets/css/theme-dark.css site/assets/css/theme-light.css apps/website/landing/
+      - cp site/assets/css/theme-dark.css site/assets/css/theme-light.css dashboard/internal/web/assets/
       - cp site/assets/css/layout.css apps/website/landing/layout.css
       - cp site/assets/css/layout.css dashboard/internal/web/assets/layout.css
       - cp site/assets/css/layout.css techradar/internal/radar/assets/layout.css

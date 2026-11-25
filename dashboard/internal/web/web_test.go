@@ -431,3 +431,82 @@ func golden(t *testing.T, path string, got []byte) {
 		t.Errorf("%s mismatch (-want +got):\n%s", path, diff)
 	}
 }
+
+func TestThemeStylesheet(t *testing.T) {
+	h := newHarness(t)
+	for _, tc := range []struct {
+		name   string
+		header []string
+		want   string
+	}{
+		{"no cookie", nil, "color-scheme: dark"},
+		{"dark", []string{"Cookie", "theme=dark"}, "color-scheme: dark"},
+		{"other value", []string{"Cookie", "theme=blue"}, "color-scheme: dark"},
+		{"light", []string{"Cookie", "theme=light"}, "color-scheme: light"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := h.get(t, http.MethodGet, "/theme.css", tc.header...)
+			if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), tc.want) {
+				t.Fatalf("GET /theme.css = %d, want 200 with %q", rec.Code, tc.want)
+			}
+			for k, want := range map[string]string{"Cache-Control": "no-store", "Vary": "Cookie", "Content-Type": "text/css; charset=utf-8", "Set-Cookie": ""} {
+				if got := rec.Header().Get(k); got != want {
+					t.Errorf("%s = %q, want %q", k, got, want)
+				}
+			}
+		})
+	}
+}
+
+func TestSetTheme(t *testing.T) {
+	const (
+		light = "theme=light; Path=/; Domain=nedsi.io; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax"
+		dark  = "theme=; Path=/; Domain=nedsi.io; Max-Age=0; HttpOnly; Secure; SameSite=Lax"
+	)
+	h := newHarness(t)
+	for _, tc := range []struct {
+		name, method, path string
+		header             []string
+		code               int
+		location, cookie   string
+	}{
+		{"light", http.MethodGet, "/set-theme/light/", nil, http.StatusSeeOther, "/", light},
+		{"light with path", http.MethodGet, "/set-theme/light/fr/", nil, http.StatusSeeOther, "/fr/", light},
+		{"head", http.MethodHead, "/set-theme/light/", nil, http.StatusSeeOther, "/", light},
+		{"dark", http.MethodGet, "/set-theme/dark/", nil, http.StatusSeeOther, "/", dark},
+		{"same-site click", http.MethodGet, "/set-theme/light/", []string{"Sec-Fetch-Site", "same-site"}, http.StatusSeeOther, "/", light},
+		{"same-origin click", http.MethodGet, "/set-theme/dark/", []string{"Sec-Fetch-Site", "same-origin"}, http.StatusSeeOther, "/", dark},
+		{"typed", http.MethodGet, "/set-theme/light/", []string{"Sec-Fetch-Site", "none"}, http.StatusSeeOther, "/", light},
+		{"cross-site", http.MethodGet, "/set-theme/light/", []string{"Sec-Fetch-Site", "cross-site"}, http.StatusSeeOther, "/", ""},
+		{"prefetch", http.MethodGet, "/set-theme/light/", []string{"Sec-Purpose", "prefetch"}, http.StatusSeeOther, "/", ""},
+		{"prerender", http.MethodGet, "/set-theme/dark/", []string{"Sec-Purpose", "prefetch;prerender"}, http.StatusSeeOther, "/", ""},
+		{"other theme", http.MethodGet, "/set-theme/blue/", nil, http.StatusNotFound, "", ""},
+		{"no path", http.MethodGet, "/set-theme/light", nil, http.StatusNotFound, "", ""},
+		{"prefix only", http.MethodGet, "/set-theme/", nil, http.StatusNotFound, "", ""},
+		{"backslash", http.MethodGet, "/set-theme/light/%5cexample.com/", nil, http.StatusNotFound, "", ""},
+		{"crlf", http.MethodGet, "/set-theme/light/%0d%0aSet-Cookie:x=1", nil, http.StatusNotFound, "", ""},
+		{"other host", http.MethodGet, "/set-theme/light//example.com/", nil, http.StatusNotFound, "", ""},
+		{"post", http.MethodPost, "/set-theme/light/", nil, http.StatusMethodNotAllowed, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := h.get(t, tc.method, tc.path, tc.header...)
+			if rec.Code != tc.code {
+				t.Fatalf("%s %s = %d, want %d", tc.method, tc.path, rec.Code, tc.code)
+			}
+			if got := rec.Header().Get("Location"); got != tc.location {
+				t.Errorf("Location = %q, want %q", got, tc.location)
+			}
+			if got := strings.Join(rec.Header().Values("Set-Cookie"), "\n"); got != tc.cookie {
+				t.Errorf("Set-Cookie = %q, want %q", got, tc.cookie)
+			}
+			if tc.code == http.StatusSeeOther && rec.Header().Get("Cache-Control") != "no-store" {
+				t.Errorf("Cache-Control = %q, want no-store", rec.Header().Get("Cache-Control"))
+			}
+		})
+	}
+	for _, path := range []string{"/", "/nope", "/theme.css"} {
+		if got := h.get(t, http.MethodGet, path).Header().Get("Set-Cookie"); got != "" {
+			t.Errorf("GET %s sets %q, want no cookie", path, got)
+		}
+	}
+}

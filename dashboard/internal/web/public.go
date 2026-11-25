@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -94,9 +95,67 @@ func (s *Server) route(w http.ResponseWriter, r *http.Request) {
 	case s.cssPath:
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		serve(w, r, "text/css; charset=utf-8", css)
+	case "/theme.css":
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Vary", "Cookie")
+		body := themeDark
+		if c, err := r.Cookie("theme"); err == nil && c.Value == "light" {
+			body = themeLight
+		}
+		serve(w, r, "text/css; charset=utf-8", body)
 	default:
+		if strings.HasPrefix(r.URL.Path, "/set-theme/") {
+			s.setTheme(w, r)
+			return
+		}
 		s.serveNotFound(w)
 	}
+}
+
+// backPath is a path the theme endpoint may redirect to: the characters of
+// every path the four hosts serve, nothing that could add a header or read
+// as another host.
+var backPath = regexp.MustCompile(`^/[A-Za-z0-9._~/-]*$`)
+
+// setTheme answers /set-theme/<light|dark><path> with a 303 to <path> and,
+// on a click, sets or deletes the theme cookie, as nginx does
+// (.kiro/specs/site-theme-language/design.md#how-the-theme-is-served).
+func (s *Server) setTheme(w http.ResponseWriter, r *http.Request) {
+	theme, back, ok := strings.Cut(strings.TrimPrefix(r.URL.Path, "/set-theme/"), "/")
+	back = "/" + back
+	if !ok || (theme != "light" && theme != "dark") || !backPath.MatchString(back) || strings.HasPrefix(back, "//") {
+		s.serveNotFound(w)
+		return
+	}
+	if themeClick(r) {
+		c := &http.Cookie{
+			Name: "theme", Domain: "nedsi.io", Path: "/",
+			Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode,
+		}
+		if theme == "light" {
+			c.Value, c.MaxAge = "light", 31536000
+		} else {
+			c.MaxAge = -1 // Max-Age=0: delete it
+		}
+		http.SetCookie(w, c)
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Location", back)
+	w.WriteHeader(http.StatusSeeOther)
+}
+
+// themeClick reports whether the request is the reader's own click or typed
+// address: not a cross-site navigation, not a prefetch or prerender. A
+// browser without Fetch Metadata counts as a click.
+func themeClick(r *http.Request) bool {
+	if _, ok := r.Header["Sec-Purpose"]; ok {
+		return false
+	}
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "", "same-origin", "same-site", "none":
+		return true
+	}
+	return false
 }
 
 func (s *Server) servePage(w http.ResponseWriter, r *http.Request) {

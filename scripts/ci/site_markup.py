@@ -54,7 +54,7 @@ BANNED = {
 }
 SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io")
 # The hosts whose pages carry the theme toggle (site-theme-language tasks 1-3).
-THEMED = ("nedsi.io", "blog.nedsi.io")
+THEMED = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io")
 PREFS = [
     ("to-light", "light", "Light theme, remembered with a cookie", "Light theme"),
     ("to-dark", "dark", "Dark theme", "Dark theme"),

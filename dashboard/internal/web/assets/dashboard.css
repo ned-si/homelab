@@ -1,22 +1,6 @@
-/* The dark values of the blog's site/assets/css/main.css, always on. Classes
-   only, SVG included: the CSP allows no inline style. TestContrast reads the
-   custom properties below. */
-:root {
-  color-scheme: dark;
-  --fg: #e3e5e7;
-  --muted: #a0a6ab;
-  --bg: #17191b;
-  --link: #79b8ff;
-  --rule: #34383c;
-  --panel: #212427;
-  /* Stat tiles: darker than --panel, so --bad keeps 5:1 (a lighter tile
-     would put it under 4.5:1). */
-  --tile: #1a1c1f;
-  --ok: #3fb950;
-  --warn: #d29922;
-  --bad: #f85149;
-  --none: #a0a6ab;
-}
+/* The dashboard's components; the colours are the palette's, served as
+   /theme.css (theme-dark.css or theme-light.css). Classes only, SVG
+   included: the CSP allows no inline style. */
 
 /* The container, nav and footer geometry are in layout.css, served first. */
 body { color: var(--fg); background: var(--bg); }

@@ -756,12 +756,12 @@ Layout, in `dashboard.css`:
 - Big numbers `2.5rem`, tabular figures (`font-variant-numeric:
   tabular-nums`), labels in the muted colour. The font is the site's
   `system-ui` stack: no web font, so `font-src` stays unused.
-- Always dark (`color-scheme: dark`): the dark values of
-  `site/assets/css/main.css` (`--bg #17191b`, `--fg #e3e5e7`, `--muted
-  #a0a6ab`, `--link #79b8ff`, `--rule #34383c`), cards on `--panel
-  #212427` (the site's `--code-bg`) with a `1px` `--rule` border and
-  rounded corners. Status colours `--ok #3fb950`, `--warn #d29922`,
-  `--bad #f85149`, `--none` the muted colour.
+- Colours: the site's palette ([site-theme-language](../site-theme-language/design.md#palette)), dark by
+  default and light on the reader's choice, embedded as
+  `assets/theme-dark.css` and `theme-light.css` and served as
+  `/theme.css` by the cookie. Cards on `--panel` with a `1px` `--rule`
+  border and rounded corners, tiles on `--tile`, status colours `--ok`,
+  `--warn`, `--bad` and `--none`. `dashboard.css` holds no colour.
 - Styling is by class only, in the SVG too (`fill` from the class); no
   `style=` attribute, no `<style>` element.
 

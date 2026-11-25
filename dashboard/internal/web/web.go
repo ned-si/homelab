@@ -42,6 +42,15 @@ var layoutCSS []byte
 //go:embed assets/dashboard.css
 var dashboardCSS []byte
 
+// The palette copies (site/assets/css/theme-*.css), served as /theme.css by
+// the cookie (.kiro/specs/site-theme-language/design.md#go-web-role).
+var (
+	//go:embed assets/theme-dark.css
+	themeDark []byte
+	//go:embed assets/theme-light.css
+	themeLight []byte
+)
+
 // css is the one stylesheet: the shared layout (a copy of
 // site/assets/css/layout.css), then the dashboard's own rules.
 var css = slices.Concat(layoutCSS, dashboardCSS)

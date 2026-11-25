@@ -68,7 +68,7 @@ cp -R "$public/css" "$www/css"
 cp "$root/site/assets/css/theme-dark.css" "$www/theme.css"
 pages=(landing blog about privacy dashboard techradar)
 # The pages with the preferences; the other hosts get them in later tasks.
-themed="landing blog about privacy article"
+themed="landing blog about privacy article dashboard"
 cp "$root/apps/website/landing/index.html" "$work/landing.html"
 cp "$root/apps/website/techradar/index.html" "$work/techradar.html"
 cp "$public/index.html" "$work/blog.html"
