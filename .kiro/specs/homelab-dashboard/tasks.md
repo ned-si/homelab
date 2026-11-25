@@ -335,7 +335,7 @@ live check.
       Snapshot keys read: unchanged. Probes: none. Check: acceptance
       criteria 6, 22 and 29. [3.11, 3.12, 3.13, 3.14]
       #1691
-- [ ] 19. Rework rate and "agents" (**visible**): snapshot version 6
+- [x] 19. Rework rate and "agents" (**visible**): snapshot version 6
       (`project.rework`, `ci_median_seconds_30d` nullable), the collector's count of
       [design.md, DORA bands](design.md#dora-bands), the tile without a
       band and its sentence, "a few agents" in the DORA paragraph, the
@@ -355,6 +355,7 @@ live check.
       acceptance criterion 30; Requirement 2.8 in
       `docs/homelab-dashboard.md`. Check: acceptance criteria 23 and
       30. [2.8, 10.4, 10.9, 10.10]
+      #1703
 - [ ] 20. Provenance for both images and its verification (**not
       visible**): `actions/attest-build-provenance` in
       `site-publish.yaml` with its `gh attestation verify` step, the
