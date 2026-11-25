@@ -2,7 +2,8 @@
 # site-check.sh [--all] -- the `site` job: build site/ and check the result
 # (.kiro/specs/public-website/design.md, "The site job").
 #
-# The markup check also covers the landing page (apps/website/landing/); the
+# The markup check also covers the landing page (apps/website/landing/) and
+# the dashboard's golden pages (dashboard/internal/web/testdata/); the
 # copies of site/assets/css/layout.css must equal it byte for byte.
 #
 # Without --all it exits 0 when SITE_BASE..HEAD (default HEAD^1, main for a
@@ -47,6 +48,12 @@ if hugo --source site --destination "$out" --cleanDestinationDir --minify \
   echo "== markup"
   python3 scripts/ci/site_markup.py "$out" || fail "markup: see the lines above"
   python3 scripts/ci/site_markup.py apps/website/landing nedsi.io || fail "landing markup: see the lines above"
+  # The dashboard's goldens are its rendered pages, so its nav is checked too.
+  for g in dashboard/internal/web/testdata/*.golden.html; do
+    d="$work/dashboard/$(basename "$g" .golden.html)"
+    mkdir -p "$d" && cp "$g" "$d/index.html"
+  done
+  python3 scripts/ci/site_markup.py "$work/dashboard" homelab.nedsi.io || fail "dashboard markup: see the lines above"
 else
   fail "hugo build (warnings fail it too)"
 fi
