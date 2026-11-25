@@ -5,7 +5,9 @@
 # The markup check also covers the landing page (apps/website/landing/) and
 # the dashboard's golden pages (dashboard/internal/web/testdata/); the
 # copies of site/assets/css/layout.css (landing page, dashboard, tech radar)
-# must equal it byte for byte.
+# and of the palette, theme-*.css, must equal their source byte for byte.
+# Both palettes pass the contrast check, and no other stylesheet holds a
+# colour (.kiro/specs/site-theme-language/design.md#palette).
 #
 # Without --all it exits 0 when SITE_BASE..HEAD (default HEAD^1, main for a
 # pull request's merge commit) touches neither site/, apps/website/, the
@@ -64,6 +66,18 @@ for copy in apps/website/landing/layout.css dashboard/internal/web/assets/layout
   techradar/internal/radar/assets/layout.css apps/website/techradar/layout.css; do
   cmp -s site/assets/css/layout.css "$copy" || fail "$copy differs from site/assets/css/layout.css; run \`task site:layout-sync\`"
 done
+
+echo "== palette copies, contrast and colour literals"
+palette_copies=(apps/website/landing)
+for theme in dark light; do
+  for copy in "${palette_copies[@]}"; do
+    cmp -s "site/assets/css/theme-$theme.css" "$copy/theme-$theme.css" \
+      || fail "$copy/theme-$theme.css differs from site/assets/css/theme-$theme.css; run \`task site:layout-sync\`"
+  done
+done
+python3 scripts/ci/site_contrast.py site/assets/css || fail "contrast: see the lines above"
+python3 scripts/ci/site_markup.py --css site/assets/css/layout.css site/assets/css/main.css \
+  site/assets/css/syntax.css apps/website/landing/landing.css || fail "colour literals: see the lines above"
 
 echo "== drafts and future-dated pages"
 # Unpublished pages live in draft pull requests, never on main.

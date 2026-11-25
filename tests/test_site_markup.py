@@ -23,6 +23,24 @@ def nav(current=None, links=None):
     return '<header class="site"><nav class="site" aria-label="Site">' + "".join(out) + "</nav></header>"
 
 
+def prefs(path="/"):
+    """The preferences of a page at path, as the layouts render them."""
+    icon = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 1"/></svg>'
+    return (
+        '<p class="prefs">'
+        f'<a class="to-light" href="/set-theme/light{path}" rel="nofollow" title="Light theme, remembered with a cookie">'
+        f'{icon}<span class="vh">Light theme</span></a>'
+        f'<a class="to-dark" href="/set-theme/dark{path}" rel="nofollow" title="Dark theme">'
+        f'{icon}<span class="vh">Dark theme</span></a></p>'
+    )
+
+
+def page_path(rel):
+    if rel.endswith("404.html"):
+        return "/"
+    return "/" + rel[: -len("index.html")] if rel.endswith("index.html") else "/" + rel
+
+
 CERTS = "<h3>Certifications</h3><ul><li>2024: KCNA</li><li>2023: CISSP</li><li>2019: Security+</li></ul>"
 
 
@@ -30,7 +48,9 @@ def run(tmp_path, pages, host=None):
     for rel, body in pages.items():
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(f"<!doctype html><html><body>{body}</body></html>", encoding="utf-8")
+        body = body.replace("</nav></header>", "</nav>" + prefs(page_path(rel)) + "</header>")
+        head = '<head><link rel="stylesheet" href="/theme.css"></head>'
+        path.write_text(f"<!doctype html><html>{head}<body>{body}</body></html>", encoding="utf-8")
     args = [sys.executable, CHECK, str(tmp_path)] + ([host] if host else [])
     return subprocess.run(args, capture_output=True, text=True)
 
@@ -168,3 +188,69 @@ def test_watch_allowed_on_other_pages(tmp_path):
 def test_account_link_allowed_outside_article(tmp_path):
     body = nav("Blog") + '<a href="https://github.com/ned-si/">Projects</a>'
     assert run(tmp_path, {"index.html": body}).returncode == 0
+
+
+@pytest.mark.parametrize(
+    "old, new, msg",
+    [
+        (prefs("/"), "", '0 <p class="prefs">'),
+        (prefs("/"), prefs("/") + prefs("/"), '2 <p class="prefs">'),
+        ("/set-theme/light/", "/set-theme/light/about/", "preferences"),
+        ('rel="nofollow" title="Dark', 'title="Dark', "preferences"),
+        ('<span class="vh">Light theme</span>', "", "preferences"),
+        ('aria-hidden="true"', "", "preferences"),
+        ('href="/theme.css"', 'href="/other.css"', "want /theme.css last"),
+    ],
+)
+def test_prefs_fail(tmp_path, old, new, msg):
+    page = (
+        '<!doctype html><html><head><link rel="stylesheet" href="/theme.css"></head><body>'
+        + nav("Blog").replace("</nav></header>", "</nav>" + prefs("/") + "</header>")
+        + "</body></html>"
+    )
+    (tmp_path / "index.html").write_text(page.replace(old, new, 1), encoding="utf-8")
+    res = subprocess.run([sys.executable, CHECK, str(tmp_path)], capture_output=True, text=True)
+    assert res.returncode == 1
+    assert msg in res.stdout
+
+
+def test_prefs_paths(tmp_path):
+    pages = {"about/index.html": nav("About") + CERTS, "404.html": nav(), "posts/x/index.html": nav("Blog")}
+    assert run(tmp_path, pages).returncode == 0
+
+
+def test_prefs_minified_without_end_p(tmp_path):
+    body = nav("Blog").replace("</nav></header>", "</nav>" + prefs("/").replace("</p>", "") + "</header>")
+    assert run(tmp_path, {"index.html": body}).returncode == 0
+
+
+def test_landing_no_cookies_line(tmp_path):
+    links = [
+        ("Home", "/"),
+        ("Blog", "https://blog.nedsi.io/"),
+        ("Homelab", "https://homelab.nedsi.io/"),
+        ("About", "https://blog.nedsi.io/about/"),
+    ]
+    res = run(tmp_path, {"index.html": nav("Home", links) + "<p>No cookies.</p>"}, "nedsi.io")
+    assert res.returncode == 1
+    assert 'says "no cookies"' in res.stdout
+
+
+@pytest.mark.parametrize(
+    "css, ok",
+    [
+        ("body { color: var(--fg); background: var(--bg); }", True),
+        ("/* #fff in a comment */ a:hover { color: currentColor; }", True),
+        (".x { border: 1px solid transparent; }", True),
+        ("body { color: #fff; }", False),
+        ("body { color: rgb(0 0 0); }", False),
+        ("body { background: hsl(0 0% 0%); }", False),
+        ("body { color: White; }", False),
+        (".x { border: 1px solid var(--rule, red); }", False),
+    ],
+)
+def test_colour_literals(tmp_path, css, ok):
+    f = tmp_path / "x.css"
+    f.write_text(css, encoding="utf-8")
+    res = subprocess.run([sys.executable, CHECK, "--css", str(f)], capture_output=True, text=True)
+    assert (res.returncode == 0) is ok, res.stdout

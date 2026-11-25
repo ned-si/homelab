@@ -6,10 +6,13 @@
 # newest article (when there is one), the dashboard's full fixture page and
 # the tech radar (apps/website/techradar/) in
 # chrome-headless-shell at 1920x1080 and 390x844: the left edge and width of
-# body's content box, the box of `header.site > nav.site` and the x and width
-# of each nav link. Fails when a value differs by more than 1 px from the
-# landing page's at the same viewport. <public dir> is the blog built by
-# site-check.sh.
+# body's content box, the box of `header.site > nav.site`, the x and width
+# of each nav link and, on the pages in THEMED, the box of `header.site >
+# .prefs` (the theme toggle, site-theme-language). Fails when a value differs
+# by more than 1 px from the landing page's at the same viewport. The pages
+# get the dark palette as /theme.css; the light one holds the same layout,
+# because the palettes hold colours only (scripts/ci/site_contrast.py).
+# <public dir> is the blog built by site-check.sh.
 #
 # The pages are static copies, each with one added <script src="/measure.js">
 # that writes the measurements into the DOM, served on 127.0.0.1 and never
@@ -62,7 +65,10 @@ curl -fs -m 10 -o "$www$css" "http://127.0.0.1:18080$css"
 cp "$root/apps/website/landing/layout.css" "$root/apps/website/landing/landing.css" "$www/"
 cp "$root/apps/website/techradar/techradar.css" "$www/"
 cp -R "$public/css" "$www/css"
+cp "$root/site/assets/css/theme-dark.css" "$www/theme.css"
 pages=(landing blog about privacy dashboard techradar)
+# The pages with the preferences; the other hosts get them in later tasks.
+themed="landing blog about privacy article"
 cp "$root/apps/website/landing/index.html" "$work/landing.html"
 cp "$root/apps/website/techradar/index.html" "$work/techradar.html"
 cp "$public/index.html" "$work/blog.html"
@@ -96,6 +102,11 @@ cat >"$www/measure.js" <<'EOF'
       out[t + " x"] = l.x; out[t + " width"] = l.width;
     });
   }
+  var prefs = document.querySelector("header.site > .prefs");
+  if (prefs) {
+    var q = prefs.getBoundingClientRect();
+    out["prefs x"] = q.x; out["prefs y"] = q.y; out["prefs width"] = q.width; out["prefs height"] = q.height;
+  }
   var pre = document.createElement("pre");
   pre.id = "layout-measure";
   pre.textContent = JSON.stringify(out);
@@ -128,13 +139,15 @@ for size in 1920x1080 390x844; do
   done
 done
 
-python3 - "$work" "${pages[@]}" <<'EOF'
+THEMED=$themed python3 - "$work" "${pages[@]}" <<'EOF'
 import html
 import json
+import os
 import re
 import sys
 
 work, pages = sys.argv[1], sys.argv[2:]
+themed = set(os.environ["THEMED"].split())
 failed = False
 for size in ("1920x1080", "390x844"):
     got = {}
@@ -148,6 +161,8 @@ for size in ("1920x1080", "390x844"):
     print(f"== {size} (px): " + ", ".join(f"{k} {v:.1f}" for k, v in ref.items()))
     for page in pages[1:]:
         for key in sorted(set(ref) | set(got[page])):
+            if key.startswith("prefs ") and page not in themed:
+                continue
             a, b = ref.get(key), got[page].get(key)
             if a is None or b is None or abs(a - b) > 1:
                 print(f"layout-check: FAIL {page} at {size}: {key} {b}, landing {a}")

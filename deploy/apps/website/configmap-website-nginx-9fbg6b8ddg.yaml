@@ -53,12 +53,35 @@ data:
             default          nedsi.io;
         }
 
+        # The theme (.kiro/specs/site-theme-language/design.md#nginx).
+        map $cookie_theme $theme {
+            light   light;
+            default dark;
+        }
+        # A click from a nedsi.io page or a typed address; not a cross-site
+        # navigation, not a prefetch or prerender.
+        map "$http_sec_fetch_site:$http_sec_purpose" $theme_click {
+            ~^(|same-origin|same-site|none):$ 1;
+            default                          0;
+        }
+        # An empty value sends no Set-Cookie.
+        map "$theme_click:$uri" $theme_cookie {
+            ~^1:/set-theme/light/ "theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax";
+            ~^1:                  "theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax";
+            default               "";
+        }
+        # The blog's French 404 page.
+        map $uri $not_found {
+            ~^/fr/  /fr/404.html;
+            default /404.html;
+        }
+
         # The blog, also the default server (kubelet probes, the smoke's Service check).
         server {
             listen 8080 default_server;
             server_name blog.nedsi.io;
             root /usr/share/nginx/html;
-            error_page 404 /404.html;
+            error_page 404 $not_found;
 
             # Only GET and HEAD (Requirement 3.3). An `if` with `return` instead of
             # limit_except + error_page 403: no other 403 can turn into a 405.
@@ -70,6 +93,8 @@ data:
                 try_files $uri $uri/ =404;
                 add_header Cache-Control "public, max-age=300";
             }
+
+            include /etc/nginx-site/theme.conf;
 
             # Fingerprinted by Hugo: a change gets a new name.
             location /css/ {
@@ -93,6 +118,8 @@ data:
             if ($request_method !~ ^(GET|HEAD)$) {
                 return 405;
             }
+
+            include /etc/nginx-site/theme.conf;
 
             location / {
                 try_files $uri $uri/ =404;
@@ -136,7 +163,29 @@ data:
             return 301 https://$https_host$request_uri;
         }
     }
+  theme.conf: |
+    # The theme stylesheet and endpoint of a host
+    # (.kiro/specs/site-theme-language/design.md#nginx), included by its server
+    # block; the maps are in nginx.conf. These locations replace the inherited
+    # add_header lines on purpose: the HTTPRoute adds the security headers.
+    location = /theme.css {
+        add_header Cache-Control "no-store";
+        add_header Vary "Cookie";
+        try_files /theme-$theme.css =404;
+    }
+
+    # merge_slashes (on) keeps $back from starting with //; anything the regex
+    # refuses (another theme, %5c, %0d%0a) falls to the 404 below.
+    location ~ "^/set-theme/(?:light|dark)(?<back>/[A-Za-z0-9._~/-]*)$" {
+        add_header Set-Cookie $theme_cookie;
+        add_header Cache-Control "no-store";
+        return 303 $back;
+    }
+
+    location /set-theme/ {
+        return 404;
+    }
 kind: ConfigMap
 metadata:
-  name: website-nginx-chf955m9kd
+  name: website-nginx-9fbg6b8ddg
   namespace: website

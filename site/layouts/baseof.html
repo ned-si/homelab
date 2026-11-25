@@ -12,6 +12,12 @@
 {{- end }}
 {{- $css := slice (resources.Get "css/layout.css") (resources.Get "css/main.css") (resources.Get "css/syntax.css") | resources.Concat "css/main.css" | minify | fingerprint }}
 <link rel="stylesheet" href="{{ $css.RelPermalink }}" integrity="{{ $css.Data.Integrity }}">
+{{- /* nginx picks /theme-dark.css or /theme-light.css from the cookie
+   (.kiro/specs/site-theme-language/design.md#nginx); /theme.css is the dark
+   one, for hugo server and the layout check. */}}
+{{- range slice "dark" "light" }}{{ (resources.Get (printf "css/theme-%s.css" .) | resources.Copy (printf "theme-%s.css" .)).Publish }}{{ end }}
+{{- (resources.Get "css/theme-dark.css" | resources.Copy "theme.css").Publish }}
+<link rel="stylesheet" href="/theme.css">
 </head>
 <body>
 {{- /* The same four links as apps/website/landing/index.html; scripts/ci/site_markup.py checks both. */}}
@@ -27,6 +33,7 @@
 <a href="https://homelab.nedsi.io/">Homelab</a>
 <a href="{{ "about/" | relURL }}"{{ if eq $current "about" }} aria-current="page"{{ end }}>About</a>
 </nav>
+{{ partial "prefs.html" (cond (eq .Kind "404") "/" $path) }}
 </header>
 <main>
 <div class="prose">

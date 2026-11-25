@@ -119,6 +119,34 @@ spec:
           location http://nedsi.io/ https://nedsi.io/
           expect 301 http://blog.nedsi.io/does-not-exist
           location http://blog.nedsi.io/does-not-exist https://blog.nedsi.io/does-not-exist
+
+          # The theme (.kiro/specs/site-theme-language/requirements.md,
+          # Requirement 5.1). hdr <url> <header> <want or -> [curl options...]
+          hdr() {
+            url=$1 name=$2 want=$3
+            shift 3
+            req "$url" "$@"
+            got=$(printf '%s\n' "$resp" | grep -i "^$name:" | sed 's/^[^:]*: //')
+            [ "$want" = - ] && want=""
+            [ "$got" = "$want" ] || { echo "FAIL $url: $name '$got', want '${want:-(none)}'"; fail=1; }
+          }
+          light="theme=light; Domain=nedsi.io; Path=/; Max-Age=31536000; Secure; HttpOnly; SameSite=Lax"
+          dark="theme=; Domain=nedsi.io; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Lax"
+          expect 200 https://nedsi.io/theme.css
+          hdr https://nedsi.io/theme.css cache-control no-store
+          hdr https://nedsi.io/theme.css vary Cookie
+          hdr https://nedsi.io/theme.css set-cookie -
+          for site in https://nedsi.io https://blog.nedsi.io; do
+            expect 303 "$site/set-theme/light/about/"
+            location "$site/set-theme/light/about/" /about/
+            hdr "$site/set-theme/light/about/" set-cookie "$light"
+            hdr "$site/set-theme/dark/" set-cookie "$dark"
+            hdr "$site/set-theme/light/" set-cookie - -H "Sec-Fetch-Site: cross-site"
+            hdr "$site/set-theme/light/" set-cookie - -H "Sec-Purpose: prefetch"
+            expect 404 "$site/set-theme/blue/"
+            hdr "$site/set-theme/blue/" set-cookie -
+            hdr "$site/" set-cookie -
+          done
           exit "$fail"
         - postsync-smoke
         image: curlimages/curl:8.23.0@sha256:3fb7e13e5d179a845c97d78204f3f1064d1907037f26a3ebf91710571151fd93

@@ -1,24 +1,5 @@
-:root {
-  --fg: #1d1f21;
-  --muted: #5c6166;
-  --bg: #fdfdfc;
-  --link: #0b5cad;
-  --rule: #d8dadc;
-  --code-bg: #f3f4f5;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --fg: #e3e5e7;
-    --muted: #a0a6ab;
-    --bg: #17191b;
-    --link: #79b8ff;
-    --rule: #34383c;
-    --code-bg: #212427;
-  }
-}
-
-/* The container, nav and footer geometry are in layout.css. */
+/* The container, nav and footer geometry are in layout.css, the colours in
+   /theme.css. */
 body { color: var(--fg); background: var(--bg); }
 
 a { color: var(--link); }
