@@ -18,6 +18,7 @@ configMapGenerator:
   - name: website-landing
     files:
       - landing/index.html
+      - landing/layout.css
       - landing/landing.css
   # Rendered by techradar/ (task techradar:render), checked in CI.
   - name: website-techradar

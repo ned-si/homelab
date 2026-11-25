@@ -7,10 +7,12 @@ Fails on <form>, <iframe>, <style>, style= and on* attributes, an inline
 an <a> to one of the LINKS or to ACCOUNT excepted). The CSP of the site
 would block most of these; this catches them before the browser does.
 
-Every page also needs the site navigation: one <nav class="site"> with the
-NAV links in order, at most one of them
-aria-current="page", and that one on the page itself or on a parent path of
-it. A page whose own URL is in NAV marks it.
+Every page also needs the site navigation, the same markup everywhere
+(public-website design, Shared layout): one <nav class="site"
+aria-label="Site"> inside <header class="site">, holding only <a> elements
+with href and nothing else but aria-current, the NAV links in order, at most
+one of them aria-current="page", and that one on the page itself or on a
+parent path of it. A page whose own URL is in NAV marks it.
 
 Text: no page says "(I checked)", the landing page and the About page
 never mention watches or photography, the landing page has no "Start
@@ -54,6 +56,7 @@ class Checker(HTMLParser):
         self.article = 0
         self.navs = 0
         self.in_nav = False
+        self.in_header = False
         self.link = None
         self.links = []
         self.problems = []
@@ -74,12 +77,23 @@ class Checker(HTMLParser):
         a = dict(attrs)
         if tag == "article":
             self.article += 1
+        if tag == "header" and "site" in (a.get("class") or "").split():
+            self.in_header = True
         if tag == "nav" and "site" in (a.get("class") or "").split():
             self.navs += 1
             self.in_nav = True
+            if not self.in_header:
+                self.bad('<nav class="site"> outside <header class="site">')
+            if a != {"class": "site", "aria-label": "Site"}:
+                self.bad(f'<nav class="site"> attributes {a}, want class="site" aria-label="Site"')
+        elif self.in_nav and tag != "a":
+            self.bad(f'<{tag}> in <nav class="site">, want only <a>')
         if tag == "a" and self.in_nav:
             href = urljoin(self.url, a.get("href") or "")
             self.link = [href, "", a.get("aria-current") == "page"]
+            extra = sorted(set(a) - {"href", "aria-current"})
+            if extra:
+                self.bad(f'<a> in <nav class="site"> with {extra}, want only href and aria-current')
         if re.fullmatch(r"h[1-6]", tag):
             self.heading = ""
         if tag == "li" and self.section == "Certifications":
@@ -121,6 +135,8 @@ class Checker(HTMLParser):
             self.link = None
         if tag == "nav":
             self.in_nav = False
+        if tag == "header":
+            self.in_header = False
         if re.fullmatch(r"h[1-6]", tag) and self.heading is not None:
             self.section = self.heading.strip()
             self.heading = None

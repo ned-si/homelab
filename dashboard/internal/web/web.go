@@ -15,6 +15,7 @@ import (
 	"html/template"
 	"log/slog"
 	"os"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -35,8 +36,15 @@ const keysEvery = 30 * time.Second
 //go:embed templates/*.html
 var templateFS embed.FS
 
+//go:embed assets/layout.css
+var layoutCSS []byte
+
 //go:embed assets/dashboard.css
-var css []byte
+var dashboardCSS []byte
+
+// css is the one stylesheet: the shared layout (a copy of
+// site/assets/css/layout.css), then the dashboard's own rules.
+var css = slices.Concat(layoutCSS, dashboardCSS)
 
 // held is the snapshot served: the validated document and its exact body.
 type held struct {

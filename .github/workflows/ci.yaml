@@ -848,13 +848,15 @@ jobs:
         run: scripts/ci/kind-preprod.sh boot
 
   # The blog under site/ (scripts/ci/site-check.sh): build, links, markup,
-  # image metadata, content, then nginx with apps/website's config
-  # (scripts/ci/site-serve-check.sh). Exits early when the change does not
-  # touch it.
+  # image metadata, content, the layout.css copies, then nginx with
+  # apps/website's config (scripts/ci/site-serve-check.sh) and the shared
+  # layout of the landing page, the blog and the dashboard in a pinned
+  # browser (scripts/ci/layout-check.sh). Exits early when the change does
+  # not touch them.
   # fetch-depth 2: HEAD^1 is the base (main for a pull request's merge commit).
   site:
     runs-on: ubuntu-26.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -868,14 +870,16 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/tool-cache
-          key: tools-site-${{ env.HUGO_VERSION }}-${{ env.HTMLTEST_VERSION }}-${{ env.EXIFTOOL_VERSION }}-${{ env.GITLEAKS_VERSION }}
+          # A plain scalar over two lines: the break folds into the space after ${{.
+          key: tools-site-${{ env.HUGO_VERSION }}-${{ env.HTMLTEST_VERSION }}-${{ env.EXIFTOOL_VERSION }}-${{ env.GITLEAKS_VERSION }}-${{
+            env.CHROME_HEADLESS_SHELL_VERSION }}
           restore-keys: tools-site-
 
       - name: Install pinned tools
         id: setup
         env:
           TOOL_CACHE: ${{ runner.temp }}/tool-cache
-        run: scripts/ci/install-tool.sh hugo htmltest exiftool gitleaks
+        run: scripts/ci/install-tool.sh hugo htmltest exiftool gitleaks chrome-headless-shell
 
       - name: Save tool archives
         if: ${{ steps.setup.outcome == 'success' && steps.tools.outputs.cache-hit != 'true' }}
@@ -893,6 +897,20 @@ jobs:
       - name: Serve check (hosts, 405, redirects)
         if: ${{ steps.check.outputs.built == 'true' }}
         run: scripts/ci/site-serve-check.sh "$RUNNER_TEMP/site-public"
+
+      # The layout check renders the dashboard's fixture page: the Go
+      # version of go.mod, the module cache keyed on go.sum.
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        if: ${{ steps.check.outputs.built == 'true' }}
+        with:
+          go-version-file: dashboard/go.mod
+          cache-dependency-path: dashboard/go.sum
+
+      - name: Layout check (container and nav at 1920x1080 and 390x844)
+        if: ${{ steps.check.outputs.built == 'true' }}
+        env:
+          GOTOOLCHAIN: local
+        run: scripts/ci/layout-check.sh "$RUNNER_TEMP/site-public"
 
       - name: Upload the site preview
         if: ${{ !cancelled() && steps.check.outputs.built == 'true' }}

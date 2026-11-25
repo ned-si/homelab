@@ -2,11 +2,14 @@
 # site-check.sh [--all] -- the `site` job: build site/ and check the result
 # (.kiro/specs/public-website/design.md, "The site job").
 #
-# The markup check also covers the landing page (apps/website/landing/).
+# The markup check also covers the landing page (apps/website/landing/) and
+# the dashboard's golden pages (dashboard/internal/web/testdata/); the
+# copies of site/assets/css/layout.css must equal it byte for byte.
 #
 # Without --all it exits 0 when SITE_BASE..HEAD (default HEAD^1, main for a
-# pull request's merge commit) touches neither site/, apps/website/ nor these
-# checks. SITE_OUT: build directory (default a temp dir, removed on exit).
+# pull request's merge commit) touches neither site/, apps/website/, the
+# dashboard's page (dashboard/internal/web/) nor these checks. SITE_OUT:
+# build directory (default a temp dir, removed on exit).
 # Writes built=true to $GITHUB_OUTPUT when the build succeeded.
 # Needs hugo, htmltest, exiftool and python3 on PATH.
 set -euo pipefail
@@ -15,8 +18,8 @@ cd "$root"
 
 if [ "${1:-}" != "--all" ]; then
   changed=$(git diff --name-only "${SITE_BASE:-HEAD^1}" HEAD)
-  if ! grep -qE '^(site/|apps/website/|scripts/ci/site[-_])' <<<"$changed"; then
-    echo "site: nothing under site/ or apps/website/ changed; skipped"
+  if ! grep -qE '^(site/|apps/website/|dashboard/internal/web/|scripts/ci/(site[-_]|layout-check))' <<<"$changed"; then
+    echo "site: nothing under site/, apps/website/ or dashboard/internal/web/ changed; skipped"
     exit 0
   fi
 fi
@@ -45,9 +48,20 @@ if hugo --source site --destination "$out" --cleanDestinationDir --minify \
   echo "== markup"
   python3 scripts/ci/site_markup.py "$out" || fail "markup: see the lines above"
   python3 scripts/ci/site_markup.py apps/website/landing nedsi.io || fail "landing markup: see the lines above"
+  # The dashboard's goldens are its rendered pages, so its nav is checked too.
+  for g in dashboard/internal/web/testdata/*.golden.html; do
+    d="$work/dashboard/$(basename "$g" .golden.html)"
+    mkdir -p "$d" && cp "$g" "$d/index.html"
+  done
+  python3 scripts/ci/site_markup.py "$work/dashboard" homelab.nedsi.io || fail "dashboard markup: see the lines above"
 else
   fail "hugo build (warnings fail it too)"
 fi
+
+echo "== shared layout copies"
+for copy in apps/website/landing/layout.css dashboard/internal/web/assets/layout.css; do
+  cmp -s site/assets/css/layout.css "$copy" || fail "$copy differs from site/assets/css/layout.css; run \`task site:layout-sync\`"
+done
 
 echo "== drafts and future-dated pages"
 # Unpublished pages live in draft pull requests, never on main.
