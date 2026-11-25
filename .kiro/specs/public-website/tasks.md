@@ -131,7 +131,7 @@ round, with no approval pause (operator, 2026-11-24), and are checked
 live. Task 12 comes before the tech radar (spec tech-radar), which uses
 the shared layout.
 
-- [ ] 11. Home and About text, as in
+- [x] 11. Home and About text, as in
       [design.md, Home and About text](design.md#home-and-about-text-task-11):
       `apps/website/landing/index.html` (the line "Automate all the
       things.", "What this is" without "(I checked)", "What you can
@@ -143,6 +143,9 @@ the shared layout.
       Then the `homelab-site` digest bump for the About page (Renovate,
       or by hand as in #1549). Check: the `site` job; acceptance
       criterion 15 live on both pages. [1.8, 1.9, 4.2]
+      Text and check #1684, image #1689. The account URL is an exact-match
+      `ACCOUNT` entry, not a `LINKS` prefix, so repository links outside
+      `<article>` stay forbidden.
 - [ ] 12. One layout and its check, as in
       [design.md, Shared layout](design.md#shared-layout-task-12):
       `site/assets/css/layout.css` and its copies in
