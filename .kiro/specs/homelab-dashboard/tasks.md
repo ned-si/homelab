@@ -390,7 +390,9 @@ live check.
       `task render`. Check: acceptance criterion 27; live,
       `probe_success{app="theater"}` is 1 and the Gateway's 401 rate
       drops by the probe's 120 an hour. [12.6]
-- [ ] 23. Security card figures (**visible**): snapshot version 8, the
+- [ ] 23. Security card figures (**visible**): snapshot version 5 with
+      task 18 (tasks 18, 22 and 23 in one pull request, operator
+      2026-11-25), the
       signal list, shares and unattributed line in `shown.go` and the
       collector, the plain names, no "observe mode", golden pages, the
       card in `docs/homelab-dashboard.md`. Check: acceptance criterion

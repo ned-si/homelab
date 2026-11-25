@@ -309,8 +309,9 @@ by `id` and `name`; `buckets` has 28 entries; `count_24h` is at most
 ### Version 5 (task 18)
 
 Version 5 is version 4 with every percentage and the error budget at
-full precision ([Rounding](#rounding-task-18)); no key is added or
-removed:
+full precision ([Rounding](#rounding-task-18)) and the security block of
+[Security card figures](#security-card-figures-tasks-22-and-23) (its
+signals, `share_24h`, `share_7d` and `unattributed_24h`):
 
 | Key | From version 5 |
 | --- | --- |
@@ -320,6 +321,7 @@ removed:
 | `cluster.gateway.errors_5xx` | Number, 0-100, not rounded (was two decimals) |
 | `project.renovate_share_30d` | Number, 0-100, not rounded (was an integer) |
 | `project.change_failure_rate` | Number, 0-100, or `null`, not rounded (was one decimal) |
+| `security.signals[]` | The signals of task 23 by `id` and `name`; new `share_24h`, `share_7d` (number 0 to 1, or `null`), `total_24h`, `total_7d`, `part_24h` and `unattributed_24h` (integers 0 or more, or `null`) |
 
 In `snapshot.schema.json`: `$defs/budget` becomes
 `{"type": "number", "minimum": -100, "maximum": 100}`;
@@ -1469,6 +1471,38 @@ Sources first (task 22, not visible):
 - #1677 handles the in-cluster drops into `trivy-server` and
   `signoz-otel-collector` seen on w-1.
 
+Found by task 22 (2026-11-25, Grafana's Prometheus datasource):
+
+- The `theater` probe targets `https://theater.lilalala.com/oauth2/sign_in`,
+  the SSO proxy's own page, which answers `302` to Keycloak without a
+  session and without calling Keycloak; `http_gated` keeps `302` only.
+  Plex's `/identity` is already the `watch` probe.
+- The Hubble metric exists already: the `drop` metric of
+  `infrastructure/cilium/values.yaml` has
+  `sourceContext=namespace|reserved-identity`, so `hubble_drop_total`
+  carries `source="reserved:world"` for drops from the internet. No
+  Cilium change and no agent restart. With no drop from the internet
+  the series is absent, so the query adds
+  `or on() (0 * sum(hubble_drop_total))`: 0 while Hubble is scraped,
+  `null` when it is not.
+- The smoke hooks of `apps/website` and `apps/homelab-dashboard` send
+  their `404` and `POST` requests to the Service (`http://website:8080`
+  with the `Host` header, `http://homelab-dashboard-web:8080`). nginx
+  sets no security header (the HTTPRoute does), so the website's `404`
+  header check goes: the route's `ResponseHeaderModifier` applies to
+  every answer and stays checked on the `200`s. The dashboard's web
+  role sets its own headers, so its check stays, on the Service.
+- Own clients still crossing the public listeners: the public probes
+  (2xx or 3xx only from this task), the smoke hooks' `200` and `301`
+  checks, the weekly `dast` scan (Sunday 03:00 UTC) and the quarterly
+  pentest, both from GitHub-hosted runners. Envoy cannot tell the scans
+  apart from anyone else by listener or route, so `<own>` is empty and
+  the three Gateway tiles carry the line "Includes our own weekly
+  security scan."
+- Envoy's own replies (the unattributed line) are the downstream `4xx`
+  minus `envoy_http_no_route` minus every upstream `4xx` of the
+  `gateway/.+` clusters, clamped at 0.
+
 The signals from task 23, replacing the list of
 [Security signals](#security-signals-task-16), in this order (`<P>` is
 `envoy_http_conn_manager_prefix=~"listener-secure|listener-insecure"`,
@@ -1498,11 +1532,20 @@ The signals from task 23, replacing the list of
 - Time windows read "rolling 24 h" and "rolling 7 days"; the page never
   says "observe mode". Once Tetragon enforces, the runtime tile may
   count "blocked" separately (a later change).
-- Snapshot version 8: version 7 with `security.signals[]` holding the
-  list above by `id` and `name`, and per signal `share_24h`,
-  `share_7d` (0 to 1, or `null` without a denominator) and, for
-  `gateway_unknown`, `unattributed_24h` (integer or `null`). The
-  rollout rule of version 3 applies.
+- Snapshot version 5, with the rounding of task 18 (tasks 18, 22 and
+  23 ship in one pull request, operator 2026-11-25): `security.signals[]`
+  holds the list above by `id` and `name`, and per signal `share_24h`,
+  `share_7d` (0 to 1, or `null` without a denominator), `total_24h`,
+  `total_7d` (the denominators, integers or `null`, for "of 63,000
+  requests"), `part_24h` (the `403` part of `gateway_refused`, integer
+  or `null`) and `unattributed_24h` (integer, set for `gateway_unknown`
+  only, `null` for the others and without a series). The rollout rule
+  of version 3 applies.
+- A signal born with its first event whose source always has series
+  (the Envoy upstream codes, the Hubble drops) adds
+  `or on() (0 * sum(<source>))`, so a quiet signal reads 0 and a
+  missing source "No data"; `or vector(0)` stays on the expected-zero
+  signals only.
 
 ## Supply chain (tasks 20 and 21)
 
