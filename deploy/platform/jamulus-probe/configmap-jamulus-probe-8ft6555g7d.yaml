@@ -1,0 +1,227 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/jamulus-probe
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/jamulus-probe and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: v1
+data:
+  exporter.py: |
+    """Jamulus probe: a Jamulus protocol ping per target on every scrape (stdlib only).
+
+    blackbox-exporter has no UDP prober, and only a protocol answer shows the
+    server works (docs/observability.md). Each GET /metrics sends
+    CLM_PING_MS_WITHNUMCLIENTS (message 1002) to every target in TARGETS
+    (comma-separated host:port) and serves jamulus_up, jamulus_ping_seconds and
+    jamulus_clients on :PORT/metrics. Logs are JSON lines on stdout, one per
+    up/down transition.
+
+      exporter.py --once <host:port>   one ping; prints `up clients=<n> rtt=<s>s`
+                                       or `down <reason>`, exits 0 or 1
+    """
+    from __future__ import annotations
+    import json
+    import os
+    import re
+    import socket
+    import struct
+    import sys
+    import threading
+    import time
+    from datetime import datetime, timezone
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    PING_MS = 1001
+    PING_MS_WITHNUMCLIENTS = 1002
+    ATTEMPTS = 3
+    TIMEOUT = 1.0
+    MAX_TARGETS = 8
+    HOSTNAME = re.compile(r"[A-Za-z0-9.-]{1,253}")
+
+    _state: dict[str, bool] = {}
+    _lock = threading.Lock()
+
+
+    def log(level: str, msg: str, **kw) -> None:
+        rec = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "level": level, "msg": msg}
+        rec.update(kw)
+        print(json.dumps(rec), flush=True)
+
+
+    def crc16(data: bytes) -> int:
+        """CRC-16/GENIBUS, as upstream's CCRC: poly 0x1021, init 0xFFFF, inverted."""
+        c = 0xFFFF
+        for b in data:
+            c ^= b << 8
+            for _ in range(8):
+                c = ((c << 1) ^ 0x1021) & 0xFFFF if c & 0x8000 else (c << 1) & 0xFFFF
+        return c ^ 0xFFFF
+
+
+    def frame(msg_id: int, body: bytes) -> bytes:
+        """A connectionless frame: tag 0, id, counter 0, length, body, CRC (little-endian)."""
+        head = struct.pack("<HHBH", 0, msg_id, 0, len(body)) + body
+        return head + struct.pack("<H", crc16(head))
+
+
+    def ping_request(ms: int) -> bytes:
+        return frame(PING_MS_WITHNUMCLIENTS, struct.pack("<IB", ms & 0xFFFFFFFF, 0))
+
+
+    def parse_reply(data: bytes) -> int:
+        """The client count of a valid 1002 reply; ValueError naming the defect otherwise."""
+        if len(data) != 14:
+            raise ValueError(f"reply of {len(data)} bytes, want 14")
+        tag, msg_id, _, length = struct.unpack_from("<HHBH", data)
+        if tag != 0:
+            raise ValueError(f"tag {tag}, want 0")
+        if msg_id != PING_MS_WITHNUMCLIENTS:
+            raise ValueError(f"message {msg_id}, want {PING_MS_WITHNUMCLIENTS}")
+        if length != 5:
+            raise ValueError(f"length {length}, want 5")
+        if struct.unpack_from("<H", data, 12)[0] != crc16(data[:12]):
+            raise ValueError("bad CRC")
+        return data[11]
+
+
+    def parse_target(entry: str) -> tuple[str, int]:
+        host, sep, port = entry.strip().rpartition(":")
+        if not sep or not HOSTNAME.fullmatch(host) or not port.isdigit() or not 1 <= int(port) <= 65535:
+            raise ValueError(f"target must be host:port (port 1-65535), got {entry!r}")
+        return host, int(port)
+
+
+    def parse_targets(value: str) -> list[tuple[str, int]]:
+        entries = [e for e in value.split(",") if e.strip()]
+        if not 1 <= len(entries) <= MAX_TARGETS:
+            raise ValueError(f"TARGETS needs 1 to {MAX_TARGETS} entries, got {len(entries)}")
+        return [parse_target(e) for e in entries]
+
+
+    def parse_port(value: str) -> int:
+        if not value.isdigit() or not 1024 <= int(value) <= 65535:
+            raise ValueError(f"PORT must be 1024-65535, got {value!r}")
+        return int(value)
+
+
+    def ping(host: str, port: int) -> tuple[bool, float, int, str]:
+        """(up, rtt seconds, clients, reason); up to ATTEMPTS pings of TIMEOUT each."""
+        reason = "no attempt"
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        except OSError as e:
+            return False, 0.0, 0, f"socket: {e}"
+        with sock:
+            sock.settimeout(TIMEOUT)
+            try:
+                sock.connect((host, port))
+            except OSError as e:
+                return False, 0.0, 0, f"resolve or connect: {e}"
+            for _ in range(ATTEMPTS):
+                started = time.monotonic()
+                try:
+                    sock.send(ping_request(int(time.time() * 1000)))
+                    clients = parse_reply(sock.recv(64))
+                    return True, time.monotonic() - started, clients, ""
+                except socket.timeout:
+                    reason = "timeout"
+                except ConnectionRefusedError:
+                    reason = "port unreachable"
+                except ValueError as e:
+                    reason = str(e)
+                except OSError as e:
+                    reason = f"{type(e).__name__}: {e}"
+        return False, 0.0, 0, reason
+
+
+    def metrics(targets: list[tuple[str, int]]) -> str:
+        up, rtt, clients = [], [], []
+        for host, port in targets:
+            target = f"{host}:{port}"
+            ok, seconds, n, reason = ping(host, port)
+            with _lock:
+                before = _state.get(target)
+                _state[target] = ok
+            if not ok and before is not False:
+                log("warning", "target down", target=target, reason=reason)
+            elif ok and before is False:
+                log("info", "target up", target=target)
+            up.append(f'jamulus_up{{target="{target}"}} {int(ok)}')
+            if ok:
+                rtt.append(f'jamulus_ping_seconds{{target="{target}"}} {round(seconds, 6)}')
+                clients.append(f'jamulus_clients{{target="{target}"}} {n}')
+        lines = ["# HELP jamulus_up 1 when the server answered a protocol ping during this scrape.",
+                 "# TYPE jamulus_up gauge", *up,
+                 "# HELP jamulus_ping_seconds Round trip of the answered ping.",
+                 "# TYPE jamulus_ping_seconds gauge", *rtt,
+                 "# HELP jamulus_clients Clients connected, as the server reports.",
+                 "# TYPE jamulus_clients gauge", *clients]
+        return "\n".join(lines) + "\n"
+
+
+    def handler(targets: list[tuple[str, int]]) -> type[BaseHTTPRequestHandler]:
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802
+                if self.path == "/metrics":
+                    self.reply(200, metrics(targets).encode(), "text/plain; version=0.0.4")
+                elif self.path == "/healthz":
+                    self.reply(200, b"ok\n")
+                else:
+                    self.reply(404, b"not found\n")
+
+            def do_POST(self):  # noqa: N802
+                self.reply(405, b"method not allowed\n")
+
+            do_PUT = do_DELETE = do_PATCH = do_HEAD = do_OPTIONS = do_POST
+
+            def reply(self, code: int, data: bytes, ctype: str = "text/plain") -> None:
+                self.send_response(code)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(data)
+
+            def log_message(self, fmt, *args):  # scrapes are not logged
+                pass
+
+        return Handler
+
+
+    def once(argv: list[str]) -> int:
+        try:
+            if len(argv) != 1:
+                raise ValueError("one target expected")
+            host, port = parse_target(argv[0])
+        except ValueError:
+            print("usage: exporter.py --once <host:port>", file=sys.stderr)
+            return 2
+        ok, seconds, n, reason = ping(host, port)
+        print(f"up clients={n} rtt={seconds:.3f}s" if ok else f"down {reason}")
+        return 0 if ok else 1
+
+
+    def main() -> int:
+        if sys.argv[1:2] == ["--once"]:
+            return once(sys.argv[2:])
+        try:
+            targets = parse_targets(os.environ.get("TARGETS", ""))
+            port = parse_port(os.environ.get("PORT", "9174"))
+        except ValueError as e:
+            log("error", "bad configuration", error=str(e))
+            return 1
+        log("info", "starting", port=port, targets=[f"{h}:{p}" for h, p in targets])
+        ThreadingHTTPServer(("", port), handler(targets)).serve_forever()
+        return 0
+
+
+    if __name__ == "__main__":
+        sys.exit(main())
+kind: ConfigMap
+metadata:
+  name: jamulus-probe-8ft6555g7d
+  namespace: monitoring

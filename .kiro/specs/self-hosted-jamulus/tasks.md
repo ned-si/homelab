@@ -52,7 +52,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       policy report has no `fail` and `verify-own-images` is `pass`;
       `vector_log_events_total{namespace="jamulus"}` increases; no new
       alerts. [2, 3, 4.1, 4.2, 6.3] (#1720)
-- [ ] 3. Probe and alert (**live**): `platform/jamulus-probe/`,
+- [x] 3. Probe and alert (**live**): `platform/jamulus-probe/`,
       `clusters/homelab/platform/jamulus-probe.yaml`, the `jamulus-probe`
       policy in `88-monitoring.yaml` and its ingress rule in
       `58-jamulus.yaml`, `jamulus-alerts.yaml`,
@@ -67,7 +67,7 @@ Defaults: [requirements.md](requirements.md#decided-defaults).
       `jamulus_clients` is 0; `python3
       platform/jamulus-probe/exporter.py --once 192.168.1.202:41124` from
       the Mac prints `up clients=0`; `JamulusDown` is in Prometheus's
-      rules and inactive; no new alerts. [6.1, 6.2, 6.4, 6.5]
+      rules and inactive; no new alerts. [6.1, 6.2, 6.4, 6.5] (#1723)
 - [ ] 4. DNS (**live**): `sources: [gateway-httproute, service]` and
       `--service-type-filter=LoadBalancer` in
       `infrastructure/external-dns/values.yaml`, the hostname annotation on

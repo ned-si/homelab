@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/jamulus-probe
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/jamulus-probe and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: jamulus-probe
+  name: jamulus-probe
+  namespace: monitoring
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus-probe
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jamulus-probe
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - command:
+        - python3
+        - -u
+        - /app/exporter.py
+        env:
+        - name: TARGETS
+          value: 192.168.1.202:41124
+        - name: PORT
+          value: "9174"
+        image: python:3.15.2-alpine3.24@sha256:0f9552bb28711333da16915ec146f5e6bb44a7fdac9ced15dc17c2e0206346dd
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 60
+        name: exporter
+        ports:
+        - containerPort: 9174
+          name: metrics
+          protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: metrics
+          periodSeconds: 30
+        resources:
+          limits:
+            memory: 64Mi
+          requests:
+            cpu: 5m
+            memory: 32Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /app
+          name: app
+          readOnly: true
+      securityContext:
+        runAsGroup: 65534
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: jamulus-probe
+      volumes:
+      - configMap:
+          name: jamulus-probe-8ft6555g7d
+        name: app

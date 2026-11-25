@@ -15,6 +15,7 @@ resources:
   - trivy-operator.yaml
   - github-exporter.yaml
   - usage-exporter.yaml
+  - jamulus-probe.yaml
   - aws-exporter.yaml
   - backup-verify.yaml
   - vuln-enrich.yaml

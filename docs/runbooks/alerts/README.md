@@ -183,6 +183,10 @@ a link to their page.
 - [ArrIndexersFailing](ArrIndexersFailing.md): Prowlarr indexers failing for 6 hours
 - [LANNewDeviceSeen](LANNewDeviceSeen.md): new hardware on the LAN
 
+### Used by appointment
+
+- [JamulusDown](JamulusDown.md): the Jamulus server has not answered a protocol ping for 15 minutes
+
 ## Chart rules that page
 
 These come from the kube-prometheus-stack and tuppr charts, carry no

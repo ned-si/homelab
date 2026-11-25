@@ -1,0 +1,26 @@
+# ---------------------------------------------------------------------------
+# GENERATED FILE -- DO NOT EDIT.
+#
+# Source:     platform/jamulus-probe
+# Regenerate: task render     (scripts/render-deploy.sh)
+#
+# Edit the kustomization in platform/jamulus-probe and re-render. Editing this file
+# directly will be reverted by the next render and rejected by CI.
+# ---------------------------------------------------------------------------
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: jamulus-probe
+    release: kube-prometheus-stack
+  name: jamulus-probe
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 30s
+    port: metrics
+    scrapeTimeout: 10s
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jamulus-probe

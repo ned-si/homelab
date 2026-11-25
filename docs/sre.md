@@ -30,6 +30,11 @@ Observability figure of the homelab dashboard (`app="observability"`, the
 mean of the Grafana, SigNoz, Prometheus and Alertmanager probes) is
 display-only: it has the same recording rules but no target and no alert.
 
+Jamulus carries no SLO: availability is measured by `blackbox-public`,
+which has no UDP prober, and the public path exists only while the operator
+keeps the router rule, so a public figure would measure his switch.
+Sessions are by appointment; `JamulusDown` (review) is the signal.
+
 - Availability: the share of public blackbox probes (job `blackbox-public`)
   that succeed. The probes run inside the cluster against the public names
   through NAT loopback.
@@ -193,6 +198,7 @@ dashboard lists them with their runbook:
 | Observability only, no user impact | `HubbleRelayPeersNotReady`, `HubbleRelayAbsent`, `LogPipelineDiscarding`, `SigNozCollectorAbsent`, `TetragonAgentMissing` |
 | Quality, not an outage | `PaperlessIngestSlow`, `ArrIndexersFailing` |
 | A new device on the LAN (urgent only if it is not a household device, which the alert cannot tell) | `LANNewDeviceSeen` |
+| Used by appointment; checked before a session | `JamulusDown` |
 
 When a review alert's problem gets worse, the matching page takes over: a
 volume filling up becomes `PersistentVolumeNearlyFull`, a worn eMMC

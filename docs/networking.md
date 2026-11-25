@@ -277,7 +277,7 @@ is switched to default-deny.
 kubectl get cnp -A | grep -v -E 'headlamp|hubble' | wc -l
 ```
 
-Expected: the policy count plus the header line (107 today).
+Expected: the policy count plus the header line (108 today).
 
 NFS and iSCSI are mounted by the kubelet and `iscsid` in the host network
 namespace, so a pod policy never sees that traffic. The NAS export allow-list is

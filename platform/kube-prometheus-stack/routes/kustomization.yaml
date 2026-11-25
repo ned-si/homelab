@@ -44,3 +44,5 @@ resources:
   - audit-records.yaml
   # The public dashboard: HomelabDashboardSnapshotStale.
   - homelab-dashboard-alerts.yaml
+  # The Jamulus probe: JamulusDown.
+  - jamulus-alerts.yaml

@@ -1,8 +1,10 @@
 #!/bin/bash
 # jamulus-smoke.sh <image> -- runs the Jamulus image as the cluster does
-# (read-only root, non-root, no capabilities) and pings it
+# (read-only root, non-root, no capabilities) and pings it with jamulus-ping
+# and with the probe's --once (platform/jamulus-probe/exporter.py)
 # (.kiro/specs/self-hosted-jamulus/design.md#publishing). Used by the
-# `jamulus` job of ci.yaml and by jamulus-publish.yaml. Needs docker.
+# `jamulus` job of ci.yaml and by jamulus-publish.yaml. Needs docker and
+# python3.
 set -euo pipefail
 image=${1:?usage: jamulus-smoke.sh <image>}
 root=$(git rev-parse --show-toplevel)
@@ -26,7 +28,13 @@ for _ in $(seq 1 20); do
   sleep 1
 done
 $answered || fail "jamulus-ping got no echo within 20 s"
+
+if once=$(python3 "$root/platform/jamulus-probe/exporter.py" --once 127.0.0.1:41124); then
+  grep -qF 'clients=0' <<<"$once" || fail "exporter.py --once prints '$once', want clients=0"
+else
+  fail "exporter.py --once prints '$once'"
+fi
 echo "== docker logs jamulus"
 docker logs jamulus 2>&1
-[ "$rc" -eq 0 ] && echo "jamulus-smoke: $image $version answers jamulus-ping"
+[ "$rc" -eq 0 ] && echo "jamulus-smoke: $image $version answers jamulus-ping and --once"
 exit "$rc"

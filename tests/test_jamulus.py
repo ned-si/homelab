@@ -6,13 +6,18 @@ recording, JSON-RPC, status page or log file) and no node ports
 """
 from __future__ import annotations
 
+import importlib.util
 import json
+import re
+import struct
 import subprocess
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 DEPLOY = REPO / "deploy" / "apps" / "jamulus"
 POLICY = REPO / "deploy" / "infrastructure" / "network-policies" / "ciliumnetworkpolicy-jamulus.yaml"
+PROBE = REPO / "deploy" / "platform" / "jamulus-probe" / "deployment-jamulus-probe.yaml"
+EXPORTER = REPO / "platform" / "jamulus-probe" / "exporter.py"
 PORT = 41124
 ARGS = ["--server", "--nogui", "--port", str(PORT), "--numchannels", "8", "--fastupdate", "--discononquit"]
 # Requirement 4.1: any of these would register the server with a directory.
@@ -49,6 +54,16 @@ def test_one_port_everywhere():
     assert f"jamulus-ping jamulus {PORT}" in smoke[-1]
     ping = (REPO / "jamulus" / "jamulus-ping").read_text()
     assert f"port=${{2:-{PORT}}}" in ping
+    env = {e["name"]: e["value"] for e in doc(PROBE)["spec"]["template"]["spec"]["containers"][0]["env"]}
+    assert env["TARGETS"] == f"192.168.1.202:{PORT}"
+
+
+def test_ping_bytes_match_the_exporter():
+    spec = importlib.util.spec_from_file_location("jamulus_probe_exporter", EXPORTER)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    (request,) = re.findall(r"^request=([0-9a-f]+)$", (REPO / "jamulus" / "jamulus-ping").read_text(), re.M)
+    assert request == mod.frame(mod.PING_MS, struct.pack("<I", 0)).hex()
 
 
 def test_no_node_ports():

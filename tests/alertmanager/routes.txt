@@ -81,6 +81,7 @@ null alertname=PersistentVolumeFillingUp severity=warning namespace=immich persi
 null alertname=NASPoolNearlyFull severity=warning pool=homelab
 null alertname=NASScrubOverdue severity=warning pool=homelab
 null alertname=PaperlessIngestSlow severity=warning
+null alertname=JamulusDown severity=warning target=192.168.1.202:41124
 #
 # INFO: automation handles it (`action: auto`), Grafana only. The node and
 # NAS alerts also reach the outage guard's topic.
