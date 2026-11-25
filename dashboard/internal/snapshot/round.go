@@ -5,29 +5,26 @@ import (
 	"slices"
 )
 
-// The helpers round like apps/website/publisher/publisher.py, so the
-// side-by-side comparison finds no false differences: Python's round()
-// rounds half to even.
+// The percentages are written at full precision: the web role rounds each
+// once, when it formats it (design.md, "Rounding").
 
-// PercentDown returns ratio as a percentage with one decimal, rounded down
-// and clamped to 0-100, so an error never shows as 100.0.
-func PercentDown(ratio float64) float64 {
-	return min(100, max(0, math.Floor(ratio*1000+1e-9)/10))
+// ToPercent returns ratio as a percentage clamped to 0-100.
+func ToPercent(ratio float64) float64 {
+	return min(100, max(0, 100*ratio))
 }
 
-// Budget returns the error budget left as an integer percentage, rounded
-// half to even and clamped to -100..100; -100 means exhausted.
-func Budget(ratio float64) int {
-	return int(min(100, max(-100, math.RoundToEven(ratio*100))))
+// BudgetPercent returns the error budget left as a percentage clamped to
+// -100..100; -100 means exhausted.
+func BudgetPercent(ratio float64) float64 {
+	return min(100, max(-100, 100*ratio))
 }
 
-// Share returns part as an integer percentage of total, rounded half to
-// even, and 0 when total is 0.
-func Share(part, total int) int {
+// SharePercent returns part as a percentage of total, and 0 when total is 0.
+func SharePercent(part, total int) float64 {
 	if total == 0 {
 		return 0
 	}
-	return int(math.RoundToEven(100 * float64(part) / float64(total)))
+	return 100 * float64(part) / float64(total)
 }
 
 // Median returns the median of xs, the mean of the two middle values for an
@@ -49,12 +46,6 @@ func Median(xs []float64) float64 {
 func Round(x float64, decimals int) float64 {
 	p := math.Pow10(decimals)
 	return math.RoundToEven(x*p) / p
-}
-
-// Percent returns ratio as a percentage with one decimal, rounded half to
-// even and clamped to 0-100.
-func Percent(ratio float64) float64 {
-	return min(100, max(0, Round(100*ratio, 1)))
 }
 
 // RoundSeconds returns seconds rounded half to even, at least 1.

@@ -168,7 +168,7 @@ func (g *GitHub) Project(ctx context.Context, start, end time.Time) (snapshot.Pr
 	if err != nil {
 		return p, err
 	}
-	p.RenovateShare30d = snapshot.Share(renovate, p.PRsMerged30d)
+	p.RenovateShare30d = snapshot.SharePercent(renovate, p.PRsMerged30d)
 
 	var walls []float64
 	for page := 1; page <= ciPages; page++ {

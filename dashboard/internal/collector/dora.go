@@ -340,7 +340,7 @@ func setDORA(p *snapshot.Project, prs []merged, firings []interval, start, end t
 	p.FailedChanges30d = &failed
 	p.ChangeFailureRate = nil
 	if p.Deploys30d > 0 {
-		rate := min(100, snapshot.Round(100*float64(failed)/float64(p.Deploys30d), 1))
+		rate := snapshot.SharePercent(failed, p.Deploys30d)
 		p.ChangeFailureRate = &rate
 	}
 	var restore []time.Duration

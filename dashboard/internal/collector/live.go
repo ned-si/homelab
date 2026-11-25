@@ -79,11 +79,11 @@ func availability(ctx context.Context, q Querier, now time.Time, f *finishedDays
 	for _, s := range shown {
 		app := snapshot.LiveApp{ID: s.ID, Name: s.Name, State: state(s, probes)}
 		if x, ok := avail[s.SLOApp]; ok {
-			p := snapshot.PercentDown(x)
+			p := snapshot.ToPercent(x)
 			app.Availability30d = &p
 		}
 		if x, ok := budget[s.SLOApp]; ok {
-			b := snapshot.Budget(x)
+			b := snapshot.BudgetPercent(x)
 			app.ErrorBudgetRemaining30d = &b
 		}
 		for _, d := range f.days {
@@ -118,7 +118,7 @@ func percent(values map[string]float64, app string) *float64 {
 	if !ok || math.IsNaN(x) {
 		return nil
 	}
-	p := snapshot.PercentDown(x)
+	p := snapshot.ToPercent(x)
 	return &p
 }
 

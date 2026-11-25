@@ -46,32 +46,28 @@ type appCard struct {
 	Bars         template.HTML
 }
 
-// tile is one stat: a label, the big figure with its units, its status and
-// word when it has a threshold, an optional meter and a line of detail.
+// tile is one stat tile (design.md, "Stat tiles"): a label, the value with
+// its units, its status and word when it has a threshold, an optional meter,
+// detail lines, a sparkline and a note. Accent marks a value that is a word:
+// its status is a left border, not the value's colour.
 type tile struct {
-	Label  string
-	Value  []part
-	Status status
-	Word   string
-	Meter  template.HTML
-	Spark  template.HTML
-	Detail string
+	Label   string
+	Value   []part
+	Status  status
+	Word    string
+	Accent  bool
+	Meter   template.HTML
+	Spark   template.HTML
+	Details []string
+	Note    string
 }
 
-// useRow is one node or the NAS on the cluster card.
+// useRow is one node or the NAS on the cluster card: a tile group.
 type useRow struct {
 	Name      string
 	State     status
 	StateWord string
-	Figures   []useFigure
-}
-
-type useFigure struct {
-	Label  string
-	Value  string
-	Status status
-	Word   string
-	Meter  template.HTML
+	Figures   []tile
 }
 
 type ciRun struct {
@@ -110,7 +106,7 @@ type figures struct {
 	Signals      []tile
 	Project      block
 	DORA         []tile
-	DORALevel    overall
+	DORALevel    tile
 	Delivery     []tile
 	Runs         []ciRun
 }
@@ -153,6 +149,13 @@ func blockAt(asOf string, generated time.Time, after time.Duration) (block, erro
 
 func fixed(v float64, decimals int) string {
 	return strconv.FormatFloat(v, 'f', decimals, 64)
+}
+
+// pct formats a percentage with two decimals, rounded once, half to even on
+// an exact binary tie (design.md, "Rounding"); the status rules read the raw
+// value.
+func pct(v float64) string {
+	return strconv.FormatFloat(v, 'f', 2, 64)
 }
 
 // thousands formats n with a comma between groups of three digits.
@@ -243,11 +246,11 @@ func card(a snapshot.LiveApp, days []string) appCard {
 		left := *a.ErrorBudgetRemaining30d
 		c.Status = monthStatus(left)
 		c.Word = monthWord(c.Status)
-		c.BudgetLeft = fixed(float64(max(left, 0)), 2)
+		c.BudgetLeft = pct(max(left, 0))
 		c.Exhausted = left <= 0
 		c.Meter = budgetMeter(left)
 	}
-	c.Availability = fixed(*a.Availability30d, 2)
+	c.Availability = pct(*a.Availability30d)
 	return c
 }
 
@@ -268,30 +271,28 @@ func certTiles(cs []snapshot.Cert) []tile {
 	return out
 }
 
-func pct(v *float64) string {
-	if v == nil {
-		return noData
-	}
-	return percent(*v)
-}
-
-// useFig is a utilisation or saturation figure in percent with its status;
+// useFig is a utilisation or saturation tile in percent with its status;
 // withMeter adds the meter.
-func useFig(label string, v *float64, l limits, withMeter bool) useFigure {
+func useFig(label string, v *float64, l limits, withMeter bool) tile {
 	st := level(v, l)
-	f := useFigure{Label: label, Value: pct(v), Status: st, Word: levelWord(st)}
-	if withMeter && v != nil {
-		f.Meter = meter(label, *v, st)
+	f := tile{Label: label, Status: st, Word: levelWord(st)}
+	if v != nil {
+		f.Value = one(pct(*v), "%")
+		if withMeter {
+			f.Meter = meter(label, *v, st)
+		}
 	}
 	return f
 }
 
-func errorFig(label string, v *float64, text string) useFigure {
+// errorFig is an error tile: any error is bad.
+func errorFig(label string, v *float64, value []part) tile {
 	st := errorLevel(v)
-	if v == nil {
-		text = noData
+	f := tile{Label: label, Status: st, Word: levelWord(st)}
+	if v != nil {
+		f.Value = value
 	}
-	return useFigure{Label: label, Value: text, Status: st, Word: levelWord(st)}
+	return f
 }
 
 func intPtr(n *int) *float64 {
@@ -307,18 +308,18 @@ func nodeRow(n snapshot.NodeUse) useRow {
 	if !n.Ready {
 		r.State, r.StateWord = statusBad, "Not ready"
 	}
-	netText := ""
+	var net []part
 	if n.NetErrorsPerSecond != nil {
-		netText = fixed(*n.NetErrorsPerSecond, 2) + "/s"
+		net = one(fixed(*n.NetErrorsPerSecond, 2), "/s")
 	}
-	r.Figures = []useFigure{
+	r.Figures = []tile{
 		useFig("CPU", n.CPU, useLimits, true),
 		useFig("Memory", n.Memory, useLimits, true),
 		useFig("Disk", n.Disk, diskLimits, true),
 		useFig("CPU pressure", n.CPUPressure, pressureLimits, false),
 		useFig("Memory pressure", n.MemoryPressure, pressureLimits, false),
 		useFig("I/O pressure", n.IOPressure, pressureLimits, false),
-		errorFig("Network errors", n.NetErrorsPerSecond, netText),
+		errorFig("Network errors", n.NetErrorsPerSecond, net),
 	}
 	return r
 }
@@ -331,20 +332,19 @@ func nasRow(n snapshot.NAS) useRow {
 	pool := useFig("Pool", n.Pool, poolLimits, true)
 	if n.PoolHealthy != nil && !*n.PoolHealthy {
 		pool.Status, pool.Word = statusBad, levelWord(statusBad)
-		pool.Value += ", unhealthy"
+		pool.Details = []string{"Unhealthy"}
 	}
-	load := useFigure{Label: "Load per core", Value: noData, Status: level(n.LoadPerCore, loadLimits)}
+	load := statTile("Load per core", n.LoadPerCore, nil, loadLimits)
 	if n.LoadPerCore != nil {
-		load.Value = fixed(*n.LoadPerCore, 2)
+		load.Value = one(fixed(*n.LoadPerCore, 2), "")
 	}
-	load.Word = levelWord(load.Status)
-	count := func(v *int) string {
+	count := func(v *int) []part {
 		if v == nil {
-			return ""
+			return nil
 		}
-		return strconv.Itoa(*v)
+		return one(strconv.Itoa(*v), "")
 	}
-	r.Figures = []useFigure{
+	r.Figures = []tile{
 		pool,
 		useFig("CPU", n.CPU, useLimits, true),
 		useFig("Memory", n.Memory, useLimits, true),
@@ -374,7 +374,7 @@ func redTiles(g snapshot.Gateway) []tile {
 	}
 	var share, p95 []part
 	if g.Errors5xx != nil {
-		share = one(fixed(*g.Errors5xx, 2), "%")
+		share = one(pct(*g.Errors5xx), "%")
 	}
 	var p95v *float64
 	if g.LatencyP95Ms != nil {
@@ -390,20 +390,22 @@ func redTiles(g snapshot.Gateway) []tile {
 
 func stateTiles(c snapshot.Cluster) []tile {
 	argo := tile{
-		Label:  "Argo CD",
-		Value:  one(strconv.Itoa(c.Apps), "apps"),
-		Status: argoStatus(c.Apps, c.Synced, c.Healthy),
-		Detail: strconv.Itoa(c.Synced) + " Synced, " + strconv.Itoa(c.Healthy) + " Healthy",
+		Label:   "Argo CD",
+		Value:   one(strconv.Itoa(c.Apps), "apps"),
+		Status:  argoStatus(c.Apps, c.Synced, c.Healthy),
+		Details: []string{strconv.Itoa(c.Synced) + " Synced, " + strconv.Itoa(c.Healthy) + " Healthy"},
 	}
 	argo.Word = levelWord(argo.Status)
 	restarts := float64(c.Restarts24h)
 	fullest := c.Volumes.Fullest
 	volumes := statTile("Volumes", &fullest, one(strconv.Itoa(c.Volumes.Count), "PVCs"), volumeLimits)
-	volumes.Detail = bytesText(c.Volumes.UsedBytes) + " of " + bytesText(c.Volumes.CapacityBytes) +
-		", fullest " + percent(fullest)
+	volumes.Details = []string{bytesText(c.Volumes.UsedBytes) + " of " + bytesText(c.Volumes.CapacityBytes) +
+		", fullest " + percent(fullest)}
+	restartTile := statTile("Restarts", &restarts, one(thousands(c.Restarts24h), ""), restartLimits)
+	restartTile.Details = []string{"Rolling 24 h"}
 	return []tile{
 		argo,
-		statTile("Restarts in 24 h", &restarts, one(thousands(c.Restarts24h), ""), restartLimits),
+		restartTile,
 		volumes,
 		{Label: "Nodes", Value: one(strconv.Itoa(c.Nodes), "nodes")},
 		{Label: "Talos", Value: one(c.TalosVersion, "")},
@@ -435,17 +437,17 @@ func doraTiles(p snapshot.Project) ([]tile, []band) {
 	}
 
 	add(tile{
-		Label:  "Deployment frequency",
-		Value:  one(thousands(p.Deploys30d), "deploys"),
-		Detail: fixed(float64(p.Deploys30d)/snapshot.Days, 1) + " a day",
+		Label:   "Deployment frequency",
+		Value:   one(thousands(p.Deploys30d), "deploys"),
+		Details: []string{fixed(float64(p.Deploys30d)/snapshot.Days, 1) + " a day"},
 	}, deployBand(p.Deploys30d))
 
 	if p.LeadTimeSeconds == nil {
 		none("Lead time for changes")
 	} else {
-		t := tile{Label: "Lead time for changes", Value: durationParts(*p.LeadTimeSeconds), Detail: "Median"}
+		t := tile{Label: "Lead time for changes", Value: durationParts(*p.LeadTimeSeconds), Details: []string{"Median"}}
 		if p.LeadTimeCount != nil {
-			t.Detail = "Median of " + thousands(*p.LeadTimeCount) + " changes"
+			t.Details = []string{"Median of " + thousands(*p.LeadTimeCount) + " changes"}
 		}
 		add(t, leadBand(time.Duration(*p.LeadTimeSeconds)*time.Second))
 	}
@@ -453,9 +455,9 @@ func doraTiles(p snapshot.Project) ([]tile, []band) {
 	if p.ChangeFailureRate == nil {
 		none("Change failure rate")
 	} else {
-		t := tile{Label: "Change failure rate", Value: one(fixed(*p.ChangeFailureRate, 2), "%")}
+		t := tile{Label: "Change failure rate", Value: one(pct(*p.ChangeFailureRate), "%")}
 		if p.FailedChanges30d != nil {
-			t.Detail = thousands(*p.FailedChanges30d) + " failed changes"
+			t.Details = []string{thousands(*p.FailedChanges30d) + " failed changes"}
 		}
 		add(t, failureBand(*p.ChangeFailureRate))
 	}
@@ -464,13 +466,13 @@ func doraTiles(p snapshot.Project) ([]tile, []band) {
 	case p.Incidents30d == nil:
 		none("Time to restore")
 	case *p.Incidents30d == 0 || p.RestoreSeconds == nil:
-		tiles = append(tiles, tile{Label: "Time to restore", Value: one("None", ""), Status: statusOK, Word: "No incident"})
+		tiles = append(tiles, tile{Label: "Time to restore", Value: one("None", ""), Status: statusOK, Word: "No incident", Accent: true})
 		bands = append(bands, bandElite)
 	default:
 		add(tile{
-			Label:  "Time to restore",
-			Value:  durationParts(*p.RestoreSeconds),
-			Detail: "Median of " + thousands(*p.Incidents30d) + " incidents",
+			Label:   "Time to restore",
+			Value:   durationParts(*p.RestoreSeconds),
+			Details: []string{"Median of " + thousands(*p.Incidents30d) + " incidents"},
 		}, restoreBand(time.Duration(*p.RestoreSeconds)*time.Second))
 	}
 	return tiles, bands
@@ -486,14 +488,26 @@ func doraOverall(bands []band) overall {
 	return overall{Status: bandStatus(b), Word: string(b)}
 }
 
+// overallTile is the overall level as a tile: the band word as the value,
+// its status as the left border.
+func overallTile(o overall) tile {
+	if o.NoData {
+		return tile{Label: "Overall level", Status: statusNone, Word: noData}
+	}
+	return tile{Label: "Overall level", Value: one(o.Word, ""), Status: o.Status, Accent: true}
+}
+
 func deliveryTiles(p snapshot.Project) []tile {
 	return []tile{
-		{Label: "Opened by Renovate", Value: one(fixed(float64(p.RenovateShare30d), 2), "%"),
+		{Label: "Opened by Renovate", Value: one(pct(p.RenovateShare30d), "%"),
 			Meter: shareBar("Opened by Renovate", p.RenovateShare30d)},
 		{Label: "Median CI run", Value: durationParts(p.CIMedianSeconds30d)},
 	}
 }
 
+// signalTiles are the security tiles: the rolling 24 h count with its
+// status, its share of the signal's total, the part its detail names, the
+// rolling 7 days, the Gateway's unattributed 4xx and the compiled note.
 func signalTiles(s snapshot.Security) []tile {
 	end, _ := snapshot.ParseTime(s.AsOf) // validated
 	shown := map[string]snapshot.ShownSignal{}
@@ -502,13 +516,30 @@ func signalTiles(s snapshot.Security) []tile {
 	}
 	out := make([]tile, 0, len(s.Signals))
 	for _, sig := range s.Signals {
-		t := tile{Label: sig.Name, Spark: sparkBars(end, sig.Buckets)}
-		t.Status, t.Word = signalStatus(shown[sig.ID].ExpectedZero, sig.Count24h, sig.Count7d)
+		c := shown[sig.ID]
+		t := tile{Label: sig.Name, Spark: sparkBars(end, sig.Buckets), Note: c.Note}
+		t.Status, t.Word = signalStatus(c.ExpectedZero, sig.Count24h, sig.Count7d)
 		if sig.Count24h != nil {
-			t.Value = one(thousands(*sig.Count24h), "in 24 h")
+			t.Value = one(thousands(*sig.Count24h), "")
+			day := "Rolling 24 h"
+			if sig.Share24h != nil && sig.Total24h != nil {
+				day += ", " + percent(100**sig.Share24h) + " of " + thousands(*sig.Total24h) + " " + c.TotalNoun
+			}
+			t.Details = append(t.Details, day)
+		}
+		if sig.Part24h != nil {
+			t.Details = append(t.Details, "Of these, "+thousands(*sig.Part24h)+" are "+c.PartNoun+"s")
 		}
 		if sig.Count7d != nil {
-			t.Detail = thousands(*sig.Count7d) + " in 7 days"
+			week := "Rolling 7 days: " + thousands(*sig.Count7d)
+			if sig.Share7d != nil {
+				week += " (" + percent(100**sig.Share7d) + ")"
+			}
+			t.Details = append(t.Details, week)
+		}
+		if sig.Unattributed24h != nil && *sig.Unattributed24h > 0 {
+			t.Details = append(t.Details, "Another "+thousands(*sig.Unattributed24h)+
+				" answered by the Gateway itself cannot be attributed.")
 		}
 		out = append(out, t)
 	}
@@ -553,7 +584,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 	}
 	var bands []band
 	f.DORA, bands = doraTiles(s.Project)
-	f.DORALevel = doraOverall(bands)
+	f.DORALevel = overallTile(doraOverall(bands))
 	blocks := []struct {
 		dst   *block
 		asOf  string

@@ -20,7 +20,7 @@ import (
 )
 
 // Version is the schema version this package writes and accepts.
-const Version = 4
+const Version = 5
 
 // MaxSize is the largest snapshot body accepted, in bytes.
 const MaxSize = 64 << 10
@@ -93,7 +93,7 @@ type LiveApp struct {
 	Name                    string     `json:"name"`
 	State                   string     `json:"state"`
 	Availability30d         *float64   `json:"availability_30d"`
-	ErrorBudgetRemaining30d *int       `json:"error_budget_remaining_30d"`
+	ErrorBudgetRemaining30d *float64   `json:"error_budget_remaining_30d"`
 	AvailabilityDaily       []*float64 `json:"availability_daily"`
 }
 
@@ -175,7 +175,7 @@ type Volumes struct {
 type Project struct {
 	AsOf               string   `json:"as_of"`
 	PRsMerged30d       int      `json:"prs_merged_30d"`
-	RenovateShare30d   int      `json:"renovate_share_30d"`
+	RenovateShare30d   float64  `json:"renovate_share_30d"`
 	CIMedianSeconds30d int      `json:"ci_median_seconds_30d"`
 	Deploys30d         int      `json:"deploys_30d"`
 	LeadTimeSeconds    *int     `json:"lead_time_seconds"`
@@ -211,14 +211,25 @@ type Security struct {
 	Signals []Signal `json:"signals"`
 }
 
-// Signal is one security signal: its counts over 24 hours and 7 days and
-// the 7 days in Buckets bars, oldest first. A nil count has no series.
+// Signal is one security signal: its counts over the rolling 24 hours and
+// 7 days, their share of the signal's total (0 to 1) and the totals, and
+// the 7 days in Buckets bars, oldest first. A nil figure has no series;
+// a signal without a total has no share. Part24h is the part of the 24 h
+// count its detail line names (the 403s of the refusals). Unattributed24h
+// is set for gateway_unknown only: the Gateway's own 4xx that no tile
+// counts.
 type Signal struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Count24h *int   `json:"count_24h"`
-	Count7d  *int   `json:"count_7d"`
-	Buckets  []*int `json:"buckets"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Count24h        *int     `json:"count_24h"`
+	Count7d         *int     `json:"count_7d"`
+	Share24h        *float64 `json:"share_24h"`
+	Share7d         *float64 `json:"share_7d"`
+	Total24h        *int     `json:"total_24h"`
+	Total7d         *int     `json:"total_7d"`
+	Part24h         *int     `json:"part_24h"`
+	Unattributed24h *int     `json:"unattributed_24h"`
+	Buckets         []*int   `json:"buckets"`
 }
 
 // FormatTime formats t as the snapshot's timestamps: RFC 3339, second
@@ -313,6 +324,10 @@ func (s *Snapshot) check() error {
 		if sig.Count24h != nil && sig.Count7d != nil && *sig.Count24h > *sig.Count7d {
 			errs = append(errs, fmt.Errorf("security.signals[%d] %s: count_24h %d above count_7d %d",
 				i, sig.ID, *sig.Count24h, *sig.Count7d))
+		}
+		if sig.Unattributed24h != nil && sig.ID != UnattributedSignal {
+			errs = append(errs, fmt.Errorf("security.signals[%d] %s: unattributed_24h is for %s only",
+				i, sig.ID, UnattributedSignal))
 		}
 	}
 	for i := 1; i < len(s.Project.CIRuns); i++ {

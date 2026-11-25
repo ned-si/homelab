@@ -220,59 +220,70 @@ func TestCardsStatusWords(t *testing.T) {
 		want []string
 	}{
 		{full, []string{
-			`<p class="label">Requests rejected (4xx)</p>
-<p><span class="big ok">8,044<span class="unit">in 24 h</span></span> <span class="status ok">Usual</span></p>
-<p class="meta">48,127 in 7 days</p>`,
-			`<span class="big warn">40<span class="unit">in 24 h</span></span> <span class="status warn">Above usual</span>`,
-			`<span class="big warn">1<span class="unit">in 24 h</span></span> <span class="status warn">Seen</span>`,
-			`<span class="big ok">0<span class="unit">in 24 h</span></span> <span class="status ok">None</span>`,
-			`<p class="label">Ingress packets dropped by network policy</p>
-<p> <span class="status none">No data</span></p>`,
-			`<span class="big ok">39<span class="unit">days</span></span> <span class="status ok">Valid</span>`,
-			`<p class="label">homelab.nedsi.io</p>
-<p> <span class="status none">No data</span></p>`,
-			`<span class="value ok">31.20%</span> <span class="status ok">OK</span>`,
-			`<span class="value warn">80.40%</span> <span class="status warn">Warning</span>`,
-			`<span class="big warn">0.59<span class="unit">%</span></span> <span class="status warn">Warning</span>`,
-			`<span class="big ok">41<span class="unit">ms</span></span> <span class="status ok">OK</span>`,
-			`<span class="big">0.63<span class="unit">per second</span></span>`,
-			`<span class="big warn">55<span class="unit">apps</span></span> <span class="status warn">Warning</span>`,
-			`<p class="meta">54 Synced, 55 Healthy</p>`,
-			`<p class="meta">384 GiB of 1.0 TiB, fullest 80.80%</p>`,
-			`<span class="big ok">709<span class="unit">deploys</span></span> <span class="status ok">Elite</span>`,
-			`<p class="meta">23.6 a day</p>`,
-			`<span class="big ok">21<span class="unit">min</span></span> <span class="status ok">Elite</span>`,
-			`<p class="meta">Median of 640 changes</p>`,
-			`<span class="big ok">1.30<span class="unit">%</span></span> <span class="status ok">Elite</span>`,
-			`<span class="big ok">25<span class="unit">min</span></span> <span class="status ok">Elite</span>`,
-			`<p class="meta">Median of 4 incidents</p>`,
+			`<p class="tile-label">Unknown host or path</p>
+<p class="tile-value ok">4,412 <span class="status ok">Usual</span></p>
+<p class="tile-detail">Rolling 24 h, 7.01% of 62,940 requests</p>
+<p class="tile-detail">Rolling 7 days: 26,391 (6.12%)</p>`,
+			`<p class="tile-value warn">40 <span class="status warn">Above usual</span></p>`,
+			`<p class="tile-value warn">1 <span class="status warn">Seen</span></p>`,
+			`<p class="tile-value ok">0 <span class="status ok">None</span></p>`,
+			`<p class="tile-label">Ingress packets dropped from the internet</p>
+<p class="tile-value none"><span class="status none">No data</span></p>`,
+			`<p class="tile-value ok">39<span class="unit">days</span> <span class="status ok">Valid</span></p>`,
+			`<p class="tile-label">homelab.nedsi.io</p>
+<p class="tile-value none"><span class="status none">No data</span></p>`,
+			`<p class="tile-value ok">31.20<span class="unit">%</span> <span class="status ok">OK</span></p>`,
+			`<p class="tile-value warn">80.40<span class="unit">%</span> <span class="status warn">Warning</span></p>`,
+			`<p class="tile-value warn">0.59<span class="unit">%</span> <span class="status warn">Warning</span></p>`,
+			`<p class="tile-value ok">41<span class="unit">ms</span> <span class="status ok">OK</span></p>`,
+			`<p class="tile-value">0.63<span class="unit">per second</span></p>`,
+			`<p class="tile-value warn">55<span class="unit">apps</span> <span class="status warn">Warning</span></p>`,
+			`<p class="tile-detail">54 Synced, 55 Healthy</p>`,
+			`<p class="tile-detail">384 GiB of 1.0 TiB, fullest 80.80%</p>`,
+			`<p class="tile-value ok">709<span class="unit">deploys</span> <span class="status ok">Elite</span></p>`,
+			`<p class="tile-detail">23.6 a day</p>`,
+			`<p class="tile-value ok">21<span class="unit">min</span> <span class="status ok">Elite</span></p>`,
+			`<p class="tile-detail">Median of 640 changes</p>`,
+			`<p class="tile-value ok">1.30<span class="unit">%</span> <span class="status ok">Elite</span></p>`,
+			`<p class="tile-value ok">25<span class="unit">min</span> <span class="status ok">Elite</span></p>`,
+			`<p class="tile-detail">Median of 4 incidents</p>`,
+			`<div class="tile accent ok">
+<p class="tile-label">Overall level</p>
+<p class="tile-value">Elite</p>`,
 			`<li><span class="status ok">Success</span> <a href="https://github.com/ned-si/homelab/pull/1602">#1602</a> <code>6d0407e</code> <time datetime="2026-11-20T16:40:12&#43;01:00">20 Nov 16:40</time>, 4<span class="unit">min</span> 58<span class="unit">s</span></li>`,
 			`<li><span class="status bad">Failure</span>`,
 			`<li><span class="status none">Cancelled</span>`,
 			`<li><span class="status warn">Other</span> <code>2ec595b</code>`,
 		}},
 		{alarm, []string{
-			`<span class="big warn">14<span class="unit">days</span></span> <span class="status warn">Renewal late</span>`,
-			`<span class="big bad">3<span class="unit">days</span></span> <span class="status bad">Expiring</span>`,
-			`homelab-cp-1 <span class="state bad">Not ready</span>`,
-			`<span class="value bad">96.00%</span> <span class="status bad">Critical</span>`,
-			`<span class="value warn">90.00%</span> <span class="status warn">Warning</span>`,
-			`<span class="value bad">1.50/s</span> <span class="status bad">Critical</span>`,
-			`NAS <span class="state bad">Down</span>`,
-			`<span class="value bad">47.90%, unhealthy</span> <span class="status bad">Critical</span>`,
-			`<span class="label">CPU</span> <span class="value none">No data</span> <span class="status none">No data</span>`,
-			`<span class="value warn">1.50</span> <span class="status warn">Warning</span>`,
-			`<span class="value bad">2</span> <span class="status bad">Critical</span>`,
-			`<p class="label">Requests</p>
-<p> <span class="status none">No data</span></p>`,
-			`<p class="label">p95 duration</p>
-<p> <span class="status none">No data</span></p>`,
-			`<span class="big bad">25</span> <span class="status bad">Critical</span>`,
-			`<span class="big bad">35<span class="unit">PVCs</span></span> <span class="status bad">Critical</span>`,
-			`<span class="big warn">2<span class="unit">deploys</span></span> <span class="status warn">Medium</span>`,
-			`<span class="big warn">10<span class="unit">d</span></span> <span class="status warn">Medium</span>`,
-			`<span class="big bad">20.00<span class="unit">%</span></span> <span class="status bad">Low</span>`,
-			`<span class="big ok">None</span> <span class="status ok">No incident</span>`,
+			`<p class="tile-value warn">14<span class="unit">days</span> <span class="status warn">Renewal late</span></p>`,
+			`<p class="tile-value bad">3<span class="unit">days</span> <span class="status bad">Expiring</span></p>`,
+			`<h4>homelab-cp-1 <span class="state bad">Not ready</span></h4>`,
+			`<p class="tile-value bad">96.00<span class="unit">%</span> <span class="status bad">Critical</span></p>`,
+			`<p class="tile-value warn">90.00<span class="unit">%</span> <span class="status warn">Warning</span></p>`,
+			`<p class="tile-value bad">1.50<span class="unit">/s</span> <span class="status bad">Critical</span></p>`,
+			`<h4>NAS <span class="state bad">Down</span></h4>`,
+			`<p class="tile-value bad">47.90<span class="unit">%</span> <span class="status bad">Critical</span></p>`,
+			`<p class="tile-detail">Unhealthy</p>`,
+			`<p class="tile-label">CPU</p>
+<p class="tile-value none"><span class="status none">No data</span></p>`,
+			`<p class="tile-value warn">1.50 <span class="status warn">Warning</span></p>`,
+			`<p class="tile-value bad">2 <span class="status bad">Critical</span></p>`,
+			`<p class="tile-label">Requests</p>
+<p class="tile-value none"><span class="status none">No data</span></p>`,
+			`<p class="tile-label">p95 duration</p>
+<p class="tile-value none"><span class="status none">No data</span></p>`,
+			`<p class="tile-value bad">25 <span class="status bad">Critical</span></p>`,
+			`<p class="tile-value bad">35<span class="unit">PVCs</span> <span class="status bad">Critical</span></p>`,
+			`<p class="tile-value warn">2<span class="unit">deploys</span> <span class="status warn">Medium</span></p>`,
+			`<p class="tile-value warn">10<span class="unit">d</span> <span class="status warn">Medium</span></p>`,
+			`<p class="tile-value bad">20.00<span class="unit">%</span> <span class="status bad">Low</span></p>`,
+			`<div class="tile accent ok">
+<p class="tile-label">Time to restore</p>
+<p class="tile-value">None <span class="status ok">No incident</span></p>`,
+			`<div class="tile accent bad">
+<p class="tile-label">Overall level</p>
+<p class="tile-value">Low</p>`,
 		}},
 	} {
 		contains(t, tc.body, tc.want...)
@@ -290,10 +301,11 @@ func TestPageTexts(t *testing.T) {
 		not  []string
 	}{
 		{fixtureNow, []string{
-			"Target: 99.50% availability over 30 days per app.",
+			"Target: 99.50% availability over a rolling 30 days per app.",
 			`Updated <time datetime="2026-11-20T17:00:00&#43;01:00">20 November 2026, 17:00</time> (Zurich time).`,
 			`<span class="label">since 17 November</span>`,
-			"11.00% of the error budget left",
+			"91.40% of the error budget left",
+			`<span class="big ok">99.96<span class="unit">%</span></span> <span class="status ok">Met</span>`,
 			`5<span class="unit">min</span> 05<span class="unit">s</span>`,
 			`aria-label="Opened by Renovate: 50.00%"`,
 			`As of <time datetime="2026-11-20T16:52:00&#43;01:00">20 November 2026, 16:52</time>.`,
@@ -334,6 +346,72 @@ func TestPercentagesTwoDecimals(t *testing.T) {
 	}
 }
 
+// Acceptance criterion 29: one rounding, at two decimals, half to even on
+// an exact binary tie.
+func TestPercent(t *testing.T) {
+	for v, want := range map[float64]string{
+		99.957: "99.96%", 0.125: "0.12%", 0.375: "0.38%", 0: "0.00%", 100: "100.00%", 99.995: "100.00%", 25.004: "25.00%",
+	} {
+		if got := percent(v); got != want {
+			t.Errorf("percent(%v) = %q, want %q", v, got, want)
+		}
+	}
+}
+
+// From the Cluster card down every label and value sits in a stat tile, no
+// label carries a status, and each node and the NAS is one tile group
+// (acceptance criterion 22).
+func TestStatTiles(t *testing.T) {
+	for name, doc := range map[string]map[string]any{"full": fullDaily(t), "alarms": alarms(t)} {
+		body := page(t, doc)
+		start := strings.Index(body, `id="cluster"`)
+		end := strings.Index(body, "<h2>Coming later</h2>")
+		if start < 0 || end < start {
+			t.Fatalf("%s: no cluster to certificates section", name)
+		}
+		below := body[start:end]
+		for _, old := range []string{`class="big`, `class="label"`, `class="value`, `class="figure"`, `class="stat"`} {
+			if strings.Contains(below, old) {
+				t.Errorf("%s: %s outside a stat tile from the Cluster card down", name, old)
+			}
+		}
+		if regexp.MustCompile(`class="tile-label [a-z]`).MatchString(below) {
+			t.Errorf("%s: a tile label carries a status class", name)
+		}
+		// Every label is followed by its value in the same tile.
+		labels := strings.Count(below, `<p class="tile-label">`)
+		if values := strings.Count(below, `<p class="tile-value`); labels == 0 || values != labels {
+			t.Errorf("%s: %d tile labels and %d values, want one value per label", name, labels, values)
+		}
+		if tiles := strings.Count(below, `<div class="tile`) - strings.Count(below, `<div class="tile-group`) -
+			strings.Count(below, `<div class="tiles`); tiles != labels {
+			t.Errorf("%s: %d tiles and %d labels, want one label per tile", name, tiles, labels)
+		}
+		groups := strings.Count(below, `<div class="tile-group">`+"\n<h4>")
+		if want := len(sub(doc, "cluster")["node_use"].([]any)) + 1; groups != want {
+			t.Errorf("%s: %d tile groups, want one per node and the NAS (%d)", name, groups, want)
+		}
+		if n := strings.Count(below, `<div class="tiles compact">`); n != groups {
+			t.Errorf("%s: %d compact grids, want one per group (%d)", name, n, groups)
+		}
+	}
+}
+
+// Every small text about a time window says "rolling", and the page never
+// says "observe mode" (Requirements 3.14 and 12.11).
+func TestRollingWindows(t *testing.T) {
+	body := page(t, fullDaily(t))
+	contains(t, body, "rolling 30 days per app", "Project, rolling 30 days", "Gateway, rolling 5 minutes",
+		"the rolling 24 h, the rolling 7 days", "Rolling 24 h, 7.01% of 62,940 requests", "Rolling 7 days: 26,391 (6.12%)",
+		"Another 760 answered by the Gateway itself cannot be attributed.", "Of these, 12 are 403s",
+		"Includes our own weekly security scan.", "Rolling 24 h, 50.00% of 80 sign-ins")
+	for _, bad := range []string{"observe mode", "last 30 days", "last 24 hours", "last 7 days", "in 24 h", "in 7 days", "over 30 days"} {
+		if strings.Contains(strings.ToLower(body), bad) {
+			t.Errorf("the page says %q", bad)
+		}
+	}
+}
+
 // TestSectionOrder checks the order of the page's sections.
 func TestSectionOrder(t *testing.T) {
 	body := page(t, fixture(t))
@@ -365,15 +443,25 @@ func TestBlockStaleness(t *testing.T) {
 }
 
 func TestStatusRules(t *testing.T) {
+	v := func(x float64) *float64 { return &x }
 	for _, tc := range []struct {
-		left int
+		left float64
 		want status
-	}{{100, statusOK}, {26, statusOK}, {25, statusWarn}, {1, statusWarn}, {0, statusWarn}, {-1, statusBad}, {-100, statusBad}} {
+	}{{100, statusOK}, {26, statusOK}, {25.004, statusOK}, {25, statusWarn}, {1, statusWarn}, {0, statusWarn}, {-0.004, statusBad}, {-1, statusBad}, {-100, statusBad}} {
 		if got := monthStatus(tc.left); got != tc.want {
-			t.Errorf("monthStatus(%d) = %q, want %q", tc.left, got, tc.want)
+			t.Errorf("monthStatus(%v) = %q, want %q", tc.left, got, tc.want)
 		}
 	}
-	v := func(x float64) *float64 { return &x }
+	// The status reads the raw budget, the text its rounding: 25.004% is
+	// "Met" while it reads "25.00%".
+	c := card(snapshot.LiveApp{Availability30d: v(99.6), ErrorBudgetRemaining30d: v(25.004), AvailabilityDaily: fullDays()},
+		testDays())
+	if c.Status != statusOK || c.Word != "Met" || c.BudgetLeft != "25.00" {
+		t.Errorf("card with a budget of 25.004 = %q %q %q, want ok, Met, 25.00", c.Status, c.Word, c.BudgetLeft)
+	}
+	if day := dayStatus(v(99.497)); day != statusWarn || percent(99.497) != "99.50%" {
+		t.Errorf("a day of 99.497 = %q %s, want warn while it reads 99.50%%", day, percent(99.497))
+	}
 	for _, tc := range []struct {
 		v    *float64
 		want status
@@ -547,17 +635,30 @@ func TestDORABands(t *testing.T) {
 	}
 }
 
-func TestCard(t *testing.T) {
+// testDays are the 30 dates of the fixture, ending on 20 November.
+func testDays() []string {
 	var ds []string
 	for i := range snapshot.Days {
 		ds = append(ds, snapshot.AddDays(time.Date(2026, 10, 22, 0, 0, 0, 0, snapshot.Zurich), i).Format(snapshot.DateLayout))
 	}
-	v := func(x float64) *float64 { return &x }
-	n := func(x int) *int { return &x }
+	return ds
+}
+
+// fullDays are 30 days at 100%.
+func fullDays() []*float64 {
 	full := make([]*float64, snapshot.Days)
 	for i := range full {
-		full[i] = v(100)
+		x := 100.0
+		full[i] = &x
 	}
+	return full
+}
+
+func TestCard(t *testing.T) {
+	ds := testDays()
+	v := func(x float64) *float64 { return &x }
+	n := v
+	full := fullDays()
 	since := make([]*float64, snapshot.Days)
 	since[27], since[28], since[29] = v(99), v(100), v(100)
 	oneDay := make([]*float64, snapshot.Days)
@@ -851,21 +952,25 @@ func TestContrast(t *testing.T) {
 	for _, m := range regexp.MustCompile(`--([a-z-]+):\s*(#[0-9a-f]{6});`).FindAllStringSubmatch(string(b), -1) {
 		vars[m[1]] = m[2]
 	}
-	panel, ok := vars["panel"]
-	if !ok {
-		t.Fatal("no --panel in dashboard.css")
-	}
-	bg := luminance(t, panel)
-	for _, name := range []string{"fg", "muted", "link", "ok", "warn", "bad", "none"} {
-		c, ok := vars[name]
+	// Every text and status colour on the card and on the stat tile
+	// (Requirement 3.13).
+	for _, bgName := range []string{"panel", "tile"} {
+		back, ok := vars[bgName]
 		if !ok {
-			t.Errorf("no --%s in dashboard.css", name)
-			continue
+			t.Fatalf("no --%s in dashboard.css", bgName)
 		}
-		fg := luminance(t, c)
-		ratio := (max(fg, bg) + 0.05) / (min(fg, bg) + 0.05)
-		if ratio < 4.5 {
-			t.Errorf("--%s %s on --panel %s: contrast %.2f, want at least 4.5", name, c, panel, ratio)
+		bg := luminance(t, back)
+		for _, name := range []string{"fg", "muted", "link", "ok", "warn", "bad", "none"} {
+			c, ok := vars[name]
+			if !ok {
+				t.Errorf("no --%s in dashboard.css", name)
+				continue
+			}
+			fg := luminance(t, c)
+			ratio := (max(fg, bg) + 0.05) / (min(fg, bg) + 0.05)
+			if ratio < 4.5 {
+				t.Errorf("--%s %s on --%s %s: contrast %.2f, want at least 4.5", name, c, bgName, back, ratio)
+			}
 		}
 	}
 }

@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "generated_at", "availability", "certificates", "cluster", "project", "security"],
   "properties": {
-    "schema_version": {"const": 4},
+    "schema_version": {"const": 5},
     "generated_at": {"$ref": "#/$defs/time"},
     "availability": {
       "type": "object",
@@ -141,7 +141,7 @@
       "properties": {
         "as_of": {"$ref": "#/$defs/time"},
         "prs_merged_30d": {"type": "integer", "minimum": 0, "maximum": 10000},
-        "renovate_share_30d": {"type": "integer", "minimum": 0, "maximum": 100},
+        "renovate_share_30d": {"type": "number", "minimum": 0, "maximum": 100},
         "ci_median_seconds_30d": {"type": "integer", "minimum": 1, "maximum": 21600},
         "deploys_30d": {"type": "integer", "minimum": 0, "maximum": 10000},
         "lead_time_seconds": {"$ref": "#/$defs/seconds"},
@@ -182,12 +182,19 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "name", "count_24h", "count_7d", "buckets"],
+            "required": ["id", "name", "count_24h", "count_7d", "share_24h", "share_7d", "total_24h", "total_7d",
+              "part_24h", "unattributed_24h", "buckets"],
             "properties": {
               "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,30}$"},
               "name": {"type": "string", "pattern": "^[A-Za-z0-9 ().-]{1,60}$"},
               "count_24h": {"$ref": "#/$defs/count"},
               "count_7d": {"$ref": "#/$defs/count"},
+              "share_24h": {"$ref": "#/$defs/ratio"},
+              "share_7d": {"$ref": "#/$defs/ratio"},
+              "total_24h": {"$ref": "#/$defs/count"},
+              "total_7d": {"$ref": "#/$defs/count"},
+              "part_24h": {"$ref": "#/$defs/count"},
+              "unattributed_24h": {"$ref": "#/$defs/count"},
               "buckets": {"type": "array", "minItems": 28, "maxItems": 28, "items": {"$ref": "#/$defs/count"}}
             }
           }
@@ -197,13 +204,14 @@
   },
   "$defs": {
     "count": {"type": ["integer", "null"], "minimum": 0},
+    "ratio": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
     "time": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(Z|[+-]\\d{2}:\\d{2})$"},
     "date": {"type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
     "version": {"type": "string", "pattern": "^v\\d+\\.\\d+\\.\\d+$"},
     "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,30}$"},
     "name": {"type": "string", "pattern": "^[A-Za-z0-9 .-]{1,40}$"},
     "percent": {"type": "number", "minimum": 0, "maximum": 100},
-    "budget": {"type": "integer", "minimum": -100, "maximum": 100},
+    "budget": {"type": "number", "minimum": -100, "maximum": 100},
     "daily": {
       "type": "array",
       "minItems": 30,

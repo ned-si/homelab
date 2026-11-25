@@ -28,8 +28,9 @@ const dayWarnFloor = 96.25
 // are "ok".
 const budgetWarnAbove = 25
 
-// monthStatus is the 30-day status of an app with a full window.
-func monthStatus(budgetLeft int) status {
+// monthStatus is the 30-day status of an app with a full window, from the
+// raw budget left, never the rounded text.
+func monthStatus(budgetLeft float64) status {
 	switch {
 	case budgetLeft > budgetWarnAbove:
 		return statusOK

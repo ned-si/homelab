@@ -93,7 +93,7 @@ type fakePR struct {
 func newFake() *fake {
 	f := &fake{
 		queryTimes: map[string][]time.Time{},
-		avail: map[string]float64{"media": 0.99956, "cook": 0.9991, "archive": 0.9918, "watch": 1.0,
+		avail: map[string]float64{"media": 0.99957, "cook": 0.9991, "archive": 0.9918, "watch": 1.0,
 			"syncthing": 0.996, "auth": 0.9954, "observability": 0.9990, "nedsi": 0.9844, "blog": 0.9995, "homelab": 0.9999},
 		osImages:  []string{"Talos (v1.14.6)"},
 		kubelets:  []string{"v1.37.2"},
@@ -300,21 +300,27 @@ type series struct {
 	Values [][2]any          `json:"values"`
 }
 
-// securityValue answers a signal's query for one of windows: false for
-// another query, nil without a series.
+// securityValue answers a signal's query, its total, its part and the
+// unattributed 4xx for one of windows: false for another query, nil without
+// a series.
 func (f *fake) securityValue(query string, windows ...string) (*float64, bool) {
-	isSignal := false
+	kind := ""
 	for _, s := range snapshot.ShownSignals() {
 		for _, w := range []string{"24h", "7d", "6h"} {
-			if query == strings.ReplaceAll(s.Query, snapshot.Window, w) {
-				isSignal = true
+			for k, q := range map[string]string{"count": s.Query, "total": s.Total, "part": s.Part} {
+				if q != "" && query == strings.ReplaceAll(q, snapshot.Window, w) {
+					kind = k
+				}
 			}
 		}
 	}
-	if !isSignal {
+	if query == strings.ReplaceAll(snapshot.UnattributedQuery, snapshot.Window, "24h") {
+		kind = "unattributed"
+	}
+	if kind == "" {
 		return nil, false
 	}
-	zero := strings.HasSuffix(query, " or vector(0)")
+	zero := strings.Contains(query, "vector(0)")
 	if strings.HasPrefix(query, "count(max_over_time(ALERTS") || (f.noSecurity && zero) {
 		v := 0.0
 		return &v, true
@@ -322,9 +328,14 @@ func (f *fake) securityValue(query string, windows ...string) (*float64, bool) {
 	if f.noSecurity {
 		return nil, true
 	}
+	values := map[string]map[string]float64{
+		"count":        {"[24h]": f.secDay, "[7d]": f.secWeek, "[6h]": f.secBucket},
+		"total":        {"[24h]": 1000, "[7d]": 8000},
+		"part":         {"[24h]": 5.2},
+		"unattributed": {"[24h]": 7.4},
+	}[kind]
 	for _, w := range windows {
-		if strings.Contains(query, w) {
-			v := map[string]float64{"[24h]": f.secDay, "[7d]": f.secWeek, "[6h]": f.secBucket}[w]
+		if v, ok := values[w]; ok && strings.Contains(query, w) {
 			return &v, true
 		}
 	}
@@ -617,8 +628,8 @@ func TestCyclePushesFullSnapshot(t *testing.T) {
 		KubernetesVersion: "v1.37.2", Synced: 54, Healthy: 55, Restarts24h: 3}, cl); diff != "" {
 		t.Errorf("cluster mismatch (-want +got):\n%s", diff)
 	}
-	if got, want := [4]int{s.Project.PRsMerged30d, s.Project.RenovateShare30d, s.Project.CIMedianSeconds30d,
-		s.Project.Deploys30d}, [4]int{300, 40, 700, 300}; got != want {
+	if got, want := [4]float64{float64(s.Project.PRsMerged30d), s.Project.RenovateShare30d, float64(s.Project.CIMedianSeconds30d),
+		float64(s.Project.Deploys30d)}, [4]float64{300, 40, 700, 300}; got != want {
 		t.Errorf("project prs, renovate, ci median, deploys = %v, want %v", got, want)
 	}
 	if s.Project.AsOf != s.GeneratedAt {

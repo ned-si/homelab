@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	promv1 "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 
@@ -34,6 +36,10 @@ func (e *env) push(t *testing.T) *snapshot.Snapshot {
 	return s
 }
 
+// approx compares the full-precision figures, which the collector computes
+// at run time, with the decimal literals of the tests.
+var approx = cmpopts.EquateApprox(0, 1e-9)
+
 func TestLiveBlocks(t *testing.T) {
 	e := newEnv(t, zurich(2026, 11, 20, 17, 0), http.StatusNoContent)
 	s := e.push(t)
@@ -45,15 +51,22 @@ func TestLiveBlocks(t *testing.T) {
 	if got, want := [2]string{a.Days[0], a.Days[29]}, [2]string{"2026-10-22", "2026-11-20"}; got != want {
 		t.Errorf("availability.days from %s to %s, want %s to %s", got[0], got[1], want[0], want[1])
 	}
+	// Full precision (design.md, "Rounding"): 0.99957 is 99.957, not the
+	// 99.9 of a rounding down to one decimal.
 	immich := a.Apps[0]
 	if diff := cmp.Diff(snapshot.LiveApp{ID: "immich", Name: "Immich", State: snapshot.StateUp,
-		Availability30d: f64(99.9), ErrorBudgetRemaining30d: i(91)}, snapshot.LiveApp{ID: immich.ID, Name: immich.Name,
-		State: immich.State, Availability30d: immich.Availability30d, ErrorBudgetRemaining30d: immich.ErrorBudgetRemaining30d}); diff != "" {
+		Availability30d: f64(99.957), ErrorBudgetRemaining30d: f64(91.4)}, snapshot.LiveApp{ID: immich.ID, Name: immich.Name,
+		State: immich.State, Availability30d: immich.Availability30d, ErrorBudgetRemaining30d: immich.ErrorBudgetRemaining30d},
+		approx); diff != "" {
 		t.Errorf("immich mismatch (-want +got):\n%s", diff)
 	}
 	for d, v := range immich.AvailabilityDaily {
-		if v == nil || *v != 99.9 {
-			t.Errorf("immich availability_daily[%d] = %v, want 99.9", d, v)
+		want := 99.957
+		if d == snapshot.Days-1 {
+			want = 99.9 // today so far
+		}
+		if v == nil || math.Abs(*v-want) > 1e-9 {
+			t.Errorf("immich availability_daily[%d] = %v, want %v", d, v, want)
 		}
 	}
 	// The blog's probes start on 15 November: no value before.
@@ -71,20 +84,20 @@ func TestLiveBlocks(t *testing.T) {
 	}
 
 	node := func(name string, ready bool) snapshot.NodeUse {
-		return snapshot.NodeUse{Name: name, Ready: ready, CPU: f64(61.2), Memory: f64(61.2), Disk: f64(61.2),
-			CPUPressure: f64(4.3), MemoryPressure: f64(4.3), IOPressure: f64(4.3), NetErrorsPerSecond: f64(0.01)}
+		return snapshot.NodeUse{Name: name, Ready: ready, CPU: f64(61.234), Memory: f64(61.234), Disk: f64(61.234),
+			CPUPressure: f64(4.321), MemoryPressure: f64(4.321), IOPressure: f64(4.321), NetErrorsPerSecond: f64(0.01)}
 	}
 	want := snapshot.Cluster{
 		AsOf: s.GeneratedAt, Nodes: 4, Apps: 55, TalosVersion: "v1.14.6", KubernetesVersion: "v1.37.2",
 		Synced: 54, Healthy: 55,
 		NodeUse: []snapshot.NodeUse{node("homelab-n0", false), node("homelab-n1", true), node("homelab-n2", true), node("homelab-n3", true)},
-		NAS: snapshot.NAS{Up: true, PoolHealthy: new(true), Pool: f64(47.9), CPU: f64(47.9), Memory: f64(47.9),
+		NAS: snapshot.NAS{Up: true, PoolHealthy: new(true), Pool: f64(47.87), CPU: f64(47.87), Memory: f64(47.87),
 			LoadPerCore: f64(0.25), DeviceErrors: i(0), ScrubErrors: i(0)},
 		Gateway:     snapshot.Gateway{RequestsPerSecond: f64(0.63), Errors5xx: f64(0.59), LatencyP95Ms: i(41)},
 		Restarts24h: 3,
-		Volumes:     snapshot.Volumes{Count: 35, UsedBytes: 410000000000, CapacityBytes: 1100000000000, Fullest: 80.8},
+		Volumes:     snapshot.Volumes{Count: 35, UsedBytes: 410000000000, CapacityBytes: 1100000000000, Fullest: 80.825},
 	}
-	if diff := cmp.Diff(want, s.Cluster); diff != "" {
+	if diff := cmp.Diff(want, s.Cluster, approx); diff != "" {
 		t.Errorf("cluster mismatch (-want +got):\n%s", diff)
 	}
 	// Without a token the DORA figures wait for the first refresh with one.
@@ -311,7 +324,7 @@ func TestFailedChanges(t *testing.T) {
 	}
 	p := e.push(t).Project
 	// Four failed changes over the 300 deploys of the search.
-	if diff := cmp.Diff([2]any{i(4), f64(1.3)}, [2]any{p.FailedChanges30d, p.ChangeFailureRate}); diff != "" {
+	if diff := cmp.Diff([2]any{i(4), f64(4.0 / 3)}, [2]any{p.FailedChanges30d, p.ChangeFailureRate}, approx); diff != "" {
 		t.Errorf("failed changes and rate mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -473,6 +486,21 @@ func TestSecurityBlock(t *testing.T) {
 		if diff := cmp.Diff([2]*int{day, week}, [2]*int{sig.Count24h, sig.Count7d}); diff != "" {
 			t.Errorf("%s counts mismatch (-want +got):\n%s", sig.ID, diff)
 		}
+		// The share is of the raw values: 12.4 of 1,000 and 40.6 of 8,000.
+		var share24, share7, total24, total7, part, unattributed any = (*float64)(nil), (*float64)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil)
+		if shown[n].Total != "" {
+			share24, share7, total24, total7 = f64(0.0124), f64(40.6/8000), i(1000), i(8000)
+		}
+		if shown[n].Part != "" {
+			part = i(5)
+		}
+		if sig.ID == snapshot.UnattributedSignal {
+			unattributed = i(7)
+		}
+		if diff := cmp.Diff([]any{share24, share7, total24, total7, part, unattributed},
+			[]any{sig.Share24h, sig.Share7d, sig.Total24h, sig.Total7d, sig.Part24h, sig.Unattributed24h}, approx); diff != "" {
+			t.Errorf("%s shares, totals, part, unattributed mismatch (-want +got):\n%s", sig.ID, diff)
+		}
 		if len(sig.Buckets) != snapshot.Buckets {
 			t.Fatalf("%s: %d buckets, want %d", sig.ID, len(sig.Buckets), snapshot.Buckets)
 		}
@@ -497,7 +525,7 @@ func TestSecurityBlock(t *testing.T) {
 	e.fake.noSecurity = true
 	e.now = e.now.Add(time.Minute)
 	for _, sig := range e.push(t).Security.Signals {
-		zero := sig.ID == "admission_denied" || sig.ID == "runtime_detections"
+		zero := sig.ID == "blocked" || sig.ID == "runtime_detections"
 		if got := sig.Count24h != nil && sig.Buckets[0] != nil; got != zero {
 			t.Errorf("%s without a series: counts set %v, want %v", sig.ID, got, zero)
 		}

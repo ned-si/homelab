@@ -28,8 +28,9 @@ func coord(v float64) string {
 	return strconv.FormatFloat(v, 'f', 1, 64)
 }
 
+// percent is pct with the sign, for text, titles and aria-labels.
 func percent(v float64) string {
-	return strconv.FormatFloat(v, 'f', 2, 64) + "%"
+	return pct(v) + "%"
 }
 
 func openSVG(b *strings.Builder, w, h int, label string) {
@@ -47,17 +48,17 @@ func rect(b *strings.Builder, class string, x, y, w, h float64) {
 
 // budgetMeter draws the error budget left (0-100%) as a filled track; at or
 // below 0 the track is empty.
-func budgetMeter(left int) template.HTML {
+func budgetMeter(left float64) template.HTML {
 	var b strings.Builder
 	label := "Error budget exhausted"
 	if left > 0 {
-		label = "Error budget left: " + percent(float64(left))
+		label = "Error budget left: " + percent(left)
 	}
 	openSVG(&b, meterWidth, meterHeight, label)
 	rect(&b, "track", 0, 0, meterWidth, meterHeight)
 	b.WriteString("/>")
 	if left > 0 {
-		rect(&b, string(monthStatus(left)), 0, 0, float64(min(left, 100)), meterHeight)
+		rect(&b, string(monthStatus(left)), 0, 0, min(left, 100), meterHeight)
 		b.WriteString("/>")
 	}
 	b.WriteString("</svg>")
@@ -80,13 +81,13 @@ func meter(label string, v float64, st status) template.HTML {
 }
 
 // shareBar draws a share (0-100%) as a filled track.
-func shareBar(label string, share int) template.HTML {
+func shareBar(label string, share float64) template.HTML {
 	var b strings.Builder
-	openSVG(&b, meterWidth, meterHeight, label+": "+percent(float64(share)))
+	openSVG(&b, meterWidth, meterHeight, label+": "+percent(share))
 	rect(&b, "track", 0, 0, meterWidth, meterHeight)
 	b.WriteString("/>")
 	if share > 0 {
-		rect(&b, "", 0, 0, float64(min(share, 100)), meterHeight)
+		rect(&b, "", 0, 0, min(share, 100), meterHeight)
 		b.WriteString("/>")
 	}
 	b.WriteString("</svg>")

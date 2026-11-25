@@ -2,7 +2,8 @@
 #
 #   http_2xx      2xx over valid TLS, no redirects (a login redirect would
 #                 measure Keycloak)
-#   http_gated    an SSO proxy answered: 401 or 302
+#   http_gated    an SSO proxy answered: 302 to its sign-in. Public probes
+#                 expect 2xx or 3xx only (repo-policy public-probe-codes)
 #   http_internal plain HTTP inside the cluster
 #   tcp_connect   something listens
 #   dns_public    an A record for a public hostname
@@ -38,7 +39,7 @@ config:
       timeout: 10s
       http:
         valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
-        valid_status_codes: [401, 302]
+        valid_status_codes: [302]
         follow_redirects: false
         fail_if_not_ssl: true
         preferred_ip_protocol: ip4

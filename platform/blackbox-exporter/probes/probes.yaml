@@ -76,9 +76,11 @@ spec:
     staticConfig:
       labels:
         probe: public
-      # Behind the theater SSO proxy: every path answers 401 without a session.
+      # The theater SSO proxy's own sign-in page: 302 to Keycloak without a
+      # session, without calling Keycloak. `/` is Plex (the route's
+      # catch-all), whose 401 would count in the public 4xx figures.
       static:
-        - https://theater.lilalala.com/
+        - https://theater.lilalala.com/oauth2/sign_in
       relabelingConfigs:
         - action: replace
           sourceLabels: [__param_target]

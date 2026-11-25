@@ -19,9 +19,11 @@ configMapGenerator:
       - landing/index.html
       - landing/landing.css
 
-# After every sync: the Service answers, then through the shared Gateway the
-# headers on / and on a 404, the 405 and the redirects. Its own script, not
-# the component's 2xx/3xx loop: it checks codes, headers and Location.
+# After every sync: the Service answers, with its 404 and 405 (sent to the
+# Service, so our own checks add nothing to the public 4xx figures), then
+# through the shared Gateway the headers on / and the redirects. Its own
+# script, not the component's 2xx/3xx loop: it checks codes, headers and
+# Location.
 components:
   - ../../components/postsync-smoke
 patches:
@@ -46,12 +48,15 @@ patches:
             gw="--connect-to ::cilium-gateway-shared.gateway.svc.cluster.local:"
             headers="content-security-policy strict-transport-security x-content-type-options x-frame-options"
             headers="$headers referrer-policy permissions-policy cross-origin-opener-policy"
-            # req <url> [curl options...]: sets $code and $resp (the headers).
+            # req <url> [curl options...]: sets $code and $resp (the headers);
+            # the Service is reached directly, a public name through $gw.
             req() {
               url=$1
               shift
-              # shellcheck disable=SC2086 # $gw splits on purpose
-              resp=$(curl $gw "$@" -s -D - -o /dev/null -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
+              via=$gw
+              case $url in http://website:*) via= ;; esac
+              # shellcheck disable=SC2086 # $via splits on purpose
+              resp=$(curl $via "$@" -s -D - -o /dev/null -w 'CODE %{http_code}' --max-time 5 "$url" | tr -d '\r') || true
               code=$(printf '%s\n' "$resp" | sed -n 's/^CODE //p')
               code=${code:-000}
             }
@@ -94,12 +99,11 @@ patches:
             done
             expect 200 https://blog.nedsi.io/
             has_headers https://blog.nedsi.io/
-            expect 404 https://blog.nedsi.io/does-not-exist
-            has_headers https://blog.nedsi.io/does-not-exist
-            expect 405 https://blog.nedsi.io/ -X POST
+            expect 404 http://website:8080/does-not-exist -H "Host: blog.nedsi.io"
+            expect 405 http://website:8080/ -X POST -H "Host: blog.nedsi.io"
             expect 200 https://nedsi.io/
             has_headers https://nedsi.io/
-            expect 405 https://nedsi.io/ -X POST
+            expect 405 http://website:8080/ -X POST -H "Host: nedsi.io"
             expect 301 https://blog.nedsi.io/homelab/
             location https://blog.nedsi.io/homelab/ https://homelab.nedsi.io/
             expect 301 https://www.nedsi.io/

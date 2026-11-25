@@ -27,27 +27,56 @@ func count(v *float64) *int {
 	return &n
 }
 
-// security reads every shown signal at now: the 24 h and 7 d counts and the
-// 28 six-hour buckets ending at now (design.md, "Security signals").
+// share is count over total, 0 to 1; nil without either or a total of 0.
+func share(count, total *float64) *float64 {
+	if count == nil || total == nil || *total <= 0 {
+		return nil
+	}
+	s := min(1, max(0, *count / *total))
+	return &s
+}
+
+// security reads every shown signal at now: the 24 h and 7 d counts, their
+// totals and shares, and the 28 six-hour buckets ending at now (design.md,
+// "Security card figures").
 func security(ctx context.Context, q Querier, now time.Time) (snapshot.Security, error) {
 	var s snapshot.Security
 	for _, sig := range snapshot.ShownSignals() {
-		expr := func(w string) string { return strings.ReplaceAll(sig.Query, snapshot.Window, w) }
 		figure := "security." + sig.ID
-		day, err := optional(ctx, q, figure, expr(window24h), now)
-		if err != nil {
-			return s, err
+		read := func(query, w string) (*float64, error) {
+			if query == "" {
+				return nil, nil
+			}
+			return optional(ctx, q, figure, strings.ReplaceAll(query, snapshot.Window, w), now)
 		}
-		week, err := optional(ctx, q, figure, expr(window7d), now)
-		if err != nil {
-			return s, err
+		var v [5]*float64
+		for i, r := range []struct{ query, w string }{
+			{sig.Query, window24h}, {sig.Query, window7d}, {sig.Total, window24h}, {sig.Total, window7d}, {sig.Part, window24h},
+		} {
+			var err error
+			if v[i], err = read(r.query, r.w); err != nil {
+				return s, err
+			}
 		}
-		out := snapshot.Signal{ID: sig.ID, Name: sig.Name, Count24h: count(day), Count7d: count(week)}
+		day, week, total24h, total7d, part := v[0], v[1], v[2], v[3], v[4]
+		out := snapshot.Signal{
+			ID: sig.ID, Name: sig.Name, Count24h: count(day), Count7d: count(week),
+			Share24h: share(day, total24h), Share7d: share(week, total7d),
+			Total24h: count(total24h), Total7d: count(total7d), Part24h: count(part),
+		}
 		// Extrapolation can put the 24 h count a little above the 7 d one.
 		if out.Count24h != nil && out.Count7d != nil && *out.Count24h > *out.Count7d {
 			*out.Count24h = *out.Count7d
 		}
-		if out.Buckets, err = buckets(ctx, q, figure, expr(bucketW), now); err != nil {
+		if sig.ID == snapshot.UnattributedSignal {
+			u, err := read(snapshot.UnattributedQuery, window24h)
+			if err != nil {
+				return s, err
+			}
+			out.Unattributed24h = count(u)
+		}
+		var err error
+		if out.Buckets, err = buckets(ctx, q, figure, strings.ReplaceAll(sig.Query, snapshot.Window, bucketW), now); err != nil {
 			return s, err
 		}
 		s.Signals = append(s.Signals, out)

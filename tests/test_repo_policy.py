@@ -740,6 +740,33 @@ def test_cilium_explicit_xds(tmp_path):
     assert fails(policy(tmp_path / "good", files=good)) == []
 
 
+PROBE = ("apiVersion: monitoring.coreos.com/v1\nkind: Probe\nmetadata: {{name: {name}}}\n"
+         "spec:\n  module: {module}\n  targets:\n    staticConfig:\n      labels: {{probe: {probe}}}\n"
+         "      static: [https://x.lilalala.com/]\n")
+
+
+@pytest.mark.parametrize("codes,probe,want", [
+    ("[200, 302]", "public", []),
+    ("[]", "public", []),
+    ("[401, 302]", "public", ["FAIL public-probe-codes: platform/blackbox-exporter/values.yaml: module gated of "
+                              "public Probe p expects 401, outside 200-399"]),
+    ("[401]", "internal", []),
+])
+def test_public_probe_codes(tmp_path, codes, probe, want):
+    files = {"platform/blackbox-exporter/values.yaml":
+             f"config:\n  modules:\n    gated:\n      prober: http\n      http:\n        valid_status_codes: {codes}\n",
+             "platform/blackbox-exporter/probes/probes.yaml": PROBE.format(name="p", module="gated", probe=probe)}
+    assert fails(policy(tmp_path, files=files)) == want
+
+
+def test_public_probe_unknown_module(tmp_path):
+    files = {"platform/blackbox-exporter/values.yaml": "config:\n  modules: {}\n",
+             "platform/blackbox-exporter/probes/probes.yaml": PROBE.format(name="p", module="nope", probe="public")}
+    assert fails(policy(tmp_path, files=files)) == [
+        "FAIL public-probe-codes: platform/blackbox-exporter/probes/probes.yaml: Probe p uses module nope, "
+        "not defined in platform/blackbox-exporter/values.yaml"]
+
+
 def test_expected_ingresses(tmp_path):
     ing = {"apiVersion": "networking.k8s.io/v1", "kind": "Ingress", "metadata": {"name": "argo", "namespace": "argo"}}
     files = {"ci/expected-ingresses.txt": "# ns/name\nargo/argo\nmealie/mealie\n"}
