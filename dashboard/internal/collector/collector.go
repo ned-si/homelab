@@ -1,6 +1,7 @@
-// Package collector is the backend role: it reads Prometheus and the GitHub
-// API, builds the snapshot, validates and signs it, and pushes it to every
-// web pod (.kiro/specs/homelab-dashboard/design.md, "Collector").
+// Package collector is the backend role: it reads Prometheus, the GitHub
+// API and the Scorecard API, builds the snapshot, validates and signs it,
+// and pushes it to every web pod (.kiro/specs/homelab-dashboard/design.md,
+// "Collector").
 package collector
 
 import (
@@ -40,7 +41,9 @@ const (
 type Collector struct {
 	Prometheus Querier
 	GitHub     *GitHub
-	Pusher     *Pusher
+	// Scorecard reads the OpenSSF Scorecard result; nil leaves it empty.
+	Scorecard *Scorecard
+	Pusher    *Pusher
 	// Key signs the pushes; nil in a dry run.
 	Key     ed25519.PrivateKey
 	Metrics *metrics.Collector
@@ -56,7 +59,11 @@ type Collector struct {
 	project      *snapshot.Project
 	security     *snapshot.Security
 	supplyChain  *snapshot.SupplyChain
+	scorecard    *snapshot.Scorecard
 	nextProject  time.Time
+	// nextScorecard is when the Scorecard result is due; one attempt an
+	// hour, a failed one included.
+	nextScorecard time.Time
 	// doraAt is the end of the window of the last refresh with the token.
 	doraAt time.Time
 }
@@ -98,6 +105,7 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 	c.refreshCluster(ctx, now)
 	c.refreshSecurity(ctx, now)
 	c.refreshSupplyChain(ctx, now)
+	c.refreshScorecard(ctx, now)
 	if c.availability == nil || c.certificates == nil || c.cluster == nil || c.project == nil || c.security == nil ||
 		c.supplyChain == nil {
 		return false
@@ -111,6 +119,10 @@ func (c *Collector) Cycle(ctx context.Context) bool {
 		Project:       *c.project,
 		Security:      *c.security,
 		SupplyChain:   *c.supplyChain,
+	}
+	s.SupplyChain.Scorecard = noScorecard()
+	if c.scorecard != nil {
+		s.SupplyChain.Scorecard = *c.scorecard
 	}
 	body, err := c.validate(s)
 	if err != nil {
@@ -190,6 +202,25 @@ func (c *Collector) refreshSupplyChain(ctx context.Context, now time.Time) {
 	c.observe("supply_chain", start, err, "prometheus")
 	if err == nil {
 		c.supplyChain = &s
+	}
+}
+
+// refreshScorecard fetches the Scorecard result when it is due; a failed
+// fetch keeps the last one. Dropped checks count as scorecard errors.
+func (c *Collector) refreshScorecard(ctx context.Context, now time.Time) {
+	if c.Scorecard == nil || now.Before(c.nextScorecard) {
+		return
+	}
+	c.nextScorecard = now.Add(scorecardEvery)
+	start := time.Now()
+	sc, dropped, err := c.Scorecard.Result(ctx, now)
+	c.observe("scorecard", start, err, "scorecard")
+	if dropped > 0 {
+		c.Metrics.Errors.WithLabelValues("scorecard").Add(float64(dropped))
+		c.Logger.Warn("scorecard checks dropped", "count", dropped)
+	}
+	if err == nil {
+		c.scorecard = &sc
 	}
 }
 
@@ -322,6 +353,12 @@ func (c *Collector) Collect(ctx context.Context, at time.Time) (*snapshot.Snapsh
 	sc, err := supplyChain(ctx, c.Prometheus, at)
 	if err != nil {
 		return nil, nil, fmt.Errorf("supply chain: %w", err)
+	}
+	sc.Scorecard = noScorecard()
+	if c.Scorecard != nil {
+		if sc.Scorecard, _, err = c.Scorecard.Result(ctx, at); err != nil {
+			return nil, nil, fmt.Errorf("scorecard: %w", err)
+		}
 	}
 	s := &snapshot.Snapshot{
 		SchemaVersion: snapshot.Version,

@@ -350,7 +350,7 @@ per operator item (2026-11-25), each its own version.
 | --- | --- |
 | `supply_chain.as_of` | RFC 3339, the Prometheus evaluation time |
 | `supply_chain.images[]` | `name` (the compiled list `homelab-dashboard`, `homelab-site`, in order), `level` (`2` when `verified` is `true`, else `null`), `verified` (`true`, `false` or `null` without a report), `builder` (the compiled builder text of the image) |
-| `supply_chain.scorecard` (version 8) | `score` (0 to 10, one decimal, or `null`), `date` (the result's date), `lowest[]`: at most 3 of `name` (from the compiled check list), `score` (0 to 10), `reason` (plain text, at most 160 characters) |
+| `supply_chain.scorecard` (version 8) | `as_of` (RFC 3339, the last successful fetch, which the 60-minute staleness rule reads), `score` (0 to 10, one decimal), `date` (the result's date); all three `null`, and `lowest` empty, before the first fetch; `lowest[]`: at most 3 of `name` (from the compiled check list), `score` (0 to 10), `reason` (plain text, at most 160 characters), lowest first |
 
 `Validate` gains: `images` equals the compiled list by `name` and
 `builder`, in order; a `level` only with `verified` `true`; from version
@@ -1672,7 +1672,8 @@ is claimed only on that evidence: `level` is `2` when `verified` is
   over 160 characters or with control characters are dropped and counted
   in `collector_errors_total{source="scorecard"}`. A failed fetch keeps
   the last result; the block's staleness rule is the project block's
-  (60 min).
+  (60 min), read from `scorecard.as_of`. One attempt an hour, a failed
+  one included, so an unreachable API is never asked more often.
 - The compiled check list: Binary-Artifacts, Branch-Protection,
   CI-Tests, CII-Best-Practices, Code-Review, Contributors,
   Dangerous-Workflow, Dependency-Update-Tool, Fuzzing, License,

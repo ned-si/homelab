@@ -106,6 +106,8 @@ type figures struct {
 	Signals      []tile
 	SupplyChain  block
 	Images       []tile
+	Scorecard    *block
+	Score        []tile
 	Project      block
 	DORA         []tile
 	DORALevel    tile
@@ -581,6 +583,27 @@ func imageTiles(sc snapshot.SupplyChain) []tile {
 	return out
 }
 
+// scorecardTiles are the Scorecard score with its status and date, then the
+// lowest checks, each with its score and Scorecard's reason.
+func scorecardTiles(sc snapshot.Scorecard) []tile {
+	const label = "Score"
+	if sc.Score == nil {
+		return []tile{noDataTile(label)}
+	}
+	t := tile{Label: label, Value: one(fixed(*sc.Score, 1), "/ 10")}
+	t.Status, t.Word = scoreStatus(sc.Score)
+	if sc.Date != nil {
+		if d, err := snapshot.ParseTime(*sc.Date); err == nil {
+			t.Details = []string{"Scorecard run of " + timeText(d)}
+		}
+	}
+	out := []tile{t}
+	for _, c := range sc.Lowest {
+		out = append(out, tile{Label: c.Name, Value: one(strconv.Itoa(c.Score), "/ 10"), Details: []string{c.Reason}})
+	}
+	return out
+}
+
 func runs(rs []snapshot.CIRun) []ciRun {
 	out := make([]ciRun, 0, len(rs))
 	for _, r := range rs {
@@ -617,6 +640,7 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		Runs:      runs(s.Project.CIRuns),
 		Signals:   signalTiles(s.Security),
 		Images:    imageTiles(s.SupplyChain),
+		Score:     scorecardTiles(s.SupplyChain.Scorecard),
 	}
 	var bands []band
 	f.DORA, bands = doraTiles(s.Project)
@@ -638,6 +662,14 @@ func view(s *snapshot.Snapshot, now time.Time) (*pageData, error) {
 		if *b.dst, err = blockAt(b.asOf, g, b.after); err != nil {
 			return nil, err
 		}
+	}
+	// The Scorecard result is fetched hourly, like the project block.
+	if a := s.SupplyChain.Scorecard.AsOf; a != nil {
+		b, err := blockAt(*a, g, projectStaleAfter)
+		if err != nil {
+			return nil, err
+		}
+		f.Scorecard = &b
 	}
 	for _, a := range s.Availability.Apps {
 		f.Apps = append(f.Apps, card(a, s.Availability.Days))

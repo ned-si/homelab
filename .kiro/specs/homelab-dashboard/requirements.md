@@ -1,7 +1,8 @@
 ---
 kind: change
-status: active
+status: done
 created: 2026-11-20
+closed: 2026-11-25
 issue: 1670
 ---
 # Requirements: homelab-dashboard

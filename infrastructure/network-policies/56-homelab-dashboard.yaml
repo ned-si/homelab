@@ -102,8 +102,8 @@ spec:
         - ports:
             - port: "9465"
               protocol: TCP
-    # https://api.github.com. `world`, not `toFQDNs`: FQDN policy routes all
-    # DNS through Cilium's L7 DNS proxy.
+    # https://api.github.com and https://api.securityscorecards.dev. `world`,
+    # not `toFQDNs`: FQDN policy routes all DNS through Cilium's L7 DNS proxy.
     - toEntities:
         - world
       toPorts:

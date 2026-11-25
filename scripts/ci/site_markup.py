@@ -39,9 +39,9 @@ from urllib.parse import urljoin, urlsplit
 STATS_SCRIPT = "/stats/s.js"
 REPO = "https://github.com/ned-si/homelab/"
 # The <a> targets allowed outside <article>: the ci runs' pull requests, the
-# source of the dashboard's DORA bands, the SLSA levels and the tech radar's
-# model.
-LINKS = (REPO, "https://dora.dev/", "https://slsa.dev/", "https://github.com/zalando/tech-radar")
+# source of the dashboard's DORA bands, the SLSA levels, the Scorecard report
+# and the tech radar's model.
+LINKS = (REPO, "https://dora.dev/", "https://slsa.dev/", "https://scorecard.dev/", "https://github.com/zalando/tech-radar")
 # The operator's GitHub account, the landing page's overview link. Exact,
 # so links to other repositories stay inside <article>.
 ACCOUNT = "https://github.com/ned-si/"

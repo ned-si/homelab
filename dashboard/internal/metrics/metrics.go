@@ -16,8 +16,8 @@ const namespace = "homelab_dashboard"
 
 // Label values the collector uses.
 var (
-	Blocks      = []string{"availability", "certificates", "cluster", "project", "security"}
-	Sources     = []string{"prometheus", "github", "validation"}
+	Blocks      = []string{"availability", "certificates", "cluster", "project", "security", "scorecard"}
+	Sources     = []string{"prometheus", "github", "scorecard", "validation"}
 	PushResults = []string{"accepted", "rejected", "error"}
 )
 

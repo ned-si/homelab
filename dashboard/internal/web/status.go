@@ -318,6 +318,28 @@ func signalStatus(expectedZero bool, day, week *int) (status, string) {
 	return statusOK, "Usual"
 }
 
+// The Scorecard score's thresholds, out of 10: Scorecard's own badge turns
+// from green under 7.
+const (
+	scoreWarnBelow = 7.0
+	scoreBadBelow  = 4.0
+)
+
+// scoreStatus is the status of the Scorecard score; nil is no result yet.
+func scoreStatus(score *float64) (status, string) {
+	st := statusNone
+	switch {
+	case score == nil:
+	case *score >= scoreWarnBelow:
+		st = statusOK
+	case *score >= scoreBadBelow:
+		st = statusWarn
+	default:
+		st = statusBad
+	}
+	return st, levelWord(st)
+}
+
 // provenanceStatus is the status and word of an image's provenance as
 // Kyverno verified it; nil is no report.
 func provenanceStatus(verified *bool) (status, string) {

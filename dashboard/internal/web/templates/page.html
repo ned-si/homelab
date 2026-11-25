@@ -122,6 +122,12 @@
 {{- range .Images}}{{template "tile" .}}{{end}}
 </div>
 {{- template "asof" .SupplyChain}}
+<h3>OpenSSF Scorecard</h3>
+<p class="meta"><a href="https://scorecard.dev/">OpenSSF Scorecard</a> grades the repository against a list of security practices, each check out of 10, every time something is merged into main. Here are the overall score and the three lowest checks, with Scorecard's own reason. Every check is in the <a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>.</p>
+<div class="tiles">
+{{- range .Score}}{{template "tile" .}}{{end}}
+</div>
+{{- with .Scorecard}}{{template "asof" .}}{{end}}
 </section>
 <section class="panel stats" aria-labelledby="security">
 <h2 id="security">Security</h2>

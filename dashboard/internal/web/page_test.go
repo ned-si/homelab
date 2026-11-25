@@ -103,16 +103,18 @@ func alarms(t *testing.T) map[string]any {
 	p["deploys_30d"], p["lead_time_seconds"], p["change_failure_rate"], p["incidents_30d"] = 2, 864000, 20.0, 0
 	img := sub(doc, "supply_chain")["images"].([]any)[1].(map[string]any)
 	img["level"], img["verified"] = nil, false
+	sub(sub(doc, "supply_chain"), "scorecard")["score"] = 3.9
 	return doc
 }
 
-// staleBlocks has a cluster block 10 minutes and a project block 2 hours
-// older than generated_at.
+// staleBlocks has a cluster block 10 minutes, a project block and a
+// Scorecard result 2 hours older than generated_at.
 func staleBlocks(t *testing.T) map[string]any {
 	t.Helper()
 	doc := fixture(t)
 	sub(doc, "cluster")["as_of"] = "2026-11-20T16:50:00+01:00"
 	sub(doc, "project")["as_of"] = "2026-11-20T15:00:00+01:00"
+	sub(sub(doc, "supply_chain"), "scorecard")["as_of"] = "2026-11-20T15:00:00+01:00"
 	return doc
 }
 
@@ -460,16 +462,51 @@ func TestImageTiles(t *testing.T) {
 	}
 }
 
+// Requirement 13.5: the score out of 10 with its date, the three lowest
+// checks with their reasons, and the link to the full report.
+func TestScorecardTiles(t *testing.T) {
+	body := page(t, fixture(t))
+	contains(t, body,
+		`<a href="https://scorecard.dev/viewer/?uri=github.com/ned-si/homelab">full report</a>`,
+		`<p class="tile-label">Score</p>`+"\n"+`<p class="tile-value ok">7.5<span class="unit">/ 10</span> <span class="status ok">OK</span></p>`+"\n"+
+			`<p class="tile-detail">Scorecard run of 20 November 2026, 15:06</p>`,
+		`<p class="tile-label">Code-Review</p>`+"\n"+`<p class="tile-value">0<span class="unit">/ 10</span></p>`+"\n"+
+			`<p class="tile-detail">Found 0/28 approved changesets -- score normalized to 0</p>`,
+		`<p class="tile-label">Contributors</p>`, `<p class="tile-label">Vulnerabilities</p>`)
+	noScore := scorecardTiles(snapshot.Scorecard{})
+	if diff := cmp.Diff([]tile{{Label: "Score", Status: statusNone, Word: noData}}, noScore); diff != "" {
+		t.Errorf("scorecardTiles(none) (-want +got):\n%s", diff)
+	}
+}
+
+// The Scorecard score on its boundaries.
+func TestScoreStatus(t *testing.T) {
+	v := func(x float64) *float64 { return &x }
+	for _, tc := range []struct {
+		score *float64
+		st    status
+		word  string
+	}{
+		{v(10), statusOK, "OK"}, {v(7), statusOK, "OK"}, {v(6.9), statusWarn, "Warning"},
+		{v(4), statusWarn, "Warning"}, {v(3.9), statusBad, "Critical"}, {v(0), statusBad, "Critical"},
+		{nil, statusNone, noData},
+	} {
+		if st, w := scoreStatus(tc.score); st != tc.st || w != tc.word {
+			t.Errorf("scoreStatus(%v) = %q %q, want %q %q", tc.score, st, w, tc.st, tc.word)
+		}
+	}
+}
+
 // A block older than generated_at says so on its own card: 5 minutes, an
-// hour for the project block.
+// hour for the project block and the Scorecard result.
 func TestBlockStaleness(t *testing.T) {
 	body := page(t, staleBlocks(t))
 	contains(t, body,
 		`Figures from <time datetime="2026-11-20T16:50:00&#43;01:00">20 November 2026, 16:50</time> (Zurich time): this card is not updating.`,
 		`Figures from <time datetime="2026-11-20T15:00:00&#43;01:00">20 November 2026, 15:00</time> (Zurich time): this card is not updating.`,
 	)
-	if n := strings.Count(body, "this card is not updating"); n != 2 {
-		t.Errorf("%d stale notices, want 2", n)
+	if n := strings.Count(body, "this card is not updating"); n != 3 {
+		t.Errorf("%d stale notices, want 3", n)
 	}
 	// The fixture's project block is 8 minutes old: under the hour.
 	if strings.Contains(page(t, fixture(t)), "this card is not updating") {
