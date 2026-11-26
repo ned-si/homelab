@@ -95,6 +95,9 @@
     'dockerfile',
     // dashboard/go.mod: the modules, the govulncheck tool and the go line.
     'gomod',
+    // ci/requirements-ci.txt and ci/requirements-fuzz.txt, hashes refreshed by
+    // Renovate. Without it the pins went stale and Scorecard Vulnerabilities fell to 0.
+    'pip_requirements',
   ],
 
   // The pre-commit manager is opt-in even when listed above, so both settings
