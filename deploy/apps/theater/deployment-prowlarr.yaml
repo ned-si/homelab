@@ -72,7 +72,7 @@ spec:
           value: /arr/prowlarr
         - name: PROWLARR__AUTH__METHOD
           value: External
-        image: ghcr.io/hotio/prowlarr:release-3.1.0.5799@sha256:4e2a978af3567158e808fa7683e113cb107b3eed71090151acfaddbbb90d0f02
+        image: ghcr.io/hotio/prowlarr:release-3.1.0.5799@sha256:b8c4198fd43d5aee9db3363c26bb942968d6e488ae43b20770d60ca691ab3b6c
         imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 6
