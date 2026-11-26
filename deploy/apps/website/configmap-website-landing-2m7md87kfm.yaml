@@ -10,6 +10,139 @@
 ---
 apiVersion: v1
 data:
+  index-fr.html: |
+    <!doctype html>
+    <html lang="fr-CH">
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>nedsi</title>
+    <meta name="description" content="nedsi : ingénierie de la sécurité et de la fiabilité, un homelab exploité comme de la production, et des articles sur tout ça.">
+    <meta name="author" content="nedsi">
+    <link rel="canonical" href="https://nedsi.io/fr/">
+    <link rel="alternate" hreflang="en" href="https://nedsi.io/">
+    <link rel="alternate" hreflang="fr" href="https://nedsi.io/fr/">
+    <link rel="alternate" hreflang="x-default" href="https://nedsi.io/">
+    <link rel="stylesheet" href="/layout.css">
+    <link rel="stylesheet" href="/landing.css">
+    <link rel="stylesheet" href="/theme.css">
+    <link rel="alternate" type="application/rss+xml" href="https://blog.nedsi.io/fr/index.xml" title="nedsi">
+    </head>
+    <body>
+    <header class="site">
+    <nav class="site" aria-label="Site">
+    <a href="https://nedsi.io/fr/" aria-current="page">Accueil</a>
+    <a href="https://blog.nedsi.io/fr/">Blog</a>
+    <a href="https://homelab.nedsi.io/">Homelab</a>
+    <a href="https://techradar.nedsi.io/">Tech radar</a>
+    <a href="https://blog.nedsi.io/fr/about/">À propos</a>
+    </nav>
+    <p class="prefs">
+    <span class="lang"><a href="https://nedsi.io/" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>
+    <a class="to-light" href="/set-theme/light/fr/" rel="nofollow" title="Thème clair, mémorisé dans un cookie"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">Thème clair</span></a>
+    <a class="to-dark" href="/set-theme/dark/fr/" rel="nofollow" title="Thème sombre"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">Thème sombre</span></a>
+    </p>
+    </header>
+    <main>
+    <h1>Ingénierie de la sécurité et de la fiabilité</h1>
+    <p class="lead"><em>Automate all the things.</em></p>
+    <section class="blocks" aria-label="À propos de ce site">
+    <div>
+    <h2>Ce que c’est</h2>
+    <p>Mon coin du web : les projets sur lesquels je travaille et ce que j’écris à leur sujet. Pas de newsletter, pas de pistage.</p>
+    </div>
+    <div>
+    <h2>À quoi vous attendre</h2>
+    <p>Surtout de la sécurité, de la fiabilité et du <em>platform engineering</em>, avec un faible pour l’expérience développeur : les frictions qu’on oublie souvent, d’une demande d’autorisation au clavier sous vos doigts. J’écris quand j’ai quelque chose qui vaut la peine d’être dit, autrement dit : pas toutes les semaines.</p>
+    <p>Ce qu’il y a ici pour l’instant :</p>
+    <ul>
+    <li><a href="https://blog.nedsi.io/fr/">Blog</a> : la sécurité, la fiabilité, le <em>platform engineering</em> et l’expérience développeur, avec le homelab comme terrain de jeu : sa construction, son exploitation, les compromis derrière, et ce que j’apprends en chemin.</li>
+    <li><a href="https://homelab.nedsi.io/">Tableau de bord du homelab</a> : le homelab en chiffres, en direct : disponibilité, le cluster, les métriques DORA, la sécurité.</li>
+    <li><a href="https://techradar.nedsi.io/">Tech radar</a> : ce que le homelab utilise, essaie, évalue et met de côté, et pourquoi.</li>
+    <li><a href="https://blog.nedsi.io/fr/about/">À propos</a> : qui je suis, ce que j’ai fait jusqu’ici, certifications et conférences.</li>
+    <li><a href="https://github.com/ned-si/">Projets sur GitHub</a> : le homelab, les <em>firmwares</em> de claviers et les partitions de batterie, tout en open source.</li>
+    </ul>
+    </div>
+    </section>
+
+    <section aria-labelledby="work">
+    <h2 id="work">Projets choisis</h2>
+    <p>Tous publics sur GitHub.</p>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Projet</p>
+    <h3>Homelab</h3>
+    <p>Un homelab surconçu, exploité comme une petite plateforme de production : GitOps, SLO, sauvegardes avec tests de restauration, contrôles de <em>policies</em>, et des agents qui mergent leurs propres <em>pull requests</em> (rien n’a encore brûlé, je touche du bois).</p>
+    <p class="links"><a class="button" href="https://homelab.nedsi.io/">Voir le tableau de bord</a> · <a href="https://github.com/ned-si/homelab">Code source sur GitHub</a></p>
+    </article>
+    <article class="card">
+    <p class="label">Projet</p>
+    <h3>Tech radar</h3>
+    <p>Les technologies derrière le homelab sur une seule page : ce qui est utilisé, ce qui est essayé, ce qui est observé et ce qui a été écarté, chacune avec sa raison.</p>
+    <a href="https://techradar.nedsi.io/">Voir le radar</a>
+    </article>
+    <article class="card">
+    <p class="label">Projet</p>
+    <h3>Claviers</h3>
+    <p>Des claviers mécaniques ergonomiques et leurs <em>firmwares</em> : QMK, avec un <em>userspace</em> partagé, et ZMK pour les claviers uniquement sans fil. Construits et publiés par le CI. Celui sous mes doigts en ce moment est un Scylla.</p>
+    <p class="links"><a href="https://github.com/ned-si/scylla">Scylla</a> · <a href="https://github.com/ned-si/qmk-userspace">QMK userspace</a> · <a href="https://github.com/ned-si/zmk-config">ZMK config</a></p>
+    </article>
+    <article class="card">
+    <p class="label">Projet</p>
+    <h3>Partitions de batterie</h3>
+    <p>Des partitions de batterie <em>as code</em> : des morceaux écrits en LilyPond, découpés par section, avec ma propre notation et une légende. Faites pour apprendre la structure d’un morceau plutôt que chaque note.</p>
+    <a href="https://github.com/ned-si/drum-charts">Code source sur GitHub</a>
+    </article>
+    </div>
+    </section>
+
+    <section aria-labelledby="writing">
+    <h2 id="writing">Écrits</h2>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Blog</p>
+    <h3>blog.nedsi.io</h3>
+    <p>La sécurité, la fiabilité, le <em>platform engineering</em> et l’expérience développeur, avec le homelab comme terrain de jeu : sa construction, son exploitation, les compromis derrière, et ce que j’apprends en chemin.</p>
+    <a href="https://blog.nedsi.io/fr/">Lire le blog</a>
+    </article>
+    <article class="card">
+    <p class="label">À propos</p>
+    <h3>Qui je suis</h3>
+    <p>Qui je suis, ce que j’ai fait jusqu’ici dans l’informatique, mes certifications et mes conférences.</p>
+    <a href="https://blog.nedsi.io/fr/about/">En savoir plus</a>
+    </article>
+    </div>
+    </section>
+
+    <section aria-labelledby="contact">
+    <h2 id="contact">Contact</h2>
+    <div class="cards">
+    <article class="card">
+    <p class="label">Contact</p>
+    <h3>GitHub</h3>
+    <p>Du code, des <em>issues</em> et, de temps en temps, une <em>pull request</em>.</p>
+    <a href="https://github.com/ned-si">github.com/ned-si</a>
+    </article>
+    <article class="card">
+    <p class="label">Contact</p>
+    <h3>LinkedIn</h3>
+    <p>Le côté professionnel.</p>
+    <a href="https://www.linkedin.com/in/juliensudan">linkedin.com/in/juliensudan</a>
+    </article>
+    <article class="card">
+    <p class="label">Contact</p>
+    <h3>E-mail</h3>
+    <p>Pour tout le reste. Je réponds, tôt ou tard.</p>
+    <a href="mailto:julien@nedsi.io">julien@nedsi.io</a>
+    </article>
+    </div>
+    </section>
+    </main>
+    <footer class="site">
+    <p><a href="https://blog.nedsi.io/fr/privacy/">Confidentialité</a>.</p>
+    </footer>
+    </body>
+    </html>
   index.html: |
     <!doctype html>
     <html lang="en-GB">
@@ -20,9 +153,13 @@ data:
     <meta name="description" content="nedsi: security and reliability engineering, a homelab run like production, and writing about both.">
     <meta name="author" content="nedsi">
     <link rel="canonical" href="https://nedsi.io/">
+    <link rel="alternate" hreflang="en" href="https://nedsi.io/">
+    <link rel="alternate" hreflang="fr" href="https://nedsi.io/fr/">
+    <link rel="alternate" hreflang="x-default" href="https://nedsi.io/">
     <link rel="stylesheet" href="/layout.css">
     <link rel="stylesheet" href="/landing.css">
     <link rel="stylesheet" href="/theme.css">
+    <link rel="alternate" type="application/rss+xml" href="https://blog.nedsi.io/index.xml" title="nedsi">
     </head>
     <body>
     <header class="site">
@@ -34,6 +171,7 @@ data:
     <a href="https://blog.nedsi.io/about/">About</a>
     </nav>
     <p class="prefs">
+    <span class="lang"><span aria-current="true">EN</span> <a href="https://nedsi.io/fr/" hreflang="fr" lang="fr-CH">FR</a></span>
     <a class="to-light" href="/set-theme/light/" rel="nofollow" title="Light theme, remembered with a cookie"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 1.5V4M12 20v2.5M1.5 12H4M20 12h2.5M4.6 4.6l1.8 1.8M17.6 17.6l1.8 1.8M4.6 19.4l1.8-1.8M17.6 6.4l1.8-1.8"/></svg><span class="vh">Light theme</span></a>
     <a class="to-dark" href="/set-theme/dark/" rel="nofollow" title="Dark theme"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg><span class="vh">Dark theme</span></a>
     </p>
@@ -51,7 +189,7 @@ data:
     <p>Mostly security, reliability and platform engineering, with a soft spot for developer experience: the friction we often overlook, from a permission prompt to the keyboard under your fingers. I write when I have something worth saying, which is to say: not every week.</p>
     <p>What is here so far:</p>
     <ul>
-    <li><a href="https://blog.nedsi.io/">Blog</a>: how the homelab is built and run, the trade-offs behind it, and what I learn on the way.</li>
+    <li><a href="https://blog.nedsi.io/">Blog</a>: security, reliability, platform engineering and developer experience, with the homelab as my playground: how it is built and run, the trade-offs behind it, and what I learn on the way.</li>
     <li><a href="https://homelab.nedsi.io/">Homelab dashboard</a>: the homelab in numbers, live: availability, the cluster, DORA metrics, security.</li>
     <li><a href="https://techradar.nedsi.io/">Tech radar</a>: what the homelab uses, tries, assesses and holds, and why.</li>
     <li><a href="https://blog.nedsi.io/about/">About</a>: who I am, what I have done so far, certifications and talks.</li>
@@ -97,7 +235,7 @@ data:
     <article class="card">
     <p class="label">Blog</p>
     <h3>blog.nedsi.io</h3>
-    <p>How the homelab is built and run, the trade-offs behind it, and what I learn on the way.</p>
+    <p>Security, reliability, platform engineering and developer experience, with the homelab as my playground: how it is built and run, the trade-offs behind it, and what I learn on the way.</p>
     <a href="https://blog.nedsi.io/">Read the blog</a>
     </article>
     <article class="card">
@@ -341,5 +479,5 @@ data:
     .prefs .to-light { display: none; }
 kind: ConfigMap
 metadata:
-  name: website-landing-2ccd68kf6g
+  name: website-landing-2m7md87kfm
   namespace: website

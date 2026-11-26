@@ -24,34 +24,70 @@ def nav(current=None, links=None):
     return '<header class="site"><nav class="site" aria-label="Site">' + "".join(out) + "</nav></header>"
 
 
-def prefs(path="/"):
+def toggle(lang, other_url):
+    """The language toggle of a page in lang whose other version is other_url."""
+    if lang == "fr":
+        return f'<span class="lang"><a href="{other_url}" hreflang="en" lang="en-GB">EN</a> <span aria-current="true">FR</span></span>'
+    return f'<span class="lang"><span aria-current="true">EN</span> <a href="{other_url}" hreflang="fr" lang="fr-CH">FR</a></span>'
+
+
+def prefs(path="/", lang_toggle=""):
     """The preferences of a page at path, as the layouts render them."""
     icon = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 1"/></svg>'
+    fr = path.startswith("/fr/")
+    light = ("Thème clair, mémorisé dans un cookie", "Thème clair") if fr else ("Light theme, remembered with a cookie", "Light theme")
+    dark = "Thème sombre" if fr else "Dark theme"
     return (
-        '<p class="prefs">'
-        f'<a class="to-light" href="/set-theme/light{path}" rel="nofollow" title="Light theme, remembered with a cookie">'
-        f'{icon}<span class="vh">Light theme</span></a>'
-        f'<a class="to-dark" href="/set-theme/dark{path}" rel="nofollow" title="Dark theme">'
-        f'{icon}<span class="vh">Dark theme</span></a></p>'
+        '<p class="prefs">' + lang_toggle
+        + f'<a class="to-light" href="/set-theme/light{path}" rel="nofollow" title="{light[0]}">'
+        f'{icon}<span class="vh">{light[1]}</span></a>'
+        f'<a class="to-dark" href="/set-theme/dark{path}" rel="nofollow" title="{dark}">'
+        f'{icon}<span class="vh">{dark}</span></a></p>'
     )
 
 
 def page_path(rel):
     if rel.endswith("404.html"):
-        return "/"
+        return "/fr/" if rel.startswith("fr/") else "/"
     return "/" + rel[: -len("index.html")] if rel.endswith("index.html") else "/" + rel
 
 
+def head(host, rel):
+    """<html> and <head> of a page: lang, canonical, hreflang, the stylesheet."""
+    path = page_path(rel)
+    url = f"https://{host}{path}"
+    fr = path.startswith("/fr/")
+    en_url = f"https://{host}{path[3:]}" if fr else url
+    fr_url = url if fr else f"https://{host}/fr{path}"
+    lines = []
+    if not rel.endswith("404.html"):
+        lines.append(f'<link rel="canonical" href="{url}">')
+        lines += [
+            f'<link rel="alternate" hreflang="en" href="{en_url}">',
+            f'<link rel="alternate" hreflang="fr" href="{fr_url}">',
+            f'<link rel="alternate" hreflang="x-default" href="{en_url}">',
+        ]
+    lines.append('<link rel="stylesheet" href="/theme.css">')
+    other = en_url if fr else fr_url
+    if rel.endswith("404.html"):
+        other = f"https://{host}/" if fr else f"https://{host}/fr/"
+    return f'<html lang="{"fr-CH" if fr else "en-GB"}"><head>' + "".join(lines) + "</head>", toggle("fr" if fr else "en", other)
+
+
 CERTS = "<h3>Certifications</h3><ul><li>2024: KCNA</li><li>2023: CISSP</li><li>2019: Security+</li></ul>"
+
+
+def page(rel, body, host=None):
+    start, lang_toggle = head(host or "blog.nedsi.io", rel)
+    body = body.replace("</nav></header>", "</nav>" + prefs(page_path(rel), lang_toggle) + "</header>")
+    return f"<!doctype html>{start}<body>{body}</body></html>"
 
 
 def run(tmp_path, pages, host=None):
     for rel, body in pages.items():
         path = tmp_path / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        body = body.replace("</nav></header>", "</nav>" + prefs(page_path(rel)) + "</header>")
-        head = '<head><link rel="stylesheet" href="/theme.css"></head>'
-        path.write_text(f"<!doctype html><html>{head}<body>{body}</body></html>", encoding="utf-8")
+        path.write_text(page(rel, body, host), encoding="utf-8")
     args = [sys.executable, CHECK, str(tmp_path)] + ([host] if host else [])
     return subprocess.run(args, capture_output=True, text=True)
 
@@ -195,8 +231,8 @@ def test_account_link_allowed_outside_article(tmp_path):
 @pytest.mark.parametrize(
     "old, new, msg",
     [
-        (prefs("/"), "", '0 <p class="prefs">'),
-        (prefs("/"), prefs("/") + prefs("/"), '2 <p class="prefs">'),
+        ('<p class="prefs">', '<p class="other">', '0 <p class="prefs">'),
+        ("</header>", '<p class="prefs"></p></header>', '2 <p class="prefs">'),
         ("/set-theme/light/", "/set-theme/light/about/", "preferences"),
         ('rel="nofollow" title="Dark', 'title="Dark', "preferences"),
         ('<span class="vh">Light theme</span>', "", "preferences"),
@@ -205,12 +241,8 @@ def test_account_link_allowed_outside_article(tmp_path):
     ],
 )
 def test_prefs_fail(tmp_path, old, new, msg):
-    page = (
-        '<!doctype html><html><head><link rel="stylesheet" href="/theme.css"></head><body>'
-        + nav("Blog").replace("</nav></header>", "</nav>" + prefs("/") + "</header>")
-        + "</body></html>"
-    )
-    (tmp_path / "index.html").write_text(page.replace(old, new, 1), encoding="utf-8")
+    html = page("index.html", nav("Blog"))
+    (tmp_path / "index.html").write_text(html.replace(old, new, 1), encoding="utf-8")
     res = subprocess.run([sys.executable, CHECK, str(tmp_path)], capture_output=True, text=True)
     assert res.returncode == 1
     assert msg in res.stdout
@@ -222,7 +254,7 @@ def test_prefs_paths(tmp_path):
 
 
 def test_prefs_minified_without_end_p(tmp_path):
-    body = nav("Blog").replace("</nav></header>", "</nav>" + prefs("/").replace("</p>", "") + "</header>")
+    body = nav("Blog").replace("</nav></header>", "</nav>" + prefs("/", toggle("en", "https://blog.nedsi.io/fr/")).replace("</p>", "") + "</header>")
     assert run(tmp_path, {"index.html": body}).returncode == 0
 
 
@@ -257,3 +289,98 @@ def test_colour_literals(tmp_path, css, ok):
     f.write_text(css, encoding="utf-8")
     res = subprocess.run([sys.executable, CHECK, "--css", str(f)], capture_output=True, text=True)
     assert (res.returncode == 0) is ok, res.stdout
+
+
+FR_NAV = [
+    ("Accueil", "https://nedsi.io/fr/"),
+    ("Blog", "/fr/"),
+    ("Homelab", "https://homelab.nedsi.io/"),
+    ("Tech radar", "https://techradar.nedsi.io/"),
+    ("À propos", "/fr/about/"),
+]
+
+
+def test_french_pages_pass(tmp_path):
+    pages = {
+        "fr/index.html": nav("Blog", FR_NAV),
+        "fr/about/index.html": nav("À propos", FR_NAV) + CERTS,
+        "fr/404.html": nav(None, FR_NAV),
+        "index.html": nav("Blog"),
+    }
+    res = run(tmp_path, pages)
+    assert res.returncode == 0, res.stdout
+
+
+@pytest.mark.parametrize(
+    "rel, old, new, msg",
+    [
+        ("fr/index.html", 'lang="fr-CH"><head>', 'lang="en-GB"><head>', "<html lang=en-GB>, want fr-CH"),
+        ("index.html", 'hreflang="x-default"', 'hreflang="de"', "hreflang"),
+        ("index.html", '<link rel="alternate" hreflang="fr" href="https://blog.nedsi.io/fr/">', "", "hreflang"),
+        ("index.html", 'href="https://blog.nedsi.io/fr/" hreflang="fr"', 'href="/fr/" hreflang="fr"', "language toggle"),
+        ("index.html", '<span aria-current="true">EN</span>', "<span>EN</span>", "language toggle"),
+        ("fr/index.html", '<link rel="canonical" href="https://blog.nedsi.io/fr/">', '<link rel="canonical" href="https://blog.nedsi.io/">', "canonical"),
+        ("fr/index.html", "Accueil", "Home", "site nav"),
+        ("fr/404.html", '<span class="lang"><a href="https://blog.nedsi.io/"', '<span class="lang"><a href="https://blog.nedsi.io/404.html"', "language toggle"),
+    ],
+)
+def test_language_fails(tmp_path, rel, old, new, msg):
+    links = None if not rel.startswith("fr/") else FR_NAV
+    html = page(rel, nav("Blog" if "404" not in rel else None, links))
+    assert old in html
+    (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / rel).write_text(html.replace(old, new, 1), encoding="utf-8")
+    res = subprocess.run([sys.executable, CHECK, str(tmp_path)], capture_output=True, text=True)
+    assert res.returncode == 1
+    assert msg in res.stdout
+
+
+def test_fallback_page(tmp_path):
+    rel = "fr/posts/x/index.html"
+    html = page(rel, nav("Blog", FR_NAV) + '<p class="fallback">Cet article</p>')
+    html = html.split("<head>")[0] + "<head>" + '<link rel="canonical" href="https://blog.nedsi.io/posts/x/">' + '<link rel="stylesheet" href="/theme.css">' + "</head>" + html.split("</head>")[1]
+    (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / rel).write_text(html, encoding="utf-8")
+    res = subprocess.run([sys.executable, CHECK, str(tmp_path)], capture_output=True, text=True)
+    assert res.returncode == 0, res.stdout
+
+
+def test_landing_french_page_passes():
+    import site_markup
+
+    assert site_markup.page_url("nedsi.io", __import__("pathlib").PurePosixPath("index-fr.html")) == "https://nedsi.io/fr/"
+
+
+def write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+ARTICLE = "---\ntitle: Hello\ndate: 2026-11-20\nsummary: A test.\n---\nBody.\n"
+STUB = "---\ntitle: Hello\ndate: 2026-11-20\nsummary: A test.\nfallback: true\n---\n"
+
+
+@pytest.mark.parametrize(
+    "files, msg",
+    [
+        ({"about/index.md": ARTICLE, "about/index.fr.md": ARTICLE}, None),
+        ({"posts/x/index.md": ARTICLE, "posts/x/index.fr.md": STUB}, None),
+        ({"posts/x/index.md": ARTICLE}, "no French translation"),
+        ({"privacy.md": ARTICLE}, "no French translation"),
+        ({"privacy.fr.md": ARTICLE}, "no English original"),
+        ({"about/index.md": ARTICLE, "about/index.fr.md": STUB}, "fallback stub outside posts/"),
+        ({"posts/x/index.md": ARTICLE, "posts/x/index.fr.md": STUB.replace("Hello", "Salut")}, "title 'Salut'"),
+    ],
+)
+def test_content(tmp_path, files, msg):
+    for rel, text in files.items():
+        write(tmp_path / rel, text)
+    res = subprocess.run([sys.executable, CHECK, "--content", str(tmp_path)], capture_output=True, text=True)
+    assert (res.returncode == 0) is (msg is None), res.stdout
+    if msg:
+        assert msg in res.stdout
+
+
+def test_site_content_translated():
+    res = subprocess.run([sys.executable, CHECK, "--content", str(REPO / "site/content")], capture_output=True, text=True)
+    assert res.returncode == 0, res.stdout

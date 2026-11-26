@@ -1,4 +1,4 @@
 {{ define "main" }}
-<h1>Page not found</h1>
-<p>This page does not exist. The <a href="{{ site.Home.RelPermalink }}">home page</a> lists every article.</p>
+<h1>{{ T "not_found_title" }}</h1>
+<p>{{ T "not_found_text" (dict "Home" site.Home.RelPermalink) | safeHTML }}</p>
 {{ end }}

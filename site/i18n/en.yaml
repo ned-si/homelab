@@ -1,0 +1,22 @@
+# Every string the layouts print (.kiro/specs/site-theme-language/design.md#blog).
+nav_home: Home
+nav_blog: Blog
+nav_homelab: Homelab
+nav_radar: Tech radar
+nav_about: About
+lang_name: EN
+light_theme: Light theme
+light_theme_title: Light theme, remembered with a cookie
+dark_theme: Dark theme
+dark_theme_title: Dark theme
+articles_by: Articles by
+tags: Tags
+rss: RSS
+privacy: Privacy
+no_articles: No articles yet.
+by: by
+first_published: First published at
+not_found_title: Page not found
+not_found_text: 'This page does not exist. The <a href="{{ .Home }}">home page</a> lists every article.'
+fallback_note: This article is only in English for now.
+fallback_link: Read it in English

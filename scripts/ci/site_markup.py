@@ -20,7 +20,20 @@ On the THEMED hosts every page also carries the preferences
 class="site"> after the nav, the sun (a.to-light) then the moon (a.to-dark),
 each to /set-theme/<theme><path> with rel="nofollow", its title, an
 aria-hidden SVG icon and its visually hidden name; <path> is the page's own
-path, or / on a 404 page. /theme.css is the last stylesheet.
+path, or its language's home on a 404 page. /theme.css is the last
+stylesheet.
+
+On the LANGUAGES hosts (site-theme-language Requirement 4) a page under /fr/
+is French, any other English: <html lang> is fr-CH or en-GB, the nav is
+NAV[lang], and the preferences start with the language toggle, the current
+language as <span aria-current="true"> and a link to the same page in the
+other language (its home on a 404 page) with hreflang and lang. The
+canonical is the page's own URL (an English article may point to its
+original, a fallback page to the English article). A page with a
+translation carries the hreflang en, fr and x-default links, absolute. A
+404 or fallback page (<p class="fallback">) carries none, and neither may
+an English article or tag page whose French side is a stub or missing;
+the toggle of a page without them may link the other language's home.
 
 Text: no page says "(I checked)", the landing page and the About page
 never mention watches or photography, the landing page has no "Start
@@ -29,6 +42,11 @@ newest first.
 
 --css: the palette files (theme-*.css) are the only place a colour is
 written; the other stylesheets hold no #hex, rgb(), hsl() or named colour.
+
+--content <content dir>: every English page has a French translation
+(<name>.fr.md next to it), or for an article under posts/ a fallback stub
+(fallback: true, with the English title, date and summary); every French
+file has an English original.
 """
 import pathlib
 import re
@@ -45,27 +63,63 @@ LINKS = (REPO, "https://dora.dev/", "https://slsa.dev/", "https://scorecard.dev/
 # The operator's GitHub account, the landing page's overview link. Exact,
 # so links to other repositories stay inside <article>.
 ACCOUNT = "https://github.com/ned-si/"
-ABOUT = "https://blog.nedsi.io/about/"
-EVERYWHERE = ("(i checked)",)
+ABOUT = ("https://blog.nedsi.io/about/", "https://blog.nedsi.io/fr/about/")
+EVERYWHERE = ("(i checked)", "(j'ai vérifié)", "(j’ai vérifié)", "—")
+HOME = EVERYWHERE + ("watch", "photograph", "start here", "no cookies", "montre", "photo", "commencer ici", "pas de cookie")
 # Home and About never mention watches or photography (operator, 2026-11-24).
 BANNED = {
-    "https://nedsi.io/": EVERYWHERE + ("watch", "photograph", "start here", "no cookies"),
-    ABOUT: EVERYWHERE + ("watch", "photograph"),
+    "https://nedsi.io/": HOME,
+    "https://nedsi.io/fr/": HOME,
+    ABOUT[0]: EVERYWHERE + ("watch", "photograph"),
+    ABOUT[1]: EVERYWHERE + ("montre", "photo"),
 }
 SITE_HOSTS = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io")
 # The hosts whose pages carry the theme toggle (site-theme-language tasks 1-3).
 THEMED = ("nedsi.io", "blog.nedsi.io", "homelab.nedsi.io", "techradar.nedsi.io")
-PREFS = [
-    ("to-light", "light", "Light theme, remembered with a cookie", "Light theme"),
-    ("to-dark", "dark", "Dark theme", "Dark theme"),
-]
-NAV = [
-    ("Home", "https://nedsi.io/"),
-    ("Blog", "https://blog.nedsi.io/"),
-    ("Homelab", "https://homelab.nedsi.io/"),
-    ("Tech radar", "https://techradar.nedsi.io/"),
-    ("About", "https://blog.nedsi.io/about/"),
-]
+# The hosts that serve French (site-theme-language tasks 4-6).
+LANGUAGES = ("nedsi.io", "blog.nedsi.io")
+LOCALE = {"en": "en-GB", "fr": "fr-CH"}
+PREFS = {
+    "en": [
+        ("to-light", "light", "Light theme, remembered with a cookie", "Light theme"),
+        ("to-dark", "dark", "Dark theme", "Dark theme"),
+    ],
+    "fr": [
+        ("to-light", "light", "Thème clair, mémorisé dans un cookie", "Thème clair"),
+        ("to-dark", "dark", "Thème sombre", "Thème sombre"),
+    ],
+}
+# One list per language (site-theme-language design, Navigation).
+NAV = {
+    "en": [
+        ("Home", "https://nedsi.io/"),
+        ("Blog", "https://blog.nedsi.io/"),
+        ("Homelab", "https://homelab.nedsi.io/"),
+        ("Tech radar", "https://techradar.nedsi.io/"),
+        ("About", "https://blog.nedsi.io/about/"),
+    ],
+    "fr": [
+        ("Accueil", "https://nedsi.io/fr/"),
+        ("Blog", "https://blog.nedsi.io/fr/"),
+        ("Homelab", "https://homelab.nedsi.io/"),
+        ("Tech radar", "https://techradar.nedsi.io/"),
+        ("À propos", "https://blog.nedsi.io/fr/about/"),
+    ],
+}
+
+
+def language(url):
+    return "fr" if urlsplit(url).path.startswith("/fr/") else "en"
+
+
+def counterpart(url):
+    """The same page in the other language."""
+    parts = urlsplit(url)
+    if parts.path.startswith("/fr/"):
+        path = parts.path[3:]
+    else:
+        path = "/fr" + parts.path
+    return f"{parts.scheme}://{parts.netloc}{path}"
 
 
 class Checker(HTMLParser):
@@ -91,6 +145,13 @@ class Checker(HTMLParser):
         self.pref_links = []
         self.vh = False
         self.stylesheets = []
+        self.html_lang = None
+        self.canonical = None
+        self.hreflang = []
+        self.in_lang = False
+        self.lang_items = []
+        self.lang_item = None
+        self.fallback = False
 
     def bad(self, msg):
         self.problems.append((self.getpos()[0], msg))
@@ -101,6 +162,14 @@ class Checker(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        if tag == "html":
+            self.html_lang = a.get("lang")
+        if tag == "link" and "canonical" in (a.get("rel") or "").split():
+            self.canonical = a.get("href")
+        if tag == "link" and a.get("hreflang") and "alternate" in (a.get("rel") or "").split():
+            self.hreflang.append((a["hreflang"], a.get("href")))
+        if tag == "p" and "fallback" in (a.get("class") or "").split():
+            self.fallback = True
         if tag == "article":
             self.article += 1
         if tag == "header" and "site" in (a.get("class") or "").split():
@@ -119,7 +188,12 @@ class Checker(HTMLParser):
             self.in_prefs = True
             if self.navs == 0 or self.in_nav:
                 self.bad('<p class="prefs"> before the end of <nav class="site">')
-        if self.in_prefs:
+        if self.in_prefs and tag == "span" and "lang" in (a.get("class") or "").split():
+            self.in_lang = True
+        elif self.in_lang:
+            if tag in ("a", "span"):
+                self.lang_item = {"tag": tag, "text": "", **{k: a[k] for k in a}}
+        elif self.in_prefs:
             if tag == "a":
                 self.pref = {k: a.get(k) for k in ("class", "href", "rel", "title")}
                 self.pref.update(text="", icon=False)
@@ -161,6 +235,8 @@ class Checker(HTMLParser):
 
     def handle_data(self, data):
         self.text.append(data)
+        if self.lang_item is not None:
+            self.lang_item["text"] += data
         if self.vh and self.pref is not None:
             self.pref["text"] += data
         if self.link is not None:
@@ -178,6 +254,11 @@ class Checker(HTMLParser):
             self.link = None
         if tag == "nav":
             self.in_nav = False
+        if tag in ("a", "span") and self.lang_item is not None:
+            self.lang_items.append(self.lang_item)
+            self.lang_item = None
+        elif tag == "span" and self.in_lang:
+            self.in_lang = False
         if tag == "span":
             self.vh = False
         if tag == "a" and self.pref is not None:
@@ -202,7 +283,7 @@ class Checker(HTMLParser):
         for word in BANNED.get(self.url, EVERYWHERE):
             if word in text:
                 self.problems.append((0, f'says "{word}"'))
-        if self.url != ABOUT:
+        if self.url not in ABOUT:
             return
         if not self.years:
             self.problems.append((0, "no certification years under Certifications"))
@@ -213,7 +294,7 @@ class Checker(HTMLParser):
         if self.navs != 1:
             self.problems.append((0, f'{self.navs} <nav class="site">, want 1'))
             return
-        nav = NAV
+        nav = NAV[language(self.url) if self.host in LANGUAGES else "en"]
         got = [(text, href) for text, href, _ in self.links]
         if got != nav:
             self.problems.append((0, f"site nav {got}, want {nav}"))
@@ -233,18 +314,66 @@ class Checker(HTMLParser):
         if self.prefs != 1:
             self.problems.append((0, f'{self.prefs} <p class="prefs"> in <header class="site">, want 1'))
             return
+        lang = language(self.url) if self.host in LANGUAGES else "en"
         path = urlsplit(self.url).path
         if self.host == "homelab.nedsi.io" or path.rsplit("/", 1)[-1] == "404.html":
-            path = "/"
+            path = "/fr/" if lang == "fr" else "/"
         want = [
             {"class": cls, "href": f"/set-theme/{theme}{path}", "rel": "nofollow", "title": title, "text": name, "icon": True}
-            for cls, theme, title, name in PREFS
+            for cls, theme, title, name in PREFS[lang]
         ]
         got = [{**link, "text": link["text"].strip()} for link in self.pref_links]
         if got != want:
             self.problems.append((0, f"preferences {got}, want {want}"))
         if not self.stylesheets or self.stylesheets[-1] != "/theme.css":
             self.problems.append((0, f"stylesheets {self.stylesheets}, want /theme.css last"))
+
+    def check_language(self):
+        """Requirement 4.2, 4.4 and 4.5 on the LANGUAGES hosts."""
+        if self.host not in LANGUAGES:
+            if self.lang_items:
+                self.problems.append((0, "language toggle on a host that serves no French yet"))
+            return
+        lang = language(self.url)
+        other = "en" if lang == "fr" else "fr"
+        url = self.url
+        not_found = url.endswith("/404.html")
+        if not_found:
+            url = url[: -len("404.html")]
+        if self.html_lang != LOCALE[lang]:
+            self.problems.append((0, f"<html lang={self.html_lang}>, want {LOCALE[lang]}"))
+        target = counterpart(url)
+        home = f"https://{self.host}/" if lang == "fr" else f"https://{self.host}/fr/"
+        en, fr = (url, target) if lang == "en" else (target, url)
+        path = urlsplit(url).path
+        optional = lang == "en" and path.startswith(("/posts/", "/tags/"))
+        if not_found or self.fallback:
+            if self.hreflang:
+                self.problems.append((0, f"hreflang {self.hreflang} on a 404 or fallback page, want none"))
+        elif self.hreflang or not optional:
+            want_alt = [("en", en), ("fr", fr), ("x-default", en)]
+            if self.hreflang != want_alt:
+                self.problems.append((0, f"hreflang {self.hreflang}, want {want_alt}"))
+        targets = [home] if not_found else [target] if self.hreflang or self.fallback else [target, home]
+        current = {"tag": "span", "text": lang.upper(), "aria-current": "true"}
+        got = [{**item, "text": item["text"].strip()} for item in self.lang_items]
+        wants = []
+        for t in targets:
+            link = {"tag": "a", "text": other.upper(), "href": t, "hreflang": other, "lang": LOCALE[other]}
+            wants.append([current, link] if lang == "en" else [link, current])
+        if got not in wants:
+            self.problems.append((0, f"language toggle {got}, want {wants[0]}"))
+        if not_found:
+            return
+        canonical = self.canonical
+        if self.fallback:
+            ok = canonical == en
+        elif lang == "en" and "/posts/" in url:
+            ok = canonical == url or self.foreign(canonical or "", SITE_HOSTS)
+        else:
+            ok = canonical == url
+        if not ok:
+            self.problems.append((0, f"canonical {canonical}, want {en if self.fallback else url}"))
 
 
 # The CSS named colours (CSS Color 4), and the hex, rgb() and hsl() forms.
@@ -296,14 +425,65 @@ def check_css(files):
 
 def page_url(host, rel):
     path = "/" + rel.as_posix()
+    # A flat ConfigMap's French page (landing page, tech radar), served at /fr/.
+    if path == "/index-fr.html":
+        return f"https://{host}/fr/"
     if path.endswith("/index.html"):
         path = path[: -len("index.html")]
     return f"https://{host}{path}"
 
 
+FIELDS = ("title", "date", "summary")
+
+
+def front_matter(path):
+    """The top-level scalar fields of a page's YAML front matter."""
+    text = path.read_text(encoding="utf-8")
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    fields = {}
+    for line in (m.group(1) if m else "").splitlines():
+        kv = re.match(r"([A-Za-z_]+):\s*(.*)$", line)
+        if kv:
+            fields[kv.group(1)] = kv.group(2).strip().strip("'\"")
+    return fields
+
+
+def check_content(root):
+    """Requirement 4.10: translations and fallback stubs (design, Blog)."""
+    root = pathlib.Path(root)
+    problems = []
+    pages = sorted(root.rglob("*.md"))
+    for page in pages:
+        rel = page.relative_to(root)
+        if page.name.endswith(".fr.md"):
+            english = page.with_name(page.name[: -len(".fr.md")] + ".md")
+            if not english.exists():
+                problems.append(f"{rel}: no English original {english.name}")
+                continue
+            fr = front_matter(page)
+            if fr.get("fallback") == "true":
+                if rel.parts[0] != "posts":
+                    problems.append(f"{rel}: a fallback stub outside posts/; translate the page")
+                en = front_matter(english)
+                for field in FIELDS:
+                    if fr.get(field) != en.get(field):
+                        problems.append(f"{rel}: {field} '{fr.get(field)}', want the English '{en.get(field)}'")
+            continue
+        french = page.with_name(page.stem + ".fr.md")
+        if not french.exists():
+            hint = " (or `task site:fallback -- " + str(page.parent) + "`)" if rel.parts[0] == "posts" else ""
+            problems.append(f"{rel}: no French translation {french.name}{hint}")
+    for line in problems:
+        print(f"site_markup: {line}")
+    print(f"site_markup: {len(pages)} content files checked for translations")
+    sys.exit(1 if problems else 0)
+
+
 def main():
     if len(sys.argv) > 2 and sys.argv[1] == "--css":
         check_css(sys.argv[2:])
+    if len(sys.argv) == 3 and sys.argv[1] == "--content":
+        check_content(sys.argv[2])
     if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
     public = pathlib.Path(sys.argv[1])
@@ -319,6 +499,7 @@ def main():
         checker.close()
         checker.check_nav()
         checker.check_prefs()
+        checker.check_language()
         checker.check_text()
         for line, msg in checker.problems:
             print(f"{rel}:{line}: {msg}")

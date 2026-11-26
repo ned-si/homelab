@@ -125,6 +125,21 @@ data:
                 try_files $uri $uri/ =404;
                 add_header Cache-Control "public, max-age=300";
             }
+
+            # The French page: ConfigMap keys cannot hold a /, so it sits next to
+            # index.html (.kiro/specs/site-theme-language/design.md#nginx).
+            location = /fr/ {
+                try_files /index-fr.html =404;
+                add_header Cache-Control "public, max-age=300";
+            }
+
+            location = /fr {
+                return 301 /fr/;
+            }
+
+            location = /index-fr.html {
+                internal;
+            }
         }
 
         # The tech radar, rendered by techradar/ (spec tech-radar).
@@ -189,5 +204,5 @@ data:
     }
 kind: ConfigMap
 metadata:
-  name: website-nginx-7g4fhm5g6m
+  name: website-nginx-5999khhbgd
   namespace: website

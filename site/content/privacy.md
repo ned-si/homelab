@@ -44,6 +44,8 @@ it. It is a preference you asked for, and remembering it is all it does,
 so there is no consent banner. To refuse it, don't click the sun. To
 remove it, pick the dark theme or delete this site's cookies in your
 browser.
+The language needs no cookie: the French pages are under `/fr/` in the
+address.
 
 ## E-mail
 

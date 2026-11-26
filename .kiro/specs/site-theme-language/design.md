@@ -513,7 +513,7 @@ blog's feed in their language.
 | Home | Accueil | `https://nedsi.io/fr/` |
 | Blog | Blog | `https://blog.nedsi.io/fr/` |
 | Homelab | Homelab | `https://homelab.nedsi.io/fr/` from task 5, `https://homelab.nedsi.io/` before |
-| Tech radar | Radar techno | `https://techradar.nedsi.io/fr/` from task 6, `https://techradar.nedsi.io/` before |
+| Tech radar | Tech radar | `https://techradar.nedsi.io/fr/` from task 6, `https://techradar.nedsi.io/` before |
 | About | À propos | `https://blog.nedsi.io/fr/about/` |
 
 The order is that of `NAV` at the time, tech-radar task 3 included.

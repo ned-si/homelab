@@ -139,6 +139,25 @@ theme blog.nedsi.io
 theme nedsi.io
 theme techradar.nedsi.io
 check 404 - 8080 blog.nedsi.io /fr/does-not-exist
+# Hugo minifies the blog: no quotes around attribute values.
+body blog.nedsi.io /fr/does-not-exist '<html lang=fr-CH>'
+body blog.nedsi.io /does-not-exist '<html lang=en-GB>'
+# French under /fr/ (site-theme-language Requirement 5.1).
+for p in /fr/ /fr/about/ /fr/privacy/; do
+  check 200 - 8080 blog.nedsi.io "$p"
+  header blog.nedsi.io "$p" cache-control "public, max-age=300"
+  body blog.nedsi.io "$p" '<html lang=fr-CH>'
+done
+check 301 /fr/ 8080 blog.nedsi.io /fr
+check 200 - 8080 blog.nedsi.io /fr/index.xml
+body blog.nedsi.io /fr/index.xml '<language>fr-ch</language>'
+body blog.nedsi.io /index.xml '<language>en-gb</language>'
+check 200 - 8080 nedsi.io /fr/
+header nedsi.io /fr/ cache-control "public, max-age=300"
+body nedsi.io /fr/ 'lang="fr-CH"'
+body nedsi.io / 'lang="en-GB"'
+check 301 /fr/ 8080 nedsi.io /fr
+check 404 - 8080 nedsi.io /index-fr.html
 header blog.nedsi.io /about/ cache-control "public, max-age=300" -H 'Cookie: theme=light'
 curl -s -m 5 -H 'Host: blog.nedsi.io' http://127.0.0.1:8080/robots.txt | grep -qx 'Disallow: /set-theme/' \
   || { echo "FAIL blog.nedsi.io/robots.txt: no Disallow: /set-theme/"; rc=1; }

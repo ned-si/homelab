@@ -19,6 +19,7 @@ configMapGenerator:
   - name: website-landing
     files:
       - landing/index.html
+      - landing/index-fr.html
       - landing/layout.css
       - landing/landing.css
       - landing/theme-dark.css
@@ -186,5 +187,11 @@ patches:
               location "$site/set-theme/light//example.com/" /example.com/
               hdr "$site/" set-cookie -
             done
+            # The French landing page (site-theme-language Requirement 5.1).
+            # The blog's French pages are in the homelab-site image: their
+            # cases join this smoke after its digest bump.
+            expect 200 https://nedsi.io/fr/
+            hdr https://nedsi.io/fr/ cache-control "public, max-age=300"
+            body https://nedsi.io/fr/ '<html lang="fr-CH">'
             exit "$fail"
           - postsync-smoke

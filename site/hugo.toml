@@ -1,7 +1,11 @@
 # The blog at https://blog.nedsi.io (.kiro/specs/public-website/design.md).
 baseURL = "https://blog.nedsi.io/"
-locale = "en-GB"
 title = "nedsi"
+# English at today's URLs, French under /fr/
+# (.kiro/specs/site-theme-language/design.md#blog).
+defaultContentLanguage = "en"
+defaultContentLanguageInSubdir = false
+disableDefaultLanguageRedirect = true
 buildDrafts = false
 buildFuture = false
 buildExpired = false
@@ -11,12 +15,26 @@ disableKinds = ["section"]
 
 [params]
 author = "nedsi"
-description = "How an over-engineered homelab is built and run."
+[languages.en]
+locale = "en-GB"
+label = "English"
+weight = 1
+title = "nedsi"
+[languages.en.params]
+description = "Security, reliability, platform engineering and developer experience, with an over-engineered homelab as the playground."
+[languages.fr]
+locale = "fr-CH"
+label = "Français"
+weight = 2
+title = "nedsi"
+[languages.fr.params]
+description = "La sécurité, la fiabilité, le *platform engineering* et l’expérience développeur, avec un homelab surconçu comme terrain de jeu."
 
 [taxonomies]
 tag = "tags"
 
-# One feed, /index.xml, with the full content of every article.
+# One feed per language, /index.xml and /fr/index.xml, with the full content
+# of every article.
 [outputs]
 home = ["html", "rss"]
 taxonomy = ["html"]

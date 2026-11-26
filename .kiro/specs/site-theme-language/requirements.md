@@ -158,7 +158,7 @@ French, and a link back to English on each one.
 3. THE navigation bar of a French page SHALL link the French version of
    each host once that host serves French
    ([design, Navigation](design.md#navigation)). Its link texts are
-   Accueil, Blog, Homelab, À propos and Radar techno.
+   Accueil, Blog, Homelab, À propos and Tech radar.
 4. `<html lang>` SHALL be `en-GB` on English pages and `fr-CH` on French
    ones. A fallback page keeps `fr-CH` and marks the English text with
    `lang="en-GB"`.

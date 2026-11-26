@@ -1,0 +1,22 @@
+# Every string the layouts print (.kiro/specs/site-theme-language/design.md#blog).
+nav_home: Accueil
+nav_blog: Blog
+nav_homelab: Homelab
+nav_radar: Tech radar
+nav_about: À propos
+lang_name: FR
+light_theme: Thème clair
+light_theme_title: Thème clair, mémorisé dans un cookie
+dark_theme: Thème sombre
+dark_theme_title: Thème sombre
+articles_by: Articles de
+tags: Tags
+rss: RSS
+privacy: Confidentialité
+no_articles: Pas encore d'article.
+by: par
+first_published: Publié d'abord sur
+not_found_title: Page introuvable
+not_found_text: "Cette page n'existe pas. La <a href=\"{{ .Home }}\">page d'accueil</a> liste tous les articles."
+fallback_note: Cet article n'existe pour l'instant qu'en anglais.
+fallback_link: Le lire en anglais
